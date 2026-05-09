@@ -1,0 +1,14 @@
+{
+    "$schema": "https://apify.com/schemas/v1/actor.ide.json",
+    "actorSpecification": 1,
+    "name": "edutu-scraper1",
+    "title": "Edutu Scholarship Scraper",
+    "description": "Scrapes scholarship opportunities from multiple sources for Edutu platform",
+    "version": "0.1",
+    "meta": {
+        "templateId": "js-crawlee-playwright-chrome",
+        "generatedBy": "Claude Code with Claude Sonnet 4.5"
+    },
+    "input": "./input_schema.json",
+    "output": "./output_schema.json"
+}

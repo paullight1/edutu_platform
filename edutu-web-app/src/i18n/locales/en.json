@@ -1,0 +1,230 @@
+{
+    "common": {
+        "appName": "Edutu",
+        "tagline": "AI Opportunity Coach",
+        "loading": "Loading...",
+        "error": "Something went wrong",
+        "retry": "Try Again",
+        "cancel": "Cancel",
+        "save": "Save",
+        "delete": "Delete",
+        "edit": "Edit",
+        "close": "Close",
+        "back": "Back",
+        "next": "Next",
+        "done": "Done",
+        "search": "Search",
+        "filter": "Filter",
+        "sort": "Sort",
+        "all": "All",
+        "none": "None",
+        "yes": "Yes",
+        "no": "No",
+        "ok": "OK"
+    },
+    "auth": {
+        "signIn": "Sign In",
+        "signUp": "Sign Up",
+        "signOut": "Sign Out",
+        "signInWithGoogle": "Continue with Google",
+        "welcome": "Welcome back!",
+        "createAccount": "Create your account",
+        "forgotPassword": "Forgot password?",
+        "noAccount": "Don't have an account?",
+        "hasAccount": "Already have an account?",
+        "termsAgree": "By continuing, you agree to our",
+        "termsOfService": "Terms of Service",
+        "and": "and",
+        "privacyPolicy": "Privacy Policy"
+    },
+    "dashboard": {
+        "greeting": {
+            "morning": "Good morning",
+            "afternoon": "Good afternoon",
+            "evening": "Good evening",
+            "night": "Good night"
+        },
+        "stats": {
+            "goalsActive": "Active Goals",
+            "streak": "Day Streak",
+            "completed": "Completed",
+            "progress": "Progress"
+        },
+        "sections": {
+            "recentActivity": "Recent Activity",
+            "upcomingDeadlines": "Upcoming Deadlines",
+            "quickActions": "Quick Actions"
+        }
+    },
+    "goals": {
+        "title": "Goals",
+        "createGoal": "Create Goal",
+        "editGoal": "Edit Goal",
+        "noGoals": "No goals yet. Create your first goal!",
+        "status": {
+            "active": "Active",
+            "completed": "Completed",
+            "archived": "Archived"
+        },
+        "priority": {
+            "low": "Low Priority",
+            "medium": "Medium Priority",
+            "high": "High Priority"
+        },
+        "fields": {
+            "title": "Goal Title",
+            "description": "Description",
+            "deadline": "Deadline",
+            "category": "Category",
+            "progress": "Progress"
+        }
+    },
+    "ai": {
+        "title": "Edutu AI",
+        "subtitle": "Your personal AI coach",
+        "placeholder": "Ask me anything...",
+        "send": "Send",
+        "thinking": "Thinking...",
+        "suggestions": {
+            "title": "Try asking:",
+            "goal": "Help me set a career goal",
+            "opportunity": "Find opportunities in tech",
+            "advice": "Give me productivity tips"
+        }
+    },
+    "marketplace": {
+        "title": "Community Marketplace",
+        "subtitle": "Discover roadmaps and resources",
+        "featured": "Featured",
+        "trending": "Trending",
+        "newest": "Newest",
+        "categories": {
+            "all": "All",
+            "education": "Education",
+            "career": "Career",
+            "programming": "Programming",
+            "business": "Business",
+            "personal": "Personal Growth"
+        },
+        "roadmap": {
+            "by": "By",
+            "views": "views",
+            "downloads": "downloads",
+            "rating": "rating"
+        },
+        "actions": {
+            "download": "Download",
+            "preview": "Preview",
+            "share": "Share",
+            "publish": "Publish Your Roadmap"
+        }
+    },
+    "settings": {
+        "title": "Settings",
+        "sections": {
+            "profile": "Profile Settings",
+            "appearance": "Appearance",
+            "notifications": "Notifications",
+            "privacy": "Privacy & Security",
+            "language": "Language",
+            "about": "About"
+        },
+        "theme": {
+            "title": "Theme",
+            "light": "Light",
+            "dark": "Dark",
+            "system": "System"
+        },
+        "language": {
+            "title": "Language",
+            "select": "Select Language"
+        }
+    },
+    "notifications": {
+        "title": "Notifications",
+        "empty": "No new notifications",
+        "markRead": "Mark as read",
+        "markAllRead": "Mark all as read",
+        "settings": "Notification Settings"
+    },
+    "errors": {
+        "networkError": "Network error. Please check your connection.",
+        "serverError": "Server error. Please try again later.",
+        "notFound": "Page not found",
+        "unauthorized": "Please sign in to continue",
+        "forbidden": "You don't have permission to access this"
+    },
+    "accessibility": {
+        "skipToMain": "Skip to main content",
+        "openMenu": "Open menu",
+        "closeMenu": "Close menu",
+        "loading": "Content is loading",
+        "newNotification": "New notification"
+    },
+    "navigation": {
+        "home": "Home",
+        "explore": "Explore",
+        "ai": "Edutu AI",
+        "market": "Market",
+        "more": "More",
+        "settings": "Settings",
+        "profile": "Profile",
+        "saved": "Saved",
+        "applied": "Applied",
+        "deadlines": "Deadlines",
+        "wallet": "Wallet",
+        "creator": "Creator"
+    },
+    "saved": {
+        "title": "Saved Opportunities",
+        "all": "All",
+        "urgent": "Urgent",
+        "upcoming": "Upcoming",
+        "empty": "No saved opportunities yet. Explore and save opportunities you're interested in."
+    },
+    "applied": {
+        "title": "Applied Opportunities",
+        "all": "All",
+        "submitted": "Submitted",
+        "under_review": "Under Review",
+        "accepted": "Accepted",
+        "rejected": "Rejected",
+        "empty": "No applications yet. Start applying to opportunities to track your progress."
+    },
+    "deadlines": {
+        "title": "Upcoming Deadlines",
+        "this_week": "This Week",
+        "next_week": "Next Week",
+        "this_month": "This Month",
+        "later": "Later",
+        "empty": "No upcoming deadlines. Save opportunities to track their deadlines."
+    },
+    "wallet": {
+        "title": "Wallet",
+        "balance": "Balance",
+        "buy_credits": "Buy Credits",
+        "history": "Transaction History",
+        "empty": "No transactions yet."
+    },
+    "creator": {
+        "apply": "Apply as Creator",
+        "dashboard": "Creator Dashboard",
+        "status_pending": "Pending Review",
+        "status_approved": "Approved",
+        "status_rejected": "Rejected"
+    },
+    "roadmap": {
+        "wizard": {
+            "step_overview": "Overview",
+            "step_milestones": "Milestones",
+            "step_weekly": "Weekly Plan",
+            "step_checklist": "Checklist",
+            "step_review": "Review"
+        }
+    },
+    "profile": {
+        "completeness": {
+            "banner": "Complete your profile to unlock personalized recommendations and better opportunities."
+        }
+    }
+}

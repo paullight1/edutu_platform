@@ -1,0 +1,230 @@
+{
+    "common": {
+        "appName": "Edutu",
+        "tagline": "AI 机会教练",
+        "loading": "加载中...",
+        "error": "出现错误",
+        "retry": "重试",
+        "cancel": "取消",
+        "save": "保存",
+        "delete": "删除",
+        "edit": "编辑",
+        "close": "关闭",
+        "back": "返回",
+        "next": "下一步",
+        "done": "完成",
+        "search": "搜索",
+        "filter": "筛选",
+        "sort": "排序",
+        "all": "全部",
+        "none": "无",
+        "yes": "是",
+        "no": "否",
+        "ok": "确定"
+    },
+    "auth": {
+        "signIn": "登录",
+        "signUp": "注册",
+        "signOut": "退出",
+        "signInWithGoogle": "使用 Google 继续",
+        "welcome": "欢迎回来！",
+        "createAccount": "创建账户",
+        "forgotPassword": "忘记密码？",
+        "noAccount": "没有账户？",
+        "hasAccount": "已有账户？",
+        "termsAgree": "继续即表示您同意我们的",
+        "termsOfService": "服务条款",
+        "and": "和",
+        "privacyPolicy": "隐私政策"
+    },
+    "dashboard": {
+        "greeting": {
+            "morning": "早上好",
+            "afternoon": "下午好",
+            "evening": "晚上好",
+            "night": "晚安"
+        },
+        "stats": {
+            "goalsActive": "活跃目标",
+            "streak": "连续天数",
+            "completed": "已完成",
+            "progress": "进度"
+        },
+        "sections": {
+            "recentActivity": "最近活动",
+            "upcomingDeadlines": "即将到期",
+            "quickActions": "快捷操作"
+        }
+    },
+    "goals": {
+        "title": "目标",
+        "createGoal": "创建目标",
+        "editGoal": "编辑目标",
+        "noGoals": "还没有目标。创建你的第一个目标！",
+        "status": {
+            "active": "进行中",
+            "completed": "已完成",
+            "archived": "已归档"
+        },
+        "priority": {
+            "low": "低优先级",
+            "medium": "中优先级",
+            "high": "高优先级"
+        },
+        "fields": {
+            "title": "目标标题",
+            "description": "描述",
+            "deadline": "截止日期",
+            "category": "分类",
+            "progress": "进度"
+        }
+    },
+    "ai": {
+        "title": "Edutu AI",
+        "subtitle": "你的个人 AI 教练",
+        "placeholder": "问我任何问题...",
+        "send": "发送",
+        "thinking": "思考中...",
+        "suggestions": {
+            "title": "试着问：",
+            "goal": "帮我设定职业目标",
+            "opportunity": "寻找科技领域的机会",
+            "advice": "给我一些提高效率的建议"
+        }
+    },
+    "marketplace": {
+        "title": "社区市场",
+        "subtitle": "发现路线图和资源",
+        "featured": "精选",
+        "trending": "热门",
+        "newest": "最新",
+        "categories": {
+            "all": "全部",
+            "education": "教育",
+            "career": "职业",
+            "programming": "编程",
+            "business": "商业",
+            "personal": "个人成长"
+        },
+        "roadmap": {
+            "by": "作者",
+            "views": "浏览",
+            "downloads": "下载",
+            "rating": "评分"
+        },
+        "actions": {
+            "download": "下载",
+            "preview": "预览",
+            "share": "分享",
+            "publish": "发布你的路线图"
+        }
+    },
+    "settings": {
+        "title": "设置",
+        "sections": {
+            "profile": "个人资料设置",
+            "appearance": "外观",
+            "notifications": "通知",
+            "privacy": "隐私与安全",
+            "language": "语言",
+            "about": "关于"
+        },
+        "theme": {
+            "title": "主题",
+            "light": "浅色",
+            "dark": "深色",
+            "system": "跟随系统"
+        },
+        "language": {
+            "title": "语言",
+            "select": "选择语言"
+        }
+    },
+    "notifications": {
+        "title": "通知",
+        "empty": "没有新通知",
+        "markRead": "标记为已读",
+        "markAllRead": "全部标记为已读",
+        "settings": "通知设置"
+    },
+    "errors": {
+        "networkError": "网络错误，请检查你的连接。",
+        "serverError": "服务器错误，请稍后再试。",
+        "notFound": "页面未找到",
+        "unauthorized": "请登录以继续",
+        "forbidden": "你没有权限访问"
+    },
+    "accessibility": {
+        "skipToMain": "跳至主要内容",
+        "openMenu": "打开菜单",
+        "closeMenu": "关闭菜单",
+        "loading": "内容正在加载",
+        "newNotification": "新通知"
+    },
+    "navigation": {
+        "home": "首页",
+        "explore": "探索",
+        "ai": "Edutu AI",
+        "market": "市场",
+        "more": "更多",
+        "settings": "设置",
+        "profile": "个人资料",
+        "saved": "已保存",
+        "applied": "已申请",
+        "deadlines": "截止日期",
+        "wallet": "钱包",
+        "creator": "创作者"
+    },
+    "saved": {
+        "title": "已保存的机会",
+        "all": "全部",
+        "urgent": "紧急",
+        "upcoming": "即将到期",
+        "empty": "还没有已保存的机会。探索并保存你感兴趣的机会。"
+    },
+    "applied": {
+        "title": "已申请的机会",
+        "all": "全部",
+        "submitted": "已提交",
+        "under_review": "审核中",
+        "accepted": "已接受",
+        "rejected": "已拒绝",
+        "empty": "还没有申请。开始申请机会来跟踪你的进度。"
+    },
+    "deadlines": {
+        "title": "即将到期的截止日期",
+        "this_week": "本周",
+        "next_week": "下周",
+        "this_month": "本月",
+        "later": "稍后",
+        "empty": "没有即将到来的截止日期。保存机会来跟踪它们的截止日期。"
+    },
+    "wallet": {
+        "title": "钱包",
+        "balance": "余额",
+        "buy_credits": "购买积分",
+        "history": "交易记录",
+        "empty": "还没有交易记录。"
+    },
+    "creator": {
+        "apply": "申请成为创作者",
+        "dashboard": "创作者面板",
+        "status_pending": "审核中",
+        "status_approved": "已通过",
+        "status_rejected": "已拒绝"
+    },
+    "roadmap": {
+        "wizard": {
+            "step_overview": "概览",
+            "step_milestones": "里程碑",
+            "step_weekly": "每周计划",
+            "step_checklist": "检查清单",
+            "step_review": "审核"
+        }
+    },
+    "profile": {
+        "completeness": {
+            "banner": "完善你的个人资料以解锁个性化推荐和更多机会。"
+        }
+    }
+}

@@ -1,0 +1,230 @@
+{
+    "common": {
+        "appName": "Edutu",
+        "tagline": "مدرب الفرص بالذكاء الاصطناعي",
+        "loading": "جاري التحميل...",
+        "error": "حدث خطأ ما",
+        "retry": "إعادة المحاولة",
+        "cancel": "إلغاء",
+        "save": "حفظ",
+        "delete": "حذف",
+        "edit": "تعديل",
+        "close": "إغلاق",
+        "back": "رجوع",
+        "next": "التالي",
+        "done": "تم",
+        "search": "بحث",
+        "filter": "تصفية",
+        "sort": "ترتيب",
+        "all": "الكل",
+        "none": "لا شيء",
+        "yes": "نعم",
+        "no": "لا",
+        "ok": "موافق"
+    },
+    "auth": {
+        "signIn": "تسجيل الدخول",
+        "signUp": "إنشاء حساب",
+        "signOut": "تسجيل الخروج",
+        "signInWithGoogle": "المتابعة مع Google",
+        "welcome": "مرحباً بعودتك!",
+        "createAccount": "إنشاء حسابك",
+        "forgotPassword": "نسيت كلمة المرور؟",
+        "noAccount": "ليس لديك حساب؟",
+        "hasAccount": "لديك حساب بالفعل؟",
+        "termsAgree": "بالمتابعة، أنت توافق على",
+        "termsOfService": "شروط الخدمة",
+        "and": "و",
+        "privacyPolicy": "سياسة الخصوصية"
+    },
+    "dashboard": {
+        "greeting": {
+            "morning": "صباح الخير",
+            "afternoon": "مساء الخير",
+            "evening": "مساء الخير",
+            "night": "تصبح على خير"
+        },
+        "stats": {
+            "goalsActive": "الأهداف النشطة",
+            "streak": "أيام متتالية",
+            "completed": "مكتمل",
+            "progress": "التقدم"
+        },
+        "sections": {
+            "recentActivity": "النشاط الأخير",
+            "upcomingDeadlines": "المواعيد القادمة",
+            "quickActions": "إجراءات سريعة"
+        }
+    },
+    "goals": {
+        "title": "الأهداف",
+        "createGoal": "إنشاء هدف",
+        "editGoal": "تعديل الهدف",
+        "noGoals": "لا توجد أهداف بعد. أنشئ هدفك الأول!",
+        "status": {
+            "active": "نشط",
+            "completed": "مكتمل",
+            "archived": "مؤرشف"
+        },
+        "priority": {
+            "low": "أولوية منخفضة",
+            "medium": "أولوية متوسطة",
+            "high": "أولوية عالية"
+        },
+        "fields": {
+            "title": "عنوان الهدف",
+            "description": "الوصف",
+            "deadline": "الموعد النهائي",
+            "category": "الفئة",
+            "progress": "التقدم"
+        }
+    },
+    "ai": {
+        "title": "Edutu AI",
+        "subtitle": "مدربك الشخصي بالذكاء الاصطناعي",
+        "placeholder": "اسألني أي شيء...",
+        "send": "إرسال",
+        "thinking": "أفكر...",
+        "suggestions": {
+            "title": "جرب أن تسأل:",
+            "goal": "ساعدني في وضع هدف مهني",
+            "opportunity": "ابحث عن فرص في التكنولوجيا",
+            "advice": "أعطني نصائح للإنتاجية"
+        }
+    },
+    "marketplace": {
+        "title": "سوق المجتمع",
+        "subtitle": "اكتشف المسارات والموارد",
+        "featured": "مميز",
+        "trending": "رائج",
+        "newest": "الأحدث",
+        "categories": {
+            "all": "الكل",
+            "education": "التعليم",
+            "career": "المهنة",
+            "programming": "البرمجة",
+            "business": "الأعمال",
+            "personal": "التطوير الشخصي"
+        },
+        "roadmap": {
+            "by": "بواسطة",
+            "views": "مشاهدات",
+            "downloads": "تحميلات",
+            "rating": "تقييم"
+        },
+        "actions": {
+            "download": "تحميل",
+            "preview": "معاينة",
+            "share": "مشاركة",
+            "publish": "انشر مسارك"
+        }
+    },
+    "settings": {
+        "title": "الإعدادات",
+        "sections": {
+            "profile": "إعدادات الملف الشخصي",
+            "appearance": "المظهر",
+            "notifications": "الإشعارات",
+            "privacy": "الخصوصية والأمان",
+            "language": "اللغة",
+            "about": "حول"
+        },
+        "theme": {
+            "title": "المظهر",
+            "light": "فاتح",
+            "dark": "داكن",
+            "system": "النظام"
+        },
+        "language": {
+            "title": "اللغة",
+            "select": "اختر اللغة"
+        }
+    },
+    "notifications": {
+        "title": "الإشعارات",
+        "empty": "لا توجد إشعارات جديدة",
+        "markRead": "وضع علامة كمقروء",
+        "markAllRead": "وضع علامة على الكل كمقروء",
+        "settings": "إعدادات الإشعارات"
+    },
+    "errors": {
+        "networkError": "خطأ في الشبكة. تحقق من اتصالك.",
+        "serverError": "خطأ في الخادم. حاول مرة أخرى لاحقاً.",
+        "notFound": "الصفحة غير موجودة",
+        "unauthorized": "الرجاء تسجيل الدخول للمتابعة",
+        "forbidden": "ليس لديك إذن للوصول"
+    },
+    "accessibility": {
+        "skipToMain": "انتقل إلى المحتوى الرئيسي",
+        "openMenu": "فتح القائمة",
+        "closeMenu": "إغلاق القائمة",
+        "loading": "جاري تحميل المحتوى",
+        "newNotification": "إشعار جديد"
+    },
+    "navigation": {
+        "home": "الرئيسية",
+        "explore": "استكشاف",
+        "ai": "Edutu AI",
+        "market": "السوق",
+        "more": "المزيد",
+        "settings": "الإعدادات",
+        "profile": "الملف الشخصي",
+        "saved": "المحفوظات",
+        "applied": "المقدم",
+        "deadlines": "المواعيد",
+        "wallet": "المحفظة",
+        "creator": "المنشئ"
+    },
+    "saved": {
+        "title": "الفرص المحفوظة",
+        "all": "الكل",
+        "urgent": "عاجل",
+        "upcoming": "القادم",
+        "empty": "لا توجد فرص محفوظة بعد. استكشف واحفظ الفرص التي تهمك."
+    },
+    "applied": {
+        "title": "الفرص المقدمة",
+        "all": "الكل",
+        "submitted": "مقدم",
+        "under_review": "قيد المراجعة",
+        "accepted": "مقبول",
+        "rejected": "مرفوض",
+        "empty": "لا توجد طلبات بعد. ابدأ بالتقدم للفرص لتتبع تقدمك."
+    },
+    "deadlines": {
+        "title": "المواعيد القادمة",
+        "this_week": "هذا الأسبوع",
+        "next_week": "الأسبوع القادم",
+        "this_month": "هذا الشهر",
+        "later": "لاحقاً",
+        "empty": "لا توجد مواعيد قادمة. احفظ الفرص لتتبع مواعيدها."
+    },
+    "wallet": {
+        "title": "المحفظة",
+        "balance": "الرصيد",
+        "buy_credits": "شراء أرصدة",
+        "history": "سجل المعاملات",
+        "empty": "لا توجد معاملات بعد."
+    },
+    "creator": {
+        "apply": "التقدم كمنشئ",
+        "dashboard": "لوحة تحكم المنشئ",
+        "status_pending": "قيد المراجعة",
+        "status_approved": "موافق عليه",
+        "status_rejected": "مرفوض"
+    },
+    "roadmap": {
+        "wizard": {
+            "step_overview": "نظرة عامة",
+            "step_milestones": "المراحل الرئيسية",
+            "step_weekly": "الخطة الأسبوعية",
+            "step_checklist": "قائمة المراجعة",
+            "step_review": "المراجعة"
+        }
+    },
+    "profile": {
+        "completeness": {
+            "banner": "أكمل ملفك الشخصي لفتح توصيات مخصصة وفرص أفضل."
+        }
+    }
+}

@@ -1,0 +1,37 @@
+{
+    "name": "Edutu - AI Opportunity Coach",
+    "short_name": "Edutu",
+    "description": "Your AI-powered life operating system for discovering opportunities and achieving goals",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#0c0f1a",
+    "theme_color": "#6366f1",
+    "orientation": "portrait-primary",
+    "scope": "/",
+    "lang": "en",
+    "dir": "ltr",
+    "categories": ["education", "productivity", "lifestyle"],
+    "icons": [
+        {
+            "src": "/icons/icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "Dashboard",
+            "short_name": "Home",
+            "description": "View your dashboard",
+            "url": "/app/home"
+        },
+        {
+            "name": "AI Coach",
+            "short_name": "AI",
+            "description": "Chat with Edutu AI",
+            "url": "/app/chat"
+        }
+    ],
+    "prefer_related_applications": false
+}
