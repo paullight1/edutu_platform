@@ -1,0 +1,356 @@
+[
+  {
+    "id": "1",
+    "title": "Mastercard Foundation Scholars Program",
+    "organization": "Mastercard Foundation",
+    "category": "Scholarships",
+    "deadline": "March 15, 2024",
+    "location": "Various Universities",
+    "description": "A comprehensive scholarship program for academically talented yet economically disadvantaged young people from Africa.",
+    "requirements": [
+      "African citizenship",
+      "Demonstrated academic excellence",
+      "Financial need",
+      "Leadership potential",
+      "Commitment to giving back to Africa"
+    ],
+    "benefits": [
+      "Full tuition coverage",
+      "Living expenses",
+      "Books and supplies",
+      "Leadership development",
+      "Mentorship program"
+    ],
+    "applicationProcess": [
+      "Complete online application",
+      "Submit academic transcripts",
+      "Provide financial documentation",
+      "Write personal essays",
+      "Attend interview if selected"
+    ],
+    "image": "https://images.pexels.com/photos/5212345/pexels-photo-5212345.jpeg",
+    "match": 95,
+    "difficulty": "Hard",
+    "applicants": "10,000+",
+    "successRate": "5%",
+    "applyUrl": "https://mastercardfdn.org/scholars",
+    "lastUpdated": "2025-10-01T08:00:00Z"
+  },
+  {
+    "id": "2",
+    "title": "One Young World Summit 2024",
+    "organization": "One Young World",
+    "category": "Leadership",
+    "deadline": "October 14, 2024",
+    "location": "Montreal, Canada",
+    "description": "The premier global forum for young leaders, bringing together the brightest young minds from around the world.",
+    "requirements": [
+      "Age 18-30",
+      "Demonstrated leadership experience",
+      "Commitment to positive change",
+      "English proficiency",
+      "Available for full summit duration"
+    ],
+    "benefits": [
+      "Summit attendance",
+      "Networking opportunities",
+      "Leadership workshops",
+      "Mentorship access",
+      "Global recognition"
+    ],
+    "applicationProcess": [
+      "Submit online application",
+      "Provide leadership examples",
+      "Record video pitch",
+      "Get endorsement letter",
+      "Attend selection interview"
+    ],
+    "image": "https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg",
+    "match": 88,
+    "difficulty": "Medium",
+    "applicants": "5,000+",
+    "successRate": "15%",
+    "applyUrl": "https://www.oneyoungworld.com/summit-2024",
+    "lastUpdated": "2025-09-18T12:30:00Z"
+  },
+  {
+    "id": "3",
+    "title": "Google Developer Student Clubs Lead",
+    "organization": "Google",
+    "category": "Tech",
+    "deadline": "May 15, 2024",
+    "location": "Your University",
+    "description": "Lead a community of student developers at your university and help them learn and grow.",
+    "requirements": [
+      "Currently enrolled student",
+      "Programming experience",
+      "Leadership skills",
+      "Community building passion",
+      "Available for 1-year commitment"
+    ],
+    "benefits": [
+      "Google swag and resources",
+      "Training and workshops",
+      "Networking with Googlers",
+      "Certificate of completion",
+      "Resume enhancement"
+    ],
+    "applicationProcess": [
+      "Complete application form",
+      "Submit project portfolio",
+      "Record introduction video",
+      "Provide university endorsement",
+      "Participate in interview"
+    ],
+    "image": "https://images.pexels.com/photos/3861969/pexels-photo-3861969.jpeg",
+    "match": 82,
+    "difficulty": "Medium",
+    "applicants": "2,000+",
+    "successRate": "25%"
+  },
+  {
+    "id": "4",
+    "title": "Tony Elumelu Foundation Entrepreneurship Programme",
+    "organization": "Tony Elumelu Foundation",
+    "category": "Entrepreneurship",
+    "deadline": "January 1, 2024",
+    "location": "Africa",
+    "description": "10-year, $100 million commitment to identify, train, mentor and fund 10,000 African entrepreneurs.",
+    "requirements": [
+      "African citizen or resident",
+      "Business idea or early-stage business",
+      "Age 18 and above",
+      "Commitment to Africa",
+      "Scalable business model"
+    ],
+    "benefits": [
+      "$5,000 seed funding",
+      "12-week training program",
+      "Mentorship support",
+      "Networking opportunities",
+      "Alumni network access"
+    ],
+    "applicationProcess": [
+      "Submit business plan",
+      "Complete online application",
+      "Participate in virtual training",
+      "Present to selection panel",
+      "Receive funding decision"
+    ],
+    "image": "https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg",
+    "match": 90,
+    "difficulty": "Medium",
+    "applicants": "300,000+",
+    "successRate": "3%"
+  },
+  {
+    "id": "5",
+    "title": "YALI Regional Leadership Center",
+    "organization": "U.S. State Department",
+    "category": "Leadership",
+    "deadline": "February 28, 2024",
+    "location": "Various African Cities",
+    "description": "Intensive leadership training for young African leaders in business, civic leadership, and public management.",
+    "requirements": [
+      "African citizen",
+      "Age 25-35",
+      "Leadership experience",
+      "English proficiency",
+      "Commitment to Africa"
+    ],
+    "benefits": [
+      "Leadership training",
+      "Networking opportunities",
+      "Certificate program",
+      "Alumni network",
+      "Follow-up support"
+    ],
+    "applicationProcess": [
+      "Online application",
+      "Submit references",
+      "Attend panel interview",
+      "Complete leadership assessment",
+      "Join alumni activities"
+    ],
+    "image": "https://images.pexels.com/photos/3184432/pexels-photo-3184432.jpeg",
+    "match": 85,
+    "difficulty": "Medium",
+    "applicants": "25,000+",
+    "successRate": "12%"
+  },
+  {
+    "id": "6",
+    "title": "UNESCO Young Professionals Programme",
+    "organization": "UNESCO",
+    "category": "Global Programs",
+    "deadline": "November 30, 2024",
+    "location": "Paris, France",
+    "description": "Two-year development programme for highly qualified young professionals from UNESCO Member States.",
+    "requirements": [
+      "Citizenship of UNESCO Member State",
+      "Age 32 or younger",
+      "Advanced university degree",
+      "English or French proficiency",
+      "Relevant professional experience"
+    ],
+    "benefits": [
+      "Fixed-term UNESCO contract",
+      "International exposure",
+      "Mentoring and training",
+      "Travel allowance",
+      "Competitive salary"
+    ],
+    "applicationProcess": [
+      "Submit application via National Commission",
+      "Participate in UNESCO assessment",
+      "Complete competency interview",
+      "Provide references",
+      "Receive final offer"
+    ],
+    "image": "https://images.pexels.com/photos/3184418/pexels-photo-3184418.jpeg",
+    "match": 78,
+    "difficulty": "Hard",
+    "applicants": "12,000+",
+    "successRate": "4%"
+  },
+  {
+    "id": "7",
+    "title": "African Women in Tech Startup Grant",
+    "organization": "SheTech Africa",
+    "category": "Entrepreneurship",
+    "deadline": "April 10, 2024",
+    "location": "Remote",
+    "description": "Seed grants for early-stage, women-led technology startups tackling African challenges.",
+    "requirements": [
+      "Female founder or co-founder",
+      "Tech-driven solution",
+      "Operating in Africa",
+      "Scalable business model",
+      "Impact focus"
+    ],
+    "benefits": [
+      "$15,000 seed grant",
+      "Mentorship program",
+      "Investor demo day",
+      "Product support credits",
+      "Community membership"
+    ],
+    "applicationProcess": [
+      "Submit pitch deck",
+      "Record founder video",
+      "Provide traction metrics",
+      "Participate in bootcamp",
+      "Pitch to investment committee"
+    ],
+    "image": "https://images.pexels.com/photos/1181354/pexels-photo-1181354.jpeg",
+    "match": 87,
+    "difficulty": "Medium",
+    "applicants": "4,500+",
+    "successRate": "10%"
+  },
+  {
+    "id": "8",
+    "title": "Global Health Corps Fellowship",
+    "organization": "Global Health Corps",
+    "category": "Global Programs",
+    "deadline": "December 9, 2024",
+    "location": "Multiple Countries",
+    "description": "Paid fellowship placing young professionals with high-impact health organizations in Africa and the United States.",
+    "requirements": [
+      "Age 21-30",
+      "Bachelor's degree",
+      "Proficiency in English",
+      "Two years professional experience",
+      "Commitment to health equity"
+    ],
+    "benefits": [
+      "Paid fellowship",
+      "Housing and travel",
+      "Leadership training",
+      "Professional mentorship",
+      "Alumni network"
+    ],
+    "applicationProcess": [
+      "Complete online application",
+      "Submit resume and essays",
+      "Interview with placement organization",
+      "Attend final selection",
+      "Match with fellowship role"
+    ],
+    "image": "https://images.pexels.com/photos/3184431/pexels-photo-3184431.jpeg",
+    "match": 80,
+    "difficulty": "Medium",
+    "applicants": "6,000+",
+    "successRate": "8%"
+  },
+  {
+    "id": "9",
+    "title": "African Union Internship Program",
+    "organization": "African Union Commission",
+    "category": "Leadership",
+    "deadline": "Rolling",
+    "location": "Addis Ababa, Ethiopia",
+    "description": "Hands-on internship experience at the African Union headquarters across priority departments.",
+    "requirements": [
+      "Citizens of African Union Member States",
+      "Final year students or recent graduates",
+      "Proficiency in at least one AU working language",
+      "Good communication skills",
+      "Commitment to African integration"
+    ],
+    "benefits": [
+      "Professional experience",
+      "Mentorship from AU staff",
+      "Networking opportunities",
+      "Stipend support",
+      "Certificate of completion"
+    ],
+    "applicationProcess": [
+      "Submit online profile",
+      "Provide motivation letter",
+      "Upload academic records",
+      "Complete competency interview",
+      "Receive placement confirmation"
+    ],
+    "image": "https://images.pexels.com/photos/3184407/pexels-photo-3184407.jpeg",
+    "match": 76,
+    "difficulty": "Easy",
+    "applicants": "15,000+",
+    "successRate": "20%"
+  },
+  {
+    "id": "10",
+    "title": "Future Africa Research Grant",
+    "organization": "Future Africa Initiative",
+    "category": "Scholarships",
+    "deadline": "June 30, 2024",
+    "location": "Africa",
+    "description": "Research grants supporting innovative solutions to Africa's grand challenges across science and technology.",
+    "requirements": [
+      "Resident of an African country",
+      "Research proposal",
+      "University affiliation",
+      "Track record of excellence",
+      "Commitment to knowledge sharing"
+    ],
+    "benefits": [
+      "Research funding",
+      "Access to labs and facilities",
+      "Mentorship from experts",
+      "Publication support",
+      "Showcase at annual summit"
+    ],
+    "applicationProcess": [
+      "Submit proposal",
+      "Provide budget plan",
+      "Secure institutional endorsement",
+      "Participate in review panel",
+      "Sign grant agreement"
+    ],
+    "image": "https://images.pexels.com/photos/3184632/pexels-photo-3184632.jpeg",
+    "match": 83,
+    "difficulty": "Hard",
+    "applicants": "3,000+",
+    "successRate": "7%"
+  }
+]

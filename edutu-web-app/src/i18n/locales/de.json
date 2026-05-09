@@ -1,0 +1,230 @@
+{
+    "common": {
+        "appName": "Edutu",
+        "tagline": "KI-Chancencoach",
+        "loading": "Laden...",
+        "error": "Etwas ist schiefgelaufen",
+        "retry": "Erneut versuchen",
+        "cancel": "Abbrechen",
+        "save": "Speichern",
+        "delete": "Löschen",
+        "edit": "Bearbeiten",
+        "close": "Schließen",
+        "back": "Zurück",
+        "next": "Weiter",
+        "done": "Fertig",
+        "search": "Suchen",
+        "filter": "Filtern",
+        "sort": "Sortieren",
+        "all": "Alle",
+        "none": "Keine",
+        "yes": "Ja",
+        "no": "Nein",
+        "ok": "OK"
+    },
+    "auth": {
+        "signIn": "Anmelden",
+        "signUp": "Registrieren",
+        "signOut": "Abmelden",
+        "signInWithGoogle": "Mit Google fortfahren",
+        "welcome": "Willkommen zurück!",
+        "createAccount": "Erstelle dein Konto",
+        "forgotPassword": "Passwort vergessen?",
+        "noAccount": "Noch kein Konto?",
+        "hasAccount": "Bereits ein Konto?",
+        "termsAgree": "Durch Fortfahren stimmst du unseren",
+        "termsOfService": "Nutzungsbedingungen",
+        "and": "und",
+        "privacyPolicy": "Datenschutzrichtlinie"
+    },
+    "dashboard": {
+        "greeting": {
+            "morning": "Guten Morgen",
+            "afternoon": "Guten Tag",
+            "evening": "Guten Abend",
+            "night": "Gute Nacht"
+        },
+        "stats": {
+            "goalsActive": "Aktive Ziele",
+            "streak": "Tage-Serie",
+            "completed": "Abgeschlossen",
+            "progress": "Fortschritt"
+        },
+        "sections": {
+            "recentActivity": "Letzte Aktivität",
+            "upcomingDeadlines": "Kommende Fristen",
+            "quickActions": "Schnellaktionen"
+        }
+    },
+    "goals": {
+        "title": "Ziele",
+        "createGoal": "Ziel erstellen",
+        "editGoal": "Ziel bearbeiten",
+        "noGoals": "Noch keine Ziele. Erstelle dein erstes Ziel!",
+        "status": {
+            "active": "Aktiv",
+            "completed": "Abgeschlossen",
+            "archived": "Archiviert"
+        },
+        "priority": {
+            "low": "Niedrige Priorität",
+            "medium": "Mittlere Priorität",
+            "high": "Hohe Priorität"
+        },
+        "fields": {
+            "title": "Zieltitel",
+            "description": "Beschreibung",
+            "deadline": "Frist",
+            "category": "Kategorie",
+            "progress": "Fortschritt"
+        }
+    },
+    "ai": {
+        "title": "Edutu KI",
+        "subtitle": "Dein persönlicher KI-Coach",
+        "placeholder": "Frag mich alles...",
+        "send": "Senden",
+        "thinking": "Denke nach...",
+        "suggestions": {
+            "title": "Versuche zu fragen:",
+            "goal": "Hilf mir, ein Karriereziel zu setzen",
+            "opportunity": "Finde Möglichkeiten in der Technik",
+            "advice": "Gib mir Produktivitätstipps"
+        }
+    },
+    "marketplace": {
+        "title": "Community-Marktplatz",
+        "subtitle": "Entdecke Roadmaps und Ressourcen",
+        "featured": "Empfohlen",
+        "trending": "Trending",
+        "newest": "Neueste",
+        "categories": {
+            "all": "Alle",
+            "education": "Bildung",
+            "career": "Karriere",
+            "programming": "Programmierung",
+            "business": "Business",
+            "personal": "Persönliches Wachstum"
+        },
+        "roadmap": {
+            "by": "Von",
+            "views": "Aufrufe",
+            "downloads": "Downloads",
+            "rating": "Bewertung"
+        },
+        "actions": {
+            "download": "Herunterladen",
+            "preview": "Vorschau",
+            "share": "Teilen",
+            "publish": "Veröffentliche deine Roadmap"
+        }
+    },
+    "settings": {
+        "title": "Einstellungen",
+        "sections": {
+            "profile": "Profileinstellungen",
+            "appearance": "Erscheinungsbild",
+            "notifications": "Benachrichtigungen",
+            "privacy": "Datenschutz & Sicherheit",
+            "language": "Sprache",
+            "about": "Über"
+        },
+        "theme": {
+            "title": "Theme",
+            "light": "Hell",
+            "dark": "Dunkel",
+            "system": "System"
+        },
+        "language": {
+            "title": "Sprache",
+            "select": "Sprache auswählen"
+        }
+    },
+    "notifications": {
+        "title": "Benachrichtigungen",
+        "empty": "Keine neuen Benachrichtigungen",
+        "markRead": "Als gelesen markieren",
+        "markAllRead": "Alle als gelesen markieren",
+        "settings": "Benachrichtigungseinstellungen"
+    },
+    "errors": {
+        "networkError": "Netzwerkfehler. Überprüfe deine Verbindung.",
+        "serverError": "Serverfehler. Versuche es später erneut.",
+        "notFound": "Seite nicht gefunden",
+        "unauthorized": "Bitte melde dich an, um fortzufahren",
+        "forbidden": "Du hast keine Berechtigung für diesen Zugriff"
+    },
+    "accessibility": {
+        "skipToMain": "Zum Hauptinhalt springen",
+        "openMenu": "Menü öffnen",
+        "closeMenu": "Menü schließen",
+        "loading": "Inhalt wird geladen",
+        "newNotification": "Neue Benachrichtigung"
+    },
+    "navigation": {
+        "home": "Startseite",
+        "explore": "Entdecken",
+        "ai": "Edutu KI",
+        "market": "Markt",
+        "more": "Mehr",
+        "settings": "Einstellungen",
+        "profile": "Profil",
+        "saved": "Gespeichert",
+        "applied": "Beworben",
+        "deadlines": "Fristen",
+        "wallet": "Wallet",
+        "creator": "Ersteller"
+    },
+    "saved": {
+        "title": "Gespeicherte Möglichkeiten",
+        "all": "Alle",
+        "urgent": "Dringend",
+        "upcoming": "Bevorstehend",
+        "empty": "Noch keine gespeicherten Möglichkeiten. Entdecke und speichere interessante Möglichkeiten."
+    },
+    "applied": {
+        "title": "Beworbene Möglichkeiten",
+        "all": "Alle",
+        "submitted": "Eingereicht",
+        "under_review": "In Prüfung",
+        "accepted": "Angenommen",
+        "rejected": "Abgelehnt",
+        "empty": "Noch keine Bewerbungen. Beginne mit Bewerbungen, um deinen Fortschritt zu verfolgen."
+    },
+    "deadlines": {
+        "title": "Kommende Fristen",
+        "this_week": "Diese Woche",
+        "next_week": "Nächste Woche",
+        "this_month": "Dieser Monat",
+        "later": "Später",
+        "empty": "Keine bevorstehenden Fristen. Speichere Möglichkeiten, um ihre Fristen zu verfolgen."
+    },
+    "wallet": {
+        "title": "Wallet",
+        "balance": "Guthaben",
+        "buy_credits": "Credits Kaufen",
+        "history": "Transaktionsverlauf",
+        "empty": "Noch keine Transaktionen."
+    },
+    "creator": {
+        "apply": "Als Ersteller bewerben",
+        "dashboard": "Ersteller-Dashboard",
+        "status_pending": "In Prüfung",
+        "status_approved": "Genehmigt",
+        "status_rejected": "Abgelehnt"
+    },
+    "roadmap": {
+        "wizard": {
+            "step_overview": "Übersicht",
+            "step_milestones": "Meilensteine",
+            "step_weekly": "Wochenplan",
+            "step_checklist": "Checkliste",
+            "step_review": "Überprüfung"
+        }
+    },
+    "profile": {
+        "completeness": {
+            "banner": "Vervollständige dein Profil, um personalisierte Empfehlungen und bessere Möglichkeiten freizuschalten."
+        }
+    }
+}

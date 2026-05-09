@@ -1,0 +1,230 @@
+{
+    "common": {
+        "appName": "Edutu",
+        "tagline": "Coach IA de Oportunidades",
+        "loading": "Cargando...",
+        "error": "Algo salió mal",
+        "retry": "Intentar de nuevo",
+        "cancel": "Cancelar",
+        "save": "Guardar",
+        "delete": "Eliminar",
+        "edit": "Editar",
+        "close": "Cerrar",
+        "back": "Atrás",
+        "next": "Siguiente",
+        "done": "Hecho",
+        "search": "Buscar",
+        "filter": "Filtrar",
+        "sort": "Ordenar",
+        "all": "Todos",
+        "none": "Ninguno",
+        "yes": "Sí",
+        "no": "No",
+        "ok": "OK"
+    },
+    "auth": {
+        "signIn": "Iniciar Sesión",
+        "signUp": "Registrarse",
+        "signOut": "Cerrar Sesión",
+        "signInWithGoogle": "Continuar con Google",
+        "welcome": "¡Bienvenido de nuevo!",
+        "createAccount": "Crea tu cuenta",
+        "forgotPassword": "¿Olvidaste tu contraseña?",
+        "noAccount": "¿No tienes una cuenta?",
+        "hasAccount": "¿Ya tienes una cuenta?",
+        "termsAgree": "Al continuar, aceptas nuestros",
+        "termsOfService": "Términos de Servicio",
+        "and": "y",
+        "privacyPolicy": "Política de Privacidad"
+    },
+    "dashboard": {
+        "greeting": {
+            "morning": "Buenos días",
+            "afternoon": "Buenas tardes",
+            "evening": "Buenas tardes",
+            "night": "Buenas noches"
+        },
+        "stats": {
+            "goalsActive": "Metas Activas",
+            "streak": "Días Seguidos",
+            "completed": "Completadas",
+            "progress": "Progreso"
+        },
+        "sections": {
+            "recentActivity": "Actividad Reciente",
+            "upcomingDeadlines": "Próximos Vencimientos",
+            "quickActions": "Acciones Rápidas"
+        }
+    },
+    "goals": {
+        "title": "Metas",
+        "createGoal": "Crear Meta",
+        "editGoal": "Editar Meta",
+        "noGoals": "Aún no tienes metas. ¡Crea tu primera meta!",
+        "status": {
+            "active": "Activa",
+            "completed": "Completada",
+            "archived": "Archivada"
+        },
+        "priority": {
+            "low": "Prioridad Baja",
+            "medium": "Prioridad Media",
+            "high": "Prioridad Alta"
+        },
+        "fields": {
+            "title": "Título de la Meta",
+            "description": "Descripción",
+            "deadline": "Fecha Límite",
+            "category": "Categoría",
+            "progress": "Progreso"
+        }
+    },
+    "ai": {
+        "title": "Edutu IA",
+        "subtitle": "Tu coach personal de IA",
+        "placeholder": "Pregúntame lo que quieras...",
+        "send": "Enviar",
+        "thinking": "Pensando...",
+        "suggestions": {
+            "title": "Intenta preguntar:",
+            "goal": "Ayúdame a establecer una meta profesional",
+            "opportunity": "Encuentra oportunidades en tecnología",
+            "advice": "Dame consejos de productividad"
+        }
+    },
+    "marketplace": {
+        "title": "Mercado Comunitario",
+        "subtitle": "Descubre rutas y recursos",
+        "featured": "Destacados",
+        "trending": "Tendencias",
+        "newest": "Más Recientes",
+        "categories": {
+            "all": "Todos",
+            "education": "Educación",
+            "career": "Carrera",
+            "programming": "Programación",
+            "business": "Negocios",
+            "personal": "Crecimiento Personal"
+        },
+        "roadmap": {
+            "by": "Por",
+            "views": "vistas",
+            "downloads": "descargas",
+            "rating": "calificación"
+        },
+        "actions": {
+            "download": "Descargar",
+            "preview": "Vista Previa",
+            "share": "Compartir",
+            "publish": "Publica Tu Ruta"
+        }
+    },
+    "settings": {
+        "title": "Configuración",
+        "sections": {
+            "profile": "Configuración del Perfil",
+            "appearance": "Apariencia",
+            "notifications": "Notificaciones",
+            "privacy": "Privacidad y Seguridad",
+            "language": "Idioma",
+            "about": "Acerca de"
+        },
+        "theme": {
+            "title": "Tema",
+            "light": "Claro",
+            "dark": "Oscuro",
+            "system": "Sistema"
+        },
+        "language": {
+            "title": "Idioma",
+            "select": "Seleccionar Idioma"
+        }
+    },
+    "notifications": {
+        "title": "Notificaciones",
+        "empty": "No hay notificaciones nuevas",
+        "markRead": "Marcar como leída",
+        "markAllRead": "Marcar todas como leídas",
+        "settings": "Configuración de Notificaciones"
+    },
+    "errors": {
+        "networkError": "Error de red. Verifica tu conexión.",
+        "serverError": "Error del servidor. Intenta más tarde.",
+        "notFound": "Página no encontrada",
+        "unauthorized": "Inicia sesión para continuar",
+        "forbidden": "No tienes permiso para acceder"
+    },
+    "accessibility": {
+        "skipToMain": "Saltar al contenido principal",
+        "openMenu": "Abrir menú",
+        "closeMenu": "Cerrar menú",
+        "loading": "El contenido se está cargando",
+        "newNotification": "Nueva notificación"
+    },
+    "navigation": {
+        "home": "Inicio",
+        "explore": "Explorar",
+        "ai": "Edutu IA",
+        "market": "Mercado",
+        "more": "Más",
+        "settings": "Configuración",
+        "profile": "Perfil",
+        "saved": "Guardados",
+        "applied": "Aplicados",
+        "deadlines": "Vencimientos",
+        "wallet": "Billetera",
+        "creator": "Creador"
+    },
+    "saved": {
+        "title": "Oportunidades Guardadas",
+        "all": "Todos",
+        "urgent": "Urgentes",
+        "upcoming": "Próximos",
+        "empty": "Aún no hay oportunidades guardadas. Explora y guarda las que te interesen."
+    },
+    "applied": {
+        "title": "Oportunidades Aplicadas",
+        "all": "Todos",
+        "submitted": "Enviados",
+        "under_review": "En Revisión",
+        "accepted": "Aceptados",
+        "rejected": "Rechazados",
+        "empty": "Aún no hay aplicaciones. Comienza a aplicar para seguir tu progreso."
+    },
+    "deadlines": {
+        "title": "Próximos Vencimientos",
+        "this_week": "Esta Semana",
+        "next_week": "Próxima Semana",
+        "this_month": "Este Mes",
+        "later": "Más Tarde",
+        "empty": "No hay vencimientos próximos. Guarda oportunidades para seguir sus fechas."
+    },
+    "wallet": {
+        "title": "Billetera",
+        "balance": "Saldo",
+        "buy_credits": "Comprar Créditos",
+        "history": "Historial de Transacciones",
+        "empty": "Aún no hay transacciones."
+    },
+    "creator": {
+        "apply": "Aplicar como Creador",
+        "dashboard": "Panel de Creador",
+        "status_pending": "En Revisión",
+        "status_approved": "Aprobado",
+        "status_rejected": "Rechazado"
+    },
+    "roadmap": {
+        "wizard": {
+            "step_overview": "Resumen",
+            "step_milestones": "Hitos",
+            "step_weekly": "Plan Semanal",
+            "step_checklist": "Lista de Verificación",
+            "step_review": "Revisión"
+        }
+    },
+    "profile": {
+        "completeness": {
+            "banner": "Completa tu perfil para desbloquear recomendaciones personalizadas y mejores oportunidades."
+        }
+    }
+}

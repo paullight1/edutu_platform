@@ -1,0 +1,230 @@
+{
+    "common": {
+        "appName": "Edutu",
+        "tagline": "Coach IA d'Opportunités",
+        "loading": "Chargement...",
+        "error": "Une erreur s'est produite",
+        "retry": "Réessayer",
+        "cancel": "Annuler",
+        "save": "Enregistrer",
+        "delete": "Supprimer",
+        "edit": "Modifier",
+        "close": "Fermer",
+        "back": "Retour",
+        "next": "Suivant",
+        "done": "Terminé",
+        "search": "Rechercher",
+        "filter": "Filtrer",
+        "sort": "Trier",
+        "all": "Tout",
+        "none": "Aucun",
+        "yes": "Oui",
+        "no": "Non",
+        "ok": "OK"
+    },
+    "auth": {
+        "signIn": "Se Connecter",
+        "signUp": "S'inscrire",
+        "signOut": "Se Déconnecter",
+        "signInWithGoogle": "Continuer avec Google",
+        "welcome": "Bon retour !",
+        "createAccount": "Créez votre compte",
+        "forgotPassword": "Mot de passe oublié ?",
+        "noAccount": "Vous n'avez pas de compte ?",
+        "hasAccount": "Vous avez déjà un compte ?",
+        "termsAgree": "En continuant, vous acceptez nos",
+        "termsOfService": "Conditions d'Utilisation",
+        "and": "et",
+        "privacyPolicy": "Politique de Confidentialité"
+    },
+    "dashboard": {
+        "greeting": {
+            "morning": "Bonjour",
+            "afternoon": "Bon après-midi",
+            "evening": "Bonsoir",
+            "night": "Bonne nuit"
+        },
+        "stats": {
+            "goalsActive": "Objectifs Actifs",
+            "streak": "Jours Consécutifs",
+            "completed": "Terminés",
+            "progress": "Progression"
+        },
+        "sections": {
+            "recentActivity": "Activité Récente",
+            "upcomingDeadlines": "Échéances à Venir",
+            "quickActions": "Actions Rapides"
+        }
+    },
+    "goals": {
+        "title": "Objectifs",
+        "createGoal": "Créer un Objectif",
+        "editGoal": "Modifier l'Objectif",
+        "noGoals": "Pas encore d'objectifs. Créez votre premier objectif !",
+        "status": {
+            "active": "Actif",
+            "completed": "Terminé",
+            "archived": "Archivé"
+        },
+        "priority": {
+            "low": "Priorité Basse",
+            "medium": "Priorité Moyenne",
+            "high": "Priorité Haute"
+        },
+        "fields": {
+            "title": "Titre de l'Objectif",
+            "description": "Description",
+            "deadline": "Date Limite",
+            "category": "Catégorie",
+            "progress": "Progression"
+        }
+    },
+    "ai": {
+        "title": "Edutu IA",
+        "subtitle": "Votre coach IA personnel",
+        "placeholder": "Demandez-moi n'importe quoi...",
+        "send": "Envoyer",
+        "thinking": "Réflexion...",
+        "suggestions": {
+            "title": "Essayez de demander :",
+            "goal": "Aidez-moi à définir un objectif de carrière",
+            "opportunity": "Trouver des opportunités en technologie",
+            "advice": "Donnez-moi des conseils de productivité"
+        }
+    },
+    "marketplace": {
+        "title": "Marché Communautaire",
+        "subtitle": "Découvrez des parcours et ressources",
+        "featured": "En Vedette",
+        "trending": "Tendances",
+        "newest": "Plus Récents",
+        "categories": {
+            "all": "Tout",
+            "education": "Éducation",
+            "career": "Carrière",
+            "programming": "Programmation",
+            "business": "Business",
+            "personal": "Développement Personnel"
+        },
+        "roadmap": {
+            "by": "Par",
+            "views": "vues",
+            "downloads": "téléchargements",
+            "rating": "note"
+        },
+        "actions": {
+            "download": "Télécharger",
+            "preview": "Aperçu",
+            "share": "Partager",
+            "publish": "Publiez Votre Parcours"
+        }
+    },
+    "settings": {
+        "title": "Paramètres",
+        "sections": {
+            "profile": "Paramètres du Profil",
+            "appearance": "Apparence",
+            "notifications": "Notifications",
+            "privacy": "Confidentialité et Sécurité",
+            "language": "Langue",
+            "about": "À Propos"
+        },
+        "theme": {
+            "title": "Thème",
+            "light": "Clair",
+            "dark": "Sombre",
+            "system": "Système"
+        },
+        "language": {
+            "title": "Langue",
+            "select": "Sélectionner la Langue"
+        }
+    },
+    "notifications": {
+        "title": "Notifications",
+        "empty": "Aucune nouvelle notification",
+        "markRead": "Marquer comme lu",
+        "markAllRead": "Tout marquer comme lu",
+        "settings": "Paramètres de Notification"
+    },
+    "errors": {
+        "networkError": "Erreur réseau. Vérifiez votre connexion.",
+        "serverError": "Erreur serveur. Réessayez plus tard.",
+        "notFound": "Page non trouvée",
+        "unauthorized": "Connectez-vous pour continuer",
+        "forbidden": "Vous n'avez pas la permission d'accéder"
+    },
+    "accessibility": {
+        "skipToMain": "Aller au contenu principal",
+        "openMenu": "Ouvrir le menu",
+        "closeMenu": "Fermer le menu",
+        "loading": "Le contenu est en cours de chargement",
+        "newNotification": "Nouvelle notification"
+    },
+    "navigation": {
+        "home": "Accueil",
+        "explore": "Explorer",
+        "ai": "Edutu IA",
+        "market": "Marché",
+        "more": "Plus",
+        "settings": "Paramètres",
+        "profile": "Profil",
+        "saved": "Sauvegardés",
+        "applied": "Postulés",
+        "deadlines": "Échéances",
+        "wallet": "Portefeuille",
+        "creator": "Créateur"
+    },
+    "saved": {
+        "title": "Opportunités Sauvegardées",
+        "all": "Tout",
+        "urgent": "Urgentes",
+        "upcoming": "À Venir",
+        "empty": "Aucune opportunité sauvegardée. Explorez et sauvegardez celles qui vous intéressent."
+    },
+    "applied": {
+        "title": "Opportunités Postulées",
+        "all": "Tout",
+        "submitted": "Envoyées",
+        "under_review": "En Cours d'Examen",
+        "accepted": "Acceptées",
+        "rejected": "Rejetées",
+        "empty": "Aucune candidature. Commencez à postuler pour suivre vos progrès."
+    },
+    "deadlines": {
+        "title": "Échéances à Venir",
+        "this_week": "Cette Semaine",
+        "next_week": "Semaine Prochaine",
+        "this_month": "Ce Mois",
+        "later": "Plus Tard",
+        "empty": "Aucune échéance à venir. Sauvegardez des opportunités pour suivre leurs dates."
+    },
+    "wallet": {
+        "title": "Portefeuille",
+        "balance": "Solde",
+        "buy_credits": "Acheter des Crédits",
+        "history": "Historique des Transactions",
+        "empty": "Aucune transaction pour le moment."
+    },
+    "creator": {
+        "apply": "Postuler en tant que Créateur",
+        "dashboard": "Tableau de bord Créateur",
+        "status_pending": "En Cours d'Examen",
+        "status_approved": "Approuvé",
+        "status_rejected": "Rejeté"
+    },
+    "roadmap": {
+        "wizard": {
+            "step_overview": "Aperçu",
+            "step_milestones": "Jalons",
+            "step_weekly": "Plan Hebdomadaire",
+            "step_checklist": "Liste de Vérification",
+            "step_review": "Révision"
+        }
+    },
+    "profile": {
+        "completeness": {
+            "banner": "Complétez votre profil pour débloquer des recommandations personnalisées et de meilleures opportunités."
+        }
+    }
+}
