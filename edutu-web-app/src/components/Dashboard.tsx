@@ -541,7 +541,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
             </Button>
           </div>
 
-              <div className="grid gap-3">
+              <div className="space-y-2">
                 {opportunitiesLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <div key={i} className="h-20 bg-white/50 dark:bg-white/5 rounded-2xl animate-pulse" />
@@ -552,9 +552,9 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
                     <div
                       key={idx}
                       onClick={() => onOpportunityClick(opportunity)}
-                      className="flex items-center gap-4 p-3 rounded-2xl hover:bg-white dark:hover:bg-white/5 border border-transparent hover:border-slate-200 dark:hover:border-white/10 transition-all cursor-pointer group"
+                      className="flex items-center gap-3 sm:gap-4 p-3 rounded-2xl hover:bg-white dark:hover:bg-white/5 border border-transparent hover:border-slate-200 dark:hover:border-white/10 transition-all cursor-pointer group overflow-hidden"
                     >
-                      <div className="w-14 h-14 shrink-0 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800">
+                      <div className="w-12 h-12 sm:w-14 sm:h-14 shrink-0 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800">
                         <ImageWithFallback
                           src={opportunity.image}
                           alt=""
@@ -563,12 +563,12 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
                         />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
+                        <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                           <span className="text-[10px] font-bold text-primary tracking-wider">{opportunity.category || 'Direct'}</span>
-                          <span className="text-slate-300 dark:text-slate-700">�</span>
-                          <span className="text-[10px] font-bold text-slate-400 tracking-wider">{opportunity.organization || 'Global'}</span>
+                          <span className="text-slate-300 dark:text-slate-700">•</span>
+                          <span className="text-[10px] font-bold text-slate-400 tracking-wider truncate">{opportunity.organization || 'Global'}</span>
                         </div>
-                        <h3 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors truncate">
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-2 sm:line-clamp-1">
                           {opportunity.title}
                         </h3>
                       </div>
@@ -582,19 +582,19 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
             </section>
 
             {/* Goals Tracker */}
-            <section className="overflow-x-hidden">
+            <section className="overflow-hidden">
               <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 shrink-0">
                     <Target size={22} />
                   </div>
-                  <h2 className="heading-md">Your Active Goals</h2>
+                  <h2 className="heading-md truncate">Your Active Goals</h2>
                 </div>
                 <Button
                   variant="secondary"
                   size="sm"
                   onClick={onViewAllGoals}
-                  className="rounded-xl border-slate-200 dark:border-white/10"
+                  className="rounded-xl border-slate-200 dark:border-white/10 shrink-0"
                 >
                   Manage
                 </Button>
@@ -609,12 +609,12 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
                       className="glass-card group cursor-pointer hover:border-primary/30 transition-all p-4 sm:p-6"
                     >
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div className="flex-1 space-y-3">
+                        <div className="flex-1 space-y-3 min-w-0">
                           <div className="flex items-center gap-3">
                             <div className="h-9 w-9 rounded-xl bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary/10 transition-colors shrink-0">
                               <Target size={18} />
                             </div>
-                            <h4 className="text-base font-display font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">
+                            <h4 className="text-base font-display font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-2">
                               {goal.title}
                             </h4>
                           </div>
@@ -634,7 +634,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
                         </div>
 
                         <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 border-t sm:border-t-0 border-subtle pt-3 sm:pt-0">
-                          <div className="text-right">
+                          <div className="text-right hidden sm:block">
                             <p className="text-[10px] font-bold text-slate-400 tracking-widest">Priority</p>
                             <p className="text-xs font-bold text-slate-600 dark:text-slate-300">High Impact</p>
                           </div>
@@ -647,8 +647,8 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
                   ))
                 ) : (
                   <div className="glass-card p-8 sm:p-12 text-center border-dashed">
-                    <p className="text-slate-400 mb-6 font-medium">No active trajectories found. Start your journey today.</p>
-                    <Button onClick={onAddGoal} variant="primary" className="rounded-2xl px-8 py-3.5 h-auto font-bold shadow-soft">Create First Goal</Button>
+                    <p className="text-slate-400 mb-6 font-medium text-sm">No active trajectories found. Start your journey today.</p>
+                    <Button onClick={onAddGoal} variant="primary" className="rounded-2xl px-6 py-3.5 h-auto font-bold shadow-soft text-sm">Create First Goal</Button>
                   </div>
                 )}
               </div>
