@@ -23,7 +23,7 @@ function normaliseOpportunity(row: any): Opportunity {
     location: row.location || (row.is_remote ? 'Remote' : ''),
     description: row.description || row.summary || 'No description provided.',
     deadline: row.close_date || null,
-    image: row.metadata?.image || null,
+    image: row.image_url || row.cover_image || row.metadata?.image || null,
     requirements: row.metadata?.requirements || [],
     benefits: row.metadata?.benefits || [],
     applicationProcess: row.metadata?.application_process || [],
