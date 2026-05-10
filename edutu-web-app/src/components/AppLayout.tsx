@@ -5,7 +5,7 @@ import Navigation from './Navigation';
 // Screens where the navigation bar should be hidden
 const HIDDEN_NAV_ROUTES = [
     '/app/opportunities',   // Explore
-    '/app/chat',            // Edutu AI
+    '/app/chat',            // AI Chat
     '/app/community',       // Market
     '/app/settings',        // More (Settings)
     '/app/profile-edit',
