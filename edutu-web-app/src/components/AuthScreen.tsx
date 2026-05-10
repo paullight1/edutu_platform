@@ -155,31 +155,29 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
     rightContent?: React.ReactNode;
     autoFocus?: boolean;
   }) => (
-    <div>
-      <div className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all border ${
-        error
-          ? isDarkMode
-            ? 'border-red-500/50 bg-red-500/5'
-            : 'border-red-300 bg-red-50/50'
-          : isDarkMode
-            ? 'border-white/10 bg-white/5 focus-within:border-brand-500/50 focus-within:bg-white/[0.07]'
-            : 'border-slate-200 bg-slate-50 focus-within:border-brand-500 focus-within:bg-white focus-within:shadow-sm'
-      }`}>
-        <span className={`shrink-0 ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
-          {icon}
-        </span>
-        <input
-          type={type}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          autoFocus={autoFocus}
-          className={`flex-1 text-[15px] outline-none bg-transparent ${
-            isDarkMode ? 'text-white placeholder:text-slate-600' : 'text-slate-900 placeholder:text-slate-400'
-          }`}
-        />
-        {rightContent}
-      </div>
+    <div
+      className="flex items-center gap-3 px-4 py-3 transition-all border-b-2"
+      style={{
+        borderBottomColor: error ? '#ef4444' : isDarkMode ? '#363636' : '#d8d8d8',
+        borderTopColor: 'transparent',
+        borderLeftColor: 'transparent',
+        borderRightColor: 'transparent',
+      }}
+    >
+      <span className={`shrink-0 ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+        {icon}
+      </span>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoFocus={autoFocus}
+        className={`flex-1 text-[15px] outline-none bg-transparent ${
+          isDarkMode ? 'text-white placeholder:text-slate-600' : 'text-slate-900 placeholder:text-slate-400'
+        }`}
+      />
+      {rightContent}
     </div>
   );
 
