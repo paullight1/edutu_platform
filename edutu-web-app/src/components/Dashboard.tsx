@@ -489,45 +489,29 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
           </section>
         )}
 
-        <section>
-          <div className="flex items-center gap-3 mb-4">
-            <div className={`p-2 rounded-xl ${isDarkMode ? 'bg-violet-500/10 text-violet-400' : 'bg-violet-50 text-violet-600'}`}>
-              <Sparkles size={18} />
-            </div>
-            <h3 className="text-sm font-black tracking-wider">Quick Access</h3>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <section className="lg:hidden">
+          <div className="grid grid-cols-4 gap-2">
             {[
-              { id: 'saved', label: 'Saved', icon: <Bookmark size={20} />, color: 'amber' },
-              { id: 'applied', label: 'Applied', icon: <Send size={20} />, color: 'emerald' },
-              { id: 'deadlines', label: 'Deadlines', icon: <Clock size={20} />, color: 'rose' },
-              { id: 'wallet', label: 'Wallet', icon: <Wallet size={20} />, color: 'brand' }
-            ].map((item, index) => (
+              { id: 'saved', label: 'Saved', icon: <Bookmark size={18} />, color: 'amber' },
+              { id: 'applied', label: 'Applied', icon: <Send size={18} />, color: 'emerald' },
+              { id: 'deadlines', label: 'Deadlines', icon: <Clock size={18} />, color: 'rose' },
+              { id: 'wallet', label: 'Wallet', icon: <Wallet size={18} />, color: 'brand' }
+            ].map((item) => (
               <motion.button
                 key={item.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                whileHover={{ y: -2 }}
-                whileTap={{ scale: 0.97 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => onNavigate?.(item.id)}
                 type="button"
-                className={`premium-card p-4 flex flex-col items-center gap-2 text-center transition-all ${
-                  isDarkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-white hover:bg-slate-50'
-                }`}
+                className="flex flex-col items-center gap-1.5 py-2"
               >
-                <div className={`p-3 rounded-xl ${
-                  item.color === 'amber'
-                    ? isDarkMode ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-50 text-amber-600'
-                    : item.color === 'emerald'
-                    ? isDarkMode ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600'
-                    : item.color === 'rose'
-                    ? isDarkMode ? 'bg-rose-500/10 text-rose-400' : 'bg-rose-50 text-rose-600'
-                    : isDarkMode ? 'bg-brand-500/10 text-brand-400' : 'bg-brand-50 text-brand-600'
-                }`}>
+                <span className={
+                  item.color === 'amber' ? 'text-amber-500' :
+                  item.color === 'emerald' ? 'text-emerald-500' :
+                  item.color === 'rose' ? 'text-rose-500' : 'text-indigo-500'
+                }>
                   {item.icon}
-                </div>
-                <span className="text-xs font-bold tracking-wider text-slate-900 dark:text-white">
+                </span>
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
                   {item.label}
                 </span>
               </motion.button>
@@ -539,99 +523,23 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
         <div className="grid lg:grid-cols-12 gap-8 pb-8">
           <div className="lg:col-span-8 space-y-10">
             {/* Featured Opportunities - Swipeable Carousel */}
-            <section className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400">
-                  <Sparkles size={22} />
-                </div>
-                <h2 className="heading-md">Featured Opportunities</h2>
-              </div>
-
-              <div className="flex gap-4 overflow-x-auto pb-4 -mx-2 px-2 scrollbar-none snap-x snap-mandatory">
-                {opportunitiesLoading ? (
-                  // Loading skeleton
-                  Array.from({ length: 3 }).map((_, index) => (
-                    <div key={index} className="flex-shrink-0 w-[300px] snap-start">
-                      <SkeletonCard className="h-[380px]" />
-                    </div>
-                  ))
-                ) : featuredOpportunities.length === 0 ? (
-                  // Empty state
-                  <div className="w-full py-8">
-                    <EmptyOpportunities onExplore={onViewAllOpportunities} />
-                  </div>
-                ) : (
-                  featuredOpportunities.map((opportunity: any, idx) => (
-                    <div
-                      key={`featured-${idx}`}
-                      onClick={() => onOpportunityClick(opportunity)}
-                      className="flex-shrink-0 w-[300px] snap-start"
-                    >
-                      <div className="premium-card p-0 flex flex-col group cursor-pointer overflow-hidden h-[380px]">
-                        {/* Clean Media Section */}
-                        <div className="h-40 overflow-hidden relative bg-slate-100 dark:bg-slate-800">
-                          <ImageWithFallback
-                            src={opportunity.image}
-                            alt=""
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                            fallbackClassName="w-full h-full"
-                          />
-                          <div className="absolute top-3 left-3 bg-white/90 dark:bg-gray-900/90 px-2 py-1 rounded-lg text-[10px] font-bold text-primary border border-subtle">
-                            FEATURED
-                          </div>
-                        </div>
-
-                        {/* Clean Content Section */}
-                        <div className="p-5 flex-1 flex flex-col">
-                          <p className="text-[10px] font-bold text-slate-400 tracking-widest mb-1.5">
-                            {opportunity.organization || 'Verified Partner'}
-                          </p>
-                          <h3 className="text-lg font-display font-bold leading-tight group-hover:text-primary transition-colors line-clamp-2 mb-4">
-                            {opportunity.title}
-                          </h3>
-
-                          <div className="mt-auto space-y-4">
-                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500">
-                              <span className="flex items-center gap-1">
-                                <Users size={12} />
-                                852 Enrolled
-                              </span>
-                              <span className="text-emerald-500 flex items-center gap-1">
-                                <TrendingUp size={12} />
-                                High Success
-                              </span>
-                            </div>
-
-                            <Button variant="secondary" size="sm" className="w-full rounded-xl py-2.5 h-auto text-xs font-bold border-subtle">
-                              View Plan
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-
-            {/* Recommended Row */}
             <section>
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                    <Briefcase size={22} />
-                  </div>
-                  <h2 className="heading-md">Recommended for You</h2>
-                </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={onViewAllOpportunities}
-                  className="rounded-xl border-slate-200 dark:border-white/10"
-                >
-                  Explore All
-                </Button>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <Briefcase size={22} />
               </div>
+              <h2 className="heading-md">Recommended for You</h2>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={onViewAllOpportunities}
+              className="rounded-xl border-slate-200 dark:border-white/10"
+            >
+              Explore All
+            </Button>
+          </div>
 
               <div className="grid gap-3">
                 {opportunitiesLoading ? (
@@ -673,74 +581,8 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
               </div>
             </section>
 
-            <section>
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400">
-                    <Trophy size={22} />
-                  </div>
-                  <h2 className="heading-md">Recommended for You</h2>
-                </div>
-                <button
-                  onClick={onViewAllOpportunities}
-                  className={`text-[10px] font-bold tracking-[1.5px] transition-colors ${isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`}
-                >
-                  View More
-                </button>
-              </div>
-
-              {opportunitiesLoading ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="h-28 rounded-xl animate-pulse" style={{ backgroundColor: isDarkMode ? '#1a1a1a' : '#f0f0f0' }} />
-                  ))}
-                </div>
-              ) : opportunityFeed && opportunityFeed.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {opportunityFeed.slice(0, 4).map((item: any, idx: number) => {
-                    const opportunity = 'opportunity' in item ? item.opportunity : item;
-                    return (
-                      <div
-                        key={`rec-${idx}`}
-                        onClick={() => onOpportunityClick(opportunity)}
-                        className={`p-4 rounded-xl cursor-pointer transition-all group ${isDarkMode ? 'bg-gray-900 hover:bg-gray-800' : 'bg-white hover:bg-slate-50'} border ${isDarkMode ? 'border-white/5' : 'border-slate-200'}`}
-                      >
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-[9px] font-bold text-brand-500 tracking-[1.5px]">{opportunity.category || 'General'}</span>
-                          {opportunity.difficulty && (
-                            <>
-                              <span className="text-slate-300 dark:text-slate-600">�</span>
-                              <span className={`text-[9px] font-bold tracking-[1.5px] ${opportunity.difficulty === 'Easy' ? 'text-emerald-500' : opportunity.difficulty === 'Hard' ? 'text-rose-500' : 'text-amber-500'}`}>{opportunity.difficulty}</span>
-                            </>
-                          )}
-                        </div>
-                        <h3 className="text-[13px] font-bold text-slate-900 dark:text-white group-hover:text-brand-500 transition-colors truncate mb-3">
-                          {opportunity.title}
-                        </h3>
-                        <div className="flex items-center justify-between text-[10px] font-semibold tracking-[1.5px]" style={{ color: isDarkMode ? '#5a5a5a' : '#ababab' }}>
-                          <span className="flex items-center gap-1">
-                            <MapPin size={10} />
-                            {opportunity.location || 'Remote'}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Calendar size={10} />
-                            {opportunity.deadline ? new Date(opportunity.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Ongoing'}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className={`p-8 text-center rounded-xl border ${isDarkMode ? 'bg-gray-900 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
-                  <Globe size={24} className={`mx-auto mb-3 ${isDarkMode ? 'text-slate-600' : 'text-slate-400'}`} />
-                  <p className={`text-xs font-medium ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>No recommendations yet</p>
-                </div>
-              )}
-            </section>
-
             {/* Goals Tracker */}
-            <section>
+            <section className="overflow-x-hidden">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
@@ -764,15 +606,15 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
                     <div
                       key={goal.id}
                       onClick={() => onGoalClick(goal.id)}
-                      className="glass-card group cursor-pointer hover:border-primary/30 transition-all p-6"
+                      className="glass-card group cursor-pointer hover:border-primary/30 transition-all p-4 sm:p-6"
                     >
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <div className="flex-1 space-y-4">
-                          <div className="flex items-center gap-4">
-                            <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary/10 transition-colors">
-                              <Target size={20} />
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex-1 space-y-3">
+                          <div className="flex items-center gap-3">
+                            <div className="h-9 w-9 rounded-xl bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary/10 transition-colors shrink-0">
+                              <Target size={18} />
                             </div>
-                            <h4 className="text-lg font-display font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">
+                            <h4 className="text-base font-display font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">
                               {goal.title}
                             </h4>
                           </div>
@@ -791,20 +633,20 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-6 shrink-0">
-                          <div className="text-right hidden md:block border-l border-subtle pl-6">
+                        <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 border-t sm:border-t-0 border-subtle pt-3 sm:pt-0">
+                          <div className="text-right">
                             <p className="text-[10px] font-bold text-slate-400 tracking-widest">Priority</p>
                             <p className="text-xs font-bold text-slate-600 dark:text-slate-300">High Impact</p>
                           </div>
-                          <div className="h-10 w-10 rounded-full border border-subtle flex items-center justify-center group-hover:border-primary group-hover:bg-primary/5 transition-all">
-                            <ChevronRight className="text-slate-300 group-hover:text-primary transition-colors" />
+                          <div className="h-9 w-9 rounded-full border border-subtle flex items-center justify-center group-hover:border-primary group-hover:bg-primary/5 transition-all">
+                            <ChevronRight className="text-slate-300 group-hover:text-primary transition-colors" size={18} />
                           </div>
                         </div>
                       </div>
                     </div>
                   ))
                 ) : (
-                  <div className="glass-card p-12 text-center border-dashed">
+                  <div className="glass-card p-8 sm:p-12 text-center border-dashed">
                     <p className="text-slate-400 mb-6 font-medium">No active trajectories found. Start your journey today.</p>
                     <Button onClick={onAddGoal} variant="primary" className="rounded-2xl px-8 py-3.5 h-auto font-bold shadow-soft">Create First Goal</Button>
                   </div>
@@ -814,83 +656,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
           </div>
 
           <aside className="lg:col-span-4 space-y-6">
-            {/* Quick Actions */}
-            <section className="p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Sparkles size={18} className="text-brand-500" />
-                <h2 className="text-base font-bold">{t('dashboard.sections.quickActions')}</h2>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => onNavigate && onNavigate('saved')}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all hover:scale-[1.02] ${
-                    isDarkMode
-                      ? 'border-white/5 bg-white/5 hover:bg-white/10'
-                      : 'border-slate-200 bg-white hover:bg-slate-50 shadow-sm'
-                  }`}
-                >
-                  <Bookmark size={22} className="text-emerald-500" />
-                  <span className="text-xs font-bold">{t('navigation.saved')}</span>
-                </button>
-
-                <button
-                  onClick={() => onNavigate && onNavigate('deadlines')}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all hover:scale-[1.02] ${
-                    isDarkMode
-                      ? 'border-white/5 bg-white/5 hover:bg-white/10'
-                      : 'border-slate-200 bg-white hover:bg-slate-50 shadow-sm'
-                  }`}
-                >
-                  <Clock size={22} className="text-amber-500" />
-                  <span className="text-xs font-bold">{t('navigation.deadlines')}</span>
-                </button>
-
-                <button
-                  onClick={() => onNavigate && onNavigate('wallet')}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all hover:scale-[1.02] relative ${
-                    isDarkMode
-                      ? 'border-white/5 bg-white/5 hover:bg-white/10'
-                      : 'border-slate-200 bg-white hover:bg-slate-50 shadow-sm'
-                  }`}
-                >
-                  <Wallet size={22} className="text-violet-500" />
-                  <span className="text-xs font-bold">{t('navigation.wallet')}</span>
-                  {userCredits > 0 && userCredits < 10 && (
-                    <span className="absolute -top-1 -right-1 h-4 w-4 bg-rose-500 rounded-full flex items-center justify-center">
-                      <span className="text-[8px] font-bold text-white">!</span>
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  onClick={() => onNavigate && onNavigate('creator-apply')}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all hover:scale-[1.02] ${
-                    isDarkMode
-                      ? 'border-white/5 bg-white/5 hover:bg-white/10'
-                      : 'border-slate-200 bg-white hover:bg-slate-50 shadow-sm'
-                  }`}
-                >
-                  <Sparkles size={22} className="text-brand-500" />
-                  <span className="text-xs font-bold">{t('navigation.creator')}</span>
-                </button>
-              </div>
-
-              {userCredits > 0 && userCredits < 10 && (
-                <div className={`mt-3 p-3 rounded-lg border ${
-                  isDarkMode
-                    ? 'bg-rose-500/10 border-rose-500/20'
-                    : 'bg-rose-50 border-rose-200'
-                }`}>
-                  <p className={`text-xs font-medium ${
-                    isDarkMode ? 'text-rose-300' : 'text-rose-600'
-                  }`}>
-                    Low balance warning: {userCredits} credits remaining
-                  </p>
-                </div>
-              )}
-            </section>
-
             {/* Recent */}
             <section className="p-5 relative overflow-hidden group">
               <div className="flex items-center justify-between mb-6 relative">
