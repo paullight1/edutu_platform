@@ -19,8 +19,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isLoaded, isSignedIn, getToken } = useClerkAuth();
   const { user: clerkUser } = useUser();
-  const clerkSignIn = useSignIn();
-  const clerkSignUp = useSignUp();
+  const { signIn: clerkSignIn, isLoaded: isSignInLoaded } = useSignIn();
+  const { signUp: clerkSignUp, isLoaded: isSignUpLoaded } = useSignUp();
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -63,7 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [isLoaded, isSignedIn, clerkUser]);
 
   const signInWithGoogle = useCallback(async () => {
-    if (!clerkSignIn.isLoaded) throw new Error('Clerk not ready');
+    if (!clerkSignIn) throw new Error('Clerk not ready');
     await clerkSignIn.authenticateWithRedirect({
       strategy: 'oauth_google',
       redirectUrl: '/auth/callback',
@@ -72,7 +72,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [clerkSignIn]);
 
   const signInWithApple = useCallback(async () => {
-    if (!clerkSignIn.isLoaded) throw new Error('Clerk not ready');
+    if (!clerkSignIn) throw new Error('Clerk not ready');
     await clerkSignIn.authenticateWithRedirect({
       strategy: 'oauth_apple',
       redirectUrl: '/auth/callback',
@@ -81,7 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [clerkSignIn]);
 
   const signInWithEmail = useCallback(async (email: string, password: string) => {
-    if (!clerkSignIn.isLoaded) throw new Error('Clerk not ready');
+    if (!clerkSignIn) throw new Error('Clerk not ready');
     const result = await clerkSignIn.create({
       identifier: email,
       password,
@@ -92,7 +92,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [clerkSignIn]);
 
   const signUpWithEmail = useCallback(async (email: string, password: string, firstName: string, lastName: string) => {
-    if (!clerkSignUp.isLoaded) throw new Error('Clerk not ready');
+    if (!clerkSignUp) throw new Error('Clerk not ready');
     const result = await clerkSignUp.create({
       emailAddress: email,
       password,
