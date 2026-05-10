@@ -93,25 +93,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
   // Real-time user statistics
   const userStats = useUserStats(user?.id);
 
-  const getRandomQuote = () => {
-    const quotes = [
-      "Success is the sum of small efforts repeated day in and day out.",
-      "The only way to do great work is to love what you do.",
-      "Don't watch the clock; do what it does. Keep going.",
-      "Believe you can and you're halfway there.",
-      "The future belongs to those who believe in the beauty of their dreams."
-    ];
-    return quotes[Math.floor(Math.random() * quotes.length)];
-  };
-
-  const getGreetingMessage = (name: string) => {
-    const hour = new Date().getHours();
-    if (hour < 12) return `${t('dashboard.greeting.morning')}, ${name}`;
-    if (hour < 17) return `${t('dashboard.greeting.afternoon')}, ${name}`;
-    if (hour < 21) return `${t('dashboard.greeting.evening')}, ${name}`;
-    return `${t('dashboard.greeting.night')}, ${name}`;
-  };
-
   const opportunities = useOpportunities();
   const personalized = usePersonalizedOpportunities();
   const {
@@ -194,7 +175,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
   const menuItems = [
     { id: 'all-goals', label: 'All Goals', icon: <CheckCircle2 size={18} /> },
     { id: 'opportunities', label: 'Opportunities', icon: <Briefcase size={18} /> },
-    { id: 'chat', label: 'AI Coach', icon: <MessageCircle size={18} /> },
     { id: 'settings', label: 'Settings', icon: <Settings size={18} /> }
   ];
 
@@ -360,59 +340,35 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
         )}
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
-        {/* Simplified Hero Greeting */}
-        <section className="mb-2 md:mb-8">
-          <div className="max-w-xl">
-            <h1 className="text-3xl md:text-5xl font-display font-bold tracking-tight text-slate-900 dark:text-white mb-1 md:mb-2">
-              {getGreetingMessage(user?.name?.split(' ')[0] ?? 'Explorer')}
-            </h1>
-            <p className="text-base md:text-lg text-slate-500 dark:text-slate-400 font-medium italic line-clamp-2 md:line-clamp-none">
-              "{getRandomQuote()}"
-            </p>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
+        {/* Ad Banner Placeholder */}
+        <motion.section
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`rounded-2xl p-5 sm:p-6 border ${isDarkMode ? 'bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border-indigo-500/20' : 'bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-200'}`}
+        >
+          <div className="flex items-start gap-4">
+            <div className={`p-3 rounded-xl shrink-0 ${isDarkMode ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-100 text-indigo-600'}`}>
+              <Sparkles size={20} />
+            </div>
+            <div className="flex-1">
+              <h3 className={`text-sm font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                Coming Soon to Play Store & App Store
+              </h3>
+              <p className={`text-xs leading-relaxed ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                Edutu is launching on mobile soon. Stay tuned for the best opportunity coaching experience on Android and iOS.
+              </p>
+              <div className="flex gap-2 mt-3">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-green-500/10 text-green-500">
+                  Android
+                </span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-500/10 text-slate-500">
+                  iOS
+                </span>
+              </div>
+            </div>
           </div>
-        </section>
-
-        {/* Colorful Analytics Grid */}
-        <section className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-          {userStats.isLoading ? (
-            // Loading skeleton
-            <>
-              {Array.from({ length: 4 }).map((_, index) => (
-                <SkeletonStatsCard key={index} className="animate-pulse" />
-              ))}
-            </>
-          ) : (
-            stats.map((stat, index) => {
-              const cardStyles = [
-                'stat-card-blue',
-                'stat-card-purple',
-                'stat-card-emerald',
-                'stat-card-amber'
-              ];
-              return (
-                <div
-                  key={stat.label}
-                  className={`stat-card p-4 md:p-6 ${cardStyles[index % 4]} group animate-fade-in`}
-                  style={{ animationDelay: `${index * 100}ms` }}
-                >
-                  <div className="stat-card-edge" />
-                  <span className="text-[10px] font-bold tracking-[0.2em] opacity-90 mb-2 block">
-                    {stat.label}
-                  </span>
-                  <div className="flex items-baseline gap-2">
-                    <p className="text-3xl font-display font-bold">
-                      {stat.value}
-                    </p>
-                  </div>
-                  <p className="text-[10px] font-bold opacity-80 mt-2">
-                    {stat.helper}
-                  </p>
-                </div>
-              );
-            })
-          )}
-        </section>
+        </motion.section>
 
         <AnimatePresence>
           {profileScore && profileScore.score < 100 && !dismissBanner && (
@@ -541,39 +497,57 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
             </Button>
           </div>
 
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {opportunitiesLoading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="h-20 bg-white/50 dark:bg-white/5 rounded-2xl animate-pulse" />
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="rounded-2xl overflow-hidden animate-pulse">
+                      <div className={`h-40 ${isDarkMode ? 'bg-white/5' : 'bg-slate-200'}`} />
+                      <div className="p-4 space-y-2">
+                        <div className={`h-3 rounded ${isDarkMode ? 'bg-white/5' : 'bg-slate-200'} w-1/3`} />
+                        <div className={`h-4 rounded ${isDarkMode ? 'bg-white/5' : 'bg-slate-200'} w-2/3`} />
+                      </div>
+                    </div>
                   ))
-                ) : opportunityFeed?.slice(0, 5).map((item: any, idx) => {
+                ) : opportunityFeed?.slice(0, 4).map((item: any, idx) => {
                   const opportunity = 'opportunity' in item ? item.opportunity : item;
                   return (
                     <div
                       key={idx}
                       onClick={() => onOpportunityClick(opportunity)}
-                      className="flex items-center gap-3 sm:gap-4 p-3 rounded-2xl hover:bg-white dark:hover:bg-white/5 border border-transparent hover:border-slate-200 dark:hover:border-white/10 transition-all cursor-pointer group overflow-hidden"
+                      className={`rounded-2xl overflow-hidden border transition-all cursor-pointer group hover:shadow-lg ${isDarkMode ? 'bg-gray-900 border-white/5 hover:border-white/10' : 'bg-white border-slate-200 hover:border-slate-300'}`}
                     >
-                      <div className="w-12 h-12 sm:w-14 sm:h-14 shrink-0 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800">
+                      <div className="h-40 overflow-hidden bg-slate-100 dark:bg-slate-800 relative">
                         <ImageWithFallback
                           src={opportunity.image}
                           alt=""
-                          className="w-full h-full object-cover"
-                          fallbackClassName="w-full h-full"
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          fallbackClassName="w-full h-full flex items-center justify-center"
+                          fallback={<Globe size={32} className={isDarkMode ? 'text-slate-600' : 'text-slate-400'} />}
                         />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                          <span className="text-[10px] font-bold text-primary tracking-wider">{opportunity.category || 'Direct'}</span>
-                          <span className="text-slate-300 dark:text-slate-700">•</span>
-                          <span className="text-[10px] font-bold text-slate-400 tracking-wider truncate">{opportunity.organization || 'Global'}</span>
+                      <div className="p-4">
+                        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                          <span className="text-[9px] font-bold text-primary tracking-wider">{opportunity.category || 'General'}</span>
+                          {opportunity.difficulty && (
+                            <>
+                              <span className="text-slate-300 dark:text-slate-600">•</span>
+                              <span className={`text-[9px] font-bold tracking-wider ${opportunity.difficulty === 'Easy' ? 'text-emerald-500' : opportunity.difficulty === 'Hard' ? 'text-rose-500' : 'text-amber-500'}`}>{opportunity.difficulty}</span>
+                            </>
+                          )}
                         </div>
-                        <h3 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-2 sm:line-clamp-1">
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-2 mb-2">
                           {opportunity.title}
                         </h3>
-                      </div>
-                      <div className="shrink-0">
-                        <ChevronRight className="text-slate-300 group-hover:text-primary transition-colors" size={18} />
+                        <div className="flex items-center justify-between text-[9px] font-semibold tracking-wider text-slate-400">
+                          <span className="flex items-center gap-1">
+                            <MapPin size={10} />
+                            {opportunity.location || 'Remote'}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Calendar size={10} />
+                            {opportunity.deadline ? new Date(opportunity.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Ongoing'}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );
@@ -713,6 +687,20 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
           </aside>
         </div>
       </main>
+
+      {/* Floating AI Button */}
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => onNavigate?.('chat')}
+        className="fixed bottom-20 lg:bottom-8 right-4 lg:right-8 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-lg text-white"
+        style={{
+          background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+          boxShadow: '0 4px 20px rgba(99,102,241,0.4)',
+        }}
+      >
+        <Sparkles size={24} />
+      </motion.button>
 
       {/* Footer with Dark Mode Toggle */}
       <footer className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 border-t ${isDarkMode ? 'border-white/5' : 'border-slate-200'}`}>
