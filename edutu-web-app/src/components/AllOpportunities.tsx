@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   Search,
   Filter,
@@ -6,11 +6,16 @@ import {
   Sparkles,
   Globe,
   ChevronRight,
+  ArrowLeft,
+  Bell,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 
 import { useDarkMode } from '../hooks/useDarkMode';
 import { usePersonalizedOpportunities } from '../hooks/usePersonalizedOpportunities';
-import PageHeader from './PageHeader';
+import { useNavigate } from 'react-router-dom';
+import NotificationInbox from './NotificationInbox';
 import ImageWithFallback from './ImageWithFallback';
 import type { Opportunity } from '../types/opportunity';
 
@@ -19,11 +24,16 @@ interface AllOpportunitiesProps {
   onSelectOpportunity: (opportunity: Opportunity) => void;
 }
 
+type ViewMode = 'list' | 'grid';
+
 const AllOpportunities: React.FC<AllOpportunitiesProps> = ({ onBack, onSelectOpportunity }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [showFilters, setShowFilters] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const { isDarkMode } = useDarkMode();
+  const navigate = useNavigate();
   const {
     data: personalizedOpportunities,
     loading,
@@ -56,32 +66,92 @@ const AllOpportunities: React.FC<AllOpportunitiesProps> = ({ onBack, onSelectOpp
     });
   }, [personalizedOpportunities, searchTerm, selectedCategory]);
 
+  const handleRefresh = useCallback(() => {
+    refresh();
+  }, [refresh]);
+
+  const handleBack = useCallback(() => {
+    if (window.history.length > 2) {
+      navigate(-1);
+    } else {
+      onBack();
+    }
+  }, [navigate, onBack]);
+
   return (
     <div className={`min-h-screen ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-slate-50 text-slate-900'} font-body transition-colors duration-500`}>
       {/* Background Mesh Gradient */}
       <div className="fixed inset-0 pointer-events-none opacity-20 dark:opacity-10 mesh-gradient" />
 
       {/* Page Header */}
-      <PageHeader
-        title="Explore Opportunities"
-        subtitle={loading ? 'Curating your matches...' : `${filteredOpportunities.length} personalized matches`}
-        onBack={onBack}
-        rightContent={
-          <button
-            onClick={refresh}
-            disabled={loading}
-            className={`p-2.5 rounded-xl bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/20 transition-all ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            title="Refresh Feed"
-          >
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-          </button>
-        }
-      />
+      <header className={`sticky top-0 z-40 backdrop-blur-xl border-b transition-all duration-300 ${isDarkMode ? 'bg-gray-950/90 border-white/10' : 'bg-white/90 border-gray-200'}`}>
+        <div className="px-4 py-3">
+          <div className="flex items-center gap-3">
+            {/* Back Button */}
+            <button
+              onClick={handleBack}
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-sm transition-all ${isDarkMode ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'}`}
+            >
+              <ArrowLeft size={20} strokeWidth={2.5} />
+              <span className="hidden sm:inline">Back</span>
+            </button>
+
+            {/* Title Section */}
+            <div className="flex-1 min-w-0">
+              <h1 className={`text-xl md:text-2xl font-display font-bold truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                Explore Opportunities
+              </h1>
+              <p className={`text-xs md:text-sm truncate ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                {loading ? 'Curating your matches...' : `${filteredOpportunities.length} personalized matches`}
+              </p>
+            </div>
+
+            {/* Right Actions */}
+            <div className="flex items-center gap-2">
+              {/* View Toggle */}
+              <div className={`hidden sm:flex items-center rounded-xl border overflow-hidden ${isDarkMode ? 'border-white/10' : 'border-slate-200'}`}>
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-2 transition-colors ${viewMode === 'grid' ? 'bg-brand-500 text-white' : isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-400 hover:text-slate-700'}`}
+                >
+                  <LayoutGrid size={16} />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-2 transition-colors ${viewMode === 'list' ? 'bg-brand-500 text-white' : isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-400 hover:text-slate-700'}`}
+                >
+                  <List size={16} />
+                </button>
+              </div>
+
+              {/* Refresh Button */}
+              <button
+                onClick={handleRefresh}
+                disabled={loading}
+                className={`p-2.5 rounded-xl transition-all ${loading ? 'opacity-50 cursor-not-allowed' : ''} ${isDarkMode ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'}`}
+                title="Refresh Feed"
+              >
+                <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+              </button>
+
+              {/* Notifications Button */}
+              <button
+                onClick={() => setShowNotifications(true)}
+                className={`relative p-2.5 rounded-xl transition-all ${isDarkMode ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'}`}
+                title="Notifications"
+              >
+                <Bell size={18} />
+                <span className="absolute top-2 right-2 h-2 w-2 bg-rose-500 rounded-full" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-24 space-y-6 relative z-10">
 
         {/* Search & Filter Bar */}
-        <div className="sticky top-4 z-20 space-y-3">
+        <div className="sticky top-16 md:top-20 z-20 space-y-3">
           <div className="flex gap-2">
             <div className="flex-1 relative">
               <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -89,7 +159,7 @@ const AllOpportunities: React.FC<AllOpportunitiesProps> = ({ onBack, onSelectOpp
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search..."
+                placeholder="Search opportunities by title, organization, or location..."
                 className="w-full pl-11 pr-4 py-3 rounded-2xl border-none bg-white dark:bg-gray-900 text-slate-900 dark:text-white placeholder-slate-500 shadow-sm focus:ring-2 focus:ring-brand-500 transition-all font-medium text-sm"
               />
             </div>
@@ -121,96 +191,100 @@ const AllOpportunities: React.FC<AllOpportunitiesProps> = ({ onBack, onSelectOpp
           </div>
         </div>
 
-        {/* Opportunities List */}
-        <div className="space-y-6 pb-12">
+        {/* Opportunities List/Grid */}
+        <div className="pb-12">
           {loading ? (
-            <div className="space-y-6">
+            <div className={viewMode === 'grid' ? 'grid grid-cols-2 gap-3' : 'space-y-3'}>
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="premium-card p-6 h-48 animate-pulse border-none bg-white/50 dark:bg-gray-900/50" />
+                <div key={i} className={`rounded-xl animate-pulse ${viewMode === 'grid' ? 'h-48' : 'h-24'} ${isDarkMode ? 'bg-white/5' : 'bg-slate-200'}`} />
               ))}
             </div>
           ) : filteredOpportunities.length > 0 ? (
-            filteredOpportunities.map(({ opportunity, matchScore }, index) => (
-              <div
-                key={opportunity.id}
-                onClick={() => onSelectOpportunity(opportunity)}
-                className="premium-card group relative p-0 flex flex-col md:flex-row gap-0 cursor-pointer overflow-hidden hover:scale-[1.01] transition-all duration-500 border-none bg-white dark:bg-gray-900 shadow-xl shadow-slate-200/40 dark:shadow-none animate-slide-up"
-                style={{ animationDelay: `${index * 50}ms` }}
-              >
-                {/* Match Score Badge - Modern Floating Style */}
-                <div className="absolute top-4 left-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-white/90 dark:bg-gray-900/90 backdrop-blur-md shadow-lg border border-brand-500/20 group-hover:scale-110 transition-transform">
-                  <Sparkles size={14} className="text-brand-500 animate-pulse" />
-                  <span className="text-xs font-bold text-brand-600 dark:text-brand-400">{Math.round(matchScore)}% Match</span>
-                </div>
-
-                {/* Left Side: Image Container */}
-                  <div className="w-full md:w-64 h-48 md:h-auto overflow-hidden relative shrink-0">
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent z-10" />
-                    <ImageWithFallback
-                      src={opportunity.image}
-                      alt=""
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                      fallbackClassName="w-full h-full flex flex-col items-center justify-center bg-slate-100 dark:bg-white/5 text-slate-300 gap-3"
-                    />
-                  </div>
-
-                {/* Right Side: Content */}
-                <div className="flex-1 p-6 md:p-8 flex flex-col justify-between relative">
-                  <div>
-                    <div className="flex items-center gap-2 mb-4">
-                      <span className="px-2.5 py-1 rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400 text-[10px] font-black tracking-widest">
-                        {opportunity.category}
-                      </span>
-                      <div className="h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-700 mx-1" />
-                      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black tracking-widest ${opportunity.difficulty === 'Easy' ? 'bg-emerald-500/10 text-emerald-600' :
-                        opportunity.difficulty === 'Hard' ? 'bg-rose-500/10 text-rose-600' :
-                          'bg-amber-500/10 text-amber-600'
-                        }`}>
-                        {opportunity.difficulty || 'Intermediate'}
-                      </span>
-                    </div>
-
-                    <h3 className="text-2xl font-display font-bold mb-3 group-hover:text-brand-500 transition-colors leading-tight">
-                      {opportunity.title}
-                    </h3>
-
-                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-6 line-clamp-2 leading-relaxed max-w-2xl">
-                      {opportunity.description || "A personalized opportunity curated by Edutu AI to help you achieve your career goals. This match aligns with your background and interests."}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-6">
-                    <div className="flex flex-wrap items-center gap-6 text-[11px] font-bold text-slate-400 dark:text-slate-500 tracking-widest">
-                      <div className="flex items-center gap-2.5">
-                        <div className="h-2 w-2 rounded-full bg-brand-500" />
-                        <span className="group-hover:text-slate-900 dark:group-hover:text-slate-200 transition-colors">{opportunity.deadline || 'Ongoing'}</span>
+            <>
+              {viewMode === 'grid' ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {filteredOpportunities.map(({ opportunity, matchScore }, index) => (
+                    <div
+                      key={opportunity.id}
+                      onClick={() => onSelectOpportunity(opportunity)}
+                      className={`rounded-xl overflow-hidden border cursor-pointer group transition-all ${isDarkMode ? 'bg-gray-900 border-white/5 hover:border-white/10' : 'bg-white border-slate-200 hover:border-slate-300'} animate-slide-up`}
+                      style={{ animationDelay: `${index * 30}ms` }}
+                    >
+                      <div className="h-24 overflow-hidden relative bg-slate-100 dark:bg-slate-800">
+                        <ImageWithFallback
+                          src={opportunity.image}
+                          alt=""
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                          fallbackClassName="w-full h-full"
+                        />
+                        <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm">
+                          <span className="text-[8px] font-bold text-brand-600 dark:text-brand-400">{Math.round(matchScore)}%</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2.5">
-                        <div className="h-2 w-2 rounded-full bg-indigo-500" />
-                        <span className="group-hover:text-slate-900 dark:group-hover:text-slate-200 transition-colors">{opportunity.location || 'Remote'}</span>
+                      <div className="p-2.5">
+                        <span className="text-[8px] font-bold text-primary tracking-wider">{opportunity.category || 'General'}</span>
+                        <h3 className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-2 mt-0.5 leading-tight">
+                          {opportunity.title}
+                        </h3>
+                        <div className="flex items-center justify-between mt-1.5 text-[8px] font-semibold text-slate-400">
+                          <span className="flex items-center gap-0.5"><Globe size={8} /> {opportunity.location || 'Remote'}</span>
+                          <span>{opportunity.deadline ? new Date(opportunity.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Ongoing'}</span>
+                        </div>
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-2 text-brand-500 font-bold text-sm">
-                      <span>Explore Journey</span>
-                      <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                    </div>
-                  </div>
+                  ))}
                 </div>
-
-                {/* Decorative Elements */}
-                <div className="absolute -bottom-10 -right-10 h-32 w-32 bg-brand-500/5 rounded-full blur-3xl group-hover:bg-brand-500/10 transition-colors" />
-              </div>
-            ))
+              ) : (
+                <div className="space-y-3">
+                  {filteredOpportunities.map(({ opportunity, matchScore }, index) => (
+                    <div
+                      key={opportunity.id}
+                      onClick={() => onSelectOpportunity(opportunity)}
+                      className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer group transition-all ${isDarkMode ? 'bg-gray-900 border-white/5 hover:border-white/10' : 'bg-white border-slate-200 hover:border-slate-300'} animate-slide-up`}
+                      style={{ animationDelay: `${index * 30}ms` }}
+                    >
+                      <div className="w-16 h-16 shrink-0 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800">
+                        <ImageWithFallback
+                          src={opportunity.image}
+                          alt=""
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                          fallbackClassName="w-full h-full"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className="text-[9px] font-bold text-primary tracking-wider">{opportunity.category || 'General'}</span>
+                          <span className="text-[8px] font-bold text-brand-600 dark:text-brand-400">{Math.round(matchScore)}%</span>
+                        </div>
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-2 leading-tight">
+                          {opportunity.title}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-1 text-[9px] font-semibold text-slate-400">
+                          <span>{opportunity.location || 'Remote'}</span>
+                          <span>•</span>
+                          <span>{opportunity.deadline ? new Date(opportunity.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Ongoing'}</span>
+                        </div>
+                      </div>
+                      <ChevronRight size={16} className="text-slate-300 group-hover:text-primary shrink-0" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           ) : (
-            <div className="text-center py-20 premium-card bg-transparent border-dashed">
-              <Globe size={48} className="mx-auto text-slate-300 mb-4 opacity-50" />
-              <h3 className="text-xl font-display font-bold mb-2">Refining Feed...</h3>
+            <div className="text-center py-20">
+              <Globe size={48} className={`mx-auto mb-4 ${isDarkMode ? 'text-slate-600' : 'text-slate-300'}`} />
+              <h3 className="text-xl font-display font-bold mb-2">No matches found</h3>
               <p className="text-slate-500 font-medium">Try adjusting your filters to see more results.</p>
             </div>
           )}
         </div>
       </div>
+
+      <NotificationInbox
+        isOpen={showNotifications}
+        onClose={() => setShowNotifications(false)}
+      />
     </div>
   );
 };

@@ -9,6 +9,8 @@ import {
   ChevronRight,
   Clock,
   Globe,
+  LayoutGrid,
+  List,
   MapPin,
   Menu,
   MessageCircle,
@@ -80,6 +82,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [unreadCount] = useState(3);
   const [dismissBanner, setDismissBanner] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
   const { isDarkMode } = useDarkMode();
   const { toggleDarkMode } = useTheme();
   const { goals } = useGoals();
@@ -254,10 +257,9 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
         }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 md:h-16">
+            {/* Logo - No background color */}
             <div className="flex items-center gap-2 md:gap-3">
-              <div className="h-8 w-8 md:h-10 md:w-10 flex items-center justify-center rounded-lg md:rounded-xl bg-gradient-to-tr from-brand-600 to-accent-500 shadow-lg shadow-brand-500/20">
-                <img src="/edutu-logo.png" alt="Logo" className="h-5 w-5 md:h-6 md:w-6 object-contain" />
-              </div>
+              <img src="/edutu-logo.png" alt="Edutu Logo" className="h-8 w-8 md:h-10 md:w-10 object-contain" />
               <span className={`text-xl md:text-2xl font-display font-bold tracking-tight ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
                 Edutu
               </span>
@@ -281,6 +283,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
             </nav>
 
             <div className="flex items-center gap-3">
+              {/* Notification Button */}
               <button
                 type="button"
                 onClick={() => setShowNotifications(true)}
@@ -288,6 +291,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
                   ? 'border-white/5 bg-white/5 hover:bg-white/10 text-slate-300'
                   : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
                   }`}
+                aria-label="Notifications"
               >
                 <Bell size={20} />
                 {unreadCount > 0 && (
@@ -295,7 +299,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
                 )}
               </button>
 
-              {/* Mobile Menu Button - Right Side */}
+              {/* Mobile Menu Button */}
               <button
                 type="button"
                 onClick={() => setShowMobileMenu(!showMobileMenu)}
@@ -303,6 +307,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
                 style={{
                   backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
                 }}
+                aria-label={showMobileMenu ? 'Close menu' : 'Open menu'}
               >
                 {showMobileMenu ? (
                   <X size={20} className={isDarkMode ? 'text-white' : 'text-slate-700'} />
@@ -315,15 +320,38 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
         </div>
 
         {/* Mobile Menu Dropdown */}
-        {showMobileMenu && (
-          <div className={`md:hidden border-t ${isDarkMode ? 'border-white/5 bg-gray-950/95' : 'border-slate-200 bg-white/95'} backdrop-blur-xl`}>
-            <div className="px-4 py-3 space-y-1">
-              {menuItems.map((item) => (
+        <AnimatePresence>
+          {showMobileMenu && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className={`md:hidden border-t overflow-hidden ${isDarkMode ? 'border-white/5 bg-gray-950/95' : 'border-slate-200 bg-white/95'} backdrop-blur-xl`}
+            >
+              <div className="px-4 py-3 space-y-1">
+                {menuItems.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      handleMenuItemClick(item.id);
+                      setShowMobileMenu(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isDarkMode
+                      ? 'text-slate-300 hover:text-white hover:bg-white/5'
+                      : 'text-slate-600 hover:text-brand-600 hover:bg-brand-50'
+                      }`}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </button>
+                ))}
+                {/* Additional mobile-only items */}
                 <button
-                  key={item.id}
                   type="button"
                   onClick={() => {
-                    handleMenuItemClick(item.id);
+                    onNavigate?.('saved');
                     setShowMobileMenu(false);
                   }}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isDarkMode
@@ -331,13 +359,55 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
                     : 'text-slate-600 hover:text-brand-600 hover:bg-brand-50'
                     }`}
                 >
-                  {item.icon}
-                  {item.label}
+                  <Bookmark size={18} />
+                  Saved Opportunities
                 </button>
-              ))}
-            </div>
-          </div>
-        )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onNavigate?.('applied');
+                    setShowMobileMenu(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isDarkMode
+                    ? 'text-slate-300 hover:text-white hover:bg-white/5'
+                    : 'text-slate-600 hover:text-brand-600 hover:bg-brand-50'
+                    }`}
+                >
+                  <Send size={18} />
+                  Applied
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onNavigate?.('deadlines');
+                    setShowMobileMenu(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isDarkMode
+                    ? 'text-slate-300 hover:text-white hover:bg-white/5'
+                    : 'text-slate-600 hover:text-brand-600 hover:bg-brand-50'
+                    }`}
+                >
+                  <Clock size={18} />
+                  Deadlines
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onNavigate?.('wallet');
+                    setShowMobileMenu(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isDarkMode
+                    ? 'text-slate-300 hover:text-white hover:bg-white/5'
+                    : 'text-slate-600 hover:text-brand-600 hover:bg-brand-50'
+                    }`}
+                >
+                  <Wallet size={18} />
+                  Wallet
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
@@ -478,81 +548,108 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
         {/* Content Layout */}
         <div className="grid lg:grid-cols-12 gap-8 pb-8">
           <div className="lg:col-span-8 space-y-10">
-            {/* Featured Opportunities - Swipeable Carousel */}
+            {/* Recommended Opportunities */}
             <section>
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                <Briefcase size={22} />
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <Briefcase size={22} />
+                  </div>
+                  <h2 className="heading-md">Recommended</h2>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className={`hidden sm:flex items-center rounded-lg border overflow-hidden ${isDarkMode ? 'border-white/10' : 'border-slate-200'}`}>
+                    <button onClick={() => setViewMode('grid')} className={`p-1.5 ${viewMode === 'grid' ? 'bg-brand-500 text-white' : isDarkMode ? 'text-slate-400' : 'text-slate-400'}`}><LayoutGrid size={14} /></button>
+                    <button onClick={() => setViewMode('list')} className={`p-1.5 ${viewMode === 'list' ? 'bg-brand-500 text-white' : isDarkMode ? 'text-slate-400' : 'text-slate-400'}`}><List size={14} /></button>
+                  </div>
+                  <Button variant="secondary" size="sm" onClick={onViewAllOpportunities} className="rounded-xl border-slate-200 dark:border-white/10">
+                    View All
+                  </Button>
+                </div>
               </div>
-              <h2 className="heading-md">Recommended for You</h2>
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={onViewAllOpportunities}
-              className="rounded-xl border-slate-200 dark:border-white/10"
-            >
-              Explore All
-            </Button>
-          </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {opportunitiesLoading ? (
-                  Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="rounded-2xl overflow-hidden animate-pulse">
-                      <div className={`h-40 ${isDarkMode ? 'bg-white/5' : 'bg-slate-200'}`} />
-                      <div className="p-4 space-y-2">
-                        <div className={`h-3 rounded ${isDarkMode ? 'bg-white/5' : 'bg-slate-200'} w-1/3`} />
-                        <div className={`h-4 rounded ${isDarkMode ? 'bg-white/5' : 'bg-slate-200'} w-2/3`} />
-                      </div>
-                    </div>
-                  ))
-                ) : opportunityFeed?.slice(0, 4).map((item: any, idx) => {
-                  const opportunity = 'opportunity' in item ? item.opportunity : item;
-                  return (
-                    <div
-                      key={idx}
-                      onClick={() => onOpportunityClick(opportunity)}
-                      className={`rounded-2xl overflow-hidden border transition-all cursor-pointer group hover:shadow-lg ${isDarkMode ? 'bg-gray-900 border-white/5 hover:border-white/10' : 'bg-white border-slate-200 hover:border-slate-300'}`}
-                    >
-                      <div className="h-40 overflow-hidden bg-slate-100 dark:bg-slate-800 relative">
-                        <ImageWithFallback
-                          src={opportunity.image}
-                          alt=""
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                          fallbackClassName="w-full h-full flex items-center justify-center"
-                          fallback={<Globe size={32} className={isDarkMode ? 'text-slate-600' : 'text-slate-400'} />}
-                        />
-                      </div>
-                      <div className="p-4">
-                        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                          <span className="text-[9px] font-bold text-primary tracking-wider">{opportunity.category || 'General'}</span>
-                          {opportunity.difficulty && (
-                            <>
-                              <span className="text-slate-300 dark:text-slate-600">•</span>
-                              <span className={`text-[9px] font-bold tracking-wider ${opportunity.difficulty === 'Easy' ? 'text-emerald-500' : opportunity.difficulty === 'Hard' ? 'text-rose-500' : 'text-amber-500'}`}>{opportunity.difficulty}</span>
-                            </>
-                          )}
-                        </div>
-                        <h3 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-2 mb-2">
-                          {opportunity.title}
-                        </h3>
-                        <div className="flex items-center justify-between text-[9px] font-semibold tracking-wider text-slate-400">
-                          <span className="flex items-center gap-1">
-                            <MapPin size={10} />
-                            {opportunity.location || 'Remote'}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Calendar size={10} />
-                            {opportunity.deadline ? new Date(opportunity.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Ongoing'}
-                          </span>
+              {viewMode === 'grid' ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {opportunitiesLoading ? (
+                    Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="rounded-xl overflow-hidden animate-pulse">
+                        <div className={`h-24 ${isDarkMode ? 'bg-white/5' : 'bg-slate-200'}`} />
+                        <div className="p-2 space-y-1.5">
+                          <div className={`h-2 rounded ${isDarkMode ? 'bg-white/5' : 'bg-slate-200'} w-1/2`} />
+                          <div className={`h-2.5 rounded ${isDarkMode ? 'bg-white/5' : 'bg-slate-200'} w-3/4`} />
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    ))
+                  ) : opportunityFeed?.slice(0, 4).map((item: any, idx) => {
+                    const opportunity = 'opportunity' in item ? item.opportunity : item;
+                    return (
+                      <div
+                        key={idx}
+                        onClick={() => onOpportunityClick(opportunity)}
+                        className={`rounded-xl overflow-hidden border cursor-pointer group transition-all ${isDarkMode ? 'bg-gray-900 border-white/5 hover:border-white/10' : 'bg-white border-slate-200 hover:border-slate-300'}`}
+                      >
+                        <div className="h-24 overflow-hidden bg-slate-100 dark:bg-slate-800">
+                          <ImageWithFallback
+                            src={opportunity.image}
+                            alt=""
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                            fallbackClassName="w-full h-full"
+                          />
+                        </div>
+                        <div className="p-2.5">
+                          <span className="text-[8px] font-bold text-primary tracking-wider">{opportunity.category || 'General'}</span>
+                          <h3 className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-2 mt-0.5 leading-tight">
+                            {opportunity.title}
+                          </h3>
+                          <div className="flex items-center justify-between mt-1.5 text-[8px] font-semibold text-slate-400">
+                            <span>{opportunity.location || 'Remote'}</span>
+                            <span>{opportunity.deadline ? new Date(opportunity.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Ongoing'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {opportunitiesLoading ? (
+                    Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="h-20 rounded-xl animate-pulse" style={{ backgroundColor: isDarkMode ? '#1a1a1a' : '#f0f0f0' }} />
+                    ))
+                  ) : opportunityFeed?.slice(0, 5).map((item: any, idx) => {
+                    const opportunity = 'opportunity' in item ? item.opportunity : item;
+                    return (
+                      <div
+                        key={idx}
+                        onClick={() => onOpportunityClick(opportunity)}
+                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-white dark:hover:bg-white/5 border border-transparent hover:border-slate-200 dark:hover:border-white/10 transition-all cursor-pointer group"
+                      >
+                        <div className="w-14 h-14 shrink-0 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800">
+                          <ImageWithFallback
+                            src={opportunity.image}
+                            alt=""
+                            className="w-full h-full object-cover"
+                            fallbackClassName="w-full h-full"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="text-[9px] font-bold text-primary tracking-wider">{opportunity.category || 'Direct'}</span>
+                            <span className="text-slate-300 dark:text-slate-700">•</span>
+                            <span className="text-[9px] font-bold text-slate-400 tracking-wider truncate">{opportunity.organization || 'Global'}</span>
+                          </div>
+                          <h3 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-2 leading-tight">
+                            {opportunity.title}
+                          </h3>
+                        </div>
+                        <div className="shrink-0">
+                          <ChevronRight className="text-slate-300 group-hover:text-primary transition-colors" size={18} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </section>
 
             {/* Goals Tracker */}
