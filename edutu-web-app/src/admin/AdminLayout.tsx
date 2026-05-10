@@ -9,7 +9,7 @@ import {
   Settings, Menu, X, Shield, LogOut
 } from 'lucide-react';
 import { useAuth, useUser } from '@clerk/clerk-react';
-import { cn } from '../../lib/cn';
+import { cn } from '../lib/cn';
 
 const navItems = [
   { path: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
