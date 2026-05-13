@@ -41,10 +41,17 @@ interface Opportunity {
     close_date: string;
     image_url: string;
     is_featured: boolean;
-    status: 'active' | 'closed' | 'draft';
+    status: 'active' | 'closed' | 'draft' | 'pending_review' | 'rejected';
     created_at: string;
     views: number;
     applications: number;
+    metadata?: {
+        extraction_quality_score?: number;
+        extraction_missing_fields?: string[];
+        description_length?: number;
+        needs_review?: boolean;
+        [key: string]: unknown;
+    };
     eligibility?: {
         school?: string;
         major?: string;
@@ -58,7 +65,10 @@ interface Stats {
     active: number;
     featured: number;
     expiringSoon: number;
+    needsReview: number;
 }
+
+type OpportunityStatus = Opportunity['status'];
 
 type CreationMode = 'manual' | 'url' | 'bulk';
 
@@ -66,7 +76,7 @@ export default function Opportunities() {
     const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
     const [filteredOpps, setFilteredOpps] = useState<Opportunity[]>([]);
     const [loading, setLoading] = useState(true);
-    const [stats, setStats] = useState<Stats>({ total: 0, active: 0, featured: 0, expiringSoon: 0 });
+    const [stats, setStats] = useState<Stats>({ total: 0, active: 0, featured: 0, expiringSoon: 0, needsReview: 0 });
 
     // Modal states
     const [showModal, setShowModal] = useState(false);
@@ -183,7 +193,7 @@ export default function Opportunities() {
         close_date: '',
         image_url: '',
         is_featured: false,
-        status: 'active' as 'active' | 'closed' | 'draft',
+        status: 'active' as OpportunityStatus,
         eligibility: {
             school: '',
             major: '',
@@ -245,6 +255,7 @@ export default function Opportunities() {
             total: opps.length,
             active: opps.filter(o => o.status === 'active').length,
             featured: opps.filter(o => o.is_featured).length,
+            needsReview: opps.filter(o => o.status === 'pending_review' || o.metadata?.needs_review).length,
             expiringSoon: opps.filter(o => {
                 if (!o.close_date) return false;
                 const closeDate = new Date(o.close_date);
@@ -301,8 +312,36 @@ export default function Opportunities() {
 
     async function handleDelete(id: string) {
         if (!window.confirm('Are you sure you want to delete this opportunity? This action cannot be undone.')) return;
-        await supabase.from('opportunities').delete().eq('id', id);
-        fetchOpportunities();
+        try {
+            const response = await fetch(`${NEST_API_URL}/opportunities/${id}`, {
+                method: 'DELETE',
+                headers: await getAdminHeaders(),
+            });
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({}));
+                throw new Error(error.message || 'Failed to delete opportunity');
+            }
+            fetchOpportunities();
+        } catch (error: any) {
+            alert(error.message || 'Failed to delete opportunity');
+        }
+    }
+
+    async function handleStatusUpdate(id: string, status: OpportunityStatus) {
+        try {
+            const response = await fetch(`${NEST_API_URL}/opportunities/${id}/status`, {
+                method: 'PATCH',
+                headers: await getAdminHeaders(),
+                body: JSON.stringify({ status }),
+            });
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({}));
+                throw new Error(error.message || 'Failed to update status');
+            }
+            fetchOpportunities();
+        } catch (error: any) {
+            alert(error.message || 'Failed to update status');
+        }
     }
 
     function handleEdit(opp: Opportunity) {
@@ -333,6 +372,18 @@ export default function Opportunities() {
 
     // Backend API URL - adjust based on environment
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const NEST_API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+
+    async function getAdminHeaders() {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+            throw new Error('Admin session is required');
+        }
+        return {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+        };
+    }
 
     async function handleScrapeUrl() {
         if (!urlInput.trim()) return;
@@ -538,10 +589,19 @@ export default function Opportunities() {
 
     const categories = ['Scholarships', 'Internships', 'Fellowships', 'Grants', 'Programs', 'Competitions'];
     const statuses = [
+        { value: 'pending_review', label: 'Needs Review', color: 'var(--warning)' },
         { value: 'active', label: 'Active', color: 'var(--success)' },
         { value: 'closed', label: 'Closed', color: 'var(--text-tertiary)' },
-        { value: 'draft', label: 'Draft', color: 'var(--warning)' }
+        { value: 'draft', label: 'Draft', color: 'var(--warning)' },
+        { value: 'rejected', label: 'Rejected', color: 'var(--danger)' }
     ];
+
+    const getStatusStyle = (status: OpportunityStatus) => {
+        if (status === 'active') return { background: 'rgba(16, 185, 129, 0.15)', color: '#10b981' };
+        if (status === 'pending_review') return { background: 'rgba(245, 158, 11, 0.18)', color: '#f59e0b' };
+        if (status === 'draft') return { background: 'rgba(99, 102, 241, 0.15)', color: '#6366f1' };
+        return { background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' };
+    };
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -662,6 +722,12 @@ export default function Opportunities() {
                         value: stats.expiringSoon,
                         icon: AlertCircle,
                         gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+                    },
+                    {
+                        label: 'Needs Review',
+                        value: stats.needsReview,
+                        icon: AlertCircle,
+                        gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
                     },
                 ].map((stat, index) => (
                     <div 
@@ -886,14 +952,31 @@ export default function Opportunities() {
                                                 fontSize: '10px',
                                                 padding: '3px 8px',
                                                 borderRadius: '4px',
-                                                background: opp.status === 'active' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                                                color: opp.status === 'active' ? '#10b981' : '#ef4444',
+                                                ...getStatusStyle(opp.status),
                                                 fontWeight: 600,
                                                 textTransform: 'uppercase',
                                             }}>
-                                                {opp.status}
+                                                {opp.status.replace('_', ' ')}
                                             </span>
                                         </div>
+
+                                        {(opp.status === 'pending_review' || opp.metadata?.needs_review) && (
+                                            <div style={{
+                                                marginBottom: '10px',
+                                                padding: '8px 10px',
+                                                borderRadius: '8px',
+                                                background: 'rgba(245, 158, 11, 0.12)',
+                                                color: '#f59e0b',
+                                                fontSize: '11px',
+                                                fontWeight: 600,
+                                                lineHeight: 1.4
+                                            }}>
+                                                Quality {opp.metadata?.extraction_quality_score ?? 'n/a'}%
+                                                {opp.metadata?.extraction_missing_fields?.length
+                                                    ? ` · Missing: ${opp.metadata.extraction_missing_fields.join(', ')}`
+                                                    : ''}
+                                            </div>
+                                        )}
                                         
                                         <h3 style={{ 
                                             fontSize: '14px', 
@@ -959,6 +1042,32 @@ export default function Opportunities() {
                                             }}>
                                                 <p style={{ marginBottom: '10px', fontSize: '13px' }}>{opp.summary || opp.description?.slice(0, 150)}...</p>
                                                 <div style={{ display: 'flex', gap: '8px' }}>
+                                                    {opp.status === 'pending_review' && (
+                                                        <>
+                                                            <button
+                                                                className="btn btn-primary"
+                                                                style={{ padding: '8px 12px', fontSize: '12px' }}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleStatusUpdate(opp.id, 'active');
+                                                                }}
+                                                            >
+                                                                <CheckCircle2 size={14} />
+                                                                Approve
+                                                            </button>
+                                                            <button
+                                                                className="btn btn-secondary"
+                                                                style={{ padding: '8px 12px', fontSize: '12px', color: '#ef4444', borderColor: '#ef4444' }}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleStatusUpdate(opp.id, 'rejected');
+                                                                }}
+                                                            >
+                                                                <X size={14} />
+                                                                Reject
+                                                            </button>
+                                                        </>
+                                                    )}
                                                     <button 
                                                         className="btn btn-primary" 
                                                         style={{ flex: 1, padding: '8px 12px', fontSize: '12px' }}
@@ -1437,11 +1546,13 @@ export default function Opportunities() {
                                             <select
                                                 className="input-field"
                                                 value={formData.status}
-                                                onChange={e => setFormData({ ...formData, status: e.target.value as 'active' | 'closed' | 'draft' })}
+                                                onChange={e => setFormData({ ...formData, status: e.target.value as OpportunityStatus })}
                                             >
                                                 <option value="active">Active</option>
+                                                <option value="pending_review">Needs Review</option>
                                                 <option value="draft">Draft</option>
                                                 <option value="closed">Closed</option>
+                                                <option value="rejected">Rejected</option>
                                             </select>
                                         </div>
                                     </div>

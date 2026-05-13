@@ -142,7 +142,7 @@ export default function ScraperDashboard() {
     const [dataRetentionDays, setDataRetentionDays] = useState<number | null>(null);
     const [isSavingSettings, setIsSavingSettings] = useState(false);
 
-    const API_URL = 'http://localhost:3000/api/scraper';
+    const API_URL = `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'}/api/scraper`;
     const [showAddSource, setShowAddSource] = useState(false);
     const [newSource, setNewSource] = useState<{ name: string; url: string; category: string; asGroup?: boolean; parentId?: number }>({ name: '', url: '', category: 'scholarship', asGroup: false });
     const [filter, setFilter] = useState<'all' | 'enabled' | 'disabled'>('all');
@@ -178,12 +178,18 @@ export default function ScraperDashboard() {
     const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
     const abortControllerRef = { current: null as AbortController | null };
 
+    const getAuthHeaders = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+            throw new Error('Admin session is required');
+        }
+        return { Authorization: `Bearer ${session.access_token}` };
+    };
 
     const fetchSettings = async () => {
         try {
-            const { data: { session } } = await supabase.auth.getSession();
             const response = await fetch(`${API_URL}/settings`, {
-                headers: { 'Authorization': `Bearer ${session?.access_token || 'dev-token'}` }
+                headers: await getAuthHeaders()
             });
             if (response.ok) {
                 const data = await response.json();
@@ -199,12 +205,11 @@ export default function ScraperDashboard() {
     const handleUpdateSettings = async () => {
         setIsSavingSettings(true);
         try {
-            const { data: { session } } = await supabase.auth.getSession();
             const response = await fetch(`${API_URL}/settings`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session?.access_token || 'dev-token'}`
+                    ...(await getAuthHeaders())
                 },
                 body: JSON.stringify({
                     auto_run_enabled: autoRunEnabled,
@@ -251,12 +256,11 @@ export default function ScraperDashboard() {
     const handleSetRetention = async (days: number | null) => {
         setDataRetentionDays(days);
         try {
-            const { data: { session } } = await supabase.auth.getSession();
             await fetch(`${API_URL}/settings`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session?.access_token || 'dev-token'}`
+                    ...(await getAuthHeaders())
                 },
                 body: JSON.stringify({
                     auto_run_enabled: autoRunEnabled,
@@ -301,10 +305,9 @@ export default function ScraperDashboard() {
     const handleDeleteJob = async (id: string) => {
         if (!confirm('Are you sure you want to delete this job and all opportunities scraped in it?')) return;
         try {
-            const { data: { session } } = await supabase.auth.getSession();
             const response = await fetch(`${API_URL}/jobs/${id}`, {
                 method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${session?.access_token || 'dev-token'}` }
+                headers: await getAuthHeaders()
             });
             if (response.ok) {
                 showNotification('Job and associated opportunities deleted', 'success');
@@ -452,7 +455,6 @@ export default function ScraperDashboard() {
         abortControllerRef.current = controller;
 
         try {
-            const { data: { session } } = await supabase.auth.getSession();
             // Use port 3000 (NestJS default) unless overridden by env
             const backendUrl = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000').replace(/\/$/, '');
 
@@ -469,7 +471,7 @@ export default function ScraperDashboard() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session?.access_token || (import.meta.env.VITE_API_KEY || 'edutu-dev-key')}`,
+                    ...(await getAuthHeaders()),
                 },
                 body: JSON.stringify({
                     sourceId: sourceId ?? undefined,

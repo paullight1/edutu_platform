@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { db } from '../db';
 import { goals, milestones } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { CreateGoalDto } from './dto/create-goal.dto';
 import { UpdateGoalDto } from './dto/update-goal.dto';
 
@@ -14,8 +14,11 @@ export class GoalsService {
   }
 
   // Get single goal with milestones
-  async findOne(id: string) {
-    const goalResult = await db.select().from(goals).where(eq(goals.id, id));
+  async findOne(userId: string, id: string) {
+    const goalResult = await db
+      .select()
+      .from(goals)
+      .where(and(eq(goals.id, id), eq(goals.userId, userId)));
     if (!goalResult.length) return null;
 
     const milestonesResult = await db
@@ -44,7 +47,7 @@ export class GoalsService {
   }
 
   // Update
-  async update(id: string, updateGoalDto: UpdateGoalDto) {
+  async update(userId: string, id: string, updateGoalDto: UpdateGoalDto) {
     const [updatedGoal] = await db
       .update(goals)
       .set({
@@ -54,16 +57,16 @@ export class GoalsService {
           : undefined,
         updatedAt: new Date(),
       })
-      .where(eq(goals.id, id))
+      .where(and(eq(goals.id, id), eq(goals.userId, userId)))
       .returning();
     return updatedGoal;
   }
 
   // Delete
-  async remove(id: string) {
+  async remove(userId: string, id: string) {
     // Cascade delete is configured in DB, but good practice to be explicit or handle cleanup
     // Drizzle schema reference "onDelete: cascade" handles milestones, but let's just delete the goal
-    await db.delete(goals).where(eq(goals.id, id));
+    await db.delete(goals).where(and(eq(goals.id, id), eq(goals.userId, userId)));
     return { success: true };
   }
 }

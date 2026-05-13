@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { db } from '../db';
 import {
   flashcardDecks,
@@ -52,8 +52,8 @@ export class FlashcardsService {
     return deckResult[0];
   }
 
-  async findDeckWithCards(id: string) {
-    const deck = await this.findDeckById(id);
+  async findDeckWithCards(id: string, userId: string) {
+    const deck = await this.findDeckById(id, userId);
     if (!deck) return null;
 
     const cards = await db
@@ -83,7 +83,8 @@ export class FlashcardsService {
     return deck;
   }
 
-  async updateDeck(id: string, dto: UpdateFlashcardDeckDto) {
+  async updateDeck(id: string, userId: string, dto: UpdateFlashcardDeckDto) {
+    await this.assertDeckOwner(id, userId);
     const [updated] = await db
       .update(flashcardDecks)
       .set({
@@ -95,12 +96,14 @@ export class FlashcardsService {
     return updated;
   }
 
-  async deleteDeck(id: string) {
+  async deleteDeck(id: string, userId: string) {
+    await this.assertDeckOwner(id, userId);
     await db.delete(flashcardDecks).where(eq(flashcardDecks.id, id));
     return { success: true };
   }
 
-  async createCard(dto: CreateFlashcardDto) {
+  async createCard(userId: string, dto: CreateFlashcardDto) {
+    await this.assertDeckOwner(dto.deckId, userId);
     const [card] = await db
       .insert(flashcards)
       .values({
@@ -118,8 +121,13 @@ export class FlashcardsService {
     return card;
   }
 
-  async createCards(cards: CreateFlashcardDto[]) {
+  async createCards(userId: string, cards: CreateFlashcardDto[]) {
     if (!cards.length) return [];
+    const deckIds = new Set(cards.map((card) => card.deckId));
+    if (deckIds.size !== 1) {
+      throw new ForbiddenException('Bulk card creation must target one owned deck');
+    }
+    await this.assertDeckOwner(cards[0].deckId, userId);
 
     const insertedCards = await db
       .insert(flashcards)
@@ -143,7 +151,8 @@ export class FlashcardsService {
     return insertedCards;
   }
 
-  async updateCard(id: string, dto: UpdateFlashcardDto) {
+  async updateCard(id: string, userId: string, dto: UpdateFlashcardDto) {
+    await this.assertCardOwner(id, userId);
     const [updated] = await db
       .update(flashcards)
       .set({
@@ -155,7 +164,8 @@ export class FlashcardsService {
     return updated;
   }
 
-  async deleteCard(id: string) {
+  async deleteCard(id: string, userId: string) {
+    await this.assertCardOwner(id, userId);
     const [card] = await db
       .select()
       .from(flashcards)
@@ -169,6 +179,7 @@ export class FlashcardsService {
   }
 
   async getCardsForReview(deckId: string, userId: string, limit = 20) {
+    await this.assertDeckOwner(deckId, userId);
     const now = new Date();
     const cards = await db
       .select({
@@ -196,6 +207,7 @@ export class FlashcardsService {
   }
 
   async reviewCard(cardId: string, userId: string, dto: ReviewFlashcardDto) {
+    await this.assertCardOwner(cardId, userId);
     const quality = dto.quality;
     const existingReviews = await db
       .select()
@@ -269,6 +281,7 @@ export class FlashcardsService {
   }
 
   async createStudySession(userId: string, dto: CreateStudySessionDto) {
+    await this.assertDeckOwner(dto.deckId, userId);
     const [session] = await db
       .insert(flashcardStudySessions)
       .values({
@@ -462,5 +475,26 @@ export class FlashcardsService {
       .update(flashcardDecks)
       .set({ cardCount: count, updatedAt: new Date() })
       .where(eq(flashcardDecks.id, deckId));
+  }
+
+  private async assertDeckOwner(deckId: string, userId: string) {
+    const deck = await this.findDeckById(deckId, userId);
+    if (!deck) {
+      throw new NotFoundException('Flashcard deck not found');
+    }
+    return deck;
+  }
+
+  private async assertCardOwner(cardId: string, userId: string) {
+    const [result] = await db
+      .select({ card: flashcards, deck: flashcardDecks })
+      .from(flashcards)
+      .innerJoin(flashcardDecks, eq(flashcards.deckId, flashcardDecks.id))
+      .where(and(eq(flashcards.id, cardId), eq(flashcardDecks.userId, userId)));
+
+    if (!result) {
+      throw new NotFoundException('Flashcard not found');
+    }
+    return result;
   }
 }

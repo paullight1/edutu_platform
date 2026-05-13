@@ -32,7 +32,7 @@ export function useOptimizedQuery<T>(
     
     const lastFetchTime = useRef<number>(0);
     const retryAttempt = useRef<number>(0);
-    const intervalRef = useRef<ReturnType<typeof setInterval>>();
+    const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
     const fetchData = useCallback(async (isBackground = false) => {
         // Check stale time
@@ -224,7 +224,7 @@ export function useDebouncedSearch<T>(
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<T[]>([]);
     const [loading, setLoading] = useState(false);
-    const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
     const search = useCallback(async (searchQuery: string) => {
         if (!searchQuery.trim()) {

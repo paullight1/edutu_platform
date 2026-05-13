@@ -34,6 +34,7 @@
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/schedule": "^6.1.1",
     "@nestjs/throttler": "^6.5.0",
+    "@supabase/supabase-js": "^2.45.1",
     "@types/cheerio": "^0.22.35",
     "axios": "^1.15.1",
     "cheerio": "^1.2.0",

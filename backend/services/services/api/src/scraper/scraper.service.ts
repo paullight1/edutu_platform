@@ -96,6 +96,8 @@ const MAX_ITEMS_PER_PAGE = 20;
 const MAX_PAGES_CAP = 5;
 const MAX_BACKOFF_ATTEMPTS = 4;
 const ENRICH_CONCURRENCY = 3;
+const MIN_DESCRIPTION_CHARS = 240;
+const MIN_PUBLISH_QUALITY_SCORE = 60;
 
 // Currency symbol → ISO code map
 const CURRENCY_SYMBOLS: Record<string, string> = {
@@ -820,8 +822,23 @@ export class ScraperService implements OnModuleInit {
   private extractTextFromHTML(html: string, customSelector?: string): string {
     if (!html) return '';
     const $ = cheerio.load(html);
+    $('script, style, noscript, nav, footer, header, aside, form, iframe').remove();
     const selector = customSelector || DEFAULT_CONTENT_SELECTORS;
-    const text = $(selector).first().text() || $('body').text();
+    const candidates: string[] = [];
+
+    $(selector).each((_, el) => {
+      const candidate = $(el).text().replace(/\s+/g, ' ').trim();
+      if (candidate.length >= 120) {
+        candidates.push(candidate);
+      }
+    });
+
+    const text = candidates.length
+      ? candidates
+          .sort((a, b) => b.length - a.length)
+          .slice(0, 3)
+          .join('\n\n')
+      : $('body').text();
     return text.replace(/\s+/g, ' ').trim().substring(0, DEEP_TEXT_MAX_CHARS);
   }
 
@@ -919,7 +936,7 @@ ${text}`;
         items.push({
           title: this.cleanText(title),
           apply_url: applyUrl,
-          description: this.cleanText($card.find('p').first().text()),
+          description: this.cleanText($card.find('p').first().text(), 1200),
           amount: this.extractAmount(cardText),
           deadline: this.extractDeadline(cardText),
           location: this.extractLocation(cardText),
@@ -1067,6 +1084,42 @@ ${text}`;
 
   // ─── Transform to DB Format ───────────────────────────────────────────────
 
+  private evaluateOpportunityQuality(item: RawItem): {
+    score: number;
+    missingFields: string[];
+  } {
+    let score = 0;
+    const missingFields: string[] = [];
+    const description = item.description?.trim() || '';
+
+    if (item.title?.trim().length >= 8) score += 15;
+    else missingFields.push('title');
+
+    if (description.length >= MIN_DESCRIPTION_CHARS) score += 25;
+    else if (description.length >= 100) score += 12;
+    else missingFields.push('description');
+
+    if ((item.direct_apply_url || item.apply_url)?.startsWith('http')) score += 15;
+    else missingFields.push('application_url');
+
+    if (item.requirements?.length) score += 15;
+    else missingFields.push('requirements');
+
+    if (item.benefits?.length || item.amount != null) score += 10;
+    else missingFields.push('benefits_or_funding');
+
+    if (item.deadline) score += 10;
+    else missingFields.push('deadline');
+
+    if (item.location && item.location !== 'Worldwide') score += 5;
+    if (item.image_url) score += 5;
+
+    return {
+      score: Math.min(100, score),
+      missingFields,
+    };
+  }
+
   private transformToOpportunity(
     item: RawItem,
     jobLogId: string | null,
@@ -1074,6 +1127,7 @@ ${text}`;
     const now = new Date().toISOString();
     const { stipend, currency } = this.parseAmount(item.amount);
     const closeDate = this.parseDate(item.deadline);
+    const quality = this.evaluateOpportunityQuality(item);
 
     const rawUrl = item.direct_apply_url || item.apply_url || '';
     let application_url = rawUrl.split('?')[0].split('#')[0];
@@ -1105,13 +1159,17 @@ ${text}`;
         source_url: item.source_url,
         aggregator_url: item.apply_url,
         scrape_job_id: jobLogId,
+        extraction_quality_score: quality.score,
+        extraction_missing_fields: quality.missingFields,
+        description_length: item.description?.length ?? 0,
+        needs_review: quality.score < MIN_PUBLISH_QUALITY_SCORE,
         requirements: item.requirements ?? [],
         benefits: item.benefits ?? [],
         application_process: item.application_process ?? ['Online application'],
       },
       created_at: now,
       updated_at: now,
-      status: 'active',
+      status: quality.score >= MIN_PUBLISH_QUALITY_SCORE ? 'active' : 'pending_review',
     };
   }
 
@@ -1186,8 +1244,8 @@ ${text}`;
       : `${baseUrl.replace(/\/$/, '')}/page/${page}/`;
   }
 
-  private cleanText(text: string): string {
-    return (text ?? '').replace(/\s+/g, ' ').trim().substring(0, 500);
+  private cleanText(text: string, maxChars = 500): string {
+    return (text ?? '').replace(/\s+/g, ' ').trim().substring(0, maxChars);
   }
 
   private delay(ms: number): Promise<void> {
