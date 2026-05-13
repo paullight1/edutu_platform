@@ -30,7 +30,12 @@ import { isGeminiConfigured, refineOpportunityWithGemini, scoreOpportunityMatchW
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const API_KEY = process.env.API_KEY || 'edutu-dev-key';
+const API_KEY = process.env.API_KEY?.trim();
+const isProduction = process.env.NODE_ENV === 'production';
+
+if (isProduction && !API_KEY) {
+    throw new Error('API_KEY is required in production');
+}
 
 app.use(cors({
     origin: (origin, callback) => {
@@ -68,7 +73,7 @@ const authenticate = async (req, res, next) => {
 
         const token = authHeader.split(' ')[1].trim();
 
-        if (token === (process.env.API_KEY || 'edutu-dev-key').trim()) {
+        if (API_KEY && token === API_KEY) {
             console.log(`[Auth] API Key accepted from ${clientIp}`);
             return next();
         }
@@ -106,14 +111,23 @@ const authenticate = async (req, res, next) => {
 };
 
 const requireAdmin = (req, res, next) => {
-    const adminEmails = (process.env.ADMIN_EMAILS || 'admin@edutu.com').split(',');
-    if (req.user && adminEmails.includes(req.user.email)) {
+    const adminEmails = (process.env.ADMIN_EMAILS || '')
+        .split(',')
+        .map((email) => email.trim().toLowerCase())
+        .filter(Boolean);
+    const userEmail = req.user?.email?.toLowerCase();
+    if (userEmail && adminEmails.includes(userEmail)) {
         return next();
     }
-    if (!req.user) {
+    if (!userEmail && !isProduction) {
         return next();
     }
     console.warn(`[Admin] Non-admin user attempted access: ${req.user?.email}`);
+    return res.status(403).json({
+        error: 'Forbidden',
+        message: 'Admin access required',
+        code: 'ADMIN_REQUIRED'
+    });
 };
 
 app.get('/health', async (req, res) => {
@@ -231,9 +245,9 @@ app.post('/api/scrape/scheduled', async (req, res) => {
         }
 
         const token = authHeader.split(' ')[1]?.trim();
-        const validKey = process.env.API_KEY || 'edutu-dev-key';
+        const validKey = API_KEY;
         
-        if (token !== validKey && !supabase) {
+        if ((!validKey || token !== validKey) && !supabase) {
             return res.status(401).json({
                 success: false,
                 error: 'Invalid API key',

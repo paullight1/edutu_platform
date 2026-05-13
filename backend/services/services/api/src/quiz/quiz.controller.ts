@@ -19,8 +19,8 @@ export class QuizController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.quizService.findOne(id);
+  findOne(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    return this.quizService.findOne(userId, id);
   }
 
   @Post(':id/submit')

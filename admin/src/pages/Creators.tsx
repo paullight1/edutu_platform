@@ -505,7 +505,7 @@ const Creators = () => {
                                                                 onClick={(e) => e.stopPropagation()}
                                                                 style={{ fontSize: '12px', color: 'var(--apple-blue)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}
                                                             >
-                                                                <Linkedin size={12} /> View LinkedIn
+                                                                <ExternalLink size={12} /> View LinkedIn
                                                             </a>
                                                         )}
                                                     </div>

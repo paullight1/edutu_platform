@@ -30,17 +30,21 @@ export class GoalsController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.goalsService.findOne(id);
+  findOne(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    return this.goalsService.findOne(userId, id);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateGoalDto: UpdateGoalDto) {
-    return this.goalsService.update(id, updateGoalDto);
+  update(
+    @CurrentUser('id') userId: string,
+    @Param('id') id: string,
+    @Body() updateGoalDto: UpdateGoalDto,
+  ) {
+    return this.goalsService.update(userId, id, updateGoalDto);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.goalsService.remove(id);
+  remove(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    return this.goalsService.remove(userId, id);
   }
 }

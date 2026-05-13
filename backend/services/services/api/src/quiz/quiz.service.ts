@@ -96,7 +96,7 @@ ${dto.description ? `- Additional context: ${dto.description}` : ''}
         });
       }
 
-      return this.findOne(newQuiz.id);
+      return this.findOne(userId, newQuiz.id);
     } catch (err) {
       this.logger.error('Quiz generation failed', err);
       throw err;
@@ -107,11 +107,11 @@ ${dto.description ? `- Additional context: ${dto.description}` : ''}
     return db.select().from(quizzes).where(eq(quizzes.userId, userId));
   }
 
-  async findOne(id: string) {
+  async findOne(userId: string, id: string) {
     const quizResult = await db
       .select()
       .from(quizzes)
-      .where(eq(quizzes.id, id));
+      .where(and(eq(quizzes.id, id), eq(quizzes.userId, userId)));
     if (!quizResult.length) return null;
 
     const questions = await db
@@ -130,11 +130,11 @@ ${dto.description ? `- Additional context: ${dto.description}` : ''}
     };
   }
 
-  async findOneWithAnswers(id: string) {
+  async findOneWithAnswers(userId: string, id: string) {
     const quizResult = await db
       .select()
       .from(quizzes)
-      .where(eq(quizzes.id, id));
+      .where(and(eq(quizzes.id, id), eq(quizzes.userId, userId)));
     if (!quizResult.length) return null;
 
     const questions = await db
@@ -156,7 +156,7 @@ ${dto.description ? `- Additional context: ${dto.description}` : ''}
   }
 
   async submit(userId: string, quizId: string, dto: SubmitQuizDto) {
-    const quiz = await this.findOneWithAnswers(quizId);
+    const quiz = await this.findOneWithAnswers(userId, quizId);
     if (!quiz) {
       throw new Error('Quiz not found');
     }

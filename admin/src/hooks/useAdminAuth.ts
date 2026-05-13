@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { supabase } from './supabase';
+import { supabase } from '../lib/supabase';
 
 interface AdminAuthState {
     session: any;
@@ -24,13 +24,7 @@ export function useAdminAuth() {
 
     const checkAdminRole = useCallback(async (userId: string): Promise<boolean> => {
         try {
-            // First check: user_metadata role
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user?.user_metadata?.role === 'admin') {
-                return true;
-            }
-
-            // Second check: profiles table
+            // Admin role must come from server-controlled profile data.
             const { data: profile } = await supabase
                 .from('profiles')
                 .select('role')
@@ -180,14 +174,14 @@ export function withAdminCheck<T extends (...args: any[]) => Promise<any>>(
             throw new Error('Authentication required');
         }
 
-        // Check admin role
+        // Admin role must come from server-controlled profile data.
         const { data: profile } = await supabase
             .from('profiles')
             .select('role')
             .eq('user_id', user.id)
             .single();
 
-        if (profile?.role !== 'admin' && user.user_metadata?.role !== 'admin') {
+        if (profile?.role !== 'admin') {
             throw new Error(options?.errorMessage || 'Admin privileges required');
         }
 

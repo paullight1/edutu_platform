@@ -27,6 +27,13 @@ type RankedOpportunity = OpportunityRow & {
   aiTags: string[];
 };
 
+type SignalScore = {
+  score: number;
+  positive: number;
+  negative: number;
+  counts: Record<string, number>;
+};
+
 @Injectable()
 export class OpportunityRankingService {
   private readonly logger = new Logger(OpportunityRankingService.name);
@@ -144,13 +151,16 @@ export class OpportunityRankingService {
   async queryRecommendations(
     request: RecommendationQueryDto & { userId?: string },
   ) {
-    const limit = Math.min(Math.max(request.limit || 10, 1), 25);
+    const limit = Math.min(Math.max(request.limit || 10, 1), 50);
     const minMatchScore = request.minMatchScore ?? 0;
     const excludeIds = request.excludeOpportunityIds || [];
     const rows = await this.fetchCandidateOpportunities(excludeIds);
     const dismissedIds = request.userId
       ? await this.getDismissedOpportunityIds(request.userId)
       : [];
+    const signalScores = request.userId
+      ? await this.getUserSignalScores(request.userId)
+      : new Map<string, SignalScore>();
 
     const profile = request.profile || null;
     const preferences = request.preferences || null;
@@ -165,6 +175,7 @@ export class OpportunityRankingService {
           preferences,
           goals,
           request.message || '',
+          signalScores.get(row.id),
         ),
       )
       .filter((row) => row.match >= minMatchScore)
@@ -214,7 +225,7 @@ export class OpportunityRankingService {
       .from(opportunities)
       .where(and(...filters))
       .orderBy(desc(opportunities.updatedAt))
-      .limit(100)
+      .limit(200)
       .execute();
   }
 
@@ -231,6 +242,58 @@ export class OpportunityRankingService {
       .execute();
 
     return rows.map((row) => row.opportunityId);
+  }
+
+  private async getUserSignalScores(userId: string): Promise<Map<string, SignalScore>> {
+    const rows = await db
+      .select({
+        opportunityId: userOpportunitySignals.opportunityId,
+        signalType: userOpportunitySignals.signalType,
+        signalValue: userOpportunitySignals.signalValue,
+      })
+      .from(userOpportunitySignals)
+      .where(eq(userOpportunitySignals.userId, userId))
+      .limit(1000)
+      .execute();
+
+    const weights: Record<string, number> = {
+      view: 2,
+      click: 5,
+      save: 12,
+      apply: 18,
+      chat_like: 8,
+      chat_dislike: -12,
+      recommended_in_chat: 1,
+      dismiss: -100,
+    };
+
+    const scores = new Map<string, SignalScore>();
+    for (const row of rows) {
+      const current = scores.get(row.opportunityId) || {
+        score: 0,
+        positive: 0,
+        negative: 0,
+        counts: {},
+      };
+      const value = row.signalValue ?? 1;
+      const delta = (weights[row.signalType] ?? 0) * value;
+
+      current.score += delta;
+      current.counts[row.signalType] = (current.counts[row.signalType] || 0) + 1;
+      if (delta > 0) current.positive += delta;
+      if (delta < 0) current.negative += Math.abs(delta);
+
+      scores.set(row.opportunityId, current);
+    }
+
+    for (const [id, signal] of scores) {
+      scores.set(id, {
+        ...signal,
+        score: Math.max(-30, Math.min(30, signal.score)),
+      });
+    }
+
+    return scores;
   }
 
   private async getUserProfile(userId: string) {
@@ -274,6 +337,7 @@ export class OpportunityRankingService {
     preferences: OpportunityPreferenceDto | null,
     userGoals: RecommendationQueryDto['goals'],
     message: string,
+    signalScore?: SignalScore,
   ): RankedOpportunity {
     const reasons: string[] = [];
     const risks: string[] = [];
@@ -421,6 +485,20 @@ export class OpportunityRankingService {
     if (!opportunity.applyUrl) {
       risks.push('No direct application URL stored yet.');
       score -= 8;
+    }
+
+    if (!opportunity.description || opportunity.description.length < 180) {
+      risks.push('Opportunity details are incomplete and need review.');
+      score -= 10;
+    }
+
+    if (signalScore?.score) {
+      score += signalScore.score;
+      if (signalScore.positive > signalScore.negative) {
+        reasons.push('User behavior suggests interest in this opportunity.');
+      } else if (signalScore.negative > signalScore.positive) {
+        risks.push('User behavior suggests this may be less relevant.');
+      }
     }
 
     return {

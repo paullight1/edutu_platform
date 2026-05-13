@@ -53,43 +53,54 @@ export class FlashcardsController {
   }
 
   @Get('decks/:id')
-  getDeck(@Param('id') id: string) {
-    return this.flashcardsService.findDeckById(id);
+  getDeck(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    return this.flashcardsService.findDeckById(id, userId);
   }
 
   @Get('decks/:id/cards')
-  getDeckWithCards(@Param('id') id: string) {
-    return this.flashcardsService.findDeckWithCards(id);
+  getDeckWithCards(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    return this.flashcardsService.findDeckWithCards(id, userId);
   }
 
   @Put('decks/:id')
-  updateDeck(@Param('id') id: string, @Body() dto: UpdateFlashcardDeckDto) {
-    return this.flashcardsService.updateDeck(id, dto);
+  updateDeck(
+    @CurrentUser('id') userId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateFlashcardDeckDto,
+  ) {
+    return this.flashcardsService.updateDeck(id, userId, dto);
   }
 
   @Delete('decks/:id')
-  deleteDeck(@Param('id') id: string) {
-    return this.flashcardsService.deleteDeck(id);
+  deleteDeck(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    return this.flashcardsService.deleteDeck(id, userId);
   }
 
   @Post('cards')
-  createCard(@Body() dto: CreateFlashcardDto) {
-    return this.flashcardsService.createCard(dto);
+  createCard(@CurrentUser('id') userId: string, @Body() dto: CreateFlashcardDto) {
+    return this.flashcardsService.createCard(userId, dto);
   }
 
   @Post('cards/bulk')
-  createCards(@Body() cards: CreateFlashcardDto[]) {
-    return this.flashcardsService.createCards(cards);
+  createCards(
+    @CurrentUser('id') userId: string,
+    @Body() cards: CreateFlashcardDto[],
+  ) {
+    return this.flashcardsService.createCards(userId, cards);
   }
 
   @Put('cards/:id')
-  updateCard(@Param('id') id: string, @Body() dto: UpdateFlashcardDto) {
-    return this.flashcardsService.updateCard(id, dto);
+  updateCard(
+    @CurrentUser('id') userId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateFlashcardDto,
+  ) {
+    return this.flashcardsService.updateCard(id, userId, dto);
   }
 
   @Delete('cards/:id')
-  deleteCard(@Param('id') id: string) {
-    return this.flashcardsService.deleteCard(id);
+  deleteCard(@CurrentUser('id') userId: string, @Param('id') id: string) {
+    return this.flashcardsService.deleteCard(id, userId);
   }
 
   @Get('decks/:deckId/review')
