@@ -53,6 +53,10 @@ export interface CommunityRoadmapStage {
   tasks: CommunityRoadmapTask[];
   resourceIds?: string[];
   checkpoint?: string;
+  relativeDueDays?: number;
+  phase?: string;
+  taskType?: string;
+  calendarSyncEnabled?: boolean;
 }
 
 export interface CommunityStoryStats {
@@ -100,6 +104,9 @@ export interface CommunityStory {
   stats: CommunityStoryStats;
   lastUpdatedLabel: string;
   lastUpdatedTimestamp: number;
+  creatorProof?: Record<string, unknown> | null;
+  deadlineStrategy?: string | null;
+  communityId?: string | null;
 }
 
 export interface CommunityStorySubmissionInput {
@@ -119,6 +126,9 @@ export interface CommunityStorySubmissionInput {
   roadmap?: CommunityRoadmapStage[];
   type?: CommunityStoryType;
   creatorNotes?: string | null;
+  creatorProof?: Record<string, unknown> | null;
+  deadlineStrategy?: string | null;
+  communityId?: string | null;
 }
 
 export interface CommunityStoryUpdateInput {

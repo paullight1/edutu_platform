@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { GoogleGenAI } from '@google/genai';
 import { z } from 'zod';
+import { AiService } from '../ai';
 import {
   CVDataDto,
   CVGoalContextDto,
@@ -95,32 +95,26 @@ const TailorResponseSchema = z.object({
 @Injectable()
 export class CvService {
   private readonly logger = new Logger(CvService.name);
-  private readonly ai = process.env.GEMINI_API_KEY
-    ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
-    : null;
+
+  constructor(private readonly aiService: AiService) {}
 
   async generateDraft(userId: string, dto: GenerateCVDraftDto) {
-    if (this.ai) {
-      try {
-        const response = await this.ai.models.generateContent({
-          model: 'gemini-2.0-flash',
-          contents: this.buildDraftPrompt(userId, dto),
-          config: {
-            responseMimeType: 'application/json',
-            temperature: 0.2,
-          },
-        });
+    try {
+      const parsed = await this.aiService.generateJson({
+        feature: 'cv.draft',
+        prompt: this.buildDraftPrompt(userId, dto),
+        responseMimeType: 'application/json',
+        temperature: 0.2,
+        metadata: { userId },
+      });
 
-        const text = response.text?.trim();
-        if (text) {
-          const parsed = DraftResponseSchema.parse(JSON.parse(text));
-          return parsed;
-        }
-      } catch (error) {
-        this.logger.warn(
-          `CV draft generation fell back to heuristic mode: ${error instanceof Error ? error.message : String(error)}`,
-        );
+      if (parsed) {
+        return DraftResponseSchema.parse(parsed);
       }
+    } catch (error) {
+      this.logger.warn(
+        `CV draft generation fell back to heuristic mode: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     const fallbackCv = this.buildFallbackDraft(dto.profile, dto.goals || [], dto.currentCV, dto.prompt, dto.linkedInUrl);
@@ -135,27 +129,22 @@ export class CvService {
   }
 
   async tailor(userId: string, dto: TailorCVDto) {
-    if (this.ai) {
-      try {
-        const response = await this.ai.models.generateContent({
-          model: 'gemini-2.0-flash',
-          contents: this.buildTailorPrompt(userId, dto),
-          config: {
-            responseMimeType: 'application/json',
-            temperature: 0.2,
-          },
-        });
+    try {
+      const parsed = await this.aiService.generateJson({
+        feature: 'cv.tailor',
+        prompt: this.buildTailorPrompt(userId, dto),
+        responseMimeType: 'application/json',
+        temperature: 0.2,
+        metadata: { userId, opportunityId: dto.opportunity?.id },
+      });
 
-        const text = response.text?.trim();
-        if (text) {
-          const parsed = TailorResponseSchema.parse(JSON.parse(text));
-          return parsed;
-        }
-      } catch (error) {
-        this.logger.warn(
-          `CV tailoring fell back to heuristic mode: ${error instanceof Error ? error.message : String(error)}`,
-        );
+      if (parsed) {
+        return TailorResponseSchema.parse(parsed);
       }
+    } catch (error) {
+      this.logger.warn(
+        `CV tailoring fell back to heuristic mode: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     return this.buildFallbackTailor(dto);

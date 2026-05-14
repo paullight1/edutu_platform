@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ArrowLeft,
   Plus,
   Search,
   Sparkles,
@@ -35,8 +36,10 @@ import {
 } from '../types/community';
 import {
   fetchCommunityStories,
+  recordCommunityStoryAdoptionWithToken,
   submitCommunityStory
 } from '../services/communityMarketplaceSupabase';
+import { fetchRoadmapCalendarExport, type RoadmapAdoptionResponse } from '../services/roadmapApi';
 
 interface CommunityRoadmap {
   id: string;
@@ -69,6 +72,8 @@ interface CommunityRoadmap {
   roadmap: CommunityRoadmapStage[];
   stats: CommunityStoryStats;
   paymentLink?: string | null;
+  communityId?: string | null;
+  deadlineStrategy?: string | null;
 }
 
 interface CommunityMarketplaceProps {
@@ -516,7 +521,7 @@ const normaliseRoadmapStages = (value: unknown): CommunityRoadmapStage[] => {
         const tasks =
           Array.isArray(tasksRaw) && tasksRaw.length > 0
             ? tasksRaw
-              .map((task, taskIndex) => {
+              .map((task, taskIndex): CommunityRoadmapStage['tasks'][number] | null => {
                 if (task && typeof task === 'object') {
                   const taskRecord = task as Record<string, unknown>;
                   const taskTitle =
@@ -723,14 +728,41 @@ const mapListingToRoadmap = (payload: Record<string, unknown>, id: string): Comm
     resources: normaliseResourceList(payload.resources),
     roadmap: normaliseRoadmapStages(payload.roadmap),
     stats,
-    paymentLink
+    paymentLink,
+    communityId: typeof payload.communityId === 'string' ? payload.communityId : null,
+    deadlineStrategy: typeof payload.deadlineStrategy === 'string' ? payload.deadlineStrategy : null
   };
+};
+
+const downloadIcs = (filename: string, content: string) => {
+  const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+};
+
+const getAdoptionSummary = (adoption: RoadmapAdoptionResponse | undefined) => {
+  const reminders = adoption?.reminderSchedule || adoption?.reminder_schedule || [];
+  const communityAction = adoption?.communityAction || adoption?.community_action;
+  const targetDeadline = adoption?.targetDeadline || adoption?.target_deadline;
+  const parts = [
+    reminders.length ? `${reminders.length} reminders prepared` : null,
+    targetDeadline ? `deadline set for ${new Date(targetDeadline).toLocaleDateString()}` : null,
+    communityAction?.communityId ? 'community next step available' : null,
+  ].filter(Boolean);
+
+  return parts.length ? parts.join(' • ') : 'Your roadmap is ready in your workspace.';
 };
 
 const CommunityMarketplace: React.FC<CommunityMarketplaceProps> = ({ onRoadmapSelect, user, onBack }) => {
   const { isDarkMode } = useDarkMode();
   const { toast } = useToast();
-  const { userId } = useAuth();
+  const { userId, getToken } = useAuth();
 
   const [remoteRoadmaps, setRemoteRoadmaps] = useState<CommunityRoadmap[]>([]);
   const [loadingRemote, setLoadingRemote] = useState(true);
@@ -751,10 +783,10 @@ const CommunityMarketplace: React.FC<CommunityMarketplaceProps> = ({ onRoadmapSe
     const fetchStories = async () => {
       try {
         setLoadingRemote(true);
-        // Fetch approved community roadmaps
+        // Fetch backend roadmaps plus non-roadmap marketplace listings.
         const stories = await fetchCommunityStories({
           status: 'approved',
-          type: 'roadmap'
+          type: ['roadmap', 'marketplace']
         });
         const mappedStories = (stories || []).map(s => mapListingToRoadmap(s as any, s.id));
         setRemoteRoadmaps(mappedStories);
@@ -886,11 +918,11 @@ const CommunityMarketplace: React.FC<CommunityMarketplaceProps> = ({ onRoadmapSe
 
       // Submit using the Supabase implementation
       if (!userId) throw new Error('Not authenticated');
-      await submitCommunityStory(userId, submissionData);
+      const token = await getToken();
+      await submitCommunityStory(userId, submissionData, token);
 
       setCreateOpen(false);
       resetForm();
-      setSubmissionMessage('Your roadmap has been submitted for review. We will notify you once it is live.');
       toast({
         title: 'Submission received',
         description: 'Thank you for sharing your success story!',
@@ -916,8 +948,37 @@ const CommunityMarketplace: React.FC<CommunityMarketplaceProps> = ({ onRoadmapSe
     if (isAddingRoadmap) return;
     setIsAddingRoadmap(true);
     try {
+      let adoption: RoadmapAdoptionResponse | undefined;
+      if (roadmap.type === 'roadmap' && !roadmap.id.startsWith('sample-')) {
+        const token = await getToken();
+        const targetDeadline = roadmap.deadlineStrategy
+          ? window.prompt('Target application deadline for this roadmap (YYYY-MM-DD). Leave blank if you do not know it yet.')?.trim()
+          : '';
+        adoption = await recordCommunityStoryAdoptionWithToken(
+          roadmap.id,
+          token,
+          {
+            targetDeadline: targetDeadline || undefined,
+            calendarSyncEnabled: true,
+          },
+        ) as RoadmapAdoptionResponse | undefined;
+
+        if (adoption?.calendar?.enabled && adoption.calendar.eventCount > 0) {
+          try {
+            const calendar = await fetchRoadmapCalendarExport(adoption.id, token);
+            downloadIcs(calendar.filename, calendar.ics);
+          } catch (calendarError) {
+            console.warn('Roadmap calendar export failed', calendarError);
+          }
+        }
+      }
       await onRoadmapSelect(roadmap);
       setDetailOpen(false);
+      toast({
+        title: 'Roadmap adopted',
+        description: getAdoptionSummary(adoption),
+        variant: 'success'
+      });
     } catch (error) {
       console.error('Failed to add roadmap:', error);
       toast({
@@ -1177,6 +1238,14 @@ const CommunityMarketplace: React.FC<CommunityMarketplaceProps> = ({ onRoadmapSe
                   {selectedRoadmap.story || selectedRoadmap.description}
                 </p>
               </div>
+              {selectedRoadmap.deadlineStrategy && (
+                <div className="rounded-2xl border border-brand-500/20 bg-brand-500/5 p-4">
+                  <p className="text-xs font-black tracking-widest text-brand-600 dark:text-brand-300">DEADLINE STRATEGY</p>
+                  <p className="mt-2 text-sm font-medium text-slate-600 dark:text-slate-300">
+                    {selectedRoadmap.deadlineStrategy}
+                  </p>
+                </div>
+              )}
 
               {/* Quick Stats Banner */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4">
@@ -1222,7 +1291,18 @@ const CommunityMarketplace: React.FC<CommunityMarketplaceProps> = ({ onRoadmapSe
                     <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-6 rounded-3xl bg-white dark:bg-gray-900 border border-subtle shadow-sm hover:shadow-xl hover:border-brand-500/30 transition-all duration-300">
                       <div className="flex items-center justify-between mb-3 text-brand-500">
                         <span className="text-[10px] font-black tracking-widest">Phase {idx + 1}</span>
-                        {stage.duration && <span className="text-[10px] font-bold py-1 px-2 rounded-lg bg-brand-500/10">{stage.duration}</span>}
+                        <div className="flex items-center gap-2">
+                          {typeof stage.relativeDueDays === 'number' && (
+                            <span className="text-[10px] font-bold py-1 px-2 rounded-lg bg-amber-500/10 text-amber-600">
+                              {stage.relativeDueDays < 0
+                                ? `${Math.abs(stage.relativeDueDays)} days before deadline`
+                                : stage.relativeDueDays === 0
+                                  ? 'Deadline day'
+                                  : `Day ${stage.relativeDueDays}`}
+                            </span>
+                          )}
+                          {stage.duration && <span className="text-[10px] font-bold py-1 px-2 rounded-lg bg-brand-500/10">{stage.duration}</span>}
+                        </div>
                       </div>
                       <h4 className="text-lg font-bold mb-2 text-slate-900 dark:text-white leading-tight">{stage.title}</h4>
                       <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-medium">

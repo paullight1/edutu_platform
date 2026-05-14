@@ -2,8 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { db } from '../db';
 import { opportunities } from '../db/schema';
-import { GoogleGenAI } from '@google/genai';
 import axios from 'axios';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { eq, or, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { OpportunityRankingService } from './opportunity-ranking.service';
@@ -13,6 +13,7 @@ import {
   RecommendationQueryDto,
   UserRecommendationRequestDto,
 } from './dto/personalization.dto';
+import { AiService } from '../ai';
 // Note: Apify scraper disabled - using crawl4ai instead
 // import {
 //     runEdutuScraper,
@@ -61,14 +62,33 @@ type ProcessedItem = z.infer<typeof ProcessedItemSchema>;
 
 export type CreateOpportunityDto = z.infer<typeof OpportunityDtoSchema>;
 
+export interface AdminOpportunityListQuery {
+  limit?: number;
+  page?: number;
+  search?: string;
+  status?: string;
+  category?: string;
+  sortBy?: string;
+}
+
 @Injectable()
 export class OpportunitiesService {
   private readonly logger = new Logger(OpportunitiesService.name);
-  private readonly ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  private readonly supabase: SupabaseClient | null = null;
 
   constructor(
     private readonly opportunityRankingService: OpportunityRankingService,
-  ) {}
+    private readonly aiService: AiService,
+  ) {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (url && key) {
+      this.supabase = createClient(url, key, {
+        auth: { persistSession: false },
+      });
+    }
+  }
 
   async findAll(
     limit: number = 20,
@@ -112,6 +132,100 @@ export class OpportunitiesService {
       .where(eq(opportunities.id, id))
       .execute();
     return res[0] ?? null;
+  }
+
+  async findAdminList(query: AdminOpportunityListQuery) {
+    if (!this.supabase) {
+      throw new Error('Supabase is not configured');
+    }
+
+    const limit = Math.min(Math.max(Number(query.limit) || 50, 10), 200);
+    const page = Math.max(Number(query.page) || 1, 1);
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+    const sortMap: Record<string, { column: string; ascending: boolean }> = {
+      newest: { column: 'created_at', ascending: false },
+      oldest: { column: 'created_at', ascending: true },
+      deadline: { column: 'close_date', ascending: true },
+      featured: { column: 'is_featured', ascending: false },
+      quality: { column: 'quality_score', ascending: true },
+    };
+    const sort = sortMap[query.sortBy || 'newest'] ?? sortMap.newest;
+
+    let request = this.supabase
+      .from('opportunities')
+      .select('*', { count: 'exact' })
+      .order(sort.column, { ascending: sort.ascending, nullsFirst: false })
+      .range(from, to);
+
+    if (query.status && query.status !== 'all') {
+      request = request.eq('status', query.status);
+    }
+
+    if (query.category && query.category !== 'all') {
+      request = request.eq('category', query.category);
+    }
+
+    const search = query.search?.trim();
+    if (search) {
+      const escaped = search.replaceAll('%', '\\%').replaceAll(',', ' ');
+      request = request.or(
+        `title.ilike.%${escaped}%,organization.ilike.%${escaped}%,category.ilike.%${escaped}%,source.ilike.%${escaped}%`,
+      );
+    }
+
+    const { data, error, count } = await request;
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return {
+      data: data ?? [],
+      page,
+      limit,
+      total: count ?? 0,
+      totalPages: Math.max(Math.ceil((count ?? 0) / limit), 1),
+      hasMore: to + 1 < (count ?? 0),
+    };
+  }
+
+  async getAdminStats() {
+    if (!this.supabase) {
+      throw new Error('Supabase is not configured');
+    }
+
+    const sevenDaysFromNow = new Date();
+    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+    const sevenDays = sevenDaysFromNow.toISOString().slice(0, 10);
+
+    const countRows = await Promise.all([
+      this.supabase.from('opportunities').select('id', { count: 'exact', head: true }),
+      this.supabase.from('opportunities').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+      this.supabase.from('opportunities').select('id', { count: 'exact', head: true }).eq('is_featured', true),
+      this.supabase
+        .from('opportunities')
+        .select('id', { count: 'exact', head: true })
+        .or('status.eq.pending_review,metadata->>needs_review.eq.true'),
+      this.supabase
+        .from('opportunities')
+        .select('id', { count: 'exact', head: true })
+        .not('close_date', 'is', null)
+        .gte('close_date', new Date().toISOString().slice(0, 10))
+        .lte('close_date', sevenDays),
+    ]);
+
+    const error = countRows.find((row) => row.error)?.error;
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return {
+      total: countRows[0].count ?? 0,
+      active: countRows[1].count ?? 0,
+      featured: countRows[2].count ?? 0,
+      needsReview: countRows[3].count ?? 0,
+      expiringSoon: countRows[4].count ?? 0,
+    };
   }
 
   async create(dto: CreateOpportunityDto) {
@@ -273,11 +387,6 @@ export class OpportunitiesService {
 
   // Process items with AI to fill missing fields and generate tags
   async processWithAI(items: any[]) {
-    if (!process.env.GEMINI_API_KEY) {
-      this.logger.warn('GEMINI_API_KEY not set, skipping AI processing');
-      return items;
-    }
-
     const processedItems: ProcessedItem[] = [];
 
     for (const item of items) {
@@ -314,24 +423,23 @@ Output ONLY a JSON object with these fields:
   "tags": ["tag1", "tag2", "tag3"]
 }`;
 
-        const response = await this.ai.models.generateContent({
-          model: 'gemini-1.5-flash',
-          contents: prompt,
-          config: { responseMimeType: 'application/json' },
+        const aiData = await this.aiService.generateJson<Record<string, any>>({
+          feature: 'opportunities.enhance',
+          prompt,
+          responseMimeType: 'application/json',
+          metadata: { title: item.title, sourceUrl: item.sourceUrl },
         });
-
-        const aiData = response.text ? JSON.parse(response.text) : {};
 
         // Merge AI data with original item
         processedItems.push({
           ...item,
-          description: item.description || aiData.description || '',
+          description: item.description || aiData?.description || '',
           eligibilityCriteria:
-            item.eligibilityCriteria || aiData.eligibilityCriteria || '',
-          fundingType: item.fundingType || aiData.fundingType || '',
-          targetRegion: item.targetRegion || aiData.targetRegion || '',
-          deadline: item.deadline || aiData.deadline || null,
-          tags: aiData.tags || [],
+            item.eligibilityCriteria || aiData?.eligibilityCriteria || '',
+          fundingType: item.fundingType || aiData?.fundingType || '',
+          targetRegion: item.targetRegion || aiData?.targetRegion || '',
+          deadline: item.deadline || aiData?.deadline || null,
+          tags: aiData?.tags || [],
         } as ProcessedItem);
       } catch (err) {
         this.logger.warn(
@@ -505,20 +613,17 @@ Output ONLY a JSON object with these fields:
       JSON.stringify(searchResults);
 
     try {
-      const response = await this.ai.models.generateContent({
-        model: 'gemini-1.5-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-        },
+      const parsedJson = await this.aiService.generateJson({
+        feature: 'opportunities.extract',
+        prompt,
+        responseMimeType: 'application/json',
+        metadata: { resultCount: searchResults.length },
       });
 
-      const textOutput = response.text;
-      if (!textOutput) {
+      if (!parsedJson) {
         this.logger.error('Gemini returned empty response');
         return [];
       }
-      const parsedJson = JSON.parse(textOutput);
 
       const GeminiOpportunitySchema = z.object({
         title: z.string(),

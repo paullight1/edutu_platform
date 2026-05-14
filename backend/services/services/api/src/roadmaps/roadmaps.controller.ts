@@ -16,6 +16,7 @@ import type {
   RoadmapIntentDto,
   RoadmapFeedbackDto,
   AIAssistDto,
+  AdoptRoadmapDto,
 } from './dto/roadmap.dto';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { Public } from '../auth/public.decorator';
@@ -53,12 +54,6 @@ export class RoadmapsController {
     return this.roadmapsService.findBySlug(slug);
   }
 
-  @Public()
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.roadmapsService.findOne(id);
-  }
-
   @Post()
   @UseGuards(AdminGuard)
   create(
@@ -67,6 +62,15 @@ export class RoadmapsController {
     @CurrentUser() user: any,
   ) {
     return this.roadmapsService.create(dto, userId, user?.firstName || 'Admin');
+  }
+
+  @Post('creator')
+  createByCreator(
+    @Body() dto: CreateRoadmapDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.roadmapsService.createByCreator(dto, userId, user?.firstName || 'Edutu Creator');
   }
 
   @Put(':id')
@@ -81,6 +85,15 @@ export class RoadmapsController {
     return this.roadmapsService.remove(id);
   }
 
+  @Post('adopt/:roadmapId')
+  adopt(
+    @Param('roadmapId') roadmapId: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: AdoptRoadmapDto,
+  ) {
+    return this.roadmapsService.adopt(userId, roadmapId, dto);
+  }
+
   @Post('enroll/:roadmapId')
   enroll(
     @Param('roadmapId') roadmapId: string,
@@ -92,6 +105,14 @@ export class RoadmapsController {
   @Get('my-enrollments')
   getMyEnrollments(@CurrentUser('id') userId: string) {
     return this.roadmapsService.getUserEnrollments(userId);
+  }
+
+  @Get('enrollments/:enrollmentId/calendar')
+  getEnrollmentCalendar(
+    @Param('enrollmentId') enrollmentId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.roadmapsService.getEnrollmentCalendar(userId, enrollmentId);
   }
 
   @Post('progress/:roadmapId')
@@ -148,5 +169,11 @@ export class RoadmapsController {
   @UseGuards(AdminGuard)
   getStats() {
     return this.roadmapsService.getStats();
+  }
+
+  @Public()
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.roadmapsService.findOne(id);
   }
 }

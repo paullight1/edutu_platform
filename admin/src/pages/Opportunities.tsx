@@ -24,7 +24,11 @@ import {
     RefreshCw,
     GraduationCap,
     Cpu,
-    Scissors
+    Scissors,
+    Table2,
+    LayoutGrid,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react';
 
 interface Opportunity {
@@ -71,6 +75,16 @@ interface Stats {
 type OpportunityStatus = Opportunity['status'];
 
 type CreationMode = 'manual' | 'url' | 'bulk';
+type ViewMode = 'table' | 'grid';
+
+interface OpportunityListResponse {
+    data: Opportunity[];
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasMore: boolean;
+}
 
 export default function Opportunities() {
     const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
@@ -178,6 +192,11 @@ export default function Opportunities() {
     const [categoryFilter, setCategoryFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
     const [sortBy, setSortBy] = useState('newest');
+    const [viewMode, setViewMode] = useState<ViewMode>('table');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(50);
+    const [totalOpportunities, setTotalOpportunities] = useState(0);
+    const [totalPages, setTotalPages] = useState(1);
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
     // Form data
@@ -205,12 +224,16 @@ export default function Opportunities() {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        fetchOpportunities();
-    }, []);
+        const handle = window.setTimeout(() => {
+            fetchOpportunities();
+        }, 250);
+
+        return () => window.clearTimeout(handle);
+    }, [currentPage, pageSize, searchQuery, categoryFilter, statusFilter, sortBy]);
 
     useEffect(() => {
-        filterOpportunities();
-    }, [opportunities, searchQuery, categoryFilter, statusFilter, sortBy]);
+        setCurrentPage(1);
+    }, [searchQuery, categoryFilter, statusFilter, sortBy, pageSize]);
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -239,75 +262,55 @@ export default function Opportunities() {
 
     async function fetchOpportunities() {
         setLoading(true);
-        const { data } = await supabase
-            .from('opportunities')
-            .select('*')
-            .order('created_at', { ascending: false });
+        try {
+            const params = new URLSearchParams({
+                page: String(currentPage),
+                limit: String(pageSize),
+                sortBy,
+            });
 
-        const opps = data || [];
-        setOpportunities(opps);
+            if (searchQuery.trim()) params.set('search', searchQuery.trim());
+            if (categoryFilter !== 'all') params.set('category', categoryFilter);
+            if (statusFilter !== 'all') params.set('status', statusFilter);
 
-        // Calculate stats
-        const now = new Date();
-        const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+            const [listResponse, statsResponse] = await Promise.all([
+                fetch(`${NEST_API_URL}/opportunities/admin/list?${params.toString()}`, {
+                    headers: await getAdminHeaders(),
+                }),
+                fetch(`${NEST_API_URL}/opportunities/admin/stats`, {
+                    headers: await getAdminHeaders(),
+                }),
+            ]);
 
-        setStats({
-            total: opps.length,
-            active: opps.filter(o => o.status === 'active').length,
-            featured: opps.filter(o => o.is_featured).length,
-            needsReview: opps.filter(o => o.status === 'pending_review' || o.metadata?.needs_review).length,
-            expiringSoon: opps.filter(o => {
-                if (!o.close_date) return false;
-                const closeDate = new Date(o.close_date);
-                return closeDate > now && closeDate <= sevenDaysFromNow;
-            }).length
-        });
+            if (!listResponse.ok) {
+                const error = await listResponse.json().catch(() => ({}));
+                throw new Error(error.message || 'Failed to load opportunities');
+            }
 
-        setLoading(false);
+            const result = (await listResponse.json()) as OpportunityListResponse;
+            const opps = result.data || [];
+            setOpportunities(opps);
+            setFilteredOpps(opps);
+            setTotalOpportunities(result.total || 0);
+            setTotalPages(result.totalPages || 1);
+
+            if (statsResponse.ok) {
+                setStats(await statsResponse.json());
+            }
+        } catch (error: any) {
+            console.error('Failed to load opportunities:', error);
+            alert(error.message || 'Failed to load opportunities');
+            setOpportunities([]);
+            setFilteredOpps([]);
+            setTotalOpportunities(0);
+            setTotalPages(1);
+        } finally {
+            setLoading(false);
+        }
     }
 
     function filterOpportunities() {
-        let filtered = [...opportunities];
-
-        // Search filter
-        if (searchQuery) {
-            const query = searchQuery.toLowerCase();
-            filtered = filtered.filter(o =>
-                o.title.toLowerCase().includes(query) ||
-                o.organization?.toLowerCase().includes(query) ||
-                o.category.toLowerCase().includes(query)
-            );
-        }
-
-        // Category filter
-        if (categoryFilter !== 'all') {
-            filtered = filtered.filter(o => o.category === categoryFilter);
-        }
-
-        // Status filter
-        if (statusFilter !== 'all') {
-            filtered = filtered.filter(o => o.status === statusFilter);
-        }
-
-        // Sort
-        filtered.sort((a, b) => {
-            switch (sortBy) {
-                case 'newest':
-                    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-                case 'oldest':
-                    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-                case 'deadline':
-                    if (!a.close_date) return 1;
-                    if (!b.close_date) return -1;
-                    return new Date(a.close_date).getTime() - new Date(b.close_date).getTime();
-                case 'featured':
-                    return (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0);
-                default:
-                    return 0;
-            }
-        });
-
-        setFilteredOpps(filtered);
+        setFilteredOpps(opportunities);
     }
 
     async function handleDelete(id: string) {
@@ -603,6 +606,144 @@ export default function Opportunities() {
         return { background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' };
     };
 
+    const startRow = totalOpportunities === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+    const endRow = Math.min(currentPage * pageSize, totalOpportunities);
+
+    function renderPagination() {
+        return (
+            <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '14px 16px',
+                borderTop: '1px solid var(--border-color)',
+                flexWrap: 'wrap',
+            }}>
+                <span style={{ color: 'var(--text-tertiary)', fontSize: '13px' }}>
+                    Showing {startRow.toLocaleString()}-{endRow.toLocaleString()} of {totalOpportunities.toLocaleString()}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <select
+                        className="input-field"
+                        value={pageSize}
+                        onChange={(e) => setPageSize(Number(e.target.value))}
+                        style={{ width: '110px', height: '38px' }}
+                    >
+                        <option value={25}>25 rows</option>
+                        <option value={50}>50 rows</option>
+                        <option value={100}>100 rows</option>
+                        <option value={200}>200 rows</option>
+                    </select>
+                    <button
+                        className="btn btn-secondary"
+                        disabled={currentPage <= 1}
+                        onClick={() => setCurrentPage((page) => Math.max(page - 1, 1))}
+                        style={{ padding: '9px 12px' }}
+                    >
+                        <ChevronLeft size={16} />
+                    </button>
+                    <span style={{ minWidth: '96px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                        Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                        className="btn btn-secondary"
+                        disabled={currentPage >= totalPages}
+                        onClick={() => setCurrentPage((page) => Math.min(page + 1, totalPages))}
+                        style={{ padding: '9px 12px' }}
+                    >
+                        <ChevronRight size={16} />
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    function renderOpportunityTable() {
+        return (
+            <>
+                <div style={{ overflowX: 'auto' }}>
+                    <table className="table" style={{ margin: 0, minWidth: '1180px' }}>
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Organization</th>
+                                <th>Category</th>
+                                <th>Status</th>
+                                <th>Deadline</th>
+                                <th>Location</th>
+                                <th>Quality</th>
+                                <th>Views</th>
+                                <th>Applications</th>
+                                <th>Created</th>
+                                <th style={{ textAlign: 'right' }}>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredOpps.map((opp) => {
+                                const qualityScore = opp.metadata?.extraction_quality_score;
+                                const needsReview = opp.status === 'pending_review' || opp.metadata?.needs_review;
+                                return (
+                                    <tr key={opp.id}>
+                                        <td style={{ maxWidth: '320px' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <strong style={{ color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    {opp.title || 'Untitled opportunity'}
+                                                </strong>
+                                                <span style={{ color: 'var(--text-tertiary)', fontSize: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    {opp.application_url || opp.source_url || 'No URL'}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td>{opp.organization || 'Unknown'}</td>
+                                        <td>{opp.category || 'Uncategorized'}</td>
+                                        <td>
+                                            <span style={{
+                                                ...getStatusStyle(opp.status),
+                                                padding: '4px 9px',
+                                                borderRadius: '999px',
+                                                fontSize: '12px',
+                                                fontWeight: 700,
+                                                textTransform: 'capitalize',
+                                            }}>
+                                                {needsReview ? 'Needs review' : (opp.status || 'draft').replace('_', ' ')}
+                                            </span>
+                                        </td>
+                                        <td>{opp.close_date ? new Date(opp.close_date).toLocaleDateString() : 'No deadline'}</td>
+                                        <td>{opp.is_remote ? 'Remote' : (opp.location || 'Not set')}</td>
+                                        <td>{typeof qualityScore === 'number' ? `${qualityScore}%` : 'N/A'}</td>
+                                        <td>{(opp.views || 0).toLocaleString()}</td>
+                                        <td>{(opp.applications || 0).toLocaleString()}</td>
+                                        <td>{opp.created_at ? new Date(opp.created_at).toLocaleDateString() : 'N/A'}</td>
+                                        <td>
+                                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                                                {needsReview && (
+                                                    <button className="btn btn-secondary" title="Approve" onClick={() => handleStatusUpdate(opp.id, 'active')} style={{ padding: '8px' }}>
+                                                        <CheckCircle2 size={15} />
+                                                    </button>
+                                                )}
+                                                <button className="btn btn-secondary" title="Open application URL" onClick={() => window.open(opp.application_url || opp.source_url, '_blank')} style={{ padding: '8px' }}>
+                                                    <ExternalLink size={15} />
+                                                </button>
+                                                <button className="btn btn-secondary" title="Edit" onClick={() => handleEdit(opp)} style={{ padding: '8px' }}>
+                                                    <Edit3 size={15} />
+                                                </button>
+                                                <button className="btn btn-secondary" title="Delete" onClick={() => handleDelete(opp.id)} style={{ padding: '8px', color: '#ef4444' }}>
+                                                    <Trash2 size={15} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+                {renderPagination()}
+            </>
+        );
+    }
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             {/* Header */}
@@ -819,6 +960,25 @@ export default function Opportunities() {
                         <option value="deadline">Deadline</option>
                         <option value="featured">Featured</option>
                     </select>
+
+                    <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
+                        <button
+                            className={`btn ${viewMode === 'table' ? 'btn-primary' : 'btn-secondary'}`}
+                            onClick={() => setViewMode('table')}
+                            title="Table view"
+                            style={{ padding: '10px 12px' }}
+                        >
+                            <Table2 size={18} />
+                        </button>
+                        <button
+                            className={`btn ${viewMode === 'grid' ? 'btn-primary' : 'btn-secondary'}`}
+                            onClick={() => setViewMode('grid')}
+                            title="Card view"
+                            style={{ padding: '10px 12px' }}
+                        >
+                            <LayoutGrid size={18} />
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -838,7 +998,10 @@ export default function Opportunities() {
                             Create First Opportunity
                         </button>
                     </div>
+                ) : viewMode === 'table' ? (
+                    renderOpportunityTable()
                 ) : (
+                    <>
                     <div style={{
                         display: 'grid',
                         gridTemplateColumns: 'repeat(4, 1fr)',
@@ -1109,6 +1272,8 @@ export default function Opportunities() {
                             );
                         })}
                     </div>
+                    {renderPagination()}
+                    </>
                 )}
 
                 {/* Responsive Grid Styles */}

@@ -5,6 +5,7 @@ import { CronJob } from 'cron';
 import axios from 'axios';
 import { z } from 'zod';
 import * as cheerio from 'cheerio';
+import { AiService } from '../ai';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -148,7 +149,10 @@ export class ScraperService implements OnModuleInit {
   private readonly logger = new Logger(ScraperService.name);
   private supabase: SupabaseClient;
 
-  constructor(private schedulerRegistry: SchedulerRegistry) {
+  constructor(
+    private schedulerRegistry: SchedulerRegistry,
+    private readonly aiService: AiService,
+  ) {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -615,11 +619,11 @@ export class ScraperService implements OnModuleInit {
       this.transformToOpportunity(item, jobLogId),
     );
 
-    // Deduplicate within the payload based on application_url to avoid Supabase ON CONFLICT errors
+    // Deduplicate within the payload based on canonical_url to avoid Supabase ON CONFLICT errors
     const uniqueRecords: Record<string, unknown>[] = [];
     const seenUrls = new Set<string>();
     for (const rec of rawRecords) {
-      const url = rec.application_url as string;
+      const url = rec.canonical_url as string;
       if (!seenUrls.has(url)) {
         seenUrls.add(url);
         uniqueRecords.push(rec as Record<string, unknown>);
@@ -629,7 +633,7 @@ export class ScraperService implements OnModuleInit {
     const { error } = await this.supabase
       .from('opportunities')
       .upsert(uniqueRecords, {
-        onConflict: 'application_url',
+        onConflict: 'canonical_url',
         ignoreDuplicates: false,
       });
 
@@ -850,8 +854,7 @@ export class ScraperService implements OnModuleInit {
       benefits: [],
       application_process: [],
     };
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey || !text || text.length < 80) return fallback;
+    if (!text || text.length < 80) return fallback;
 
     const prompt = `You are an educational opportunity data extraction API. From the text below, extract fields and return ONLY valid JSON matching this schema exactly:
 {
@@ -866,34 +869,15 @@ TEXT:
 ${text}`;
 
     try {
-      const res = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`,
-        {
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.05,
-            responseMimeType: 'application/json',
-          },
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': apiKey,
-          },
-          timeout: 30_000,
-        },
-      );
-      let raw = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!raw) return fallback;
+      const parsedJSON = await this.aiService.generateJson({
+        feature: 'scraper.extract',
+        prompt,
+        responseMimeType: 'application/json',
+        temperature: 0.05,
+        metadata: { textLength: text.length },
+      });
 
-      // Sometimes Gemini wraps output in markdown code blocks
-      raw = raw
-        .replace(/```json\s*/gi, '')
-        .replace(/```\s*$/gi, '')
-        .trim();
-
-      const parsedJSON = JSON.parse(raw);
-      return GeminiExtractionSchema.parse(parsedJSON);
+      return GeminiExtractionSchema.parse(parsedJSON || fallback);
     } catch (e: any) {
       if (e instanceof z.ZodError) {
         this.logger.warn(`Gemini validation failed: ${e.message}`);
@@ -1142,6 +1126,13 @@ ${text}`;
         : `${baseUrl}/${safeTitle}`;
     }
 
+    const canonicalUrl = this.normalizeUrl(application_url);
+    const contentFingerprint = this.createContentFingerprint(
+      item.title || 'Untitled Opportunity',
+      item.source,
+      closeDate,
+    );
+
     return {
       title: item.title || 'Untitled Opportunity',
       organization: item.source,
@@ -1150,6 +1141,10 @@ ${text}`;
       location: item.location || 'Worldwide',
       description: item.description || '',
       application_url,
+      canonical_url: canonicalUrl,
+      content_fingerprint: contentFingerprint,
+      quality_score: quality.score,
+      validation_status: quality.score >= MIN_PUBLISH_QUALITY_SCORE ? 'valid' : 'needs_review',
       image_url: item.image_url || null,
       stipend,
       currency,
@@ -1171,6 +1166,25 @@ ${text}`;
       updated_at: now,
       status: quality.score >= MIN_PUBLISH_QUALITY_SCORE ? 'active' : 'pending_review',
     };
+  }
+
+  private normalizeUrl(url: string): string {
+    return url
+      .trim()
+      .replace(/[?#].*$/, '')
+      .replace(/\/+$/, '')
+      .toLowerCase();
+  }
+
+  private createContentFingerprint(
+    title: string,
+    organization: string,
+    closeDate: string | null,
+  ): string {
+    return `${title}|${organization}|${closeDate ?? ''}`
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, ' ');
   }
 
   // ─── Deletion ─────────────────────────────────────────────────────────────
@@ -1446,6 +1460,10 @@ ${text}`;
           ],
         },
         application_url: 'https://example.com/apply',
+        canonical_url: 'https://example.com/apply',
+        content_fingerprint: 'international scholarship for students|global education foundation|2025-12-31',
+        quality_score: 100,
+        validation_status: 'valid',
         stipend: 50000,
         currency: 'USD',
         source: 'scraper',
@@ -1459,7 +1477,7 @@ ${text}`;
     if (this.supabase) {
       const { error } = await this.supabase
         .from('opportunities')
-        .upsert(mock, { onConflict: 'application_url' });
+        .upsert(mock, { onConflict: 'canonical_url' });
       if (error) this.logger.warn(`Mock save failed: ${error.message}`);
     }
 

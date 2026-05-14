@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ScraperService } from './scraper.service';
 import { SchedulerRegistry } from '@nestjs/schedule';
+import { AiService } from '../ai';
 
 describe('ScraperService', () => {
   let service: ScraperService;
@@ -8,6 +9,9 @@ describe('ScraperService', () => {
   const mockSchedulerRegistry = {
     deleteCronJob: jest.fn(),
     addCronJob: jest.fn(),
+  };
+  const mockAiService = {
+    generateJson: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -20,6 +24,7 @@ describe('ScraperService', () => {
       providers: [
         ScraperService,
         { provide: SchedulerRegistry, useValue: mockSchedulerRegistry },
+        { provide: AiService, useValue: mockAiService },
       ],
     }).compile();
 

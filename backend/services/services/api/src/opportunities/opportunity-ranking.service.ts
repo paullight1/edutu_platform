@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { and, desc, eq, gte, notInArray, or, sql } from 'drizzle-orm';
-import { GoogleGenAI } from '@google/genai';
 import { db } from '../db';
 import {
   goals,
@@ -15,6 +14,7 @@ import {
   RecommendationQueryDto,
   UserRecommendationRequestDto,
 } from './dto/personalization.dto';
+import { AiService } from '../ai';
 
 type OpportunityRow = typeof opportunities.$inferSelect;
 type PreferenceRow = typeof userOpportunityPreferences.$inferSelect;
@@ -37,9 +37,8 @@ type SignalScore = {
 @Injectable()
 export class OpportunityRankingService {
   private readonly logger = new Logger(OpportunityRankingService.name);
-  private readonly ai = process.env.GEMINI_API_KEY
-    ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
-    : null;
+
+  constructor(private readonly aiService: AiService) {}
 
   async getUserPreferences(userId: string) {
     const [preference] = await db
@@ -519,7 +518,7 @@ export class OpportunityRankingService {
     message: string,
     limit: number,
   ) {
-    if (!this.ai || !candidates.length) {
+    if (!candidates.length) {
       return candidates.slice(0, limit);
     }
 
@@ -565,21 +564,18 @@ ${JSON.stringify(
   2,
 )}`;
 
-      const response = await this.ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          temperature: 0.2,
-        },
+      const parsed = await this.aiService.generateJson<{
+        matches?: Array<{ id: string; score: number; reason?: string }>;
+      }>({
+        feature: 'opportunities.rerank',
+        prompt,
+        responseMimeType: 'application/json',
+        temperature: 0.2,
+        metadata: { candidateCount: shortlist.length },
       });
 
-      const text = response.text?.trim();
-      if (!text) return shortlist;
+      if (!parsed) return shortlist;
 
-      const parsed = JSON.parse(text) as {
-        matches?: Array<{ id: string; score: number; reason?: string }>;
-      };
       const ranking = new Map(
         (parsed.matches || []).map((entry) => [entry.id, entry]),
       );

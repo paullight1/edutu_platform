@@ -1,6 +1,39 @@
 import '@testing-library/jest-dom';
-import { afterEach, vi } from 'vitest';
+import type React from 'react';
+import { afterAll, afterEach, beforeAll, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
+
+vi.mock('@clerk/clerk-react', () => ({
+    ClerkProvider: ({ children }: { children: React.ReactNode }) => children,
+    useAuth: () => ({
+        isLoaded: true,
+        isSignedIn: false,
+        userId: null,
+        getToken: vi.fn().mockResolvedValue(null),
+    }),
+    useUser: () => ({
+        isLoaded: true,
+        isSignedIn: false,
+        user: null,
+    }),
+    useSignIn: () => ({
+        isLoaded: true,
+        signIn: {
+            authenticateWithRedirect: vi.fn(),
+            create: vi.fn(),
+        },
+    }),
+    useSignUp: () => ({
+        isLoaded: true,
+        signUp: {
+            create: vi.fn(),
+            prepareEmailAddressVerification: vi.fn(),
+        },
+    }),
+    useClerk: () => ({
+        signOut: vi.fn(),
+    }),
+}));
 
 // Cleanup after each test
 afterEach(() => {

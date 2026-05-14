@@ -73,6 +73,12 @@ export async function processN8nWebhook(payload: N8nOpportunityPayload): Promise
     };
 
     try {
+        if (typeof window !== 'undefined') {
+            response.message = 'Webhook ingestion must be handled by the Supabase n8n-webhook Edge Function.';
+            response.errors.push('Refusing to process privileged webhook writes in the browser.');
+            return response;
+        }
+
         // Validate API key if provided (recommended for production)
         if (payload.apiKey) {
             const isValid = await validateWebhookApiKey(payload.apiKey);

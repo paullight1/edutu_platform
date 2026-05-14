@@ -1,161 +1,117 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { authService, getProfileFromUser } from '../../lib/auth';
 
-// Mock Supabase client
 vi.mock('../../lib/supabaseClient', () => ({
-    supabase: {
-        auth: {
-            getSession: vi.fn(),
-            getUser: vi.fn(),
-            signInWithOAuth: vi.fn(),
-            signOut: vi.fn(),
-            onAuthStateChange: vi.fn(),
-            updateUser: vi.fn(),
-            setSession: vi.fn(),
-            exchangeCodeForSession: vi.fn(),
-        },
-        from: vi.fn(() => ({
-            select: vi.fn().mockReturnThis(),
-            insert: vi.fn().mockReturnThis(),
-            update: vi.fn().mockReturnThis(),
-            upsert: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockReturnThis(),
-            single: vi.fn(),
-        })),
-    },
+  setClerkTokenGetter: vi.fn(),
+  supabase: {
+    from: vi.fn(() => ({
+      select: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      upsert: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } }),
+    })),
+  },
 }));
 
-// Mock Capacitor
-vi.mock('@capacitor/core', () => ({
-    Capacitor: {
-        isNativePlatform: vi.fn().mockReturnValue(false),
-    },
-}));
+describe('authService Clerk bridge', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.Clerk = undefined;
+  });
 
-describe('Auth Service', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
+  it('returns null when Clerk has no current user', async () => {
+    await expect(authService.getCurrentUser()).resolves.toBeNull();
+  });
+
+  it('maps the current Clerk user into the app user shape', async () => {
+    window.Clerk = {
+      user: {
+        id: 'user_123',
+        fullName: 'Test User',
+        primaryEmailAddress: { emailAddress: 'test@example.com' },
+        unsafeMetadata: { age: 25, course_of_study: 'Computer Science' },
+      },
+    };
+
+    await expect(authService.getCurrentUser()).resolves.toEqual({
+      id: 'user_123',
+      name: 'Test User',
+      email: 'test@example.com',
+      age: 25,
+      courseOfStudy: 'Computer Science',
+    });
+  });
+
+  it('updates Clerk profile metadata without touching Supabase Auth', async () => {
+    const update = vi.fn().mockResolvedValue({});
+    window.Clerk = {
+      user: {
+        id: 'user_123',
+        fullName: 'Test User',
+        unsafeMetadata: { existing: true },
+        update,
+      },
+    };
+
+    await authService.updateUserProfile({
+      full_name: 'Ada Lovelace',
+      age: 28,
+      course_of_study: 'Mathematics',
     });
 
-    describe('signInWithGoogle', () => {
-        it('should initiate Google OAuth flow', async () => {
-            const { supabase } = await import('../../lib/supabaseClient');
-
-            vi.mocked(supabase.auth.signInWithOAuth).mockResolvedValue({
-                data: { provider: 'google', url: 'https://google.com/auth' },
-                error: null,
-            });
-
-            const result = await authService.signInWithGoogle();
-
-            expect(supabase.auth.signInWithOAuth).toHaveBeenCalledWith({
-                provider: 'google',
-                options: expect.objectContaining({
-                    queryParams: {
-                        access_type: 'offline',
-                        prompt: 'consent',
-                    },
-                }),
-            });
-
-            expect(result).toEqual({
-                provider: 'google',
-                url: 'https://google.com/auth',
-            });
-        });
-
-        it('should throw error on OAuth failure', async () => {
-            const { supabase } = await import('../../lib/supabaseClient');
-
-            vi.mocked(supabase.auth.signInWithOAuth).mockResolvedValue({
-                data: { provider: 'google', url: null },
-                error: new Error('OAuth failed'),
-            });
-
-            await expect(authService.signInWithGoogle()).rejects.toThrow('OAuth failed');
-        });
+    expect(update).toHaveBeenCalledWith({
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      unsafeMetadata: {
+        existing: true,
+        full_name: 'Ada Lovelace',
+        age: 28,
+        course_of_study: 'Mathematics',
+      },
     });
+  });
 
-    describe('signOut', () => {
-        it('should sign out successfully', async () => {
-            const { supabase } = await import('../../lib/supabaseClient');
+  it('signs out through Clerk', async () => {
+    const signOut = vi.fn().mockResolvedValue(undefined);
+    window.Clerk = { signOut };
 
-            vi.mocked(supabase.auth.signOut).mockResolvedValue({ error: null });
+    await authService.signOut();
 
-            await expect(authService.signOut()).resolves.not.toThrow();
-            expect(supabase.auth.signOut).toHaveBeenCalled();
-        });
-    });
-
-    describe('getSession', () => {
-        it('should return current session', async () => {
-            const { supabase } = await import('../../lib/supabaseClient');
-
-            const mockSession = {
-                access_token: 'test-token',
-                user: { id: 'user-123', email: 'test@example.com' },
-            };
-
-            vi.mocked(supabase.auth.getSession).mockResolvedValue({
-                data: { session: mockSession },
-                error: null,
-            });
-
-            const session = await authService.getSession();
-            expect(session).toEqual(mockSession);
-        });
-    });
+    expect(signOut).toHaveBeenCalled();
+  });
 });
 
 describe('getProfileFromUser', () => {
-    it('should return null for null user', () => {
-        expect(getProfileFromUser(null)).toBeNull();
+  it('returns null for null user', () => {
+    expect(getProfileFromUser(null)).toBeNull();
+  });
+
+  it('extracts profile from user metadata', () => {
+    const mockUser = {
+      id: 'user-123',
+      email: 'test@example.com',
+      user_metadata: {
+        full_name: 'Test User',
+        age: 25,
+      },
+    };
+
+    expect(getProfileFromUser(mockUser as any)).toEqual({
+      id: 'user-123',
+      name: 'Test User',
+      email: 'test@example.com',
+      age: 25,
     });
+  });
 
-    it('should extract profile from user metadata', () => {
-        const mockUser = {
-            id: 'user-123',
-            email: 'test@example.com',
-            user_metadata: {
-                full_name: 'Test User',
-                age: 25,
-            },
-            created_at: '2024-01-01',
-        };
+  it('uses email prefix when name is missing', () => {
+    const profile = getProfileFromUser({
+      id: 'user-123',
+      email: 'john.doe@example.com',
+      user_metadata: {},
+    } as any);
 
-        const profile = getProfileFromUser(mockUser as any);
-
-        expect(profile).toEqual({
-            id: 'user-123',
-            name: 'Test User',
-            email: 'test@example.com',
-            age: 25,
-        });
-    });
-
-    it('should use email prefix when name is missing', () => {
-        const mockUser = {
-            id: 'user-123',
-            email: 'john.doe@example.com',
-            user_metadata: {},
-            created_at: '2024-01-01',
-        };
-
-        const profile = getProfileFromUser(mockUser as any);
-
-        expect(profile?.name).toBe('john.doe');
-    });
-
-    it('should use default name when email and name are missing', () => {
-        const mockUser = {
-            id: 'user-123',
-            email: undefined,
-            user_metadata: {},
-            created_at: '2024-01-01',
-        };
-
-        const profile = getProfileFromUser(mockUser as any);
-
-        expect(profile?.name).toBe('New Edutu member');
-    });
+    expect(profile?.name).toBe('john.doe');
+  });
 });

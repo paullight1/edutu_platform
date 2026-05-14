@@ -31,6 +31,9 @@ import DeadlinesScreen from './components/DeadlinesScreen';
 import OpportunitiesPage from './components/OpportunitiesPage';
 import Wallet from './components/Wallet';
 import AddGoalScreen from './components/AddGoalScreen';
+import BillingPage from './components/BillingPage';
+import BillingSuccessPage from './components/BillingSuccessPage';
+import { PremiumGate } from './components/PremiumGate';
 import { useDarkMode } from './hooks/useDarkMode';
 import { Goal } from './hooks/useGoals';
 import { isNewUser } from './lib/auth';
@@ -71,7 +74,7 @@ export function App() {
   };
 
   const signOut = async () => {
-    await window.Clerk?.signOut();
+    await window.Clerk?.signOut?.();
   };
 
   // Initialize Capacitor for Android/iOS
@@ -386,6 +389,8 @@ export function App() {
         <Route path="/mentor" element={<MentorPage />} />
         <Route path="/auth" element={<AuthScreen onAuthSuccess={handleAuthSuccess} />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/billing" element={<AuthGuard><BillingPage /></AuthGuard>} />
+        <Route path="/billing/success" element={<AuthGuard><BillingSuccessPage /></AuthGuard>} />
         <Route path="/admin/*" element={<AdminGuard><LazyRoute loader={() => import('./admin/AdminRoot')} /></AdminGuard>} />
 
         <Route path="/app" element={
@@ -422,7 +427,7 @@ export function App() {
               onSelectOpportunity={(opportunity) => navigate(`/app/opportunity/${opportunity.id}`)}
             />
           } />
-          <Route path="chat" element={<LazyRoute loader={() => import('./components/ChatInterface')} />} />
+          <Route path="chat" element={<PremiumGate feature="ai_chat"><LazyRoute loader={() => import('./components/ChatInterface')} /></PremiumGate>} />
           <Route path="profile" element={<LazyRoute loader={() => import('./components/Profile')} />} />
           <Route path="goals" element={
             <LazyRoute loader={() => import('./components/AllGoals')} />
@@ -462,19 +467,19 @@ export function App() {
             />
           } />
           <Route path="opportunity/:id/roadmap" element={<LazyRoute loader={() => import('./components/OpportunityRoadmap')} />} />
-          <Route path="opportunity/:id/ai-roadmap" element={<LazyRoute loader={() => import('./components/AIRoadmapWizard')} />} />
+          <Route path="opportunity/:id/ai-roadmap" element={<PremiumGate feature="ai_roadmap"><LazyRoute loader={() => import('./components/AIRoadmapWizard')} /></PremiumGate>} />
           <Route path="goal/:id/roadmap" element={<GoalRoadmapFetcher onBack={() => handleBack()} />} />
-          <Route path="package/:id" element={<PackageDetailFetcher onBack={() => handleBack('/app/community')} />} />
+          <Route path="package/:id" element={<PremiumGate feature="marketplace_premium"><PackageDetailFetcher onBack={() => handleBack('/app/community')} /></PremiumGate>} />
           <Route path="settings" element={<LazyRoute loader={() => import('./components/SettingsMenu')} />} />
           <Route path="profile-edit" element={<LazyRoute loader={() => import('./components/EditProfileScreen')} />} />
           <Route path="notifications" element={<LazyRoute loader={() => import('./components/NotificationsScreen')} />} />
           <Route path="privacy" element={<LazyRoute loader={() => import('./components/PrivacyScreen')} />} />
           <Route path="help" element={<LazyRoute loader={() => import('./components/HelpScreen')} />} />
-          <Route path="cv" element={<LazyRoute loader={() => import('./components/CVManagement')} />} />
+          <Route path="cv" element={<PremiumGate feature="cv_builder"><LazyRoute loader={() => import('./components/CVManagement')} /></PremiumGate>} />
           <Route path="personalization" element={<LazyRoute loader={() => import('./components/PersonalizationProfileScreen')} />} />
           <Route path="creator/apply" element={<LazyRoute loader={() => import('./components/CreatorApply')} />} />
           <Route path="creator/dashboard" element={<LazyRoute loader={() => import('./components/CreatorDashboard')} />} />
-          <Route path="creator/create" element={<LazyRoute loader={() => import('./components/CreatorRoadmapWizard')} />} />
+          <Route path="creator/create" element={<PremiumGate feature="creator_tools"><LazyRoute loader={() => import('./components/CreatorRoadmapWizard')} /></PremiumGate>} />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />

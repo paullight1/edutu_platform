@@ -1,5 +1,17 @@
 import { z } from 'zod';
 
+const RoadmapStepDtoSchema = z.object({
+  id: z.string().optional(),
+  title: z.string().min(3),
+  description: z.string().min(10),
+  duration: z.string().optional(),
+  resources: z.array(z.string()).optional(),
+  relativeDueDays: z.number().int().optional(),
+  phase: z.string().optional(),
+  taskType: z.string().optional(),
+  calendarSyncEnabled: z.boolean().optional(),
+});
+
 export const CreateRoadmapDtoSchema = z.object({
   title: z.string().min(3).max(200),
   slug: z.string().min(3).max(200).optional(),
@@ -11,14 +23,14 @@ export const CreateRoadmapDtoSchema = z.object({
   prerequisites: z.string().optional(),
   outcomes: z.string().optional(),
   coverImage: z.string().url().optional().or(z.literal('')),
+  opportunityId: z.string().optional(),
+  creatorProof: z.record(z.string(), z.unknown()).optional(),
+  deadlineStrategy: z.string().optional(),
+  communityId: z.string().optional(),
+  version: z.number().int().positive().optional().default(1),
+  calendarSyncEnabled: z.boolean().optional().default(false),
   isFeatured: z.boolean().optional().default(false),
-  steps: z.array(z.object({
-    id: z.string().optional(),
-    title: z.string().min(3),
-    description: z.string().min(10),
-    duration: z.string().optional(),
-    resources: z.array(z.string()).optional(),
-  })).min(1, 'At least one step is required'),
+  steps: z.array(RoadmapStepDtoSchema).min(1, 'At least one step is required'),
   resources: z.array(z.object({
     id: z.string().optional(),
     title: z.string().min(1),
@@ -59,8 +71,17 @@ export const AIAssistDtoSchema = z.object({
   additionalContext: z.string().optional(),
 });
 
+export const AdoptRoadmapDtoSchema = z.object({
+  opportunityId: z.string().optional(),
+  targetOpportunityId: z.string().optional(),
+  targetDeadline: z.string().optional(),
+  calendarSyncEnabled: z.boolean().optional(),
+});
+
+export type RoadmapStepDto = z.infer<typeof RoadmapStepDtoSchema>;
 export type CreateRoadmapDto = z.infer<typeof CreateRoadmapDtoSchema>;
 export type UpdateRoadmapDto = z.infer<typeof UpdateRoadmapDtoSchema>;
 export type RoadmapIntentDto = z.infer<typeof RoadmapIntentDtoSchema>;
 export type RoadmapFeedbackDto = z.infer<typeof RoadmapFeedbackDtoSchema>;
 export type AIAssistDto = z.infer<typeof AIAssistDtoSchema>;
+export type AdoptRoadmapDto = z.infer<typeof AdoptRoadmapDtoSchema>;

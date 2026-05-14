@@ -11,6 +11,8 @@ import { BlogModule } from './blog/blog.module';
 import { ScraperModule } from './scraper/scraper.module';
 import { CvModule } from './cv/cv.module';
 import { RoadmapsModule } from './roadmaps/roadmaps.module';
+import { BillingModule } from './billing/billing.module';
+import { AiModule } from './ai/ai.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -36,6 +38,8 @@ import { APP_GUARD } from '@nestjs/core';
     ScraperModule,
     CvModule,
     RoadmapsModule,
+    BillingModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [

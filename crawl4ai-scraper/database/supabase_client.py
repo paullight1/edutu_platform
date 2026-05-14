@@ -29,34 +29,63 @@ class SupabaseClient:
         return response.data or []
 
     def get_existing_urls(self) -> set[str]:
-        response = self.client.table('opportunities').select('apply_url').execute()
+        response = self.client.table('opportunities').select('canonical_url,application_url').execute()
         urls = set()
         for item in (response.data or []):
-            if item.get('apply_url'):
-                urls.add(item['apply_url'])
+            url = item.get('canonical_url') or self._normalize_url(item.get('application_url'))
+            if url:
+                urls.add(url)
         return urls
 
-    def upsert_opportunity(self, item: dict[str, Any]) -> dict[str, Any]:
+    def _normalize_url(self, url: Optional[str]) -> Optional[str]:
+        if not url:
+            return None
+        clean = url.strip().split('?')[0].split('#')[0].rstrip('/').lower()
+        return clean or None
+
+    def _content_fingerprint(self, item: dict[str, Any]) -> str:
+        return "|".join([
+            str(item.get('title') or 'Untitled').strip().lower(),
+            str(item.get('organization') or 'Unknown').strip().lower(),
+            str(item.get('deadline') or ''),
+        ])
+
+    def _to_payload(self, item: dict[str, Any], now: str) -> dict[str, Any]:
+        application_url = item.get('applyUrl') or item.get('application_url')
+        canonical_url = self._normalize_url(application_url)
+        if not canonical_url:
+            safe_title = str(item.get('title') or 'untitled').strip().lower().replace(' ', '-')
+            source_url = str(item.get('source') or 'unknown-source').strip().lower().rstrip('/')
+            canonical_url = f"{source_url}/{safe_title}"
+        metadata = {
+            'requirements': item.get('requirements', []),
+            'benefits': item.get('benefits', []),
+            'application_process': item.get('applicationProcess', []),
+            'match': item.get('match', 50),
+            'difficulty': item.get('difficulty', 'Medium'),
+            'scraped_at': now,
+        }
+
         payload = {
             'id': item.get('id') or str(uuid.uuid4()),
             'title': item.get('title', 'Untitled'),
             'organization': item.get('organization', 'Unknown'),
             'category': item.get('category', 'General'),
-            'deadline': item.get('deadline'),
+            'close_date': item.get('deadline'),
             'location': item.get('location', 'Worldwide'),
             'description': item.get('description', ''),
-            'requirements': item.get('requirements', []),
-            'benefits': item.get('benefits', []),
-            'applicationProcess': item.get('applicationProcess', []),
-            'applyUrl': item.get('applyUrl'),
-            'match': item.get('match', 50),
-            'difficulty': item.get('difficulty', 'Medium'),
-            'image': item.get('image'),
+            'application_url': application_url,
+            'canonical_url': canonical_url,
+            'content_fingerprint': self._content_fingerprint(item),
+            'quality_score': item.get('quality_score') or item.get('match', 50),
+            'validation_status': 'valid' if (item.get('quality_score') or item.get('match', 50)) >= 60 else 'needs_review',
+            'image_url': item.get('image'),
             'tags': item.get('aiTags', []),
             'source': 'scraper',
             'source_url': item.get('source', 'Unknown'),
-            'scraped_at': datetime.utcnow().isoformat(),
-            'createdAt': datetime.utcnow().isoformat(),
+            'metadata': metadata,
+            'created_at': now,
+            'updated_at': now,
         }
 
         if item.get('stipend') is not None:
@@ -64,8 +93,13 @@ class SupabaseClient:
         if item.get('currency'):
             payload['currency'] = item['currency']
 
+        return payload
+
+    def upsert_opportunity(self, item: dict[str, Any]) -> dict[str, Any]:
+        payload = self._to_payload(item, datetime.utcnow().isoformat())
+
         try:
-            response = self.client.table('opportunities').upsert(payload, on_conflict='id').execute()
+            response = self.client.table('opportunities').upsert(payload, on_conflict='canonical_url').execute()
             return {'success': True, 'data': response.data}
         except Exception as e:
             return {'success': False, 'error': str(e)}
@@ -78,29 +112,10 @@ class SupabaseClient:
         now = datetime.utcnow().isoformat()
 
         for item in items:
-            payload.append({
-                'id': item.get('id') or str(uuid.uuid4()),
-                'title': item.get('title', 'Untitled'),
-                'organization': item.get('organization', 'Unknown'),
-                'category': item.get('category', 'General'),
-                'deadline': item.get('deadline'),
-                'location': item.get('location', 'Worldwide'),
-                'description': item.get('description', ''),
-                'requirements': item.get('requirements', []),
-                'benefits': item.get('benefits', []),
-                'applicationProcess': item.get('applicationProcess', []),
-                'applyUrl': item.get('applyUrl'),
-                'match': item.get('match', 50),
-                'difficulty': item.get('difficulty', 'Medium'),
-                'tags': item.get('aiTags', []),
-                'source': 'scraper',
-                'source_url': item.get('source', 'Unknown'),
-                'scraped_at': now,
-                'createdAt': now,
-            })
+            payload.append(self._to_payload(item, now))
 
         try:
-            response = self.client.table('opportunities').upsert(payload, on_conflict='id').execute()
+            response = self.client.table('opportunities').upsert(payload, on_conflict='canonical_url').execute()
             return {
                 'success': True,
                 'inserted': len(items),
