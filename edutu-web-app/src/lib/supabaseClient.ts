@@ -1,5 +1,4 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Database } from '../types/supabase';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -11,8 +10,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
 /** Clerk JWT getter - set by AuthProvider */
 let _getToken: (() => Promise<string | null | undefined>) | null = null;
 
-function createClientWithClerkAuth(): SupabaseClient<Database> {
-    return createClient<Database>(supabaseUrl, supabaseAnonKey, {
+function createClientWithClerkAuth(): SupabaseClient {
+    return createClient(supabaseUrl, supabaseAnonKey, {
         global: {
             fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
                 const headers = new Headers(init?.headers);

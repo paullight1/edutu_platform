@@ -2,9 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { db } from '../db';
 import { quizzes, quizQuestions, quizAttempts } from '../db/schema';
 import { eq, and } from 'drizzle-orm';
-import { GoogleGenAI } from '@google/genai';
 import { z } from 'zod';
 import { GenerateQuizDto, SubmitQuizDto } from './dto/generate-quiz.dto';
+import { AiService } from '../ai';
 
 const QuizQuestionSchema = z.object({
   questionText: z.string(),
@@ -18,7 +18,8 @@ const QuizResponseSchema = z.array(QuizQuestionSchema);
 @Injectable()
 export class QuizService {
   private readonly logger = new Logger(QuizService.name);
-  private readonly ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+  constructor(private readonly aiService: AiService) {}
 
   async generate(userId: string, dto: GenerateQuizDto) {
     const questionCount = dto.questionCount || 5;
@@ -48,19 +49,16 @@ ${dto.description ? `- Additional context: ${dto.description}` : ''}
         `.trim();
 
     try {
-      const response = await this.ai.models.generateContent({
-        model: 'gemini-1.5-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-        },
+      const parsedJson = await this.aiService.generateJson({
+        feature: 'quiz.generate',
+        prompt,
+        responseMimeType: 'application/json',
+        metadata: { userId, topic: dto.topic, difficulty },
       });
 
-      const textOutput = response.text;
-      if (!textOutput) {
+      if (!parsedJson) {
         throw new Error('AI returned empty response');
       }
-      const parsedJson = JSON.parse(textOutput);
 
       const result = QuizResponseSchema.safeParse(parsedJson);
       if (!result.success) {

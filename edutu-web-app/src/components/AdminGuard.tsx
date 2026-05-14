@@ -29,8 +29,10 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
 
   const isAdmin = user?.primaryEmailAddress?.emailAddress &&
     ADMIN_EMAILS.includes(user.primaryEmailAddress.emailAddress.toLowerCase());
+  const publicRole = typeof user?.publicMetadata?.role === 'string' ? user.publicMetadata.role : null;
+  const hasAdminRole = ['super_admin', 'admin', 'moderator', 'support_agent'].includes(publicRole ?? '');
 
-  if (!isAdmin) {
+  if (!isAdmin && !hasAdminRole) {
     return <Navigate to="/app/home" replace />;
   }
 

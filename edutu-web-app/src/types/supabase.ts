@@ -8,9 +8,69 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
+export type GenericTable = {
+  Row: Record<string, any>;
+  Insert: Record<string, any>;
+  Update: Record<string, any>;
+};
+
 export interface Database {
   public: {
     Tables: {
+      [key: string]: GenericTable;
+      profiles: {
+        Row: {
+          user_id: string;
+          full_name: string | null;
+          name: string | null;
+          age: number | null;
+          email: string | null;
+          bio: string | null;
+          avatar_url: string | null;
+          credits: number | null;
+          preferences: Json | null;
+          pro_since: string | null;
+          pro_expires_at: string | null;
+          subscription_id: string | null;
+          last_seen_at: string | null;
+          created_at: string | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          user_id: string;
+          full_name?: string | null;
+          name?: string | null;
+          age?: number | null;
+          email?: string | null;
+          bio?: string | null;
+          avatar_url?: string | null;
+          credits?: number | null;
+          preferences?: Json | null;
+          pro_since?: string | null;
+          pro_expires_at?: string | null;
+          subscription_id?: string | null;
+          last_seen_at?: string | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          user_id?: string;
+          full_name?: string | null;
+          name?: string | null;
+          age?: number | null;
+          email?: string | null;
+          bio?: string | null;
+          avatar_url?: string | null;
+          credits?: number | null;
+          preferences?: Json | null;
+          pro_since?: string | null;
+          pro_expires_at?: string | null;
+          subscription_id?: string | null;
+          last_seen_at?: string | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+      };
       analytics: {
         Row: {
           id: string;

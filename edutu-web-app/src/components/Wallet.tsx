@@ -16,10 +16,10 @@ import {
 } from 'lucide-react';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { useAuth } from '@clerk/clerk-react';
+import { useNavigate } from 'react-router-dom';
 import {
   getCreditBalance,
   getTransactionHistory,
-  addCredits,
   type CreditTransaction
 } from '../services/credits';
 import { authService } from '../lib/auth';
@@ -44,6 +44,7 @@ const CREDIT_PACKAGES: CreditPackage[] = [
 const Wallet: React.FC<WalletProps> = ({ onBack }) => {
   const { isDarkMode } = useDarkMode();
   const { isSignedIn, userId } = useAuth();
+  const navigate = useNavigate();
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -76,14 +77,8 @@ const Wallet: React.FC<WalletProps> = ({ onBack }) => {
     void loadWallet();
   }, [isSignedIn, userId]);
 
-  const handleBuyCredits = async (pkg: CreditPackage) => {
-    if (!userId) return;
-    const result = await addCredits(userId, pkg.credits, `Purchased ${pkg.credits} credits`);
-    if (result.success) {
-      setBalance(result.balance);
-      const updatedTransactions = await getTransactionHistory(userId, 20);
-      setTransactions(updatedTransactions);
-    }
+  const handleBuyCredits = (_pkg: CreditPackage) => {
+    navigate(`/billing?feature=credits&returnTo=${encodeURIComponent('/app/wallet')}`);
   };
 
   const formatDate = (dateString: string) => {

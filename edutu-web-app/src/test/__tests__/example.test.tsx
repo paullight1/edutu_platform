@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '../test-utils';
 
 // Mock Supabase client
 vi.mock('../../lib/supabaseClient', () => ({
+    setClerkTokenGetter: vi.fn(),
     supabase: {
         auth: {
             getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),

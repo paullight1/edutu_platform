@@ -81,6 +81,32 @@ export class OpportunitiesController {
     return this.opportunitiesService.syncOpportunities();
   }
 
+  @Get('admin/list')
+  @UseGuards(AdminGuard)
+  findAdminList(
+    @Query('limit') limit?: number,
+    @Query('page') page?: number,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('category') category?: string,
+    @Query('sortBy') sortBy?: string,
+  ) {
+    return this.opportunitiesService.findAdminList({
+      limit,
+      page,
+      search,
+      status,
+      category,
+      sortBy,
+    });
+  }
+
+  @Get('admin/stats')
+  @UseGuards(AdminGuard)
+  getAdminStats() {
+    return this.opportunitiesService.getAdminStats();
+  }
+
   @Get('apify-sync')
   @UseGuards(AdminGuard)
   async triggerApifySync(@Query('sources') sources?: string) {

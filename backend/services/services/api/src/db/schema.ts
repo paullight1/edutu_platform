@@ -321,6 +321,84 @@ export const flashcardReviews = pgTable('flashcard_reviews', {
   index('idx_flashcard_reviews_next_review').on(table.nextReviewAt),
 ]);
 
+// AI provider keys are write-only from the app perspective: the raw key is
+// encrypted before storage and never returned by admin APIs.
+export const aiProviderKeys = pgTable('ai_provider_keys', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  provider: text('provider').notNull(), // 'gemini', 'openrouter', 'openai', 'groq', etc.
+  label: text('label').notNull(),
+  encryptedKey: text('encrypted_key').notNull(),
+  keyPreview: text('key_preview').notNull(),
+  isActive: boolean('is_active').default(true),
+  createdBy: uuid('created_by'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => [
+  index('idx_ai_provider_keys_provider').on(table.provider),
+  index('idx_ai_provider_keys_active').on(table.isActive),
+]);
+
+export const aiRoutes = pgTable('ai_routes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  feature: text('feature').notNull().unique(), // e.g. 'chat.coach', 'cv.tailor', 'scraper.extract'
+  provider: text('provider').notNull().default('gemini'),
+  model: text('model').notNull().default('gemini-2.0-flash'),
+  providerKeyId: uuid('provider_key_id').references(() => aiProviderKeys.id, { onDelete: 'set null' }),
+  systemPrompt: text('system_prompt'),
+  temperature: integer('temperature').default(20), // stored as basis points: 20 => 0.2
+  maxOutputTokens: integer('max_output_tokens'),
+  responseMimeType: text('response_mime_type'),
+  fallbackProvider: text('fallback_provider'),
+  fallbackModel: text('fallback_model'),
+  isEnabled: boolean('is_enabled').default(true),
+  metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}),
+  updatedBy: uuid('updated_by'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => [
+  index('idx_ai_routes_feature').on(table.feature),
+  index('idx_ai_routes_provider').on(table.provider),
+]);
+
+export const aiPrompts = pgTable('ai_prompts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  feature: text('feature').notNull(),
+  name: text('name').notNull(),
+  content: text('content').notNull(),
+  version: integer('version').default(1),
+  isActive: boolean('is_active').default(false),
+  createdBy: uuid('created_by'),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => [
+  index('idx_ai_prompts_feature').on(table.feature),
+  index('idx_ai_prompts_active').on(table.isActive),
+]);
+
+export const aiUsageLogs = pgTable('ai_usage_logs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  feature: text('feature').notNull(),
+  provider: text('provider').notNull(),
+  model: text('model').notNull(),
+  status: text('status').notNull().default('success'),
+  latencyMs: integer('latency_ms'),
+  promptTokens: integer('prompt_tokens'),
+  completionTokens: integer('completion_tokens'),
+  totalTokens: integer('total_tokens'),
+  errorMessage: text('error_message'),
+  requestMetadata: jsonb('request_metadata').$type<Record<string, unknown>>().default({}),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (table) => [
+  index('idx_ai_usage_logs_feature').on(table.feature),
+  index('idx_ai_usage_logs_created_at').on(table.createdAt),
+]);
+
+export type AiProviderKey = typeof aiProviderKeys.$inferSelect;
+export type NewAiProviderKey = typeof aiProviderKeys.$inferInsert;
+export type AiRoute = typeof aiRoutes.$inferSelect;
+export type NewAiRoute = typeof aiRoutes.$inferInsert;
+export type AiPrompt = typeof aiPrompts.$inferSelect;
+export type AiUsageLog = typeof aiUsageLogs.$inferSelect;
+
 // Blog Posts
 export const blogPosts = pgTable('blog_posts', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -377,6 +455,12 @@ export const roadmaps = pgTable('roadmaps', {
   prerequisites: text('prerequisites'),
   outcomes: text('outcomes'),
   coverImage: text('cover_image'),
+  opportunityId: text('opportunity_id'),
+  creatorProof: jsonb('creator_proof').$type<Record<string, unknown>>(),
+  deadlineStrategy: text('deadline_strategy'),
+  communityId: text('community_id'),
+  version: integer('version').default(1),
+  calendarSyncEnabled: boolean('calendar_sync_enabled').default(false),
   status: text('status').notNull().default('draft'),
   createdBy: uuid('created_by').notNull(),
   creatorName: text('creator_name').notNull().default('Edutu Admin'),
@@ -384,7 +468,17 @@ export const roadmaps = pgTable('roadmaps', {
   enrollmentCount: integer('enrollment_count').default(0),
   ratingAvg: integer('rating_avg').default(0),
   ratingCount: integer('rating_count').default(0),
-  steps: jsonb('steps').$type<Array<{ id: string; title: string; description: string; duration?: string; resources?: string[] }>>().default([]),
+  steps: jsonb('steps').$type<Array<{
+    id: string;
+    title: string;
+    description: string;
+    duration?: string;
+    resources?: string[];
+    relativeDueDays?: number;
+    phase?: string;
+    taskType?: string;
+    calendarSyncEnabled?: boolean;
+  }>>().default([]),
   resources: jsonb('resources').$type<Array<{ id: string; title: string; url: string; type: string }>>().default([]),
   relatedOpportunities: text('related_opportunities').array().default([]),
   aiIntentTags: text('ai_intent_tags').array().default([]),
@@ -409,11 +503,18 @@ export const roadmapEnrollments = pgTable('roadmap_enrollments', {
   progress: integer('progress').default(0),
   currentStep: integer('current_step').default(0),
   completedSteps: jsonb('completed_steps').$type<string[]>().default([]),
+  targetOpportunityId: text('target_opportunity_id'),
+  targetDeadline: timestamp('target_deadline'),
+  calendarSyncEnabled: boolean('calendar_sync_enabled').default(false),
+  adoptedPlan: jsonb('adopted_plan').$type<Record<string, unknown>>().default({}),
   enrolledAt: timestamp('enrolled_at').defaultNow(),
   completedAt: timestamp('completed_at'),
+  updatedAt: timestamp('updated_at').defaultNow(),
 }, (table) => [
   index('idx_enrollments_user_id').on(table.userId),
   index('idx_enrollments_roadmap_id').on(table.roadmapId),
+  index('idx_enrollments_target_opportunity_id').on(table.targetOpportunityId),
+  index('idx_enrollments_target_deadline').on(table.targetDeadline),
 ]);
 
 export const userRoadmapIntents = pgTable('user_roadmap_intents', {

@@ -2,6 +2,34 @@ import { supabase } from './supabaseClient';
 import type { AppUser } from '../types/user';
 import type { OnboardingState } from '../types/onboarding';
 
+type ClerkLikeUser = {
+  id: string;
+  fullName?: string | null;
+  username?: string | null;
+  primaryEmailAddress?: { emailAddress?: string | null } | null;
+  unsafeMetadata?: Record<string, unknown>;
+  update?: (params: {
+    firstName?: string;
+    lastName?: string;
+    unsafeMetadata?: Record<string, unknown>;
+  }) => Promise<unknown>;
+};
+
+type ClerkLike = {
+  user?: ClerkLikeUser | null;
+  signOut?: () => Promise<void>;
+  signUp?: {
+    attemptEmailAddressVerification: (params: { code: string }) => Promise<{ status?: string; createdUserId?: string | null }>;
+    prepareEmailAddressVerification: (params: { strategy: 'email_code' }) => Promise<unknown>;
+  };
+};
+
+declare global {
+  interface Window {
+    Clerk?: ClerkLike;
+  }
+}
+
 export interface ProfilePreferences {
   onboarding?: OnboardingState;
   [key: string]: unknown;
@@ -9,20 +37,93 @@ export interface ProfilePreferences {
 
 export interface Profile {
   user_id: string;
-  full_name?: string;
-  name?: string;
-  age?: number;
-  email?: string;
-  bio?: string;
-  avatar_url?: string;
+  full_name?: string | null;
+  name?: string | null;
+  age?: number | null;
+  email?: string | null;
+  bio?: string | null;
+  avatar_url?: string | null;
+  credits?: number | null;
   preferences?: ProfilePreferences;
-  last_seen_at?: string;
-  created_at?: string;
-  updated_at?: string;
+  pro_since?: string | null;
+  pro_expires_at?: string | null;
+  subscription_id?: string | null;
+  last_seen_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
   [key: string]: unknown;
 }
 
+export type UserProfileUpdate = {
+  name?: string;
+  full_name?: string;
+  age?: number;
+  course_of_study?: string;
+  [key: string]: unknown;
+};
+
+function splitFullName(fullName: string) {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  const firstName = parts.shift();
+  const lastName = parts.length > 0 ? parts.join(' ') : undefined;
+  return { firstName, lastName };
+}
+
+function appUserFromClerkUser(user: ClerkLikeUser): AppUser {
+  const email = user.primaryEmailAddress?.emailAddress ?? undefined;
+  const metadata = user.unsafeMetadata ?? {};
+  const rawAge = metadata.age;
+  const parsedAge =
+    typeof rawAge === 'number' && Number.isFinite(rawAge)
+      ? rawAge
+      : typeof rawAge === 'string' && rawAge.trim()
+        ? Number.parseInt(rawAge, 10)
+        : null;
+
+  const courseOfStudy =
+    typeof metadata.course_of_study === 'string' && metadata.course_of_study.trim()
+      ? metadata.course_of_study.trim()
+      : undefined;
+
+  return {
+    id: user.id,
+    name: user.fullName || user.username || (email ? email.split('@')[0] : 'New Edutu member'),
+    email,
+    ...(Number.isFinite(parsedAge) && parsedAge !== null ? { age: parsedAge as number } : {}),
+    ...(courseOfStudy ? { courseOfStudy } : {}),
+  };
+}
+
 export const authService = {
+  async getCurrentUser(): Promise<AppUser | null> {
+    const clerkUser = window.Clerk?.user;
+    return clerkUser ? appUserFromClerkUser(clerkUser) : null;
+  },
+
+  async updateUserProfile(updates: UserProfileUpdate): Promise<void> {
+    const clerkUser = window.Clerk?.user;
+    if (!clerkUser?.update) {
+      throw new Error('Clerk user profile is not available.');
+    }
+
+    const nextMetadata = {
+      ...(clerkUser.unsafeMetadata ?? {}),
+      ...updates,
+    };
+
+    const displayName = updates.full_name ?? updates.name;
+    const nameParts = typeof displayName === 'string' ? splitFullName(displayName) : {};
+
+    await clerkUser.update({
+      ...nameParts,
+      unsafeMetadata: nextMetadata,
+    });
+  },
+
+  async signOut(): Promise<void> {
+    await window.Clerk?.signOut?.();
+  },
+
   async getProfile(userId: string): Promise<Profile | null> {
     const { data, error } = await supabase
       .from('profiles')
@@ -37,9 +138,14 @@ export const authService = {
   },
 
   async upsertProfile(profile: Profile) {
+    const payload = {
+      ...profile,
+      updated_at: profile.updated_at ?? new Date().toISOString(),
+    };
+
     const { data, error } = await supabase
       .from('profiles')
-      .upsert([{ ...profile }], { onConflict: 'user_id' })
+      .upsert([payload], { onConflict: 'user_id' })
       .select()
       .single();
     if (error) throw error;

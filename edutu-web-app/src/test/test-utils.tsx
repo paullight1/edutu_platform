@@ -17,7 +17,7 @@ const AllTheProviders = ({ children }: WrapperProps) => {
         <BrowserRouter>
             <ThemeProvider>
                 <ToastProvider>
-                    <AuthProvider initialUser={null}>
+                    <AuthProvider>
                         {children}
                     </AuthProvider>
                 </ToastProvider>

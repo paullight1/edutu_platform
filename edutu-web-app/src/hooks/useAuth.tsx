@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext, createContext, useCallback } from 'react';
-import { useAuth as useClerkAuth, useUser, useSignIn, useSignUp, useClerk } from '@clerk/clerk-react';
+import { useAuth as useClerkAuth, useUser, useSignIn, useSignUp } from '@clerk/clerk-react';
 import type { AppUser } from '../types/user';
 import { setClerkTokenGetter } from '../lib/supabaseClient';
 
@@ -19,8 +19,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isLoaded, isSignedIn, getToken } = useClerkAuth();
   const { user: clerkUser } = useUser();
-  const { signIn: clerkSignIn, isLoaded: isSignInLoaded } = useSignIn();
-  const { signUp: clerkSignUp, isLoaded: isSignUpLoaded } = useSignUp();
+  const { signIn: clerkSignIn } = useSignIn();
+  const { signUp: clerkSignUp } = useSignUp();
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -105,7 +105,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [clerkSignUp]);
 
   const signOut = useCallback(async () => {
-    await window.Clerk?.signOut();
+    await window.Clerk?.signOut?.();
     setUser(null);
   }, []);
 

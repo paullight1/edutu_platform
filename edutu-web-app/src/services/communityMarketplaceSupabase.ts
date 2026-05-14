@@ -1,9 +1,6 @@
 // Service to handle community marketplace functionality with Supabase
 import { supabase } from '../lib/supabaseClient';
 import type {
-  CommunityModeratorNote,
-  CommunityResource,
-  CommunityRoadmapStage,
   CommunityStory,
   CommunityStoryQueryOptions,
   CommunityStoryStats,
@@ -12,56 +9,17 @@ import type {
   CommunityStoryType,
   CommunityStoryUpdateInput
 } from '../types/community';
+import {
+  adoptRoadmap,
+  createRoadmap,
+  fetchRoadmap,
+  fetchRoadmapCommunityStories,
+  mapBackendRoadmapToCommunityStory,
+  toBackendCategory,
+  toBackendDifficulty,
+} from './roadmapApi';
 
-/**
- * Mapping helper for community posts (Roadmaps)
- */
-function mapPostToStory(post: any): CommunityStory {
-  const metadata = post.metadata || {};
-  return {
-    id: post.id,
-    title: post.title,
-    summary: metadata.summary || post.content.substring(0, 150) + '...',
-    story: post.content,
-    category: metadata.category || 'General',
-    duration: metadata.duration,
-    difficulty: metadata.difficulty || 'Intermediate',
-    price: metadata.price || 'Free',
-    successRate: metadata.successRate || 0,
-    image: metadata.image || '',
-    creator: {
-      name: metadata.creator_name || 'Community Member',
-      title: metadata.creator_title || '',
-      avatar: metadata.creator_avatar || '',
-      email: metadata.creator_email || '',
-      verified: metadata.creator_verified || false
-    },
-    tags: post.tags || [],
-    outcomes: metadata.outcomes || [],
-    resources: metadata.resources || [],
-    roadmap: metadata.roadmap || [],
-    status: (post.visibility === 'public' ? 'approved' : post.visibility === 'admins' ? 'pending' : 'hidden') as CommunityStoryStatus,
-    type: post.type as CommunityStoryType,
-    featured: metadata.featured || false,
-    featuredRank: metadata.featuredRank || null,
-    createdAt: post.created_at,
-    updatedAt: post.updated_at,
-    approvedAt: metadata.approved_at,
-    approvedBy: metadata.approved_by,
-    moderatorNotes: metadata.moderator_notes || [],
-    stats: {
-      rating: metadata.rating || 0,
-      users: metadata.users || 0,
-      successRate: metadata.successRate || 0,
-      saves: metadata.saves || 0,
-      adoptionCount: metadata.adoptionCount || 0,
-      likes: post.likes || 0,
-      comments: post.comments_count || 0
-    },
-    lastUpdatedLabel: 'Recently updated',
-    lastUpdatedTimestamp: new Date(post.updated_at).getTime()
-  };
-}
+const supabaseDb = supabase as any;
 
 /**
  * Mapping helper for marketplace listings
@@ -140,40 +98,18 @@ export async function fetchCommunityStories(
   const typeFilter = options.type || ['roadmap', 'marketplace'];
   const types = Array.isArray(typeFilter) ? typeFilter : [typeFilter];
 
-  // 1. Fetch from community_posts (Roadmaps)
+  // 1. Fetch roadmaps from the backend API. The roadmaps table is the source of truth.
   if (types.includes('roadmap')) {
-    let query = supabase
-      .from('community_posts')
-      .select('*')
-      .eq('type', 'roadmap');
-
-    if (options.status) {
-      const visibility = options.status === 'approved' ? 'public' : options.status === 'pending' ? 'admins' : 'public';
-      query = query.eq('visibility', visibility);
-    } else {
-      query = query.eq('visibility', 'public');
-    }
-
-    if (options.category) {
-      // In community_posts, category is in metadata
-      query = query.contains('metadata', { category: options.category });
-    }
-
-    if (options.limit) {
-      query = query.limit(options.limit);
-    }
-
-    const { data, error } = await query;
-    if (error) {
-      console.error('Error fetching roadmaps:', error);
-    } else if (data) {
-      stories.push(...data.map(mapPostToStory));
+    try {
+      stories.push(...await fetchRoadmapCommunityStories(options));
+    } catch (error) {
+      console.error('Error fetching backend roadmaps:', error);
     }
   }
 
   // 2. Fetch from marketplace_listings
   if (types.includes('marketplace')) {
-    let query = supabase
+    let query = supabaseDb
       .from('marketplace_listings')
       .select('*');
 
@@ -214,17 +150,16 @@ export async function fetchCommunityStories(
 }
 
 export async function getCommunityStory(id: string): Promise<CommunityStory | null> {
-  // First try roadmaps
-  const { data: post, error: postError } = await supabase
-    .from('community_posts')
-    .select('*')
-    .eq('id', id)
-    .maybeSingle();
-
-  if (post) return mapPostToStory(post);
+  // First try backend roadmaps, which are the roadmap source of truth.
+  try {
+    const roadmap = await fetchRoadmap(id);
+    if (roadmap) return mapBackendRoadmapToCommunityStory(roadmap);
+  } catch {
+    // Non-roadmap marketplace rows still live in Supabase.
+  }
 
   // Then try marketplace
-  const { data: listing, error: listingError } = await supabase
+  const { data: listing } = await supabaseDb
     .from('marketplace_listings')
     .select('*')
     .eq('id', id)
@@ -235,11 +170,11 @@ export async function getCommunityStory(id: string): Promise<CommunityStory | nu
   return null;
 }
 
-export async function submitCommunityStory(userId: string, input: CommunityStorySubmissionInput) {
+export async function submitCommunityStory(userId: string, input: CommunityStorySubmissionInput, authToken?: string | null) {
   if (!userId) throw new Error('Not authenticated');
 
   if (input.type === 'marketplace') {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseDb
       .from('marketplace_listings')
       .insert({
         user_id: userId,
@@ -264,39 +199,56 @@ export async function submitCommunityStory(userId: string, input: CommunityStory
     if (error) throw error;
     return { id: data.id };
   } else {
-    // Default to roadmap/post
-    const { data, error } = await supabase
-      .from('community_posts')
-      .insert({
-        user_id: userId,
-        type: 'roadmap',
-        title: input.title,
-        content: input.story || input.summary,
-        tags: input.tags || [],
-        visibility: 'admins', // New submissions are pending by default
-        metadata: {
-          summary: input.summary,
-          category: input.category,
-          duration: input.duration,
-          difficulty: input.difficulty,
-          price: input.price,
-          image: input.coverImage,
-          creator_name: input.creator.name,
-          creator_title: input.creator.title,
-          creator_avatar: input.creator.avatar,
-          creator_email: input.creator.email,
-          successRate: input.successRate,
-          outcomes: input.outcomes,
-          resources: input.resources,
-          roadmap: input.roadmap,
-          creator_notes: input.creatorNotes
-        }
-      })
-      .select()
-      .single();
+    const steps = (input.roadmap || [])
+      .filter((stage) => stage.title.trim() && (stage.description || '').trim())
+      .map((stage, index) => ({
+        id: stage.id || `step-${index + 1}`,
+        title: stage.title,
+        description: stage.description || stage.title,
+        duration: stage.duration,
+        resources: stage.resourceIds || [],
+        relativeDueDays: stage.relativeDueDays,
+        phase: stage.phase || stage.milestone,
+        taskType: stage.taskType || stage.checkpoint,
+        calendarSyncEnabled: stage.calendarSyncEnabled,
+      }));
 
-    if (error) throw error;
-    return { id: data.id };
+    const fallbackStep = {
+      id: 'step-1',
+      title: 'Start the roadmap',
+      description: input.summary,
+      duration: input.duration,
+      resources: [],
+    };
+
+    const created = await createRoadmap({
+      title: input.title,
+      description: input.story || input.summary,
+      category: toBackendCategory(input.category),
+      difficulty: toBackendDifficulty(input.difficulty),
+      estimatedDuration: input.duration,
+      outcomes: (input.outcomes || []).join('\n'),
+      coverImage: input.coverImage || '',
+      creatorProof: {
+        ...(input.creatorProof || {}),
+        name: input.creator.name,
+        title: input.creator.title,
+        email: input.creator.email,
+        avatar: input.creator.avatar,
+        story: input.story,
+      },
+      deadlineStrategy: input.deadlineStrategy || input.creatorNotes || undefined,
+      steps: steps.length > 0 ? steps : [fallbackStep],
+      resources: (input.resources || []).map((resource) => ({
+        id: resource.id,
+        title: resource.title,
+        url: resource.url || '',
+        type: resource.type === 'video' ? 'video' : resource.type === 'tool' ? 'tool' : 'link',
+      })),
+      relatedOpportunities: input.tags || [],
+    }, authToken);
+
+    return { id: created.id };
   }
 }
 
@@ -306,7 +258,7 @@ export async function updateCommunityStory(id: string, updates: CommunityStoryUp
   if (!story) throw new Error('Story not found');
 
   if (story.type === 'marketplace') {
-    const { error } = await supabase
+    const { error } = await supabaseDb
       .from('marketplace_listings')
       .update({
         title: updates.title,
@@ -314,7 +266,7 @@ export async function updateCommunityStory(id: string, updates: CommunityStoryUp
         category: updates.category,
         status: updates.status === 'approved' ? 'active' : updates.status === 'hidden' ? 'closed' : undefined,
         metadata: {
-          ...((await supabase.from('marketplace_listings').select('metadata').eq('id', id).single()).data?.metadata as object),
+          ...((await supabaseDb.from('marketplace_listings').select('metadata').eq('id', id).single()).data?.metadata as object),
           image: updates.image,
           featured: updates.featured,
           featuredRank: updates.featuredRank,
@@ -326,7 +278,7 @@ export async function updateCommunityStory(id: string, updates: CommunityStoryUp
 
     if (error) throw error;
   } else {
-    const { error } = await supabase
+    const { error } = await supabaseDb
       .from('community_posts')
       .update({
         title: updates.title,
@@ -334,7 +286,7 @@ export async function updateCommunityStory(id: string, updates: CommunityStoryUp
         tags: updates.tags,
         visibility: updates.status === 'approved' ? 'public' : updates.status === 'hidden' ? 'admins' : undefined,
         metadata: {
-          ...((await supabase.from('community_posts').select('metadata').eq('id', id).single()).data?.metadata as object),
+          ...((await supabaseDb.from('community_posts').select('metadata').eq('id', id).single()).data?.metadata as object),
           summary: updates.summary,
           category: updates.category,
           duration: updates.duration,
@@ -378,11 +330,23 @@ export async function setCommunityStoryFeatured(
 }
 
 export async function recordCommunityStoryAdoption(id: string) {
+  return recordCommunityStoryAdoptionWithToken(id);
+}
+
+export async function recordCommunityStoryAdoptionWithToken(
+  id: string,
+  authToken?: string | null,
+  adoptionOptions: { targetDeadline?: string; calendarSyncEnabled?: boolean } = {},
+) {
   // Implementation for incrementing adoptionCount in metadata
   // This is complex with JSONB in Supabase without a RPC, so we'll do a read-modify-write for now
   // In production, an Edge Function or RPC would be better
   const story = await getCommunityStory(id);
   if (!story) return;
+
+  if (story.type === 'roadmap') {
+    return adoptRoadmap(id, adoptionOptions, authToken);
+  }
 
   const currentCount = story.stats.adoptionCount || 0;
   return updateCommunityStory(id, {
@@ -391,12 +355,12 @@ export async function recordCommunityStoryAdoption(id: string) {
 }
 
 export async function recordCommunityStoryLike(id: string) {
-  const { error } = await supabase.rpc('increment_post_likes', { post_id: id });
+  const { error } = await supabaseDb.rpc('increment_post_likes', { post_id: id });
   if (error) {
     // Fallback if RPC doesn't exist
-    const { data: post } = await supabase.from('community_posts').select('likes').eq('id', id).single();
+    const { data: post } = await supabaseDb.from('community_posts').select('likes').eq('id', id).single();
     if (post) {
-      await supabase.from('community_posts').update({ likes: (post.likes || 0) + 1 }).eq('id', id);
+      await supabaseDb.from('community_posts').update({ likes: (post.likes || 0) + 1 }).eq('id', id);
     }
   }
   return { id };

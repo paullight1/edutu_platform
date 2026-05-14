@@ -8,15 +8,6 @@ interface AdminCheckState {
 }
 
 const DEFAULT_ADMIN_EMAILS = ['admin@edutu.ai', 'founder@edutu.ai'];
-const LOCAL_OVERRIDE_KEY = 'edutu.admin.override';
-
-const hasAdminOverride = () => {
-  try {
-    return localStorage.getItem(LOCAL_OVERRIDE_KEY) === 'true';
-  } catch {
-    return false;
-  }
-};
 
 const isWhitelistedAdmin = (email: string | null | undefined) => {
   if (!email) {
@@ -40,8 +31,9 @@ export function useAdminCheck(): AdminCheckState {
     if (!isLoaded) return;
 
     const email = user?.primaryEmailAddress?.emailAddress ?? null;
-    const override = hasAdminOverride();
-    const isAdmin = override || isWhitelistedAdmin(email);
+    const publicRole = typeof user?.publicMetadata?.role === 'string' ? user.publicMetadata.role : null;
+    const isAdminRole = ['super_admin', 'admin', 'moderator', 'support_agent'].includes(publicRole ?? '');
+    const isAdmin = isAdminRole || isWhitelistedAdmin(email);
 
     setState({
       userEmail: email,
@@ -54,9 +46,5 @@ export function useAdminCheck(): AdminCheckState {
 }
 
 export function setAdminOverride(value: boolean) {
-  try {
-    localStorage.setItem(LOCAL_OVERRIDE_KEY, value ? 'true' : 'false');
-  } catch {
-    // no-op
-  }
+  console.warn('setAdminOverride is disabled. Admin access must come from Clerk metadata or server-side role checks.');
 }

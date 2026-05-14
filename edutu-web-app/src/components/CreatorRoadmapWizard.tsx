@@ -7,9 +7,7 @@ import {
   Upload,
   FileText,
   Video,
-  Link,
   Wrench,
-  ChevronRight,
   CheckCircle,
   Loader2,
   DollarSign,
@@ -17,12 +15,13 @@ import {
   Tag,
   Layers,
   Sparkles,
-  Eye,
 } from 'lucide-react';
 import Button from './ui/Button';
 import Card from './ui/Card';
 import { useDarkMode } from '../hooks/useDarkMode';
+import { useAuth } from '@clerk/clerk-react';
 import type { AppUser } from '../types/user';
+import { createRoadmap, toBackendCategory, toBackendDifficulty } from '../services/roadmapApi';
 
 interface CreatorRoadmapWizardProps {
   user: AppUser | null;
@@ -35,6 +34,7 @@ interface Stage {
   title: string;
   description: string;
   duration: string;
+  relativeDueDays: string;
   isMilestone: boolean;
 }
 
@@ -42,17 +42,23 @@ interface Resource {
   id: string;
   name: string;
   file: File | null;
+  url: string;
   type: 'video' | 'article' | 'pdf' | 'tool';
   cost: 'free' | 'premium';
 }
 
 const CreatorRoadmapWizard: React.FC<CreatorRoadmapWizardProps> = ({ user, onBack, onNavigate }) => {
   const { isDarkMode } = useDarkMode();
+  const { getToken } = useAuth();
   const [step, setStep] = useState<number>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const [title, setTitle] = useState<string>('');
   const [description, setDescription] = useState<string>('');
+  const [story, setStory] = useState<string>('');
+  const [scholarProof, setScholarProof] = useState<string>('');
+  const [deadlineStrategy, setDeadlineStrategy] = useState<string>('');
   const [category, setCategory] = useState<string>('');
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [price, setPrice] = useState<string>('');
@@ -103,6 +109,7 @@ const CreatorRoadmapWizard: React.FC<CreatorRoadmapWizardProps> = ({ user, onBac
       title: '',
       description: '',
       duration: '',
+      relativeDueDays: '',
       isMilestone: false,
     };
     setStages([...stages, newStage]);
@@ -121,6 +128,7 @@ const CreatorRoadmapWizard: React.FC<CreatorRoadmapWizardProps> = ({ user, onBac
       id: `res-${Date.now()}`,
       name: '',
       file: null,
+      url: '',
       type: 'article',
       cost: 'free',
     };
@@ -146,11 +154,61 @@ const CreatorRoadmapWizard: React.FC<CreatorRoadmapWizardProps> = ({ user, onBac
     if (!user?.id) return;
 
     setIsSubmitting(true);
+    setSubmitError(null);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const token = await getToken();
+      await createRoadmap({
+        title: title.trim(),
+        description: [description.trim(), story.trim()].filter(Boolean).join('\n\n'),
+        category: toBackendCategory(category),
+        difficulty: toBackendDifficulty(experienceLevel),
+        estimatedDuration: stages.find((stage) => stage.duration.trim())?.duration.trim(),
+        outcomes: description.trim(),
+        coverImage: '',
+        creatorProof: {
+          name: user.name,
+          email: user.email,
+          story: story.trim(),
+          scholarProof: scholarProof.trim(),
+          verifiedScholar: Boolean(scholarProof.trim()),
+          price: price || '0',
+          thumbnailFileName: thumbnailFile?.name,
+        },
+        deadlineStrategy: deadlineStrategy.trim() || undefined,
+        steps: stages
+          .filter((stage) => stage.title.trim() && stage.description.trim())
+          .map((stage, index) => {
+            const relativeDueDays = Number.parseInt(stage.relativeDueDays, 10);
+            return {
+              id: stage.id,
+              title: stage.title.trim(),
+              description: stage.description.trim(),
+              duration: stage.duration.trim() || undefined,
+              relativeDueDays: Number.isFinite(relativeDueDays) ? relativeDueDays : undefined,
+              phase: stage.isMilestone ? `Milestone ${index + 1}` : `Stage ${index + 1}`,
+              taskType: stage.isMilestone ? 'milestone' : 'task',
+            };
+          }),
+        resources: resources
+          .filter((resource) => resource.name.trim())
+          .map((resource) => ({
+            id: resource.id,
+            title: resource.name.trim(),
+            url: resource.url.trim(),
+            type:
+              resource.type === 'pdf'
+                ? 'document'
+                : resource.type === 'video'
+                  ? 'video'
+                  : resource.type === 'tool'
+                    ? 'tool'
+                    : 'link',
+          })),
+      }, token);
       onNavigate?.('creator-dashboard');
     } catch (error) {
       console.error('Failed to create roadmap:', error);
+      setSubmitError(error instanceof Error ? error.message : 'Failed to create roadmap.');
     } finally {
       setIsSubmitting(false);
     }
@@ -182,6 +240,39 @@ const CreatorRoadmapWizard: React.FC<CreatorRoadmapWizardProps> = ({ user, onBac
           className="w-full px-4 py-3 rounded-2xl border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
           placeholder="What will students learn? What outcomes can they expect?"
           rows={4}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Scholar Story</label>
+        <textarea
+          value={story}
+          onChange={(e) => setStory(e.target.value)}
+          className="w-full px-4 py-3 rounded-2xl border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+          placeholder="Share the journey behind this roadmap and what changed for you."
+          rows={4}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Scholar Proof</label>
+        <textarea
+          value={scholarProof}
+          onChange={(e) => setScholarProof(e.target.value)}
+          className="w-full px-4 py-3 rounded-2xl border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+          placeholder="Add outcome proof, award details, portfolio links, score ranges, or verification notes."
+          rows={3}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Deadline Strategy</label>
+        <textarea
+          value={deadlineStrategy}
+          onChange={(e) => setDeadlineStrategy(e.target.value)}
+          className="w-full px-4 py-3 rounded-2xl border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+          placeholder="Explain how learners should schedule each step around a target deadline."
+          rows={3}
         />
       </div>
 
@@ -315,6 +406,15 @@ const CreatorRoadmapWizard: React.FC<CreatorRoadmapWizardProps> = ({ user, onBac
                     />
                   </div>
                 </div>
+                <div className="w-32">
+                  <input
+                    type="number"
+                    value={stage.relativeDueDays}
+                    onChange={(e) => updateStage(stage.id, 'relativeDueDays', e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                    placeholder="Due offset"
+                  />
+                </div>
                 <button
                   onClick={() => updateStage(stage.id, 'isMilestone', !stage.isMilestone)}
                   className={`px-4 py-2 rounded-xl border text-sm font-medium transition-all ${
@@ -374,6 +474,14 @@ const CreatorRoadmapWizard: React.FC<CreatorRoadmapWizardProps> = ({ user, onBac
                   onChange={(e) => updateResource(resource.id, 'name', e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
                   placeholder="Resource name"
+                />
+
+                <input
+                  type="url"
+                  value={resource.url}
+                  onChange={(e) => updateResource(resource.id, 'url', e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                  placeholder="Resource URL"
                 />
 
                 <div className="flex gap-2">
@@ -551,6 +659,9 @@ const CreatorRoadmapWizard: React.FC<CreatorRoadmapWizardProps> = ({ user, onBac
           </>
         )}
       </Button>
+      {submitError && (
+        <p className="text-sm text-red-600 dark:text-red-400 text-center">{submitError}</p>
+      )}
     </div>
   );
 
