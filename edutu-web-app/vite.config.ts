@@ -9,12 +9,12 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icons/*.png'],
+      includeAssets: ['favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png', 'icons/*.png'],
       manifest: {
-        name: 'Edutu - AI Opportunity Coach',
+        name: 'Edutu | AI Opportunity Coach',
         short_name: 'Edutu',
-        description: 'Your AI-powered life operating system for discovering opportunities and achieving goals',
-        theme_color: '#6366f1',
+        description: 'Discover scholarships, internships, grants and career opportunities, then turn them into personalized goals, roadmaps and applications with AI guidance.',
+        theme_color: '#146ef5',
         background_color: '#0c0f1a',
         display: 'standalone',
         orientation: 'portrait-primary',
