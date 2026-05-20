@@ -1,11 +1,11 @@
 {
-    "name": "Edutu - AI Opportunity Coach",
+    "name": "Edutu | AI Opportunity Coach",
     "short_name": "Edutu",
-    "description": "Your AI-powered life operating system for discovering opportunities and achieving goals",
+    "description": "Discover scholarships, internships, grants and career opportunities, then turn them into personalized goals, roadmaps and applications with AI guidance.",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#0c0f1a",
-    "theme_color": "#6366f1",
+    "theme_color": "#146ef5",
     "orientation": "portrait-primary",
     "scope": "/",
     "lang": "en",
@@ -13,10 +13,16 @@
     "categories": ["education", "productivity", "lifestyle"],
     "icons": [
         {
-            "src": "/icons/icon.svg",
-            "sizes": "any",
-            "type": "image/svg+xml",
+            "src": "/icons/icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png",
             "purpose": "any"
+        },
+        {
+            "src": "/icons/icon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
         }
     ],
     "shortcuts": [
