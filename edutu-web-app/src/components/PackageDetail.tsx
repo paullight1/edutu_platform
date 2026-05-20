@@ -674,16 +674,15 @@ const PackageDetail: React.FC<PackageDetailProps> = ({ packageId, onBack, onNavi
                       {resource.notes}
                     </p>
                   </div>
-                  <Button
-                    variant="secondary"
-                    as="a"
+                  <a
                     href={resource.url}
                     target="_blank"
                     rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-2 font-medium rounded-xl transition-theme duration-200 ease-in-out focus-visible:outline-none focus-visible:shadow-focus bg-surface-layer text-soft border border-subtle hover:bg-surface-elevated hover:border-accent-300/40 shadow-soft active:translate-y-px px-5 py-3 text-base"
                   >
                     <ExternalLink size={16} className="mr-1" />
                     Open
-                  </Button>
+                  </a>
                 </Card>
               ))}
             </div>

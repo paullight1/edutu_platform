@@ -26,7 +26,8 @@ import {
   Sparkles,
   Users,
   ChevronRight,
-  X
+  X,
+  type LucideIcon
 } from 'lucide-react';
 import Button from './ui/Button';
 import { useDarkMode } from '../hooks/useDarkMode';
@@ -65,7 +66,7 @@ interface ChatInterfaceProps {
   onBack?: () => void;
 }
 
-type IconType = React.ComponentType<{ size?: number; className?: string }>;
+type IconType = LucideIcon;
 
 interface ChatThread {
   id: string;

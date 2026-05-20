@@ -7,7 +7,7 @@ import { useDarkMode } from '../hooks/useDarkMode';
 import { authService, type Profile } from '../lib/auth';
 import profileImageService from '../services/profileImage';
 import type { AppUser } from '../types/user';
-import type { OnboardingProfileData } from '../types/onboarding';
+import type { OnboardingProfileData, OnboardingState } from '../types/onboarding';
 
 interface EditProfileScreenProps {
   user: AppUser | null;
@@ -70,7 +70,7 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, setUser, on
 
         // Load profile image from Supabase
         try {
-          const avatarUrl = await profileImageService.getProfileImageUrl();
+          const avatarUrl = await profileImageService.getProfileImageUrl(user.id);
           if (avatarUrl) {
             setProfileImage(avatarUrl);
           }
@@ -87,8 +87,8 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, setUser, on
               ...prev,
               email: profile.email || prev.email,
               bio: profile.bio || prev.bio,
-              location: profile.preferences?.location || prev.location,
-              courseOfStudy: profile.preferences?.course_of_study || user.courseOfStudy || prev.courseOfStudy,
+              location: typeof profile.preferences?.location === 'string' ? profile.preferences.location : prev.location,
+              courseOfStudy: typeof profile.preferences?.course_of_study === 'string' ? profile.preferences.course_of_study : user.courseOfStudy || prev.courseOfStudy,
             }));
 
             // Load onboarding data if it exists
@@ -126,7 +126,7 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, setUser, on
 
   const handleFieldChange =
     (field: keyof ProfileFormData) =>
-      (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const value = event.target.value;
         setFormData((prev) => ({
           ...prev,
@@ -154,7 +154,12 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, setUser, on
 
     try {
       // Upload to Supabase Storage with resizing
-      const result = await profileImageService.uploadResizedProfileImage(file);
+      if (!user?.id) {
+        setSaveMessage('Sign in again before updating your profile photo.');
+        return;
+      }
+
+      const result = await profileImageService.uploadResizedProfileImage(user.id, file);
 
       if (result.success && result.url) {
         setProfileImage(result.url);
@@ -202,7 +207,7 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, setUser, on
         let profile = await authService.getProfile(currentUser.id);
 
         // Build updated preferences that include onboarding data
-        const onboardingData = {
+        const onboardingData: OnboardingProfileData = {
           fullName: formData.name,
           age: parsedAge,
           courseOfStudy: formData.courseOfStudy,
@@ -219,13 +224,16 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, setUser, on
 
         // Update onboarding data if profile exists
         if (preferences.onboarding) {
+          const existingOnboarding = preferences.onboarding as OnboardingState;
           preferences = {
             ...preferences,
             onboarding: {
-              ...preferences.onboarding,
-              ...onboardingData,
-              // Ensure completion flag is maintained
-              completed: (preferences.onboarding as any).completed || false
+              ...existingOnboarding,
+              data: {
+                ...existingOnboarding.data,
+                ...onboardingData
+              },
+              completed: existingOnboarding.completed || false
             }
           };
         } else {
@@ -233,9 +241,9 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, setUser, on
           preferences = {
             ...preferences,
             onboarding: {
-              ...onboardingData,
               completed: true, // Mark as completed since user edited it
-              completedAt: new Date().toISOString()
+              completedAt: new Date().toISOString(),
+              data: onboardingData
             }
           };
         }
@@ -262,7 +270,6 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, setUser, on
         if (Number.isFinite(parsedAge)) {
           nextUser.age = parsedAge;
         } else {
-          // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
           delete (nextUser as { age?: number }).age;
         }
         setUser(nextUser);

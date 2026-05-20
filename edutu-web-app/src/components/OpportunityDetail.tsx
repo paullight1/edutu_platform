@@ -239,7 +239,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
               className="relative h-56 sm:h-72 lg:h-80 rounded-2xl overflow-hidden bg-surface-elevated"
             >
               <ImageWithFallback
-                src={opportunity.image}
+                src={opportunity.image ?? ''}
                 alt={opportunity.title}
                 className="w-full h-full object-cover"
                 fallbackClassName="w-full h-full"

@@ -262,7 +262,7 @@ const AddGoalScreen: React.FC<AddGoalScreenProps> = ({ onBack, onGoalCreated, on
     }
   };
 
-  const handleGoalCreate = () => {
+  const handleGoalCreate = async () => {
     setError(null);
 
     if (selectedType === 'roadmap') {
@@ -270,7 +270,7 @@ const AddGoalScreen: React.FC<AddGoalScreenProps> = ({ onBack, onGoalCreated, on
         setError('Select a roadmap template before continuing.');
         return;
       }
-      const goal = createGoal({
+      const goal = await createGoal({
         title: selectedTemplate.title,
         description: selectedTemplate.description,
         category: selectedTemplate.category,
@@ -293,7 +293,7 @@ const AddGoalScreen: React.FC<AddGoalScreenProps> = ({ onBack, onGoalCreated, on
         setError('Fill out your goal title, description, and category to continue.');
         return;
       }
-      const goal = createGoal({
+      const goal = await createGoal({
         title: trimmedTitle,
         description: trimmedDescription,
         category: customGoal.category,
@@ -543,7 +543,7 @@ const AddGoalScreen: React.FC<AddGoalScreenProps> = ({ onBack, onGoalCreated, on
               Priority Level
             </label>
             <div className="flex gap-3">
-              {['low', 'medium', 'high'].map((priority) => (
+              {(['low', 'medium', 'high'] as const).map((priority) => (
                 <button
                   key={priority}
                   onClick={() => setCustomGoal({ ...customGoal, priority })}

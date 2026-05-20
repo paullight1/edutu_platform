@@ -1,23 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useUser } from '@clerk/clerk-react';
+import { authService } from '../lib/auth';
+import { isAdminAccessAllowed } from '../lib/adminAccess';
 
 interface AdminCheckState {
   isAdmin: boolean;
   loading: boolean;
   userEmail: string | null;
 }
-
-const DEFAULT_ADMIN_EMAILS = ['admin@edutu.ai', 'founder@edutu.ai'];
-
-const isWhitelistedAdmin = (email: string | null | undefined) => {
-  if (!email) {
-    return false;
-  }
-
-  return DEFAULT_ADMIN_EMAILS.some(
-    (adminEmail) => adminEmail.trim().toLowerCase() === email.trim().toLowerCase()
-  );
-};
 
 export function useAdminCheck(): AdminCheckState {
   const { user, isLoaded } = useUser();
@@ -30,16 +20,36 @@ export function useAdminCheck(): AdminCheckState {
   useEffect(() => {
     if (!isLoaded) return;
 
-    const email = user?.primaryEmailAddress?.emailAddress ?? null;
-    const publicRole = typeof user?.publicMetadata?.role === 'string' ? user.publicMetadata.role : null;
-    const isAdminRole = ['super_admin', 'admin', 'moderator', 'support_agent'].includes(publicRole ?? '');
-    const isAdmin = isAdminRole || isWhitelistedAdmin(email);
+    let isActive = true;
 
-    setState({
-      userEmail: email,
-      loading: false,
-      isAdmin
-    });
+    async function evaluateAdminAccess() {
+      const email = user?.primaryEmailAddress?.emailAddress ?? null;
+      const publicRole = typeof user?.publicMetadata?.role === 'string' ? user.publicMetadata.role : null;
+      let profileRole: string | null = null;
+
+      if (user?.id) {
+        try {
+          const profile = await authService.getProfile(user.id);
+          profileRole = typeof profile?.role === 'string' ? profile.role : null;
+        } catch (error) {
+          console.error('Failed to load admin profile role', error);
+        }
+      }
+
+      if (!isActive) return;
+
+      setState({
+        userEmail: email,
+        loading: false,
+        isAdmin: isAdminAccessAllowed({ email, publicRole, profileRole })
+      });
+    }
+
+    void evaluateAdminAccess();
+
+    return () => {
+      isActive = false;
+    };
   }, [isLoaded, user]);
 
   return state;

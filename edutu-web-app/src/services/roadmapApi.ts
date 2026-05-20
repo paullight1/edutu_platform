@@ -6,8 +6,7 @@ import type {
   CommunityStoryPrice,
   CommunityStoryQueryOptions,
 } from '../types/community';
-
-const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '');
+import { getApiBaseUrl } from '../lib/apiBaseUrl';
 
 type BackendDifficulty = 'beginner' | 'intermediate' | 'advanced';
 type BackendCategory =
@@ -175,7 +174,8 @@ function buildHeaders(token?: string | null): HeadersInit {
 }
 
 async function request<T>(path: string, options: RequestInit = {}, token?: string | null): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const apiBaseUrl = getApiBaseUrl('Roadmap API');
+  const response = await fetch(`${apiBaseUrl}${path}`, {
     ...options,
     headers: {
       ...buildHeaders(token),

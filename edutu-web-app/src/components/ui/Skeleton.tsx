@@ -6,6 +6,7 @@ interface SkeletonProps {
     width?: string | number;
     height?: string | number;
     animation?: 'pulse' | 'wave' | 'none';
+    style?: React.CSSProperties;
 }
 
 /**
@@ -18,7 +19,8 @@ export const Skeleton: React.FC<SkeletonProps> = ({
     variant = 'text',
     width,
     height,
-    animation = 'pulse'
+    animation = 'pulse',
+    style: styleOverride
 }) => {
     const baseClasses = 'bg-gray-200 dark:bg-gray-700';
 
@@ -36,6 +38,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
     };
 
     const style: React.CSSProperties = {
+        ...styleOverride,
         width: width,
         height: height
     };

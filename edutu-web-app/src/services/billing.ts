@@ -10,6 +10,8 @@ export interface BillingStatus {
   featureAccess: Record<string, boolean>;
 }
 
+import { getApiBaseUrl } from '../lib/apiBaseUrl';
+
 export interface CheckoutResponse {
   provider: string;
   configured: boolean;
@@ -19,14 +21,13 @@ export interface CheckoutResponse {
   accessCode?: string;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
 async function requestBilling<T>(
   path: string,
   token: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const apiBaseUrl = getApiBaseUrl('Billing API');
+  const response = await fetch(`${apiBaseUrl}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',

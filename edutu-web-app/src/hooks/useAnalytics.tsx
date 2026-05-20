@@ -50,6 +50,7 @@ interface AnalyticsContextValue {
   recordOpportunityExplored: (details?: { id: string; title: string; category?: string | null }) => Promise<void>;
   recordChatSession: (topic?: string) => Promise<void>;
   recordActivity: () => Promise<void>;
+  trackEvent: (eventName: string, metadata?: Record<string, unknown>) => void;
 }
 
 const AnalyticsContext = createContext<AnalyticsContextValue | undefined>(undefined);
@@ -229,6 +230,14 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     [analytics, updateAnalytics, recordActivity, userId]
   );
 
+  const trackEvent = useCallback((eventName: string, metadata: Record<string, unknown> = {}) => {
+    void recordUserActivityAggregate({
+      eventName,
+      metadata,
+      occurredAt: new Date().toISOString()
+    });
+  }, []);
+
   useEffect(() => {
     if (userId) {
       void recordActivity();
@@ -260,9 +269,10 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       isLoading,
       recordActivity: recordActivity,
       recordOpportunityExplored,
-      recordChatSession
+      recordChatSession,
+      trackEvent
     }),
-    [stats, isLoading, recordActivity, recordOpportunityExplored, recordChatSession]
+    [stats, isLoading, recordActivity, recordOpportunityExplored, recordChatSession, trackEvent]
   );
 
   return <AnalyticsContext.Provider value={value}>{children}</AnalyticsContext.Provider>;

@@ -28,11 +28,19 @@ const TYPE_COLORS: Record<string, string> = {
   creator_earning: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400',
 };
 
+type PaymentStats = Awaited<ReturnType<typeof getPaymentsStats>>;
+
 const PaymentsPage: React.FC = () => {
   const { userId } = useAuth();
   const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
   const [totalCount, setTotalCount] = useState(0);
-  const [stats, setStats] = useState({ totalRevenue: 0, totalCreditsSpent: 0, totalTransactions: 0, purchaseTransactions: 0, topSpenders: [] });
+  const [stats, setStats] = useState<PaymentStats>({
+    totalRevenue: 0,
+    totalCreditsSpent: 0,
+    totalTransactions: 0,
+    purchaseTransactions: 0,
+    topSpenders: []
+  });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
