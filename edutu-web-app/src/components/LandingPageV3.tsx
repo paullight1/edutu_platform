@@ -451,7 +451,13 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                         target.style.display = 'none';
                                         const parent = target.parentElement;
                                         if (parent) {
-                                            parent.innerHTML = `<span style="font-size: 14px; font-weight: 600; color: ${isDarkMode ? '#ababab' : '#5a5a5a'}; text-align: center;">${inst.name.split(' ')[0]}</span>`;
+                                            const fallbackLabel = document.createElement('span');
+                                            fallbackLabel.textContent = inst.name.split(' ')[0];
+                                            fallbackLabel.style.fontSize = '14px';
+                                            fallbackLabel.style.fontWeight = '600';
+                                            fallbackLabel.style.color = isDarkMode ? '#ababab' : '#5a5a5a';
+                                            fallbackLabel.style.textAlign = 'center';
+                                            parent.appendChild(fallbackLabel);
                                         }
                                     }}
                                 />
@@ -852,6 +858,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             </h4>
                             <div className="space-y-3">
                                 <Link to="/app/help" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Help Center</Link>
+                                <Link to="/admin" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Admin</Link>
                                 <Link to="/about" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Privacy Policy</Link>
                                 <Link to="/about" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Terms of Service</Link>
                                 <Link to="/opportunities" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Community</Link>

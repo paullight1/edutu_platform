@@ -113,12 +113,13 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
       setProfileLoading(false);
       return;
     }
+    const userId = user.id;
 
     async function loadProfileData() {
       try {
         const [profile, personalization] = await Promise.all([
-          fetchUserProfile(user.id),
-          getUserPersonalization(user.id)
+          fetchUserProfile(userId),
+          getUserPersonalization(userId)
         ]);
 
         const completeness = calculateProfileCompleteness(profile, onboardingProfile, personalization);
@@ -135,12 +136,13 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
 
   useEffect(() => {
     if (!user?.id) return;
+    const userId = user.id;
 
     async function loadDeadlines() {
       try {
         const [bookmarksData, appsData] = await Promise.all([
-          getBookmarks(user.id),
-          getApplications(user.id)
+          getBookmarks(userId),
+          getApplications(userId)
         ]);
         setBookmarks(bookmarksData);
         setApplications(appsData);

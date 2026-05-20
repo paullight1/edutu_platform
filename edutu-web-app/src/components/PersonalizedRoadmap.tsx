@@ -298,7 +298,7 @@ const PersonalizedRoadmap: React.FC<PersonalizedRoadmapProps> = ({
               module.taskTrackingService.addCompletedTask({
                 id: `community-task-${taskId}`,
                 title: task.title,
-                source: 'community-roadmap',
+                source: 'community-marketplace',
                 metadata: {
                   communityStoryId: communityData.id,
                   communityStoryTitle: communityData.title,
@@ -476,10 +476,10 @@ const PersonalizedRoadmap: React.FC<PersonalizedRoadmapProps> = ({
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1 text-yellow-500">
                     <Star size={14} fill="currentColor" />
-                    <span className="text-xs font-medium">{communityData.rating.toFixed(1)}</span>
+                    <span className="text-xs font-medium">{communityData.stats.rating.toFixed(1)}</span>
                   </div>
                   <span className="text-xs text-gray-500 dark:text-gray-400">•</span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">{communityData.users} learners</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">{communityData.stats.users} learners</span>
                 </div>
               </div>
             </div>
@@ -528,13 +528,13 @@ const PersonalizedRoadmap: React.FC<PersonalizedRoadmapProps> = ({
             <div className="grid grid-cols-4 gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
               <div className="text-center">
                 <div className="text-sm font-semibold text-yellow-600 dark:text-yellow-400">
-                  {communityData.rating.toFixed(1)}
+                  {communityData.stats.rating.toFixed(1)}
                 </div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">Rating</div>
               </div>
               <div className="text-center">
                 <div className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-                  {communityData.users}
+                  {communityData.stats.users}
                 </div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">Learners</div>
               </div>

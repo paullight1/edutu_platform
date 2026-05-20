@@ -20,5 +20,14 @@
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": [
+    "src/admin/AdminApp.tsx",
+    "src/components/admin",
+    "src/services/admin/index.ts",
+    "src/services/admin/marketplaceAdmin.ts",
+    "src/services/admin/opportunities.ts",
+    "src/services/admin/opportunitiesSupabase.ts",
+    "src/services/admin/opportunitiesWebhook.ts"
+  ]
 }

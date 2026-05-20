@@ -234,7 +234,7 @@ export async function exportUserData(): Promise<{
             user: {
                 id: user.id,
                 email: user.email,
-                name: user.user_metadata?.name || user.user_metadata?.full_name || 'Unknown',
+                name: user.name || 'Unknown',
             },
             profile: profileResult.data || null,
             goals: goalsResult.data || [],

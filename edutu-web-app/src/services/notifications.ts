@@ -53,7 +53,7 @@ export async function fetchNotifications(params: FetchNotificationsParams = {}):
 
   let query = supabase
     .from('notifications')
-    .select<NotificationRow>('id, user_id, kind, title, body, severity, metadata, dedupe_key, channel_status, created_at, read_at')
+    .select('id, user_id, kind, title, body, severity, metadata, dedupe_key, channel_status, created_at, read_at')
     .order('created_at', { ascending: false })
     .limit(limit);
 
@@ -67,7 +67,7 @@ export async function fetchNotifications(params: FetchNotificationsParams = {}):
     throw error;
   }
 
-  return (data ?? []).map(mapRowToNotification);
+  return ((data ?? []) as NotificationRow[]).map(mapRowToNotification);
 }
 
 export async function markNotificationRead(notificationId: string, read = true) {
@@ -119,14 +119,14 @@ export async function sendNotification(userId: string, draft: NotificationDraft)
   const { data, error } = await supabase
     .from('notifications')
     .insert(payload)
-    .select<NotificationRow>()
+    .select()
     .single();
 
   if (error) {
     throw error;
   }
 
-  return mapRowToNotification(data);
+  return mapRowToNotification(data as NotificationRow);
 }
 
 const DEFAULT_PREFERENCES: NotificationPreferences = {

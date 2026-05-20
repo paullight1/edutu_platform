@@ -18,6 +18,7 @@ import {
   TrendingUp,
   Clock,
   AlertCircle,
+  Wallet,
 } from 'lucide-react';
 import Card from './ui/Card';
 import Button from './ui/Button';
@@ -104,7 +105,6 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onNavigate, onLogout }
         if (Number.isFinite(parsedAge)) {
           nextUser.age = parsedAge;
         } else {
-          // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
           delete (nextUser as { age?: number }).age;
         }
         setUser(nextUser);

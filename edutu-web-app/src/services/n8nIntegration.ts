@@ -4,7 +4,7 @@ const N8N_WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL as string;
 
 interface N8nWebhookPayload {
   action: string;
-  data: Opportunity | Opportunity[];
+  data: Opportunity | Opportunity[] | { id: string };
   timestamp: string;
   userId?: string;
 }
@@ -14,7 +14,7 @@ interface N8nWebhookPayload {
  */
 export async function sendOpportunitiesToN8n(
   action: string,
-  data: Opportunity | Opportunity[],
+  data: Opportunity | Opportunity[] | { id: string },
   userId?: string
 ): Promise<boolean> {
   if (!N8N_WEBHOOK_URL) {

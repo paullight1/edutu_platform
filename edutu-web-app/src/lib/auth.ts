@@ -44,6 +44,7 @@ export interface Profile {
   bio?: string | null;
   avatar_url?: string | null;
   credits?: number | null;
+  is_pro?: boolean | null;
   preferences?: ProfilePreferences;
   pro_since?: string | null;
   pro_expires_at?: string | null;

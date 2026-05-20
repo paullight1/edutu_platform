@@ -29,20 +29,20 @@ interface SendChatMessageResult {
 export async function fetchChatThreads(): Promise<ChatThread[]> {
   const { data, error } = await supabase
     .from('chat_threads')
-    .select<ChatThread>('id, title, updated_at, last_message_at, metadata')
+    .select('id, title, updated_at, last_message_at, metadata')
     .order('updated_at', { ascending: false });
 
   if (error) {
     throw error;
   }
 
-  return data ?? [];
+  return (data ?? []) as ChatThread[];
 }
 
 export async function fetchChatMessages(threadId: string): Promise<ChatMessage[]> {
   const { data, error } = await supabase
     .from('chat_messages')
-    .select<ChatMessage>('id, role, content, created_at')
+    .select('id, role, content, created_at')
     .eq('thread_id', threadId)
     .order('created_at', { ascending: true });
 
@@ -50,7 +50,7 @@ export async function fetchChatMessages(threadId: string): Promise<ChatMessage[]
     throw error;
   }
 
-  return data ?? [];
+  return (data ?? []) as ChatMessage[];
 }
 
 export async function archiveChatThread(threadId: string) {

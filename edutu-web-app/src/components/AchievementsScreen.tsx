@@ -17,7 +17,7 @@ const AchievementsScreen: React.FC<AchievementsScreenProps> = ({ onBack }) => {
   const [timeFilter, setTimeFilter] = useState<'all' | 'week' | 'month'>('all');
 
   useEffect(() => {
-    const tasks = taskTrackingService.getCompletedTasks(50); // Get more tasks for this page
+    const tasks = taskTrackingService.getCompletedTasks().slice(0, 50);
     setAllAchievements(tasks);
     setFilteredAchievements(tasks);
   }, []);

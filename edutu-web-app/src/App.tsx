@@ -8,6 +8,7 @@ import { AuthGuard } from './components/AuthGuard';
 import { AdminGuard } from './components/AdminGuard';
 import { LazyRoute } from './components/LazyRoute';
 import OpportunityDetailFetcher from './components/OpportunityDetailFetcher';
+import OpportunityRoadmapFetcher from './components/OpportunityRoadmapFetcher';
 import GoalRoadmapFetcher from './components/GoalRoadmapFetcher';
 import PackageDetailFetcher from './components/PackageDetailFetcher';
 
@@ -40,6 +41,8 @@ import { isNewUser } from './lib/auth';
 import { useAnalytics } from './hooks/useAnalytics';
 import { initializeCapacitor, configureStatusBar, isNativePlatform } from './lib/capacitor';
 import type { OnboardingProfileData, OnboardingState } from './types/onboarding';
+import type { AppUser } from './types/user';
+import type { Deadline } from './services/deadlines';
 import { fetchUserProfile, saveOnboardingProfile, extractOnboardingState } from './services/profile';
 import { getCreditBalance } from './services/credits';
 
@@ -62,15 +65,16 @@ export function App() {
   const { recordOpportunityExplored } = useAnalytics();
 
   // Derive AppUser from Clerk user
-  const user = clerkUser ? {
+  const user: AppUser | null = clerkUser ? {
     id: clerkUser.id,
     name: clerkUser.fullName || clerkUser.username || (clerkUser.primaryEmailAddress?.emailAddress ? clerkUser.primaryEmailAddress.emailAddress.split('@')[0] : 'New Edutu member'),
     email: clerkUser.primaryEmailAddress?.emailAddress,
     age: typeof clerkUser.unsafeMetadata?.age === 'number' ? clerkUser.unsafeMetadata.age : undefined,
   } : null;
 
-  const setUser = (_updater: any) => {
+  const setUser = (updater: React.SetStateAction<AppUser | null>) => {
     // Clerk manages user state, this is a no-op for compatibility
+    void updater;
   };
 
   const signOut = async () => {
@@ -427,10 +431,29 @@ export function App() {
               onSelectOpportunity={(opportunity) => navigate(`/app/opportunity/${opportunity.id}`)}
             />
           } />
-          <Route path="chat" element={<PremiumGate feature="ai_chat"><LazyRoute loader={() => import('./components/ChatInterface')} /></PremiumGate>} />
-          <Route path="profile" element={<LazyRoute loader={() => import('./components/Profile')} />} />
+          <Route path="chat" element={
+            <PremiumGate feature="ai_chat">
+              <LazyRoute
+                loader={() => import('./components/ChatInterface')}
+                componentProps={{ user, onBack: () => handleBack() }}
+              />
+            </PremiumGate>
+          } />
+          <Route path="profile" element={
+            <LazyRoute
+              loader={() => import('./components/Profile')}
+              componentProps={{ user, setUser, onNavigate: handleNavigate, onLogout: handleLogout }}
+            />
+          } />
           <Route path="goals" element={
-            <LazyRoute loader={() => import('./components/AllGoals')} />
+            <LazyRoute
+              loader={() => import('./components/AllGoals')}
+              componentProps={{
+                onBack: () => handleBack(),
+                onSelectGoal: (goalId: string) => navigate(`/app/goal/${goalId}/roadmap`),
+                onAddGoal: () => navigate('/app/add-goal')
+              }}
+            />
           } />
           <Route path="community" element={
             <CommunityMarketplace
@@ -447,9 +470,30 @@ export function App() {
             />
           } />
           <Route path="achievements" element={<AchievementsScreen onBack={() => handleBack()} />} />
-          <Route path="saved" element={<SavedOpportunities onBack={() => handleBack('profile')} />} />
+          <Route path="saved" element={
+            <SavedOpportunities
+              onBack={() => handleBack('profile')}
+              onSelectOpportunity={(opportunityId) => navigate(`/app/opportunity/${opportunityId}`)}
+            />
+          } />
           <Route path="applied" element={<AppliedOpportunities onBack={() => handleBack('profile')} />} />
-          <Route path="deadlines" element={<DeadlinesScreen onBack={() => handleBack('profile')} />} />
+          <Route path="deadlines" element={
+            user?.id ? (
+              <DeadlinesScreen
+                userId={user.id}
+                onBack={() => handleBack('profile')}
+                onSelectDeadline={(deadline: Deadline) => {
+                  if (deadline.type === 'goal') {
+                    navigate(`/app/goal/${deadline.sourceId}/roadmap`);
+                  } else {
+                    navigate(`/app/opportunity/${deadline.sourceId}`);
+                  }
+                }}
+              />
+            ) : (
+              <Navigate to="/auth" replace />
+            )
+          } />
           <Route path="wallet" element={<Wallet onBack={() => handleBack('profile')} />} />
           <Route path="add-goal" element={
             <AddGoalScreen
@@ -466,20 +510,47 @@ export function App() {
               onAddToGoals={(opportunity) => navigate(`/app/opportunity/${opportunity.id}/roadmap`)}
             />
           } />
-          <Route path="opportunity/:id/roadmap" element={<LazyRoute loader={() => import('./components/OpportunityRoadmap')} />} />
-          <Route path="opportunity/:id/ai-roadmap" element={<PremiumGate feature="ai_roadmap"><LazyRoute loader={() => import('./components/AIRoadmapWizard')} /></PremiumGate>} />
+          <Route path="opportunity/:id/roadmap" element={<OpportunityRoadmapFetcher onBack={() => handleBack()} />} />
+          <Route path="opportunity/:id/ai-roadmap" element={<PremiumGate feature="ai_roadmap"><OpportunityRoadmapFetcher mode="ai" onBack={() => handleBack()} /></PremiumGate>} />
           <Route path="goal/:id/roadmap" element={<GoalRoadmapFetcher onBack={() => handleBack()} />} />
           <Route path="package/:id" element={<PremiumGate feature="marketplace_premium"><PackageDetailFetcher onBack={() => handleBack('/app/community')} /></PremiumGate>} />
-          <Route path="settings" element={<LazyRoute loader={() => import('./components/SettingsMenu')} />} />
-          <Route path="profile-edit" element={<LazyRoute loader={() => import('./components/EditProfileScreen')} />} />
-          <Route path="notifications" element={<LazyRoute loader={() => import('./components/NotificationsScreen')} />} />
-          <Route path="privacy" element={<LazyRoute loader={() => import('./components/PrivacyScreen')} />} />
-          <Route path="help" element={<LazyRoute loader={() => import('./components/HelpScreen')} />} />
-          <Route path="cv" element={<PremiumGate feature="cv_builder"><LazyRoute loader={() => import('./components/CVManagement')} /></PremiumGate>} />
-          <Route path="personalization" element={<LazyRoute loader={() => import('./components/PersonalizationProfileScreen')} />} />
-          <Route path="creator/apply" element={<LazyRoute loader={() => import('./components/CreatorApply')} />} />
-          <Route path="creator/dashboard" element={<LazyRoute loader={() => import('./components/CreatorDashboard')} />} />
-          <Route path="creator/create" element={<PremiumGate feature="creator_tools"><LazyRoute loader={() => import('./components/CreatorRoadmapWizard')} /></PremiumGate>} />
+          <Route path="settings" element={
+            <LazyRoute
+              loader={() => import('./components/SettingsMenu')}
+              componentProps={{
+                onBack: () => handleBack('profile'),
+                onNavigate: handleNavigate,
+                onLogout: handleLogout,
+                onRedoOnboarding: handleRedoOnboarding,
+                onboardingProfile: onboardingState?.data ?? null
+              }}
+            />
+          } />
+          <Route path="profile-edit" element={
+            <LazyRoute
+              loader={() => import('./components/EditProfileScreen')}
+              componentProps={{ user, setUser, onBack: () => handleBack('profile') }}
+            />
+          } />
+          <Route path="notifications" element={<LazyRoute loader={() => import('./components/NotificationsScreen')} componentProps={{ onBack: () => handleBack('profile') }} />} />
+          <Route path="privacy" element={<LazyRoute loader={() => import('./components/PrivacyScreen')} componentProps={{ onBack: () => handleBack('settings') }} />} />
+          <Route path="help" element={<LazyRoute loader={() => import('./components/HelpScreen')} componentProps={{ onBack: () => handleBack('settings'), user }} />} />
+          <Route path="cv" element={<PremiumGate feature="cv_builder"><LazyRoute loader={() => import('./components/CVManagement')} componentProps={{ onBack: () => handleBack('profile') }} /></PremiumGate>} />
+          <Route path="personalization" element={
+            <LazyRoute
+              loader={() => import('./components/PersonalizationProfileScreen')}
+              componentProps={{
+                user,
+                onBack: () => handleBack('profile'),
+                onSave: (data: OnboardingProfileData) => {
+                  void handleIntroComplete(data);
+                }
+              }}
+            />
+          } />
+          <Route path="creator/apply" element={<LazyRoute loader={() => import('./components/CreatorApply')} componentProps={{ user, onBack: () => handleBack('profile'), onNavigate: handleNavigate }} />} />
+          <Route path="creator/dashboard" element={<LazyRoute loader={() => import('./components/CreatorDashboard')} componentProps={{ user, onBack: () => handleBack('profile'), onNavigate: handleNavigate }} />} />
+          <Route path="creator/create" element={<PremiumGate feature="creator_tools"><LazyRoute loader={() => import('./components/CreatorRoadmapWizard')} componentProps={{ user, onBack: () => handleBack('profile'), onNavigate: handleNavigate }} /></PremiumGate>} />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />

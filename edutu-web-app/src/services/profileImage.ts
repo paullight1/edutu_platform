@@ -229,6 +229,7 @@ export function resizeImage(
 }
 
 export async function uploadResizedProfileImage(
+    userId: string,
     file: File
 ): Promise<{ success: boolean; url?: string; error?: string }> {
     try {
@@ -238,7 +239,7 @@ export async function uploadResizedProfileImage(
             type: 'image/jpeg',
         });
 
-        return uploadProfileImage(resizedFile);
+        return uploadProfileImage(userId, resizedFile);
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         return { success: false, error: message };

@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-globals */
 import { supabase } from '../lib/supabaseClient';
 
 export interface CvDocument {

@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-globals */
 export interface CvDocument {
   id: string;
   title: string;

@@ -212,7 +212,7 @@ const AllOpportunities: React.FC<AllOpportunitiesProps> = ({ onBack, onSelectOpp
                     >
                       <div className="h-24 overflow-hidden relative bg-slate-100 dark:bg-slate-800">
                         <ImageWithFallback
-                          src={opportunity.image}
+                          src={opportunity.image ?? ''}
                           alt=""
                           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                           fallbackClassName="w-full h-full"
@@ -245,7 +245,7 @@ const AllOpportunities: React.FC<AllOpportunitiesProps> = ({ onBack, onSelectOpp
                     >
                       <div className="w-16 h-16 shrink-0 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800">
                         <ImageWithFallback
-                          src={opportunity.image}
+                          src={opportunity.image ?? ''}
                           alt=""
                           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                           fallbackClassName="w-full h-full"
