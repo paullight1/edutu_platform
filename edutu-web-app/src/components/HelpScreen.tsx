@@ -141,7 +141,7 @@ const HelpScreen: React.FC<HelpScreenProps> = ({ onBack, user }) => {
 
   const triggerEmail = () => {
     if (typeof window !== 'undefined') {
-      window.location.href = 'mailto:support@edutu.com?subject=Support%20request%20from%20app';
+      window.location.href = 'mailto:support@edutu.org?subject=Support%20request%20from%20app';
     }
     pushStatusMessage('Opening your email client...');
   };
@@ -478,7 +478,7 @@ const HelpScreen: React.FC<HelpScreenProps> = ({ onBack, user }) => {
           <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Additional Resources</h3>
           <div className="space-y-3">
             <button
-              onClick={() => openResource('https://docs.edutu.com/user-guide')}
+              onClick={() => openResource('https://docs.edutu.org/user-guide')}
               className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all text-left"
             >
               <div className="w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-2xl flex items-center justify-center">
@@ -491,7 +491,7 @@ const HelpScreen: React.FC<HelpScreenProps> = ({ onBack, user }) => {
             </button>
 
             <button
-              onClick={() => openResource('https://community.edutu.com')}
+              onClick={() => openResource('https://community.edutu.org')}
               className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all text-left"
             >
               <div className="w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-2xl flex items-center justify-center">
@@ -507,7 +507,7 @@ const HelpScreen: React.FC<HelpScreenProps> = ({ onBack, user }) => {
 
         <div className="text-center text-gray-500 dark:text-gray-400 text-sm space-y-1">
           <p>Edutu v1.0</p>
-          <p>Need more help? Contact us at support@edutu.com</p>
+          <p>Need more help? Contact us at support@edutu.org</p>
         </div>
       </div>
 

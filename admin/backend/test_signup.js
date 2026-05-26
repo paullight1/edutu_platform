@@ -9,7 +9,7 @@ async function testSignup() {
     try {
         console.log('Testing SignUp from Node...');
         const { data, error } = await supabase.auth.signUp({
-            email: 'test-signup-node-' + Date.now() + '@edutu.com',
+            email: 'test-signup-node-' + Date.now() + '@edutu.org',
             password: 'Password123!'
         });
 

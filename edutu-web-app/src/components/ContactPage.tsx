@@ -128,7 +128,7 @@ const ContactPage: React.FC = () => {
         },
         {
             question: 'How do I contact support?',
-            answer: 'You can reach us at support@edutu.com or use this contact form. We typically respond within 24 hours.'
+            answer: 'You can reach us at support@edutu.org or use this contact form. We typically respond within 24 hours.'
         },
         {
             question: 'Is my data secure?',
@@ -533,8 +533,8 @@ const ContactPage: React.FC = () => {
                                 <span className="text-[11px] font-semibold tracking-[1.5px] block mb-2" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
                                     Email
                                 </span>
-                                <a href="mailto:support@edutu.com" style={{ color: '#146ef5', textDecoration: 'none', fontSize: '16px', fontWeight: 500 }} onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')} onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}>
-                                    support@edutu.com
+                                <a href="mailto:support@edutu.org" style={{ color: '#146ef5', textDecoration: 'none', fontSize: '16px', fontWeight: 500 }} onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')} onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}>
+                                    support@edutu.org
                                 </a>
                             </div>
 

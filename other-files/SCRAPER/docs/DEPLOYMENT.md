@@ -86,7 +86,7 @@ OPENAI_API_KEY=sk-your-openai-key
 
 # API Security (Required - generate a secure key)
 API_KEY=your-secure-random-api-key-min-32-chars
-ADMIN_EMAILS=admin@edutu.com,youremail@example.com
+ADMIN_EMAILS=admin@edutu.org,youremail@example.com
 
 # Optional: Monitoring
 SENTRY_DSN=https://your-sentry-dsn

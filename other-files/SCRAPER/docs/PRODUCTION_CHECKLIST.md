@@ -41,7 +41,7 @@ OPENAI_API_KEY=sk-your-openai-key
 API_KEY=your-secure-random-api-key
 
 # Admin emails (comma-separated)
-ADMIN_EMAILS=admin@edutu.com
+ADMIN_EMAILS=admin@edutu.org
 
 # Optional
 LOG_LEVEL=info

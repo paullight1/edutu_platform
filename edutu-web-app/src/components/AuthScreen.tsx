@@ -327,7 +327,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                           value={emailAddress}
                           onChange={(event) => setEmailAddress(event.target.value)}
                           className={`${baseInputClass} pl-11`}
-                          placeholder="e.g. ahmed@edutu.com"
+                          placeholder="e.g. ahmed@edutu.org"
                           autoComplete="email"
                         />
                       </div>

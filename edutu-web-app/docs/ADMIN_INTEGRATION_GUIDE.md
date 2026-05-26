@@ -532,7 +532,7 @@ const supportMetrics = await getSupportAnalytics(30);
    ```sql
    UPDATE public.profiles
    SET preferences = preferences || '{"role": "admin"}'
-   WHERE email = 'admin@edutu.com';
+   WHERE email = 'admin@edutu.org';
    ```
 
 ### Phase 2: Admin Portal Development (Weeks 2-3)

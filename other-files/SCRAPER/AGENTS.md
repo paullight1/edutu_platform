@@ -12,7 +12,7 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 API_KEY=your-secure-api-key-min-32-chars
 OPENAI_API_KEY=sk-your-openai-key
-ADMIN_EMAILS=admin@edutu.com
+ADMIN_EMAILS=admin@edutu.org
 PORT=3001
 ```
 

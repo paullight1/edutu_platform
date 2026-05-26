@@ -303,5 +303,5 @@ MIT License - See LICENSE file for details
 ## Support
 
 For issues or questions:
-- Email: support@edutu.com
+- Email: support@edutu.org
 - GitHub Issues: [repository]/issues

@@ -43,7 +43,7 @@ app.use(cors({
             'http://localhost:3000',
             'http://localhost:5173',
             'http://localhost:3001',
-            'https://admin.edutu.com',
+            'https://admin.edutu.org',
             undefined
         ];
         if (allowedOrigins.includes(origin) || !origin) {
