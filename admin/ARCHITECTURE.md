@@ -147,7 +147,7 @@ app.use(cors({
     origin: [
         'http://localhost:5173',  // Admin dev
         'http://localhost:8081',  // Mobile dev
-        'https://admin.edutu.com', // Admin prod
+        'https://admin.edutu.org', // Admin prod
         'edutu://'                 // Mobile app
     ]
 }));

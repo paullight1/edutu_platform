@@ -217,7 +217,7 @@ const Signup: FC = () => {
                                     type="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="admin@edutu.com"
+                                    placeholder="admin@edutu.org"
                                     required
                                     style={{
                                         width: '100%',

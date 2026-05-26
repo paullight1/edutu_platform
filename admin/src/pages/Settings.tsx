@@ -59,7 +59,7 @@ const Settings = () => {
     const [settings, setSettings] = useState<AdminSettings>({
         platform: {
             siteName: 'Edutu',
-            supportEmail: 'support@edutu.com',
+            supportEmail: 'support@edutu.org',
             maintenanceMode: false,
             allowRegistrations: true,
             requireApproval: false,
@@ -71,7 +71,7 @@ const Settings = () => {
             allowedFileTypes: ['jpg', 'jpeg', 'png', 'pdf'],
         },
         notifications: {
-            adminEmail: 'admin@edutu.com',
+            adminEmail: 'admin@edutu.org',
             notifyNewUsers: true,
             notifyNewOpportunities: false,
             notifyReports: true,
@@ -85,7 +85,7 @@ const Settings = () => {
         },
         api: {
             apiKey: import.meta.env.VITE_OPENROUTER_API_KEY || '',
-            webhookUrl: import.meta.env.VITE_WEBHOOK_URL || 'https://api.edutu.com/webhooks',
+            webhookUrl: import.meta.env.VITE_WEBHOOK_URL || 'https://api.edutu.org/webhooks',
             rateLimitPerMinute: 100,
         },
     });
@@ -334,7 +334,7 @@ const Settings = () => {
                         className="input-field"
                         value={settings.notifications.adminEmail}
                         onChange={(e) => updateSetting('notifications', 'adminEmail', e.target.value)}
-                        placeholder="admin@edutu.com"
+                        placeholder="admin@edutu.org"
                     />
                 </div>
 

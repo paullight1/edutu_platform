@@ -1,5 +1,10 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import WebSocket from 'ws';
+
+if (typeof globalThis.WebSocket === 'undefined') {
+  globalThis.WebSocket = WebSocket as unknown as typeof globalThis.WebSocket;
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });

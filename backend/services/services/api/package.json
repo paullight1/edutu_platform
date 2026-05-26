@@ -36,12 +36,14 @@
     "@nestjs/throttler": "^6.5.0",
     "@supabase/supabase-js": "^2.45.1",
     "@types/cheerio": "^0.22.35",
+    "@types/ws": "^8.18.1",
     "axios": "^1.15.1",
     "cheerio": "^1.2.0",
     "drizzle-orm": "^0.45.1",
     "pg": "^8.17.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "ws": "^8.21.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {

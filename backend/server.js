@@ -20,7 +20,7 @@ const corsOrigins = [
 
 app.use(cors({
     origin: NODE_ENV === 'production' 
-        ? ['https://admin.edutu.com', 'edutu://'] 
+        ? ['https://admin.edutu.org', 'edutu://'] 
         : corsOrigins,
     credentials: true
 }));

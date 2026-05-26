@@ -241,7 +241,7 @@ For admin-only routes, check the user's email against `ADMIN_EMAILS` environment
 
 ```typescript
 // Check if user is admin
-const isAdmin = user?.email === 'admin@edutu.com'; // Configure your admin emails
+const isAdmin = user?.email === 'admin@edutu.org'; // Configure your admin emails
 ```
 
 ---
@@ -254,7 +254,7 @@ The system supports webhooks for external integrations:
 
 ```typescript
 // In your new frontend
-const WEBHOOK_URL = import.meta.env.VITE_WEBHOOK_URL || 'https://api.edutu.com/webhooks';
+const WEBHOOK_URL = import.meta.env.VITE_WEBHOOK_URL || 'https://api.edutu.org/webhooks';
 
 // Register webhook
 await fetch('/api/webhooks/register', {
