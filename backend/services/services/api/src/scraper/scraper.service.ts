@@ -167,6 +167,13 @@ export class ScraperService implements OnModuleInit {
   }
 
   async onModuleInit() {
+    if (process.env.SCRAPER_SCHEDULER_ENABLED !== 'true') {
+      this.logger.log(
+        'Scraper scheduler disabled. Set SCRAPER_SCHEDULER_ENABLED=true to enable it.',
+      );
+      return;
+    }
+
     this.logger.log('Initializing dynamic scraper schedule...');
     await this.initializeSchedule();
   }
