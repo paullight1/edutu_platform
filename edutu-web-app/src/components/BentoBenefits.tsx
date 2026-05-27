@@ -93,34 +93,23 @@ const BentoBenefits: React.FC = () => {
             { label: 'Submit', value: 88, color: '#146ef5' },
         ];
         return (
-            <div className="relative flex h-full w-full flex-col items-center justify-center gap-5 overflow-hidden">
+            <div className="relative flex h-full w-full flex-col items-center justify-center gap-3 overflow-hidden px-2">
                 <motion.div
                     animate={{ rotate: 360 }}
-                    transition={{ duration: 18, repeat: Infinity, ease: 'linear' }}
-                    className="absolute h-48 w-48 rounded-full"
+                    transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+                    className="absolute h-36 w-36 rounded-full"
                     style={{ border: `1px dashed ${isDarkMode ? 'rgba(255,255,255,0.16)' : 'rgba(20,110,245,0.18)'}` }}
                 />
                 <motion.div
-                    initial={{ scale: 0.8, opacity: 0.5 }}
-                    whileInView={{ scale: 1, opacity: 1 }}
-                    viewport={{ once: true }}
-                    className="relative z-10 flex h-28 w-28 flex-col items-center justify-center rounded-full text-center"
-                    style={{
-                        background: isDarkMode ? 'linear-gradient(135deg, #0f2f28, #10243b)' : 'linear-gradient(135deg, #e8fff4, #eaf4ff)',
-                        border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.14)' : 'rgba(20,110,245,0.18)'}`,
-                        boxShadow: isDarkMode ? '0 18px 48px rgba(0,184,107,0.14)' : '0 18px 48px rgba(20,110,245,0.12)',
-                    }}
+                    animate={{ opacity: [0.8, 1, 0.8] }}
+                    transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+                    className="relative z-10 flex items-center gap-2 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em]"
+                    style={{ color: '#00b86b', backgroundColor: isDarkMode ? 'rgba(0,184,107,0.12)' : 'rgba(0,184,107,0.1)' }}
                 >
-                    <motion.div
-                        animate={{ scale: [1, 1.18, 1], opacity: [0.75, 1, 0.75] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                        className="mb-1 h-3 w-3 rounded-full bg-[#00b86b]"
-                        style={{ boxShadow: '0 0 18px rgba(0,184,107,0.7)' }}
-                    />
-                    <span className="text-2xl font-black" style={{ color: isDarkMode ? '#ffffff' : '#0f1720' }}>84%</span>
-                    <span className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: '#00b86b' }}>On Track</span>
+                    <span className="h-2 w-2 rounded-full bg-[#00b86b]" />
+                    On track
                 </motion.div>
-                <div className="relative z-10 w-full space-y-3 px-5">
+                <div className="relative z-10 w-full max-w-[250px] space-y-2.5">
                     {milestones.map((milestone, i) => (
                         <motion.div
                             key={milestone.label}
@@ -137,10 +126,10 @@ const BentoBenefits: React.FC = () => {
                             </div>
                             <div className="h-2 overflow-hidden rounded-full" style={{ backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#dce9f5' }}>
                                 <motion.div
-                                    animate={{ width: [`${Math.max(12, milestone.value - 24)}%`, `${milestone.value}%`, `${milestone.value - 8}%`, `${milestone.value}%`] }}
+                                    animate={{ scaleX: [(milestone.value - 18) / 100, milestone.value / 100, (milestone.value - 6) / 100, milestone.value / 100] }}
                                     transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: i * 0.35 }}
-                                    className="h-full rounded-full"
-                                    style={{ backgroundColor: milestone.color }}
+                                    className="h-full origin-left rounded-full"
+                                    style={{ backgroundColor: milestone.color, transformOrigin: 'left center' }}
                                 />
                             </div>
                         </motion.div>
@@ -152,77 +141,66 @@ const BentoBenefits: React.FC = () => {
 
     const DeadlineReminders = () => {
         const deadlines = [
-            { day: '15', month: 'JUN', color: '#ef4444', delay: 0 },
-            { day: '22', month: 'JUN', color: '#f59e0b', delay: 0.2 },
-            { day: '28', month: 'JUN', color: '#22c55e', delay: 0.4 },
+            { day: '15', month: 'Jun', title: 'DAAD Scholarship', country: 'Germany', color: '#ef4444' },
+            { day: '22', month: 'Jun', title: 'Chevening Essays', country: 'United Kingdom', color: '#f59e0b' },
+            { day: '28', month: 'Jun', title: 'Mandela Fellowship', country: 'United States', color: '#22c55e' },
+            { day: '04', month: 'Jul', title: 'Vanier CGS', country: 'Canada', color: '#146ef5' },
         ];
         return (
-            <div className="relative w-full h-full flex flex-col items-center justify-center gap-4">
-                <div className="flex flex-col items-center gap-3 w-full px-4">
-                    {deadlines.map((d, i) => (
+            <div className="relative h-full w-full overflow-hidden px-3">
+                <div className="absolute inset-x-8 top-7 h-24 rounded-full blur-2xl" style={{ backgroundColor: isDarkMode ? 'rgba(20,110,245,0.16)' : 'rgba(20,110,245,0.12)' }} />
+                <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-10" style={{ background: `linear-gradient(180deg, ${isDarkMode ? '#111' : '#f8fbff'}, transparent)` }} />
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-10" style={{ background: `linear-gradient(0deg, ${isDarkMode ? '#111' : '#f8fbff'}, transparent)` }} />
+                <motion.div
+                    animate={{ y: [0, -68, -136, -204, 0] }}
+                    transition={{ duration: 9, repeat: Infinity, ease: [0.76, 0, 0.24, 1], times: [0, 0.24, 0.48, 0.72, 1] }}
+                    className="space-y-3 pt-10"
+                >
+                    {[...deadlines, ...deadlines.slice(0, 3)].map((d, i) => (
                         <motion.div
                             key={i}
-                            initial={{ x: -30, opacity: 0 }}
-                            whileInView={{ x: 0, opacity: 1 }}
-                            viewport={{ once: true }}
-                            transition={{ duration: 0.4, delay: d.delay }}
-                            className="w-full flex items-center gap-3"
+                            animate={{ scale: [0.94, 1.04, 0.94], opacity: [0.58, 1, 0.58] }}
+                            transition={{ duration: 3, repeat: Infinity, delay: (i % deadlines.length) * 0.2, ease: 'easeInOut' }}
+                            className="flex w-full items-center gap-3 rounded-2xl p-3"
+                            style={{ backgroundColor: isDarkMode ? 'rgba(255,255,255,0.055)' : 'rgba(255,255,255,0.8)' }}
                         >
                             <div
-                                className="w-12 h-12 rounded-xl flex flex-col items-center justify-center flex-shrink-0"
+                                className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl"
                                 style={{
                                     backgroundColor: `${d.color}15`,
                                     border: `1px solid ${d.color}30`,
                                 }}
                             >
                                 <span className="text-sm font-bold" style={{ color: d.color }}>{d.day}</span>
-                                <span className="text-[8px] font-medium" style={{ color: d.color }}>{d.month}</span>
+                                <span className="text-[8px] font-bold uppercase" style={{ color: d.color }}>{d.month}</span>
                             </div>
-                            <div className="flex-1">
-                                <div
-                                    className="h-2 rounded-full w-full"
-                                    style={{
-                                        backgroundColor: isDarkMode ? '#2a2a2a' : '#e5e5e5',
-                                        overflow: 'hidden',
-                                    }}
-                                >
-                                    <motion.div
-                                        initial={{ width: 0 }}
-                                        whileInView={{ width: i === 2 ? '100%' : i === 1 ? '70%' : '40%' }}
-                                        viewport={{ once: true }}
-                                        transition={{ duration: 0.6, delay: d.delay + 0.2 }}
-                                        className="h-full rounded-full"
-                                        style={{ backgroundColor: d.color }}
-                                    />
-                                </div>
+                            <div className="min-w-0 flex-1">
+                                <div className="truncate text-xs font-bold" style={{ color: isDarkMode ? '#f7fbff' : '#102033' }}>{d.title}</div>
+                                <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: isDarkMode ? '#7f8b98' : '#64748b' }}>{d.country}</div>
                             </div>
-                            <motion.div
-                                animate={{ scale: i === 0 ? [1, 1.2, 1] : 1, opacity: i === 0 ? [0.5, 1, 0.5] : 1 }}
-                                transition={{ duration: 2, repeat: Infinity }}
-                            >
-                                <Bell size={18} style={{ color: d.color }} />
-                            </motion.div>
+                            <Bell size={16} style={{ color: d.color }} />
                         </motion.div>
                     ))}
-                </div>
+                </motion.div>
             </div>
         );
     };
 
     const AINodes = () => {
         const nodes = [
-            { x: 12, y: 28, size: 20, delay: 0 },
-            { x: 50, y: 18, size: 36, delay: 0.15, isCenter: true },
-            { x: 88, y: 32, size: 20, delay: 0.3 },
-            { x: 32, y: 72, size: 20, delay: 0.45 },
-            { x: 78, y: 78, size: 20, delay: 0.6 },
+            { x: 16, y: 30, flag: 'ng', label: 'NG', delay: 0 },
+            { x: 50, y: 20, flag: 'gb', label: 'UK', delay: 0.15, isCenter: true },
+            { x: 84, y: 34, flag: 'us', label: 'US', delay: 0.3 },
+            { x: 34, y: 70, flag: 'de', label: 'DE', delay: 0.45 },
+            { x: 76, y: 72, flag: 'ca', label: 'CA', delay: 0.6 },
         ];
         return (
-            <div className="relative w-full h-full">
+            <div className="relative h-full w-full overflow-hidden">
+                <div className="absolute inset-x-10 top-8 h-28 rounded-full blur-2xl" style={{ backgroundColor: isDarkMode ? 'rgba(20,110,245,0.14)' : 'rgba(0,184,107,0.1)' }} />
                 <svg className="absolute inset-0 w-full h-full">
                     <motion.line
                         x1="12%" y1="28%" x2="50%" y2="18%"
-                        stroke={isDarkMode ? '#2a2a2a' : '#e5e5e5'}
+                        stroke={isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(20,110,245,0.18)'}
                         strokeWidth="2.5"
                         initial={{ pathLength: 0 }}
                         whileInView={{ pathLength: 1 }}
@@ -231,7 +209,7 @@ const BentoBenefits: React.FC = () => {
                     />
                     <motion.line
                         x1="50%" y1="18%" x2="88%" y2="32%"
-                        stroke={isDarkMode ? '#2a2a2a' : '#e5e5e5'}
+                        stroke={isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(20,110,245,0.18)'}
                         strokeWidth="2.5"
                         initial={{ pathLength: 0 }}
                         whileInView={{ pathLength: 1 }}
@@ -240,7 +218,7 @@ const BentoBenefits: React.FC = () => {
                     />
                     <motion.line
                         x1="50%" y1="18%" x2="32%" y2="72%"
-                        stroke={isDarkMode ? '#2a2a2a' : '#e5e5e5'}
+                        stroke={isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(20,110,245,0.18)'}
                         strokeWidth="2.5"
                         initial={{ pathLength: 0 }}
                         whileInView={{ pathLength: 1 }}
@@ -249,7 +227,7 @@ const BentoBenefits: React.FC = () => {
                     />
                     <motion.line
                         x1="32%" y1="72%" x2="78%" y2="78%"
-                        stroke={isDarkMode ? '#2a2a2a' : '#e5e5e5'}
+                        stroke={isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(20,110,245,0.18)'}
                         strokeWidth="2.5"
                         initial={{ pathLength: 0 }}
                         whileInView={{ pathLength: 1 }}
@@ -260,84 +238,77 @@ const BentoBenefits: React.FC = () => {
                 {nodes.map((n, i) => (
                     <motion.div
                         key={i}
-                        initial={{ scale: 0 }}
-                        whileInView={{ scale: 1 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.35, delay: n.delay, ease: 'easeOut' }}
-                        animate={n.isCenter ? { scale: [1, 1.12, 1] } : {}}
-                        className="absolute rounded-full flex items-center justify-center"
+                        animate={{ y: [0, -7, 0], scale: n.isCenter ? [1, 1.08, 1] : [1, 1.03, 1] }}
+                        transition={{ duration: 3.2, repeat: Infinity, delay: n.delay, ease: 'easeInOut' }}
+                        className="absolute flex items-center justify-center overflow-hidden rounded-full"
                         style={{
                             left: `${n.x}%`,
                             top: `${n.y}%`,
-                            width: n.size,
-                            height: n.size,
-                            backgroundColor: n.isCenter ? '#146ef5' : isDarkMode ? '#2a2a2a' : '#e5e5e5',
+                            width: n.isCenter ? 48 : 38,
+                            height: n.isCenter ? 48 : 38,
+                            backgroundColor: isDarkMode ? '#151b22' : '#ffffff',
                             transform: 'translate(-50%, -50%)',
-                            boxShadow: n.isCenter ? '0 6px 20px rgba(20,110,245,0.5)' : '0 2px 8px rgba(0,0,0,0.1)',
+                            border: `2px solid ${n.isCenter ? '#146ef5' : isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(20,110,245,0.2)'}`,
+                            boxShadow: n.isCenter ? '0 10px 26px rgba(20,110,245,0.4)' : '0 8px 20px rgba(0,0,0,0.12)',
                         }}
                     >
-                        {n.isCenter && <Sparkles size={18} className="text-white" />}
+                        <img src={`https://flagcdn.com/w80/${n.flag}.png`} alt="" className="h-full w-full object-cover" loading="lazy" />
+                        {n.isCenter && (
+                            <span className="absolute inset-0 flex items-center justify-center text-[9px] font-black text-white" style={{ backgroundColor: 'rgba(20,110,245,0.42)' }}>
+                                {n.label}
+                            </span>
+                        )}
                     </motion.div>
                 ))}
+                <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em]" style={{ backgroundColor: isDarkMode ? 'rgba(20,110,245,0.16)' : 'rgba(255,255,255,0.78)', color: '#146ef5' }}>
+                    <Sparkles size={12} /> Roadmap
+                </div>
             </div>
         );
     };
 
     const SuccessAnimation = () => (
-        <div className="flex flex-col items-center justify-center gap-5 h-full">
-            <div className="flex items-center justify-center gap-4">
+        <div className="relative flex h-full w-full items-center justify-center overflow-hidden">
+            <div className="absolute h-40 w-40 rounded-full blur-2xl" style={{ backgroundColor: isDarkMode ? 'rgba(0,184,107,0.14)' : 'rgba(0,184,107,0.16)' }} />
+            {[0, 1, 2].map((i) => (
                 <motion.div
-                    initial={{ scale: 0.8, opacity: 0.5 }}
-                    whileInView={{ scale: 1, opacity: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.3 }}
-                    className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                    key={i}
+                    animate={{ y: [14, -10, 14], rotate: [-2 + i, 2 - i, -2 + i] }}
+                    transition={{ duration: 4 + i * 0.35, repeat: Infinity, ease: 'easeInOut', delay: i * 0.25 }}
+                    className="absolute rounded-2xl p-3"
                     style={{
-                        backgroundColor: isDarkMode ? '#1a1a1a' : '#f5f5f5',
-                        border: `1px solid ${isDarkMode ? '#2a2a2a' : '#e5e5e5'}`,
+                        width: i === 1 ? 170 : 128,
+                        left: i === 0 ? '12%' : i === 1 ? '26%' : '54%',
+                        top: i === 0 ? '45%' : i === 1 ? '24%' : '50%',
+                        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.9)',
+                        border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.11)' : 'rgba(20,110,245,0.14)'}`,
+                        boxShadow: '0 18px 40px rgba(0,0,0,0.14)',
                     }}
                 >
-                    <Activity size={28} className="text-[#146ef5]" />
-                </motion.div>
-                <motion.div
-                    initial={{ scale: 0, rotate: -180 }}
-                    whileInView={{ scale: 1, rotate: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.5, delay: 0.3, ease: 'easeOut' }}
-                    className="w-24 h-24 rounded-full flex items-center justify-center"
-                    style={{
-                        background: 'linear-gradient(135deg, #146ef5 0%, #7a3dff 100%)',
-                        boxShadow: '0 12px 32px rgba(20,110,245,0.4)',
-                    }}
-                >
-                    <CheckCircle size={40} className="text-white" />
-                </motion.div>
-            </div>
-            <motion.div
-                initial={{ width: 0 }}
-                whileInView={{ width: 120 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.5 }}
-                className="h-2 rounded-full"
-                style={{ background: 'linear-gradient(90deg, #146ef5, #7a3dff)' }}
-            />
-            <div className="flex items-center gap-2">
-                {[1, 2, 3].map((i) => (
-                    <motion.div
-                        key={i}
-                        initial={{ scale: 0 }}
-                        whileInView={{ scale: 1 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.3, delay: 0.6 + i * 0.1 }}
-                        className="flex items-center gap-1"
-                    >
-                        <CheckCircle size={16} className="text-[#22c55e]" />
-                        <span className="text-[10px] font-medium" style={{ color: '#22c55e' }}>
-                            {i === 1 ? 'CV Optimized' : i === 2 ? 'Applied' : 'Interview'}
+                    <div className="mb-2 flex items-center gap-2">
+                        <CheckCircle size={15} style={{ color: i === 2 ? '#00b86b' : '#146ef5' }} />
+                        <span className="text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: isDarkMode ? '#dce8f5' : '#1f2d3d' }}>
+                            {i === 0 ? 'Score' : i === 1 ? 'Application' : 'Offer'}
                         </span>
-                    </motion.div>
-                ))}
-            </div>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full" style={{ backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#e3edf7' }}>
+                        <motion.div
+                            animate={{ scaleX: i === 0 ? [0.54, 0.82, 0.54] : i === 1 ? [0.36, 0.68, 0.36] : [0.7, 0.96, 0.7] }}
+                            transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut', delay: i * 0.2 }}
+                            className="h-full origin-left rounded-full"
+                            style={{ backgroundColor: i === 2 ? '#00b86b' : '#146ef5' }}
+                        />
+                    </div>
+                </motion.div>
+            ))}
+            <motion.div
+                animate={{ scale: [1, 1.08, 1], opacity: [0.9, 1, 0.9] }}
+                transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
+                className="relative z-10 flex h-20 w-20 items-center justify-center rounded-full"
+                style={{ background: 'linear-gradient(135deg, #146ef5 0%, #00b86b 100%)', boxShadow: '0 18px 44px rgba(20,110,245,0.35)' }}
+            >
+                <Rocket size={30} className="text-white" />
+            </motion.div>
         </div>
     );
 
@@ -390,13 +361,19 @@ const BentoBenefits: React.FC = () => {
     const VoiceWaveform = () => {
         const bars = [20, 40, 60, 80, 100, 80, 60, 40, 20, 40, 60, 80, 60, 40, 20];
         return (
-            <div className="relative w-full h-full flex flex-col items-center justify-center gap-4">
+            <div className="relative flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden">
+                <motion.div
+                    animate={{ scale: [1, 1.18, 1], opacity: [0.45, 0.78, 0.45] }}
+                    transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
+                    className="absolute h-44 w-44 rounded-full blur-2xl"
+                    style={{ background: isDarkMode ? 'radial-gradient(circle, rgba(20,110,245,0.42), transparent 68%)' : 'radial-gradient(circle, rgba(20,110,245,0.2), transparent 68%)' }}
+                />
                 <motion.div
                     initial={{ scale: 0.8, opacity: 0 }}
                     whileInView={{ scale: 1, opacity: 1 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.4 }}
-                    className="flex items-center gap-3 mb-2"
+                    className="relative z-10 flex items-center gap-3 mb-2"
                 >
                     <div
                         className="w-16 h-16 rounded-2xl flex items-center justify-center"
@@ -417,12 +394,12 @@ const BentoBenefits: React.FC = () => {
                         <Mic size={32} className="text-[#146ef5]" />
                     </div>
                 </motion.div>
-                <div className="flex items-end justify-center gap-1.5 w-full px-4">
+                <div className="relative z-10 flex h-24 w-full items-center justify-center gap-1.5 px-4">
                     {bars.map((h, i) => (
                         <motion.div
                             key={i}
                             animate={{
-                                height: [`${h * 0.5}%`, `${h}%`, `${h * 0.5}%`],
+                                scaleY: [Math.max(0.18, h / 180), h / 100, Math.max(0.18, h / 180)],
                             }}
                             transition={{
                                 duration: 1.5,
@@ -430,7 +407,7 @@ const BentoBenefits: React.FC = () => {
                                 delay: i * 0.08,
                                 ease: 'easeInOut',
                             }}
-                            className="w-2 rounded-full"
+                            className="h-20 w-2 origin-center rounded-full"
                             style={{
                                 background: i >= 5 && i <= 9
                                     ? 'linear-gradient(180deg, #146ef5 0%, #7a3dff 100%)'
@@ -446,7 +423,7 @@ const BentoBenefits: React.FC = () => {
                     whileInView={{ opacity: 1 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.5, delay: 0.6 }}
-                    className="flex items-center gap-2 text-sm font-medium"
+                    className="relative z-10 flex items-center gap-2 text-sm font-medium"
                     style={{ color: '#146ef5' }}
                 >
                     <motion.div
