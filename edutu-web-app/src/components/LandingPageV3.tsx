@@ -14,7 +14,6 @@ import {
     Globe,
     BarChart3,
     ChevronDown,
-    Check,
     Menu,
     X
 } from 'lucide-react';
@@ -79,14 +78,14 @@ const flags = [
 ];
 
 const institutions = [
-    { name: 'Harvard University', logo: '/logos/harvard.svg' },
-    { name: 'University of Oxford', logo: '/logos/oxford.svg' },
-    { name: 'MIT', logo: '/logos/mit.svg' },
-    { name: 'Stanford University', logo: '/logos/stanford.svg' },
-    { name: 'University of Cambridge', logo: '/logos/cambridge.svg' },
-    { name: 'Yale University', logo: '/logos/yale.svg' },
-    { name: 'University of Toronto', logo: '/logos/toronto.svg' },
-    { name: 'ETH Zurich', logo: '/logos/ethz.svg' },
+    { name: 'Harvard University', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/Harvard_University_logo.svg' },
+    { name: 'University of Oxford', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/Oxford-University-Circlet.svg' },
+    { name: 'MIT', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/MIT_logo.svg' },
+    { name: 'Stanford University', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/Stanford_Cardinal_logo.svg' },
+    { name: 'University of Cambridge', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/University_of_Cambridge_coat_of_arms.svg' },
+    { name: 'Yale University', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/Yale_University_logo.svg' },
+    { name: 'University of Toronto', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/University_of_Toronto_coat_of_arms.svg' },
+    { name: 'ETH Zurich', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/ETH_Z%C3%BCrich_Logo.svg' },
 ];
 
 const heroOpportunityWords = ['Opportunities', 'Scholarships', 'Internships', 'Fellowships'];
@@ -533,8 +532,10 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                     transition={{ duration: 0.4, delay: i * 0.1 }}
                                     className="p-8 cursor-pointer transition-all duration-300"
                                     style={{
-                                        backgroundColor: isDarkMode ? '#111' : '#ffffff',
-                                        border: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`,
+                                        background: isDarkMode
+                                            ? '#111'
+                                            : `linear-gradient(135deg, ${feature.bg}, #ffffff 72%)`,
+                                        border: `1px solid ${isDarkMode ? '#222' : `${feature.color}30`}`,
                                         borderRadius: '8px',
                                         boxShadow: cardShadow
                                     }}
@@ -569,9 +570,9 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         </h2>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             {[
-                                { quote: 'Edutu helped me land 3 scholarship offers in 2 months. The AI roadmap was a game changer.', name: 'Sarah K.', role: 'Computer Science Student', country: 'Nigeria' },
-                                { quote: 'The opportunity tracking alone saved me from missing deadlines. Now I have a clear career path.', name: 'James M.', role: 'Recent Graduate', country: 'Kenya' },
-                                { quote: 'I went from confused about my career to having a personalized roadmap with real opportunities.', name: 'Priya R.', role: 'MBA Candidate', country: 'India' }
+                                { quote: 'Edutu helped me land 3 scholarship offers in 2 months. The AI roadmap was a game changer.', name: 'Adaeze O.', role: 'Computer Science Student', country: 'Nigeria', avatar: 'https://images.pexels.com/photos/1181690/pexels-photo-1181690.jpeg' },
+                                { quote: 'The opportunity tracking alone saved me from missing deadlines. Now I have a clear career path.', name: 'Tunde A.', role: 'Recent Graduate', country: 'Nigeria', avatar: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg' },
+                                { quote: 'I went from confused about my career to having a personalized roadmap with real opportunities.', name: 'Fatima B.', role: 'MSc Candidate', country: 'Nigeria', avatar: 'https://images.pexels.com/photos/762020/pexels-photo-762020.jpeg' }
                             ].map((testimonial, i) => (
                                 <motion.div
                                     key={i}
@@ -594,9 +595,13 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                     </div>
                                     <p className="text-[18px] leading-[1.5] mb-6" style={{ color: isDarkMode ? '#d8d8d8' : '#222' }}>"{testimonial.quote}"</p>
                                     <div className="flex items-center gap-3">
-                                        <div className="h-10 w-10 flex items-center justify-center rounded-full font-semibold text-[14px]" style={{ backgroundColor: '#146ef5', color: '#ffffff', borderRadius: '50%' }}>
-                                            {testimonial.name[0]}
-                                        </div>
+                                        <img
+                                            src={testimonial.avatar}
+                                            alt=""
+                                            className="h-12 w-12 rounded-full object-cover"
+                                            loading="lazy"
+                                            style={{ border: `2px solid ${isDarkMode ? '#222' : '#ffffff'}`, boxShadow: '0 10px 24px rgba(0,0,0,0.18)' }}
+                                        />
                                         <div>
                                             <div className="text-[16px] font-medium" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>{testimonial.name}</div>
                                             <div className="text-[14px]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>{testimonial.role} · {testimonial.country}</div>
@@ -680,80 +685,6 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                     </div>
                 </section>
 
-                {/* Pricing Section */}
-                <section className="py-24 px-4 sm:px-6" id="pricing">
-                    <div className="max-w-[1200px] mx-auto text-center">
-                        <span className="text-[12.8px] font-semibold tracking-[1.5px]" style={{ color: '#146ef5' }}>
-                            PRICING
-                        </span>
-                        <h2 className="text-[48px] sm:text-[56px] font-semibold leading-[1.04] mt-4 mb-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
-                            Start <span style={{ color: '#146ef5' }}>Free</span>, Scale <span style={{ color: '#146ef5' }}>Fast</span>
-                        </h2>
-                        <p className="max-w-[600px] text-[20px] leading-[1.4] mx-auto mb-16" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                            Everything you need to get started. Upgrade when you are ready.
-                        </p>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-[1000px] mx-auto">
-                            {[
-                                { name: 'FREE', price: '$0', period: 'forever', features: ['Browse opportunities', 'Basic AI roadmap', 'Goal tracking', 'Community access'], cta: 'Get Started', primary: false },
-                                { name: 'PRO', price: '$10', period: '/month', features: ['Unlimited AI roadmaps', 'CV optimization', 'Priority support', 'Creator tools', 'Advanced analytics'], cta: 'Start Pro Trial', primary: true },
-                                { name: 'CREDITS', price: '$5', period: '/50 credits', features: ['Pay per use', 'AI roadmap (10 credits)', 'CV tailor (5 credits)', 'Never expires'], cta: 'Buy Credits', primary: false }
-                            ].map((plan, i) => (
-                                <motion.div
-                                    key={i}
-                                    initial={{ opacity: 0, y: 20 }}
-                                    whileInView={{ opacity: 1, y: 0 }}
-                                    viewport={{ once: true }}
-                                    transition={{ duration: 0.4, delay: i * 0.1 }}
-                                    className="p-8 text-left relative"
-                                    style={{
-                                        backgroundColor: plan.primary ? '#146ef5' : isDarkMode ? '#111' : '#ffffff',
-                                        border: `1px solid ${plan.primary ? '#146ef5' : isDarkMode ? '#222' : '#d8d8d8'}`,
-                                        borderRadius: '8px',
-                                        boxShadow: plan.primary ? webflowShadow : cardShadow
-                                    }}
-                                >
-                                    {plan.primary && (
-                                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 text-[10px] font-semibold tracking-[1px]" style={{ backgroundColor: '#ffae13', color: '#080808', borderRadius: '4px' }}>
-                                            POPULAR
-                                        </div>
-                                    )}
-                                    <div className="text-[10px] font-semibold tracking-[1.5px] mb-3" style={{ color: plan.primary ? '#ffffffcc' : '#146ef5' }}>{plan.name}</div>
-                                    <div className="flex items-baseline gap-1 mb-6">
-                                        <span className="text-[48px] font-semibold" style={{ color: plan.primary ? '#ffffff' : isDarkMode ? '#ffffff' : '#080808' }}>{plan.price}</span>
-                                        <span className="text-[16px]" style={{ color: plan.primary ? '#ffffffcc' : isDarkMode ? '#ababab' : '#5a5a5a' }}>{plan.period}</span>
-                                    </div>
-                                    <div className="space-y-3 mb-8">
-                                        {plan.features.map((feature, j) => (
-                                            <div key={j} className="flex items-center gap-2">
-                                                <Check size={14} style={{ color: plan.primary ? '#ffffff' : '#00d722', flexShrink: 0 }} />
-                                                <span className="text-[16px]" style={{ color: plan.primary ? '#ffffffcc' : isDarkMode ? '#d8d8d8' : '#222' }}>{feature}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <button
-                                        onClick={onGetStarted}
-                                        className="w-full py-3 text-[16px] font-medium rounded cursor-pointer transition-all duration-200"
-                                        style={{
-                                            backgroundColor: plan.primary ? '#ffffff' : '#146ef5',
-                                            color: plan.primary ? '#080808' : '#ffffff',
-                                            border: plan.primary ? 'none' : `1px solid #146ef5`,
-                                            borderRadius: '4px'
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            (e.target as HTMLElement).style.transform = 'translateY(-2px)';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            (e.target as HTMLElement).style.transform = 'translateY(0)';
-                                        }}
-                                    >
-                                        {plan.cta}
-                                    </button>
-                                </motion.div>
-                            ))}
-                        </div>
-                    </div>
-                </section>
-
                 {/* CTA Section */}
                 <section className="py-24 px-4 sm:px-6">
                     <div className="max-w-[1200px] mx-auto">
@@ -793,21 +724,21 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                         }}
                                     >
                                         <Sparkles size={12} className="text-[#146ef5]" />
-                                        <span className="text-[10px] font-bold tracking-widest text-[#146ef5]">Get Started</span>
+                                        <span className="text-[10px] font-bold tracking-widest text-[#146ef5]">Global Matches</span>
                                     </div>
                                     <h2
                                         className="text-3xl md:text-4xl font-bold mb-3 tracking-tight"
                                         style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}
                                     >
-                                        Ready to grow
+                                        Find scholarships
                                         <br />
-                                        your <span style={{ color: '#146ef5' }}>career</span>?
+                                        and <span style={{ color: '#146ef5' }}>global opportunities</span>
                                     </h2>
                                     <p
                                         className="text-sm leading-relaxed"
                                         style={{ color: isDarkMode ? '#888' : '#666' }}
                                     >
-                                        Join thousands of learners finding scholarships, fellowships, and career opportunities worldwide.
+                                        Explore scholarships, fellowships, internships, and funded programs matched to your goals before deadlines pass.
                                     </p>
                                 </div>
                                 <div className="flex flex-col sm:flex-row gap-3 flex-shrink-0">
@@ -822,7 +753,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                             boxShadow: '0 2px 8px rgba(20,110,245,0.25)',
                                         }}
                                     >
-                                        Get Started
+                                        Get Scholarship Matches
                                         <ArrowRight size={14} />
                                     </motion.button>
                                     <motion.button
@@ -835,7 +766,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                             border: `1px solid ${isDarkMode ? '#2a2a2a' : '#e5e5e5'}`,
                                         }}
                                     >
-                                        Download App
+                                        Browse Opportunities
                                     </motion.button>
                                 </div>
                             </div>
@@ -868,7 +799,6 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                 <Link to="/opportunities" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Opportunities</Link>
                                 <a href="#platform" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Platform</a>
                                 <Link to="/mentor" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Become a Mentor</Link>
-                                <a href="#pricing" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Pricing</a>
                                 <a href="#faq" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>FAQ</a>
                             </div>
                         </div>

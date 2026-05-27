@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, type FormEvent } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 import { supabase } from '../lib/supabase';
 import { getLocalDevAuthHeaders } from '../../../lib/localDevAuthHeaders';
 import {
@@ -88,6 +89,7 @@ interface OpportunityListResponse {
 }
 
 export default function Opportunities() {
+    const { getToken } = useAuth();
     const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
     const [filteredOpps, setFilteredOpps] = useState<Opportunity[]>([]);
     const [loading, setLoading] = useState(true);
@@ -505,15 +507,33 @@ export default function Opportunities() {
     const API_URL = NEST_API_URL;
 
     async function getAdminHeaders() {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) {
-            throw new Error('Admin session is required');
+        const localHeaders = getLocalDevAuthHeaders();
+        const clerkToken = await getToken().catch(() => null);
+        if (clerkToken) {
+            return {
+                'Authorization': `Bearer ${clerkToken}`,
+                'Content-Type': 'application/json',
+                ...localHeaders,
+            };
         }
-        return {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-            ...getLocalDevAuthHeaders(),
-        };
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+            return {
+                'Authorization': `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json',
+                ...localHeaders,
+            };
+        }
+
+        if (Object.keys(localHeaders).length > 0) {
+            return {
+                'Content-Type': 'application/json',
+                ...localHeaders,
+            };
+        }
+
+        throw new Error('Admin session is required');
     }
 
     async function handleScrapeUrl() {

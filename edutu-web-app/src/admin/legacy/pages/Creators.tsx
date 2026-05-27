@@ -45,6 +45,13 @@ interface CreatorApplication {
         opportunity_type?: string;
         opportunity_title?: string;
         kyc_image_url?: string;
+        proof_file_name?: string;
+        proof_file_type?: string;
+        proof_file_size?: number;
+        proof_file_path?: string;
+        phone_number?: string;
+        country?: string;
+        consent_accepted?: boolean;
     };
 }
 
@@ -197,7 +204,9 @@ const Creators = () => {
             items = items.filter(c => 
                 c.full_name?.toLowerCase().includes(query) ||
                 c.email?.toLowerCase().includes(query) ||
-                c.creator_metadata?.expertise?.toLowerCase().includes(query)
+                c.creator_metadata?.expertise?.toLowerCase().includes(query) ||
+                c.creator_metadata?.country?.toLowerCase().includes(query) ||
+                c.creator_metadata?.phone_number?.toLowerCase().includes(query)
             );
         }
 
@@ -497,6 +506,10 @@ const Creators = () => {
                                                         <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                             <Mail size={12} /> {app.email || 'No email'}
                                                         </div>
+                                                        <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+                                                            {app.creator_metadata?.phone_number && <span>{app.creator_metadata.phone_number}</span>}
+                                                            {app.creator_metadata?.country && <span>{app.creator_metadata.country}</span>}
+                                                        </div>
                                                         {app.creator_metadata?.linkedin_url && (
                                                             <a 
                                                                 href={app.creator_metadata.linkedin_url}
@@ -530,6 +543,16 @@ const Creators = () => {
                                                             <FileText size={12} /> View Proof
                                                         </a>
                                                     )}
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+                                                        <span className="badge" style={{ background: app.creator_metadata?.consent_accepted ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: app.creator_metadata?.consent_accepted ? '#10b981' : '#ef4444' }}>
+                                                            {app.creator_metadata?.consent_accepted ? 'Consent given' : 'No consent'}
+                                                        </span>
+                                                        {app.creator_metadata?.proof_file_name && (
+                                                            <span className="badge" style={{ background: 'rgba(37,99,235,0.12)', color: '#2563eb' }}>
+                                                                {app.creator_metadata.proof_file_type?.includes('pdf') ? 'PDF' : 'Image'} proof
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td>

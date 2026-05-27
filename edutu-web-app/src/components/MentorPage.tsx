@@ -17,16 +17,24 @@ import {
     ShieldCheck,
     MessageCircle,
     TrendingUp,
-    PlayCircle
+    PlayCircle,
+    Menu,
+    X,
+    DollarSign,
+    Upload,
+    FileCheck
 } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDarkMode } from '../hooks/useDarkMode';
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
 import { supabase } from '../lib/supabaseClient';
 
 interface MentorFormData {
     displayName: string;
+    email: string;
+    phoneNumber: string;
+    country: string;
     bio: string;
     contentType: string;
     experience: string;
@@ -38,6 +46,27 @@ interface MentorFormData {
 const MENTOR_STEPS = ['intro', 'motivation', 'details', 'review'] as const;
 type MentorStep = typeof MENTOR_STEPS[number];
 
+const COUNTRY_OPTIONS = [
+    'Nigeria',
+    'Ghana',
+    'Kenya',
+    'South Africa',
+    'Uganda',
+    'Rwanda',
+    'Egypt',
+    'United States',
+    'United Kingdom',
+    'Canada',
+    'Australia',
+    'Germany',
+    'France',
+    'Netherlands',
+    'Italy',
+    'United Arab Emirates',
+    'India',
+    'Other',
+];
+
 const MOTIVATION_OPTIONS = [
     { id: 'help_others', text: "I want to help others achieve what I achieved", icon: Heart },
     { id: 'mentor', text: "I enjoy mentoring and sharing knowledge", icon: Users },
@@ -47,10 +76,10 @@ const MOTIVATION_OPTIONS = [
 ];
 
 const CONTENT_TYPES = [
-    { id: 'mentorship', label: 'Mentorship', icon: Users, color: '#146ef5', desc: '1-on-1 guidance sessions' },
-    { id: 'course', label: 'Course', icon: BookOpen, color: '#7a3dff', desc: 'Structured learning paths' },
-    { id: 'template', label: 'Templates', icon: Award, color: '#00d722', desc: 'CV, roadmap & resume templates' },
-    { id: 'resource', label: 'Resources', icon: Star, color: '#ff6b00', desc: 'Study guides & materials' },
+    { id: 'mentorship', label: 'Mentor Support', icon: Users, color: '#146ef5', desc: 'Guide applicants from your lived experience' },
+    { id: 'course', label: 'Success Roadmap', icon: BookOpen, color: '#7a3dff', desc: 'Share the steps that helped you win' },
+    { id: 'template', label: 'Application Materials', icon: Award, color: '#00d722', desc: 'CV, essays, checklists, and samples' },
+    { id: 'resource', label: 'Opportunity Tips', icon: Star, color: '#ff6b00', desc: 'Practical advice for future applicants' },
 ];
 
 const LANDING_OPTIONS = [
@@ -77,12 +106,19 @@ const LANDING_OPTIONS = [
 const MentorPage: React.FC = () => {
     const { isDarkMode, toggleDarkMode } = useDarkMode();
     const { userId, isSignedIn } = useAuth();
+    const { user } = useUser();
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [showApplication, setShowApplication] = useState(searchParams.get('apply') === '1' && Boolean(userId));
     const [currentStep, setCurrentStep] = useState<MentorStep>('intro');
+    const [proofFile, setProofFile] = useState<File | null>(null);
+    const [consentAccepted, setConsentAccepted] = useState(false);
     const [formData, setFormData] = useState<MentorFormData>({
         displayName: '',
+        email: '',
+        phoneNumber: '',
+        country: '',
         bio: '',
         contentType: 'mentorship',
         experience: '',
@@ -100,6 +136,13 @@ const MentorPage: React.FC = () => {
             setShowApplication(true);
         }
     }, [searchParams, userId]);
+
+    React.useEffect(() => {
+        const primaryEmail = user?.primaryEmailAddress?.emailAddress;
+        if (primaryEmail && !formData.email) {
+            setFormData(prev => ({ ...prev, email: primaryEmail }));
+        }
+    }, [formData.email, user]);
 
     const startApplication = () => {
         if (!isSignedIn) {
@@ -123,11 +166,49 @@ const MentorPage: React.FC = () => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
+    const handleProofUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0] || null;
+        if (!file) return;
+
+        const isAllowed = file.type.startsWith('image/') || file.type === 'application/pdf';
+        if (!isAllowed) return;
+
+        setProofFile(file);
+    };
+
+    const uploadProofFile = async (userId: string, file: File) => {
+        const fileExt = file.name.split('.').pop() || 'pdf';
+        const safeBaseName = file.name
+            .replace(/\.[^/.]+$/, '')
+            .replace(/[^a-z0-9_-]+/gi, '-')
+            .replace(/^-+|-+$/g, '')
+            .slice(0, 80) || 'award-proof';
+        const path = `${userId}/${Date.now()}-${safeBaseName}.${fileExt}`;
+
+        const { data, error } = await supabase.storage
+            .from('creator-proofs')
+            .upload(path, file, {
+                cacheControl: '3600',
+                upsert: false,
+            });
+
+        if (error) throw error;
+
+        const { data: urlData } = supabase.storage
+            .from('creator-proofs')
+            .getPublicUrl(data.path);
+
+        return {
+            path: data.path,
+            url: urlData.publicUrl,
+        };
+    };
+
     const canProceed = (): boolean => {
         switch (currentStep) {
             case 'intro': return true;
             case 'motivation': return !!formData.motivation;
-            case 'details': return !!formData.displayName && !!formData.bio && !!formData.experience;
+            case 'details': return !!formData.displayName && !!formData.email && !!formData.phoneNumber && !!formData.country && !!formData.bio;
             case 'review': return true;
             default: return false;
         }
@@ -139,22 +220,74 @@ const MentorPage: React.FC = () => {
             return;
         }
 
+        if (!proofFile || !consentAccepted) {
+            return;
+        }
+
         setIsSubmitting(true);
         try {
+            const proof = await uploadProofFile(userId, proofFile);
+            const contentTypeLabel = CONTENT_TYPES.find(c => c.id === formData.contentType)?.label || formData.contentType;
+            const now = new Date().toISOString();
+            const creatorMetadata = {
+                expertise: contentTypeLabel,
+                bio: formData.bio,
+                portfolioUrl: formData.portfolioUrl,
+                linkedin_url: formData.linkedInUrl,
+                opportunity_type: contentTypeLabel,
+                opportunity_title: `${contentTypeLabel} from ${formData.displayName}`,
+                kyc_image_url: proof.url,
+                proof_file_name: proofFile.name,
+                proof_file_type: proofFile.type,
+                proof_file_size: proofFile.size,
+                proof_file_path: proof.path,
+                phone_number: formData.phoneNumber,
+                country: formData.country,
+                email: formData.email,
+                consent_accepted: consentAccepted,
+                appliedAt: now,
+            };
+
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .upsert({
+                    user_id: userId,
+                    full_name: formData.displayName,
+                    email: formData.email,
+                    country: formData.country,
+                    role: 'user',
+                    creator_status: 'pending',
+                    creator_metadata: creatorMetadata,
+                    updated_at: now,
+                }, { onConflict: 'user_id' });
+
+            if (profileError) throw profileError;
+
             const { error } = await supabase
                 .from('creator_applications')
                 .insert({
-                    userId,
-                    displayName: formData.displayName,
+                    user_id: userId,
+                    display_name: formData.displayName,
+                    email: formData.email,
+                    phoneNumber: formData.phoneNumber,
+                    country: formData.country,
                     bio: formData.bio,
-                    contentType: formData.contentType,
-                    experience: formData.experience,
-                    sampleContentUrl: formData.portfolioUrl || formData.linkedInUrl,
+                    content_type: formData.contentType,
+                    experience: formData.experience || 'Not specified',
+                    sample_content_url: formData.portfolioUrl || formData.linkedInUrl,
+                    proof_file_name: proofFile?.name || null,
+                    proof_file_type: proofFile?.type || null,
+                    proof_file_size: proofFile?.size || null,
+                    proof_url: proof.url,
+                    proof_path: proof.path,
+                    consent_accepted: consentAccepted,
                     status: 'pending',
-                    submittedAt: new Date().toISOString(),
+                    submitted_at: now,
                 });
 
-            if (error) throw error;
+            if (error) {
+                console.warn('Creator application audit insert failed after profile submission', error);
+            }
             setIsSubmitted(true);
         } catch (err) {
             console.error('Submission error:', err);
@@ -180,7 +313,7 @@ const MentorPage: React.FC = () => {
     if (!showApplication) {
         return (
             <div className="min-h-screen bg-surface-body" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808' }}>
-                <header className="sticky top-0 z-50 backdrop-blur-md" style={{ backgroundColor: isDarkMode ? 'rgba(10,10,10,0.9)' : 'rgba(255,255,255,0.95)', borderBottom: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}` }}>
+                <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md" style={{ backgroundColor: isDarkMode ? 'rgba(10,10,10,0.9)' : 'rgba(255,255,255,0.95)', borderBottom: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}` }}>
                     <div className="max-w-[1200px] mx-auto px-4 sm:px-6 h-[64px] flex items-center justify-between">
                         <Link to="/" className="flex items-center gap-2">
                             <img src="/edutu-logo.png" alt="Edutu" className="h-8 w-8 object-contain" />
@@ -194,29 +327,49 @@ const MentorPage: React.FC = () => {
                         <div className="flex items-center gap-3">
                             <button
                                 type="button"
-                                onClick={toggleDarkMode}
-                                className="h-10 w-10 rounded-xl border flex items-center justify-center"
-                                style={{ borderColor: isDarkMode ? '#2a2a2a' : '#e8e8e8' }}
-                                aria-label="Toggle theme"
-                            >
-                                {isDarkMode ? <Sun size={17} /> : <Moon size={17} />}
-                            </button>
-                            <button
-                                type="button"
                                 onClick={startApplication}
                                 className="hidden sm:inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-600/20"
                                 style={{ backgroundColor: '#146ef5', color: '#ffffff' }}
                             >
                                 Become a Mentor <ArrowRight size={16} />
                             </button>
+                            <button
+                                type="button"
+                                onClick={() => setMobileMenuOpen((value) => !value)}
+                                className="md:hidden h-10 w-10 rounded-xl border flex items-center justify-center"
+                                style={{ borderColor: isDarkMode ? '#2a2a2a' : '#e8e8e8' }}
+                                aria-label="Open menu"
+                            >
+                                {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+                            </button>
                         </div>
                     </div>
+                    <AnimatePresence>
+                        {mobileMenuOpen && (
+                            <motion.div
+                                initial={{ opacity: 0, y: -8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -8 }}
+                                className="md:hidden border-t px-4 py-4"
+                                style={{ borderColor: isDarkMode ? '#1e1e1e' : '#e8e8e8', backgroundColor: isDarkMode ? '#0a0a0a' : '#ffffff' }}
+                            >
+                                <div className="flex flex-col gap-3 text-sm font-bold" style={{ color: isDarkMode ? '#fafafa' : '#080808' }}>
+                                    <a href="#why" onClick={() => setMobileMenuOpen(false)}>Why mentor</a>
+                                    <a href="#options" onClick={() => setMobileMenuOpen(false)}>Ways to contribute</a>
+                                    <a href="#process" onClick={() => setMobileMenuOpen(false)}>How it works</a>
+                                    <button type="button" onClick={startApplication} className="mt-2 inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3" style={{ backgroundColor: '#146ef5', color: '#ffffff' }}>
+                                        Become a Mentor <ArrowRight size={16} />
+                                    </button>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </header>
 
                 <main>
                     <section className="relative overflow-hidden">
                         <div className="absolute inset-0 opacity-40" style={{ background: isDarkMode ? 'radial-gradient(circle at 50% 10%, rgba(20,110,245,0.24), transparent 34%)' : 'radial-gradient(circle at 50% 10%, rgba(20,110,245,0.12), transparent 35%)' }} />
-                        <div className="relative max-w-[1200px] mx-auto px-4 sm:px-6 py-20 md:py-28 text-center">
+                        <div className="relative max-w-[1200px] mx-auto px-4 sm:px-6 pt-32 pb-20 md:pt-36 md:pb-28 text-center">
                             <motion.div
                                 initial={{ opacity: 0, y: 14 }}
                                 animate={{ opacity: 1, y: 0 }}
@@ -278,19 +431,19 @@ const MentorPage: React.FC = () => {
                     </section>
 
                     <section id="why" className="max-w-[1200px] mx-auto px-4 sm:px-6 py-12">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 border-y py-10" style={{ borderColor: isDarkMode ? '#1e1e1e' : '#e8e8e8' }}>
                             {[
-                                { num: '50K+', label: 'Active learners', icon: Users, color: '#146ef5' },
-                                { num: '12K+', label: 'Opportunities tracked', icon: Award, color: '#7a3dff' },
-                                { num: '80+', label: 'Countries reached', icon: Globe, color: '#00d722' },
+                                { num: '$1,070,304', label: 'Funding opportunities', icon: DollarSign, color: '#00b86b' },
+                                { num: '20+', label: 'Verified mentors', icon: Users, color: '#146ef5' },
+                                { num: '8,400+', label: 'Learner impacts', icon: Award, color: '#ffae13' },
+                                { num: '31+', label: 'Countries reached', icon: Globe, color: '#00a6d6' },
                             ].map((stat) => (
                                 <div
                                     key={stat.label}
-                                    className="p-7 rounded-2xl border"
-                                    style={{ backgroundColor: isDarkMode ? '#111' : '#fafafa', borderColor: isDarkMode ? '#1e1e1e' : '#e8e8e8' }}
+                                    className="text-center"
                                 >
-                                    <stat.icon size={22} style={{ color: stat.color }} />
-                                    <div className="mt-5 text-3xl font-bold" style={{ color: stat.color }}>{stat.num}</div>
+                                    <stat.icon size={22} className="mx-auto" style={{ color: stat.color }} />
+                                    <div className="mt-4 text-3xl md:text-4xl font-black" style={{ color: stat.color }}>{stat.num}</div>
                                     <div className="mt-2 text-xs font-bold tracking-[0.16em] uppercase" style={{ color: isDarkMode ? '#888' : '#666' }}>{stat.label}</div>
                                 </div>
                             ))}
@@ -307,13 +460,22 @@ const MentorPage: React.FC = () => {
                             </p>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                            {LANDING_OPTIONS.map((option) => (
+                            {LANDING_OPTIONS.map((option, index) => (
                                 <button
                                     type="button"
                                     key={option.title}
                                     onClick={startApplication}
                                     className="group p-7 rounded-3xl border text-left transition-all hover:-translate-y-1"
-                                    style={{ backgroundColor: isDarkMode ? '#111' : '#ffffff', borderColor: isDarkMode ? '#1e1e1e' : '#e8e8e8' }}
+                                    style={{
+                                        background: isDarkMode
+                                            ? `linear-gradient(135deg, ${option.color}20, #111 52%)`
+                                            : index === 0
+                                                ? 'linear-gradient(135deg, #eaf3ff, #ffffff)'
+                                                : index === 1
+                                                    ? 'linear-gradient(135deg, #fff7df, #ffffff)'
+                                                    : 'linear-gradient(135deg, #eafff5, #ffffff)',
+                                        borderColor: `${option.color}35`,
+                                    }}
                                 >
                                     <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-7" style={{ backgroundColor: `${option.color}14`, color: option.color }}>
                                         <option.icon size={22} />
@@ -358,22 +520,53 @@ const MentorPage: React.FC = () => {
                     </section>
 
                     <section className="max-w-[1200px] mx-auto px-4 sm:px-6 py-16 text-center">
-                        <div className="rounded-[28px] p-8 md:p-12" style={{ background: 'linear-gradient(135deg, #146ef5, #7a3dff)', color: '#ffffff' }}>
-                            <MessageCircle size={30} className="mx-auto mb-5" />
-                            <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to help the next learner win?</h2>
-                            <p className="max-w-2xl mx-auto text-white/78 mb-8">
-                                Start your application and show us how your experience can help learners discover, prepare for, and win global opportunities.
-                            </p>
-                            <button
-                                type="button"
-                                onClick={startApplication}
-                                className="inline-flex items-center gap-2 px-8 py-4 rounded-xl text-sm font-bold bg-white text-[#146ef5]"
-                            >
-                                Become a Mentor <ArrowRight size={16} />
-                            </button>
+                        <div
+                            className="relative overflow-hidden rounded-[28px] p-8 md:p-12"
+                            style={{
+                                backgroundImage: "linear-gradient(135deg, rgba(8,8,8,0.78), rgba(20,110,245,0.64)), url('https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg')",
+                                backgroundSize: 'cover',
+                                backgroundPosition: 'center',
+                                color: '#ffffff',
+                            }}
+                        >
+                            <div className="relative z-10">
+                                <MessageCircle size={30} className="mx-auto mb-5" />
+                                <h2 className="text-3xl md:text-4xl font-bold mb-4">Guide learners into funded opportunities</h2>
+                                <p className="max-w-2xl mx-auto text-white/80 mb-8">
+                                    Start your application and show us how your experience can help students discover scholarships, prepare stronger applications, and win globally.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={startApplication}
+                                    className="inline-flex items-center gap-2 px-8 py-4 rounded-xl text-sm font-bold bg-white text-[#146ef5]"
+                                >
+                                    Become a Mentor <ArrowRight size={16} />
+                                </button>
+                            </div>
                         </div>
                     </section>
                 </main>
+                <footer className="max-w-[1200px] mx-auto px-4 sm:px-6 pb-10">
+                    <div className="flex items-center justify-between border-t pt-6" style={{ borderColor: isDarkMode ? '#1e1e1e' : '#e8e8e8' }}>
+                        <span className="text-sm" style={{ color: isDarkMode ? '#888' : '#666' }}>
+                            Edutu mentor program
+                        </span>
+                        <button
+                            type="button"
+                            onClick={toggleDarkMode}
+                            className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-bold"
+                            style={{
+                                borderColor: isDarkMode ? '#2a2a2a' : '#e8e8e8',
+                                color: isDarkMode ? '#fafafa' : '#080808',
+                                backgroundColor: isDarkMode ? '#111' : '#ffffff',
+                            }}
+                            aria-label="Toggle theme"
+                        >
+                            {isDarkMode ? <Sun size={17} /> : <Moon size={17} />}
+                            {isDarkMode ? 'Light mode' : 'Dark mode'}
+                        </button>
+                    </div>
+                </footer>
             </div>
         );
     }
@@ -615,7 +808,7 @@ const MentorPage: React.FC = () => {
                                     <ArrowLeft size={14} /> Back
                                 </button>
                                 <h2 className="text-2xl font-bold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>Tell us about yourself</h2>
-                                <p className="text-sm" style={{ color: isDarkMode ? '#888' : '#666' }}>Help learners understand your expertise.</p>
+                                <p className="text-sm" style={{ color: isDarkMode ? '#888' : '#666' }}>Help learners understand the opportunity you won and how you can support them.</p>
                             </div>
 
                             <div className="space-y-6 mb-8">
@@ -635,8 +828,60 @@ const MentorPage: React.FC = () => {
                                     />
                                 </div>
 
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-semibold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>Email Address</label>
+                                        <input
+                                            type="email"
+                                            value={formData.email}
+                                            onChange={(e) => updateField('email', e.target.value)}
+                                            placeholder="you@example.com"
+                                            className="w-full px-4 py-3 rounded-xl text-sm"
+                                            style={{
+                                                backgroundColor: isDarkMode ? '#111' : '#fafafa',
+                                                border: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}`,
+                                                color: isDarkMode ? '#fafafa' : '#0a0a0a',
+                                            }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>Phone Number</label>
+                                        <input
+                                            type="tel"
+                                            value={formData.phoneNumber}
+                                            onChange={(e) => updateField('phoneNumber', e.target.value)}
+                                            placeholder="+234 800 000 0000"
+                                            className="w-full px-4 py-3 rounded-xl text-sm"
+                                            style={{
+                                                backgroundColor: isDarkMode ? '#111' : '#fafafa',
+                                                border: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}`,
+                                                color: isDarkMode ? '#fafafa' : '#0a0a0a',
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+
                                 <div>
-                                    <label className="block text-sm font-semibold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>What will you teach?</label>
+                                    <label className="block text-sm font-semibold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>Country</label>
+                                    <select
+                                        value={formData.country}
+                                        onChange={(e) => updateField('country', e.target.value)}
+                                        className="w-full px-4 py-3 rounded-xl text-sm"
+                                        style={{
+                                            backgroundColor: isDarkMode ? '#111' : '#fafafa',
+                                            border: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}`,
+                                            color: isDarkMode ? '#fafafa' : '#0a0a0a',
+                                        }}
+                                    >
+                                        <option value="">Select your country</option>
+                                        {COUNTRY_OPTIONS.map((country) => (
+                                            <option key={country} value={country}>{country}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-semibold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>What experience can you share?</label>
                                     <div className="grid grid-cols-2 gap-3">
                                         {CONTENT_TYPES.map((type) => {
                                             const isSelected = formData.contentType === type.id;
@@ -666,25 +911,9 @@ const MentorPage: React.FC = () => {
                                     <textarea
                                         value={formData.bio}
                                         onChange={(e) => updateField('bio', e.target.value)}
-                                        placeholder="Share your background, achievements, and what makes you qualified to mentor..."
+                                        placeholder="Share the opportunity you benefited from, what helped you win, and how you can guide future applicants..."
                                         rows={4}
                                         className="w-full px-4 py-3 rounded-xl text-sm resize-none"
-                                        style={{
-                                            backgroundColor: isDarkMode ? '#111' : '#fafafa',
-                                            border: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}`,
-                                            color: isDarkMode ? '#fafafa' : '#0a0a0a',
-                                        }}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-semibold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>Years of Experience</label>
-                                    <input
-                                        type="text"
-                                        value={formData.experience}
-                                        onChange={(e) => updateField('experience', e.target.value)}
-                                        placeholder="e.g., 5 years in software engineering"
-                                        className="w-full px-4 py-3 rounded-xl text-sm"
                                         style={{
                                             backgroundColor: isDarkMode ? '#111' : '#fafafa',
                                             border: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}`,
@@ -710,7 +939,7 @@ const MentorPage: React.FC = () => {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>Portfolio URL</label>
+                                        <label className="block text-sm font-semibold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>Portfolio URL <span style={{ color: isDarkMode ? '#888' : '#666', fontWeight: 500 }}>(optional)</span></label>
                                         <input
                                             type="url"
                                             value={formData.portfolioUrl}
@@ -762,12 +991,15 @@ const MentorPage: React.FC = () => {
                             <div className="space-y-4 mb-8">
                                 {[
                                     { label: 'Display Name', value: formData.displayName },
+                                    { label: 'Email', value: formData.email },
+                                    { label: 'Phone Number', value: formData.phoneNumber },
+                                    { label: 'Country', value: formData.country },
                                     { label: 'Motivation', value: MOTIVATION_OPTIONS.find(m => m.id === formData.motivation)?.text || '' },
                                     { label: 'Content Type', value: CONTENT_TYPES.find(c => c.id === formData.contentType)?.label || '' },
-                                    { label: 'Experience', value: formData.experience },
                                     { label: 'Bio', value: formData.bio },
                                     { label: 'LinkedIn', value: formData.linkedInUrl || 'Not provided' },
                                     { label: 'Portfolio', value: formData.portfolioUrl || 'Not provided' },
+                                    { label: 'Award Proof', value: proofFile?.name || 'Required before submission' },
                                 ].map((item, i) => (
                                     <div key={i} className="p-4 rounded-xl" style={{ backgroundColor: isDarkMode ? '#111' : '#fafafa', border: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}` }}>
                                         <div className="text-xs font-semibold tracking-wide mb-1" style={{ color: isDarkMode ? '#888' : '#666' }}>{item.label}</div>
@@ -776,11 +1008,68 @@ const MentorPage: React.FC = () => {
                                 ))}
                             </div>
 
+                            <div className="space-y-4 mb-8">
+                                <label
+                                    className="block rounded-2xl border p-5 cursor-pointer transition-all"
+                                    style={{
+                                        backgroundColor: isDarkMode ? '#111' : '#fafafa',
+                                        borderColor: proofFile ? '#00b86b' : isDarkMode ? '#1e1e1e' : '#e8e8e8',
+                                    }}
+                                >
+                                    <input
+                                        type="file"
+                                        accept="image/*,.pdf,application/pdf"
+                                        className="hidden"
+                                        onChange={handleProofUpload}
+                                    />
+                                    <div className="flex items-start gap-4">
+                                        <div className="h-11 w-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: proofFile ? '#00b86b18' : '#146ef510', color: proofFile ? '#00b86b' : '#146ef5' }}>
+                                            {proofFile ? <FileCheck size={21} /> : <Upload size={21} />}
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="text-sm font-bold mb-1" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>
+                                                Upload proof of your award or opportunity
+                                            </div>
+                                            <p className="text-xs leading-relaxed" style={{ color: isDarkMode ? '#888' : '#666' }}>
+                                                PDF or image showing your scholarship, fellowship, internship, grant, admission, or award confirmation.
+                                            </p>
+                                            {proofFile && (
+                                                <p className="mt-2 text-xs font-bold" style={{ color: '#00b86b' }}>
+                                                    {proofFile.name}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </label>
+
+                                <label
+                                    className="flex items-start gap-3 rounded-2xl border p-5 cursor-pointer"
+                                    style={{
+                                        backgroundColor: isDarkMode ? '#111' : '#fafafa',
+                                        borderColor: consentAccepted ? '#146ef5' : isDarkMode ? '#1e1e1e' : '#e8e8e8',
+                                    }}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={consentAccepted}
+                                        onChange={(event) => setConsentAccepted(event.target.checked)}
+                                        className="mt-1 h-4 w-4"
+                                    />
+                                    <span className="text-sm leading-relaxed" style={{ color: isDarkMode ? '#d8d8d8' : '#222' }}>
+                                        I consent to Edutu reviewing my submitted proof and contacting me about this mentor application.
+                                    </span>
+                                </label>
+                            </div>
+
                             <button
                                 onClick={handleSubmit}
-                                disabled={isSubmitting}
+                                disabled={isSubmitting || !proofFile || !consentAccepted}
                                 className="w-full py-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
-                                style={{ backgroundColor: '#146ef5', color: '#fff' }}
+                                style={{
+                                    backgroundColor: isSubmitting || !proofFile || !consentAccepted ? isDarkMode ? '#1e1e1e' : '#e5e5e5' : '#146ef5',
+                                    color: isSubmitting || !proofFile || !consentAccepted ? isDarkMode ? '#666' : '#888' : '#fff',
+                                    cursor: isSubmitting || !proofFile || !consentAccepted ? 'not-allowed' : 'pointer',
+                                }}
                             >
                                 {isSubmitting ? (
                                     <>

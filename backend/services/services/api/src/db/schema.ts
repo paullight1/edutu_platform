@@ -22,6 +22,8 @@ export const profiles = pgTable("profiles", {
   skills: text("skills").array(), // PostgreSQL array of text
   creditsBalance: integer("credits_balance").default(0), // In-app credits currency
   creatorStatus: text("creator_status").default("none"), // 'none', 'pending', 'approved', 'rejected'
+  creatorMetadata: jsonb("creator_metadata").$type<Record<string, unknown>>().default({}),
+  creatorRejectionReason: text("creator_rejection_reason"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
