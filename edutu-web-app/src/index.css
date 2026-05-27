@@ -840,6 +840,61 @@ body {
   max-width: 100vw;
 }
 
+.landing-page {
+  min-height: 100vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: auto;
+}
+
+@media (max-width: 640px) {
+  .landing-page {
+    min-height: 100dvh;
+    height: auto;
+    max-width: 100vw;
+    touch-action: pan-y;
+  }
+
+  .landing-hero {
+    min-height: auto;
+    padding-top: 92px !important;
+    padding-bottom: 56px !important;
+  }
+
+  .landing-hero-title {
+    font-size: clamp(2.8rem, 15vw, 4.25rem) !important;
+    line-height: 0.98 !important;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .landing-hero-highlight {
+    display: block;
+    white-space: normal !important;
+  }
+
+  .landing-hero-word {
+    display: block !important;
+    min-width: 0 !important;
+    width: 100%;
+    max-width: 100%;
+    text-align: center !important;
+    overflow-wrap: anywhere;
+  }
+
+  .landing-hero-copy {
+    font-size: 1rem !important;
+    line-height: 1.55 !important;
+    margin-bottom: 2rem !important;
+  }
+
+  .landing-hero-stats {
+    grid-template-columns: 1fr !important;
+    gap: 0.75rem !important;
+    margin-top: 2.5rem !important;
+  }
+}
+
 /* Capacitor specific fixes */
 .capacitor-app {
   /* Prevent overscroll bounce only in native app */
