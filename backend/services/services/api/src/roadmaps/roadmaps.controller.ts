@@ -29,6 +29,34 @@ export class RoadmapsController {
   @Public()
   @Get()
   findAll(
+    @Query('status') _status?: string,
+    @Query('category') category?: string,
+    @Query('difficulty') difficulty?: string,
+    @Query('search') search?: string,
+    @Query('featured') featured?: string,
+    @Query('limit') limit?: number,
+    @Query('offset') offset?: number,
+  ) {
+    return this.roadmapsService.findAll({
+      status: 'published',
+      category,
+      difficulty,
+      search,
+      featured: featured === 'true',
+      limit,
+      offset,
+    });
+  }
+
+  @Public()
+  @Get('slug/:slug')
+  findBySlug(@Param('slug') slug: string) {
+    return this.roadmapsService.findBySlug(slug);
+  }
+
+  @Get('admin/list')
+  @UseGuards(AdminGuard)
+  findAllForAdmin(
     @Query('status') status?: string,
     @Query('category') category?: string,
     @Query('difficulty') difficulty?: string,
@@ -48,12 +76,6 @@ export class RoadmapsController {
     });
   }
 
-  @Public()
-  @Get('slug/:slug')
-  findBySlug(@Param('slug') slug: string) {
-    return this.roadmapsService.findBySlug(slug);
-  }
-
   @Post()
   @UseGuards(AdminGuard)
   create(
@@ -70,7 +92,11 @@ export class RoadmapsController {
     @CurrentUser('id') userId: string,
     @CurrentUser() user: any,
   ) {
-    return this.roadmapsService.createByCreator(dto, userId, user?.firstName || 'Edutu Creator');
+    return this.roadmapsService.createByCreator(
+      dto,
+      userId,
+      user?.firstName || 'Edutu Creator',
+    );
   }
 
   @Put(':id')
@@ -121,14 +147,16 @@ export class RoadmapsController {
     @CurrentUser('id') userId: string,
     @Body() body: { stepId: string; completed: boolean },
   ) {
-    return this.roadmapsService.updateProgress(userId, roadmapId, body.stepId, body.completed);
+    return this.roadmapsService.updateProgress(
+      userId,
+      roadmapId,
+      body.stepId,
+      body.completed,
+    );
   }
 
   @Post('intent')
-  saveIntent(
-    @CurrentUser('id') userId: string,
-    @Body() dto: RoadmapIntentDto,
-  ) {
+  saveIntent(@CurrentUser('id') userId: string, @Body() dto: RoadmapIntentDto) {
     return this.roadmapsService.saveIntent(userId, dto);
   }
 
@@ -162,7 +190,10 @@ export class RoadmapsController {
   @Public()
   @Post('ai/assist')
   generateAIMatch(@Body() dto: AIAssistDto) {
-    return this.roadmapsService.generateAIMatchQuestions(dto.topic, dto.category);
+    return this.roadmapsService.generateAIMatchQuestions(
+      dto.topic,
+      dto.category,
+    );
   }
 
   @Get('stats')
@@ -174,6 +205,6 @@ export class RoadmapsController {
   @Public()
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.roadmapsService.findOne(id);
+    return this.roadmapsService.findPublishedById(id);
   }
 }

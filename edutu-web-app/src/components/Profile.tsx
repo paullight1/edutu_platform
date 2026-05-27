@@ -13,12 +13,11 @@ import {
   Moon,
   Bookmark,
   Briefcase,
-  Calendar,
+  Target,
   Sparkles,
   TrendingUp,
   Clock,
   AlertCircle,
-  Wallet,
 } from 'lucide-react';
 import Card from './ui/Card';
 import Button from './ui/Button';
@@ -336,30 +335,16 @@ const Profile: React.FC<ProfileProps> = ({ user, setUser, onNavigate, onLogout }
             <ChevronRight size={16} className={`${isDarkMode ? 'text-emerald-300' : 'text-gray-400'} group-hover:translate-x-1 transition-transform`} />
           </button>
           <button
-            onClick={() => onNavigate('deadlines' as Screen)}
+            onClick={() => onNavigate('all-goals' as Screen)}
             className={`w-full flex items-center gap-3 p-4 rounded-2xl transition-all ${isDarkMode ? 'hover:bg-emerald-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-700'} text-left animate-slide-up group`}
             style={{ animationDelay: `200ms` }}
           >
             <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${isDarkMode ? 'bg-emerald-900/30' : 'bg-gray-100 dark:bg-gray-700'}`}>
-              <Calendar size={20} className="text-primary" />
+              <Target size={20} className="text-primary" />
             </div>
             <div className="flex-1">
-              <div className={`font-medium ${isDarkMode ? 'text-emerald-200' : 'text-gray-800 dark:text-white'}`}>Deadlines</div>
-              <div className={`text-sm ${isDarkMode ? 'text-emerald-200/70' : 'text-gray-500 dark:text-gray-400'}`}>Upcoming deadlines and reminders</div>
-            </div>
-            <ChevronRight size={16} className={`${isDarkMode ? 'text-emerald-300' : 'text-gray-400'} group-hover:translate-x-1 transition-transform`} />
-          </button>
-          <button
-            onClick={() => onNavigate('wallet' as Screen)}
-            className={`w-full flex items-center gap-3 p-4 rounded-2xl transition-all ${isDarkMode ? 'hover:bg-emerald-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-700'} text-left animate-slide-up group`}
-            style={{ animationDelay: `300ms` }}
-          >
-            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${isDarkMode ? 'bg-emerald-900/30' : 'bg-gray-100 dark:bg-gray-700'}`}>
-              <Wallet size={20} className="text-primary" />
-            </div>
-            <div className="flex-1">
-              <div className={`font-medium ${isDarkMode ? 'text-emerald-200' : 'text-gray-800 dark:text-white'}`}>Wallet</div>
-              <div className={`text-sm ${isDarkMode ? 'text-emerald-200/70' : 'text-gray-500 dark:text-gray-400'}`}>Manage credits and transactions</div>
+              <div className={`font-medium ${isDarkMode ? 'text-emerald-200' : 'text-gray-800 dark:text-white'}`}>Goals</div>
+              <div className={`text-sm ${isDarkMode ? 'text-emerald-200/70' : 'text-gray-500 dark:text-gray-400'}`}>View your active goals and milestones</div>
             </div>
             <ChevronRight size={16} className={`${isDarkMode ? 'text-emerald-300' : 'text-gray-400'} group-hover:translate-x-1 transition-transform`} />
           </button>

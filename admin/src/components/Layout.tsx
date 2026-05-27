@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import {
   LayoutDashboard, Target, Users, Settings, LogOut, ShieldCheck,
   BookOpen, Sun, Moon, Menu, X, ChevronLeft, ChevronRight, User,
-  FileText
+  FileText, Smartphone
 } from 'lucide-react';
 
 interface User {
@@ -94,6 +94,7 @@ const Layout = () => {
     { to: '/creators', icon: ShieldCheck, label: 'Creators' },
     { to: '/roadmaps', icon: BookOpen, label: 'Roadmaps' },
     { to: '/blog', icon: FileText, label: 'Blog' },
+    { to: '/mobile-control', icon: Smartphone, label: 'Mobile Control' },
     { to: '/edutu-engine', icon: Settings, label: 'Edutu Engine' },
   ];
 

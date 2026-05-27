@@ -13,19 +13,90 @@ import {
 import { GeminiAdapter } from './adapters/gemini.adapter';
 import { OpenRouterAdapter } from './adapters/openrouter.adapter';
 
-const DEFAULT_ROUTES: Record<string, Omit<AiRouteConfig, 'feature' | 'apiKey'>> = {
-  'chat.coach': { provider: 'openrouter', model: 'openrouter/auto', temperature: 0.2, isEnabled: true },
-  'chat.transcribe': { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.2, isEnabled: true },
-  'scraper.extract': { provider: 'gemini', model: 'gemini-2.5-flash', temperature: 0.05, responseMimeType: 'application/json', isEnabled: true },
-  'opportunities.enhance': { provider: 'gemini', model: 'gemini-1.5-flash', responseMimeType: 'application/json', isEnabled: true },
-  'opportunities.extract': { provider: 'gemini', model: 'gemini-1.5-flash', responseMimeType: 'application/json', isEnabled: true },
-  'opportunities.rerank': { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.2, responseMimeType: 'application/json', isEnabled: true },
-  'cv.draft': { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.2, responseMimeType: 'application/json', isEnabled: true },
-  'cv.tailor': { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.2, responseMimeType: 'application/json', isEnabled: true },
-  'roadmaps.questions': { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.3, responseMimeType: 'application/json', isEnabled: true },
-  'roadmaps.intent_tags': { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.2, responseMimeType: 'application/json', isEnabled: true },
-  'roadmaps.match': { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.2, responseMimeType: 'application/json', isEnabled: true },
-  'quiz.generate': { provider: 'gemini', model: 'gemini-1.5-flash', responseMimeType: 'application/json', isEnabled: true },
+const DEFAULT_ROUTES: Record<
+  string,
+  Omit<AiRouteConfig, 'feature' | 'apiKey'>
+> = {
+  'chat.coach': {
+    provider: 'openrouter',
+    model: 'openrouter/auto',
+    temperature: 0.2,
+    isEnabled: true,
+  },
+  'chat.transcribe': {
+    provider: 'gemini',
+    model: 'gemini-2.0-flash',
+    temperature: 0.2,
+    isEnabled: true,
+  },
+  'scraper.extract': {
+    provider: 'gemini',
+    model: 'gemini-2.5-flash',
+    temperature: 0.05,
+    maxOutputTokens: 4096,
+    responseMimeType: 'application/json',
+    isEnabled: true,
+  },
+  'opportunities.enhance': {
+    provider: 'gemini',
+    model: 'gemini-1.5-flash',
+    responseMimeType: 'application/json',
+    isEnabled: true,
+  },
+  'opportunities.extract': {
+    provider: 'gemini',
+    model: 'gemini-1.5-flash',
+    responseMimeType: 'application/json',
+    isEnabled: true,
+  },
+  'opportunities.rerank': {
+    provider: 'gemini',
+    model: 'gemini-2.0-flash',
+    temperature: 0.2,
+    responseMimeType: 'application/json',
+    isEnabled: true,
+  },
+  'cv.draft': {
+    provider: 'gemini',
+    model: 'gemini-2.0-flash',
+    temperature: 0.2,
+    responseMimeType: 'application/json',
+    isEnabled: true,
+  },
+  'cv.tailor': {
+    provider: 'gemini',
+    model: 'gemini-2.0-flash',
+    temperature: 0.2,
+    responseMimeType: 'application/json',
+    isEnabled: true,
+  },
+  'roadmaps.questions': {
+    provider: 'gemini',
+    model: 'gemini-2.0-flash',
+    temperature: 0.3,
+    responseMimeType: 'application/json',
+    isEnabled: true,
+  },
+  'roadmaps.intent_tags': {
+    provider: 'gemini',
+    model: 'gemini-2.0-flash',
+    temperature: 0.2,
+    responseMimeType: 'application/json',
+    isEnabled: true,
+  },
+  'roadmaps.match': {
+    provider: 'gemini',
+    model: 'gemini-2.0-flash',
+    temperature: 0.2,
+    responseMimeType: 'application/json',
+    isEnabled: true,
+  },
+  'quiz.generate': {
+    provider: 'gemini',
+    model: 'gemini-1.5-flash',
+    responseMimeType: 'application/json',
+    isEnabled: true,
+  },
 };
 
 @Injectable()
@@ -65,7 +136,9 @@ export class AiService {
     }
   }
 
-  async generateJson<T = unknown>(options: AiGenerateOptions): Promise<T | null> {
+  async generateJson<T = unknown>(
+    options: AiGenerateOptions,
+  ): Promise<T | null> {
     const result = await this.generateText({
       ...options,
       responseMimeType: options.responseMimeType || 'application/json',
@@ -171,7 +244,9 @@ export class AiService {
     return saved;
   }
 
-  private async resolveRoute(options: AiGenerateOptions): Promise<AiRouteConfig> {
+  private async resolveRoute(
+    options: AiGenerateOptions,
+  ): Promise<AiRouteConfig> {
     const [storedRoute] = await db
       .select()
       .from(aiRoutes)
@@ -195,14 +270,27 @@ export class AiService {
       provider,
       model: storedRoute?.model || fallback.model,
       apiKey: providerKey || this.getEnvKey(provider),
-      systemPrompt: storedRoute?.systemPrompt || fallback.systemPrompt || options.systemInstruction || null,
+      systemPrompt:
+        storedRoute?.systemPrompt ||
+        fallback.systemPrompt ||
+        options.systemInstruction ||
+        null,
       temperature:
         typeof options.temperature === 'number'
           ? options.temperature
-          : this.fromStoredTemperature(storedRoute?.temperature) ?? fallback.temperature ?? null,
-      maxOutputTokens: options.maxOutputTokens || storedRoute?.maxOutputTokens || fallback.maxOutputTokens || null,
+          : (this.fromStoredTemperature(storedRoute?.temperature) ??
+            fallback.temperature ??
+            null),
+      maxOutputTokens:
+        options.maxOutputTokens ||
+        storedRoute?.maxOutputTokens ||
+        fallback.maxOutputTokens ||
+        null,
       responseMimeType:
-        options.responseMimeType || storedRoute?.responseMimeType || fallback.responseMimeType || null,
+        options.responseMimeType ||
+        storedRoute?.responseMimeType ||
+        fallback.responseMimeType ||
+        null,
       isEnabled: storedRoute?.isEnabled ?? fallback.isEnabled,
     };
   }
@@ -222,7 +310,12 @@ export class AiService {
     const [key] = await db
       .select()
       .from(aiProviderKeys)
-      .where(and(eq(aiProviderKeys.provider, provider), eq(aiProviderKeys.isActive, true)))
+      .where(
+        and(
+          eq(aiProviderKeys.provider, provider),
+          eq(aiProviderKeys.isActive, true),
+        ),
+      )
       .orderBy(desc(aiProviderKeys.createdAt))
       .limit(1)
       .execute();
@@ -231,7 +324,8 @@ export class AiService {
   }
 
   private getEnvKey(provider: string) {
-    if (provider === 'openrouter') return process.env.OPENROUTER_API_KEY || null;
+    if (provider === 'openrouter')
+      return process.env.OPENROUTER_API_KEY || null;
     if (provider === 'gemini') return process.env.GEMINI_API_KEY || null;
     if (provider === 'openai') return process.env.OPENAI_API_KEY || null;
     if (provider === 'groq') return process.env.GROQ_API_KEY || null;
@@ -274,7 +368,8 @@ export class AiService {
         promptTokens: result?.usage?.promptTokens ?? null,
         completionTokens: result?.usage?.completionTokens ?? null,
         totalTokens: result?.usage?.totalTokens ?? null,
-        errorMessage: error instanceof Error ? error.message.slice(0, 1000) : null,
+        errorMessage:
+          error instanceof Error ? error.message.slice(0, 1000) : null,
         requestMetadata: options.metadata || {},
       });
     } catch (logError) {

@@ -18,8 +18,17 @@ type ClerkLikeUser = {
 type ClerkLike = {
   user?: ClerkLikeUser | null;
   signOut?: () => Promise<void>;
+  setActive?: (params: { session: string }) => Promise<void>;
+  signIn?: {
+    create: (params: { strategy: 'reset_password_email_code'; identifier: string }) => Promise<unknown>;
+    attemptFirstFactor: (params: {
+      strategy: 'reset_password_email_code';
+      code: string;
+      password: string;
+    }) => Promise<{ status?: string; createdUserId?: string | null; createdSessionId?: string | null }>;
+  };
   signUp?: {
-    attemptEmailAddressVerification: (params: { code: string }) => Promise<{ status?: string; createdUserId?: string | null }>;
+    attemptEmailAddressVerification: (params: { code: string }) => Promise<{ status?: string; createdUserId?: string | null; createdSessionId?: string | null }>;
     prepareEmailAddressVerification: (params: { strategy: 'email_code' }) => Promise<unknown>;
   };
 };

@@ -4,6 +4,7 @@ export interface AppUser {
   email?: string;
   age?: number;
   courseOfStudy?: string;
+  avatarUrl?: string;
 }
 
 export type OptionalAppUser = AppUser | null;

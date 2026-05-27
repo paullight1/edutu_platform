@@ -43,7 +43,7 @@ type StatusFilter = (typeof statusFilters)[number]['id'];
 
 const AllGoals: React.FC<AllGoalsProps> = ({ onBack, onSelectGoal, onAddGoal }) => {
   const { isDarkMode } = useDarkMode();
-  const { userId } = useAuth();
+  const { userId, getToken } = useAuth();
   const { goals, updateGoal } = useGoals();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -55,9 +55,10 @@ const AllGoals: React.FC<AllGoalsProps> = ({ onBack, onSelectGoal, onAddGoal }) 
       try {
         if (!userId) return;
 
+        const token = await getToken().catch(() => null);
         const [bookmarksData, appsData] = await Promise.all([
-          getBookmarks(userId),
-          getApplications(userId)
+          getBookmarks(userId, token),
+          getApplications(userId, token)
         ]);
         setBookmarks(bookmarksData);
         setApplications(appsData);
@@ -67,7 +68,7 @@ const AllGoals: React.FC<AllGoalsProps> = ({ onBack, onSelectGoal, onAddGoal }) 
     }
 
     loadDeadlines();
-  }, [userId]);
+  }, [getToken, userId]);
 
   const formatDateShort = (date?: string | null) => {
     if (!date) return 'No deadline';

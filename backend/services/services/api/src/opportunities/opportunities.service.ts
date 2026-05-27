@@ -1,19 +1,21 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { db } from '../db';
-import { opportunities } from '../db/schema';
-import axios from 'axios';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { eq, or, and } from 'drizzle-orm';
-import { z } from 'zod';
-import { OpportunityRankingService } from './opportunity-ranking.service';
+import { Injectable, Logger } from "@nestjs/common";
+import { Cron, CronExpression } from "@nestjs/schedule";
+import { db } from "../db";
+import { opportunities } from "../db/schema";
+import axios from "axios";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { eq, or, and, sql } from "drizzle-orm";
+import { z } from "zod";
+import { OpportunityRankingService } from "./opportunity-ranking.service";
 import {
   OpportunityPreferenceDto,
   OpportunitySignalDto,
   RecommendationQueryDto,
   UserRecommendationRequestDto,
-} from './dto/personalization.dto';
-import { AiService } from '../ai';
+} from "./dto/personalization.dto";
+import { AiService } from "../ai";
+import { OpportunityShareCardService } from "./opportunity-share-card.service";
+import { categorizeOpportunity } from "./opportunity-categorization";
 // Note: Apify scraper disabled - using crawl4ai instead
 // import {
 //     runEdutuScraper,
@@ -28,7 +30,7 @@ const OpportunityDtoSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional().nullable(),
   category: z.string().optional().nullable(),
-  type: z.string().optional().default('scholarship'),
+  type: z.string().optional().default("scholarship"),
   eligibilityCriteria: z.string().optional().nullable(),
   fundingType: z.string().optional().nullable(),
   targetRegion: z.string().optional().nullable(),
@@ -37,7 +39,7 @@ const OpportunityDtoSchema = z.object({
   applyUrl: z.string().optional().nullable(),
   imageUrl: z.string().optional().nullable(),
   isRemote: z.boolean().optional().default(true),
-  status: z.string().optional().default('pending'),
+  status: z.string().optional().default("pending"),
   tags: z.array(z.string()).optional(),
 });
 
@@ -45,7 +47,7 @@ const ProcessedItemSchema = z.object({
   title: z.string(),
   description: z.string().optional().nullable(),
   category: z.string().optional().nullable(),
-  type: z.string().optional().default('scholarship'),
+  type: z.string().optional().default("scholarship"),
   eligibilityCriteria: z.string().optional().nullable(),
   fundingType: z.string().optional().nullable(),
   targetRegion: z.string().optional().nullable(),
@@ -54,7 +56,7 @@ const ProcessedItemSchema = z.object({
   applyUrl: z.string().optional().nullable(),
   imageUrl: z.string().optional().nullable(),
   isRemote: z.boolean().optional().default(true),
-  status: z.string().optional().default('pending'),
+  status: z.string().optional().default("pending"),
   tags: z.array(z.string()).optional().default([]),
 });
 
@@ -65,11 +67,37 @@ export type CreateOpportunityDto = z.infer<typeof OpportunityDtoSchema>;
 export interface AdminOpportunityListQuery {
   limit?: number;
   page?: number;
+  cursor?: string;
   search?: string;
   status?: string;
   category?: string;
   sortBy?: string;
 }
+
+const ADMIN_OPPORTUNITY_COLUMNS = [
+  "id",
+  "title",
+  "summary",
+  "description",
+  "category",
+  "canonical_category",
+  "organization",
+  "location",
+  "is_remote",
+  "application_url",
+  "source_url",
+  "canonical_url",
+  "tags",
+  "close_date",
+  "source",
+  "status",
+  "is_featured",
+  "quality_score",
+  "validation_status",
+  "metadata",
+  "created_at",
+  "updated_at",
+].join(",");
 
 @Injectable()
 export class OpportunitiesService {
@@ -79,6 +107,7 @@ export class OpportunitiesService {
   constructor(
     private readonly opportunityRankingService: OpportunityRankingService,
     private readonly aiService: AiService,
+    private readonly opportunityShareCardService: OpportunityShareCardService,
   ) {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -96,8 +125,31 @@ export class OpportunitiesService {
     status?: string,
     category?: string,
   ) {
-    const statusFilter = status || 'active';
+    const statusFilter = status || "active";
     const cappedLimit = Math.min(Number(limit) || 20, 100);
+    const normalizedOffset = Number(offset) || 0;
+
+    if (this.supabase) {
+      let request = this.supabase
+        .from("opportunities")
+        .select("*")
+        .eq("status", statusFilter)
+        .order("created_at", { ascending: false })
+        .range(normalizedOffset, normalizedOffset + cappedLimit - 1);
+
+      if (category) {
+        request = request.eq("category", category);
+      }
+
+      const { data, error } = await request;
+      if (!error) {
+        return data ?? [];
+      }
+
+      this.logger.warn(
+        `Canonical opportunity list query failed, falling back to Drizzle schema: ${error.message}`,
+      );
+    }
 
     if (category) {
       return db
@@ -110,7 +162,7 @@ export class OpportunitiesService {
           ),
         )
         .limit(cappedLimit)
-        .offset(Number(offset) || 0)
+        .offset(normalizedOffset)
         .orderBy(opportunities.createdAt)
         .execute();
     }
@@ -120,12 +172,28 @@ export class OpportunitiesService {
       .from(opportunities)
       .where(eq(opportunities.status, statusFilter))
       .limit(cappedLimit)
-      .offset(Number(offset) || 0)
+      .offset(normalizedOffset)
       .orderBy(opportunities.createdAt)
       .execute();
   }
 
   async findOne(id: string) {
+    if (this.supabase) {
+      const { data, error } = await this.supabase
+        .from("opportunities")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (!error) {
+        return data ?? null;
+      }
+
+      this.logger.warn(
+        `Canonical opportunity detail query failed, falling back to Drizzle schema: ${error.message}`,
+      );
+    }
+
     const res = await db
       .select()
       .from(opportunities)
@@ -134,44 +202,73 @@ export class OpportunitiesService {
     return res[0] ?? null;
   }
 
-  async findAdminList(query: AdminOpportunityListQuery) {
-    if (!this.supabase) {
-      throw new Error('Supabase is not configured');
+  async ensureShareCard(id: string) {
+    const opportunity = await this.findOne(id);
+    if (!opportunity) {
+      return null;
     }
 
-    const limit = Math.min(Math.max(Number(query.limit) || 50, 10), 200);
+    const shareCard =
+      await this.opportunityShareCardService.ensureShareCardForOpportunity(
+        opportunity,
+      );
+
+    return {
+      opportunityId: id,
+      shareCard,
+    };
+  }
+
+  async findAdminList(query: AdminOpportunityListQuery) {
+    if (!this.supabase) {
+      throw new Error("Supabase is not configured");
+    }
+
+    const limit = Math.min(Math.max(Number(query.limit) || 50, 10), 100);
     const page = Math.max(Number(query.page) || 1, 1);
     const from = (page - 1) * limit;
     const to = from + limit - 1;
     const sortMap: Record<string, { column: string; ascending: boolean }> = {
-      newest: { column: 'created_at', ascending: false },
-      oldest: { column: 'created_at', ascending: true },
-      deadline: { column: 'close_date', ascending: true },
-      featured: { column: 'is_featured', ascending: false },
-      quality: { column: 'quality_score', ascending: true },
+      newest: { column: "created_at", ascending: false },
+      oldest: { column: "created_at", ascending: true },
+      deadline: { column: "close_date", ascending: true },
+      featured: { column: "is_featured", ascending: false },
+      quality: { column: "quality_score", ascending: true },
     };
-    const sort = sortMap[query.sortBy || 'newest'] ?? sortMap.newest;
+    const sort = sortMap[query.sortBy || "newest"] ?? sortMap.newest;
 
     let request = this.supabase
-      .from('opportunities')
-      .select('*', { count: 'exact' })
+      .from("opportunities")
+      .select(ADMIN_OPPORTUNITY_COLUMNS, { count: "planned" })
       .order(sort.column, { ascending: sort.ascending, nullsFirst: false })
-      .range(from, to);
+      .order("id", { ascending: sort.ascending });
 
-    if (query.status && query.status !== 'all') {
-      request = request.eq('status', query.status);
+    if (query.status && query.status !== "all") {
+      request = request.eq("status", query.status);
     }
 
-    if (query.category && query.category !== 'all') {
-      request = request.eq('category', query.category);
+    if (query.category && query.category !== "all") {
+      request = request.eq("category", query.category);
     }
 
     const search = query.search?.trim();
     if (search) {
-      const escaped = search.replaceAll('%', '\\%').replaceAll(',', ' ');
+      const escaped = search.replaceAll("%", "\\%").replaceAll(",", " ");
       request = request.or(
         `title.ilike.%${escaped}%,organization.ilike.%${escaped}%,category.ilike.%${escaped}%,source.ilike.%${escaped}%`,
       );
+    }
+
+    const cursor = this.parseAdminCursor(query.cursor);
+    if (cursor?.value) {
+      const operator = sort.ascending ? "gt" : "lt";
+      request = request
+        .or(
+          `${sort.column}.${operator}.${cursor.value},and(${sort.column}.eq.${cursor.value},id.${operator}.${cursor.id})`,
+        )
+        .limit(limit);
+    } else {
+      request = request.range(from, to);
     }
 
     const { data, error, count } = await request;
@@ -179,63 +276,91 @@ export class OpportunitiesService {
       throw new Error(error.message);
     }
 
+    const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
+    const nextCursor =
+      rows.length === limit
+        ? this.buildAdminCursor(rows[rows.length - 1], sort.column)
+        : null;
+
     return {
-      data: data ?? [],
+      data: rows,
       page,
       limit,
       total: count ?? 0,
       totalPages: Math.max(Math.ceil((count ?? 0) / limit), 1),
-      hasMore: to + 1 < (count ?? 0),
+      hasMore: Boolean(nextCursor) || to + 1 < (count ?? 0),
+      nextCursor,
     };
   }
 
   async getAdminStats() {
     if (!this.supabase) {
-      throw new Error('Supabase is not configured');
+      throw new Error("Supabase is not configured");
     }
 
-    const sevenDaysFromNow = new Date();
-    sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-    const sevenDays = sevenDaysFromNow.toISOString().slice(0, 10);
-
-    const countRows = await Promise.all([
-      this.supabase.from('opportunities').select('id', { count: 'exact', head: true }),
-      this.supabase.from('opportunities').select('id', { count: 'exact', head: true }).eq('status', 'active'),
-      this.supabase.from('opportunities').select('id', { count: 'exact', head: true }).eq('is_featured', true),
-      this.supabase
-        .from('opportunities')
-        .select('id', { count: 'exact', head: true })
-        .or('status.eq.pending_review,metadata->>needs_review.eq.true'),
-      this.supabase
-        .from('opportunities')
-        .select('id', { count: 'exact', head: true })
-        .not('close_date', 'is', null)
-        .gte('close_date', new Date().toISOString().slice(0, 10))
-        .lte('close_date', sevenDays),
-    ]);
-
-    const error = countRows.find((row) => row.error)?.error;
-    if (error) {
-      throw new Error(error.message);
+    const rpcResult = await this.supabase.rpc("opportunity_admin_stats");
+    if (!rpcResult.error && rpcResult.data) {
+      return rpcResult.data;
     }
 
-    return {
-      total: countRows[0].count ?? 0,
-      active: countRows[1].count ?? 0,
-      featured: countRows[2].count ?? 0,
-      needsReview: countRows[3].count ?? 0,
-      expiringSoon: countRows[4].count ?? 0,
-    };
+    this.logger.warn(
+      `opportunity_admin_stats RPC unavailable, using local aggregate fallback: ${
+        rpcResult.error?.message ?? "no data returned"
+      }`,
+    );
+
+    const result = await db.execute(sql`
+      select
+        count(*)::int as total,
+        count(*) filter (where status = 'active')::int as active,
+        count(*) filter (where is_featured = true)::int as featured,
+        count(*) filter (
+          where status = 'pending_review'
+             or coalesce(metadata->>'needs_review', 'false') = 'true'
+        )::int as "needsReview",
+        count(*) filter (
+          where close_date is not null
+            and close_date >= current_date
+            and close_date <= current_date + interval '7 days'
+        )::int as "expiringSoon"
+      from opportunities
+    `);
+
+    return (
+      result[0] || {
+        total: 0,
+        active: 0,
+        featured: 0,
+        needsReview: 0,
+        expiringSoon: 0,
+      }
+    );
   }
 
   async create(dto: CreateOpportunityDto) {
+    if (this.supabase) {
+      const { data, error } = await this.supabase
+        .from("opportunities")
+        .insert(this.toCanonicalOpportunityPayload(dto, "pending"))
+        .select()
+        .single();
+
+      if (!error) {
+        return data;
+      }
+
+      this.logger.warn(
+        `Canonical opportunity create failed, falling back to Drizzle schema: ${error.message}`,
+      );
+    }
+
     const result = await db
       .insert(opportunities)
       .values({
         title: dto.title,
         description: dto.description,
         category: dto.category,
-        type: dto.type || 'scholarship',
+        type: dto.type || "scholarship",
         eligibilityCriteria: dto.eligibilityCriteria,
         fundingType: dto.fundingType,
         targetRegion: dto.targetRegion,
@@ -244,7 +369,7 @@ export class OpportunitiesService {
         applyUrl: dto.applyUrl || dto.sourceUrl,
         imageUrl: dto.imageUrl,
         isRemote: dto.isRemote ?? true,
-        status: dto.status || 'pending',
+        status: dto.status || "pending",
         originalJson: JSON.stringify(dto),
       })
       .returning()
@@ -254,6 +379,26 @@ export class OpportunitiesService {
   }
 
   async update(id: string, data: Partial<CreateOpportunityDto>) {
+    if (this.supabase) {
+      const { data: updated, error } = await this.supabase
+        .from("opportunities")
+        .update({
+          ...this.toCanonicalOpportunityPayload(data),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (!error) {
+        return updated;
+      }
+
+      this.logger.warn(
+        `Canonical opportunity update failed, falling back to Drizzle schema: ${error.message}`,
+      );
+    }
+
     const updateData: Partial<typeof opportunities.$inferInsert> = {
       ...data,
       deadline: data.deadline ? new Date(data.deadline) : undefined,
@@ -271,6 +416,21 @@ export class OpportunitiesService {
   }
 
   async updateStatus(id: string, status: string) {
+    if (this.supabase) {
+      const { error } = await this.supabase
+        .from("opportunities")
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq("id", id);
+
+      if (!error) {
+        return this.findOne(id);
+      }
+
+      this.logger.warn(
+        `Canonical opportunity status update failed, falling back to Drizzle schema: ${error.message}`,
+      );
+    }
+
     await db
       .update(opportunities)
       .set({ status, updatedAt: new Date() })
@@ -280,8 +440,101 @@ export class OpportunitiesService {
   }
 
   async remove(id: string) {
+    if (this.supabase) {
+      const { error } = await this.supabase
+        .from("opportunities")
+        .delete()
+        .eq("id", id);
+
+      if (!error) {
+        return { success: true, id };
+      }
+
+      this.logger.warn(
+        `Canonical opportunity delete failed, falling back to Drizzle schema: ${error.message}`,
+      );
+    }
+
     await db.delete(opportunities).where(eq(opportunities.id, id)).execute();
     return { success: true, id };
+  }
+
+  private toCanonicalOpportunityPayload(
+    input: Partial<CreateOpportunityDto>,
+    defaultStatus?: string,
+  ) {
+    const metadata: Record<string, unknown> = {};
+    if (input.eligibilityCriteria !== undefined) {
+      metadata.eligibility_criteria = input.eligibilityCriteria;
+      metadata.requirements = input.eligibilityCriteria
+        ? [input.eligibilityCriteria]
+        : [];
+    }
+    if (input.fundingType !== undefined) {
+      metadata.funding_type = input.fundingType;
+      metadata.benefits = input.fundingType ? [input.fundingType] : [];
+    }
+    if (input.targetRegion !== undefined) {
+      metadata.target_region = input.targetRegion;
+    }
+
+    const applicationUrl = input.applyUrl || input.sourceUrl || undefined;
+    const now = new Date().toISOString();
+    const payload: Record<string, unknown> = {
+      title: input.title,
+      description: input.description,
+      category: input.category,
+      canonical_category: categorizeOpportunity(input as Record<string, unknown>),
+      location: input.targetRegion,
+      is_remote: input.isRemote,
+      close_date: input.deadline || undefined,
+      source_url: input.sourceUrl,
+      application_url: applicationUrl,
+      canonical_url: applicationUrl
+        ? this.normalizeUrlForStorage(applicationUrl)
+        : undefined,
+      image_url: input.imageUrl,
+      tags: input.tags,
+      status: input.status || defaultStatus,
+      last_seen_at: now,
+      verification_next_check_at: now,
+      metadata: Object.keys(metadata).length ? metadata : undefined,
+    };
+
+    return Object.fromEntries(
+      Object.entries(payload).filter(([, value]) => value !== undefined),
+    );
+  }
+
+  private normalizeUrlForStorage(url: string) {
+    return url
+      .trim()
+      .replace(/[?#].*$/, "")
+      .replace(/\/+$/, "")
+      .toLowerCase();
+  }
+
+  private parseAdminCursor(cursor: string | undefined) {
+    if (!cursor) return null;
+
+    try {
+      const [value, id] = Buffer.from(cursor, "base64url")
+        .toString("utf8")
+        .split("|");
+
+      if (!value || !id) return null;
+      return { value, id };
+    } catch {
+      return null;
+    }
+  }
+
+  private buildAdminCursor(row: Record<string, unknown>, column: string) {
+    const value = row[column];
+    if (!value || !row.id) return null;
+    return Buffer.from(`${String(value)}|${String(row.id)}`).toString(
+      "base64url",
+    );
   }
 
   async getUserOpportunityPreferences(userId: string) {
@@ -295,7 +548,10 @@ export class OpportunitiesService {
     return this.opportunityRankingService.upsertUserPreferences(userId, input);
   }
 
-  async recordUserOpportunitySignal(userId: string, input: OpportunitySignalDto) {
+  async recordUserOpportunitySignal(
+    userId: string,
+    input: OpportunitySignalDto,
+  ) {
     return this.opportunityRankingService.recordSignal(userId, input);
   }
 
@@ -303,7 +559,10 @@ export class OpportunitiesService {
     userId: string,
     input: UserRecommendationRequestDto,
   ) {
-    return this.opportunityRankingService.getRecommendationsForUser(userId, input);
+    return this.opportunityRankingService.getRecommendationsForUser(
+      userId,
+      input,
+    );
   }
 
   async queryRecommendations(input: RecommendationQueryDto) {
@@ -313,7 +572,7 @@ export class OpportunitiesService {
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async handleCronSync() {
     this.logger.log(
-      'Starting scheduled Opportunities Sync via Serper API + Gemini',
+      "Starting scheduled Opportunities Sync via Serper API + Gemini",
     );
     await this.syncOpportunities();
   }
@@ -322,46 +581,22 @@ export class OpportunitiesService {
     try {
       const aiData = await this.fetchFromSerper();
       if (!aiData || aiData.length === 0) {
-        this.logger.warn('No data found from Serper API');
+        this.logger.warn("No data found from Serper API");
         return;
       }
 
       const parsedData = await this.extractWithGemini(aiData);
 
       if (parsedData && parsedData.length > 0) {
-        let inserted = 0;
-        for (const item of parsedData) {
-          try {
-            await db
-              .insert(opportunities)
-              .values({
-                title: item.title,
-                description: item.description,
-                eligibilityCriteria: item.eligibilityCriteria,
-                fundingType: item.fundingType,
-                targetRegion: item.targetRegion,
-                type: 'scholarship',
-                sourceUrl: item.sourceUrl,
-                applyUrl: item.applyUrl || item.sourceUrl,
-                imageUrl: item.imageUrl,
-                originalJson: JSON.stringify(item),
-                status: 'pending',
-              })
-              .onConflictDoNothing({ target: opportunities.sourceUrl })
-              .execute();
-            inserted++;
-          } catch (dbErr) {
-            this.logger.warn('Failed to insert opportunity: ' + item.sourceUrl);
-          }
-        }
+        const result = await this.bulkImport(parsedData);
         this.logger.log(
-          'Successfully synced opportunities. Inserted/Ignored: ' + inserted,
+          `Successfully synced opportunities. Inserted: ${(result as any).inserted ?? 0}, skipped: ${(result as any).skipped ?? 0}`,
         );
-        return { success: true, count: inserted };
+        return result;
       }
-      return { success: false, reason: 'Failed to extract data' };
+      return { success: false, reason: "Failed to extract data" };
     } catch (error) {
-      this.logger.error('Error syncing opportunities', error);
+      this.logger.error("Error syncing opportunities", error);
       throw error;
     }
   }
@@ -369,18 +604,18 @@ export class OpportunitiesService {
   // Main sync method that handles multiple sources
   async syncFromApify(sources?: string) {
     try {
-      const sourceList = sources ? sources.split(',') : ['edutu', 'intel'];
+      const sourceList = sources ? sources.split(",") : ["edutu", "intel"];
       const results: any = { edutu: null, intel: null };
       const allOpportunities: any[] = [];
 
-      this.logger.log('Apify sync disabled - using crawl4ai scraper instead');
+      this.logger.log("Apify sync disabled - using crawl4ai scraper instead");
       return {
         success: false,
-        error: 'Apify sync disabled. Use /api/scraper/run endpoint instead.',
+        error: "Apify sync disabled. Use /api/scraper/run endpoint instead.",
         sources: results,
       };
     } catch (error) {
-      this.logger.error('Error in syncFromApify', error);
+      this.logger.error("Error in syncFromApify", error);
       return { success: false, error: error.message };
     }
   }
@@ -401,7 +636,7 @@ export class OpportunitiesService {
 
 Input Data:
 Title: ${item.title}
-Description: ${item.description || 'N/A'}
+Description: ${item.description || "N/A"}
 URL: ${item.sourceUrl}
 Category: ${item.category}
 
@@ -424,20 +659,20 @@ Output ONLY a JSON object with these fields:
 }`;
 
         const aiData = await this.aiService.generateJson<Record<string, any>>({
-          feature: 'opportunities.enhance',
+          feature: "opportunities.enhance",
           prompt,
-          responseMimeType: 'application/json',
+          responseMimeType: "application/json",
           metadata: { title: item.title, sourceUrl: item.sourceUrl },
         });
 
         // Merge AI data with original item
         processedItems.push({
           ...item,
-          description: item.description || aiData?.description || '',
+          description: item.description || aiData?.description || "",
           eligibilityCriteria:
-            item.eligibilityCriteria || aiData?.eligibilityCriteria || '',
-          fundingType: item.fundingType || aiData?.fundingType || '',
-          targetRegion: item.targetRegion || aiData?.targetRegion || '',
+            item.eligibilityCriteria || aiData?.eligibilityCriteria || "",
+          fundingType: item.fundingType || aiData?.fundingType || "",
+          targetRegion: item.targetRegion || aiData?.targetRegion || "",
           deadline: item.deadline || aiData?.deadline || null,
           tags: aiData?.tags || [],
         } as ProcessedItem);
@@ -462,15 +697,87 @@ Output ONLY a JSON object with these fields:
     skipped = items.length - validItems.length;
 
     if (validItems.length === 0) {
-      this.logger.log('No valid opportunities to save');
+      this.logger.log("No valid opportunities to save");
       return { inserted: 0, skipped, opportunities: [] };
+    }
+
+    if (this.supabase) {
+      const records: Record<string, any>[] = validItems.map((item) => {
+        const base = this.toCanonicalOpportunityPayload(
+          {
+            title: item.title,
+            description: item.description || null,
+            category: item.category || "scholarship",
+            type: item.type || "scholarship",
+            eligibilityCriteria: item.eligibilityCriteria || null,
+            fundingType: item.fundingType || null,
+            targetRegion: item.targetRegion || null,
+            deadline: item.deadline || null,
+            sourceUrl: item.sourceUrl,
+            applyUrl: item.applyUrl || item.sourceUrl,
+            imageUrl: item.imageUrl || null,
+            isRemote: item.isRemote ?? true,
+            status: "pending",
+            tags: item.tags || [],
+          },
+          "pending",
+        );
+
+        return {
+          ...base,
+          metadata: {
+            ...((base.metadata as Record<string, unknown>) || {}),
+            ...(item.tags?.length ? { tags: item.tags } : {}),
+            original: item,
+          },
+        };
+      });
+
+      const uniqueRecords = Array.from(
+        new Map(
+          records.map((record) => [
+            String(record.canonical_url ?? record.source_url ?? record.title),
+            record,
+          ]),
+        ).values(),
+      );
+      const saved: Record<string, unknown>[] = [];
+      for (const record of uniqueRecords) {
+        const { data, error } = await this.supabase
+          .from("opportunities")
+          .insert(record)
+          .select()
+          .single();
+
+        if (!error && data) {
+          saved.push(data);
+          continue;
+        }
+
+        if (error?.code === "23505") {
+          skipped++;
+          continue;
+        }
+
+        if (error) {
+          this.logger.warn(
+            `Canonical opportunity insert failed for ${record.title}: ${error.message}`,
+          );
+          skipped++;
+        }
+      }
+
+      inserted = saved.length;
+      skipped += validItems.length - uniqueRecords.length;
+      return { inserted, skipped, opportunities: saved };
     }
 
     const values = validItems.map((item) => ({
       title: item.title,
       description: item.description || null,
-      category: item.category || 'scholarship',
-      type: item.type || 'scholarship',
+      category: item.category || "scholarship",
+      canonicalCategory: categorizeOpportunity(item),
+      type: item.type || "scholarship",
       eligibilityCriteria: item.eligibilityCriteria || null,
       fundingType: item.fundingType || null,
       targetRegion: item.targetRegion || null,
@@ -479,7 +786,7 @@ Output ONLY a JSON object with these fields:
       applyUrl: item.applyUrl || item.sourceUrl,
       imageUrl: item.imageUrl || null,
       isRemote: true,
-      status: 'pending',
+      status: "pending",
       originalJson: JSON.stringify(item),
     }));
 
@@ -499,7 +806,10 @@ Output ONLY a JSON object with these fields:
       );
       return { inserted, skipped, opportunities: result };
     } catch (dbErr) {
-      this.logger.error(`Batch insert failed, falling back to sequential`, dbErr.message);
+      this.logger.error(
+        `Batch insert failed, falling back to sequential`,
+        dbErr.message,
+      );
       // Fallback to sequential if batch fails
       const savedOpportunities: any[] = [];
       for (const item of validItems) {
@@ -509,8 +819,9 @@ Output ONLY a JSON object with these fields:
             .values({
               title: item.title,
               description: item.description || null,
-              category: item.category || 'scholarship',
-              type: item.type || 'scholarship',
+              category: item.category || "scholarship",
+              canonicalCategory: categorizeOpportunity(item),
+              type: item.type || "scholarship",
               eligibilityCriteria: item.eligibilityCriteria || null,
               fundingType: item.fundingType || null,
               targetRegion: item.targetRegion || null,
@@ -519,7 +830,7 @@ Output ONLY a JSON object with these fields:
               applyUrl: item.applyUrl || item.sourceUrl,
               imageUrl: item.imageUrl || null,
               isRemote: true,
-              status: 'pending',
+              status: "pending",
               originalJson: JSON.stringify(item),
             })
             .onConflictDoNothing({ target: opportunities.sourceUrl })
@@ -548,7 +859,7 @@ Output ONLY a JSON object with these fields:
   async bulkImport(items: any[]) {
     try {
       this.logger.log(
-        'Starting bulk import of ' + items.length + ' opportunities',
+        "Starting bulk import of " + items.length + " opportunities",
       );
 
       // Process with AI first
@@ -558,19 +869,19 @@ Output ONLY a JSON object with these fields:
 
       return { success: true, ...result };
     } catch (error) {
-      this.logger.error('Error in bulk import', error);
+      this.logger.error("Error in bulk import", error);
       return { success: false, error: error.message };
     }
   }
 
   private async fetchFromSerper() {
     const searchQueries = [
-      'latest scholarships for african students 2026',
-      'fully funded scholarships for international students from africa',
-      'master degree scholarships for african youth',
-      'undergraduate scholarships abroad for africans',
-      'global grants and fellowships for young africans',
-      'top international study opportunities for african citizens',
+      "latest scholarships for african students 2026",
+      "fully funded scholarships for international students from africa",
+      "master degree scholarships for african youth",
+      "undergraduate scholarships abroad for africans",
+      "global grants and fellowships for young africans",
+      "top international study opportunities for african citizens",
     ];
 
     const dayOfYear = Math.floor(
@@ -583,7 +894,7 @@ Output ONLY a JSON object with these fields:
     const scrapeStart = (hourRotation % 5) * 10;
 
     this.logger.log(
-      'Using Serper search query: ' + query + ' (Offset: ' + scrapeStart + ')',
+      "Using Serper search query: " + query + " (Offset: " + scrapeStart + ")",
     );
 
     const data = JSON.stringify({
@@ -593,12 +904,12 @@ Output ONLY a JSON object with these fields:
     });
 
     const config = {
-      method: 'post',
+      method: "post",
       maxBodyLength: Infinity,
-      url: 'https://google.serper.dev/search',
+      url: "https://google.serper.dev/search",
       headers: {
-        'X-API-KEY': process.env.SERPER_API_KEY,
-        'Content-Type': 'application/json',
+        "X-API-KEY": process.env.SERPER_API_KEY,
+        "Content-Type": "application/json",
       },
       data: data,
     };
@@ -609,19 +920,19 @@ Output ONLY a JSON object with these fields:
 
   private async extractWithGemini(searchResults: any[]) {
     const prompt =
-      'You are an expert scholarship data extractor. I have obtained the following Google Search results. Extract the opportunities into an array of JSON objects with: title, description, eligibilityCriteria, fundingType, targetRegion, sourceUrl, applyUrl, imageUrl. Output ONLY a valid JSON array. Data: ' +
+      "You are an expert scholarship data extractor. I have obtained the following Google Search results. Extract the opportunities into an array of JSON objects with: title, description, eligibilityCriteria, fundingType, targetRegion, sourceUrl, applyUrl, imageUrl. Output ONLY a valid JSON array. Data: " +
       JSON.stringify(searchResults);
 
     try {
       const parsedJson = await this.aiService.generateJson({
-        feature: 'opportunities.extract',
+        feature: "opportunities.extract",
         prompt,
-        responseMimeType: 'application/json',
+        responseMimeType: "application/json",
         metadata: { resultCount: searchResults.length },
       });
 
       if (!parsedJson) {
-        this.logger.error('Gemini returned empty response');
+        this.logger.error("Gemini returned empty response");
         return [];
       }
 
@@ -639,13 +950,13 @@ Output ONLY a JSON object with these fields:
       const GeminiResponseSchema = z.array(GeminiOpportunitySchema);
       const result = GeminiResponseSchema.safeParse(parsedJson);
       if (!result.success) {
-        this.logger.error('Gemini extraction failed Zod validation');
+        this.logger.error("Gemini extraction failed Zod validation");
         return [];
       }
 
       return result.data;
     } catch (err) {
-      this.logger.error('Gemini extraction failed', err);
+      this.logger.error("Gemini extraction failed", err);
       return [];
     }
   }

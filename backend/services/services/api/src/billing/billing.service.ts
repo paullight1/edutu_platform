@@ -6,7 +6,11 @@ import {
 } from '@nestjs/common';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { createHmac, timingSafeEqual } from 'crypto';
-import type { BillingInterval, BillingStatus, CreateCheckoutDto } from './dto/billing.dto';
+import type {
+  BillingInterval,
+  BillingStatus,
+  CreateCheckoutDto,
+} from './dto/billing.dto';
 
 const PRO_FEATURES = [
   'ai_roadmap',
@@ -17,7 +21,10 @@ const PRO_FEATURES = [
   'creator_tools',
 ] as const;
 
-const PLAN_CONFIG: Record<BillingInterval, { amount: number; label: string; envPlanCode: string }> = {
+const PLAN_CONFIG: Record<
+  BillingInterval,
+  { amount: number; label: string; envPlanCode: string }
+> = {
   monthly: {
     amount: 1000,
     label: 'Edutu Pro Monthly',
@@ -53,7 +60,9 @@ export class BillingService {
         .maybeSingle();
 
       if (profileResult.error) {
-        this.logger.warn(`Unable to load billing profile for ${userId}: ${profileResult.error.message}`);
+        this.logger.warn(
+          `Unable to load billing profile for ${userId}: ${profileResult.error.message}`,
+        );
       } else {
         profile = profileResult.data;
       }
@@ -84,13 +93,18 @@ export class BillingService {
       }
     }
 
-    const proExpiresAt = profile?.pro_expires_at ?? activeSubscription?.current_period_end ?? null;
+    const proExpiresAt =
+      profile?.pro_expires_at ?? activeSubscription?.current_period_end ?? null;
     const profileProActive =
       Boolean(profile?.is_pro) &&
       (!proExpiresAt || new Date(proExpiresAt).getTime() > Date.now());
-    const entitlementProActive = activeEntitlements.some((item) => item.feature_key === 'pro');
+    const entitlementProActive = activeEntitlements.some(
+      (item) => item.feature_key === 'pro',
+    );
     const isPro = profileProActive || entitlementProActive;
-    const entitlements = new Set(activeEntitlements.map((item) => item.feature_key));
+    const entitlements = new Set(
+      activeEntitlements.map((item) => item.feature_key),
+    );
     if (isPro) entitlements.add('pro');
 
     const featureAccess: Record<string, boolean> = {};
@@ -103,13 +117,18 @@ export class BillingService {
       proSince: profile?.pro_since ?? null,
       proExpiresAt,
       credits: Number(profile?.credits ?? 0),
-      subscriptionStatus: activeSubscription?.status ?? (isPro ? 'active' : null),
+      subscriptionStatus:
+        activeSubscription?.status ?? (isPro ? 'active' : null),
       entitlements: Array.from(entitlements),
       featureAccess,
     };
   }
 
-  async createCheckout(userId: string, email: string | undefined, dto: CreateCheckoutDto) {
+  async createCheckout(
+    userId: string,
+    email: string | undefined,
+    dto: CreateCheckoutDto,
+  ) {
     if (!userId) throw new BadRequestException('Missing user id');
     if (!email) throw new BadRequestException('A billing email is required');
 
@@ -154,19 +173,24 @@ export class BillingService {
       body.plan = planCode;
     }
 
-    const response = await fetch('https://api.paystack.co/transaction/initialize', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${secretKey}`,
-        'Content-Type': 'application/json',
+    const response = await fetch(
+      'https://api.paystack.co/transaction/initialize',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${secretKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
       },
-      body: JSON.stringify(body),
-    });
+    );
 
     const result: any = await response.json().catch(() => null);
     if (!response.ok || !result?.status || !result?.data?.authorization_url) {
       this.logger.error(`Paystack checkout failed: ${JSON.stringify(result)}`);
-      throw new InternalServerErrorException('Unable to initialize payment checkout');
+      throw new InternalServerErrorException(
+        'Unable to initialize payment checkout',
+      );
     }
 
     await this.insertTransaction({
@@ -189,13 +213,20 @@ export class BillingService {
     };
   }
 
-  async handlePaystackWebhook(rawBody: Buffer, payload: any, signature?: string) {
+  async handlePaystackWebhook(
+    rawBody: Buffer,
+    payload: any,
+    signature?: string,
+  ) {
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
     if (!secretKey) {
       throw new BadRequestException('Paystack is not configured');
     }
 
-    if (!signature || !this.verifyPaystackSignature(rawBody, signature, secretKey)) {
+    if (
+      !signature ||
+      !this.verifyPaystackSignature(rawBody, signature, secretKey)
+    ) {
       throw new BadRequestException('Invalid Paystack signature');
     }
 
@@ -239,7 +270,8 @@ export class BillingService {
         user_id: userId,
         provider: 'paystack',
         provider_customer_id: data.customer?.customer_code ?? null,
-        provider_subscription_id: data.subscription?.subscription_code ?? reference,
+        provider_subscription_id:
+          data.subscription?.subscription_code ?? reference,
         plan,
         status: 'active',
         current_period_start: new Date().toISOString(),
@@ -289,16 +321,26 @@ export class BillingService {
     const supabase = this.getSupabase();
     if (!supabase) return;
 
-    const { error } = await supabase.from('billing_transactions').upsert(record, {
-      onConflict: 'provider,provider_reference',
-    });
+    const { error } = await supabase
+      .from('billing_transactions')
+      .upsert(record, {
+        onConflict: 'provider,provider_reference',
+      });
     if (error) {
-      this.logger.warn(`Unable to record billing transaction: ${error.message}`);
+      this.logger.warn(
+        `Unable to record billing transaction: ${error.message}`,
+      );
     }
   }
 
-  private verifyPaystackSignature(rawBody: Buffer, signature: string, secretKey: string): boolean {
-    const digest = createHmac('sha512', secretKey).update(rawBody).digest('hex');
+  private verifyPaystackSignature(
+    rawBody: Buffer,
+    signature: string,
+    secretKey: string,
+  ): boolean {
+    const digest = createHmac('sha512', secretKey)
+      .update(rawBody)
+      .digest('hex');
     const received = Buffer.from(signature, 'hex');
     const expected = Buffer.from(digest, 'hex');
     if (received.length !== expected.length) return false;

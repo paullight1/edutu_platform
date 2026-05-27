@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft, Calendar, MapPin, Users, Clock, Star, Bell, ExternalLink,
@@ -13,6 +13,7 @@ import { useToast } from './ui/ToastProvider';
 import { useAuth } from '@clerk/clerk-react';
 import type { Opportunity } from '../types/opportunity';
 import { addBookmark, removeBookmark, isBookmarked } from '../services/bookmarks';
+import { addApplication } from '../services/applications';
 
 interface OpportunityDetailProps {
   opportunity: Opportunity;
@@ -46,40 +47,47 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   const [isBookmarkedState, setIsBookmarkedState] = useState(false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const shareCardRef = useRef<HTMLDivElement>(null);
   const { isDarkMode } = useDarkMode();
-  const { success } = useToast();
+  const { success, error: showError } = useToast();
 
-  const { userId } = useAuth();
+  const { userId, getToken } = useAuth();
 
   useEffect(() => {
     const checkBookmark = async () => {
       if (!userId) return;
-      const bookmarked = await isBookmarked(userId, opportunity.id);
+      const token = await getToken().catch(() => null);
+      const bookmarked = await isBookmarked(userId, opportunity.id, token);
       setIsBookmarkedState(bookmarked);
     };
     checkBookmark();
-  }, [opportunity.id, userId]);
+  }, [getToken, opportunity.id, userId]);
 
   const handleBookmark = async () => {
     if (!userId) return;
 
     setBookmarkLoading(true);
+    const token = await getToken().catch(() => null);
 
     if (isBookmarkedState) {
-      const removed = await removeBookmark(userId, opportunity.id);
+      const removed = await removeBookmark(userId, opportunity.id, token);
       if (removed) {
         setIsBookmarkedState(false);
         success('Bookmark removed');
       }
     } else {
-      const added = await addBookmark(userId, {
-        id: opportunity.id,
-        title: opportunity.title,
-        category: opportunity.category,
-        deadline: opportunity.deadline,
-        location: opportunity.location,
-        match_percentage: opportunity.match
-      });
+      const added = await addBookmark(
+        userId,
+        {
+          id: opportunity.id,
+          title: opportunity.title,
+          category: opportunity.category,
+          deadline: opportunity.deadline,
+          location: opportunity.location,
+          match_percentage: opportunity.match
+        },
+        token
+      );
       if (added) {
         setIsBookmarkedState(true);
         success('Opportunity saved');
@@ -91,14 +99,100 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
 
   const handleShare = async () => {
     const url = window.location.href;
+    const fileName = `${opportunity.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-edutu.png`;
     try {
-      await navigator.clipboard.writeText(url);
-      setShareCopied(true);
-      success('Link copied to clipboard');
+      const blob = await createShareImageBlob();
+      if (blob) {
+        const file = new File([blob], fileName, { type: 'image/png' });
+        if (navigator.canShare?.({ files: [file] })) {
+          await navigator.share({
+            title: opportunity.title,
+            text: `Check out this opportunity on Edutu: ${opportunity.title}`,
+            url,
+            files: [file],
+          });
+          setShareCopied(true);
+          success('Opportunity image ready to share');
+        } else {
+          downloadBlob(blob, fileName);
+          await navigator.clipboard.writeText(url);
+          setShareCopied(true);
+          success('Share image downloaded and link copied');
+        }
+      } else if (navigator.share) {
+        await navigator.share({
+          title: opportunity.title,
+          text: `Check out this opportunity on Edutu: ${opportunity.title}`,
+          url,
+        });
+        setShareCopied(true);
+        success('Opportunity shared');
+      } else {
+        await navigator.clipboard.writeText(url);
+        setShareCopied(true);
+        success('Link copied to clipboard');
+      }
       setTimeout(() => setShareCopied(false), 2000);
     } catch {
-      success('Could not copy link');
+      try {
+        await navigator.clipboard.writeText(url);
+        success('Link copied to clipboard');
+      } catch {
+        showError('Could not share this opportunity');
+      }
     }
+  };
+
+  const createShareImageBlob = async (): Promise<Blob | null> => {
+    const card = shareCardRef.current;
+    if (!card) return null;
+
+    const width = 1200;
+    const height = 1500;
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+        <foreignObject width="100%" height="100%">
+          <div xmlns="http://www.w3.org/1999/xhtml">
+            ${card.outerHTML}
+          </div>
+        </foreignObject>
+      </svg>`;
+    const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+    const svgUrl = URL.createObjectURL(svgBlob);
+
+    try {
+      const img = await loadImage(svgUrl);
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d');
+      if (!context) return null;
+      context.fillStyle = '#fffaf0';
+      context.fillRect(0, 0, width, height);
+      context.drawImage(img, 0, 0, width, height);
+      return await new Promise((resolve) => canvas.toBlob(resolve, 'image/png', 0.95));
+    } finally {
+      URL.revokeObjectURL(svgUrl);
+    }
+  };
+
+  const loadImage = (src: string): Promise<HTMLImageElement> =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+
+  const downloadBlob = (blob: Blob, fileName: string) => {
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(href);
   };
 
   const difficultyLabel = opportunity.difficulty ?? 'Medium';
@@ -120,8 +214,29 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
       : ['Application steps will be confirmed soon.'];
   const applyUrl = opportunity.applyUrl && opportunity.applyUrl.length > 0 ? opportunity.applyUrl : null;
 
-  const handleApply = () => {
+  const handleApply = async () => {
     if (!applyUrl) return;
+
+    if (userId) {
+      const token = await getToken().catch(() => null);
+      const tracked = await addApplication(
+        userId,
+        {
+          id: opportunity.id,
+          title: opportunity.title,
+          category: opportunity.category,
+        },
+        undefined,
+        token
+      );
+
+      if (tracked) {
+        success('Application added to your tracker');
+      } else {
+        showError('Application link opened, but tracking could not be updated');
+      }
+    }
+
     window.open(applyUrl, '_blank', 'noopener,noreferrer');
   };
 
@@ -138,6 +253,20 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
     } else {
       window.location.hash = `/app/opportunity/${opportunity.id}/roadmap`;
     }
+  };
+
+  const handleAskAI = (intent: string) => {
+    window.sessionStorage.setItem(
+      'edutu.aiPrompt',
+      `${intent}
+
+Opportunity: ${opportunity.title}
+Organization: ${opportunity.organization || 'Unknown'}
+Category: ${opportunity.category || 'Opportunity'}
+Deadline: ${opportunity.deadline || 'Rolling'}
+Description: ${opportunity.description || 'No description available'}`
+    );
+    window.location.hash = '/app/chat';
   };
 
   const getDifficultyColor = (difficulty: string | null | undefined) => {
@@ -192,9 +321,101 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   };
 
   const matchPercentage = Math.round(opportunity.match ?? 0);
+  const shareSummary = (opportunity.description || 'Open this opportunity in Edutu for full details.')
+    .replace(/\s+/g, ' ')
+    .slice(0, 260);
+  const shareReward =
+    opportunity.stipend !== undefined && opportunity.stipend !== null
+      ? `${opportunity.currency || 'USD'} ${opportunity.stipend.toLocaleString()}`
+      : 'Funded opportunity';
 
   return (
     <div className={`min-h-screen bg-surface-body ${isDarkMode ? 'dark' : ''}`}>
+      <div className="fixed -left-[9999px] top-0" aria-hidden="true">
+        <div
+          ref={shareCardRef}
+          style={{
+            width: 1200,
+            height: 1500,
+            boxSizing: 'border-box',
+            background: 'linear-gradient(135deg, #fffaf0 0%, #ffffff 52%, #eef8f3 100%)',
+            color: '#111827',
+            padding: 72,
+            fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 56 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+              <img src="/edutu-logo.png" alt="" width="72" height="72" style={{ objectFit: 'contain' }} />
+              <div>
+                <div style={{ fontSize: 52, lineHeight: 1, fontWeight: 900 }}>Edutu</div>
+                <div style={{ marginTop: 8, color: '#64748b', fontSize: 20, fontWeight: 800, letterSpacing: 5 }}>
+                  GLOBAL OPPORTUNITIES
+                </div>
+              </div>
+            </div>
+            <div style={{ color: '#9a6b12', fontSize: 28, fontWeight: 900 }}>edutu.ai</div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 44 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: '#b7791f', fontSize: 24, fontWeight: 900, textTransform: 'uppercase' }}>
+                {opportunity.category || 'Opportunity'}
+              </div>
+              <h1 style={{ margin: '18px 0 0', fontSize: 72, lineHeight: 1.05, fontWeight: 950, letterSpacing: 0 }}>
+                {opportunity.title}
+              </h1>
+              <p style={{ margin: '28px 0 0', fontSize: 34, lineHeight: 1.35, color: '#1f2937' }}>
+                {shareSummary}
+              </p>
+            </div>
+            <div style={{ width: 260, textAlign: 'center' }}>
+              {opportunity.image ? (
+                <img
+                  src={opportunity.image}
+                  alt=""
+                  width="240"
+                  height="170"
+                  style={{ objectFit: 'cover', borderRadius: 24, border: '2px solid #e5e7eb' }}
+                  crossOrigin="anonymous"
+                />
+              ) : (
+                <div style={{ width: 220, height: 170, borderRadius: 24, background: '#f1f5f9', border: '2px solid #e2e8f0' }} />
+              )}
+              <div style={{ marginTop: 20, color: '#163b7a', fontSize: 28, lineHeight: 1.15, fontWeight: 900, textTransform: 'uppercase' }}>
+                {opportunity.organization}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 22, marginTop: 58 }}>
+            {[
+              ['Reward', shareReward],
+              ['Deadline', opportunity.deadline ? formatDeadline() : 'Rolling'],
+              ['Location', opportunity.location || 'Worldwide'],
+            ].map(([label, value]) => (
+              <div key={label} style={{ background: 'rgba(255,255,255,0.74)', border: '2px solid #e5e7eb', borderRadius: 22, padding: 24 }}>
+                <div style={{ color: '#b7791f', fontSize: 20, fontWeight: 900 }}>{label}</div>
+                <div style={{ marginTop: 10, color: '#111827', fontSize: 28, lineHeight: 1.18, fontWeight: 850 }}>{value}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ position: 'absolute', left: 72, right: 72, bottom: 72 }}>
+            <div style={{ height: 2, background: '#e5e7eb', marginBottom: 28 }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 36, alignItems: 'center' }}>
+              <div style={{ color: '#111827', fontSize: 28, lineHeight: 1.25, fontWeight: 800 }}>
+                Open in Edutu for requirements, benefits, and application steps.
+              </div>
+              <div style={{ color: '#64748b', fontSize: 22, fontWeight: 800, textAlign: 'right' }}>
+                Share verified scholarship details.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       <div className="sticky top-0 z-10 bg-surface-layer/80 backdrop-blur-xl border-b border-subtle">
         <div className="max-w-7xl mx-auto px-4 lg:px-6 py-3">
           <div className="flex items-center gap-3">
@@ -448,6 +669,23 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
               <Card>
                 <h3 className="text-sm font-semibold text-strong mb-4">Quick Actions</h3>
                 <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      ['Eligibility', 'Check my eligibility for this opportunity. Be specific about likely gaps and what I should verify.'],
+                      ['Fit', 'Explain why this opportunity fits me and what profile details would improve the match.'],
+                      ['CV', 'Suggest how to tailor my CV for this opportunity with concrete bullet improvements.'],
+                      ['Prep', 'Create a concise preparation plan for this application before the deadline.'],
+                    ].map(([label, prompt]) => (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => handleAskAI(prompt)}
+                        className="rounded-xl border border-brand-500/20 bg-brand-500/5 px-3 py-2 text-xs font-bold text-brand-600 transition hover:bg-brand-500 hover:text-white dark:text-brand-300"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                   <button
                     onClick={handleWinThisOpportunity}
                     className="w-full gradient-accent text-white font-medium py-3 px-4 rounded-xl hover:opacity-95 transition-theme flex items-center justify-center gap-2 shadow-soft"

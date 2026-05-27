@@ -12,7 +12,8 @@ import {
   RefreshCw,
   Info,
   Clock,
-  BarChart
+  BarChart,
+  ChevronRight
 } from 'lucide-react';
 import Button from './ui/Button';
 import Input from './ui/Input';
@@ -103,172 +104,6 @@ interface CreateRoadmapForm {
 }
 
 type SortOption = 'Popular' | 'Newest' | 'Highest Rated' | 'Most Used' | 'Free Only';
-
-const FALLBACK_ROADMAPS: CommunityRoadmap[] = [
-  {
-    id: 'sample-oxford-mba',
-    title: 'Oxford MBA Admission Journey',
-    description:
-      'How Amara layered leadership, GMAT prep, and scholarship outreach to secure a fully funded Oxford MBA seat.',
-    creator: { name: 'Amara Bello', avatar: 'MBA', title: 'Oxford Said MBA Scholar', verified: true },
-    creatorEmail: 'amara@edutu.ai',
-    category: 'Education',
-    duration: '18 months',
-    difficulty: 'Advanced',
-    rating: 4.9,
-    users: 912,
-    successRate: 62,
-    tags: ['MBA', 'Scholarships', 'Leadership'],
-    achievements: ['Oxford Said offer', 'Clarendon Scholarship', 'GMAT 740'],
-    price: 'Premium',
-    image: 'https://images.pexels.com/photos/5212345/pexels-photo-5212345.jpeg',
-    featured: true,
-    status: 'approved',
-    type: 'roadmap',
-    lastUpdatedLabel: '3 days ago',
-    lastUpdatedTimestamp: Date.now() - 3 * 24 * 60 * 60 * 1000,
-    story:
-      'Follow the exact playbook Amara used to balance leadership impact, GMAT excellence, and scholarship outreach to secure a fully funded Oxford MBA. Each milestone includes templates, outreach scripts, and scorecards.',
-    resources: [
-      {
-        id: 'ox-res-1',
-        title: 'Leadership Impact Tracker Template',
-        description: 'Spreadsheet template to quantify community and professional impact.',
-        url: 'https://example.com/resources/leadership-tracker',
-        type: 'tool',
-        cost: 'free'
-      },
-      {
-        id: 'ox-res-2',
-        title: 'GMAT 740 Study Schedule',
-        url: 'https://example.com/resources/gmat-740-plan',
-        type: 'article',
-        cost: 'free'
-      },
-      {
-        id: 'ox-res-3',
-        title: 'Clarendon Scholarship Outreach Email Pack',
-        url: 'https://example.com/resources/clarendon-outreach',
-        type: 'other',
-        cost: 'paid',
-        notes: 'Included in premium bundle'
-      }
-    ],
-    roadmap: [
-      {
-        id: 'ox-stage-1',
-        title: 'Months 1-3: Clarify your MBA narrative',
-        description: 'Audit achievements, map leadership themes, and shortlist programs.',
-        duration: '12 weeks',
-        tasks: []
-      },
-      {
-        id: 'ox-stage-2',
-        title: 'Months 4-6: GMAT excellence sprint',
-        description: 'Target a 720+ GMAT using Amara’s split-day approach.',
-        duration: '12 weeks',
-        tasks: []
-      },
-      {
-        id: 'ox-stage-3',
-        title: 'Months 7-12: Scholarship outreach & essays',
-        description: 'Run scholarship outreach cadences and polish your essays.',
-        duration: '24 weeks',
-        tasks: []
-      }
-    ],
-    stats: {
-      rating: 4.9,
-      users: 912,
-      successRate: 62,
-      saves: 420,
-      adoptionCount: 318,
-      likes: 198,
-      comments: 64
-    },
-    paymentLink: 'https://market.edutu.ai/guides/oxford-mba'
-  },
-  {
-    id: 'sample-data-science',
-    title: 'Pivot to Senior Data Scientist',
-    description: 'Isaac moved from support specialist to senior data science through night classes and ML projects.',
-    creator: { name: 'Isaac Mensah', avatar: 'DS', title: 'Senior Data Scientist', verified: true },
-    creatorEmail: 'isaac@edutu.ai',
-    category: 'Programming',
-    duration: '14 months',
-    difficulty: 'Intermediate',
-    rating: 4.8,
-    users: 1245,
-    successRate: 68,
-    tags: ['Python', 'ML', 'Career switch'],
-    achievements: ['Senior DS offer', 'Portfolio of 6 projects', 'Conference talk'],
-    price: 'Free',
-    image: 'https://images.pexels.com/photos/3861958/pexels-photo-3861958.jpeg',
-    featured: false,
-    status: 'approved',
-    type: 'roadmap',
-    lastUpdatedLabel: '1 week ago',
-    lastUpdatedTimestamp: Date.now() - 7 * 24 * 60 * 60 * 1000,
-    story:
-      'Isaac documents how he balanced a support role with night classes, project-based learning, and community showcases to become a senior data scientist. The guide includes weekly checkpoints and portfolio templates.',
-    resources: [
-      {
-        id: 'ds-res-1',
-        title: 'Night School ML Curriculum',
-        url: 'https://example.com/resources/night-ml',
-        type: 'course',
-        cost: 'free'
-      },
-      {
-        id: 'ds-res-2',
-        title: 'Portfolio Project Rubric',
-        url: 'https://example.com/resources/ds-rubric',
-        type: 'tool',
-        cost: 'free'
-      },
-      {
-        id: 'ds-res-3',
-        title: 'Weekly Study Tracker',
-        url: 'https://example.com/resources/study-tracker',
-        type: 'tool',
-        cost: 'free'
-      }
-    ],
-    roadmap: [
-      {
-        id: 'ds-stage-1',
-        title: 'Weeks 1-6: Solidify Python & statistics',
-        description: 'Refresh Python, statistics, and SQL foundations with targeted exercises.',
-        duration: '6 weeks',
-        tasks: []
-      },
-      {
-        id: 'ds-stage-2',
-        title: 'Weeks 7-16: Build portfolio-ready ML projects',
-        description: 'Ship three end-to-end projects that demonstrate experimentation and storytelling.',
-        duration: '10 weeks',
-        tasks: []
-      },
-      {
-        id: 'ds-stage-3',
-        title: 'Weeks 17-24: Showcase & grow community proof',
-        description: 'Publish case studies, present at meetups, and prepare interview artifacts.',
-        duration: '8 weeks',
-        tasks: []
-      }
-    ],
-    stats: {
-      rating: 4.8,
-      users: 1245,
-      successRate: 68,
-      saves: 512,
-      adoptionCount: 402,
-      likes: 276,
-      comments: 81
-    },
-    paymentLink: null
-  }
-];
 
 const CREATE_DEFAULTS: CreateRoadmapForm = {
   title: '',
@@ -766,7 +601,6 @@ const CommunityMarketplace: React.FC<CommunityMarketplaceProps> = ({ onRoadmapSe
 
   const [remoteRoadmaps, setRemoteRoadmaps] = useState<CommunityRoadmap[]>([]);
   const [loadingRemote, setLoadingRemote] = useState(true);
-  const [hasRealtimeData, setHasRealtimeData] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
   const [showFilters, setShowFilters] = useState(false);
@@ -790,7 +624,6 @@ const CommunityMarketplace: React.FC<CommunityMarketplaceProps> = ({ onRoadmapSe
         });
         const mappedStories = (stories || []).map(s => mapListingToRoadmap(s as any, s.id));
         setRemoteRoadmaps(mappedStories);
-        setHasRealtimeData(true);
       } catch (error) {
         console.error('Error fetching community stories:', error);
         // Optionally set error state here to show to the user
@@ -802,7 +635,7 @@ const CommunityMarketplace: React.FC<CommunityMarketplaceProps> = ({ onRoadmapSe
     fetchStories();
   }, []);
 
-  const combinedRoadmaps = hasRealtimeData && remoteRoadmaps.length > 0 ? remoteRoadmaps : FALLBACK_ROADMAPS;
+  const combinedRoadmaps = remoteRoadmaps;
 
   const approvedRoadmaps = useMemo(
     () => combinedRoadmaps.filter((roadmap) => roadmap.status === 'approved'),
@@ -949,7 +782,7 @@ const CommunityMarketplace: React.FC<CommunityMarketplaceProps> = ({ onRoadmapSe
     setIsAddingRoadmap(true);
     try {
       let adoption: RoadmapAdoptionResponse | undefined;
-      if (roadmap.type === 'roadmap' && !roadmap.id.startsWith('sample-')) {
+      if (roadmap.type === 'roadmap') {
         const token = await getToken();
         const targetDeadline = roadmap.deadlineStrategy
           ? window.prompt('Target application deadline for this roadmap (YYYY-MM-DD). Leave blank if you do not know it yet.')?.trim()
@@ -996,15 +829,40 @@ const CommunityMarketplace: React.FC<CommunityMarketplaceProps> = ({ onRoadmapSe
     <div className={`min-h-screen ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-white text-slate-900'} font-body transition-colors duration-300`}>
       {/* Page Header */}
       <PageHeader
-        title="Community Marketplace"
-        subtitle="Discover proven career trajectories shared by the Edutu community"
+        title="Community Roadmaps"
+        subtitle="Discover verified learning paths and opportunity journeys from the Edutu community"
         onBack={onBack}
       />
 
-      <div className="max-w-7xl mx-auto px-6 pt-6 pb-24 space-y-8 relative z-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-5 pb-24 space-y-6 relative z-10">
+
+        <section
+          onClick={() => setCreateOpen(true)}
+          className="group relative overflow-hidden rounded-[20px] border border-amber-200/60 bg-gradient-to-br from-amber-500 via-orange-600 to-red-600 p-4 sm:p-6 shadow-xl shadow-orange-500/15 cursor-pointer"
+        >
+          <div className="absolute inset-0 opacity-25 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.7)_0_1px,transparent_1px)] [background-size:18px_18px]" />
+          <div className="relative flex items-center justify-between gap-3 md:gap-5">
+            <div className="flex min-w-0 items-center gap-3 sm:items-start sm:gap-4">
+              <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/20 text-white ring-1 ring-white/30 backdrop-blur sm:flex">
+                <Plus size={22} />
+              </div>
+              <div className="min-w-0 max-w-2xl">
+                <p className="hidden text-xs font-bold uppercase tracking-widest text-white/75 sm:block">Creator marketplace</p>
+                <h2 className="text-lg font-black tracking-tight text-white sm:mt-2 sm:text-3xl">Become a Roadmap Creator</h2>
+                <p className="mt-1 line-clamp-2 text-xs font-medium leading-relaxed text-white/85 sm:mt-2 sm:line-clamp-none sm:text-base">
+                  Share verified paths, scholarship playbooks, internship steps, and career journeys learners can adopt inside Edutu.
+                </p>
+              </div>
+            </div>
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-orange-700 shadow-lg shadow-orange-900/10 sm:h-12 sm:w-auto sm:rounded-2xl sm:px-6">
+              <ChevronRight size={20} className="sm:hidden" />
+              <span className="hidden text-sm font-black sm:inline">Publish Roadmap</span>
+            </div>
+          </div>
+        </section>
 
         {/* Search & Filter Controls */}
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
             <div className="flex-1 relative group">
               <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-600 transition-colors">
@@ -1012,82 +870,54 @@ const CommunityMarketplace: React.FC<CommunityMarketplaceProps> = ({ onRoadmapSe
               </div>
               <input
                 type="text"
-                placeholder="Search roadmaps, careers..."
+                placeholder="Search roadmaps..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-11 pr-4 py-3 rounded-xl border border-subtle bg-surface-layer/50 dark:bg-gray-900 shadow-sm text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all font-medium text-sm"
+                className="w-full pl-11 pr-4 py-3 rounded-2xl border border-subtle bg-white dark:bg-gray-900 shadow-sm text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all font-medium text-sm"
               />
             </div>
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`p-3 rounded-xl transition-all shadow-sm border ${showFilters
+              className={`p-3 rounded-2xl transition-all shadow-sm border ${showFilters
                 ? 'bg-brand-500 text-white border-brand-500'
                 : 'bg-white dark:bg-gray-900 text-slate-600 dark:text-slate-400 border-subtle hover:border-brand-500/30'
                 }`}
+              aria-label="Toggle roadmap filters"
             >
               <Filter size={20} />
             </button>
           </div>
 
-          {/* Collapsible Filters */}
-          {showFilters && (
-            <div className="p-1 animate-in fade-in slide-in-from-top-2 duration-300">
-              <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide w-full">
-                {categories.map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setCategoryFilter(cat)}
-                    className={`px-5 py-2.5 rounded-xl font-bold text-[10px] tracking-wider transition-all whitespace-nowrap border ${categoryFilter === cat
-                      ? 'bg-slate-900 text-white border-slate-900 dark:bg-brand-600 dark:border-brand-600'
-                      : 'bg-white dark:bg-gray-900 text-slate-500 border-subtle hover:text-slate-900 dark:hover:text-white'
-                      }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
+          <div className={`${showFilters ? 'block' : 'hidden sm:block'} animate-in fade-in slide-in-from-top-2 duration-300`}>
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide w-full">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setCategoryFilter(cat)}
+                  className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all whitespace-nowrap border ${categoryFilter === cat
+                    ? 'bg-brand-600 text-white border-brand-600 shadow-lg shadow-brand-500/20'
+                    : 'bg-white dark:bg-gray-900 text-slate-500 border-subtle hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                >
+                  {cat}
+                </button>
+              ))}
             </div>
-          )}
-        </div>
-
-        {/* Redesigned Success Trajectory Banner Card */}
-        <div
-          onClick={() => setCreateOpen(true)}
-          className="stat-card stat-card-purple group cursor-pointer p-6 md:p-10 relative overflow-hidden"
-        >
-          <div className="stat-card-edge" />
-          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex-1 space-y-4 text-center md:text-left">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 dark:bg-white/10 border border-white/20 backdrop-blur-md">
-                <Sparkles size={14} className="text-white" />
-                <span className="text-[10px] font-bold tracking-wider text-white">Community Edition</span>
-              </div>
-              <h3 className="text-3xl font-display font-bold text-white leading-tight">
-                Share Your Success <br className="hidden md:block" /> Trajectory
-              </h3>
-              <p className="text-base text-white/80 font-medium max-w-xl leading-relaxed">
-                Publish your career journey and help thousands of learners follow your proven path to success.
-              </p>
-            </div>
-
-            <Button
-              variant="secondary"
-              className="bg-white text-brand-600 hover:bg-slate-50 rounded-2xl px-10 py-5 h-auto font-black shadow-xl shadow-brand-500/10 group-hover:scale-105 transition-transform"
-            >
-              <Plus size={20} className="mr-2" />
-              Publish Now
-            </Button>
-          </div>
-
-          <div className="absolute right-[-20px] bottom-[-20px] opacity-10 group-hover:opacity-20 transition-opacity">
-            <Sparkles size={120} className="text-white rotate-12" />
           </div>
         </div>
 
         {/* Refined Grid */}
-        <div className="space-y-8">
-          <div className="flex items-center gap-4">
-            <h2 className="text-sm font-bold text-slate-500 tracking-widest">Featured Roadmaps</h2>
+        <div className="space-y-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-brand-500/10">
+              <BookOpen size={20} />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-slate-950 dark:text-white">Featured Roadmaps</h2>
+              <p className="text-sm font-medium text-slate-500">
+                {loadingRemote ? 'Loading community roadmaps...' : `${filteredRoadmaps.length} approved roadmap${filteredRoadmaps.length === 1 ? '' : 's'} available`}
+              </p>
+            </div>
             <div className="h-px flex-1 bg-subtle" />
           </div>
 
@@ -1097,7 +927,7 @@ const CommunityMarketplace: React.FC<CommunityMarketplaceProps> = ({ onRoadmapSe
                 <div key={n} className="h-[400px] rounded-2xl animate-pulse bg-surface-layer border border-subtle" />
               ))}
             </div>
-          ) : (
+          ) : filteredRoadmaps.length > 0 ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 pb-20">
               {filteredRoadmaps.map((roadmap) => (
                 <div
@@ -1161,6 +991,38 @@ const CommunityMarketplace: React.FC<CommunityMarketplaceProps> = ({ onRoadmapSe
                   </div>
                 </div>
               ))}
+            </div>
+          ) : (
+            <div className="rounded-3xl border border-dashed border-subtle bg-white p-8 text-center shadow-sm dark:bg-gray-900">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-brand-500/10">
+                <BookOpen size={26} />
+              </div>
+              <h3 className="mt-5 text-xl font-black text-slate-950 dark:text-white">
+                {approvedRoadmaps.length === 0 ? 'No approved community roadmaps yet' : 'No roadmaps match your filters'}
+              </h3>
+              <p className="mx-auto mt-2 max-w-lg text-sm font-medium leading-relaxed text-slate-500 dark:text-slate-400">
+                {approvedRoadmaps.length === 0
+                  ? 'Approved creator roadmaps from the community will appear here once they are published. There are no sample or mock roadmaps on this page.'
+                  : 'Try another search term or category to find matching community roadmaps.'}
+              </p>
+              <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                {approvedRoadmaps.length > 0 && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setSearchTerm('');
+                      setCategoryFilter('All');
+                    }}
+                    className="rounded-2xl"
+                  >
+                    Clear filters
+                  </Button>
+                )}
+                <Button onClick={() => setCreateOpen(true)} className="rounded-2xl">
+                  <Plus size={18} className="mr-2" />
+                  Publish Roadmap
+                </Button>
+              </div>
             </div>
           )}
         </div>

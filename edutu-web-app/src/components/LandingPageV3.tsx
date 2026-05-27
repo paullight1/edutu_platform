@@ -89,12 +89,23 @@ const institutions = [
     { name: 'ETH Zurich', logo: '/logos/ethz.svg' },
 ];
 
+const heroOpportunityWords = ['Opportunities', 'Scholarships', 'Internships', 'Fellowships'];
+
 const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     const { isDarkMode, toggleDarkMode } = useDarkMode();
     const { scrollYProgress } = useScroll();
     const [activeNav, setActiveNav] = useState<string | null>(null);
     const [openFAQ, setOpenFAQ] = useState<number | null>(null);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [heroWordIndex, setHeroWordIndex] = useState(0);
+
+    useEffect(() => {
+        const interval = window.setInterval(() => {
+            setHeroWordIndex((current) => (current + 1) % heroOpportunityWords.length);
+        }, 2400);
+
+        return () => window.clearInterval(interval);
+    }, []);
 
     const headerBg = useTransform(
         scrollYProgress,
@@ -266,9 +277,31 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             className="text-[56px] sm:text-[72px] md:text-[80px] font-semibold leading-[1.04] tracking-[-0.8px] mb-8"
                             style={{ color: isDarkMode ? '#ffffff' : '#080808' }}
                         >
-                            Unleash Your
-                            <br />
-                            <span style={{ color: '#146ef5' }}>Full Potential</span>
+                            Your AI Guide to{' '}
+                            <span style={{ color: '#146ef5', whiteSpace: 'nowrap' }}>
+                                Global{' '}
+                                <span
+                                    style={{
+                                        display: 'inline-block',
+                                        minWidth: '6.8em',
+                                        textAlign: 'left',
+                                        verticalAlign: 'baseline',
+                                    }}
+                                >
+                                    <AnimatePresence mode="wait">
+                                        <motion.span
+                                            key={heroOpportunityWords[heroWordIndex]}
+                                            initial={{ opacity: 0, y: 24, filter: 'blur(8px)' }}
+                                            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                                            exit={{ opacity: 0, y: -24, filter: 'blur(8px)' }}
+                                            transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+                                            style={{ display: 'inline-block' }}
+                                        >
+                                            {heroOpportunityWords[heroWordIndex]}.
+                                        </motion.span>
+                                    </AnimatePresence>
+                                </span>
+                            </span>
                         </motion.h1>
 
                         <motion.p

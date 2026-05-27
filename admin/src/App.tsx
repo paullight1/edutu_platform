@@ -11,6 +11,7 @@ import Roadmaps from './pages/Roadmaps';
 import Blog from './pages/Blog';
 import Settings from './pages/Settings';
 import Scraper from './pages/Scraper';
+import MobileControl from './pages/MobileControl';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Profile from './pages/Profile';
@@ -226,6 +227,7 @@ const AppRoutes: FC = () => {
         <Route path="blog" element={<Blog />} />
         <Route path="settings" element={<Settings />} />
         <Route path="edutu-engine" element={<Scraper />} />
+        <Route path="mobile-control" element={<MobileControl />} />
         <Route path="profile" element={<Profile />} />
       </Route>
     </Routes>

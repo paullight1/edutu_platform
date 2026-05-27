@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+} from 'crypto';
 
 @Injectable()
 export class AiEncryptionService {
@@ -10,7 +15,9 @@ export class AiEncryptionService {
       process.env.CLERK_SECRET_KEY;
 
     if (!secret) {
-      throw new Error('AI_KEY_ENCRYPTION_SECRET is required to store AI provider keys');
+      throw new Error(
+        'AI_KEY_ENCRYPTION_SECRET is required to store AI provider keys',
+      );
     }
 
     return createHash('sha256').update(secret).digest();
@@ -19,9 +26,16 @@ export class AiEncryptionService {
   encrypt(value: string) {
     const iv = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', this.getKey(), iv);
-    const encrypted = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+    const encrypted = Buffer.concat([
+      cipher.update(value, 'utf8'),
+      cipher.final(),
+    ]);
     const tag = cipher.getAuthTag();
-    return [iv.toString('base64'), tag.toString('base64'), encrypted.toString('base64')].join(':');
+    return [
+      iv.toString('base64'),
+      tag.toString('base64'),
+      encrypted.toString('base64'),
+    ].join(':');
   }
 
   decrypt(payload: string) {

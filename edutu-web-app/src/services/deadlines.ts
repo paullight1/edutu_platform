@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import { isProductApiUnavailableError, productApiRequest } from './productApi';
 
 export type DeadlineType = 'bookmark' | 'application' | 'goal';
 export type DeadlineUrgency = 'critical' | 'soon' | 'upcoming' | 'later';
@@ -54,7 +55,101 @@ function getGroup(daysUntil: number): DeadlineGroup {
   return 'Later';
 }
 
-export async function getDeadlines(userId: string): Promise<DeadlinesResponse> {
+type ApiDeadline = Partial<Deadline> & {
+  source_id?: string;
+  sourceId?: string;
+  days_until?: number;
+  daysUntil?: number;
+};
+
+function normalizeDeadline(row: ApiDeadline): Deadline | null {
+  const deadline = row.deadline;
+  if (!deadline) return null;
+
+  const daysUntil = row.daysUntil ?? row.days_until ?? calculateDaysUntil(deadline);
+
+  return {
+    id: row.id ?? `${row.type ?? 'deadline'}:${row.source_id ?? row.sourceId ?? deadline}`,
+    title: row.title ?? 'Deadline',
+    type: row.type ?? 'goal',
+    deadline,
+    daysUntil,
+    urgency: row.urgency ?? getUrgency(daysUntil),
+    category: row.category ?? 'General',
+    sourceId: row.sourceId ?? row.source_id ?? row.id ?? ''
+  };
+}
+
+function groupDeadlines(deadlines: Deadline[]): DeadlinesResponse {
+  deadlines.sort((a, b) => a.daysUntil - b.daysUntil);
+
+  const groupOrder: DeadlineGroup[] = ['This Week', 'Next Week', 'This Month', 'Later'];
+  const groupsMap = new Map<DeadlineGroup, Deadline[]>();
+  groupOrder.forEach(g => groupsMap.set(g, []));
+
+  deadlines.forEach(deadline => {
+    const group = getGroup(deadline.daysUntil);
+    groupsMap.get(group)!.push(deadline);
+  });
+
+  const groups: GroupedDeadlines[] = groupOrder.map(group => ({
+    group,
+    deadlines: groupsMap.get(group) || []
+  }));
+
+  const summary: DeadlinesSummary = {
+    total: deadlines.length,
+    thisWeek: groupsMap.get('This Week')!.length,
+    critical: deadlines.filter(d => d.urgency === 'critical').length
+  };
+
+  return { summary, groups };
+}
+
+function normalizeDeadlinesResponse(response: DeadlinesResponse | Deadline[] | { data?: Deadline[]; deadlines?: Deadline[] } | null | undefined): DeadlinesResponse {
+  if (!response) return groupDeadlines([]);
+  if (Array.isArray(response)) {
+    return groupDeadlines(response.map(normalizeDeadline).filter((deadline): deadline is Deadline => Boolean(deadline)));
+  }
+
+  if ('groups' in response && 'summary' in response) {
+    return {
+      summary: response.summary,
+      groups: response.groups.map((group) => ({
+        group: group.group,
+        deadlines: group.deadlines
+          .map(normalizeDeadline)
+          .filter((deadline): deadline is Deadline => Boolean(deadline))
+      }))
+    };
+  }
+
+  const rows = response.deadlines ?? response.data ?? [];
+  return groupDeadlines(rows.map(normalizeDeadline).filter((deadline): deadline is Deadline => Boolean(deadline)));
+}
+
+async function tryProductApi<T>(operation: () => Promise<T>): Promise<T | null> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (isProductApiUnavailableError(error)) return null;
+    throw error;
+  }
+}
+
+export async function getDeadlines(userId: string, token?: string | null): Promise<DeadlinesResponse> {
+  if (token) {
+    const apiDeadlines = await tryProductApi(async () => {
+      const response = await productApiRequest<DeadlinesResponse | Deadline[] | { data?: Deadline[]; deadlines?: Deadline[] }>(
+        '/me/deadlines',
+        token
+      );
+      return normalizeDeadlinesResponse(response);
+    });
+
+    if (apiDeadlines) return apiDeadlines;
+  }
+
   const deadlines: Deadline[] = [];
 
   const [bookmarksResult, applicationsResult, goalsResult] = await Promise.all([
@@ -146,27 +241,5 @@ export async function getDeadlines(userId: string): Promise<DeadlinesResponse> {
     });
   }
 
-  deadlines.sort((a, b) => a.daysUntil - b.daysUntil);
-
-  const groupOrder: DeadlineGroup[] = ['This Week', 'Next Week', 'This Month', 'Later'];
-  const groupsMap = new Map<DeadlineGroup, Deadline[]>();
-  groupOrder.forEach(g => groupsMap.set(g, []));
-
-  deadlines.forEach(deadline => {
-    const group = getGroup(deadline.daysUntil);
-    groupsMap.get(group)!.push(deadline);
-  });
-
-  const groups: GroupedDeadlines[] = groupOrder.map(group => ({
-    group,
-    deadlines: groupsMap.get(group) || []
-  }));
-
-  const summary: DeadlinesSummary = {
-    total: deadlines.length,
-    thisWeek: groupsMap.get('This Week')!.length,
-    critical: deadlines.filter(d => d.urgency === 'critical').length
-  };
-
-  return { summary, groups };
+  return groupDeadlines(deadlines);
 }

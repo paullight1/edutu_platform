@@ -117,7 +117,13 @@ export class CvService {
       );
     }
 
-    const fallbackCv = this.buildFallbackDraft(dto.profile, dto.goals || [], dto.currentCV, dto.prompt, dto.linkedInUrl);
+    const fallbackCv = this.buildFallbackDraft(
+      dto.profile,
+      dto.goals || [],
+      dto.currentCV,
+      dto.prompt,
+      dto.linkedInUrl,
+    );
     return {
       cv: fallbackCv,
       suggestions: [
@@ -250,7 +256,9 @@ ${dto.userNotes || ''}`;
     prompt?: string,
     linkedInUrl?: string,
   ): CVDataDto {
-    const goalTitles = goals.map((goal) => goal.title || goal.description || '').filter(Boolean);
+    const goalTitles = goals
+      .map((goal) => goal.title || goal.description || '')
+      .filter(Boolean);
     const mergedSkills = this.unique([
       ...(currentCV?.skills || []),
       ...(profile?.skills || []),
@@ -260,7 +268,9 @@ ${dto.userNotes || ''}`;
     const summaryParts = [
       profile?.field_of_study ? `${profile.field_of_study} student` : '',
       profile?.education_level ? `${profile.education_level} level` : '',
-      mergedSkills.length ? `with strengths in ${mergedSkills.slice(0, 5).join(', ')}` : '',
+      mergedSkills.length
+        ? `with strengths in ${mergedSkills.slice(0, 5).join(', ')}`
+        : '',
       prompt ? `targeting ${prompt}` : '',
     ].filter(Boolean);
 
@@ -269,7 +279,11 @@ ${dto.userNotes || ''}`;
         full_name: currentCV?.header?.full_name || profile?.full_name || '',
         email: currentCV?.header?.email || profile?.email || '',
         phone: currentCV?.header?.phone || '',
-        location: currentCV?.header?.location || profile?.location || profile?.country || '',
+        location:
+          currentCV?.header?.location ||
+          profile?.location ||
+          profile?.country ||
+          '',
         linkedin: currentCV?.header?.linkedin || linkedInUrl || '',
         portfolio: currentCV?.header?.portfolio || '',
         website: currentCV?.header?.website || '',
@@ -279,37 +293,34 @@ ${dto.userNotes || ''}`;
         (summaryParts.length
           ? `Motivated ${summaryParts.join(' ')}.`
           : 'Motivated student building a strong academic and professional profile.'),
-      experience:
-        currentCV?.experience?.length
-          ? currentCV.experience
-          : goalTitles.slice(0, 2).map((goal, index) => ({
-              id: `exp-${index + 1}`,
-              company: 'Edutu Experience',
-              role: goal || 'Student Project',
-              description: `Worked toward ${goal || 'career growth'} with focus on learning, execution, and measurable progress.`,
-              highlights: mergedSkills.slice(index * 2, index * 2 + 3),
-            })),
-      education:
-        currentCV?.education?.length
-          ? currentCV.education
-          : [
-              {
-                id: 'edu-1',
-                institution: profile?.institution || '',
-                degree: profile?.education_level || 'Student',
-                field: profile?.field_of_study || '',
-              },
-            ],
+      experience: currentCV?.experience?.length
+        ? currentCV.experience
+        : goalTitles.slice(0, 2).map((goal, index) => ({
+            id: `exp-${index + 1}`,
+            company: 'Edutu Experience',
+            role: goal || 'Student Project',
+            description: `Worked toward ${goal || 'career growth'} with focus on learning, execution, and measurable progress.`,
+            highlights: mergedSkills.slice(index * 2, index * 2 + 3),
+          })),
+      education: currentCV?.education?.length
+        ? currentCV.education
+        : [
+            {
+              id: 'edu-1',
+              institution: profile?.institution || '',
+              degree: profile?.education_level || 'Student',
+              field: profile?.field_of_study || '',
+            },
+          ],
       skills: mergedSkills,
       projects: currentCV?.projects || [],
-      achievements:
-        currentCV?.achievements?.length
-          ? currentCV.achievements
-          : goalTitles.slice(0, 3).map((goal, index) => ({
-              id: `ach-${index + 1}`,
-              title: goal,
-              description: `Pursued ${goal} through structured effort and skill development.`,
-            })),
+      achievements: currentCV?.achievements?.length
+        ? currentCV.achievements
+        : goalTitles.slice(0, 3).map((goal, index) => ({
+            id: `ach-${index + 1}`,
+            title: goal,
+            description: `Pursued ${goal} through structured effort and skill development.`,
+          })),
     };
   }
 
@@ -351,7 +362,8 @@ ${dto.userNotes || ''}`;
       Math.max(
         35,
         Math.round(
-          (matchedKeywords.length / Math.max(opportunityKeywords.length, 1)) * 100,
+          (matchedKeywords.length / Math.max(opportunityKeywords.length, 1)) *
+            100,
         ) + 35,
       ),
     );
@@ -360,7 +372,10 @@ ${dto.userNotes || ''}`;
       tailored_cv: {
         ...dto.currentCV,
         summary: tailoredSummary.trim(),
-        skills: this.unique([...(dto.currentCV.skills || []), ...matchedKeywords]),
+        skills: this.unique([
+          ...(dto.currentCV.skills || []),
+          ...matchedKeywords,
+        ]),
       },
       match_score: matchScore,
       improvements: [
@@ -379,7 +394,9 @@ ${dto.userNotes || ''}`;
 
   private unique(values: Array<string | null | undefined>) {
     return Array.from(
-      new Set(values.map((value) => String(value || '').trim()).filter(Boolean)),
+      new Set(
+        values.map((value) => String(value || '').trim()).filter(Boolean),
+      ),
     );
   }
 }

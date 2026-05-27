@@ -16,8 +16,21 @@ export const CreateRoadmapDtoSchema = z.object({
   title: z.string().min(3).max(200),
   slug: z.string().min(3).max(200).optional(),
   description: z.string().min(20).max(5000),
-  category: z.enum(['scholarship', 'career', 'education', 'skills', 'business', 'tech', 'personal', 'general']).default('general'),
-  difficulty: z.enum(['beginner', 'intermediate', 'advanced']).default('beginner'),
+  category: z
+    .enum([
+      'scholarship',
+      'career',
+      'education',
+      'skills',
+      'business',
+      'tech',
+      'personal',
+      'general',
+    ])
+    .default('general'),
+  difficulty: z
+    .enum(['beginner', 'intermediate', 'advanced'])
+    .default('beginner'),
   estimatedDuration: z.string().optional(),
   targetAudience: z.string().optional(),
   prerequisites: z.string().optional(),
@@ -31,12 +44,19 @@ export const CreateRoadmapDtoSchema = z.object({
   calendarSyncEnabled: z.boolean().optional().default(false),
   isFeatured: z.boolean().optional().default(false),
   steps: z.array(RoadmapStepDtoSchema).min(1, 'At least one step is required'),
-  resources: z.array(z.object({
-    id: z.string().optional(),
-    title: z.string().min(1),
-    url: z.string().url().optional().or(z.literal('')),
-    type: z.enum(['link', 'document', 'video', 'tool', 'other']).default('link'),
-  })).optional().default([]),
+  resources: z
+    .array(
+      z.object({
+        id: z.string().optional(),
+        title: z.string().min(1),
+        url: z.string().url().optional().or(z.literal('')),
+        type: z
+          .enum(['link', 'document', 'video', 'tool', 'other'])
+          .default('link'),
+      }),
+    )
+    .optional()
+    .default([]),
   relatedOpportunities: z.array(z.string()).optional().default([]),
 });
 
@@ -48,9 +68,15 @@ export const RoadmapIntentDtoSchema = z.object({
   goals: z.array(z.string()).optional(),
   currentLevel: z.enum(['beginner', 'intermediate', 'advanced']).optional(),
   targetCategory: z.string().optional(),
-  timeCommitment: z.enum(['under_1_month', '1_to_3_months', '3_to_6_months', '6_plus_months']).optional(),
-  learningStyle: z.enum(['self_paced', 'structured', 'hands_on', 'visual']).optional(),
-  preferredFormat: z.enum(['step_by_step', 'checklist', 'guide', 'interactive']).optional(),
+  timeCommitment: z
+    .enum(['under_1_month', '1_to_3_months', '3_to_6_months', '6_plus_months'])
+    .optional(),
+  learningStyle: z
+    .enum(['self_paced', 'structured', 'hands_on', 'visual'])
+    .optional(),
+  preferredFormat: z
+    .enum(['step_by_step', 'checklist', 'guide', 'interactive'])
+    .optional(),
   additionalContext: z.string().optional(),
 });
 

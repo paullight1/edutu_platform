@@ -29,24 +29,23 @@ import AchievementsScreen from './components/AchievementsScreen';
 import SavedOpportunities from './components/SavedOpportunities';
 import AppliedOpportunities from './components/AppliedOpportunities';
 import DeadlinesScreen from './components/DeadlinesScreen';
+import ChatInterface from './components/ChatInterface';
 import OpportunitiesPage from './components/OpportunitiesPage';
-import Wallet from './components/Wallet';
 import AddGoalScreen from './components/AddGoalScreen';
 import BillingPage from './components/BillingPage';
 import BillingSuccessPage from './components/BillingSuccessPage';
 import { PremiumGate } from './components/PremiumGate';
 import { useDarkMode } from './hooks/useDarkMode';
 import { Goal } from './hooks/useGoals';
-import { isNewUser } from './lib/auth';
+import { authService, isNewUser } from './lib/auth';
+import { isAdminAccessAllowed } from './lib/adminAccess';
 import { useAnalytics } from './hooks/useAnalytics';
 import { initializeCapacitor, configureStatusBar, isNativePlatform } from './lib/capacitor';
 import type { OnboardingProfileData, OnboardingState } from './types/onboarding';
 import type { AppUser } from './types/user';
-import type { Deadline } from './services/deadlines';
 import { fetchUserProfile, saveOnboardingProfile, extractOnboardingState } from './services/profile';
-import { getCreditBalance } from './services/credits';
 
-export type Screen = 'landing' | 'auth' | 'chat' | 'dashboard' | 'all-goals' | 'profile' | 'opportunity-detail' | 'all-opportunities' | 'roadmap' | 'opportunity-roadmap' | 'settings' | 'profile-edit' | 'notifications' | 'privacy' | 'help' | 'cv-management' | 'add-goal' | 'community-marketplace' | 'achievements' | 'package-detail' | 'personalization' | 'saved' | 'applied' | 'deadlines' | 'wallet' | 'about' | 'blog';
+export type Screen = 'landing' | 'auth' | 'dashboard' | 'all-goals' | 'profile' | 'opportunity-detail' | 'all-opportunities' | 'roadmap' | 'opportunity-roadmap' | 'settings' | 'profile-edit' | 'notifications' | 'privacy' | 'help' | 'cv-management' | 'add-goal' | 'community-marketplace' | 'achievements' | 'package-detail' | 'personalization' | 'saved' | 'applied' | 'deadlines' | 'about' | 'blog';
 
 import type { DashboardRef } from './components/Dashboard';
 
@@ -59,7 +58,6 @@ export function App() {
   const [showSplash, setShowSplash] = useState(false);
   const [onboardingState, setOnboardingState] = useState<OnboardingState | null>(null);
   const [manualOnboardingTrigger, setManualOnboardingTrigger] = useState(false);
-  const [userCredits, setUserCredits] = useState(0);
   const dashboardRef = useRef<DashboardRef>(null);
   const { isDarkMode } = useDarkMode();
   const { recordOpportunityExplored } = useAnalytics();
@@ -186,30 +184,6 @@ export function App() {
     };
   }, [clerkUser?.id, manualOnboardingTrigger]);
 
-  useEffect(() => {
-    if (!clerkUser?.id) {
-      setUserCredits(0);
-      return;
-    }
-
-    let isActive = true;
-
-    const fetchCredits = async () => {
-      try {
-        const balance = await getCreditBalance(clerkUser.id);
-        if (isActive) setUserCredits(balance);
-      } catch (error) {
-        console.error('Failed to load user credits', error);
-      }
-    };
-
-    void fetchCredits();
-
-    return () => {
-      isActive = false;
-    };
-  }, [clerkUser?.id]);
-
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -236,6 +210,61 @@ export function App() {
     }
   };
 
+  const resolveSignedInLandingPath = useCallback(async () => {
+    if (!clerkUser) return '/app/home';
+
+    const email = clerkUser.primaryEmailAddress?.emailAddress ?? null;
+    const publicRole = typeof clerkUser.publicMetadata?.role === 'string' ? clerkUser.publicMetadata.role : null;
+
+    if (isAdminAccessAllowed({ email, publicRole })) {
+      return '/admin';
+    }
+
+    try {
+      const profile = await authService.getProfile(clerkUser.id);
+      const profileRole = typeof profile?.role === 'string' ? profile.role : null;
+      if (isAdminAccessAllowed({ email, publicRole, profileRole })) {
+        return '/admin';
+      }
+    } catch (error) {
+      console.error('Failed to resolve post-auth admin access', error);
+    }
+
+    const storedFrom = sessionStorage.getItem('edutu_post_auth_from');
+    sessionStorage.removeItem('edutu_post_auth_from');
+
+    if (storedFrom && !storedFrom.startsWith('/auth')) {
+      return storedFrom;
+    }
+
+    return '/app/home';
+  }, [clerkUser]);
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !clerkUser) return;
+    if (
+      location.pathname !== '/auth' &&
+      location.pathname !== '/auth/callback' &&
+      location.pathname !== '/app/home'
+    ) {
+      return;
+    }
+
+    let isActive = true;
+
+    const redirectSignedInUser = async () => {
+      const targetPath = await resolveSignedInLandingPath();
+      if (location.pathname === '/app/home' && targetPath !== '/admin') return;
+      if (isActive) navigate(targetPath, { replace: true });
+    };
+
+    void redirectSignedInUser();
+
+    return () => {
+      isActive = false;
+    };
+  }, [isLoaded, isSignedIn, clerkUser, location.pathname, navigate, resolveSignedInLandingPath]);
+
   const handleAuthSuccess = useCallback((_userData: any) => {
     if (clerkUser?.id) return;
 
@@ -243,9 +272,12 @@ export function App() {
     setManualOnboardingTrigger(false);
     setShowSplash(true);
 
-    const state = window.history.state?.usr as { from?: { pathname: string } } | null;
-    navigate(state?.from?.pathname || '/app/home');
-  }, [clerkUser?.id, navigate]);
+    const state = window.history.state?.usr as { from?: { pathname: string; search?: string } } | null;
+    const from = state?.from;
+    if (from?.pathname) {
+      sessionStorage.setItem('edutu_post_auth_from', `${from.pathname}${from.search ?? ''}`);
+    }
+  }, [clerkUser?.id]);
 
   const handleRedoOnboarding = () => {
     if (!user) return;
@@ -292,7 +324,6 @@ export function App() {
         'dashboard': '/app/home',
         'opportunities': '/app/opportunities',
         'all-opportunities': '/app/opportunities',
-        'chat': '/app/chat',
         'profile': '/app/profile',
         'all-goals': '/app/goals',
         'community-marketplace': '/app/community',
@@ -301,10 +332,10 @@ export function App() {
         'saved': '/app/saved',
         'applied': '/app/applied',
         'deadlines': '/app/deadlines',
-        'wallet': '/app/wallet',
         'settings': '/app/settings',
         'cv-management': '/app/cv',
         'add-goal': '/app/add-goal',
+        'roadmap-templates': '/app/roadmap-templates',
         'creator-apply': '/app/creator/apply',
         'creator-dashboard': '/app/creator/dashboard',
         'creator-create': '/app/creator/create',
@@ -331,7 +362,7 @@ export function App() {
   };
 
   const handleSwipeLeft = () => {
-    const mainTabs = ['/app/home', '/app/opportunities', '/app/chat', '/app/community'];
+    const mainTabs = ['/app/home', '/app/opportunities', '/app/goals', '/app/saved', '/app/profile'];
     const currentIndex = mainTabs.indexOf(location.pathname);
     if (currentIndex >= 0 && currentIndex < mainTabs.length - 1) {
       navigate(mainTabs[currentIndex + 1]);
@@ -340,7 +371,7 @@ export function App() {
   };
 
   const handleSwipeRight = () => {
-    const mainTabs = ['/app/home', '/app/opportunities', '/app/chat', '/app/community'];
+    const mainTabs = ['/app/home', '/app/opportunities', '/app/goals', '/app/saved', '/app/profile'];
     const currentIndex = mainTabs.indexOf(location.pathname);
     if (currentIndex > 0) {
       navigate(mainTabs[currentIndex - 1]);
@@ -391,6 +422,8 @@ export function App() {
         <Route path="/opportunities" element={<OpportunitiesPage />} />
         <Route path="/blog" element={<BlogPage />} />
         <Route path="/mentor" element={<MentorPage />} />
+        <Route path="/login" element={<Navigate to="/auth?mode=sign-in" replace />} />
+        <Route path="/signup" element={<Navigate to="/auth?signup=true" replace />} />
         <Route path="/auth" element={<AuthScreen onAuthSuccess={handleAuthSuccess} />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/billing" element={<AuthGuard><BillingPage /></AuthGuard>} />
@@ -422,7 +455,6 @@ export function App() {
               onViewAllGoals={() => navigate('/app/goals')}
               onboardingProfile={onboardingState?.data ?? null}
               onRedoOnboarding={handleRedoOnboarding}
-              userCredits={userCredits}
             />
           } />
           <Route path="opportunities" element={
@@ -431,14 +463,7 @@ export function App() {
               onSelectOpportunity={(opportunity) => navigate(`/app/opportunity/${opportunity.id}`)}
             />
           } />
-          <Route path="chat" element={
-            <PremiumGate feature="ai_chat">
-              <LazyRoute
-                loader={() => import('./components/ChatInterface')}
-                componentProps={{ user, onBack: () => handleBack() }}
-              />
-            </PremiumGate>
-          } />
+          <Route path="chat" element={<ChatInterface user={user} onBack={() => handleBack('profile')} />} />
           <Route path="profile" element={
             <LazyRoute
               loader={() => import('./components/Profile')}
@@ -473,30 +498,38 @@ export function App() {
           <Route path="saved" element={
             <SavedOpportunities
               onBack={() => handleBack('profile')}
+              onExplore={() => navigate('/app/opportunities')}
               onSelectOpportunity={(opportunityId) => navigate(`/app/opportunity/${opportunityId}`)}
             />
           } />
-          <Route path="applied" element={<AppliedOpportunities onBack={() => handleBack('profile')} />} />
-          <Route path="deadlines" element={
-            user?.id ? (
-              <DeadlinesScreen
-                userId={user.id}
-                onBack={() => handleBack('profile')}
-                onSelectDeadline={(deadline: Deadline) => {
-                  if (deadline.type === 'goal') {
-                    navigate(`/app/goal/${deadline.sourceId}/roadmap`);
-                  } else {
-                    navigate(`/app/opportunity/${deadline.sourceId}`);
-                  }
-                }}
-              />
-            ) : (
-              <Navigate to="/auth" replace />
-            )
+          <Route path="applied" element={
+            <AppliedOpportunities
+              onBack={() => handleBack('profile')}
+              onExplore={() => navigate('/app/opportunities')}
+            />
           } />
-          <Route path="wallet" element={<Wallet onBack={() => handleBack('profile')} />} />
+          <Route path="deadlines" element={
+            <DeadlinesScreen
+              userId={user?.id || ''}
+              onBack={() => handleBack('profile')}
+              onSelectDeadline={(deadline) => {
+                if (deadline.type === 'goal') navigate(`/app/goal/${deadline.sourceId}/roadmap`);
+                else navigate(`/app/opportunity/${deadline.sourceId}`);
+              }}
+            />
+          } />
+          <Route path="wallet" element={<Navigate to="/app/home" replace />} />
           <Route path="add-goal" element={
             <AddGoalScreen
+              onBack={() => handleBack()}
+              onGoalCreated={handleGoalCreated}
+              onNavigate={handleNavigate}
+              user={user}
+            />
+          } />
+          <Route path="roadmap-templates" element={
+            <AddGoalScreen
+              initialStep="template"
               onBack={() => handleBack()}
               onGoalCreated={handleGoalCreated}
               onNavigate={handleNavigate}
@@ -522,7 +555,8 @@ export function App() {
                 onNavigate: handleNavigate,
                 onLogout: handleLogout,
                 onRedoOnboarding: handleRedoOnboarding,
-                onboardingProfile: onboardingState?.data ?? null
+                onboardingProfile: onboardingState?.data ?? null,
+                user
               }}
             />
           } />

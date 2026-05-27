@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+} from '@nestjs/common';
 import { QuizService } from './quiz.service';
 import { GenerateQuizDto, SubmitQuizDto } from './dto/generate-quiz.dto';
 import { CurrentUser } from '../auth/current-user.decorator';

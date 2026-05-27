@@ -63,13 +63,6 @@ export function PremiumGate({ feature, children }: PremiumGateProps) {
             <Sparkles size={18} />
             View Pro plans
           </button>
-          <button
-            type="button"
-            onClick={() => navigate('/app/wallet')}
-            className="inline-flex h-11 items-center justify-center rounded-md border border-gray-300 px-5 text-sm font-semibold text-gray-800 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-900"
-          >
-            View wallet
-          </button>
         </div>
       </section>
     </div>

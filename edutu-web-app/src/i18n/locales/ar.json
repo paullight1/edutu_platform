@@ -163,7 +163,11 @@
     },
     "navigation": {
         "home": "الرئيسية",
+        "discover": "اكتشف",
         "explore": "استكشاف",
+        "plan": "الخطة",
+        "track": "المتابعة",
+        "me": "أنا",
         "ai": "Edutu AI",
         "market": "السوق",
         "more": "المزيد",

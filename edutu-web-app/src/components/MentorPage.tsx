@@ -13,9 +13,13 @@ import {
     Globe,
     Heart,
     BookOpen,
-    ArrowLeft
+    ArrowLeft,
+    ShieldCheck,
+    MessageCircle,
+    TrendingUp,
+    PlayCircle
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { useAuth } from '@clerk/clerk-react';
@@ -49,9 +53,33 @@ const CONTENT_TYPES = [
     { id: 'resource', label: 'Resources', icon: Star, color: '#ff6b00', desc: 'Study guides & materials' },
 ];
 
+const LANDING_OPTIONS = [
+    {
+        title: 'Become a Mentor',
+        desc: 'Guide learners through scholarships, internships, career decisions, interviews, and applications.',
+        icon: Users,
+        color: '#146ef5',
+    },
+    {
+        title: 'Share Roadmaps',
+        desc: 'Turn your proven journey into structured steps learners can follow and track inside Edutu.',
+        icon: TrendingUp,
+        color: '#7a3dff',
+    },
+    {
+        title: 'Create Resources',
+        desc: 'Publish templates, checklists, guides, study plans, and application materials that help learners move faster.',
+        icon: BookOpen,
+        color: '#00b86b',
+    },
+];
+
 const MentorPage: React.FC = () => {
     const { isDarkMode, toggleDarkMode } = useDarkMode();
-    const { userId } = useAuth();
+    const { userId, isSignedIn } = useAuth();
+    const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [showApplication, setShowApplication] = useState(searchParams.get('apply') === '1' && Boolean(userId));
     const [currentStep, setCurrentStep] = useState<MentorStep>('intro');
     const [formData, setFormData] = useState<MentorFormData>({
         displayName: '',
@@ -66,6 +94,30 @@ const MentorPage: React.FC = () => {
     const [isSubmitted, setIsSubmitted] = useState(false);
 
     const stepIndex = MENTOR_STEPS.indexOf(currentStep);
+
+    React.useEffect(() => {
+        if (searchParams.get('apply') === '1' && userId) {
+            setShowApplication(true);
+        }
+    }, [searchParams, userId]);
+
+    const startApplication = () => {
+        if (!isSignedIn) {
+            navigate('/auth', { state: { from: { pathname: '/mentor', search: '?apply=1' } } });
+            return;
+        }
+
+        setSearchParams({ apply: '1' });
+        setShowApplication(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const showLandingPage = () => {
+        setSearchParams({});
+        setShowApplication(false);
+        setCurrentStep('intro');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
 
     const updateField = (field: keyof MentorFormData, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -82,14 +134,17 @@ const MentorPage: React.FC = () => {
     };
 
     const handleSubmit = async () => {
+        if (!userId) {
+            navigate('/auth', { state: { from: { pathname: '/mentor', search: '?apply=1' } } });
+            return;
+        }
+
         setIsSubmitting(true);
         try {
-            const currentUserId = userId || 'anonymous';
-
             const { error } = await supabase
                 .from('creator_applications')
                 .insert({
-                    userId: currentUserId,
+                    userId,
                     displayName: formData.displayName,
                     bio: formData.bio,
                     contentType: formData.contentType,
@@ -121,6 +176,207 @@ const MentorPage: React.FC = () => {
             setCurrentStep(MENTOR_STEPS[idx - 1]);
         }
     };
+
+    if (!showApplication) {
+        return (
+            <div className="min-h-screen bg-surface-body" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808' }}>
+                <header className="sticky top-0 z-50 backdrop-blur-md" style={{ backgroundColor: isDarkMode ? 'rgba(10,10,10,0.9)' : 'rgba(255,255,255,0.95)', borderBottom: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}` }}>
+                    <div className="max-w-[1200px] mx-auto px-4 sm:px-6 h-[64px] flex items-center justify-between">
+                        <Link to="/" className="flex items-center gap-2">
+                            <img src="/edutu-logo.png" alt="Edutu" className="h-8 w-8 object-contain" />
+                            <span className="font-bold text-xl tracking-tight" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>edutu</span>
+                        </Link>
+                        <nav className="hidden md:flex items-center gap-8 text-sm font-medium" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
+                            <a href="#why">Why mentor</a>
+                            <a href="#options">Ways to contribute</a>
+                            <a href="#process">How it works</a>
+                        </nav>
+                        <div className="flex items-center gap-3">
+                            <button
+                                type="button"
+                                onClick={toggleDarkMode}
+                                className="h-10 w-10 rounded-xl border flex items-center justify-center"
+                                style={{ borderColor: isDarkMode ? '#2a2a2a' : '#e8e8e8' }}
+                                aria-label="Toggle theme"
+                            >
+                                {isDarkMode ? <Sun size={17} /> : <Moon size={17} />}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={startApplication}
+                                className="hidden sm:inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-600/20"
+                                style={{ backgroundColor: '#146ef5', color: '#ffffff' }}
+                            >
+                                Become a Mentor <ArrowRight size={16} />
+                            </button>
+                        </div>
+                    </div>
+                </header>
+
+                <main>
+                    <section className="relative overflow-hidden">
+                        <div className="absolute inset-0 opacity-40" style={{ background: isDarkMode ? 'radial-gradient(circle at 50% 10%, rgba(20,110,245,0.24), transparent 34%)' : 'radial-gradient(circle at 50% 10%, rgba(20,110,245,0.12), transparent 35%)' }} />
+                        <div className="relative max-w-[1200px] mx-auto px-4 sm:px-6 py-20 md:py-28 text-center">
+                            <motion.div
+                                initial={{ opacity: 0, y: 14 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="inline-flex items-center gap-2 px-4 py-2 mb-8 rounded-full"
+                                style={{
+                                    backgroundColor: isDarkMode ? 'rgba(20,110,245,0.08)' : 'rgba(20,110,245,0.06)',
+                                    border: `1px solid ${isDarkMode ? 'rgba(20,110,245,0.18)' : 'rgba(20,110,245,0.14)'}`,
+                                    color: '#146ef5',
+                                }}
+                            >
+                                <Sparkles size={14} />
+                                <span className="text-xs font-bold tracking-widest">MENTOR WITH EDUTU</span>
+                            </motion.div>
+
+                            <motion.h1
+                                initial={{ opacity: 0, y: 18 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.05 }}
+                                className="max-w-4xl mx-auto text-5xl md:text-7xl font-bold tracking-tight leading-[1.02] mb-7"
+                                style={{ color: isDarkMode ? '#fafafa' : '#080808' }}
+                            >
+                                Help ambitious learners turn opportunity into{' '}
+                                <span style={{ color: '#146ef5' }}>real outcomes.</span>
+                            </motion.h1>
+
+                            <motion.p
+                                initial={{ opacity: 0, y: 16 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.1 }}
+                                className="max-w-2xl mx-auto text-lg md:text-xl leading-relaxed mb-10"
+                                style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}
+                            >
+                                Join Edutu as a mentor, roadmap creator, or resource expert. Share what worked for you and help students prepare stronger applications, career plans, and next steps.
+                            </motion.p>
+
+                            <motion.div
+                                initial={{ opacity: 0, y: 16 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.15 }}
+                                className="flex flex-col sm:flex-row items-center justify-center gap-4"
+                            >
+                                <button
+                                    type="button"
+                                    onClick={startApplication}
+                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl text-sm font-bold shadow-xl shadow-blue-600/20"
+                                    style={{ backgroundColor: '#146ef5', color: '#ffffff' }}
+                                >
+                                    Become a Mentor <ArrowRight size={16} />
+                                </button>
+                                <a
+                                    href="#options"
+                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl text-sm font-bold border"
+                                    style={{ borderColor: isDarkMode ? '#2a2a2a' : '#d8d8d8', color: isDarkMode ? '#fafafa' : '#080808' }}
+                                >
+                                    Explore Options <PlayCircle size={16} />
+                                </a>
+                            </motion.div>
+                        </div>
+                    </section>
+
+                    <section id="why" className="max-w-[1200px] mx-auto px-4 sm:px-6 py-12">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {[
+                                { num: '50K+', label: 'Active learners', icon: Users, color: '#146ef5' },
+                                { num: '12K+', label: 'Opportunities tracked', icon: Award, color: '#7a3dff' },
+                                { num: '80+', label: 'Countries reached', icon: Globe, color: '#00d722' },
+                            ].map((stat) => (
+                                <div
+                                    key={stat.label}
+                                    className="p-7 rounded-2xl border"
+                                    style={{ backgroundColor: isDarkMode ? '#111' : '#fafafa', borderColor: isDarkMode ? '#1e1e1e' : '#e8e8e8' }}
+                                >
+                                    <stat.icon size={22} style={{ color: stat.color }} />
+                                    <div className="mt-5 text-3xl font-bold" style={{ color: stat.color }}>{stat.num}</div>
+                                    <div className="mt-2 text-xs font-bold tracking-[0.16em] uppercase" style={{ color: isDarkMode ? '#888' : '#666' }}>{stat.label}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+
+                    <section id="options" className="max-w-[1200px] mx-auto px-4 sm:px-6 py-16">
+                        <div className="text-center mb-10">
+                            <h2 className="text-3xl md:text-4xl font-bold mb-3" style={{ color: isDarkMode ? '#fafafa' : '#080808' }}>
+                                Choose how you want to help
+                            </h2>
+                            <p className="max-w-xl mx-auto text-base" style={{ color: isDarkMode ? '#888' : '#666' }}>
+                                Start with mentorship, resources, or repeatable roadmaps. Edutu turns your expertise into structured learner support.
+                            </p>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                            {LANDING_OPTIONS.map((option) => (
+                                <button
+                                    type="button"
+                                    key={option.title}
+                                    onClick={startApplication}
+                                    className="group p-7 rounded-3xl border text-left transition-all hover:-translate-y-1"
+                                    style={{ backgroundColor: isDarkMode ? '#111' : '#ffffff', borderColor: isDarkMode ? '#1e1e1e' : '#e8e8e8' }}
+                                >
+                                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-7" style={{ backgroundColor: `${option.color}14`, color: option.color }}>
+                                        <option.icon size={22} />
+                                    </div>
+                                    <h3 className="text-xl font-bold mb-3" style={{ color: isDarkMode ? '#fafafa' : '#080808' }}>{option.title}</h3>
+                                    <p className="text-sm leading-relaxed mb-6" style={{ color: isDarkMode ? '#888' : '#666' }}>{option.desc}</p>
+                                    <span className="inline-flex items-center gap-2 text-sm font-bold" style={{ color: option.color }}>
+                                        Apply now <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </section>
+
+                    <section id="process" className="max-w-[1200px] mx-auto px-4 sm:px-6 py-16">
+                        <div className="rounded-[28px] border p-6 md:p-10" style={{ backgroundColor: isDarkMode ? '#111' : '#fafafa', borderColor: isDarkMode ? '#1e1e1e' : '#e8e8e8' }}>
+                            <div className="grid grid-cols-1 md:grid-cols-[0.9fr_1.1fr] gap-8 items-center">
+                                <div>
+                                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold mb-5" style={{ backgroundColor: '#146ef510', color: '#146ef5' }}>
+                                        <ShieldCheck size={14} /> Verified mentor flow
+                                    </div>
+                                    <h2 className="text-3xl font-bold mb-4" style={{ color: isDarkMode ? '#fafafa' : '#080808' }}>Apply once. Support learners at scale.</h2>
+                                    <p className="text-base leading-relaxed" style={{ color: isDarkMode ? '#888' : '#666' }}>
+                                        We review each mentor application so learners get trusted, relevant guidance. Once accepted, you can publish resources, create roadmaps, and offer mentorship inside Edutu.
+                                    </p>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    {[
+                                        { title: 'Sign up', desc: 'Create or access your Edutu account.' },
+                                        { title: 'Apply', desc: 'Tell us your expertise and mentoring focus.' },
+                                        { title: 'Launch', desc: 'Start helping learners after approval.' },
+                                    ].map((step, index) => (
+                                        <div key={step.title} className="p-5 rounded-2xl border" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#ffffff', borderColor: isDarkMode ? '#1e1e1e' : '#e8e8e8' }}>
+                                            <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold mb-5" style={{ backgroundColor: '#146ef5', color: '#fff' }}>{index + 1}</div>
+                                            <h3 className="font-bold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#080808' }}>{step.title}</h3>
+                                            <p className="text-sm leading-relaxed" style={{ color: isDarkMode ? '#888' : '#666' }}>{step.desc}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section className="max-w-[1200px] mx-auto px-4 sm:px-6 py-16 text-center">
+                        <div className="rounded-[28px] p-8 md:p-12" style={{ background: 'linear-gradient(135deg, #146ef5, #7a3dff)', color: '#ffffff' }}>
+                            <MessageCircle size={30} className="mx-auto mb-5" />
+                            <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to help the next learner win?</h2>
+                            <p className="max-w-2xl mx-auto text-white/78 mb-8">
+                                Start your application and show us how your experience can help learners discover, prepare for, and win global opportunities.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={startApplication}
+                                className="inline-flex items-center gap-2 px-8 py-4 rounded-xl text-sm font-bold bg-white text-[#146ef5]"
+                            >
+                                Become a Mentor <ArrowRight size={16} />
+                            </button>
+                        </div>
+                    </section>
+                </main>
+            </div>
+        );
+    }
 
     if (isSubmitted) {
         return (
@@ -177,9 +433,9 @@ const MentorPage: React.FC = () => {
                         <span className="font-bold text-xl tracking-tight" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>edutu</span>
                     </Link>
                     <div className="flex items-center gap-4">
-                        <Link to="/" className="text-sm font-medium" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                            Back to Home
-                        </Link>
+                        <button onClick={showLandingPage} className="text-sm font-medium" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
+                            Mentor Overview
+                        </button>
                     </div>
                 </div>
             </header>

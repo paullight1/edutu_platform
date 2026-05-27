@@ -11,34 +11,31 @@ import {
   Globe,
   LayoutGrid,
   List,
-  MapPin,
   Menu,
-  MessageCircle,
   Moon,
   Send,
   Settings,
   Sun,
   Target,
-  TrendingUp,
   Sparkles,
   Trophy,
   Users,
-  Wallet,
   X,
   UserCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Button from './ui/Button';
-import { SkeletonStatsCard, SkeletonCard } from './ui/Skeleton';
-import { EmptyOpportunities } from './ui/EmptyState';
+import { EmptyState } from './ui/EmptyState';
 import NotificationInbox from './NotificationInbox';
 import CalendarStrip from './CalendarStrip';
+import type { CalendarEvent } from './CalendarStrip';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { useTheme } from '../hooks/useTheme';
 import { useGoals } from '../hooks/useGoals';
 import { useOpportunities } from '../hooks/useOpportunities';
 import { usePersonalizedOpportunities } from '../hooks/usePersonalizedOpportunities';
 import { useUserStats } from '../hooks/useUserStats';
+import { useNotifications } from '../hooks/useNotifications';
 import type { AppUser } from '../types/user';
 import type { OnboardingProfileData } from '../types/onboarding';
 import { useTranslation } from 'react-i18next';
@@ -50,6 +47,9 @@ import { fetchUserProfile } from '../services/profile';
 import { supabase } from '../lib/supabaseClient';
 import ImageWithFallback from './ImageWithFallback';
 
+const HOME_FEED_BATCH_SIZE = 8;
+const HOME_FEED_PROMO_INTERVAL = 6;
+
 interface DashboardProps {
   user: AppUser | null;
   onOpportunityClick: (opportunity: any) => void;
@@ -60,7 +60,6 @@ interface DashboardProps {
   onViewAllGoals?: () => void;
   onboardingProfile?: OnboardingProfileData | null;
   onRedoOnboarding?: () => void;
-  userCredits?: number;
 }
 
 export interface DashboardRef {
@@ -73,28 +72,28 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
   onViewAllOpportunities,
   onGoalClick,
   onNavigate,
-  onAddGoal,
-  onViewAllGoals,
-  onboardingProfile,
-  userCredits = 0
+  onboardingProfile
 }, ref) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [unreadCount] = useState(3);
+  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+  const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
   const [dismissBanner, setDismissBanner] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
+  const [homeFeedLimit, setHomeFeedLimit] = useState(HOME_FEED_BATCH_SIZE);
   const { isDarkMode } = useDarkMode();
   const { toggleDarkMode } = useTheme();
   const { goals } = useGoals();
   const opportunitiesRefreshRef = useRef<() => void>();
+  const homeFeedSentinelRef = useRef<HTMLDivElement | null>(null);
   const { t } = useTranslation();
   const [bookmarks, setBookmarks] = useState<any[]>([]);
   const [applications, setApplications] = useState<any[]>([]);
   const [profileScore, setProfileScore] = useState<{ score: number; missingFields: string[]; isMatchEnabled: boolean } | null>(null);
-  const [profileLoading, setProfileLoading] = useState(true);
 
   // Real-time user statistics
   const userStats = useUserStats(user?.id);
+  const { unreadCount } = useNotifications();
 
   const opportunities = useOpportunities();
   const personalized = usePersonalizedOpportunities();
@@ -110,7 +109,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
 
   useEffect(() => {
     if (!user?.id) {
-      setProfileLoading(false);
       return;
     }
     const userId = user.id;
@@ -126,8 +124,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
         setProfileScore(completeness);
       } catch (e) {
         console.error('Failed to load profile completeness:', e);
-      } finally {
-        setProfileLoading(false);
       }
     }
 
@@ -154,15 +150,89 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
     loadDeadlines();
   }, [user?.id]);
 
-  const featuredOpportunities = useMemo(() => {
-    if (Array.isArray(opportunityFeed)) {
-      return opportunityFeed.slice(0, 3).map(item => {
-        if ('opportunity' in item) return item.opportunity;
-        return item;
-      });
-    }
-    return [];
+  const normalizedOpportunityFeed = useMemo(() => {
+    if (!Array.isArray(opportunityFeed)) return [];
+    return opportunityFeed
+      .map((item: any) => (item && typeof item === 'object' && 'opportunity' in item ? item.opportunity : item))
+      .filter(Boolean);
   }, [opportunityFeed]);
+
+  const visibleHomeOpportunities = useMemo(
+    () => normalizedOpportunityFeed.slice(0, homeFeedLimit),
+    [normalizedOpportunityFeed, homeFeedLimit]
+  );
+
+  const homePromos = useMemo(() => [
+    {
+      title: 'Build a roadmap',
+      copy: 'Turn this opportunity search into a weekly action plan.',
+      action: 'Explore roadmaps',
+      screen: 'roadmap-templates',
+    },
+    {
+      title: 'Improve your matches',
+      copy: 'Complete your profile so Edutu can rank opportunities better.',
+      action: 'Personalize',
+      screen: 'personalization',
+    },
+    {
+      title: 'Share a path',
+      copy: 'Create verified roadmaps other learners can follow.',
+      action: 'Creator tools',
+      screen: 'community-marketplace',
+    },
+  ], []);
+
+  const homeFeedItems = useMemo(() => {
+    const items: Array<
+      | { type: 'opportunity'; key: string; opportunity: any }
+      | { type: 'promo'; key: string; promo: (typeof homePromos)[number] }
+    > = [];
+
+    visibleHomeOpportunities.forEach((opportunity: any, index) => {
+      items.push({
+        type: 'opportunity',
+        key: opportunity?.id ? `opportunity-${opportunity.id}` : `opportunity-${index}`,
+        opportunity,
+      });
+
+      if ((index + 1) % HOME_FEED_PROMO_INTERVAL === 0) {
+        items.push({
+          type: 'promo',
+          key: `promo-${index}`,
+          promo: homePromos[Math.floor(index / HOME_FEED_PROMO_INTERVAL) % homePromos.length],
+        });
+      }
+    });
+
+    return items;
+  }, [homePromos, visibleHomeOpportunities]);
+
+  useEffect(() => {
+    setHomeFeedLimit(HOME_FEED_BATCH_SIZE);
+  }, [normalizedOpportunityFeed.length]);
+
+  useEffect(() => {
+    const sentinel = homeFeedSentinelRef.current;
+    if (!sentinel || opportunitiesLoading) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (!entry.isIntersecting) return;
+
+        setHomeFeedLimit((current) => {
+          if (current >= normalizedOpportunityFeed.length) return current;
+          return Math.min(current + HOME_FEED_BATCH_SIZE, normalizedOpportunityFeed.length);
+        });
+      },
+      { rootMargin: '420px 0px' }
+    );
+
+    observer.observe(sentinel);
+
+    return () => observer.disconnect();
+  }, [normalizedOpportunityFeed.length, opportunitiesLoading]);
 
   const formatUpdatedAt = (updatedAt: string) => {
     const diff = Date.now() - new Date(updatedAt).getTime();
@@ -173,14 +243,26 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
     return new Date(updatedAt).toLocaleDateString();
   };
 
-  const activeGoals = useMemo(() => goals.filter((g) => g.status === 'active'), [goals]);
   const completedGoals = useMemo(() => goals.filter((g) => g.status === 'completed'), [goals]);
-  const focusGoals = useMemo(() => activeGoals.slice(0, 3), [activeGoals]);
 
   const menuItems = [
     { id: 'all-goals', label: 'All Goals', icon: <CheckCircle2 size={18} /> },
     { id: 'opportunities', label: 'Opportunities', icon: <Briefcase size={18} /> },
     { id: 'settings', label: 'Settings', icon: <Settings size={18} /> }
+  ];
+
+  const desktopPrimaryItems = [
+    { id: 'home', label: 'Home', icon: <LayoutGrid size={18} />, active: true },
+    { id: 'opportunities', label: 'Opportunities', icon: <Briefcase size={18} /> },
+    { id: 'all-goals', label: 'All Goals', icon: <Target size={18} /> },
+    { id: 'community', label: 'Community', icon: <Users size={18} /> },
+    { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
+  ];
+
+  const desktopQuickItems = [
+    { id: 'saved', label: 'Saved', icon: <Bookmark size={17} />, count: bookmarks.length },
+    { id: 'applied', label: 'Applied', icon: <Send size={17} />, count: applications.length },
+    { id: 'roadmap-templates', label: 'Roadmaps', icon: <Target size={17} /> },
   ];
 
   // Real-time stats using the hook data
@@ -205,7 +287,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
     };
 
     const getConsistencyHelper = () => {
-      if (userStats.consistency >= 80) return 'Momentum looks strong ??';
+      if (userStats.consistency >= 80) return 'Momentum looks strong';
       if (userStats.consistency >= 50) return 'Keep it going!';
       if (userStats.consistency > 0) return 'Room to improve';
       return 'Start tracking today';
@@ -215,25 +297,33 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
       {
         label: t('dashboard.stats.goalsActive'),
         value: userStats.activeGoals.toString(),
-        helper: `${userStats.completedGoals} ${t('dashboard.stats.completed').toLowerCase()}`
+        helper: `${userStats.completedGoals} ${t('dashboard.stats.completed').toLowerCase()}`,
+        icon: <Target size={18} />,
+        tone: 'brand'
       },
       {
         label: 'Consistency',
         value: `${userStats.consistency}%`,
-        helper: getConsistencyHelper()
+        helper: getConsistencyHelper(),
+        icon: <Trophy size={18} />,
+        tone: 'emerald'
       },
       {
         label: 'Avg progress',
         value: `${userStats.avgProgress}%`,
-        helper: 'Across active goals'
+        helper: 'Across active goals',
+        icon: <CheckCircle2 size={18} />,
+        tone: 'indigo'
       },
       {
         label: 'Next deadline',
         value: formatDeadline(),
-        helper: getDeadlineHelper()
+        helper: getDeadlineHelper(),
+        icon: <Clock size={18} />,
+        tone: 'amber'
       }
     ];
-  }, [userStats]);
+  }, [t, userStats]);
 
   const recentWins = useMemo(() => {
     const goalWins = completedGoals.map(g => ({
@@ -247,6 +337,97 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
 
   const handleMenuItemClick = (id: string) => {
     if (onNavigate) onNavigate(id);
+  };
+
+  const handleCalendarEventClick = (event: CalendarEvent) => {
+    if (event.type === 'goal') {
+      onGoalClick(event.id);
+      return;
+    }
+
+    if (event.type === 'bookmark') {
+      const bookmark = bookmarks.find((item) => item.id === event.id);
+      if (bookmark?.opportunity_id) {
+        onOpportunityClick({
+          id: bookmark.opportunity_id,
+          title: bookmark.opportunity_title,
+          category: bookmark.opportunity_category
+        });
+        return;
+      }
+      onNavigate?.('saved');
+      return;
+    }
+
+    const application = applications.find((item) => item.id === event.id);
+    if (application?.opportunity_id) {
+      onOpportunityClick({
+        id: application.opportunity_id,
+        title: application.opportunity_title,
+        category: application.opportunity_category
+      });
+      return;
+    }
+    onNavigate?.('applied');
+  };
+
+  const nextAction = useMemo(() => {
+    if (profileScore && profileScore.score < 60) {
+      return {
+        eyebrow: 'Profile setup',
+        title: 'Improve your opportunity matches',
+        copy: `Your profile is ${profileScore.score}% complete. Add the missing details so recommendations can be ranked with more confidence.`,
+        action: 'Complete profile',
+        onClick: () => onNavigate?.('personalization'),
+        icon: <UserCheck size={20} />
+      };
+    }
+
+    if (userStats.nextDeadline.date) {
+      return {
+        eyebrow: 'Deadline focus',
+        title: userStats.nextDeadline.daysUntil === 0 ? 'A deadline is due today' : 'Stay ahead of your next deadline',
+        copy: stats[3]?.helper === 'Set a target'
+          ? 'Review your goals and saved opportunities to keep your plan current.'
+          : `${stats[3]?.helper}. Open your calendar items and decide the next task now.`,
+        action: 'Review deadlines',
+        onClick: () => onNavigate?.('deadlines'),
+        icon: <Calendar size={20} />
+      };
+    }
+
+    if (userStats.activeGoals === 0) {
+      return {
+        eyebrow: 'Planning',
+        title: 'Create your first active goal',
+        copy: 'Turn an opportunity or career target into a roadmap so the dashboard can track real progress.',
+        action: 'Add goal',
+        onClick: () => onNavigate?.('add-goal'),
+        icon: <Target size={20} />
+      };
+    }
+
+    return {
+      eyebrow: 'Opportunities',
+      title: 'Explore matched opportunities',
+      copy: 'Review fresh recommendations and save the ones worth preparing for.',
+      action: 'Browse matches',
+      onClick: onViewAllOpportunities,
+      icon: <Briefcase size={20} />
+    };
+  }, [onNavigate, onViewAllOpportunities, profileScore, stats, userStats.activeGoals, userStats.nextDeadline.date, userStats.nextDeadline.daysUntil]);
+
+  const getStatToneClasses = (tone: string) => {
+    switch (tone) {
+      case 'emerald':
+        return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400';
+      case 'indigo':
+        return 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400';
+      case 'amber':
+        return 'bg-amber-500/10 text-amber-600 dark:text-amber-400';
+      default:
+        return 'bg-brand-500/10 text-brand-600 dark:text-brand-400';
+    }
   };
 
   return (
@@ -267,24 +448,62 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
               </span>
             </div>
 
-            {/* Desktop Nav */}
-            <nav className="hidden md:flex items-center gap-1">
-              {menuItems.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => handleMenuItemClick(item.id)}
-                  className={`px-4 py-2 text-sm font-medium rounded-xl transition-all ${isDarkMode
-                    ? 'text-slate-400 hover:text-white hover:bg-white/5'
-                    : 'text-slate-600 hover:text-brand-600 hover:bg-brand-50'
-                    }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </nav>
-
             <div className="flex items-center gap-3">
+              <div className="relative hidden md:block">
+                <button
+                  type="button"
+                  onClick={() => setShowHeaderMenu((value) => !value)}
+                  className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-bold transition-all ${isDarkMode
+                    ? 'border-white/10 bg-white/5 text-slate-200 hover:bg-white/10'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  aria-expanded={showHeaderMenu}
+                  aria-label="Open dashboard menu"
+                >
+                  <Menu size={17} />
+                  Menu
+                </button>
+
+                <AnimatePresence>
+                  {showHeaderMenu && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                      transition={{ duration: 0.16 }}
+                      className={`absolute right-0 top-full mt-3 w-64 rounded-2xl border p-2 shadow-2xl ${isDarkMode
+                        ? 'border-white/10 bg-gray-950 text-white shadow-black/40'
+                        : 'border-slate-200 bg-white text-slate-900 shadow-slate-200/80'
+                        }`}
+                    >
+                      {[
+                        { id: 'personalization', label: 'Personalization', icon: <Sparkles size={17} /> },
+                        { id: 'notifications', label: 'Notifications', icon: <Bell size={17} /> },
+                        { id: 'settings', label: 'Settings', icon: <Settings size={17} /> },
+                        { id: 'help', label: 'Help Center', icon: <Globe size={17} /> },
+                      ].map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            if (item.id === 'notifications') setShowNotifications(true);
+                            else onNavigate?.(item.id);
+                            setShowHeaderMenu(false);
+                          }}
+                          className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-colors ${isDarkMode
+                            ? 'text-slate-300 hover:bg-white/10 hover:text-white'
+                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                            }`}
+                        >
+                          {item.icon}
+                          {item.label}
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
               {/* Notification Button */}
               <button
                 type="button"
@@ -381,7 +600,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
                 <button
                   type="button"
                   onClick={() => {
-                    onNavigate?.('deadlines');
+                    onNavigate?.('roadmap-templates');
                     setShowMobileMenu(false);
                   }}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isDarkMode
@@ -389,22 +608,8 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
                     : 'text-slate-600 hover:text-brand-600 hover:bg-brand-50'
                     }`}
                 >
-                  <Clock size={18} />
-                  Deadlines
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onNavigate?.('wallet');
-                    setShowMobileMenu(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isDarkMode
-                    ? 'text-slate-300 hover:text-white hover:bg-white/5'
-                    : 'text-slate-600 hover:text-brand-600 hover:bg-brand-50'
-                    }`}
-                >
-                  <Wallet size={18} />
-                  Wallet
+                  <Target size={18} />
+                  Roadmaps
                 </button>
               </div>
             </motion.div>
@@ -412,32 +617,150 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
         </AnimatePresence>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
-        {/* Ad Banner Placeholder */}
+      <button
+        type="button"
+        onClick={() => setIsDesktopSidebarOpen((value) => !value)}
+        className={`hidden lg:flex fixed top-24 z-50 h-11 w-11 items-center justify-center rounded-2xl border shadow-lg transition-all duration-300 ${isDesktopSidebarOpen ? 'left-[292px]' : 'left-4'} ${isDarkMode
+          ? 'border-white/10 bg-gray-900 text-white shadow-black/30 hover:bg-gray-800'
+          : 'border-slate-200 bg-white text-slate-700 shadow-slate-200/80 hover:bg-slate-50'
+          }`}
+        aria-label={isDesktopSidebarOpen ? 'Collapse sidebar' : 'Open sidebar'}
+        aria-expanded={isDesktopSidebarOpen}
+      >
+        {isDesktopSidebarOpen ? <X size={18} /> : <Menu size={18} />}
+      </button>
+
+      <aside
+        className={`hidden lg:block fixed left-0 top-16 bottom-0 z-40 w-[280px] border-r transition-transform duration-300 ${isDesktopSidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${isDarkMode
+          ? 'border-white/10 bg-gray-950/95'
+          : 'border-slate-200 bg-white/95'
+          } backdrop-blur-xl`}
+      >
+        <div className="h-full overflow-y-auto px-4 py-6">
+          <div className={`rounded-[20px] border p-4 shadow-sm ${isDarkMode ? 'border-white/10 bg-gray-900/70' : 'border-slate-200 bg-white'}`}>
+            <div className="flex items-center gap-3 rounded-2xl p-3" style={{ backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : '#f8fafc' }}>
+              <div className="h-11 w-11 rounded-2xl bg-brand-500 text-white flex items-center justify-center font-black">
+                {(user?.name || user?.email || 'E').charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-black truncate">{user?.name || 'Edutu learner'}</p>
+                <p className={`text-xs truncate ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>{user?.email || 'Welcome back'}</p>
+              </div>
+            </div>
+
+            <nav className="mt-5 space-y-1" aria-label="Dashboard sidebar">
+              {desktopPrimaryItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => item.id !== 'home' && onNavigate?.(item.id)}
+                  className={`w-full flex items-center justify-between rounded-2xl px-3 py-3 text-sm font-bold transition-all ${item.active
+                    ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20'
+                    : isDarkMode
+                      ? 'text-slate-300 hover:bg-white/10 hover:text-white'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                    }`}
+                >
+                  <span className="flex items-center gap-3">
+                    {item.icon}
+                    {item.label}
+                  </span>
+                  {item.active && <span className="h-2 w-2 rounded-full bg-white" />}
+                </button>
+              ))}
+            </nav>
+
+            <div className={`my-5 h-px ${isDarkMode ? 'bg-white/10' : 'bg-slate-100'}`} />
+
+            <div>
+              <p className={`px-3 text-[10px] font-black uppercase tracking-[0.18em] ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>Quick actions</p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {desktopQuickItems.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => onNavigate?.(item.id)}
+                    className={`rounded-2xl border p-3 text-left transition-all ${isDarkMode
+                      ? 'border-white/10 bg-white/5 hover:bg-white/10'
+                      : 'border-slate-200 bg-slate-50 hover:bg-white hover:shadow-sm'
+                      }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-brand-500">{item.icon}</span>
+                      {typeof item.count === 'number' && (
+                        <span className={`text-[10px] font-black ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>{item.count}</span>
+                      )}
+                    </div>
+                    <p className="mt-3 text-xs font-bold">{item.label}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </aside>
+
+      <div className={`mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-8 transition-[padding] duration-300 ${isDesktopSidebarOpen ? 'lg:pl-[320px]' : 'lg:pl-8'}`}>
+      <main className="min-w-0 px-0 py-6 space-y-8">
         <motion.section
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className={`rounded-2xl p-5 sm:p-6 border ${isDarkMode ? 'bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border-indigo-500/20' : 'bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-200'}`}
+          className={`overflow-hidden rounded-[20px] border p-5 sm:p-6 ${isDarkMode ? 'border-white/10 bg-gray-900/70' : 'border-slate-200 bg-white shadow-sm'}`}
         >
-          <div className="flex items-start gap-4">
-            <div className={`p-3 rounded-xl shrink-0 ${isDarkMode ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-100 text-indigo-600'}`}>
-              <Sparkles size={20} />
-            </div>
-            <div className="flex-1">
-              <h3 className={`text-sm font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-                Coming Soon to Play Store & App Store
-              </h3>
-              <p className={`text-xs leading-relaxed ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                Edutu is launching on mobile soon. Stay tuned for the best opportunity coaching experience on Android and iOS.
-              </p>
-              <div className="flex gap-2 mt-3">
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-green-500/10 text-green-500">
-                  Android
-                </span>
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-500/10 text-slate-500">
-                  iOS
-                </span>
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(520px,1fr)]">
+            <div className="flex min-w-0 flex-col justify-between gap-5">
+              <div>
+                <div className={`mb-3 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${isDarkMode ? 'bg-white/5 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
+                  {nextAction.icon}
+                  {nextAction.eyebrow}
+                </div>
+                <h1 className="max-w-2xl text-2xl font-black tracking-tight text-slate-950 dark:text-white sm:text-3xl">
+                  {nextAction.title}
+                </h1>
+                <p className={`mt-2 max-w-2xl text-sm leading-6 ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                  {nextAction.copy}
+                </p>
               </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button type="button" size="sm" onClick={nextAction.onClick}>
+                  {nextAction.action}
+                  <ChevronRight size={15} />
+                </Button>
+                <button
+                  type="button"
+                  onClick={onViewAllOpportunities}
+                  className={`inline-flex h-10 items-center gap-2 rounded-xl border px-4 text-sm font-bold transition-colors ${isDarkMode ? 'border-white/10 text-slate-300 hover:bg-white/10 hover:text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-950'}`}
+                >
+                  Browse all
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {stats.map((stat) => (
+                <div
+                  key={stat.label}
+                  className={`rounded-2xl border p-4 ${isDarkMode ? 'border-white/10 bg-white/5' : 'border-slate-100 bg-slate-50'}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className={`text-[10px] font-black uppercase tracking-[0.16em] ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                        {stat.label}
+                      </p>
+                      <p className="mt-2 text-2xl font-black tracking-tight text-slate-950 dark:text-white">
+                        {stat.value}
+                      </p>
+                    </div>
+                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${getStatToneClasses(stat.tone)}`}>
+                      {stat.icon}
+                    </span>
+                  </div>
+                  <p className={`mt-3 text-xs font-semibold ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                    {stat.helper}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         </motion.section>
@@ -449,7 +772,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, x: 100 }}
               transition={{ duration: 0.3 }}
-              className={`premium-card p-5 border-l-4 ${isDarkMode ? 'bg-amber-500/5 border-amber-500/50' : 'bg-amber-50 border-amber-400'}`}
+              className={`premium-card rounded-[20px] p-5 border-l-4 ${isDarkMode ? 'bg-amber-500/5 border-amber-500/50' : 'bg-amber-50 border-amber-400'}`}
             >
               <div className="flex items-start gap-4">
                 <div className={`p-2.5 rounded-xl shrink-0 ${isDarkMode ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-100 text-amber-600'}`}>
@@ -464,6 +787,23 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
                       <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                         Unlock personalized matches at {profileScore.score}%
                       </p>
+                      {profileScore.missingFields.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {profileScore.missingFields.slice(0, 3).map((field) => (
+                            <span
+                              key={field}
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${isDarkMode ? 'bg-white/10 text-slate-300' : 'bg-white text-slate-600'}`}
+                            >
+                              {field}
+                            </span>
+                          ))}
+                          {profileScore.missingFields.length > 3 && (
+                            <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-300">
+                              +{profileScore.missingFields.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <button
                       onClick={() => setDismissBanner(true)}
@@ -505,6 +845,38 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
           )}
         </AnimatePresence>
 
+        <motion.section
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative overflow-hidden rounded-[20px] p-5 sm:p-6 shadow-lg shadow-slate-950/10 min-h-[120px]"
+          style={{
+            backgroundImage: "url('https://images.pexels.com/photos/3184418/pexels-photo-3184418.jpeg')",
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        >
+          <div className="absolute inset-0 bg-slate-950/78" />
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/88 via-slate-950/70 to-slate-950/48" />
+          <div className="relative flex min-h-[72px] items-center justify-between gap-4">
+            <div className="max-w-xl">
+              <h3 className="text-base sm:text-lg font-bold tracking-tight text-white">
+                Coming Soon to Play Store & App Store
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-white/82">
+                Mobile access is launching soon for Android and iOS.
+              </p>
+            </div>
+            <div className="hidden gap-2 sm:flex">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white/12 text-emerald-200 ring-1 ring-white/15 backdrop-blur">
+                Android
+              </span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white/12 text-white/80 ring-1 ring-white/15 backdrop-blur">
+                iOS
+              </span>
+            </div>
+          </div>
+        </motion.section>
+
         {(goals.length > 0 || bookmarks.length > 0 || applications.length > 0) && (
           <section>
             <CalendarStrip
@@ -512,31 +884,30 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
               bookmarks={bookmarks}
               applications={applications}
               onDateClick={() => {}}
-              onEventClick={() => {}}
+              onEventClick={handleCalendarEventClick}
             />
           </section>
         )}
 
         <section className="lg:hidden">
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {[
-              { id: 'saved', label: 'Saved', icon: <Bookmark size={18} />, color: 'amber' },
-              { id: 'applied', label: 'Applied', icon: <Send size={18} />, color: 'emerald' },
-              { id: 'deadlines', label: 'Deadlines', icon: <Clock size={18} />, color: 'rose' },
-              { id: 'wallet', label: 'Wallet', icon: <Wallet size={18} />, color: 'brand' }
+              { id: 'saved', label: 'Saved', icon: <Bookmark size={24} strokeWidth={2.3} />, color: 'amber' },
+              { id: 'applied', label: 'Applied', icon: <Send size={24} strokeWidth={2.3} />, color: 'emerald' },
+              { id: 'roadmap-templates', label: 'Roadmaps', icon: <Target size={24} strokeWidth={2.3} />, color: 'indigo' },
             ].map((item) => (
               <motion.button
                 key={item.id}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => onNavigate?.(item.id)}
                 type="button"
-                className="flex flex-col items-center gap-1.5 py-2"
+                className="flex flex-col items-center gap-2 py-3"
               >
-                <span className={
+                <span className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
                   item.color === 'amber' ? 'text-amber-500' :
                   item.color === 'emerald' ? 'text-emerald-500' :
                   item.color === 'rose' ? 'text-rose-500' : 'text-indigo-500'
-                }>
+                } ${isDarkMode ? 'bg-white/5' : 'bg-slate-100'}`}>
                   {item.icon}
                 </span>
                 <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
@@ -549,66 +920,148 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
 
         {/* Content Layout */}
         <div className="grid lg:grid-cols-12 gap-8 pb-8">
-          <div className="lg:col-span-8 space-y-10">
+          <div className={`${recentWins.length > 0 ? 'lg:col-span-8' : 'lg:col-span-12'} space-y-10`}>
             {/* Recommended Opportunities */}
             <section>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                    <Briefcase size={22} />
+              <div className="mb-5 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="p-2.5 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                      <Briefcase size={19} />
+                    </div>
+                    <div className="min-w-0">
+                      <h2 className="text-lg font-semibold tracking-tight text-slate-950 dark:text-white">Recommended</h2>
+                      <p className={`mt-0.5 text-xs font-normal ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                        Matched to your profile
+                      </p>
+                    </div>
                   </div>
-                  <h2 className="heading-md">Recommended</h2>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className={`hidden sm:flex items-center rounded-lg border overflow-hidden ${isDarkMode ? 'border-white/10' : 'border-slate-200'}`}>
-                    <button onClick={() => setViewMode('grid')} className={`p-1.5 ${viewMode === 'grid' ? 'bg-brand-500 text-white' : isDarkMode ? 'text-slate-400' : 'text-slate-400'}`}><LayoutGrid size={14} /></button>
-                    <button onClick={() => setViewMode('list')} className={`p-1.5 ${viewMode === 'list' ? 'bg-brand-500 text-white' : isDarkMode ? 'text-slate-400' : 'text-slate-400'}`}><List size={14} /></button>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <div className={`hidden sm:flex items-center gap-1 rounded-2xl border p-1 ${isDarkMode ? 'border-white/10 bg-white/5' : 'border-slate-200 bg-white shadow-sm'}`}>
+                      <button
+                        type="button"
+                        onClick={() => setViewMode('grid')}
+                        className={`h-9 w-9 rounded-xl flex items-center justify-center transition-all ${viewMode === 'grid'
+                          ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20'
+                          : isDarkMode
+                            ? 'text-slate-400 hover:bg-white/10 hover:text-white'
+                            : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                          }`}
+                        aria-label="Grid view"
+                      >
+                        <LayoutGrid size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setViewMode('list')}
+                        className={`h-9 w-9 rounded-xl flex items-center justify-center transition-all ${viewMode === 'list'
+                          ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20'
+                          : isDarkMode
+                            ? 'text-slate-400 hover:bg-white/10 hover:text-white'
+                            : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                          }`}
+                        aria-label="List view"
+                      >
+                        <List size={15} />
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onViewAllOpportunities}
+                      className={`h-10 inline-flex items-center justify-center gap-1.5 rounded-2xl border px-3 text-xs font-semibold transition-all ${isDarkMode
+                        ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
+                        : 'border-slate-200 bg-white text-slate-600 shadow-sm hover:border-slate-300 hover:text-slate-950'
+                        }`}
+                      aria-label="View all opportunities"
+                    >
+                      View more <ChevronRight size={16} />
+                    </button>
                   </div>
-                  <Button variant="secondary" size="sm" onClick={onViewAllOpportunities} className="rounded-xl border-slate-200 dark:border-white/10">
-                    View All
-                  </Button>
                 </div>
               </div>
 
               {viewMode === 'grid' ? (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
                   {opportunitiesLoading ? (
                     Array.from({ length: 4 }).map((_, i) => (
                       <div key={i} className="rounded-xl overflow-hidden animate-pulse">
-                        <div className={`h-24 ${isDarkMode ? 'bg-white/5' : 'bg-slate-200'}`} />
+                        <div className={`h-24 sm:h-28 ${isDarkMode ? 'bg-white/5' : 'bg-slate-200'}`} />
                         <div className="p-2 space-y-1.5">
                           <div className={`h-2 rounded ${isDarkMode ? 'bg-white/5' : 'bg-slate-200'} w-1/2`} />
                           <div className={`h-2.5 rounded ${isDarkMode ? 'bg-white/5' : 'bg-slate-200'} w-3/4`} />
                         </div>
                       </div>
                     ))
-                  ) : opportunityFeed?.slice(0, 4).map((item: any, idx) => {
-                    const opportunity = 'opportunity' in item ? item.opportunity : item;
+                  ) : homeFeedItems.length === 0 ? (
+                    <div className={`col-span-2 rounded-[20px] border ${isDarkMode ? 'border-white/10 bg-gray-900/60' : 'border-slate-200 bg-white'}`}>
+                      <EmptyState
+                        icon={<Briefcase size={32} />}
+                        title="No recommendations yet"
+                        description="Complete your profile or browse the full opportunity feed while Edutu prepares better matches."
+                        action={{
+                          label: 'Browse opportunities',
+                          onClick: onViewAllOpportunities
+                        }}
+                        secondaryAction={{
+                          label: 'Improve profile',
+                          onClick: () => onNavigate?.('personalization')
+                        }}
+                      />
+                    </div>
+                  ) : homeFeedItems.map((item) => {
+                    if (item.type === 'promo') {
+                      return (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={() => onNavigate?.(item.promo.screen)}
+                          className="col-span-2 overflow-hidden rounded-[20px] border border-brand-500/20 bg-gradient-to-br from-brand-500 to-indigo-600 p-4 text-left text-white shadow-lg shadow-brand-500/15 transition hover:-translate-y-0.5"
+                        >
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/70">Edutu</p>
+                              <h3 className="mt-1 text-lg font-black tracking-tight">{item.promo.title}</h3>
+                              <p className="mt-1 text-sm leading-5 text-white/80">{item.promo.copy}</p>
+                            </div>
+                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15">
+                              <ChevronRight size={20} />
+                            </span>
+                          </div>
+                          <span className="mt-4 inline-flex text-xs font-black text-white">{item.promo.action}</span>
+                        </button>
+                      );
+                    }
+
+                    const { opportunity } = item;
                     return (
-                      <div
-                        key={idx}
+                      <button
+                        type="button"
+                        key={item.key}
                         onClick={() => onOpportunityClick(opportunity)}
-                        className={`rounded-xl overflow-hidden border cursor-pointer group transition-all ${isDarkMode ? 'bg-gray-900 border-white/5 hover:border-white/10' : 'bg-white border-slate-200 hover:border-slate-300'}`}
+                        className={`rounded-[20px] overflow-hidden border cursor-pointer group text-left transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 ${isDarkMode ? 'bg-gray-900 border-white/5 hover:border-white/10 focus-visible:ring-offset-gray-950' : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-xl hover:shadow-slate-200/70 focus-visible:ring-offset-slate-50'}`}
                       >
-                        <div className="h-24 overflow-hidden bg-slate-100 dark:bg-slate-800">
+                        <div className="relative h-28 sm:h-32 overflow-hidden bg-slate-100 dark:bg-slate-800">
                           <ImageWithFallback
                             src={opportunity.image}
                             alt=""
                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                             fallbackClassName="w-full h-full"
                           />
+                          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/35 via-transparent to-transparent" />
+                          <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-black text-brand-600 backdrop-blur">
+                            {opportunity.category || 'General'}
+                          </span>
                         </div>
-                        <div className="p-2.5">
-                          <span className="text-[8px] font-bold text-primary tracking-wider">{opportunity.category || 'General'}</span>
-                          <h3 className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-2 mt-0.5 leading-tight">
+                        <div className="p-3 sm:p-4">
+                          <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-2 leading-snug">
                             {opportunity.title}
                           </h3>
-                          <div className="flex items-center justify-between mt-1.5 text-[8px] font-semibold text-slate-400">
-                            <span>{opportunity.location || 'Remote'}</span>
+                          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mt-3 text-[10px] font-bold text-slate-400">
+                            <span className="truncate">{opportunity.location || 'Remote'}</span>
                             <span>{opportunity.deadline ? new Date(opportunity.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Ongoing'}</span>
                           </div>
                         </div>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -618,13 +1071,50 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
                     Array.from({ length: 3 }).map((_, i) => (
                       <div key={i} className="h-20 rounded-xl animate-pulse" style={{ backgroundColor: isDarkMode ? '#1a1a1a' : '#f0f0f0' }} />
                     ))
-                  ) : opportunityFeed?.slice(0, 5).map((item: any, idx) => {
-                    const opportunity = 'opportunity' in item ? item.opportunity : item;
+                  ) : homeFeedItems.length === 0 ? (
+                    <div className={`rounded-[20px] border ${isDarkMode ? 'border-white/10 bg-gray-900/60' : 'border-slate-200 bg-white'}`}>
+                      <EmptyState
+                        icon={<Briefcase size={32} />}
+                        title="No recommendations yet"
+                        description="Complete your profile or browse the full opportunity feed while Edutu prepares better matches."
+                        action={{
+                          label: 'Browse opportunities',
+                          onClick: onViewAllOpportunities
+                        }}
+                        secondaryAction={{
+                          label: 'Improve profile',
+                          onClick: () => onNavigate?.('personalization')
+                        }}
+                      />
+                    </div>
+                  ) : homeFeedItems.map((item) => {
+                    if (item.type === 'promo') {
+                      return (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={() => onNavigate?.(item.promo.screen)}
+                          className="w-full rounded-[20px] bg-gradient-to-br from-brand-500 to-indigo-600 p-4 text-left text-white shadow-lg shadow-brand-500/15"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/70">Edutu</p>
+                              <h3 className="mt-1 text-base font-black">{item.promo.title}</h3>
+                              <p className="mt-1 text-xs leading-5 text-white/80">{item.promo.copy}</p>
+                            </div>
+                            <ChevronRight size={20} className="shrink-0" />
+                          </div>
+                        </button>
+                      );
+                    }
+
+                    const { opportunity } = item;
                     return (
-                      <div
-                        key={idx}
+                      <button
+                        type="button"
+                        key={item.key}
                         onClick={() => onOpportunityClick(opportunity)}
-                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-white dark:hover:bg-white/5 border border-transparent hover:border-slate-200 dark:hover:border-white/10 transition-all cursor-pointer group"
+                        className="flex w-full items-center gap-3 p-3 rounded-xl text-left hover:bg-white dark:hover:bg-white/5 border border-transparent hover:border-slate-200 dark:hover:border-white/10 transition-all cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 dark:focus-visible:ring-offset-gray-950"
                       >
                         <div className="w-14 h-14 shrink-0 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800">
                           <ImageWithFallback
@@ -647,159 +1137,73 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
                         <div className="shrink-0">
                           <ChevronRight className="text-slate-300 group-hover:text-primary transition-colors" size={18} />
                         </div>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
               )}
+              <div ref={homeFeedSentinelRef} className="h-10" aria-hidden="true" />
             </section>
 
-            {/* Goals Tracker */}
-            <section className="overflow-hidden">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="p-2 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 shrink-0">
-                    <Target size={22} />
-                  </div>
-                  <h2 className="heading-md truncate">Your Active Goals</h2>
-                </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={onViewAllGoals}
-                  className="rounded-xl border-slate-200 dark:border-white/10 shrink-0"
-                >
-                  Manage
-                </Button>
-              </div>
-
-              <div className="grid gap-4">
-                {focusGoals.length > 0 ? (
-                  focusGoals.map((goal) => (
-                    <div
-                      key={goal.id}
-                      onClick={() => onGoalClick(goal.id)}
-                      className="glass-card group cursor-pointer hover:border-primary/30 transition-all p-4 sm:p-6"
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div className="flex-1 space-y-3 min-w-0">
-                          <div className="flex items-center gap-3">
-                            <div className="h-9 w-9 rounded-xl bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary/10 transition-colors shrink-0">
-                              <Target size={18} />
-                            </div>
-                            <h4 className="text-base font-display font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-2">
-                              {goal.title}
-                            </h4>
-                          </div>
-
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between text-[10px] font-bold tracking-widest text-slate-400">
-                              <span>Completion</span>
-                              <span className="text-primary">{Math.round(goal.progress)}%</span>
-                            </div>
-                            <div className="h-1.5 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-primary transition-all duration-1000"
-                                style={{ width: `${goal.progress}%` }}
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0 border-t sm:border-t-0 border-subtle pt-3 sm:pt-0">
-                          <div className="text-right hidden sm:block">
-                            <p className="text-[10px] font-bold text-slate-400 tracking-widest">Priority</p>
-                            <p className="text-xs font-bold text-slate-600 dark:text-slate-300">High Impact</p>
-                          </div>
-                          <div className="h-9 w-9 rounded-full border border-subtle flex items-center justify-center group-hover:border-primary group-hover:bg-primary/5 transition-all">
-                            <ChevronRight className="text-slate-300 group-hover:text-primary transition-colors" size={18} />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="glass-card p-8 sm:p-12 text-center border-dashed">
-                    <p className="text-slate-400 mb-6 font-medium text-sm">No active trajectories found. Start your journey today.</p>
-                    <Button onClick={onAddGoal} variant="primary" className="rounded-2xl px-6 py-3.5 h-auto font-bold shadow-soft text-sm">Create First Goal</Button>
-                  </div>
-                )}
-              </div>
-            </section>
           </div>
 
-          <aside className="lg:col-span-4 space-y-6">
-            {/* Recent */}
-            <section className="p-5 relative overflow-hidden group">
-              <div className="flex items-center justify-between mb-6 relative">
-                <div className="flex items-center gap-2">
-                  <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
-                    <Award size={18} />
+          {recentWins.length > 0 && (
+            <aside className="lg:col-span-4 space-y-6">
+              <section className={`rounded-[20px] border p-5 relative overflow-hidden ${isDarkMode ? 'bg-gray-900 border-white/10' : 'bg-white border-slate-200 shadow-sm'}`}>
+                <div className="flex items-center justify-between mb-6 relative">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500">
+                      <Award size={18} />
+                    </div>
+                    <div>
+                      <h2 className="text-base font-black">Recent wins</h2>
+                      <p className="text-xs text-slate-400">Latest completed goals</p>
+                    </div>
                   </div>
-                  <h2 className="text-base font-bold">Recent</h2>
+                  <button
+                    onClick={() => onNavigate && onNavigate('achievements')}
+                    className="text-[10px] font-black text-brand-500 hover:text-brand-600 tracking-wider"
+                  >
+                    View All
+                  </button>
                 </div>
-                <button
-                  onClick={() => onNavigate && onNavigate('achievements')}
-                  className="text-[10px] font-bold text-brand-500 hover:text-brand-600 tracking-wider"
-                >
-                  View All
-                </button>
-              </div>
 
-              <div className="space-y-4 relative">
-                {recentWins.length > 0 ? (
-                  recentWins.map((win) => (
-                    <div key={win.id} className="flex gap-3 items-center group/win p-2 rounded-xl hover:bg-white/40 dark:hover:bg-white/5 transition-all">
-                      <div className="h-8 w-8 shrink-0 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
-                        <Sparkles size={14} />
+                <div className="space-y-3 relative">
+                  {recentWins.map((win) => (
+                    <div key={win.id} className="flex gap-3 items-center group/win p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-white/5 transition-all">
+                      <div className="h-9 w-9 shrink-0 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
+                        <Sparkles size={15} />
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold truncate group-hover/win:text-brand-500 transition-colors">
                           {win.title}
                         </p>
-                        <p className="text-[9px] font-bold text-slate-400">
+                        <p className="text-[10px] font-bold text-slate-400">
                           {win.date}
                         </p>
                       </div>
                     </div>
-                  ))
-                ) : (
-                  <div className="py-8 flex flex-col items-center justify-center text-center px-4 grayscale opacity-40">
-                    <TrendingUp size={32} className="mb-2 text-slate-400" />
-                    <p className="text-[11px] font-medium text-slate-500 tracking-tight">Your wins show up here</p>
-                  </div>
-                )}
-              </div>
+                  ))}
+                </div>
 
-              {recentWins.length > 0 && (
                 <div className="mt-6 pt-4 border-t border-slate-100 dark:border-white/5">
                   <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 tracking-widest">
                     <span>Consistency</span>
-                    <span className="text-emerald-500">85%</span>
+                    <span className="text-emerald-500">{userStats.consistency}%</span>
                   </div>
                   <div className="mt-2 h-1.5 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500 w-[85%] rounded-full shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+                    <div
+                      className="h-full bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.4)]"
+                      style={{ width: `${Math.min(Math.max(userStats.consistency, 0), 100)}%` }}
+                    />
                   </div>
                 </div>
-              )}
-            </section>
-          </aside>
+              </section>
+            </aside>
+          )}
         </div>
       </main>
-
-      {/* Floating AI Button */}
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => onNavigate?.('chat')}
-        className="fixed bottom-20 lg:bottom-8 right-4 lg:right-8 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-lg text-white"
-        style={{
-          background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
-          boxShadow: '0 4px 20px rgba(99,102,241,0.4)',
-        }}
-      >
-        <Sparkles size={24} />
-      </motion.button>
+      </div>
 
       {/* Footer with Dark Mode Toggle */}
       <footer className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 border-t ${isDarkMode ? 'border-white/5' : 'border-slate-200'}`}>

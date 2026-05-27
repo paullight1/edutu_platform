@@ -39,7 +39,7 @@ root.render(
     <ErrorBoundary>
       <Suspense fallback={<LoadingScreen />}>
         <ClerkProvider publishableKey={clerkPubKey}>
-          <BrowserRouter>
+          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <ToastProvider>
               <ThemeProvider>
                 <NotificationsProvider>

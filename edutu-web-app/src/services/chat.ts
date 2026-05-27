@@ -106,10 +106,13 @@ export async function sendChatMessage(options: { threadId?: string | null; messa
 
     return data;
   } catch (supabaseError) {
-    console.error('Supabase function failed, trying mock response:', supabaseError);
+    if (!import.meta.env.DEV) {
+      console.error('Chat service failed:', supabaseError);
+      throw new Error('Edutu AI is unavailable right now. Please try again shortly.');
+    }
 
-    // In development, provide a mock response
-    // In production, you would need to set up a proper backend API
+    console.warn('Supabase chat function failed; using a development-only response:', supabaseError);
+
     const mockResponses = [
       "That's a great question! Based on your interests, I'd recommend exploring more scholarship opportunities in that field.",
       "I understand your concern. Many students face similar challenges. Here's what I recommend...",
@@ -121,8 +124,6 @@ export async function sendChatMessage(options: { threadId?: string | null; messa
       "I see what you're looking for. Based on similar cases, I'd suggest..."
     ];
 
-    // In a real implementation, we would call a backend API
-    // For now, return a mock response to simulate the AI functionality
     const randomResponse =
       mockResponses[Math.floor(Math.random() * mockResponses.length)];
 

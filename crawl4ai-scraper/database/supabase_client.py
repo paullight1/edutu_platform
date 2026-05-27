@@ -63,6 +63,9 @@ class SupabaseClient:
             'application_process': item.get('applicationProcess', []),
             'match': item.get('match', 50),
             'difficulty': item.get('difficulty', 'Medium'),
+            'canonical_category': item.get('canonicalCategory') or item.get('canonical_category') or 'other',
+            'source_name': item.get('source', 'Unknown'),
+            'source_url': item.get('source_url'),
             'scraped_at': now,
         }
 
@@ -71,6 +74,7 @@ class SupabaseClient:
             'title': item.get('title', 'Untitled'),
             'organization': item.get('organization', 'Unknown'),
             'category': item.get('category', 'General'),
+            'canonical_category': item.get('canonicalCategory') or item.get('canonical_category') or 'other',
             'close_date': item.get('deadline'),
             'location': item.get('location', 'Worldwide'),
             'description': item.get('description', ''),
@@ -82,7 +86,7 @@ class SupabaseClient:
             'image_url': item.get('image'),
             'tags': item.get('aiTags', []),
             'source': 'scraper',
-            'source_url': item.get('source', 'Unknown'),
+            'source_url': item.get('source_url') or item.get('source', 'Unknown'),
             'metadata': metadata,
             'created_at': now,
             'updated_at': now,
@@ -153,7 +157,9 @@ class MockSupabaseClient(SupabaseClient):
     def upsert_opportunity(self, item: dict[str, Any]) -> dict[str, Any]:
         url = item.get('applyUrl')
         if url:
-            self._urls.add(url)
+            normalized = self._normalize_url(url)
+            if normalized:
+                self._urls.add(normalized)
 
         self._storage.append(item)
         return {'success': True, 'id': item.get('id', str(uuid.uuid4()))}

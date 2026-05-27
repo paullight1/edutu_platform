@@ -1,18 +1,21 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Bookmark, Calendar, MapPin, Percent, RefreshCw, X } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, Bookmark, Calendar, ChevronRight, MapPin, RefreshCw, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useDarkMode } from '../hooks/useDarkMode';
 import { useAuth } from '@clerk/clerk-react';
+import { useDarkMode } from '../hooks/useDarkMode';
+import Button from './ui/Button';
+import Card from './ui/Card';
 import { useToast } from './ui/ToastProvider';
 import {
+  filterBookmarks,
   getBookmarks,
   removeBookmark,
-  filterBookmarks,
   type BookmarkRecord
 } from '../services/bookmarks';
 
 interface SavedOpportunitiesProps {
   onBack: () => void;
+  onExplore?: () => void;
   onSelectOpportunity: (opportunityId: string) => void;
 }
 
@@ -22,9 +25,9 @@ const filterTabs = [
   { id: 'upcoming' as const, label: 'Upcoming' }
 ];
 
-const SavedOpportunities: React.FC<SavedOpportunitiesProps> = ({ onBack, onSelectOpportunity }) => {
+const SavedOpportunities: React.FC<SavedOpportunitiesProps> = ({ onBack, onExplore, onSelectOpportunity }) => {
   const { isDarkMode } = useDarkMode();
-  const { userId } = useAuth();
+  const { userId, getToken } = useAuth();
   const { success, error: showError } = useToast();
   const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,20 +35,36 @@ const SavedOpportunities: React.FC<SavedOpportunitiesProps> = ({ onBack, onSelec
   const [activeFilter, setActiveFilter] = useState<'all' | 'urgent' | 'upcoming'>('all');
 
   const loadBookmarks = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) {
+      setBookmarks([]);
+      return;
+    }
 
-    const data = await getBookmarks(userId);
+    const token = await getToken().catch(() => null);
+    const data = await getBookmarks(userId, token);
     setBookmarks(data);
-  }, [userId]);
+  }, [getToken, userId]);
 
   useEffect(() => {
+    let active = true;
+
     const init = async () => {
       setLoading(true);
       await loadBookmarks();
-      setLoading(false);
+      if (active) setLoading(false);
     };
-    init();
+
+    void init();
+
+    return () => {
+      active = false;
+    };
   }, [loadBookmarks]);
+
+  const filteredBookmarks = useMemo(
+    () => filterBookmarks(bookmarks, activeFilter),
+    [bookmarks, activeFilter]
+  );
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -53,99 +72,106 @@ const SavedOpportunities: React.FC<SavedOpportunitiesProps> = ({ onBack, onSelec
     setRefreshing(false);
   };
 
-  const handleRemove = async (e: React.MouseEvent, bookmark: BookmarkRecord) => {
-    e.stopPropagation();
+  const handleRemove = async (event: React.MouseEvent, bookmark: BookmarkRecord) => {
+    event.stopPropagation();
     if (!userId) return;
 
-    const removed = await removeBookmark(userId, bookmark.opportunity_id);
+    const token = await getToken().catch(() => null);
+    const removed = await removeBookmark(userId, bookmark.opportunity_id, token);
     if (removed) {
-      setBookmarks((prev) => prev.filter((b) => b.opportunity_id !== bookmark.opportunity_id));
-      success('Bookmark removed');
+      setBookmarks((prev) => prev.filter((item) => item.opportunity_id !== bookmark.opportunity_id));
+      success('Removed from saved opportunities');
     } else {
-      showError('Failed to remove bookmark');
+      showError('Unable to remove saved opportunity');
     }
   };
 
-  const filteredBookmarks = filterBookmarks(bookmarks, activeFilter);
-
-  const getDeadlineColor = (deadline: string | null) => {
-    if (!deadline) return isDarkMode ? 'text-slate-400' : 'text-slate-500';
-    const now = new Date();
-    const deadlineDate = new Date(deadline);
-    const diffDays = Math.ceil((deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays <= 0) return 'text-red-500';
-    if (diffDays <= 7) return 'text-amber-500';
-    return isDarkMode ? 'text-emerald-400' : 'text-emerald-600';
-  };
-
-  const getDaysUntilDeadline = (deadline: string | null) => {
+  const getDeadlineLabel = (deadline: string | null) => {
     if (!deadline) return 'No deadline';
-    const now = new Date();
-    const deadlineDate = new Date(deadline);
-    const diffDays = Math.ceil((deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const date = new Date(deadline);
+    if (Number.isNaN(date.getTime())) return 'No deadline';
+    const diffDays = Math.ceil((date.getTime() - Date.now()) / 86400000);
     if (diffDays < 0) return 'Expired';
     if (diffDays === 0) return 'Due today';
     if (diffDays === 1) return '1 day left';
     return `${diffDays} days left`;
   };
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  const getDeadlineTone = (deadline: string | null) => {
+    if (!deadline) return isDarkMode ? 'text-slate-400' : 'text-slate-500';
+    const date = new Date(deadline);
+    if (Number.isNaN(date.getTime())) return isDarkMode ? 'text-slate-400' : 'text-slate-500';
+    const diffDays = Math.ceil((date.getTime() - Date.now()) / 86400000);
+    if (diffDays <= 0) return 'text-rose-500';
+    if (diffDays <= 7) return 'text-amber-500';
+    return 'text-emerald-500';
+  };
+
+  const formatSavedDate = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   };
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-slate-50 text-slate-800'} font-body transition-colors duration-500 pb-24`}>
-      <div className="fixed inset-0 pointer-events-none opacity-20 dark:opacity-10 mesh-gradient" />
-
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 space-y-10 relative z-10">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 animate-slide-up">
-          <div className="space-y-3">
-            <button
-              onClick={onBack}
-              className="group flex items-center gap-2 text-xs font-black text-brand-500 tracking-[0.2em] mb-2 hover:gap-3 transition-all"
-            >
-              <ArrowLeft size={14} />
-              Return Center
-            </button>
-            <div className="flex items-center gap-4">
-              <div className="h-14 w-14 rounded-2xl bg-brand-500/10 flex items-center justify-center text-brand-500 shadow-xl shadow-brand-500/10">
-                <Bookmark size={28} />
-              </div>
-              <div>
-                <h1 className="text-4xl md:text-5xl font-display font-black tracking-tight leading-none italic">SAVED</h1>
-                <p className="text-slate-500 dark:text-slate-400 font-bold text-xs tracking-[0.3em] mt-2">
-                  {bookmarks.length} opportunity{bookmarks.length !== 1 ? 'ies' : 'y'} saved
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className={`px-5 py-3 rounded-2xl font-black text-[10px] tracking-[0.2em] transition-all shadow-xl flex items-center gap-2 ${
-              isDarkMode
-                ? 'bg-gray-800 text-white hover:bg-gray-700'
-                : 'bg-white text-slate-700 hover:bg-slate-100'
-            } ${refreshing ? 'opacity-60 cursor-not-allowed' : ''}`}
+    <div className={`min-h-screen pb-24 ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-slate-50 text-slate-950'}`}>
+      <header className="sticky top-0 z-10 bg-slate-50/95 px-4 py-3 backdrop-blur dark:bg-gray-950/95">
+        <div className="mx-auto flex max-w-5xl items-center gap-3">
+          <Button
+            variant="secondary"
+            onClick={onBack}
+            className="h-11 w-11 rounded-full border-0 bg-white p-0 shadow-sm dark:bg-white/10"
+            aria-label="Back"
           >
-            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-            Refresh
+            <ArrowLeft size={20} />
+          </Button>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl font-black tracking-tight">Saved Opportunities</h1>
+            <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+              {bookmarks.length} saved {bookmarks.length === 1 ? 'opportunity' : 'opportunities'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleRefresh()}
+            disabled={refreshing}
+            className={`flex h-11 w-11 items-center justify-center rounded-full shadow-sm transition ${
+              isDarkMode ? 'bg-white/10 text-slate-300' : 'bg-white text-slate-600'
+            } disabled:opacity-60`}
+            aria-label="Refresh saved opportunities"
+          >
+            <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
           </button>
         </div>
+      </header>
 
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-hide animate-slide-up" style={{ animationDelay: '100ms' }}>
+      <main className="mx-auto max-w-5xl space-y-5 px-4 py-4">
+        <section className={`rounded-[20px] p-4 shadow-sm ${isDarkMode ? 'bg-white/6' : 'bg-white'}`}>
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-brand-500 text-white shadow-lg shadow-brand-500/20">
+              <Bookmark size={22} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-base font-black">Your saved list</h2>
+              <p className={`mt-0.5 text-sm ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                Save scholarships, internships, fellowships, and programs from opportunity details.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <div className="flex gap-2 overflow-x-auto pb-1">
           {filterTabs.map((tab) => (
             <button
               key={tab.id}
+              type="button"
               onClick={() => setActiveFilter(tab.id)}
-              className={`px-6 py-4 rounded-2xl font-black text-[10px] tracking-[0.2em] transition-all whitespace-nowrap shadow-xl ${
+              className={`rounded-full px-4 py-2 text-sm font-bold transition ${
                 activeFilter === tab.id
-                  ? 'bg-gray-900 text-white shadow-brand-500/20 dark:bg-brand-500'
+                  ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20'
                   : isDarkMode
-                  ? 'bg-gray-800 text-slate-400 hover:text-white'
-                  : 'bg-white text-slate-400 hover:text-slate-900'
+                    ? 'bg-white/6 text-slate-400 hover:text-white'
+                    : 'bg-white text-slate-500 shadow-sm hover:text-slate-950'
               }`}
             >
               {tab.label}
@@ -154,121 +180,88 @@ const SavedOpportunities: React.FC<SavedOpportunitiesProps> = ({ onBack, onSelec
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, index) => (
               <div
-                key={i}
-                className={`premium-card p-6 rounded-2xl ${isDarkMode ? 'bg-gray-900' : 'bg-white'} shadow-xl animate-pulse`}
-              >
-                <div className={`h-6 rounded-lg w-3/4 mb-4 ${isDarkMode ? 'bg-gray-800' : 'bg-slate-200'}`} />
-                <div className={`h-4 rounded w-1/2 mb-6 ${isDarkMode ? 'bg-gray-800' : 'bg-slate-200'}`} />
-                <div className="space-y-3">
-                  <div className={`h-4 rounded w-full ${isDarkMode ? 'bg-gray-800' : 'bg-slate-200'}`} />
-                  <div className={`h-4 rounded w-2/3 ${isDarkMode ? 'bg-gray-800' : 'bg-slate-200'}`} />
-                </div>
-              </div>
+                key={index}
+                className={`h-36 animate-pulse rounded-[20px] ${isDarkMode ? 'bg-white/6' : 'bg-white'}`}
+              />
             ))}
           </div>
         ) : filteredBookmarks.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-12">
+          <div className="grid gap-3 sm:grid-cols-2">
             {filteredBookmarks.map((bookmark, index) => (
-              <motion.div
+              <motion.article
                 key={bookmark.opportunity_id}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: index * 0.05 }}
-                onClick={() => onSelectOpportunity(bookmark.opportunity_id)}
-                className={`group premium-card p-0 flex flex-col cursor-pointer overflow-hidden border-none ${
-                  isDarkMode ? 'bg-gray-900' : 'bg-white'
-                } shadow-xl shadow-slate-200/40 dark:shadow-none hover:scale-[1.02] transition-all duration-500`}
+                transition={{ duration: 0.2, delay: index * 0.03 }}
               >
-                <div className="p-6 pb-2">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="px-3 py-1.5 rounded-xl text-[10px] font-black tracking-widest bg-brand-500/10 text-brand-500">
-                      {bookmark.opportunity_category}
-                    </div>
+                <Card
+                  onClick={() => onSelectOpportunity(bookmark.opportunity_id)}
+                  className="group cursor-pointer border-0 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/6"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="rounded-full bg-brand-500/10 px-3 py-1 text-xs font-bold text-brand-500">
+                      {bookmark.opportunity_category || 'Opportunity'}
+                    </span>
                     <button
-                      onClick={(e) => handleRemove(e, bookmark)}
-                      className={`p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100 ${
-                        isDarkMode
-                          ? 'hover:bg-gray-800 text-slate-400 hover:text-red-400'
-                          : 'hover:bg-slate-100 text-slate-400 hover:text-red-500'
+                      type="button"
+                      onClick={(event) => void handleRemove(event, bookmark)}
+                      className={`flex h-8 w-8 items-center justify-center rounded-full transition ${
+                        isDarkMode ? 'bg-white/8 text-slate-400 hover:text-rose-400' : 'bg-slate-100 text-slate-500 hover:text-rose-500'
                       }`}
+                      aria-label="Remove saved opportunity"
                     >
-                      <X size={16} />
+                      <Trash2 size={15} />
                     </button>
                   </div>
 
-                  <h3 className="text-xl font-display font-black italic leading-tight group-hover:text-brand-500 transition-colors line-clamp-2">
+                  <h3 className="mt-4 line-clamp-2 text-base font-black leading-6 tracking-tight group-hover:text-brand-500">
                     {bookmark.opportunity_title}
                   </h3>
-                </div>
 
-                <div className="p-6 pt-2 flex-1 flex flex-col">
-                  <div className="mt-auto space-y-4">
-                    <div className="flex items-center gap-4 text-[10px] font-black text-slate-400 tracking-[0.2em]">
-                      <div className={`flex items-center gap-2 ${getDeadlineColor(bookmark.opportunity_deadline)}`}>
-                        <Calendar size={12} />
-                        {getDaysUntilDeadline(bookmark.opportunity_deadline)}
-                      </div>
+                  <div className="mt-4 space-y-2">
+                    <div className={`flex items-center gap-2 text-sm font-semibold ${getDeadlineTone(bookmark.opportunity_deadline)}`}>
+                      <Calendar size={15} />
+                      <span>{getDeadlineLabel(bookmark.opportunity_deadline)}</span>
                     </div>
-
-                    <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 tracking-[0.2em]">
-                      <MapPin size={12} className="text-brand-500" />
-                      {bookmark.opportunity_location}
-                    </div>
-
-                    {bookmark.match_percentage > 0 && (
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 h-2 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-to-r from-brand-600 via-accent-500 to-indigo-500 rounded-full transition-all duration-500"
-                            style={{ width: `${bookmark.match_percentage}%` }}
-                          />
-                        </div>
-                        <div className="flex items-center gap-1 text-[10px] font-black text-brand-500 tracking-widest">
-                          <Percent size={10} />
-                          {Math.round(bookmark.match_percentage)}%
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="text-[10px] font-black text-slate-400 tracking-[0.2em] pt-1">
-                      Saved {formatDate(bookmark.created_at)}
+                    <div className={`flex items-center gap-2 text-sm ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                      <MapPin size={15} />
+                      <span className="line-clamp-1">{bookmark.opportunity_location || 'Worldwide'}</span>
                     </div>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 border-t border-slate-100 dark:border-white/5 h-12 transform translate-y-full group-hover:translate-y-0 transition-transform duration-500">
-                  <button
-                    onClick={(e) => handleRemove(e, bookmark)}
-                    className="flex items-center justify-center gap-2 font-black text-[10px] tracking-widest bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-rose-500 hover:text-white transition-all"
-                  >
-                    <X size={14} />
-                    Remove
-                  </button>
-                </div>
-              </motion.div>
+                  <div className="mt-5 flex items-center justify-between">
+                    <span className={`text-xs font-bold ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                      Saved {formatSavedDate(bookmark.created_at)}
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-xs font-black text-brand-500">
+                      Open
+                      <ChevronRight size={14} />
+                    </span>
+                  </div>
+                </Card>
+              </motion.article>
             ))}
           </div>
         ) : (
-          <div className="text-center py-32 premium-card bg-transparent border-dashed border-2 flex flex-col items-center justify-center space-y-6">
-            <div className="h-24 w-24 rounded-full bg-slate-100 dark:bg-white/5 flex items-center justify-center opacity-40">
-              <Bookmark size={48} className="text-slate-400" />
+          <section className={`rounded-[20px] px-6 py-16 text-center shadow-sm ${isDarkMode ? 'bg-white/6' : 'bg-white'}`}>
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[20px] bg-brand-500/10 text-brand-500">
+              <Bookmark size={30} />
             </div>
-            <div className="space-y-2">
-              <h3 className="text-2xl font-display font-black italic">
-                {activeFilter === 'all' ? 'NO SAVED OPPORTUNITIES' : `NO ${activeFilter.toUpperCase()} OPPORTUNITIES`}
-              </h3>
-              <p className="text-slate-500 font-bold text-xs tracking-widest">
-                {activeFilter === 'all'
-                  ? 'Bookmark opportunities to track them here'
-                  : `No ${activeFilter} opportunities found`}
-              </p>
-            </div>
-          </div>
+            <h3 className="mt-5 text-lg font-black">
+              {activeFilter === 'all' ? 'No saved opportunities' : `No ${activeFilter} saved opportunities`}
+            </h3>
+            <p className={`mx-auto mt-2 max-w-sm text-sm leading-6 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+              Bookmark opportunities from the Explore page and they will appear here for quick access.
+            </p>
+            <Button onClick={onExplore ?? onBack} className="mt-6 rounded-full px-5">
+              Explore opportunities
+            </Button>
+          </section>
         )}
-      </div>
+      </main>
     </div>
   );
 };

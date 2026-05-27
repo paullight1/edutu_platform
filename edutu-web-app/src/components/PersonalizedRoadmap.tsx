@@ -15,7 +15,8 @@ import {
   Heart,
   Bookmark,
   Verified,
-  ExternalLink
+  ExternalLink,
+  BookOpen
 } from 'lucide-react';
 import Card from './ui/Card';
 import Button from './ui/Button';
@@ -570,6 +571,22 @@ const PersonalizedRoadmap: React.FC<PersonalizedRoadmapProps> = ({
 
       {/* Roadmap Content */}
       <div className="p-4 space-y-6">
+        <Card
+          onClick={() => { window.location.href = '/app/roadmap-templates'; }}
+          className="cursor-pointer border-brand-500/20 bg-brand-500/10 p-4 sm:p-5"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-[20px] bg-brand-500/10 text-brand-500">
+              <BookOpen size={21} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-bold text-slate-950 dark:text-white">Explore roadmap templates</h3>
+              <p className="mt-0.5 line-clamp-1 text-xs text-slate-500 dark:text-slate-400">Use a template for your next goal.</p>
+            </div>
+            <ChevronRight size={18} className="text-slate-400" />
+          </div>
+        </Card>
+
         {roadmapData.map((month, monthIndex) => (
           <Card key={month.id} className="overflow-hidden animate-slide-up dark:bg-gray-800 dark:border-gray-700" style={{ animationDelay: `${monthIndex * 100}ms` }}>
             {/* Month Header */}
