@@ -250,25 +250,17 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
 
             <main className="relative z-10">
                 {/* Hero Section */}
-                <section className="landing-hero pt-[120px] pb-[96px] px-4 sm:px-6" id="platform">
-                    <div className="max-w-[1200px] mx-auto flex flex-col items-center text-center">
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.6 }}
-                            className="inline-flex items-center gap-2.4 px-4 py-2 mb-8 rounded"
-                            style={{
-                                backgroundColor: isDarkMode ? '#146ef510' : '#146ef510',
-                                border: `1px solid ${isDarkMode ? '#146ef530' : '#146ef530'}`,
-                                borderRadius: '4px'
-                            }}
-                        >
-                            <Sparkles size={14} style={{ color: '#146ef5' }} />
-                            <span className="text-[12.8px] font-semibold tracking-[1.5px]" style={{ color: '#146ef5' }}>
-                                v3.0 The Intelligence Career OS
-                            </span>
-                        </motion.div>
-
+                <section
+                    className="landing-hero relative overflow-hidden pt-[120px] pb-[96px] px-4 sm:px-6"
+                    id="platform"
+                    style={{
+                        background: isDarkMode
+                            ? 'radial-gradient(circle at 50% 12%, rgba(20,110,245,0.16), transparent 34%), radial-gradient(circle at 86% 30%, rgba(0,184,107,0.09), transparent 30%), linear-gradient(180deg, #0b0d10 0%, #080808 78%)'
+                            : 'radial-gradient(circle at 50% 12%, rgba(20,110,245,0.12), transparent 34%), radial-gradient(circle at 86% 30%, rgba(0,184,107,0.08), transparent 30%), linear-gradient(180deg, #f7fbff 0%, #ffffff 78%)',
+                    }}
+                >
+                    <div className="absolute inset-0 opacity-[0.18]" style={{ backgroundImage: 'linear-gradient(rgba(20,110,245,0.16) 1px, transparent 1px), linear-gradient(90deg, rgba(20,110,245,0.16) 1px, transparent 1px)', backgroundSize: '72px 72px', maskImage: 'radial-gradient(circle at center, black, transparent 74%)' }} />
+                    <div className="relative z-10 max-w-[1200px] mx-auto flex flex-col items-center text-center">
                         <motion.h1
                             initial={{ opacity: 0, y: 30 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -457,10 +449,12 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                 whileInView={{ opacity: 1, y: 0 }}
                                 viewport={{ once: true }}
                                 transition={{ duration: 0.4, delay: i * 0.05 }}
-                                className="p-8 flex items-center justify-center cursor-pointer transition-all duration-300"
+                                className="p-4 sm:p-5 flex items-center justify-center cursor-pointer transition-all duration-300"
                                 style={{
-                                    backgroundColor: isDarkMode ? '#111' : '#ffffff',
-                                    border: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`,
+                                    background: isDarkMode
+                                        ? 'linear-gradient(135deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03))'
+                                        : 'linear-gradient(135deg, #f8fbff, #ffffff)',
+                                    border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.12)' : '#d6e4f2'}`,
                                     borderRadius: '8px',
                                     boxShadow: cardShadow,
                                     aspectRatio: '3/2'
@@ -474,12 +468,16 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                     (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
                                 }}
                             >
-                            <div className="max-w-[80%] max-h-[60%] flex items-center justify-center">
+                            <div
+                                className="flex h-full w-full items-center justify-center rounded-md p-4"
+                                style={{ backgroundColor: '#ffffff', border: '1px solid rgba(15,23,42,0.08)' }}
+                            >
                                 <img 
                                     src={inst.logo} 
                                     alt={inst.name} 
-                                    className="w-full h-full object-contain" 
+                                    className="max-h-[74px] max-w-[150px] object-contain" 
                                     loading="lazy"
+                                    style={{ width: 'auto', height: 'auto' }}
                                     onError={(e) => {
                                         const target = e.currentTarget;
                                         target.style.display = 'none';
@@ -489,7 +487,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                             fallbackLabel.textContent = inst.name.split(' ')[0];
                                             fallbackLabel.style.fontSize = '14px';
                                             fallbackLabel.style.fontWeight = '600';
-                                            fallbackLabel.style.color = isDarkMode ? '#ababab' : '#5a5a5a';
+                                            fallbackLabel.style.color = '#334155';
                                             fallbackLabel.style.textAlign = 'center';
                                             parent.appendChild(fallbackLabel);
                                         }
@@ -516,14 +514,14 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             </p>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
                             {[
-                                { title: 'AI Mentorship', desc: 'Personalized guidance based on your specific career context and goals.', icon: Brain, color: '#7a3dff', bg: '#7a3dff10' },
-                                { title: 'Automated Roadmaps', desc: 'Milestones that shift based on market conditions and your progress.', icon: Zap, color: '#ff6b00', bg: '#ff6b0010' },
-                                { title: 'Global Network', desc: 'Connect with mentors and peers in your niche across 80+ countries.', icon: Users, color: '#146ef5', bg: '#146ef510' },
-                                { title: 'CV Intelligence', desc: 'AI-powered CV analysis and optimization for every application.', icon: Target, color: '#ed52cb', bg: '#ed52cb10' },
-                                { title: 'Opportunity Tracking', desc: 'Track deadlines, applications, and progress in one dashboard.', icon: BarChart3, color: '#00d722', bg: '#00d72210' },
-                                { title: 'Creator Marketplace', desc: 'Build and share learning roadmaps. Earn from your expertise.', icon: Globe, color: '#ffae13', bg: '#ffae1310' }
+                                { title: 'AI Mentorship', desc: 'Personalized guidance based on your specific career context and goals.', icon: Brain, color: '#7a3dff', bg: '#7a3dff10', surface: '#f2edff', darkSurface: 'rgba(122,61,255,0.13)' },
+                                { title: 'Automated Roadmaps', desc: 'Milestones that shift based on market conditions and your progress.', icon: Zap, color: '#ff6b00', bg: '#ff6b0010', surface: '#fff3ea', darkSurface: 'rgba(255,107,0,0.12)' },
+                                { title: 'Global Network', desc: 'Connect with mentors and peers in your niche across 80+ countries.', icon: Users, color: '#146ef5', bg: '#146ef510', surface: '#eaf3ff', darkSurface: 'rgba(20,110,245,0.14)' },
+                                { title: 'CV Intelligence', desc: 'AI-powered CV analysis and optimization for every application.', icon: Target, color: '#ed52cb', bg: '#ed52cb10', surface: '#fff0fb', darkSurface: 'rgba(237,82,203,0.13)' },
+                                { title: 'Opportunity Tracking', desc: 'Track deadlines, applications, and progress in one dashboard.', icon: BarChart3, color: '#00b86b', bg: '#00b86b12', surface: '#eafff5', darkSurface: 'rgba(0,184,107,0.13)' },
+                                { title: 'Creator Marketplace', desc: 'Build and share learning roadmaps. Earn from your expertise.', icon: Globe, color: '#ffae13', bg: '#ffae1310', surface: '#fff8e8', darkSurface: 'rgba(255,174,19,0.13)' }
                             ].map((feature, i) => (
                                 <motion.div
                                     key={i}
@@ -531,12 +529,12 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                     whileInView={{ opacity: 1, y: 0 }}
                                     viewport={{ once: true }}
                                     transition={{ duration: 0.4, delay: i * 0.1 }}
-                                    className="p-8 cursor-pointer transition-all duration-300"
+                                    className="p-5 sm:p-8 cursor-pointer transition-all duration-300"
                                     style={{
                                         background: isDarkMode
-                                            ? '#111'
-                                            : `linear-gradient(135deg, ${feature.bg}, #ffffff 72%)`,
-                                        border: `1px solid ${isDarkMode ? '#222' : `${feature.color}30`}`,
+                                            ? `linear-gradient(135deg, ${feature.darkSurface}, rgba(255,255,255,0.035) 76%)`
+                                            : `linear-gradient(135deg, ${feature.surface}, #ffffff 76%)`,
+                                        border: `1px solid ${isDarkMode ? `${feature.color}38` : `${feature.color}30`}`,
                                         borderRadius: '8px',
                                         boxShadow: cardShadow
                                     }}
@@ -545,15 +543,15 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                         (e.currentTarget as HTMLElement).style.transform = 'translateY(-4px)';
                                     }}
                                     onMouseLeave={(e) => {
-                                        (e.currentTarget as HTMLElement).style.borderColor = isDarkMode ? '#222' : '#d8d8d8';
+                                        (e.currentTarget as HTMLElement).style.borderColor = isDarkMode ? `${feature.color}38` : `${feature.color}30`;
                                         (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
                                     }}
                                 >
-                                    <div className="h-12 w-12 flex items-center justify-center rounded mb-6" style={{ backgroundColor: feature.bg, borderRadius: '8px' }}>
-                                        <feature.icon size={24} style={{ color: feature.color }} />
+                                    <div className="h-10 w-10 sm:h-12 sm:w-12 flex items-center justify-center rounded mb-4 sm:mb-6" style={{ backgroundColor: feature.bg, borderRadius: '8px' }}>
+                                        <feature.icon size={22} style={{ color: feature.color }} />
                                     </div>
-                                    <h3 className="text-[24px] font-semibold mb-3" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>{feature.title}</h3>
-                                    <p className="text-[16px] leading-[1.6]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>{feature.desc}</p>
+                                    <h3 className="text-[20px] sm:text-[24px] font-semibold mb-2 sm:mb-3" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>{feature.title}</h3>
+                                    <p className="text-[14px] sm:text-[16px] leading-[1.55] sm:leading-[1.6]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>{feature.desc}</p>
                                 </motion.div>
                             ))}
                         </div>
