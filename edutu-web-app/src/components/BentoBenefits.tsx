@@ -24,10 +24,10 @@ const BentoBenefits: React.FC = () => {
     const FloatingAvatars = () => {
         const positions = [
             { x: 12, y: 18, size: 36, color: '#146ef5', delay: 0 },
-            { x: 72, y: 14, size: 32, color: '#7a3dff', delay: 0.15 },
+            { x: 72, y: 14, size: 32, color: '#00a6d6', delay: 0.15 },
             { x: 78, y: 68, size: 36, color: '#00d722', delay: 0.3 },
             { x: 18, y: 72, size: 32, color: '#ff6b00', delay: 0.45 },
-            { x: 66, y: 82, size: 36, color: '#ed52cb', delay: 0.6 },
+            { x: 66, y: 82, size: 36, color: '#ffae13', delay: 0.6 },
         ];
         return (
             <div className="relative w-full h-full overflow-hidden">
@@ -87,40 +87,63 @@ const BentoBenefits: React.FC = () => {
     };
 
     const AnimatedBarChart = () => {
-        const bars = [45, 65, 50, 80, 60, 90, 75, 100];
+        const milestones = [
+            { label: 'Shortlist', value: 72, color: '#00b86b' },
+            { label: 'Essay', value: 54, color: '#ffae13' },
+            { label: 'Submit', value: 88, color: '#146ef5' },
+        ];
         return (
-            <div className="flex flex-col items-center justify-center h-full gap-5">
+            <div className="relative flex h-full w-full flex-col items-center justify-center gap-5 overflow-hidden">
+                <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 18, repeat: Infinity, ease: 'linear' }}
+                    className="absolute h-48 w-48 rounded-full"
+                    style={{ border: `1px dashed ${isDarkMode ? 'rgba(255,255,255,0.16)' : 'rgba(20,110,245,0.18)'}` }}
+                />
                 <motion.div
                     initial={{ scale: 0.8, opacity: 0.5 }}
                     whileInView={{ scale: 1, opacity: 1 }}
                     viewport={{ once: true }}
-                    className="flex items-center gap-3 text-lg font-bold text-[#00d722]"
+                    className="relative z-10 flex h-28 w-28 flex-col items-center justify-center rounded-full text-center"
+                    style={{
+                        background: isDarkMode ? 'linear-gradient(135deg, #0f2f28, #10243b)' : 'linear-gradient(135deg, #e8fff4, #eaf4ff)',
+                        border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.14)' : 'rgba(20,110,245,0.18)'}`,
+                        boxShadow: isDarkMode ? '0 18px 48px rgba(0,184,107,0.14)' : '0 18px 48px rgba(20,110,245,0.12)',
+                    }}
                 >
                     <motion.div
-                        animate={{ scale: [1, 1.3, 1] }}
+                        animate={{ scale: [1, 1.18, 1], opacity: [0.75, 1, 0.75] }}
                         transition={{ duration: 2, repeat: Infinity }}
-                        className="w-4 h-4 rounded-full bg-[#00d722]"
-                        style={{ boxShadow: '0 0 12px rgba(0,215,34,0.5)' }}
+                        className="mb-1 h-3 w-3 rounded-full bg-[#00b86b]"
+                        style={{ boxShadow: '0 0 18px rgba(0,184,107,0.7)' }}
                     />
-                    Live Revenue
+                    <span className="text-2xl font-black" style={{ color: isDarkMode ? '#ffffff' : '#0f1720' }}>84%</span>
+                    <span className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: '#00b86b' }}>On Track</span>
                 </motion.div>
-                <div className="w-full flex items-end justify-center gap-2.5 px-6">
-                    {bars.map((h, i) => (
+                <div className="relative z-10 w-full space-y-3 px-5">
+                    {milestones.map((milestone, i) => (
                         <motion.div
-                            key={i}
-                            initial={{ height: 0, opacity: 0 }}
-                            whileInView={{ height: `${h}%`, opacity: 1 }}
+                            key={milestone.label}
+                            initial={{ opacity: 0, x: -20 }}
+                            whileInView={{ opacity: 1, x: 0 }}
                             viewport={{ once: true }}
-                            transition={{ duration: 0.7, delay: i * 0.1, ease: 'easeOut' }}
-                            className="rounded-xl w-6 flex-shrink-0"
-                            style={{
-                                background: i === bars.length - 1
-                                    ? 'linear-gradient(180deg, #146ef5 0%, #7a3dff 100%)'
-                                    : isDarkMode
-                                        ? 'linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%)'
-                                        : 'linear-gradient(180deg, #e8e8e8 0%, #d8d8d8 100%)',
-                            }}
-                        />
+                            transition={{ delay: i * 0.1 }}
+                            className="rounded-2xl p-3"
+                            style={{ backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.78)' }}
+                        >
+                            <div className="mb-2 flex items-center justify-between text-xs font-bold" style={{ color: isDarkMode ? '#dbeafe' : '#1f2937' }}>
+                                <span>{milestone.label}</span>
+                                <span>{milestone.value}%</span>
+                            </div>
+                            <div className="h-2 overflow-hidden rounded-full" style={{ backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#dce9f5' }}>
+                                <motion.div
+                                    animate={{ width: [`${Math.max(12, milestone.value - 24)}%`, `${milestone.value}%`, `${milestone.value - 8}%`, `${milestone.value}%`] }}
+                                    transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: i * 0.35 }}
+                                    className="h-full rounded-full"
+                                    style={{ backgroundColor: milestone.color }}
+                                />
+                            </div>
+                        </motion.div>
                     ))}
                 </div>
             </div>
@@ -505,7 +528,7 @@ const BentoBenefits: React.FC = () => {
                             <span className="inline-block w-10 h-10 rounded-xl bg-[#146ef5] flex items-center justify-center">
                                 <Zap size={20} className="text-white" />
                             </span>
-                            <span className="text-[#146ef5]">Grow</span>
+                        <span className="text-[#00b86b]">Grow</span>
                         </span>
                     </h2>
                     <p
@@ -531,8 +554,14 @@ const BentoBenefits: React.FC = () => {
                             className="relative overflow-hidden rounded-3xl"
                             style={{
                                 aspectRatio: '1 / 1',
-                                backgroundColor: isDarkMode ? '#111111' : '#ffffff',
-                                border: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}`,
+                                background: isDarkMode
+                                    ? '#111111'
+                                    : index % 3 === 0
+                                        ? 'linear-gradient(135deg, #f0fff8, #ffffff)'
+                                        : index % 3 === 1
+                                            ? 'linear-gradient(135deg, #edf7ff, #ffffff)'
+                                            : 'linear-gradient(135deg, #fff8e8, #ffffff)',
+                                border: `1px solid ${isDarkMode ? '#1e1e1e' : index % 3 === 0 ? '#bdebd6' : index % 3 === 1 ? '#c8ddff' : '#ffe2a8'}`,
                                 boxShadow: isDarkMode
                                     ? '0 4px 12px rgba(0,0,0,0.3), 0 12px 36px rgba(0,0,0,0.2)'
                                     : '0 4px 12px rgba(0,0,0,0.05), 0 12px 36px rgba(0,0,0,0.08)',

@@ -13,7 +13,9 @@ import {
     Twitter,
     Linkedin,
     Github,
-    Trophy
+    Trophy,
+    LockKeyhole,
+    Smartphone
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useDarkMode } from '../hooks/useDarkMode';
@@ -26,6 +28,21 @@ interface OpportunityCardProps {
     index: number;
 }
 
+const opportunityFallbackImages: Record<string, string> = {
+    business: 'https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg',
+    'computer science': 'https://images.pexels.com/photos/3861969/pexels-photo-3861969.jpeg',
+    science: 'https://images.pexels.com/photos/2280571/pexels-photo-2280571.jpeg',
+    arts: 'https://images.pexels.com/photos/3184292/pexels-photo-3184292.jpeg',
+    general: 'https://images.pexels.com/photos/5212329/pexels-photo-5212329.jpeg',
+};
+
+const getOpportunityImage = (opportunity: Opportunity) => {
+    if (opportunity.image) return opportunity.image;
+
+    const category = opportunity.category?.toLowerCase() || 'general';
+    return opportunityFallbackImages[category] || opportunityFallbackImages.general;
+};
+
 const OpportunityCard: React.FC<OpportunityCardProps & { onNavigate: (path: string) => void }> = ({ opportunity, matchScore, index, onNavigate }) => {
     const { isDarkMode } = useDarkMode();
 
@@ -37,6 +54,7 @@ const OpportunityCard: React.FC<OpportunityCardProps & { onNavigate: (path: stri
         opportunity.difficulty === 'Hard' ? '#ff3b30' : '#ffae13';
 
     const deadlineText = opportunity.deadline ? new Date(opportunity.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Ongoing';
+    const imageUrl = getOpportunityImage(opportunity);
 
     return (
         <motion.div
@@ -61,8 +79,24 @@ const OpportunityCard: React.FC<OpportunityCardProps & { onNavigate: (path: stri
             }}
             onClick={() => onNavigate('/auth')}
         >
+            <div className="relative h-40 overflow-hidden" style={{ borderRadius: '8px 8px 0 0' }}>
+                <img
+                    src={imageUrl}
+                    alt=""
+                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    loading="lazy"
+                />
+                <div
+                    className="absolute inset-0"
+                    style={{
+                        background: isDarkMode
+                            ? 'linear-gradient(180deg, rgba(8,8,8,0.05), rgba(8,8,8,0.76))'
+                            : 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(8,25,48,0.44))',
+                    }}
+                />
+            </div>
             {matchScore !== undefined && matchScore > 0 && (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 mb-4" style={{ backgroundColor: '#146ef515', borderRadius: '4px', width: 'fit-content' }}>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 mx-6 mt-5 mb-4" style={{ backgroundColor: '#146ef515', borderRadius: '4px', width: 'fit-content' }}>
                     <Sparkles size={12} style={{ color: '#146ef5' }} />
                     <span className="text-[11px] font-bold tracking-[1.5px]" style={{ color: '#146ef5' }}>
                         {Math.round(matchScore)}% Match
@@ -70,7 +104,7 @@ const OpportunityCard: React.FC<OpportunityCardProps & { onNavigate: (path: stri
                 </div>
             )}
 
-            <div className="px-6 pb-6">
+            <div className="px-6 py-6">
                 <div className="flex items-center gap-2 mb-3 flex-wrap">
                     <span className="px-2.5 py-1 text-[10px] font-bold tracking-[1.5px]" style={{ backgroundColor: '#146ef515', color: '#146ef5', borderRadius: '4px' }}>
                         {opportunity.category}
@@ -136,6 +170,7 @@ const OpportunitiesPage: React.FC = () => {
             return haystack.includes(term);
         });
     }, [opportunities, searchTerm, selectedCategory]);
+    const visibleOpportunities = filteredOpportunities.slice(0, 24);
 
     const webflowShadow = isDarkMode
         ? '0 84px 24px rgba(0,0,0,0.3), 0 54px 22px rgba(0,0,0,0.2), 0 30px 18px rgba(0,0,0,0.15), 0 13px 13px rgba(0,0,0,0.1), 0 3px 7px rgba(0,0,0,0.08)'
@@ -288,15 +323,57 @@ const OpportunitiesPage: React.FC = () => {
                                 ))}
                             </div>
                         ) : filteredOpportunities.length > 0 ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {filteredOpportunities.map((opportunity, index) => (
-                                    <OpportunityCard
-                                        key={opportunity.id}
-                                        opportunity={opportunity}
-                                        index={index}
-                                        onNavigate={navigate}
-                                    />
-                                ))}
+                            <div className="space-y-10">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {visibleOpportunities.map((opportunity, index) => (
+                                        <OpportunityCard
+                                            key={opportunity.id}
+                                            opportunity={opportunity}
+                                            index={index}
+                                            onNavigate={navigate}
+                                        />
+                                    ))}
+                                </div>
+                                <motion.div
+                                    initial={{ opacity: 0, y: 18 }}
+                                    whileInView={{ opacity: 1, y: 0 }}
+                                    viewport={{ once: true }}
+                                    className="relative overflow-hidden rounded-[28px] border p-8 md:p-12 text-center"
+                                    style={{
+                                        background: isDarkMode
+                                            ? 'linear-gradient(135deg, rgba(20,110,245,0.22), rgba(0,184,107,0.16)), #0f1720'
+                                            : 'linear-gradient(135deg, #eaf3ff, #e9fff5)',
+                                        borderColor: isDarkMode ? 'rgba(255,255,255,0.14)' : '#b9dafb',
+                                        boxShadow: webflowShadow,
+                                    }}
+                                >
+                                    <div className="absolute inset-x-0 top-0 h-24" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.14), transparent)' }} />
+                                    <div className="relative z-10 mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl" style={{ backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#ffffff', color: '#146ef5' }}>
+                                        <LockKeyhole size={30} />
+                                    </div>
+                                    <h2 className="relative z-10 text-[32px] md:text-[48px] font-semibold leading-tight mb-4" style={{ color: isDarkMode ? '#ffffff' : '#08243d' }}>
+                                        Unlock 1,000+ more global opportunities
+                                    </h2>
+                                    <p className="relative z-10 max-w-2xl mx-auto text-[17px] leading-relaxed mb-8" style={{ color: isDarkMode ? '#c7d2da' : '#466176' }}>
+                                        Sign up or download the app to view the full scholarship, internship, fellowship, and grant feed with personalized matches.
+                                    </p>
+                                    <div className="relative z-10 flex flex-col sm:flex-row items-center justify-center gap-3">
+                                        <button
+                                            onClick={() => navigate('/auth')}
+                                            className="inline-flex items-center justify-center gap-2 rounded-xl px-7 py-3.5 text-sm font-bold"
+                                            style={{ backgroundColor: '#146ef5', color: '#ffffff' }}
+                                        >
+                                            Sign up to unlock <ArrowRight size={16} />
+                                        </button>
+                                        <button
+                                            onClick={() => navigate('/auth')}
+                                            className="inline-flex items-center justify-center gap-2 rounded-xl border px-7 py-3.5 text-sm font-bold"
+                                            style={{ borderColor: isDarkMode ? 'rgba(255,255,255,0.18)' : '#b9dafb', color: isDarkMode ? '#ffffff' : '#08243d' }}
+                                        >
+                                            <Smartphone size={16} /> Download app
+                                        </button>
+                                    </div>
+                                </motion.div>
                             </div>
                         ) : (
                             <motion.div

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 import { supabase } from '../lib/supabase';
 import { getLocalDevAuthHeaders } from '../../../lib/localDevAuthHeaders';
 import {
@@ -152,6 +153,7 @@ interface Opportunity {
 }
 
 export default function ScraperDashboard() {
+    const { getToken } = useAuth();
     const [sources, setSources] = useState<ScrapeSource[]>([]);
     const [jobs, setJobs] = useState<ScrapeJob[]>([]);
     const [showAllJobs, setShowAllJobs] = useState(false);
@@ -211,14 +213,28 @@ export default function ScraperDashboard() {
     const abortControllerRef = { current: null as AbortController | null };
 
     const getAuthHeaders = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) {
-            throw new Error('Admin session is required');
+        const localHeaders = getLocalDevAuthHeaders();
+        const clerkToken = await getToken().catch(() => null);
+        if (clerkToken) {
+            return {
+                Authorization: `Bearer ${clerkToken}`,
+                ...localHeaders,
+            };
         }
-        return {
-            Authorization: `Bearer ${session.access_token}`,
-            ...getLocalDevAuthHeaders(),
-        };
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+            return {
+                Authorization: `Bearer ${session.access_token}`,
+                ...localHeaders,
+            };
+        }
+
+        if (Object.keys(localHeaders).length > 0) {
+            return localHeaders;
+        }
+
+        throw new Error('Admin session is required');
     };
 
     const fetchSettings = async () => {
