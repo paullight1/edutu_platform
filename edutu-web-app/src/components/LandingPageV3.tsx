@@ -277,11 +277,12 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             style={{ color: isDarkMode ? '#ffffff' : '#080808' }}
                         >
                             Your AI Guide to{' '}
-                            <span className="landing-hero-highlight" style={{ color: '#146ef5', whiteSpace: 'nowrap' }}>
+                            <span className="landing-hero-highlight" style={{ color: 'inherit', whiteSpace: 'nowrap' }}>
                                 Global{' '}
                                 <span
                                     className="landing-hero-word"
                                     style={{
+                                        color: '#146ef5',
                                         display: 'inline-block',
                                         minWidth: '6.8em',
                                         textAlign: 'left',
