@@ -2,12 +2,8 @@ import React, { useMemo } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Navigation from './Navigation';
 
-// Screens where the navigation bar should be hidden
-const HIDDEN_NAV_ROUTES = [
-    '/app/opportunities',   // Explore
-    '/app/chat',            // AI Chat
-    '/app/community',       // Market
-    '/app/settings',        // More (Settings)
+// Full-screen flows keep focus on the current task instead of app switching.
+const HIDDEN_NAV_PREFIXES = [
     '/app/profile-edit',
     '/app/notifications',
     '/app/privacy',
@@ -15,11 +11,15 @@ const HIDDEN_NAV_ROUTES = [
     '/app/cv',
     '/app/personalization',
     '/app/add-goal',
-    '/app/goals',
+    '/app/roadmap-templates',
     '/app/achievements',
-    '/app/saved',
-    '/app/applied',
-    '/app/deadlines',
+    '/app/creator',
+];
+
+const HIDDEN_NAV_SEGMENTS = [
+    '/app/opportunity/',
+    '/app/goal/',
+    '/app/package/',
 ];
 
 const AppLayout: React.FC = () => {
@@ -27,26 +27,25 @@ const AppLayout: React.FC = () => {
 
     // Determine if navigation should be shown
     const showNavigation = useMemo(() => {
-        // Hide nav on specific routes
-        const isHiddenRoute = HIDDEN_NAV_ROUTES.some(route =>
+        const isHiddenRoute = HIDDEN_NAV_PREFIXES.some(route =>
             location.pathname.startsWith(route)
         );
 
-        // Also hide on opportunity detail, goal roadmap, package detail pages
-        const isDynamicHiddenRoute =
-            location.pathname.includes('/opportunity/') ||
-            location.pathname.includes('/goal/') ||
-            location.pathname.includes('/package/');
+        const isDynamicHiddenRoute = HIDDEN_NAV_SEGMENTS.some(segment =>
+            location.pathname.includes(segment)
+        );
 
         return !isHiddenRoute && !isDynamicHiddenRoute;
     }, [location.pathname]);
+
+    const showDesktopNavigation = location.pathname !== '/app/home';
 
     return (
         <div className="flex flex-col min-h-screen">
             <main className={showNavigation ? 'flex-1 pb-20 sm:pb-24 md:pb-28' : 'flex-1'}>
                 <Outlet />
             </main>
-            {showNavigation && <Navigation />}
+            {showNavigation && <Navigation showDesktopNavigation={showDesktopNavigation} />}
         </div>
     );
 };

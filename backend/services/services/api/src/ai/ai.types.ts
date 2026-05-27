@@ -20,6 +20,7 @@ export interface AiGenerateOptions {
   prompt: string;
   systemInstruction?: string | null;
   responseMimeType?: string | null;
+  responseJsonSchema?: Record<string, unknown> | null;
   temperature?: number | null;
   maxOutputTokens?: number | null;
   metadata?: Record<string, unknown>;
@@ -34,6 +35,7 @@ export interface AiRouteConfig {
   temperature?: number | null;
   maxOutputTokens?: number | null;
   responseMimeType?: string | null;
+  responseJsonSchema?: Record<string, unknown> | null;
   isEnabled: boolean;
 }
 
@@ -50,5 +52,8 @@ export interface AiGenerateResult {
 
 export interface AiProviderAdapter {
   readonly provider: AiProvider;
-  generateText(config: AiRouteConfig, options: AiGenerateOptions): Promise<AiGenerateResult>;
+  generateText(
+    config: AiRouteConfig,
+    options: AiGenerateOptions,
+  ): Promise<AiGenerateResult>;
 }

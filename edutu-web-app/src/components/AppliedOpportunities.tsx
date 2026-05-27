@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Calendar, Tag, FileText, Trash2 } from 'lucide-react';
+import { ArrowLeft, Calendar, ChevronRight, FileText, RefreshCw, Send, Tag, Trash2 } from 'lucide-react';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { useAuth } from '@clerk/clerk-react';
+import Button from './ui/Button';
+import Card from './ui/Card';
+import { useToast } from './ui/ToastProvider';
 import {
   getApplications,
   removeApplication,
@@ -56,37 +59,45 @@ const FILTER_TABS: (ApplicationStatus | 'all')[] = ['all', 'submitted', 'under_r
 
 interface AppliedOpportunitiesProps {
   onBack: () => void;
+  onExplore?: () => void;
 }
 
-const AppliedOpportunities: React.FC<AppliedOpportunitiesProps> = ({ onBack }) => {
+const AppliedOpportunities: React.FC<AppliedOpportunitiesProps> = ({ onBack, onExplore }) => {
   const { isDarkMode } = useDarkMode();
-  const { userId } = useAuth();
+  const { userId, getToken } = useAuth();
+  const { success, error: showError } = useToast();
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<ApplicationStatus | 'all'>('all');
   const [removingId, setRemovingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchApplications = async () => {
-      try {
-        if (!userId) {
-          setError('Not authenticated');
-          setLoading(false);
-          return;
-        }
+  const loadApplications = async () => {
+    if (!userId) {
+      setApplications([]);
+      return;
+    }
 
-        const data = await getApplications(userId);
-        setApplications(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load applications');
-      } finally {
-        setLoading(false);
-      }
+    const token = await getToken().catch(() => null);
+    const data = await getApplications(userId, token);
+    setApplications(data);
+  };
+
+  useEffect(() => {
+    let active = true;
+
+    const init = async () => {
+      setLoading(true);
+      await loadApplications();
+      if (active) setLoading(false);
     };
 
-    fetchApplications();
-  }, [userId]);
+    void init();
+
+    return () => {
+      active = false;
+    };
+  }, [userId, getToken]);
 
   const filteredApplications = useMemo(() => {
     if (activeFilter === 'all') return applications;
@@ -96,10 +107,13 @@ const AppliedOpportunities: React.FC<AppliedOpportunitiesProps> = ({ onBack }) =
   const handleRemove = async (id: string) => {
     try {
       setRemovingId(id);
-      await removeApplication(id);
+      const token = await getToken().catch(() => null);
+      await removeApplication(id, token);
       setApplications((prev) => prev.filter((app) => app.id !== id));
+      success('Application removed');
     } catch (err) {
       console.error('Failed to remove application:', err);
+      showError('Unable to remove application');
     } finally {
       setRemovingId(null);
     }
@@ -107,11 +121,20 @@ const AppliedOpportunities: React.FC<AppliedOpportunitiesProps> = ({ onBack }) =
 
   const handleStatusChange = async (id: string, status: ApplicationStatus) => {
     try {
-      const updated = await updateApplicationStatus(id, status);
-      setApplications((prev) => prev.map((app) => (app.id === id ? updated : app)));
+      const token = await getToken().catch(() => null);
+      const updated = await updateApplicationStatus(id, status, token);
+      setApplications((prev) => prev.map((app) => (app.id === id ? { ...app, ...updated } : app)));
+      success('Application status updated');
     } catch (err) {
       console.error('Failed to update status:', err);
+      showError('Unable to update application status');
     }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadApplications();
+    setRefreshing(false);
   };
 
   const formatDate = (dateString: string) => {
@@ -120,36 +143,64 @@ const AppliedOpportunities: React.FC<AppliedOpportunitiesProps> = ({ onBack }) =
   };
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-slate-50 text-slate-900'} font-body transition-colors duration-500`}>
-      <div className="fixed inset-0 pointer-events-none opacity-20 dark:opacity-10 mesh-gradient" />
+    <div className={`min-h-screen pb-24 ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-slate-50 text-slate-950'}`}>
+      <header className="sticky top-0 z-10 bg-slate-50/95 px-4 py-3 backdrop-blur dark:bg-gray-950/95">
+        <div className="mx-auto flex max-w-5xl items-center gap-3">
+          <Button
+            variant="secondary"
+            onClick={onBack}
+            className="h-11 w-11 rounded-full border-0 bg-white p-0 shadow-sm dark:bg-white/10"
+            aria-label="Back"
+          >
+            <ArrowLeft size={20} />
+          </Button>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl font-black tracking-tight">Applied Opportunities</h1>
+            <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+              {applications.length} tracked {applications.length === 1 ? 'application' : 'applications'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleRefresh()}
+            disabled={refreshing}
+            className={`flex h-11 w-11 items-center justify-center rounded-full shadow-sm transition ${
+              isDarkMode ? 'bg-white/10 text-slate-300' : 'bg-white text-slate-600'
+            } disabled:opacity-60`}
+            aria-label="Refresh applications"
+          >
+            <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
+          </button>
+        </div>
+      </header>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-24 relative z-10">
-        <div className="flex items-center justify-between mb-6">
+      <main className="mx-auto max-w-5xl space-y-5 px-4 py-4">
+        <section className={`rounded-[20px] p-4 shadow-sm ${isDarkMode ? 'bg-white/6' : 'bg-white'}`}>
           <div className="flex items-center gap-3">
-            <button
-              onClick={onBack}
-              className={`p-2.5 rounded-xl ${isDarkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-slate-100 hover:bg-slate-200'} transition-all`}
-            >
-              <ArrowLeft size={18} />
-            </button>
-            <div>
-              <h1 className="text-2xl font-display font-bold">Applied Opportunities</h1>
-              <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                {filteredApplications.length} {filteredApplications.length === 1 ? 'application' : 'applications'}
+            <div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-brand-500 text-white shadow-lg shadow-brand-500/20">
+              <Send size={22} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-base font-black">Application tracker</h2>
+              <p className={`mt-0.5 text-sm ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                Opportunities you open through Apply Now are tracked here.
               </p>
             </div>
           </div>
-        </div>
+        </section>
 
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide mb-6">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
           {FILTER_TABS.map((tab) => (
             <button
               key={tab}
+              type="button"
               onClick={() => setActiveFilter(tab)}
-              className={`px-4 py-2 rounded-xl font-bold text-xs transition-all whitespace-nowrap border ${
+              className={`rounded-full px-4 py-2 text-sm font-bold transition whitespace-nowrap ${
                 activeFilter === tab
-                  ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400 border-brand-500/20'
-                  : `${isDarkMode ? 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10' : 'bg-white text-slate-500 border-transparent hover:bg-slate-50'}`
+                  ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20'
+                  : isDarkMode
+                    ? 'bg-white/6 text-slate-400 hover:text-white'
+                    : 'bg-white text-slate-500 shadow-sm hover:text-slate-950'
               }`}
             >
               {tab === 'all' ? 'All' : STATUS_LABELS[tab]}
@@ -158,52 +209,48 @@ const AppliedOpportunities: React.FC<AppliedOpportunitiesProps> = ({ onBack }) =
         </div>
 
         {loading ? (
-          <div className="space-y-4">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-                className={`premium-card p-6 h-32 animate-pulse border-none ${isDarkMode ? 'bg-gray-900/50' : 'bg-white/50'}`}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div
+                key={index}
+                className={`h-36 animate-pulse rounded-[20px] ${isDarkMode ? 'bg-white/6' : 'bg-white'}`}
               />
             ))}
-          </div>
-        ) : error ? (
-          <div className="text-center py-20 premium-card bg-transparent border-dashed">
-            <FileText size={48} className={`mx-auto ${isDarkMode ? 'text-slate-600' : 'text-slate-300'} mb-4 opacity-50`} />
-            <h3 className="text-xl font-display font-bold mb-2">Error Loading Applications</h3>
-            <p className={`${isDarkMode ? 'text-slate-400' : 'text-slate-500'} font-medium`}>{error}</p>
           </div>
         ) : filteredApplications.length === 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center py-20 premium-card bg-transparent border-dashed"
+            className={`rounded-[20px] px-6 py-16 text-center shadow-sm ${isDarkMode ? 'bg-white/6' : 'bg-white'}`}
           >
-            <FileText size={48} className={`mx-auto ${isDarkMode ? 'text-slate-600' : 'text-slate-300'} mb-4 opacity-50`} />
-            <h3 className="text-xl font-display font-bold mb-2">
-              {activeFilter === 'all' ? 'No Applications Yet' : `No ${STATUS_LABELS[activeFilter].toLowerCase()} applications`}
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[20px] bg-brand-500/10 text-brand-500">
+              <FileText size={30} />
+            </div>
+            <h3 className="mt-5 text-lg font-black">
+              {activeFilter === 'all' ? 'No applications yet' : `No ${STATUS_LABELS[activeFilter].toLowerCase()} applications`}
             </h3>
-            <p className={`${isDarkMode ? 'text-slate-400' : 'text-slate-500'} font-medium`}>
+            <p className={`mx-auto mt-2 max-w-sm text-sm leading-6 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
               {activeFilter === 'all'
-                ? 'Start applying to opportunities to track them here.'
+                ? 'Click Apply Now on an opportunity to track your submission status here.'
                 : 'Try selecting a different filter.'}
             </p>
+            <Button onClick={onExplore ?? onBack} className="mt-6 rounded-full px-5">
+              Explore opportunities
+            </Button>
           </motion.div>
         ) : (
           <>
             <div className="hidden md:block">
-              <div className={`rounded-2xl border ${isDarkMode ? 'border-white/10' : 'border-slate-200'} overflow-hidden`}>
+              <div className={`overflow-hidden rounded-[20px] shadow-sm ${isDarkMode ? 'bg-white/6' : 'bg-white'}`}>
                 <table className="w-full">
                   <thead className={`${isDarkMode ? 'bg-white/5' : 'bg-slate-50'}`}>
                     <tr>
-                      <th className="text-left px-6 py-4 text-xs font-bold tracking-widest text-slate-500">Opportunity</th>
-                      <th className="text-left px-6 py-4 text-xs font-bold tracking-widest text-slate-500">Category</th>
-                      <th className="text-left px-6 py-4 text-xs font-bold tracking-widest text-slate-500">Status</th>
-                      <th className="text-left px-6 py-4 text-xs font-bold tracking-widest text-slate-500">Applied</th>
-                      <th className="text-left px-6 py-4 text-xs font-bold tracking-widest text-slate-500">Notes</th>
-                      <th className="text-right px-6 py-4 text-xs font-bold tracking-widest text-slate-500">Actions</th>
+                      <th className="text-left px-6 py-4 text-xs font-black tracking-widest text-slate-500">Opportunity</th>
+                      <th className="text-left px-6 py-4 text-xs font-black tracking-widest text-slate-500">Category</th>
+                      <th className="text-left px-6 py-4 text-xs font-black tracking-widest text-slate-500">Status</th>
+                      <th className="text-left px-6 py-4 text-xs font-black tracking-widest text-slate-500">Applied</th>
+                      <th className="text-left px-6 py-4 text-xs font-black tracking-widest text-slate-500">Notes</th>
+                      <th className="text-right px-6 py-4 text-xs font-black tracking-widest text-slate-500">Actions</th>
                     </tr>
                   </thead>
                   <tbody className={`divide-y ${isDarkMode ? 'divide-white/5' : 'divide-slate-100'}`}>
@@ -216,7 +263,7 @@ const AppliedOpportunities: React.FC<AppliedOpportunitiesProps> = ({ onBack }) =
                         className={`${isDarkMode ? 'hover:bg-white/5' : 'hover:bg-slate-50'} transition-colors`}
                       >
                         <td className="px-6 py-4">
-                          <span className="font-semibold">{app.opportunity_title}</span>
+                          <span className="font-black">{app.opportunity_title}</span>
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-1.5">
@@ -270,10 +317,10 @@ const AppliedOpportunities: React.FC<AppliedOpportunitiesProps> = ({ onBack }) =
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className={`premium-card p-5 border-none ${isDarkMode ? 'bg-gray-900' : 'bg-white'} shadow-sm`}
                 >
+                  <Card className="border-0 bg-white p-4 shadow-sm dark:bg-white/6">
                   <div className="flex items-start justify-between gap-3 mb-3">
-                    <h3 className="font-semibold text-base leading-tight flex-1">{app.opportunity_title}</h3>
+                    <h3 className="font-black text-base leading-tight flex-1">{app.opportunity_title}</h3>
                     <button
                       onClick={() => handleRemove(app.id)}
                       disabled={removingId === app.id}
@@ -309,12 +356,13 @@ const AppliedOpportunities: React.FC<AppliedOpportunitiesProps> = ({ onBack }) =
                       {app.notes}
                     </p>
                   )}
+                  </Card>
                 </motion.div>
               ))}
             </div>
           </>
         )}
-      </div>
+      </main>
     </div>
   );
 };

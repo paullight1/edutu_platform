@@ -77,7 +77,10 @@ export class FlashcardsController {
   }
 
   @Post('cards')
-  createCard(@CurrentUser('id') userId: string, @Body() dto: CreateFlashcardDto) {
+  createCard(
+    @CurrentUser('id') userId: string,
+    @Body() dto: CreateFlashcardDto,
+  ) {
     return this.flashcardsService.createCard(userId, dto);
   }
 

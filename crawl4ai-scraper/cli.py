@@ -91,7 +91,11 @@ class ScraperCLI:
         all_items = []
         for result in results:
             if result.get("html"):
-                items = extractor.extract_from_html(result["html"], result.get("source", "Unknown"))
+                items = extractor.extract_from_html(
+                    result["html"],
+                    result.get("source", "Unknown"),
+                    result.get("url"),
+                )
                 all_items.extend(items)
 
         cleaned_items = [cleaner.clean(item) for item in all_items]

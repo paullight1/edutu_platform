@@ -1,5 +1,4 @@
-// Mock hook to replace Firebase role management functionality
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 export type UserRole = 'user' | 'admin' | 'moderator' | 'premium';
 
@@ -7,8 +6,7 @@ interface UserRoles {
   [userId: string]: UserRole[];
 }
 
-// Mock user roles data
-const mockUserRoles: UserRoles = {
+const localUserRoles: UserRoles = {
   'default-user': ['user'],
   'admin-user': ['user', 'admin'],
   'moderator-user': ['user', 'moderator'],
@@ -19,28 +17,25 @@ export function useRoleManager() {
   const [error, setError] = useState<string | null>(null);
 
   const getUserRoles = async (userId: string): Promise<UserRole[]> => {
-    console.log('Getting user roles (using mock implementation)', userId);
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    return mockUserRoles[userId] || ['user'];
+    if (import.meta.env.DEV) {
+      console.debug('Role manager is using local development roles', userId);
+    }
+    return localUserRoles[userId] || ['user'];
   };
 
   const addUserRole = async (userId: string, role: UserRole): Promise<boolean> => {
-    console.log('Adding user role (using mock implementation)', { userId, role });
     setLoading(true);
     setError(null);
     
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // In a real implementation, this would update the database
-      if (!mockUserRoles[userId]) {
-        mockUserRoles[userId] = [];
+      if (!import.meta.env.DEV) {
+        throw new Error('Role management is not connected to the backend yet.');
       }
-      if (!mockUserRoles[userId].includes(role)) {
-        mockUserRoles[userId].push(role);
+      if (!localUserRoles[userId]) {
+        localUserRoles[userId] = [];
+      }
+      if (!localUserRoles[userId].includes(role)) {
+        localUserRoles[userId].push(role);
       }
       
       return true;
@@ -54,17 +49,15 @@ export function useRoleManager() {
   };
 
   const removeUserRole = async (userId: string, role: UserRole): Promise<boolean> => {
-    console.log('Removing user role (using mock implementation)', { userId, role });
     setLoading(true);
     setError(null);
     
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // In a real implementation, this would update the database
-      if (mockUserRoles[userId]) {
-        mockUserRoles[userId] = mockUserRoles[userId].filter(r => r !== role);
+      if (!import.meta.env.DEV) {
+        throw new Error('Role management is not connected to the backend yet.');
+      }
+      if (localUserRoles[userId]) {
+        localUserRoles[userId] = localUserRoles[userId].filter(r => r !== role);
       }
       
       return true;

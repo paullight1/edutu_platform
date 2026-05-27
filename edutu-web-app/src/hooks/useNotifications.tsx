@@ -27,6 +27,7 @@ import {
   type FetchNotificationsParams,
   type NotificationPreferences
 } from '../services/notifications';
+import { toDatabaseUserId } from '../lib/userId';
 
 interface NotificationsContextValue {
   notifications: AppNotification[];
@@ -69,7 +70,7 @@ const mapRealtimeRow = (row: Record<string, unknown>): AppNotification | null =>
 };
 
 export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isSignedIn, userId } = useAuth();
+  const { isSignedIn, userId, getToken } = useAuth();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +107,8 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
 
       try {
         const limit = options.limit ?? 20;
-        const data = await fetchNotifications(options);
+        const token = await getToken();
+        const data = await fetchNotifications(options, token);
 
         setNotifications((prev) => {
           if (!options.cursor) {
@@ -138,7 +140,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
         setLoading(false);
       }
     },
-    [userId]
+    [getToken, userId]
   );
 
   const fetchMore = useCallback(async () => {
@@ -154,12 +156,13 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       return;
     }
     try {
-      const prefs = await getNotificationPreferences(userId);
+      const token = await getToken();
+      const prefs = await getNotificationPreferences(userId, token);
       setPreferences(prefs);
     } catch (prefError) {
       console.error('Failed to load notification preferences', prefError);
     }
-  }, [userId]);
+  }, [getToken, userId]);
 
   useEffect(() => {
     if (!userId) {
@@ -186,11 +189,12 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       realtimeChannelRef.current = null;
     }
 
+    const databaseUserId = toDatabaseUserId(userId);
     const channel = supabase
-      .channel(`notifications:${userId}`)
+      .channel(`notifications:${databaseUserId}`)
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${databaseUserId}` },
         (payload) => {
           const mapped = mapRealtimeRow(payload.new);
           if (mapped) {
@@ -201,12 +205,23 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
               }
               return [mapped, ...prev];
             });
+            if (
+              typeof window !== 'undefined' &&
+              'Notification' in window &&
+              Notification.permission === 'granted'
+            ) {
+              new Notification(mapped.title, {
+                body: mapped.body,
+                tag: mapped.id,
+                data: mapped.metadata
+              });
+            }
           }
         }
       )
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
+        { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${databaseUserId}` },
         (payload) => {
           const mapped = mapRealtimeRow(payload.new);
           if (mapped) {
@@ -218,7 +233,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       )
       .on(
         'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
+        { event: 'DELETE', schema: 'public', table: 'notifications', filter: `user_id=eq.${databaseUserId}` },
         (payload) => {
           const deletedId = typeof payload.old?.id === 'string' ? payload.old.id : null;
           if (deletedId) {
@@ -238,27 +253,30 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const markAsReadHandler = useCallback(
     async (notificationId: string) => {
-      await markNotificationRead(notificationId, true);
+      const token = await getToken();
+      await markNotificationRead(notificationId, true, token);
       setNotifications((prev) =>
         prev.map((item) => (item.id === notificationId ? { ...item, readAt: new Date().toISOString() } : item))
       );
     },
-    []
+    [getToken]
   );
 
   const markAllAsReadHandler = useCallback(async () => {
     if (!userId) {
       return;
     }
-    await markAllNotificationsRead(userId);
+    const token = await getToken();
+    await markAllNotificationsRead(userId, token);
     const timestamp = new Date().toISOString();
     setNotifications((prev) => prev.map((item) => ({ ...item, readAt: item.readAt ?? timestamp })));
-  }, [userId]);
+  }, [getToken, userId]);
 
   const deleteNotificationHandler = useCallback(async (notificationId: string) => {
-    await deleteNotificationService(notificationId);
+    const token = await getToken();
+    await deleteNotificationService(notificationId, token);
     setNotifications((prev) => prev.filter((item) => item.id !== notificationId));
-  }, []);
+  }, [getToken]);
 
   const sendNotificationHandler = useCallback(
     async (draft: NotificationDraft, options?: { userId?: string }) => {
@@ -308,10 +326,11 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
         updatedAt: new Date().toISOString()
       };
 
-      await saveNotificationPreferences(userId, nextPreferences);
+      const token = await getToken();
+      await saveNotificationPreferences(userId, nextPreferences, token);
       setPreferences(nextPreferences);
     },
-    [preferences, userId]
+    [getToken, preferences, userId]
   );
 
   const refreshPreferences = useCallback(async () => {
@@ -339,12 +358,13 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       if (!userId) {
         throw new Error('User must be signed in to register a push token.');
       }
+      const authToken = await getToken();
       await registerPushToken(userId, {
         token,
         device: metadata
-      });
+      }, authToken);
     },
-    [userId]
+    [getToken, userId]
   );
 
   const unregisterPushTokenHandler = useCallback(

@@ -73,12 +73,6 @@ export const pwaConfig = VitePWA({
                 description: 'View your dashboard',
                 url: '/app/home',
             },
-            {
-                name: 'AI Coach',
-                short_name: 'AI',
-                description: 'Chat with Edutu AI',
-                url: '/app/ai',
-            },
         ],
     },
     workbox: {

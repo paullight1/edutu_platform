@@ -3,7 +3,7 @@
  * Stats, recent activity, quick actions
  */
 import React, { useState, useEffect } from 'react';
-import { Users, DollarSign, ShoppingBag, TrendingUp, ArrowUpRight, Crown } from 'lucide-react';
+import { Users, DollarSign, ShoppingBag, TrendingUp, ArrowUpRight, Crown, Bell } from 'lucide-react';
 import { getPaymentsStats } from '../../services/admin/paymentsAdmin';
 import { getAdminStats } from '../../services/admin/adminService';
 
@@ -103,7 +103,7 @@ const AdminDashboard: React.FC = () => {
       {/* Quick Actions */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <a
             href="/admin/users"
             className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 dark:border-gray-600 hover:border-indigo-300 dark:hover:border-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-colors group"
@@ -126,6 +126,18 @@ const AdminDashboard: React.FC = () => {
             <div>
               <p className="text-sm font-medium text-gray-900 dark:text-white">View Payments</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">Revenue & transactions</p>
+            </div>
+          </a>
+          <a
+            href="/admin/notifications"
+            className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 dark:border-gray-600 hover:border-rose-300 dark:hover:border-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/10 transition-colors group"
+          >
+            <div className="p-2 bg-rose-100 dark:bg-rose-900/30 rounded-lg group-hover:bg-rose-200 dark:group-hover:bg-rose-900/50 transition-colors">
+              <Bell size={20} className="text-rose-600 dark:text-rose-400" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">Broadcast</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Push, inbox, email</p>
             </div>
           </a>
           <a

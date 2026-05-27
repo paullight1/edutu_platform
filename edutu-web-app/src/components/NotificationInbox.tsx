@@ -8,9 +8,9 @@ import {
   Users,
   CheckCircle,
   Trash2,
-  MailSearch as MarkEmailRead,
+  MailSearch,
   AlertTriangle,
-  Zap
+  Sparkles
 } from 'lucide-react';
 import Button from './ui/Button';
 import { useDarkMode } from '../hooks/useDarkMode';
@@ -38,234 +38,200 @@ const NotificationInbox: React.FC<NotificationInboxProps> = ({ isOpen, onClose }
   const { isDarkMode } = useDarkMode();
 
   const filteredNotifications = useMemo(
-    () =>
-      notifications.filter((notification) =>
-        filter === 'unread' ? !notification.readAt : true
-      ),
+    () => notifications.filter((notification) => filter === 'unread' ? !notification.readAt : true),
     [filter, notifications]
   );
 
   const formatTimestamp = (iso: string) => {
-    if (!iso) return 'Just now';
+    if (!iso) return 'Now';
     const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return iso;
-    const diffMs = Date.now() - date.getTime();
-    const minutes = Math.round(diffMs / (1000 * 60));
-    if (minutes < 1) return 'Just now';
-    if (minutes < 60) return `${minutes} min${minutes === 1 ? '' : 's'} ago`;
+    if (Number.isNaN(date.getTime())) return 'Now';
+    const minutes = Math.round((Date.now() - date.getTime()) / 60000);
+    if (minutes < 1) return 'Now';
+    if (minutes < 60) return `${minutes}m`;
     const hours = Math.round(minutes / 60);
-    if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+    if (hours < 24) return `${hours}h`;
     const days = Math.round(hours / 24);
-    if (days < 7) return `${days} day${days === 1 ? '' : 's'} ago`;
-    return date.toLocaleString();
+    if (days < 7) return `${days}d`;
+    return date.toLocaleDateString();
   };
 
   const iconForNotification = (kind: AppNotification['kind'], severity: AppNotification['severity']) => {
+    const className = severity === 'critical' ? 'text-rose-500' : 'text-brand-500';
     switch (kind) {
       case 'goal-reminder':
-        return <Target size={16} className="text-primary" />;
+        return <Target size={17} className={className} />;
       case 'goal-weekly-digest':
-        return <Calendar size={16} className="text-indigo-500" />;
+        return <Calendar size={17} className={className} />;
       case 'goal-progress':
-        return <Award size={16} className="text-emerald-500" />;
+        return <Award size={17} className="text-emerald-500" />;
       case 'opportunity-highlight':
-        return <Users size={16} className="text-purple-500" />;
+        return <Users size={17} className="text-sky-500" />;
       case 'admin-broadcast':
-        return <AlertTriangle size={16} className="text-amber-500" />;
+        return <AlertTriangle size={17} className="text-amber-500" />;
       default:
-        return severity === 'critical'
-          ? <Zap size={16} className="text-red-500" />
-          : <Bell size={16} className="text-gray-600" />;
+        return <Bell size={17} className={className} />;
     }
   };
 
-  if (!isOpen) {
-    return null;
-  }
+  if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-end p-4 md:p-6 pointer-events-none">
-      <div className="absolute inset-0 bg-gray-950/20 dark:bg-black/60 backdrop-blur-[2px] pointer-events-auto" onClick={onClose} />
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 px-3 pb-3 pt-12 backdrop-blur-sm sm:items-start sm:justify-end sm:p-5">
+      <button type="button" aria-label="Close notifications" className="absolute inset-0 cursor-default" onClick={onClose} />
 
-      <div className={`relative w-full max-w-md h-[80vh] flex flex-col rounded-[2.5rem] border shadow-2xl transition-all duration-500 transform pointer-events-auto animate-slide-in-right ${isDarkMode ? 'border-white/10 bg-gray-900/90' : 'border-slate-200/50 bg-white/90'
-        } backdrop-blur-2xl`}>
-
-        {/* Header */}
-        <div className={`p-6 border-b ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-2xl bg-brand-500/10 flex items-center justify-center text-brand-500">
-                <Bell size={22} className="animate-bounce-subtle" />
-              </div>
-              <div>
-                <h2 className={`text-xl font-display font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Notifications</h2>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  <p className={`text-xs font-medium tracking-widest ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
-                    {unreadCount} Unread Message{unreadCount !== 1 ? 's' : ''}
-                  </p>
-                </div>
-              </div>
+      <section
+        className={`relative flex h-[82vh] w-full max-w-md flex-col overflow-hidden rounded-[20px] shadow-2xl ${
+          isDarkMode ? 'bg-gray-950 text-white' : 'bg-slate-50 text-slate-950'
+        }`}
+      >
+        <header className="flex items-center justify-between px-5 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-[18px] bg-brand-500 text-white shadow-lg shadow-brand-500/20">
+              <Bell size={20} />
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className={`rounded-xl p-2 transition-all hover:scale-110 ${isDarkMode ? 'hover:bg-white/10 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}
-            >
-              <X size={20} />
-            </button>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="px-6 py-4 flex items-center justify-between">
-          <div className="flex p-1 rounded-xl bg-slate-100 dark:bg-white/5">
-            <button
-              onClick={() => setFilter('all')}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${filter === 'all'
-                ? 'bg-white dark:bg-gray-800 text-brand-500 shadow-sm'
-                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
-                }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setFilter('unread')}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${filter === 'unread'
-                ? 'bg-white dark:bg-gray-800 text-brand-500 shadow-sm'
-                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
-                }`}
-            >
-              Unread
-            </button>
-          </div>
-          {unreadCount > 0 && (
-            <button
-              onClick={() => void markAllAsRead()}
-              className="text-[10px] font-bold text-brand-500 hover:text-brand-600 tracking-widest px-2 py-1"
-            >
-              Mark all as read
-            </button>
-          )}
-        </div>
-
-        {/* Notifications List */}
-        <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-3 custom-scrollbar">
-          {loading ? (
-            <div className="space-y-4 py-2">
-              {Array.from({ length: 4 }).map((_, index) => (
-                <div
-                  key={`notification-skeleton-${index}`}
-                  className={`animate-pulse rounded-2xl p-4 border aspect-[4/1] ${isDarkMode ? 'border-white/5 bg-white/5' : 'border-slate-100 bg-slate-50/50'}`}
-                />
-              ))}
-            </div>
-          ) : filteredNotifications.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center opacity-40 grayscale">
-              <div className="h-16 w-16 rounded-3xl bg-slate-100 dark:bg-white/5 flex items-center justify-center mb-4">
-                <MarkEmailRead size={32} />
-              </div>
-              <h3 className={`text-base font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-                No New Notifications
-              </h3>
-              <p className="text-xs font-medium text-slate-400 mt-1 tracking-tighter">
-                You are all caught up for now
+            <div>
+              <h2 className="text-lg font-black tracking-tight">Notifications</h2>
+              <p className={`text-xs font-medium ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                {unreadCount > 0 ? `${unreadCount} unread` : 'You are up to date'}
               </p>
             </div>
-          ) : (
-            <div className="space-y-3 py-2">
-              {filteredNotifications.map((notification, index) => (
-                <div
-                  key={notification.id}
-                  className={`group relative overflow-hidden rounded-2xl p-4 transition-all duration-300 transform active:scale-[0.98] cursor-pointer ${notification.readAt
-                    ? `${isDarkMode ? 'bg-white/5 text-slate-400' : 'bg-slate-50 text-slate-500'}`
-                    : `${isDarkMode ? 'bg-brand-500/10 border border-brand-500/20' : 'bg-brand-50 border border-brand-500/10'}`
-                    } hover:shadow-xl hover:shadow-brand-500/5`}
-                  style={{ animationDelay: `${index * 50}ms` }}
-                  onClick={() => void markAsRead(notification.id)}
-                >
-                  {/* Read Indicator Line */}
-                  {!notification.readAt && (
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-500" />
-                  )}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className={`flex h-9 w-9 items-center justify-center rounded-full ${
+              isDarkMode ? 'bg-white/8 text-slate-300 hover:bg-white/12' : 'bg-white text-slate-500 hover:bg-slate-100'
+            }`}
+          >
+            <X size={18} />
+          </button>
+        </header>
 
-                  <div className="flex items-start gap-4">
-                    <div
-                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-110 ${isDarkMode ? 'bg-white/5' : 'bg-white shadow-sm'
-                        }`}
-                    >
-                      {iconForNotification(notification.kind, notification.severity)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-3">
-                        <h4 className={`text-sm font-bold truncate ${!notification.readAt && (isDarkMode ? 'text-white' : 'text-slate-900')}`}>
-                          {notification.title}
-                        </h4>
-                        <span className="text-[10px] font-bold text-slate-400 tracking-tighter shrink-0 pt-0.5">
-                          {formatTimestamp(notification.createdAt)}
-                        </span>
-                      </div>
-                      <p className={`mt-1 text-xs leading-relaxed line-clamp-2 ${!notification.readAt && (isDarkMode ? 'text-slate-300' : 'text-slate-600')}`}>
-                        {notification.body}
-                      </p>
+        <div className="flex items-center justify-between gap-3 px-5 pb-3">
+          <div className={`flex rounded-full p-1 ${isDarkMode ? 'bg-white/8' : 'bg-white shadow-sm'}`}>
+            {(['all', 'unread'] as const).map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setFilter(item)}
+                className={`rounded-full px-4 py-2 text-xs font-bold capitalize transition ${
+                  filter === item
+                    ? 'bg-brand-500 text-white shadow-sm'
+                    : isDarkMode
+                      ? 'text-slate-400 hover:text-white'
+                      : 'text-slate-500 hover:text-slate-950'
+                }`}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
 
-                      {/* Action Hooks */}
-                      <div className="mt-3 flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity translate-y-2 group-hover:translate-y-0 duration-300">
-                        {!notification.readAt && (
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void markAsRead(notification.id);
-                            }}
-                            className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-colors"
-                          >
-                            <CheckCircle size={14} />
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void deleteNotification(notification.id);
-                          }}
-                          className="p-1.5 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 transition-colors"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+          {unreadCount > 0 && (
+            <button
+              type="button"
+              onClick={() => void markAllAsRead()}
+              className="text-xs font-bold text-brand-500"
+            >
+              Mark all read
+            </button>
           )}
         </div>
 
         {error && (
-          <div className="mx-6 mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-[10px] font-bold text-rose-500 tracking-widest text-center">
-            Error: {error}
+          <div className="mx-5 mb-3 rounded-[18px] bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-600 dark:text-amber-300">
+            We could not refresh notifications. Try again in a moment.
           </div>
         )}
 
-        {/* Footer */}
-        <div className={`p-6 border-t ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`}>
-          {hasMore ? (
-            <Button
-              variant="secondary"
-              onClick={() => void fetchMore()}
-              className="w-full rounded-2xl font-bold text-xs py-3 h-auto"
-            >
-              Older Notifications
-            </Button>
+        <div className="flex-1 overflow-y-auto px-5 pb-5">
+          {loading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div
+                  key={index}
+                  className={`h-20 animate-pulse rounded-[20px] ${isDarkMode ? 'bg-white/8' : 'bg-white'}`}
+                />
+              ))}
+            </div>
+          ) : filteredNotifications.length === 0 ? (
+            <div className="flex h-full min-h-80 flex-col items-center justify-center text-center">
+              <div className={`mb-4 flex h-16 w-16 items-center justify-center rounded-[20px] ${isDarkMode ? 'bg-white/8' : 'bg-white'}`}>
+                <MailSearch size={30} className="text-brand-500" />
+              </div>
+              <h3 className="text-base font-black">No notifications yet</h3>
+              <p className={`mt-1 max-w-56 text-sm ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                Updates about opportunities, goals, and reminders will appear here.
+              </p>
+            </div>
           ) : (
-            <div className={`flex items-center justify-center gap-2 text-[10px] font-bold tracking-widest ${isDarkMode ? 'text-late-500' : 'text-slate-400'}`}>
-              <Zap size={10} className="text-amber-500" />
-              Fully Synced
+            <div className="space-y-3">
+              {filteredNotifications.map((notification) => (
+                <article
+                  key={notification.id}
+                  className={`rounded-[20px] p-4 ${
+                    notification.readAt
+                      ? isDarkMode ? 'bg-white/6' : 'bg-white'
+                      : isDarkMode ? 'bg-brand-500/12' : 'bg-brand-50'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => void markAsRead(notification.id)}
+                    className="flex w-full items-start gap-3 text-left"
+                  >
+                    <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[16px] ${isDarkMode ? 'bg-white/8' : 'bg-white'}`}>
+                      {iconForNotification(notification.kind, notification.severity)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <h4 className="line-clamp-1 text-sm font-black">{notification.title}</h4>
+                        <span className={`shrink-0 text-xs font-bold ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                          {formatTimestamp(notification.createdAt)}
+                        </span>
+                      </div>
+                      <p className={`mt-1 line-clamp-2 text-sm leading-5 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                        {notification.body}
+                      </p>
+                    </div>
+                  </button>
+
+                  <div className="mt-3 flex items-center justify-end gap-2">
+                    {!notification.readAt && (
+                      <button
+                        type="button"
+                        onClick={() => void markAsRead(notification.id)}
+                        className="flex h-8 items-center gap-1 rounded-full bg-emerald-500/10 px-3 text-xs font-bold text-emerald-500"
+                      >
+                        <CheckCircle size={13} />
+                        Read
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => void deleteNotification(notification.id)}
+                      className="flex h-8 items-center gap-1 rounded-full bg-rose-500/10 px-3 text-xs font-bold text-rose-500"
+                    >
+                      <Trash2 size={13} />
+                      Delete
+                    </button>
+                  </div>
+                </article>
+              ))}
             </div>
           )}
         </div>
-      </div>
+
+        {hasMore && (
+          <footer className="px-5 pb-5">
+            <Button variant="secondary" onClick={() => void fetchMore()} className="h-11 w-full rounded-[18px]">
+              <Sparkles size={15} className="mr-2" />
+              Load more
+            </Button>
+          </footer>
+        )}
+      </section>
     </div>
   );
 };

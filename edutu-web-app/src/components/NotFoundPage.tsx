@@ -61,7 +61,6 @@ const NotFoundPage: React.FC = () => {
                     <div className="flex flex-wrap gap-2 justify-center">
                         <QuickLink label="Dashboard" path="/app/home" />
                         <QuickLink label="Opportunities" path="/app/opportunities" />
-                        <QuickLink label="AI Coach" path="/app/chat" />
                         <QuickLink label="Marketplace" path="/app/community" />
                         <QuickLink label="Settings" path="/app/settings" />
                     </div>

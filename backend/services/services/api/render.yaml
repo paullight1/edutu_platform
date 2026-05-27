@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: edutu-api
+    env: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: false
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SCRAPER_SCHEDULER_ENABLED
+        value: "false"
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: ADMIN_EMAILS
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: AI_KEY_ENCRYPTION_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        value: https://www.edutu.org
+      - key: ADMIN_URL
+        value: https://www.edutu.org
+      - key: MOBILE_APP_URL
+        sync: false

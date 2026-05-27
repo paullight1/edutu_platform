@@ -23,7 +23,11 @@ export class ScraperController {
   @Throttle({ default: { limit: 5, ttl: 3600000 } })
   async runScraper(
     @Body()
-    body: { sourceId?: number; allSources?: boolean; maxPages?: number },
+    body: {
+      sourceId?: number;
+      allSources?: boolean;
+      maxPages?: number;
+    },
   ) {
     try {
       const result = await this.scraperService.runScraper({
@@ -42,6 +46,19 @@ export class ScraperController {
     }
   }
 
+  @Get('engine-status')
+  async getEngineStatus() {
+    try {
+      return await this.scraperService.getEngineStatus();
+    } catch (error) {
+      this.logger.error(`Get engine status failed: ${error.message}`);
+      return {
+        success: false,
+        error: error.message || 'Could not read scraper engine status',
+      };
+    }
+  }
+
   @Get('sources')
   async getSources() {
     try {
@@ -55,7 +72,12 @@ export class ScraperController {
   @Post('sources')
   async addSource(
     @Body()
-    body: { name: string; url: string; category?: string; tier?: number },
+    body: {
+      name: string;
+      url: string;
+      category?: string;
+      tier?: number;
+    },
   ) {
     try {
       if (!body.name || !body.url) {

@@ -22,7 +22,12 @@ export class OpenRouterAdapter implements AiProviderAdapter {
 
     const messages = [
       ...(config.systemPrompt || options.systemInstruction
-        ? [{ role: 'system', content: config.systemPrompt || options.systemInstruction }]
+        ? [
+            {
+              role: 'system',
+              content: config.systemPrompt || options.systemInstruction,
+            },
+          ]
         : []),
       { role: 'user', content: options.prompt },
     ];
@@ -39,7 +44,8 @@ export class OpenRouterAdapter implements AiProviderAdapter {
         model: config.model,
         messages,
         stream: false,
-        ...(typeof config.temperature === 'number' || typeof options.temperature === 'number'
+        ...(typeof config.temperature === 'number' ||
+        typeof options.temperature === 'number'
           ? { temperature: config.temperature ?? options.temperature }
           : {}),
         ...(config.maxOutputTokens || options.maxOutputTokens
@@ -49,7 +55,9 @@ export class OpenRouterAdapter implements AiProviderAdapter {
     });
 
     if (!response.ok) {
-      throw new Error(`OpenRouter request failed: ${response.status} ${await response.text()}`);
+      throw new Error(
+        `OpenRouter request failed: ${response.status} ${await response.text()}`,
+      );
     }
 
     const payload = await response.json();

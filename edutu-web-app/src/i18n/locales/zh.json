@@ -163,7 +163,11 @@
     },
     "navigation": {
         "home": "首页",
+        "discover": "发现",
         "explore": "探索",
+        "plan": "计划",
+        "track": "跟踪",
+        "me": "我的",
         "ai": "Edutu AI",
         "market": "市场",
         "more": "更多",

@@ -1,25 +1,45 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { and, desc, eq, gte, notInArray, or, sql } from 'drizzle-orm';
-import { db } from '../db';
+import { Injectable, Logger } from "@nestjs/common";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { and, desc, eq, gte, notInArray, or, sql } from "drizzle-orm";
+import { db } from "../db";
 import {
   goals,
   opportunities,
   profiles,
   userOpportunityPreferences,
   userOpportunitySignals,
-} from '../db/schema';
+} from "../db/schema";
 import {
   OpportunityPreferenceDto,
   OpportunitySignalDto,
   RecommendationQueryDto,
   UserRecommendationRequestDto,
-} from './dto/personalization.dto';
-import { AiService } from '../ai';
+} from "./dto/personalization.dto";
+import { AiService } from "../ai";
 
 type OpportunityRow = typeof opportunities.$inferSelect;
 type PreferenceRow = typeof userOpportunityPreferences.$inferSelect;
 
-type RankedOpportunity = OpportunityRow & {
+type RecommendationOpportunity = Partial<OpportunityRow> &
+  Record<string, unknown> & {
+    id: string;
+    title: string;
+    description?: string | null;
+    category?: string | null;
+    type?: string | null;
+    eligibilityCriteria?: string | null;
+    fundingType?: string | null;
+    targetRegion?: string | null;
+    deadline?: Date | string | null;
+    applyUrl?: string | null;
+    imageUrl?: string | null;
+    isRemote?: boolean | null;
+    status?: string | null;
+    createdAt?: Date | string | null;
+    updatedAt?: Date | string | null;
+  };
+
+type RankedOpportunity = RecommendationOpportunity & {
   match: number;
   matchReasons: string[];
   matchRisks: string[];
@@ -37,8 +57,18 @@ type SignalScore = {
 @Injectable()
 export class OpportunityRankingService {
   private readonly logger = new Logger(OpportunityRankingService.name);
+  private readonly supabase: SupabaseClient | null = null;
 
-  constructor(private readonly aiService: AiService) {}
+  constructor(private readonly aiService: AiService) {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (url && key) {
+      this.supabase = createClient(url, key, {
+        auth: { persistSession: false },
+      });
+    }
+  }
 
   async getUserPreferences(userId: string) {
     const [preference] = await db
@@ -90,14 +120,14 @@ export class OpportunityRankingService {
         opportunityId: input.opportunityId,
         signalType: input.signalType,
         signalValue: input.signalValue ?? 1,
-        source: input.source ?? 'app',
+        source: input.source ?? "app",
         context: input.context ?? null,
         details: input.details ?? null,
       })
       .returning()
       .execute();
 
-    if (input.signalType === 'dismiss') {
+    if (input.signalType === "dismiss") {
       const [opportunity] = await db
         .select({
           category: opportunities.category,
@@ -173,7 +203,7 @@ export class OpportunityRankingService {
           profile,
           preferences,
           goals,
-          request.message || '',
+          request.message || "",
           signalScores.get(row.id),
         ),
       )
@@ -186,7 +216,7 @@ export class OpportunityRankingService {
       profile,
       preferences,
       goals,
-      request.message || '',
+      request.message || "",
       limit,
     );
 
@@ -207,8 +237,32 @@ export class OpportunityRankingService {
   }
 
   private async fetchCandidateOpportunities(excludeIds: string[]) {
+    if (this.supabase) {
+      const today = new Date().toISOString().slice(0, 10);
+      let request = this.supabase
+        .from("opportunities")
+        .select("*")
+        .eq("status", "active")
+        .or(`close_date.gte.${today},close_date.is.null`)
+        .order("updated_at", { ascending: false })
+        .limit(200);
+
+      if (excludeIds.length) {
+        request = request.not("id", "in", `(${excludeIds.join(",")})`);
+      }
+
+      const { data, error } = await request;
+      if (!error) {
+        return (data ?? []).map((row) => this.normalizeCanonicalRow(row));
+      }
+
+      this.logger.warn(
+        `Canonical opportunity query failed, falling back to Drizzle schema: ${error.message}`,
+      );
+    }
+
     const filters = [
-      eq(opportunities.status, 'active'),
+      eq(opportunities.status, "active"),
       or(
         gte(opportunities.deadline, new Date()),
         sql`${opportunities.deadline} is null`,
@@ -228,6 +282,59 @@ export class OpportunityRankingService {
       .execute();
   }
 
+  private normalizeCanonicalRow(
+    row: Record<string, any>,
+  ): RecommendationOpportunity {
+    const metadata = row.metadata || {};
+    const requirements = Array.isArray(metadata.requirements)
+      ? metadata.requirements
+      : [];
+    const benefits = Array.isArray(metadata.benefits) ? metadata.benefits : [];
+    const fundingType =
+      row.funding_type ||
+      row.fundingType ||
+      (row.stipend ? `${row.currency || "USD"} ${row.stipend}` : null) ||
+      benefits[0] ||
+      null;
+    const targetRegion =
+      row.target_region || row.targetRegion || row.location || null;
+    const deadline = row.deadline || row.close_date || null;
+    const applyUrl = row.apply_url || row.application_url || null;
+    const isRemote =
+      row.is_remote ??
+      row.isRemote ??
+      /remote|online|virtual|worldwide|global/i.test(row.location || "");
+
+    return {
+      ...row,
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      category: row.category,
+      canonicalCategory: row.canonical_category || row.canonicalCategory || metadata.canonical_category || null,
+      type: row.type || row.category || "scholarship",
+      eligibilityCriteria:
+        row.eligibility_criteria ||
+        row.eligibilityCriteria ||
+        requirements.join("\n") ||
+        null,
+      fundingType,
+      targetRegion,
+      deadline: deadline ? new Date(deadline) : null,
+      sourceUrl: row.source_url || metadata.source_url || null,
+      applyUrl,
+      imageUrl: row.image_url || null,
+      isRemote,
+      status: row.status,
+      originalJson: JSON.stringify(metadata),
+      createdAt: row.created_at ? new Date(row.created_at) : null,
+      updatedAt: row.updated_at ? new Date(row.updated_at) : null,
+      match_reasons: row.match_reasons || [],
+      match_risks: row.match_risks || [],
+      ai_tags: row.tags || [],
+    };
+  }
+
   private async getDismissedOpportunityIds(userId: string) {
     const rows = await db
       .select({ opportunityId: userOpportunitySignals.opportunityId })
@@ -235,7 +342,7 @@ export class OpportunityRankingService {
       .where(
         and(
           eq(userOpportunitySignals.userId, userId),
-          eq(userOpportunitySignals.signalType, 'dismiss'),
+          eq(userOpportunitySignals.signalType, "dismiss"),
         ),
       )
       .execute();
@@ -243,7 +350,9 @@ export class OpportunityRankingService {
     return rows.map((row) => row.opportunityId);
   }
 
-  private async getUserSignalScores(userId: string): Promise<Map<string, SignalScore>> {
+  private async getUserSignalScores(
+    userId: string,
+  ): Promise<Map<string, SignalScore>> {
     const rows = await db
       .select({
         opportunityId: userOpportunitySignals.opportunityId,
@@ -278,7 +387,8 @@ export class OpportunityRankingService {
       const delta = (weights[row.signalType] ?? 0) * value;
 
       current.score += delta;
-      current.counts[row.signalType] = (current.counts[row.signalType] || 0) + 1;
+      current.counts[row.signalType] =
+        (current.counts[row.signalType] || 0) + 1;
       if (delta > 0) current.positive += delta;
       if (delta < 0) current.negative += Math.abs(delta);
 
@@ -326,15 +436,15 @@ export class OpportunityRankingService {
       remoteOnly: preference.remoteOnly || false,
       maxDeadlineDays: preference.maxDeadlineDays,
       notes: preference.notes,
-      metadata: (preference.metadata as Record<string, unknown> | null) || undefined,
+      metadata: preference.metadata || undefined,
     };
   }
 
   private scoreOpportunity(
-    opportunity: OpportunityRow,
-    profile: RecommendationQueryDto['profile'],
+    opportunity: RecommendationOpportunity,
+    profile: RecommendationQueryDto["profile"],
     preferences: OpportunityPreferenceDto | null,
-    userGoals: RecommendationQueryDto['goals'],
+    userGoals: RecommendationQueryDto["goals"],
     message: string,
     signalScore?: SignalScore,
   ): RankedOpportunity {
@@ -357,10 +467,10 @@ export class OpportunityRankingService {
       ...(profile?.skills || []),
       ...(profile?.interests || []),
       ...(preferences?.preferredSkills || []),
-      ...((userGoals || []).map((goal) => goal.title || goal.description || '') as string[]),
+      ...(userGoals || []).map((goal) => goal.title || goal.description || ""),
     ]
       .filter(Boolean)
-      .join(' ')
+      .join(" ")
       .toLowerCase();
 
     const opportunityText = [
@@ -373,25 +483,35 @@ export class OpportunityRankingService {
       opportunity.type,
     ]
       .filter(Boolean)
-      .join(' ')
+      .join(" ")
       .toLowerCase();
 
-    if (preferences?.excludedCategories?.includes(opportunity.category || '')) {
+    if (preferences?.excludedCategories?.includes(opportunity.category || "")) {
       score -= 30;
-      risks.push('Matches a category the user has previously deprioritized.');
+      risks.push("Matches a category the user has previously deprioritized.");
     }
 
-    if (preferences?.preferredCategories?.includes(opportunity.category || '')) {
+    if (
+      preferences?.preferredCategories?.includes(opportunity.category || "")
+    ) {
       score += 18;
       reasons.push(`Matches preferred category: ${opportunity.category}.`);
     }
 
-    if (preferences?.preferredFundingTypes?.includes(opportunity.fundingType || '')) {
+    if (
+      preferences?.preferredFundingTypes?.includes(
+        opportunity.fundingType || "",
+      )
+    ) {
       score += 15;
-      reasons.push(`Matches preferred funding type: ${opportunity.fundingType}.`);
+      reasons.push(
+        `Matches preferred funding type: ${opportunity.fundingType}.`,
+      );
     }
 
-    if (preferences?.preferredOpportunityTypes?.includes(opportunity.type || '')) {
+    if (
+      preferences?.preferredOpportunityTypes?.includes(opportunity.type || "")
+    ) {
       score += 12;
       reasons.push(`Matches preferred opportunity type: ${opportunity.type}.`);
     }
@@ -402,22 +522,28 @@ export class OpportunityRankingService {
       );
       if (regionHit) {
         score += 14;
-        reasons.push(`Aligned with preferred region: ${opportunity.targetRegion}.`);
+        reasons.push(
+          `Aligned with preferred region: ${opportunity.targetRegion}.`,
+        );
       }
     }
 
     if (preferences?.remoteOnly) {
       if (opportunity.isRemote) {
         score += 8;
-        reasons.push('Supports remote access.');
+        reasons.push("Supports remote access.");
       } else {
         score -= 12;
-        risks.push('User prefers remote opportunities.');
+        risks.push("User prefers remote opportunities.");
       }
     }
 
     if (profile?.country && opportunity.targetRegion) {
-      if (opportunity.targetRegion.toLowerCase().includes(profile.country.toLowerCase())) {
+      if (
+        opportunity.targetRegion
+          .toLowerCase()
+          .includes(profile.country.toLowerCase())
+      ) {
         score += 10;
         reasons.push(`Relevant to ${profile.country}.`);
       }
@@ -428,16 +554,18 @@ export class OpportunityRankingService {
     );
     if (skillHits.length) {
       score += Math.min(20, skillHits.length * 6);
-      reasons.push(`Reflects user skills: ${skillHits.slice(0, 3).join(', ')}.`);
+      reasons.push(
+        `Reflects user skills: ${skillHits.slice(0, 3).join(", ")}.`,
+      );
     }
 
-    const preferenceSkillHits = (preferences?.preferredSkills || []).filter((skill) =>
-      opportunityText.includes(skill.toLowerCase()),
+    const preferenceSkillHits = (preferences?.preferredSkills || []).filter(
+      (skill) => opportunityText.includes(skill.toLowerCase()),
     );
     if (preferenceSkillHits.length) {
       score += Math.min(14, preferenceSkillHits.length * 5);
       reasons.push(
-        `Supports preferred skills: ${preferenceSkillHits.slice(0, 3).join(', ')}.`,
+        `Supports preferred skills: ${preferenceSkillHits.slice(0, 3).join(", ")}.`,
       );
     }
 
@@ -446,7 +574,9 @@ export class OpportunityRankingService {
     );
     if (interestHits.length) {
       score += Math.min(15, interestHits.length * 4);
-      reasons.push(`Aligned with interests: ${interestHits.slice(0, 3).join(', ')}.`);
+      reasons.push(
+        `Aligned with interests: ${interestHits.slice(0, 3).join(", ")}.`,
+      );
     }
 
     const fieldOfStudy = profile?.fieldOfStudy || profile?.field_of_study;
@@ -460,11 +590,13 @@ export class OpportunityRankingService {
         .toLowerCase()
         .split(/\W+/)
         .filter((term) => term.length > 3);
-      const matchedTerms = requestTerms.filter((term) => opportunityText.includes(term));
+      const matchedTerms = requestTerms.filter((term) =>
+        opportunityText.includes(term),
+      );
       if (matchedTerms.length) {
         score += Math.min(20, matchedTerms.length * 4);
         reasons.push(
-          `Responds to request terms: ${matchedTerms.slice(0, 4).join(', ')}.`,
+          `Responds to request terms: ${matchedTerms.slice(0, 4).join(", ")}.`,
         );
       }
     }
@@ -474,29 +606,33 @@ export class OpportunityRankingService {
       const daysRemaining = Math.ceil(msRemaining / (1000 * 60 * 60 * 24));
       if (daysRemaining > preferences.maxDeadlineDays) {
         score -= 10;
-        risks.push(`Deadline is beyond preferred window (${daysRemaining} days).`);
+        risks.push(
+          `Deadline is beyond preferred window (${daysRemaining} days).`,
+        );
       } else {
         score += 6;
-        reasons.push(`Deadline fits the preferred window (${daysRemaining} days).`);
+        reasons.push(
+          `Deadline fits the preferred window (${daysRemaining} days).`,
+        );
       }
     }
 
     if (!opportunity.applyUrl) {
-      risks.push('No direct application URL stored yet.');
+      risks.push("No direct application URL stored yet.");
       score -= 8;
     }
 
     if (!opportunity.description || opportunity.description.length < 180) {
-      risks.push('Opportunity details are incomplete and need review.');
+      risks.push("Opportunity details are incomplete and need review.");
       score -= 10;
     }
 
     if (signalScore?.score) {
       score += signalScore.score;
       if (signalScore.positive > signalScore.negative) {
-        reasons.push('User behavior suggests interest in this opportunity.');
+        reasons.push("User behavior suggests interest in this opportunity.");
       } else if (signalScore.negative > signalScore.positive) {
-        risks.push('User behavior suggests this may be less relevant.');
+        risks.push("User behavior suggests this may be less relevant.");
       }
     }
 
@@ -512,9 +648,9 @@ export class OpportunityRankingService {
 
   private async rerankWithGemini(
     candidates: RankedOpportunity[],
-    profile: RecommendationQueryDto['profile'],
+    profile: RecommendationQueryDto["profile"],
     preferences: OpportunityPreferenceDto | null,
-    goalsInput: RecommendationQueryDto['goals'],
+    goalsInput: RecommendationQueryDto["goals"],
     message: string,
     limit: number,
   ) {
@@ -547,7 +683,7 @@ User goals:
 ${JSON.stringify(goalsInput || [], null, 2)}
 
 User message:
-${message || ''}
+${message || ""}
 
 Candidate opportunities:
 ${JSON.stringify(
@@ -567,9 +703,9 @@ ${JSON.stringify(
       const parsed = await this.aiService.generateJson<{
         matches?: Array<{ id: string; score: number; reason?: string }>;
       }>({
-        feature: 'opportunities.rerank',
+        feature: "opportunities.rerank",
         prompt,
-        responseMimeType: 'application/json',
+        responseMimeType: "application/json",
         temperature: 0.2,
         metadata: { candidateCount: shortlist.length },
       });
@@ -588,7 +724,7 @@ ${JSON.stringify(
             ...item,
             match: Math.max(
               item.match,
-              Math.min(100, Math.round((item.match * 0.6) + (ranked.score * 0.4))),
+              Math.min(100, Math.round(item.match * 0.6 + ranked.score * 0.4)),
             ),
             matchReasons: ranked.reason
               ? [ranked.reason, ...item.matchReasons].slice(0, 4)
@@ -598,20 +734,22 @@ ${JSON.stringify(
         .sort((a, b) => b.match - a.match)
         .slice(0, limit);
     } catch (error) {
-      this.logger.warn(`Gemini rerank failed: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Gemini rerank failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return shortlist.slice(0, limit);
     }
   }
 
-  private buildSummary(opportunity: OpportunityRow) {
+  private buildSummary(opportunity: RecommendationOpportunity) {
     return (
       opportunity.description ||
       opportunity.eligibilityCriteria ||
-      `A ${opportunity.type || 'scholarship'} opportunity in ${opportunity.targetRegion || 'multiple regions'}.`
+      `A ${opportunity.type || "scholarship"} opportunity in ${opportunity.targetRegion || "multiple regions"}.`
     );
   }
 
-  private extractTags(opportunity: OpportunityRow) {
+  private extractTags(opportunity: RecommendationOpportunity) {
     return Array.from(
       new Set(
         [
@@ -619,7 +757,7 @@ ${JSON.stringify(
           opportunity.type,
           opportunity.fundingType,
           opportunity.targetRegion,
-          opportunity.isRemote ? 'remote' : null,
+          opportunity.isRemote ? "remote" : null,
         ].filter(Boolean) as string[],
       ),
     );

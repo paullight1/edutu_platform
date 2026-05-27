@@ -1,6 +1,7 @@
 import re
 from datetime import datetime
 from typing import Any, Optional
+from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 
 
@@ -26,7 +27,7 @@ class ScholarshipExtractor:
         self._email_regex = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b')
         self._url_regex = re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+')
 
-    def extract_from_html(self, html: str, source: str) -> list[dict[str, Any]]:
+    def extract_from_html(self, html: str, source: str, source_url: Optional[str] = None) -> list[dict[str, Any]]:
         soup = BeautifulSoup(html, 'html.parser')
 
         items = []
@@ -36,7 +37,7 @@ class ScholarshipExtractor:
             cards = soup.find_all(['article', 'div'], recursive=True)
 
         for card in cards[:50]:
-            item = self._extract_card(card, source)
+            item = self._extract_card(card, source, source_url)
             if item and item.get('title'):
                 items.append(item)
 
@@ -48,12 +49,13 @@ class ScholarshipExtractor:
                     'title': main_title.get_text(strip=True),
                     'organization': source,
                     'source': source,
+                    'source_url': source_url,
                     'description': text[:500] if text else '',
                 })
 
         return items
 
-    def _extract_card(self, card: BeautifulSoup, source: str) -> Optional[dict[str, Any]]:
+    def _extract_card(self, card: BeautifulSoup, source: str, source_url: Optional[str] = None) -> Optional[dict[str, Any]]:
         title_elem = card.find(['h1', 'h2', 'h3', 'h4'], class_=re.compile(r'title|name', re.I))
         if not title_elem:
             title_elem = card.find('a')
@@ -64,7 +66,7 @@ class ScholarshipExtractor:
             return None
 
         link = card.find('a', href=True)
-        apply_url = link['href'] if link else ''
+        apply_url = urljoin(source_url or '', link['href']) if link else ''
 
         amount = self._extract_amount(card.get_text())
         deadline = self._extract_deadline(card.get_text())
@@ -82,6 +84,7 @@ class ScholarshipExtractor:
             'benefits': benefits,
             'organization': self._extract_organization(card, source),
             'source': source,
+            'source_url': source_url,
             'location': self._extract_location(card),
             'category': self._categorize(title, description),
         }

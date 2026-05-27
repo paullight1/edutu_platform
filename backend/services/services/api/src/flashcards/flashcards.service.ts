@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { db } from '../db';
 import {
   flashcardDecks,
@@ -125,7 +129,9 @@ export class FlashcardsService {
     if (!cards.length) return [];
     const deckIds = new Set(cards.map((card) => card.deckId));
     if (deckIds.size !== 1) {
-      throw new ForbiddenException('Bulk card creation must target one owned deck');
+      throw new ForbiddenException(
+        'Bulk card creation must target one owned deck',
+      );
     }
     await this.assertDeckOwner(cards[0].deckId, userId);
 

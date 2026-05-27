@@ -1,21 +1,20 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import {
   Search,
-  Filter,
   RefreshCw,
   Sparkles,
   Globe,
   ChevronRight,
+  ChevronDown,
   ArrowLeft,
-  Bell,
   LayoutGrid,
   List,
 } from 'lucide-react';
 
 import { useDarkMode } from '../hooks/useDarkMode';
 import { usePersonalizedOpportunities } from '../hooks/usePersonalizedOpportunities';
+import { useOpportunities } from '../hooks/useOpportunities';
 import { useNavigate } from 'react-router-dom';
-import NotificationInbox from './NotificationInbox';
 import ImageWithFallback from './ImageWithFallback';
 import type { Opportunity } from '../types/opportunity';
 
@@ -28,47 +27,55 @@ type ViewMode = 'list' | 'grid';
 
 const AllOpportunities: React.FC<AllOpportunitiesProps> = ({ onBack, onSelectOpportunity }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [showFilters, setShowFilters] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [isFeedNoticeOpen, setIsFeedNoticeOpen] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const { isDarkMode } = useDarkMode();
   const navigate = useNavigate();
   const {
     data: personalizedOpportunities,
-    loading,
-    refresh
+    loading: personalizedLoading,
+    refresh: refreshPersonalized
   } = usePersonalizedOpportunities();
+  const {
+    data: allOpportunities,
+    loading: allLoading,
+    refresh: refreshAll
+  } = useOpportunities();
 
-  const opportunities = useMemo(() =>
-    personalizedOpportunities.map(item => item.opportunity),
-    [personalizedOpportunities]
-  );
+  const hasPersonalizedMatches = personalizedOpportunities.length > 0;
+  const loading = personalizedLoading || allLoading;
 
-  const categories = useMemo(() => {
-    const dynamic = new Set<string>();
-    opportunities.forEach((opportunity) => {
-      if (opportunity.category) {
-        dynamic.add(opportunity.category);
-      }
-    });
-    return ['All', ...Array.from(dynamic).sort()];
-  }, [opportunities]);
+  const opportunityItems = useMemo(() => {
+    if (hasPersonalizedMatches) {
+      return personalizedOpportunities.map((item) => ({
+        opportunity: item.opportunity,
+        matchScore: item.matchScore,
+        source: 'personalized' as const,
+      }));
+    }
+
+    return allOpportunities.map((opportunity) => ({
+      opportunity,
+      matchScore: undefined,
+      source: 'general' as const,
+    }));
+  }, [allOpportunities, hasPersonalizedMatches, personalizedOpportunities]);
 
   const filteredOpportunities = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    return personalizedOpportunities.filter(({ opportunity }) => {
-      if (selectedCategory !== 'All' && opportunity.category !== selectedCategory) return false;
+    return opportunityItems.filter(({ opportunity }) => {
       if (!term) return true;
       const haystack = [opportunity.title, opportunity.organization, opportunity.description, opportunity.location]
         .filter(Boolean).join(' ').toLowerCase();
       return haystack.includes(term);
     });
-  }, [personalizedOpportunities, searchTerm, selectedCategory]);
+  }, [opportunityItems, searchTerm]);
 
   const handleRefresh = useCallback(() => {
-    refresh();
-  }, [refresh]);
+    refreshPersonalized();
+    refreshAll();
+  }, [refreshAll, refreshPersonalized]);
 
   const handleBack = useCallback(() => {
     if (window.history.length > 2) {
@@ -102,28 +109,16 @@ const AllOpportunities: React.FC<AllOpportunitiesProps> = ({ onBack, onSelectOpp
                 Explore Opportunities
               </h1>
               <p className={`text-xs md:text-sm truncate ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                {loading ? 'Curating your matches...' : `${filteredOpportunities.length} personalized matches`}
+                {loading
+                  ? 'Loading opportunities...'
+                  : hasPersonalizedMatches
+                    ? `${filteredOpportunities.length} personalized matches`
+                    : `${filteredOpportunities.length} opportunities available`}
               </p>
             </div>
 
             {/* Right Actions */}
             <div className="flex items-center gap-2">
-              {/* View Toggle */}
-              <div className={`hidden sm:flex items-center rounded-xl border overflow-hidden ${isDarkMode ? 'border-white/10' : 'border-slate-200'}`}>
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`p-2 transition-colors ${viewMode === 'grid' ? 'bg-brand-500 text-white' : isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-400 hover:text-slate-700'}`}
-                >
-                  <LayoutGrid size={16} />
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`p-2 transition-colors ${viewMode === 'list' ? 'bg-brand-500 text-white' : isDarkMode ? 'text-slate-400 hover:text-white' : 'text-slate-400 hover:text-slate-700'}`}
-                >
-                  <List size={16} />
-                </button>
-              </div>
-
               {/* Refresh Button */}
               <button
                 onClick={handleRefresh}
@@ -134,60 +129,116 @@ const AllOpportunities: React.FC<AllOpportunitiesProps> = ({ onBack, onSelectOpp
                 <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
               </button>
 
-              {/* Notifications Button */}
+              {/* Search Button */}
               <button
-                onClick={() => setShowNotifications(true)}
+                onClick={() => setShowSearch((value) => !value)}
                 className={`relative p-2.5 rounded-xl transition-all ${isDarkMode ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'}`}
-                title="Notifications"
+                title="Search opportunities"
+                aria-label="Search opportunities"
               >
-                <Bell size={18} />
-                <span className="absolute top-2 right-2 h-2 w-2 bg-rose-500 rounded-full" />
+                <Search size={18} />
               </button>
             </div>
           </div>
-        </div>
-      </header>
-
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-24 space-y-6 relative z-10">
-
-        {/* Search & Filter Bar */}
-        <div className="sticky top-16 md:top-20 z-20 space-y-3">
-          <div className="flex gap-2">
-            <div className="flex-1 relative">
+          {showSearch && (
+            <div className="mt-3 relative animate-in fade-in slide-in-from-top-1 duration-200">
               <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search opportunities by title, organization, or location..."
-                className="w-full pl-11 pr-4 py-3 rounded-2xl border-none bg-white dark:bg-gray-900 text-slate-900 dark:text-white placeholder-slate-500 shadow-sm focus:ring-2 focus:ring-brand-500 transition-all font-medium text-sm"
+                placeholder="Search by title, organization, or location..."
+                autoFocus
+                className="w-full pl-11 pr-4 py-3 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-gray-900 text-slate-900 dark:text-white placeholder-slate-500 shadow-sm focus:ring-2 focus:ring-brand-500 transition-all font-medium text-sm"
               />
             </div>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`p-3 rounded-2xl transition-all shadow-sm border ${showFilters
-                ? 'bg-brand-500 text-white border-brand-500'
-                : 'bg-white dark:bg-gray-900 text-slate-600 dark:text-slate-400 border-transparent hover:border-slate-200 dark:hover:border-white/10'
-                }`}
-            >
-              <Filter size={20} />
-            </button>
-          </div>
+          )}
+        </div>
+      </header>
 
-          {/* Quick Categories Bar */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-            {categories.map(cat => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-4 py-2 rounded-xl font-bold text-xs transition-all whitespace-nowrap border ${selectedCategory === cat
-                  ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400 border-brand-500/20'
-                  : 'bg-white dark:bg-gray-900 text-slate-500 dark:text-slate-400 border-transparent hover:bg-slate-50 dark:hover:bg-white/5'
-                  }`}
-              >
-                {cat}
-              </button>
-            ))}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 pb-24 space-y-6 relative z-10">
+
+        {!loading && !hasPersonalizedMatches && allOpportunities.length > 0 && (
+          <section className={`rounded-[20px] border p-4 transition-all ${isDarkMode ? 'bg-brand-500/10 border-brand-500/20' : 'bg-brand-50 border-brand-100'}`}>
+            <button
+              type="button"
+              onClick={() => setIsFeedNoticeOpen((value) => !value)}
+              className="flex w-full items-center justify-between gap-3 text-left"
+              aria-expanded={isFeedNoticeOpen}
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="h-10 w-10 rounded-[20px] bg-brand-500 text-white flex items-center justify-center shrink-0">
+                  <Sparkles size={20} />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="truncate text-sm font-bold">Showing all Edutu opportunities</h2>
+                  {!isFeedNoticeOpen && (
+                    <p className={`mt-0.5 truncate text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                      Complete your profile to unlock ranked matches.
+                    </p>
+                  )}
+                </div>
+              </div>
+              <ChevronDown
+                size={18}
+                className={`shrink-0 text-slate-400 transition-transform ${isFeedNoticeOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {isFeedNoticeOpen && (
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="sm:pl-[52px]">
+                  <p className={`mt-1 text-sm ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                    Complete your profile to unlock ranked matches. For now, browse scholarships, internships, fellowships, and programs from the full feed.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate('/app/personalization')}
+                  className="inline-flex items-center justify-center gap-2 rounded-[20px] bg-brand-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-brand-500/20"
+                >
+                  Personalize feed <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* View Controls */}
+        <div className={`sticky top-16 md:top-20 z-20 rounded-[20px] border p-3 backdrop-blur-xl ${isDarkMode ? 'bg-gray-950/85 border-white/10' : 'bg-white/85 border-slate-200 shadow-sm'}`}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">View</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Choose how opportunities display</p>
+            </div>
+            <div className={`flex items-center gap-1 rounded-[20px] border p-1 ${isDarkMode ? 'border-white/10 bg-white/5' : 'border-slate-200 bg-white shadow-sm'}`}>
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              className={`flex h-10 w-10 items-center justify-center rounded-2xl transition-all ${viewMode === 'grid'
+                ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20'
+                : isDarkMode
+                  ? 'text-slate-400 hover:bg-white/10 hover:text-white'
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+              aria-label="Grid view"
+            >
+              <LayoutGrid size={18} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`flex h-10 w-10 items-center justify-center rounded-2xl transition-all ${viewMode === 'list'
+                ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20'
+                : isDarkMode
+                  ? 'text-slate-400 hover:bg-white/10 hover:text-white'
+                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+              aria-label="List view"
+            >
+              <List size={18} />
+            </button>
+            </div>
           </div>
         </div>
 
@@ -202,32 +253,40 @@ const AllOpportunities: React.FC<AllOpportunitiesProps> = ({ onBack, onSelectOpp
           ) : filteredOpportunities.length > 0 ? (
             <>
               {viewMode === 'grid' ? (
-                <div className="grid grid-cols-2 gap-3">
-                  {filteredOpportunities.map(({ opportunity, matchScore }, index) => (
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {filteredOpportunities.map(({ opportunity, matchScore, source }, index) => (
                     <div
                       key={opportunity.id}
                       onClick={() => onSelectOpportunity(opportunity)}
-                      className={`rounded-xl overflow-hidden border cursor-pointer group transition-all ${isDarkMode ? 'bg-gray-900 border-white/5 hover:border-white/10' : 'bg-white border-slate-200 hover:border-slate-300'} animate-slide-up`}
+                      className={`rounded-3xl overflow-hidden border cursor-pointer group transition-all hover:-translate-y-0.5 ${isDarkMode ? 'bg-gray-900 border-white/5 hover:border-white/10' : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-xl hover:shadow-slate-200/70'} animate-slide-up`}
                       style={{ animationDelay: `${index * 30}ms` }}
                     >
-                      <div className="h-24 overflow-hidden relative bg-slate-100 dark:bg-slate-800">
+                      <div className="h-36 overflow-hidden relative bg-slate-100 dark:bg-slate-800">
                         <ImageWithFallback
                           src={opportunity.image ?? ''}
                           alt=""
                           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                           fallbackClassName="w-full h-full"
                         />
-                        <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm">
-                          <span className="text-[8px] font-bold text-brand-600 dark:text-brand-400">{Math.round(matchScore)}%</span>
-                        </div>
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/45 via-transparent to-transparent" />
+                        <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-black text-brand-600 backdrop-blur">
+                          {opportunity.category || 'General'}
+                        </span>
+                        {source === 'personalized' && typeof matchScore === 'number' && (
+                          <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-brand-500 text-white shadow-lg shadow-brand-500/20">
+                            <span className="text-[10px] font-black">{Math.round(matchScore)}% match</span>
+                          </div>
+                        )}
                       </div>
-                      <div className="p-2.5">
-                        <span className="text-[8px] font-bold text-primary tracking-wider">{opportunity.category || 'General'}</span>
-                        <h3 className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-2 mt-0.5 leading-tight">
+                      <div className="p-4">
+                        <h3 className="text-sm font-black text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-2 leading-snug">
                           {opportunity.title}
                         </h3>
-                        <div className="flex items-center justify-between mt-1.5 text-[8px] font-semibold text-slate-400">
-                          <span className="flex items-center gap-0.5"><Globe size={8} /> {opportunity.location || 'Remote'}</span>
+                        <p className="mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
+                          {opportunity.organization || 'Global opportunity'}
+                        </p>
+                        <div className="flex items-center justify-between mt-3 text-[10px] font-bold text-slate-400">
+                          <span className="flex items-center gap-1"><Globe size={10} /> {opportunity.location || 'Remote'}</span>
                           <span>{opportunity.deadline ? new Date(opportunity.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Ongoing'}</span>
                         </div>
                       </div>
@@ -236,11 +295,11 @@ const AllOpportunities: React.FC<AllOpportunitiesProps> = ({ onBack, onSelectOpp
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {filteredOpportunities.map(({ opportunity, matchScore }, index) => (
+                  {filteredOpportunities.map(({ opportunity, matchScore, source }, index) => (
                     <div
                       key={opportunity.id}
                       onClick={() => onSelectOpportunity(opportunity)}
-                      className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer group transition-all ${isDarkMode ? 'bg-gray-900 border-white/5 hover:border-white/10' : 'bg-white border-slate-200 hover:border-slate-300'} animate-slide-up`}
+                      className={`flex items-center gap-4 p-4 rounded-3xl border cursor-pointer group transition-all ${isDarkMode ? 'bg-gray-900 border-white/5 hover:border-white/10' : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-lg hover:shadow-slate-200/60'} animate-slide-up`}
                       style={{ animationDelay: `${index * 30}ms` }}
                     >
                       <div className="w-16 h-16 shrink-0 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800">
@@ -254,7 +313,9 @@ const AllOpportunities: React.FC<AllOpportunitiesProps> = ({ onBack, onSelectOpp
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 mb-0.5">
                           <span className="text-[9px] font-bold text-primary tracking-wider">{opportunity.category || 'General'}</span>
-                          <span className="text-[8px] font-bold text-brand-600 dark:text-brand-400">{Math.round(matchScore)}%</span>
+                          {source === 'personalized' && typeof matchScore === 'number' && (
+                            <span className="text-[8px] font-bold text-brand-600 dark:text-brand-400">{Math.round(matchScore)}% match</span>
+                          )}
                         </div>
                         <h3 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-2 leading-tight">
                           {opportunity.title}
@@ -281,10 +342,6 @@ const AllOpportunities: React.FC<AllOpportunitiesProps> = ({ onBack, onSelectOpp
         </div>
       </div>
 
-      <NotificationInbox
-        isOpen={showNotifications}
-        onClose={() => setShowNotifications(false)}
-      />
     </div>
   );
 };

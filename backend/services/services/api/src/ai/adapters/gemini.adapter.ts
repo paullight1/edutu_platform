@@ -25,16 +25,39 @@ export class GeminiAdapter implements AiProviderAdapter {
       contents: options.prompt,
       config: {
         ...(config.systemPrompt || options.systemInstruction
-          ? { systemInstruction: config.systemPrompt || options.systemInstruction || undefined }
+          ? {
+              systemInstruction:
+                config.systemPrompt || options.systemInstruction || undefined,
+            }
           : {}),
         ...(config.responseMimeType || options.responseMimeType
-          ? { responseMimeType: config.responseMimeType || options.responseMimeType || undefined }
+          ? {
+              responseMimeType:
+                config.responseMimeType ||
+                options.responseMimeType ||
+                undefined,
+            }
           : {}),
-        ...(typeof config.temperature === 'number' || typeof options.temperature === 'number'
-          ? { temperature: config.temperature ?? options.temperature ?? undefined }
+        ...(config.responseJsonSchema || options.responseJsonSchema
+          ? {
+              responseJsonSchema:
+                config.responseJsonSchema ||
+                options.responseJsonSchema ||
+                undefined,
+            }
+          : {}),
+        ...(typeof config.temperature === 'number' ||
+        typeof options.temperature === 'number'
+          ? {
+              temperature:
+                config.temperature ?? options.temperature ?? undefined,
+            }
           : {}),
         ...(config.maxOutputTokens || options.maxOutputTokens
-          ? { maxOutputTokens: config.maxOutputTokens || options.maxOutputTokens || undefined }
+          ? {
+              maxOutputTokens:
+                config.maxOutputTokens || options.maxOutputTokens || undefined,
+            }
           : {}),
       },
     });

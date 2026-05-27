@@ -30,11 +30,13 @@ class DataCleaner:
             'amount': self._clean_amount(item.get('amount')),
             'currency': self._detect_currency(item.get('amount', '')),
             'source': item.get('source', 'Unknown'),
+            'source_url': item.get('source_url'),
             'match': self._calculate_match(item),
         }
 
         cleaned['difficulty'] = self._assess_difficulty(item)
         cleaned['aiTags'] = self._generate_tags(item)
+        cleaned['canonicalCategory'] = self._canonical_category({**item, **cleaned})
 
         return cleaned
 
@@ -119,6 +121,12 @@ class DataCleaner:
             return ""
 
         return url[:500]
+
+    def _normalize_url(self, url: str) -> str:
+        clean = self._clean_url(url)
+        if not clean:
+            return ""
+        return clean.split('?')[0].split('#')[0].rstrip('/').lower()
 
     def _clean_amount(self, amount: Optional[str]) -> Optional[int]:
         if not amount:
@@ -216,6 +224,55 @@ class DataCleaner:
 
         return list(set(tags))[:5]
 
+    def _canonical_category(self, item: dict[str, Any]) -> str:
+        category_keywords = {
+            'scholarships': [
+                'scholarship', 'scholarships', 'scholar', 'scholars', 'grant', 'grants',
+                'bursary', 'bursaries', 'tuition', 'financial aid', 'fully funded',
+                'funded', 'funding', 'stipend', 'award',
+            ],
+            'careers': [
+                'career', 'careers', 'internship', 'internships', 'intern', 'job', 'jobs',
+                'employment', 'vacancy', 'vacancies', 'role', 'roles', 'graduate trainee',
+                'trainee', 'apprenticeship', 'apprentice',
+            ],
+            'leadership': [
+                'leadership', 'leader', 'leaders', 'fellowship', 'fellowships', 'fellow',
+                'mentorship', 'mentor', 'ambassador', 'volunteer', 'community',
+                'changemaker', 'civic', 'social impact',
+            ],
+            'global_programs': [
+                'global', 'international', 'worldwide', 'abroad', 'exchange', 'conference',
+                'summit', 'bootcamp', 'accelerator', 'program', 'programme', 'remote',
+            ],
+        }
+        priority = ['scholarships', 'careers', 'leadership', 'global_programs']
+        text_parts = [
+            item.get('title', ''),
+            item.get('organization', ''),
+            item.get('category', ''),
+            item.get('location', ''),
+            item.get('description', ''),
+            ' '.join(item.get('requirements', []) or []),
+            ' '.join(item.get('benefits', []) or []),
+            ' '.join(item.get('aiTags', []) or []),
+        ]
+        text = ' '.join(str(part) for part in text_parts if part).lower()
+
+        scores = {}
+        for category, keywords in category_keywords.items():
+            score = 0
+            for keyword in keywords:
+                if keyword in text:
+                    score += 2 if ' ' in keyword else 1
+            if score:
+                scores[category] = score
+
+        if not scores:
+            return 'other'
+
+        return sorted(scores.items(), key=lambda item: (-item[1], priority.index(item[0])))[0][0]
+
     def is_valid(self, item: dict[str, Any]) -> bool:
         if not item.get('title') or len(item['title']) < 5:
             return False
@@ -239,7 +296,7 @@ class DataCleaner:
 
         for item in items:
             title_key = item.get('title', '').lower().strip()
-            url = item.get('applyUrl', '')
+            url = self._normalize_url(item.get('applyUrl', ''))
 
             if url and url in existing_urls:
                 continue

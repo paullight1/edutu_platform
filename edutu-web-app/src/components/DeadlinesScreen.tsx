@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Calendar, AlertCircle, Bookmark, Send, Target, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '@clerk/clerk-react';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { getDeadlines, type Deadline, type DeadlineGroup, type GroupedDeadlines, type DeadlinesSummary } from '../services/deadlines';
 import LoadingFallback from './ui/LoadingFallback';
@@ -56,6 +57,7 @@ const typeLabels = {
 
 const DeadlinesScreen: React.FC<DeadlinesScreenProps> = ({ userId, onBack, onSelectDeadline }) => {
   const { isDarkMode } = useDarkMode();
+  const { getToken } = useAuth();
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<GroupedDeadlines[]>([]);
   const [summary, setSummary] = useState<DeadlinesSummary | null>(null);
@@ -64,7 +66,8 @@ const DeadlinesScreen: React.FC<DeadlinesScreenProps> = ({ userId, onBack, onSel
   useEffect(() => {
     const loadDeadlines = async () => {
       try {
-        const data = await getDeadlines(userId);
+        const token = await getToken().catch(() => null);
+        const data = await getDeadlines(userId, token);
         setGroups(data.groups);
         setSummary(data.summary);
       } catch (error) {
@@ -75,7 +78,7 @@ const DeadlinesScreen: React.FC<DeadlinesScreenProps> = ({ userId, onBack, onSel
     };
 
     loadDeadlines();
-  }, [userId]);
+  }, [getToken, userId]);
 
   const toggleGroup = (group: DeadlineGroup) => {
     setCollapsedGroups(prev => {

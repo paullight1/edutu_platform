@@ -2,6 +2,10 @@
 -- Adds database indexes for frequently queried columns
 -- and an aggregation function for opportunity stats
 
+alter table public.opportunities
+    add column if not exists status text not null default 'active',
+    add column if not exists image_url text;
+
 -- Indexes for opportunities table
 create index if not exists idx_opportunities_status
     on public.opportunities(status);
@@ -9,11 +13,8 @@ create index if not exists idx_opportunities_status
 create index if not exists idx_opportunities_category
     on public.opportunities(category);
 
-create index if not exists idx_opportunities_type
-    on public.opportunities(type);
-
-create index if not exists idx_opportunities_deadline
-    on public.opportunities(deadline);
+create index if not exists idx_opportunities_close_date
+    on public.opportunities(close_date);
 
 create index if not exists idx_opportunities_created_at
     on public.opportunities(created_at);

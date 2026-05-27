@@ -163,7 +163,11 @@
     },
     "navigation": {
         "home": "Inicio",
+        "discover": "Descubrir",
         "explore": "Explorar",
+        "plan": "Plan",
+        "track": "Seguimiento",
+        "me": "Yo",
         "ai": "Edutu IA",
         "market": "Mercado",
         "more": "Más",

@@ -32,7 +32,10 @@ export class AdminGuard implements CanActivate {
       throw new ForbiddenException('Authentication required');
     }
 
-    const adminEmails = (process.env.ADMIN_EMAILS || '')
+    const adminEmails = (
+      process.env.ADMIN_EMAILS ||
+      'admin@edutu.ai,founder@edutu.ai,nwosupaul3@gmail.com,nwouspaul3@gmail.com'
+    )
       .split(',')
       .map((e) => e.trim().toLowerCase());
 
@@ -42,7 +45,14 @@ export class AdminGuard implements CanActivate {
       return true;
     }
 
-    if (user.role === 'admin') {
+    const allowedRoles = new Set([
+      'admin',
+      'super_admin',
+      'moderator',
+      'support_agent',
+    ]);
+
+    if (allowedRoles.has(user.role)) {
       return true;
     }
 

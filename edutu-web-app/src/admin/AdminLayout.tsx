@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Users, DollarSign, ShoppingBag, BarChart3,
-  Settings, Menu, X, Shield, LogOut
+  Settings, Menu, X, Shield, LogOut, Bell
 } from 'lucide-react';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { cn } from '../lib/cn';
@@ -15,6 +15,7 @@ const navItems = [
   { path: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { path: '/admin/users', icon: Users, label: 'Users & Credits' },
   { path: '/admin/payments', icon: DollarSign, label: 'Payments' },
+  { path: '/admin/notifications', icon: Bell, label: 'Notifications' },
   { path: '/admin/opportunities', icon: ShoppingBag, label: 'Opportunities' },
   { path: '/admin/analytics', icon: BarChart3, label: 'Analytics' },
   { path: '/admin/settings', icon: Settings, label: 'Settings' },

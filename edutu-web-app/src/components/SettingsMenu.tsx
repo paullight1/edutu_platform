@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Bell, Shield, HelpCircle, LogOut, MoreHorizontal, Moon, Sun, RefreshCw, Sparkles, Globe } from 'lucide-react';
+import { Bell, Shield, HelpCircle, LogOut, MoreHorizontal, Moon, Sun, RefreshCw, Sparkles, Globe } from 'lucide-react';
 import Button from './ui/Button';
 import Card from './ui/Card';
 import PageHeader from './PageHeader';
@@ -8,6 +8,8 @@ import { Screen } from '../App';
 import type { OnboardingProfileData } from '../types/onboarding';
 import { useTranslation } from 'react-i18next';
 import { LanguageSelector } from './ui/LanguageSelector';
+import type { AppUser } from '../types/user';
+import profileImageService from '../services/profileImage';
 
 interface SettingsMenuProps {
   onBack: () => void;
@@ -15,11 +17,13 @@ interface SettingsMenuProps {
   onLogout: () => void;
   onRedoOnboarding?: () => void;
   onboardingProfile?: OnboardingProfileData | null;
+  user?: AppUser | null;
 }
 
-const SettingsMenu: React.FC<SettingsMenuProps> = ({ onBack, onNavigate, onLogout, onRedoOnboarding, onboardingProfile }) => {
+const SettingsMenu: React.FC<SettingsMenuProps> = ({ onBack, onNavigate, onLogout, onRedoOnboarding, onboardingProfile, user }) => {
   const { isDarkMode, toggleDarkMode, lightTheme, darkTheme, updateTheme, resetTheme } = useTheme();
   const [activeTab, setActiveTab] = React.useState<'main' | 'theme' | 'language'>('main');
+  const [profileImage, setProfileImage] = React.useState<string | null>(user?.avatarUrl || null);
   const { t } = useTranslation();
 
   const themePackages = [
@@ -66,13 +70,6 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onBack, onNavigate, onLogou
   };
 
   const settingsOptions = [
-    {
-      id: 'profile-edit' as Screen,
-      title: t('settings.sections.profile'),
-      description: 'Update your personal information and preferences',
-      icon: <User size={20} className="text-primary" />,
-      color: 'hover:bg-blue-50 dark:hover:bg-blue-900/20'
-    },
     {
       id: 'notifications' as Screen,
       title: t('settings.sections.notifications'),
@@ -128,9 +125,31 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onBack, onNavigate, onLogou
   };
 
   const hasProfileSnapshot = Boolean(onboardingProfile);
+  const displayName = user?.name || user?.email?.split('@')[0] || 'Edutu learner';
+  const displayEmail = user?.email || 'Manage your Edutu account';
+  const avatarInitial = displayName.trim().charAt(0).toUpperCase() || 'E';
+
+  React.useEffect(() => {
+    let active = true;
+    if (!user?.id) {
+      setProfileImage(null);
+      return;
+    }
+
+    setProfileImage(user.avatarUrl || null);
+    profileImageService.getProfileImageUrl(user.id)
+      .then((url) => {
+        if (active && url) setProfileImage(url);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+    };
+  }, [user?.id, user?.avatarUrl]);
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900">
+    <div className="min-h-screen bg-slate-50 dark:bg-gray-950">
       {/* Header */}
       <PageHeader
         title={activeTab === 'theme' ? t('settings.sections.appearance') : activeTab === 'language' ? t('settings.sections.language') : t('navigation.more')}
@@ -139,12 +158,30 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onBack, onNavigate, onLogou
         rightContent={activeTab === 'main' ? <MoreHorizontal size={24} className="text-primary" /> : undefined}
       />
 
-      <div className="p-4 space-y-4 pb-24 max-w-2xl mx-auto">
+      <div className="p-4 space-y-3 pb-24 max-w-2xl mx-auto">
         {activeTab === 'main' ? (
           <>
+            <Card className="border-0 bg-white shadow-sm dark:bg-white/6">
+              <div className="flex items-center gap-4">
+                <div className="h-14 w-14 shrink-0 overflow-hidden rounded-[20px] bg-brand-500 text-white shadow-lg shadow-brand-500/20">
+                  {profileImage ? (
+                    <img src={profileImage} alt={displayName} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xl font-black">
+                      {avatarInitial}
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h2 className="truncate text-base font-black text-gray-900 dark:text-white">{displayName}</h2>
+                  <p className="truncate text-sm font-medium text-gray-500 dark:text-gray-400">{displayEmail}</p>
+                </div>
+              </div>
+            </Card>
+
             {/* Theme Entry Point - Highlighted */}
             <Card
-              className="cursor-pointer transition-all border-brand-500/20 bg-brand-50/30 dark:bg-brand-900/10 hover:border-brand-500/50 transform hover:scale-[1.02] animate-fade-in"
+              className="cursor-pointer border-0 bg-white shadow-sm transition-all hover:bg-brand-500/5 dark:bg-white/6 dark:hover:bg-white/10 animate-fade-in"
               onClick={() => setActiveTab('theme')}
             >
               <div className="flex items-center gap-4">
@@ -165,7 +202,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onBack, onNavigate, onLogou
 
             {/* Language Selector Entry */}
             <Card
-              className="cursor-pointer transition-all hover:bg-sky-50 dark:hover:bg-sky-900/20 dark:bg-gray-800 dark:border-gray-700 transform hover:scale-[1.02] animate-fade-in"
+              className="cursor-pointer border-0 bg-white shadow-sm transition-all hover:bg-sky-500/5 dark:bg-white/6 dark:hover:bg-white/10 animate-fade-in"
               onClick={() => setActiveTab('language')}
             >
               <div className="flex items-center gap-4">
@@ -188,7 +225,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onBack, onNavigate, onLogou
             {settingsOptions.map((option, index) => (
               <Card
                 key={option.id}
-                className={`cursor-pointer transition-all transform hover:scale-[1.02] ${option.color} dark:bg-gray-800 dark:border-gray-700 animate-slide-up`}
+                className={`cursor-pointer border-0 bg-white shadow-sm transition-all ${option.color} dark:bg-white/6 dark:hover:bg-white/10 animate-slide-up`}
                 style={{ animationDelay: `${index * 100}ms` }}
                 onClick={() => handleNavigate(option.id)}
               >
@@ -211,7 +248,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onBack, onNavigate, onLogou
 
             {onRedoOnboarding && (
               <Card
-                className="cursor-pointer transition-all transform hover:scale-[1.02] hover:bg-slate-50 dark:hover:bg-slate-800/40 dark:bg-gray-800 dark:border-gray-700 animate-slide-up"
+                className="cursor-pointer border-0 bg-white shadow-sm transition-all hover:bg-slate-100 dark:bg-white/6 dark:hover:bg-white/10 animate-slide-up"
                 style={{ animationDelay: '400ms' }}
                 onClick={handleRedoOnboarding}
               >
@@ -238,7 +275,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onBack, onNavigate, onLogou
 
             {/* Sign Out */}
             <Card
-              className="cursor-pointer hover:bg-red-50 dark:hover:bg-red-900/20 transition-all border-red-200 dark:border-red-800 dark:bg-gray-800 animate-slide-up"
+              className="cursor-pointer border-0 bg-white shadow-sm transition-all hover:bg-red-50 dark:bg-white/6 dark:hover:bg-red-500/10 animate-slide-up"
               style={{ animationDelay: '500ms' }}
               onClick={handleLogout}
             >
@@ -258,9 +295,9 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onBack, onNavigate, onLogou
               Edutu v1.2 • African Youth Empowerment
             </div>
           </>
-        ) : (
+        ) : activeTab === 'theme' ? (
           <div className="animate-fade-in space-y-6">
-            <Card className="dark:bg-gray-800 dark:border-gray-700">
+            <Card className="border-0 bg-white shadow-sm dark:bg-white/6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-2xl flex items-center justify-center">
@@ -292,7 +329,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onBack, onNavigate, onLogou
                       onClick={() => applyPackage(pkg)}
                       className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${isActive
                         ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                        : 'border-subtle bg-white dark:bg-gray-800 hover:border-primary/30'
+                        : 'border-transparent bg-white shadow-sm dark:bg-white/6 hover:bg-slate-50 dark:hover:bg-white/10'
                         }`}
                     >
                       <div className="w-10 h-10 rounded-xl shadow-inner flex items-center justify-center" style={{ backgroundColor: pkg.color }}>
@@ -308,7 +345,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onBack, onNavigate, onLogou
               </div>
             </div>
 
-            <div className="space-y-6 pt-4 border-t border-subtle">
+            <div className="space-y-6 pt-4">
               <h4 className="text-[10px] font-black tracking-widest text-slate-400 ml-1">Create Your Custom Theme</h4>
 
               <div className="space-y-5">
@@ -356,7 +393,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onBack, onNavigate, onLogou
                         onClick={() => updateTheme(isDarkMode ? 'dark' : 'light', { background: preset.value })}
                         className={`py-3 px-2 rounded-xl border-2 transition-all font-bold text-[10px] tracking-wider ${(isDarkMode ? darkTheme.background : lightTheme.background) === preset.value
                           ? 'border-primary bg-primary/5 text-primary'
-                          : 'border-subtle bg-slate-50 dark:bg-white/5 text-slate-500'
+                          : 'border-transparent bg-white shadow-sm dark:bg-white/5 text-slate-500'
                           }`}
                       >
                         {preset.name}
@@ -378,12 +415,9 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onBack, onNavigate, onLogou
               </div>
             </div>
           </div>
-        )}
-
-        {/* Language Tab */}
-        {activeTab === 'language' && (
+        ) : (
           <div className="animate-fade-in space-y-6">
-            <Card className="dark:bg-gray-800 dark:border-gray-700">
+            <Card className="border-0 bg-white shadow-sm dark:bg-white/6">
               <LanguageSelector variant="list" />
             </Card>
           </div>

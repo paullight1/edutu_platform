@@ -1,0 +1,1377 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Edutu Platform Architecture and Process Documentation</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172033;
+      --muted: #607086;
+      --paper: #f7f8fb;
+      --panel: #ffffff;
+      --line: #d8dfeb;
+      --blue: #1d5fd1;
+      --green: #237a57;
+      --red: #b42318;
+      --amber: #95621d;
+      --code: #111827;
+      --code-bg: #eef3f8;
+      --shadow: 0 18px 50px rgba(28, 42, 70, 0.11);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: "Aptos", "Segoe UI", Helvetica, Arial, sans-serif;
+      line-height: 1.55;
+    }
+
+    a {
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    aside {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      overflow: auto;
+      padding: 28px 22px;
+      border-right: 1px solid var(--line);
+      background: #ffffff;
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 26px;
+    }
+
+    .brand strong {
+      font-size: 20px;
+      letter-spacing: 0;
+    }
+
+    .brand span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    nav {
+      display: grid;
+      gap: 4px;
+    }
+
+    nav a {
+      display: block;
+      padding: 8px 10px;
+      border-radius: 6px;
+      color: #344054;
+      font-size: 14px;
+    }
+
+    nav a:hover {
+      background: #edf3fb;
+      text-decoration: none;
+    }
+
+    main {
+      max-width: 1220px;
+      width: 100%;
+      padding: 42px 52px 72px;
+    }
+
+    header.hero {
+      padding: 42px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: var(--shadow);
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 920px;
+      font-size: clamp(34px, 5vw, 58px);
+      line-height: 0.98;
+      letter-spacing: 0;
+    }
+
+    .hero p {
+      max-width: 900px;
+      color: var(--muted);
+      font-size: 18px;
+    }
+
+    section {
+      margin-top: 34px;
+      padding-top: 6px;
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 28px;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 24px 0 10px;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    p {
+      margin: 0 0 14px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .grid.two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .grid.three {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 18px;
+    }
+
+    .card h3 {
+      margin-top: 0;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 22px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: #f8fafc;
+      color: #344054;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 5px;
+      padding: 3px 7px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .status.done {
+      background: #e8f5ee;
+      color: var(--green);
+    }
+
+    .status.review {
+      background: #fff5df;
+      color: var(--amber);
+    }
+
+    .status.risk {
+      background: #fff0ee;
+      color: var(--red);
+    }
+
+    .diagram {
+      display: grid;
+      gap: 10px;
+      margin: 18px 0;
+    }
+
+    .lane {
+      display: grid;
+      grid-template-columns: 190px minmax(0, 1fr);
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .lane-label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      color: #344054;
+      font-weight: 750;
+      text-align: center;
+      padding: 14px;
+    }
+
+    .lane-body {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 14px;
+    }
+
+    .node {
+      border: 1px solid #c7d7ee;
+      border-radius: 7px;
+      padding: 10px 12px;
+      background: #f4f8ff;
+      color: #1f3b67;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .arrow {
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    ul,
+    ol {
+      margin: 0 0 14px 20px;
+      padding: 0;
+    }
+
+    li {
+      margin: 6px 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid var(--line);
+      background: #ffffff;
+      font-size: 14px;
+    }
+
+    th,
+    td {
+      vertical-align: top;
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #edf3fb;
+      color: #20304a;
+      font-weight: 750;
+    }
+
+    code,
+    pre {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    code {
+      border-radius: 4px;
+      padding: 1px 4px;
+      background: var(--code-bg);
+      color: var(--code);
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow: auto;
+      margin: 12px 0 0;
+      border: 1px solid #cfd8e6;
+      border-radius: 8px;
+      padding: 16px;
+      background: #101828;
+      color: #e6edf7;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .note {
+      border-left: 4px solid var(--blue);
+      background: #eef5ff;
+      padding: 14px 16px;
+      color: #27405f;
+    }
+
+    .warning {
+      border-left: 4px solid var(--amber);
+      background: #fff8e8;
+      padding: 14px 16px;
+      color: #5c4216;
+    }
+
+    .print-only {
+      display: none;
+    }
+
+    @media (max-width: 960px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+
+      aside {
+        position: static;
+        height: auto;
+      }
+
+      main {
+        padding: 26px 18px 48px;
+      }
+
+      header.hero {
+        padding: 26px;
+      }
+
+      .grid.two,
+      .grid.three {
+        grid-template-columns: 1fr;
+      }
+
+      .lane {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media print {
+      aside {
+        display: none;
+      }
+
+      .shell {
+        display: block;
+      }
+
+      main {
+        max-width: none;
+        padding: 0;
+      }
+
+      .card,
+      header.hero,
+      table {
+        box-shadow: none;
+        break-inside: avoid;
+      }
+
+      .print-only {
+        display: block;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <div class="brand">
+        <strong>Edutu Docs</strong>
+        <span>Architecture, processes, and task map</span>
+      </div>
+      <nav aria-label="Page navigation">
+        <a href="#summary">Executive Summary</a>
+        <a href="#repo">Repository Boundaries</a>
+        <a href="#architecture">System Architecture</a>
+        <a href="#json">Architecture JSON</a>
+        <a href="#surfaces">Runtime Surfaces</a>
+        <a href="#backend">Backend API</a>
+        <a href="#data">Data Model</a>
+        <a href="#flows">Core Processes</a>
+        <a href="#security">Security and Auth</a>
+        <a href="#operations">Operations</a>
+        <a href="#quality">Quality Review</a>
+        <a href="#tasks">Long Task List</a>
+        <a href="#evidence">Evidence Log</a>
+      </nav>
+    </aside>
+
+    <main>
+      <header class="hero">
+        <p class="eyebrow">Documentation artifact</p>
+        <h1>Edutu Platform Architecture and Process Documentation</h1>
+        <p>
+          This page documents the Edutu codebases as scanned locally from
+          <code>/Users/MAC/Desktop/Desktop/app-projects/Edutu_Folder</code>.
+          It covers code structure, application interactions, backend and data
+          flows, scraper behavior, operational commands, review findings, and
+          a practical task backlog.
+        </p>
+        <div class="meta">
+          <span class="pill">Generated: 2026-05-22</span>
+          <span class="pill">Intentional multi-repo workspace</span>
+          <span class="pill">Platform repo boundary: edutu-platform/</span>
+          <span class="pill">Mobile repo boundary: edutumobile/</span>
+          <span class="pill">Backend path quirk: backend/services/services/api/</span>
+        </div>
+      </header>
+
+      <section id="summary">
+        <h2>Executive Summary</h2>
+        <div class="grid three">
+          <div class="card">
+            <h3>What Edutu Is</h3>
+            <p>
+              Edutu is a multi-surface opportunity platform for scholarships,
+              roadmaps, creator marketplace, AI assistance, CV tooling,
+              notifications, billing, and mobile growth controls.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Core Architecture</h3>
+            <p>
+              The platform is organized around a NestJS API, Supabase Postgres,
+              React/Vite web apps, an Expo mobile app, Supabase edge functions,
+              and a Crawl4AI scholarship scraper.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Main Rule</h3>
+            <p>
+              Client features should prefer the backend API for business logic.
+              Some current surfaces still call Supabase directly for auth,
+              RLS-backed data access, edge functions, or admin reads.
+            </p>
+          </div>
+        </div>
+
+        <div class="warning">
+          <strong>Repository boundary correction:</strong> this is intentionally
+          not a monorepo. <code>edutu-platform/</code> and
+          <code>edutumobile/</code> should be treated as separate repository
+          boundaries that happen to be present under one local workspace folder
+          for this scan. In this workspace copy, Git metadata was not exposed,
+          so the documentation records the intended ownership boundaries rather
+          than relying on <code>.git</code> discovery.
+        </div>
+      </section>
+
+      <section id="repo">
+        <h2>Repository Boundaries</h2>
+        <p>
+          Edutu is a coordinated multi-repo system, not a monorepo. The local
+          parent folder is a workspace convenience. Operational commands,
+          environment files, releases, and CI should be reasoned about from the
+          relevant repository boundary.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Path</th>
+              <th>Repo boundary</th>
+              <th>Purpose</th>
+              <th>Primary stack</th>
+              <th>Status notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>edutu-platform/backend/services/services/api</code></td>
+              <td><code>edutu-platform</code></td>
+              <td>NestJS API for business logic, auth verification, AI, Drizzle data access, scraper controls, and mobile control APIs.</td>
+              <td>NestJS, Drizzle ORM, Postgres, Supabase JS, Clerk, Gemini, OpenRouter</td>
+              <td><span class="status done">Active</span> This is the real backend path.</td>
+            </tr>
+            <tr>
+              <td><code>edutu-platform/admin</code></td>
+              <td><code>edutu-platform</code></td>
+              <td>Standalone admin dashboard for dashboard, opportunities, users, creators, roadmaps, blog, scraper, mobile control, and settings.</td>
+              <td>React 19, Vite 8, TypeScript, Supabase JS, React Router</td>
+              <td><span class="status review">Mixed access</span> Uses Supabase auth and direct profile role checks.</td>
+            </tr>
+            <tr>
+              <td><code>edutu-platform/edutu-web-app</code></td>
+              <td><code>edutu-platform</code></td>
+              <td>Main web application and Capacitor Android shell with user app, public pages, premium gates, creator tools, and embedded admin routes.</td>
+              <td>React 18, Vite 5, React Router, Clerk, Supabase JS, Capacitor, PWA</td>
+              <td><span class="status done">Active</span> Broadest product surface.</td>
+            </tr>
+            <tr>
+              <td><code>edutumobile</code></td>
+              <td><code>edutumobile</code></td>
+              <td>React Native mobile app with Expo Router, Clerk auth, Supabase token bridging, offline behavior, widgets, and native notifications.</td>
+              <td>Expo 55, React Native 0.83, Clerk Expo, Supabase JS, NativeWind</td>
+              <td><span class="status done">Active</span> Separate mobile repository boundary.</td>
+            </tr>
+            <tr>
+              <td><code>edutu-platform/edutu-web</code></td>
+              <td><code>edutu-platform</code></td>
+              <td>Next.js waitlist landing page and waitlist API route.</td>
+              <td>Next 14, React 18, Tailwind, Supabase/Neon packages</td>
+              <td><span class="status done">Active</span> Marketing/waitlist scope.</td>
+            </tr>
+            <tr>
+              <td><code>edutu-platform/crawl4ai-scraper</code></td>
+              <td><code>edutu-platform</code></td>
+              <td>Python scholarship crawler and CLI for source crawling, extraction, cleaning, and optional Supabase persistence.</td>
+              <td>Python, Crawl4AI, Supabase client</td>
+              <td><span class="status done">Active</span> Complements backend scraper module.</td>
+            </tr>
+            <tr>
+              <td><code>edutu-platform/supabase</code></td>
+              <td><code>edutu-platform</code></td>
+              <td>Shared migrations and edge function for scraping.</td>
+              <td>Supabase SQL, Deno edge functions</td>
+              <td><span class="status review">Partial</span> Separate from app-local Supabase folders.</td>
+            </tr>
+            <tr>
+              <td><code>edutu-launch-video</code></td>
+              <td>Separate adjacent package</td>
+              <td>Launch-video rendering project.</td>
+              <td>Remotion, React, TypeScript</td>
+              <td><span class="status review">Adjacent</span> Not part of core runtime.</td>
+            </tr>
+            <tr>
+              <td><code>edutu-platform/other-files</code></td>
+              <td><code>edutu-platform</code></td>
+              <td>Archived or experimental scraper/documentation assets.</td>
+              <td>Mixed</td>
+              <td><span class="status review">Archive</span> Do not treat as canonical without review.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Workspace Structure</h3>
+        <pre><code>Edutu_Folder/
+├── AGENTS.md
+├── opencode.json                         # Apify MCP actor access
+├── edutu-platform/                        # Separate platform repository boundary
+│   ├── admin/                            # Standalone admin dashboard
+│   ├── backend/services/services/api/    # NestJS API server
+│   ├── crawl4ai-scraper/                 # Python Crawl4AI scraper
+│   ├── edutu-web/                        # Next.js waitlist landing page
+│   ├── edutu-web-app/                    # Full web app + Capacitor/PWA
+│   ├── supabase/                         # Shared Supabase migrations/functions
+│   ├── docs/                             # Platform documentation
+│   └── other-files/                      # Archived/experimental work
+├── edutumobile/                          # Separate mobile repository boundary
+└── edutu-launch-video/                   # Adjacent Remotion launch video package</code></pre>
+      </section>
+
+      <section id="architecture">
+        <h2>System Architecture</h2>
+        <p>
+          Edutu is best understood as a hub-and-spoke system. Product clients
+          render user and admin workflows. The NestJS API owns high-trust
+          business logic and AI routing. Supabase stores product data and also
+          hosts edge functions for selected serverless workflows.
+        </p>
+
+        <div class="diagram" role="img" aria-label="Edutu architecture diagram">
+          <div class="lane">
+            <div class="lane-label">Clients</div>
+            <div class="lane-body">
+              <span class="node">Main Web App</span><span class="arrow">-&gt;</span>
+              <span class="node">Admin Dashboard</span><span class="arrow">-&gt;</span>
+              <span class="node">Expo Mobile</span><span class="arrow">-&gt;</span>
+              <span class="node">Waitlist Site</span>
+            </div>
+          </div>
+          <div class="lane">
+            <div class="lane-label">Service Layer</div>
+            <div class="lane-body">
+              <span class="node">NestJS API</span><span class="arrow">-&gt;</span>
+              <span class="node">Supabase Edge Functions</span><span class="arrow">-&gt;</span>
+              <span class="node">Crawl4AI Scraper</span>
+            </div>
+          </div>
+          <div class="lane">
+            <div class="lane-label">Data and Identity</div>
+            <div class="lane-body">
+              <span class="node">Supabase Postgres</span><span class="arrow">-&gt;</span>
+              <span class="node">Clerk Auth</span><span class="arrow">-&gt;</span>
+              <span class="node">Supabase Auth/RLS Bridge</span>
+            </div>
+          </div>
+          <div class="lane">
+            <div class="lane-label">External Services</div>
+            <div class="lane-body">
+              <span class="node">Gemini</span><span class="arrow">-&gt;</span>
+              <span class="node">OpenRouter</span><span class="arrow">-&gt;</span>
+              <span class="node">Paystack</span><span class="arrow">-&gt;</span>
+              <span class="node">RevenueCat</span><span class="arrow">-&gt;</span>
+              <span class="node">Apify Actors</span><span class="arrow">-&gt;</span>
+              <span class="node">n8n</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="note">
+          The strongest boundary is the backend API. The weakest boundary is
+          the current split between direct Supabase client access and backend
+          mediated access. That split should be documented per feature and
+          tightened where business rules require server enforcement.
+        </div>
+      </section>
+
+      <section id="json">
+        <h2>Clean Architecture JSON</h2>
+        <p>
+          This JSON block is designed for onboarding, diagrams, architecture
+          reviews, or future tooling. It captures the main system components and
+          their relationships in a compact format.
+        </p>
+        <pre><code>{
+  "platform": "Edutu",
+  "generatedAt": "2026-05-22",
+  "workspaceRoot": "/Users/MAC/Desktop/Desktop/app-projects/Edutu_Folder",
+  "repositoryModel": {
+    "type": "intentional multi-repo",
+    "note": "The parent folder is a local workspace container, not a monorepo boundary.",
+    "repoBoundaries": [
+      {
+        "name": "edutu-platform",
+        "path": "edutu-platform",
+        "owns": [
+          "backend API",
+          "standalone admin",
+          "main web app",
+          "waitlist site",
+          "Crawl4AI scraper",
+          "shared Supabase assets",
+          "platform documentation"
+        ]
+      },
+      {
+        "name": "edutumobile",
+        "path": "edutumobile",
+        "owns": [
+          "Expo mobile app",
+          "mobile core package",
+          "mobile Supabase functions and migrations",
+          "native widgets"
+        ]
+      }
+    ],
+    "localGitMetadataVisible": false
+  },
+  "components": {
+    "backendApi": {
+      "path": "edutu-platform/backend/services/services/api",
+      "runtime": "Node.js NestJS",
+      "portDefault": 3000,
+      "responsibilities": [
+        "authenticate requests with Clerk and Supabase token fallback",
+        "serve goals, opportunities, roadmaps, creator, billing, CV, quiz, flashcard, blog, notification, AI, scraper, and mobile-control APIs",
+        "run scheduled scraper jobs",
+        "route AI work to Gemini or OpenRouter",
+        "access Postgres through Drizzle and selected Supabase service-role clients"
+      ],
+      "criticalFiles": [
+        "src/main.ts",
+        "src/app.module.ts",
+        "src/db/schema.ts",
+        "src/auth/clerk-auth.guard.ts",
+        "src/ai/ai.service.ts",
+        "src/scraper/scraper.service.ts"
+      ]
+    },
+    "mainWebApp": {
+      "path": "edutu-platform/edutu-web-app",
+      "runtime": "React + Vite + Capacitor/PWA",
+      "auth": "Clerk React",
+      "routes": [
+        "/",
+        "/about",
+        "/opportunities",
+        "/blog",
+        "/mentor",
+        "/auth",
+        "/billing",
+        "/admin/*",
+        "/app/home",
+        "/app/opportunities",
+        "/app/community",
+        "/app/profile",
+        "/app/goals",
+        "/app/cv",
+        "/app/creator/*"
+      ]
+    },
+    "standaloneAdmin": {
+      "path": "edutu-platform/admin",
+      "runtime": "React + Vite",
+      "auth": "Supabase auth plus profiles.role admin check",
+      "routes": [
+        "/",
+        "/opportunities",
+        "/users",
+        "/creators",
+        "/roadmaps",
+        "/blog",
+        "/settings",
+        "/edutu-engine",
+        "/mobile-control",
+        "/profile"
+      ]
+    },
+    "mobileApp": {
+      "path": "edutumobile",
+      "runtime": "Expo Router + React Native",
+      "auth": "Clerk Expo",
+      "dataAccess": [
+        "backend HTTP through EXPO_PUBLIC_API_URL",
+        "Supabase client with Clerk token bridge",
+        "Supabase edge functions for chat, billing, webhooks, and account operations"
+      ],
+      "routeGroups": [
+        "app/(auth)",
+        "app/(app)",
+        "app/admin"
+      ]
+    },
+    "waitlistSite": {
+      "path": "edutu-platform/edutu-web",
+      "runtime": "Next.js",
+      "responsibilities": [
+        "public waitlist landing page",
+        "waitlist API route",
+        "waitlist database scripts"
+      ]
+    },
+    "pythonScraper": {
+      "path": "edutu-platform/crawl4ai-scraper",
+      "runtime": "Python + Crawl4AI",
+      "responsibilities": [
+        "crawl scholarship sources",
+        "extract opportunity fields",
+        "clean and normalize records",
+        "save to Supabase when requested"
+      ]
+    },
+    "database": {
+      "platform": "Supabase Postgres",
+      "primarySchemaFile": "edutu-platform/backend/services/services/api/src/db/schema.ts",
+      "orm": "Drizzle",
+      "notableTables": [
+        "profiles",
+        "notifications",
+        "notification_preferences",
+        "notification_push_tokens",
+        "notification_queue",
+        "goals",
+        "milestones",
+        "opportunities",
+        "user_opportunity_preferences",
+        "user_opportunity_signals",
+        "creator_applications",
+        "marketplace_listings",
+        "marketplace_enrollments",
+        "marketplace_packages",
+        "tickets",
+        "transactions",
+        "quizzes",
+        "quiz_questions",
+        "quiz_attempts",
+        "flashcard_decks",
+        "flashcards",
+        "flashcard_study_sessions",
+        "flashcard_reviews",
+        "ai_provider_keys",
+        "ai_routes",
+        "ai_prompts",
+        "ai_usage_logs",
+        "blog_posts",
+        "blog_comments",
+        "roadmaps",
+        "roadmap_enrollments",
+        "user_roadmap_intents",
+        "roadmap_feedback",
+        "mobile_app_campaigns",
+        "mobile_feature_flags",
+        "widget_feeds",
+        "mobile_campaign_events"
+      ]
+    }
+  },
+  "principalFlows": [
+    {
+      "name": "Authenticated client request",
+      "steps": [
+        "Client obtains Clerk or Supabase-compatible token",
+        "Client calls NestJS API with Authorization header",
+        "ClerkAuthGuard validates Clerk token, falls back to Supabase getUser",
+        "Guard attaches request.user with database-safe user id",
+        "Feature service reads/writes Postgres through Drizzle or Supabase service role",
+        "API returns typed JSON response"
+      ]
+    },
+    {
+      "name": "Opportunity ingestion",
+      "steps": [
+        "Admin or scheduler triggers scraper",
+        "Scraper reads enabled sources and fetches list/detail pages",
+        "Cheerio extracts text and links",
+        "AI route scraper.extract or opportunities.extract enriches structured fields",
+        "Service saves normalized opportunity rows",
+        "Admin reviews status and quality before publishing"
+      ]
+    },
+    {
+      "name": "AI routing",
+      "steps": [
+        "Feature service calls AiService.generateText or generateJson",
+        "AiService resolves feature route from ai_routes or DEFAULT_ROUTES",
+        "Provider key is loaded from encrypted storage or environment",
+        "Gemini or OpenRouter adapter executes request",
+        "Usage is logged to ai_usage_logs"
+      ]
+    }
+  ]
+}</code></pre>
+      </section>
+
+      <section id="surfaces">
+        <h2>Runtime Surfaces</h2>
+
+        <div class="grid two">
+          <div class="card">
+            <h3>Main Web App</h3>
+            <p><strong>Path:</strong> <code>edutu-platform/edutu-web-app</code></p>
+            <p>
+              Routes are declared in <code>src/App.tsx</code>. Public routes
+              include landing, about, opportunities, blog, mentor, auth, and
+              billing. Authenticated app routes are nested under
+              <code>/app</code> and include home, opportunities, community,
+              achievements, saved/applied items, goals, opportunity roadmaps,
+              packages, settings, CV, personalization, and creator tools.
+            </p>
+            <p>
+              The web app uses Clerk for identity, Supabase for selected data
+              access and RLS bridging, Vite for builds, and Capacitor for the
+              Android wrapper.
+            </p>
+          </div>
+
+          <div class="card">
+            <h3>Standalone Admin</h3>
+            <p><strong>Path:</strong> <code>edutu-platform/admin</code></p>
+            <p>
+              Routes in <code>src/App.tsx</code> cover dashboard, opportunities,
+              users, creators, roadmaps, blog, settings, scraper
+              (<code>/edutu-engine</code>), mobile control, and profile. Auth is
+              Supabase session based, with admin access determined by
+              <code>profiles.role === "admin"</code>.
+            </p>
+            <p>
+              Note that the AGENTS guide mentions <code>/scraper</code>, while
+              this route file currently exposes the scraper page at
+              <code>/edutu-engine</code>.
+            </p>
+          </div>
+
+          <div class="card">
+            <h3>Expo Mobile App</h3>
+            <p><strong>Path:</strong> <code>edutumobile</code></p>
+            <p>
+              The mobile root layout wraps the app in Clerk, theme, offline,
+              gesture, error boundary, status bar, offline banner, and mobile
+              campaign host providers. It bridges Clerk tokens into Supabase
+              through <code>setSupabaseAccessTokenGetter</code>.
+            </p>
+            <p>
+              Route groups include <code>(auth)</code>, <code>(app)</code>, and
+              <code>admin</code>. The main app layout adds tab navigation,
+              voice entry, push notifications, haptics, and mobile campaign UI.
+            </p>
+          </div>
+
+          <div class="card">
+            <h3>Waitlist Site</h3>
+            <p><strong>Path:</strong> <code>edutu-platform/edutu-web</code></p>
+            <p>
+              The Next.js site renders a public waitlist landing page with a
+              typed hero message and <code>WaitlistForm</code>. It includes
+              SQL scripts for waitlist table setup and an API route at
+              <code>app/api/waitlist/route.ts</code>.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section id="backend">
+        <h2>Backend API</h2>
+        <p>
+          The NestJS API is imported through <code>AppModule</code>, configured
+          with global config, schedule support, throttling, and the auth guard.
+          CORS allows localhost web/admin/mobile origins plus
+          <code>ADMIN_URL</code> and <code>MOBILE_APP_URL</code>.
+        </p>
+
+        <h3>Modules and Responsibilities</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Module</th>
+              <th>Controller base</th>
+              <th>Responsibility</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>App</td><td><code>/</code></td><td>Health or root response.</td></tr>
+            <tr><td>Auth</td><td>global guard</td><td>Clerk client provider, request authentication, public route support.</td></tr>
+            <tr><td>Goals</td><td><code>/goals</code></td><td>Create, list, view, update, and delete user goals.</td></tr>
+            <tr><td>Opportunities</td><td><code>/opportunities</code></td><td>Opportunity listing, detail, recommendations, preferences, signals, sync, admin stats/list, approval, rejection, import, delete.</td></tr>
+            <tr><td>Creator</td><td><code>/creator</code>, <code>/marketplace</code>, <code>/admin/creator-applications</code></td><td>Creator applications, creator status/dashboard, marketplace listing and enrollment, wallet access.</td></tr>
+            <tr><td>Roadmaps</td><td><code>/roadmaps</code></td><td>Roadmap catalog, creator roadmaps, enrollments, progress, intent capture, recommendations, feedback, AI assist, stats.</td></tr>
+            <tr><td>Billing</td><td><code>/billing</code></td><td>Status, checkout, and Paystack webhook handling.</td></tr>
+            <tr><td>AI</td><td><code>/ai</code></td><td>Admin/config endpoints for provider keys, routes, and AI route tests.</td></tr>
+            <tr><td>CV</td><td><code>/cv</code></td><td>AI draft and tailoring flows.</td></tr>
+            <tr><td>Quiz</td><td><code>/quiz</code></td><td>Generate, list, detail, submit, attempts, and delete quizzes.</td></tr>
+            <tr><td>Flashcards</td><td><code>/flashcards</code></td><td>Decks, cards, bulk operations, reviews, sessions, stats, and generation.</td></tr>
+            <tr><td>Blog</td><td><code>/blog</code></td><td>Posts, categories, featured posts, comments, moderation, likes.</td></tr>
+            <tr><td>Scraper</td><td><code>/api/scraper</code></td><td>Manual scrape run, source management, jobs, stats, settings, dynamic schedule.</td></tr>
+            <tr><td>Mobile Control</td><td><code>/mobile-control</code>, <code>/admin</code></td><td>Mobile campaigns, feature flags, widget feeds, and campaign events.</td></tr>
+            <tr><td>Notifications</td><td><code>/notifications</code></td><td>User notifications, read/delete, preferences, push tokens, admin broadcast, queue processing.</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Backend API Endpoint Inventory</h3>
+        <pre><code>GET    /
+GET    /opportunities
+GET    /opportunities/:id
+POST   /opportunities
+PATCH  /opportunities/:id
+DELETE /opportunities/:id
+POST   /opportunities/recommendations/query
+POST   /opportunities/recommendations
+GET    /opportunities/preferences
+PATCH  /opportunities/preferences
+POST   /opportunities/signals
+GET    /opportunities/sync
+GET    /opportunities/admin/list
+GET    /opportunities/admin/stats
+GET    /opportunities/apify-sync
+PATCH  /opportunities/:id/status
+POST   /opportunities/:id/approve
+POST   /opportunities/:id/reject
+POST   /opportunities/bulk-import
+
+POST   /goals
+GET    /goals
+GET    /goals/:id
+PATCH  /goals/:id
+DELETE /goals/:id
+
+GET    /roadmaps
+GET    /roadmaps/:id
+GET    /roadmaps/slug/:slug
+GET    /roadmaps/admin/list
+POST   /roadmaps
+POST   /roadmaps/creator
+PUT    /roadmaps/:id
+DELETE /roadmaps/:id
+POST   /roadmaps/adopt/:roadmapId
+POST   /roadmaps/enroll/:roadmapId
+GET    /roadmaps/my-enrollments
+GET    /roadmaps/enrollments/:enrollmentId/calendar
+POST   /roadmaps/progress/:roadmapId
+POST   /roadmaps/intent
+GET    /roadmaps/intent
+GET    /roadmaps/recommended
+POST   /roadmaps/feedback
+GET    /roadmaps/feedback/:roadmapId
+POST   /roadmaps/ai/assist
+GET    /roadmaps/stats
+
+POST   /api/scraper/run
+GET    /api/scraper/sources
+POST   /api/scraper/sources
+PATCH  /api/scraper/sources/:id
+DELETE /api/scraper/sources/:id
+GET    /api/scraper/jobs
+DELETE /api/scraper/jobs/:id
+GET    /api/scraper/stats
+GET    /api/scraper/settings
+POST   /api/scraper/settings
+
+GET    /mobile-control/config
+POST   /mobile-control/events
+GET    /mobile-control/admin/campaigns
+POST   /mobile-control/admin/campaigns
+PATCH  /mobile-control/admin/campaigns/:id
+DELETE /mobile-control/admin/campaigns/:id
+GET    /mobile-control/admin/feature-flags
+POST   /mobile-control/admin/feature-flags
+PATCH  /mobile-control/admin/feature-flags/:id
+DELETE /mobile-control/admin/feature-flags/:id
+GET    /mobile-control/admin/widget-feeds
+POST   /mobile-control/admin/widget-feeds
+PATCH  /mobile-control/admin/widget-feeds/:id
+DELETE /mobile-control/admin/widget-feeds/:id
+
+GET    /notifications
+PATCH  /notifications/:id/read
+PATCH  /notifications/read-all
+DELETE /notifications/:id
+GET    /notifications/preferences
+PATCH  /notifications/preferences
+POST   /notifications/push-token
+POST   /notifications/admin/broadcast
+GET    /notifications/admin/queue
+POST   /notifications/admin/process-due</code></pre>
+      </section>
+
+      <section id="data">
+        <h2>Data Model</h2>
+        <p>
+          Drizzle schema definitions live in
+          <code>edutu-platform/backend/services/services/api/src/db/schema.ts</code>.
+          The API uses <code>DATABASE_URL</code> through a node-postgres pool.
+          Several modules also use a Supabase service-role client for direct
+          table access when the feature expects Supabase response shapes or RLS
+          helper behavior.
+        </p>
+
+        <div class="grid two">
+          <div class="card">
+            <h3>Identity and Profiles</h3>
+            <ul>
+              <li><code>profiles</code> stores app-owned user profile data and role.</li>
+              <li>Clerk IDs are converted to database-safe IDs before lookup.</li>
+              <li>Admin access can come from <code>profiles.role</code> or configured admin emails.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Opportunity Graph</h3>
+            <ul>
+              <li><code>opportunities</code> stores public opportunity records.</li>
+              <li><code>user_opportunity_preferences</code> stores personalization preferences.</li>
+              <li><code>user_opportunity_signals</code> records clicks, saves, views, and feedback signals.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Learning and Roadmaps</h3>
+            <ul>
+              <li><code>goals</code> and <code>milestones</code> model user plans.</li>
+              <li><code>roadmaps</code>, enrollments, intents, and feedback model reusable learning paths.</li>
+              <li><code>quizzes</code> and flashcard tables support study workflows.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Monetization and Control</h3>
+            <ul>
+              <li><code>transactions</code>, marketplace listings, packages, and enrollments support creator and billing flows.</li>
+              <li><code>mobile_app_campaigns</code>, <code>mobile_feature_flags</code>, and <code>widget_feeds</code> power mobile control plane behavior.</li>
+              <li><code>ai_provider_keys</code>, <code>ai_routes</code>, and <code>ai_usage_logs</code> support AI governance.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="flows">
+        <h2>Core Processes</h2>
+
+        <h3>1. Authentication and Request Authorization</h3>
+        <ol>
+          <li>Client authenticates with Clerk or Supabase depending on surface.</li>
+          <li>Client sends <code>Authorization: Bearer &lt;token&gt;</code> to protected backend endpoints.</li>
+          <li><code>ClerkAuthGuard</code> skips routes marked public.</li>
+          <li>The guard verifies Clerk tokens when <code>CLERK_SECRET_KEY</code> is available.</li>
+          <li>If Clerk verification fails, it tries <code>supabase.auth.getUser(token)</code>.</li>
+          <li>The guard attaches <code>request.user</code> with user ID, auth ID, email, role, and provider.</li>
+          <li>Admin-only features use <code>AdminGuard</code> or route-level admin logic.</li>
+        </ol>
+
+        <h3>2. Opportunity Discovery</h3>
+        <ol>
+          <li>User opens opportunities from web or mobile.</li>
+          <li>Client fetches active opportunities from backend or Supabase-backed service layer.</li>
+          <li>Personalization can combine user profile, preferences, signals, and ranking service output.</li>
+          <li>Opportunity detail routes record analytics and can start roadmap generation or goal adoption.</li>
+          <li>Saved and applied lists are surfaced through user-specific services.</li>
+        </ol>
+
+        <h3>3. Scraper Ingestion</h3>
+        <ol>
+          <li>Admin triggers <code>POST /api/scraper/run</code> or scheduler executes a configured cron.</li>
+          <li>Scraper service loads scraper settings and enabled sources from Supabase tables.</li>
+          <li>List pages are fetched with browser-like headers and conservative delays.</li>
+          <li>Detail pages are enriched with Cheerio extraction and AI-assisted JSON extraction.</li>
+          <li>Records are normalized, quality checked, and saved as opportunities.</li>
+          <li>Stats and job history are shown in the admin scraper surface.</li>
+        </ol>
+
+        <h3>4. AI Operations</h3>
+        <ol>
+          <li>Feature service calls <code>AiService.generateText</code> or <code>generateJson</code>.</li>
+          <li>Feature route is resolved from database config or default route map.</li>
+          <li>Provider adapters execute against Gemini or OpenRouter.</li>
+          <li>JSON responses are normalized and parsed for structured workflows.</li>
+          <li>Usage is logged with latency and error metadata.</li>
+        </ol>
+
+        <h3>5. Mobile Control Plane</h3>
+        <ol>
+          <li>Mobile app loads remote config through <code>/mobile-control/config</code>.</li>
+          <li>Backend returns active campaigns, enabled feature flags, widget feeds, and server time.</li>
+          <li>Mobile renders campaigns through <code>MobileCampaignHost</code>.</li>
+          <li>Mobile records campaign events through <code>/mobile-control/events</code>.</li>
+          <li>Admin manages campaigns, flags, and widget feeds through standalone admin or backend admin endpoints.</li>
+        </ol>
+
+        <h3>6. Notification Process</h3>
+        <ol>
+          <li>Users register push tokens from mobile.</li>
+          <li>Notification preferences determine alert categories and quiet hours.</li>
+          <li>Admin or system events create notifications or queued broadcasts.</li>
+          <li>Due notifications are processed through admin queue endpoint or scheduled operations.</li>
+          <li>Users can mark individual notifications or all notifications as read.</li>
+        </ol>
+      </section>
+
+      <section id="security">
+        <h2>Security and Auth Notes</h2>
+        <div class="grid two">
+          <div class="card">
+            <h3>Current Controls</h3>
+            <ul>
+              <li>Backend has a global auth guard with public-route opt-out.</li>
+              <li>Backend throttling is configured globally at 100 requests per minute.</li>
+              <li>Admin guard checks configured admin emails and <code>user.role === "admin"</code>.</li>
+              <li>AI provider keys are encrypted before storage and exposed only as previews.</li>
+              <li>Supabase service-role clients are server-side only.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Review Concerns</h3>
+            <ul>
+              <li>Admin and client surfaces still include direct Supabase access paths that need explicit ownership rules.</li>
+              <li>The standalone admin uses Supabase auth, while main web/mobile use Clerk first. This creates identity consistency risk.</li>
+              <li>API docs should identify which endpoints are public, authenticated, admin-only, and webhook-only.</li>
+              <li>Webhook verification details should be audited before production billing rollout.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="operations">
+        <h2>Operations and Commands</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Area</th>
+              <th>Command</th>
+              <th>Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Backend</td><td><code>cd edutu-platform/backend/services/services/api &amp;&amp; npm run dev</code></td><td>Start NestJS API in watch mode.</td></tr>
+            <tr><td>Backend</td><td><code>npm run test</code></td><td>Run backend Jest unit tests.</td></tr>
+            <tr><td>Backend</td><td><code>npm run test:e2e</code></td><td>Run backend e2e tests.</td></tr>
+            <tr><td>Backend</td><td><code>npm run db:generate</code>, <code>npm run db:migrate</code>, <code>npm run db:push</code></td><td>Generate/apply/push Drizzle schema changes.</td></tr>
+            <tr><td>Admin</td><td><code>cd edutu-platform/admin &amp;&amp; npm run dev</code></td><td>Start standalone admin app.</td></tr>
+            <tr><td>Admin</td><td><code>npm run build</code></td><td>TypeScript build plus Vite build.</td></tr>
+            <tr><td>Web App</td><td><code>cd edutu-platform/edutu-web-app &amp;&amp; npm run dev</code></td><td>Start main web app.</td></tr>
+            <tr><td>Web App</td><td><code>npm run typecheck</code>, <code>npm run test</code>, <code>npm run build</code></td><td>Verify types, tests, and production build.</td></tr>
+            <tr><td>Mobile</td><td><code>cd edutumobile &amp;&amp; npm run dev</code></td><td>Start Expo dev server.</td></tr>
+            <tr><td>Mobile</td><td><code>npm run typecheck</code>, <code>npm run test</code>, <code>npm run android</code>, <code>npm run ios</code></td><td>Verify and run native mobile targets.</td></tr>
+            <tr><td>Waitlist</td><td><code>cd edutu-platform/edutu-web &amp;&amp; npm run dev</code></td><td>Start Next.js waitlist site.</td></tr>
+            <tr><td>Scraper</td><td><code>cd edutu-platform/crawl4ai-scraper &amp;&amp; python main.py --all --save</code></td><td>Run all scraper sources and persist output.</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Environment Variables</h3>
+        <pre><code>Backend:
+PORT=3000
+DATABASE_URL=postgresql://...
+SUPABASE_URL=https://...
+SUPABASE_SERVICE_ROLE_KEY=...
+CLERK_SECRET_KEY=...
+GEMINI_API_KEY=...
+OPENROUTER_API_KEY=...
+AI_KEY_ENCRYPTION_SECRET=...
+ADMIN_EMAILS=admin@example.com
+ADMIN_URL=http://localhost:5173
+MOBILE_APP_URL=http://localhost:8081
+
+Admin:
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+VITE_API_URL=http://localhost:3000
+
+Main Web App:
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+VITE_API_URL=http://localhost:3000
+VITE_CLERK_PUBLISHABLE_KEY=...
+
+Mobile:
+EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=...
+EXPO_PUBLIC_SUPABASE_URL=...
+EXPO_PUBLIC_SUPABASE_ANON_KEY=...
+EXPO_PUBLIC_API_URL=http://localhost:3000</code></pre>
+      </section>
+
+      <section id="quality">
+        <h2>Quality Review</h2>
+        <div class="grid two">
+          <div class="card">
+            <h3>Strengths</h3>
+            <ul>
+              <li>Feature-based NestJS modules make backend ownership clear.</li>
+              <li>Drizzle schema centralizes many core table definitions.</li>
+              <li>AI routing is configurable and usage-aware.</li>
+              <li>Mobile has explicit offline, token bridge, notification, and campaign host layers.</li>
+              <li>The scraper has separate extraction, cleaning, persistence, CLI, and backend control surfaces.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Risks</h3>
+            <ul>
+              <li>Multiple Supabase folders and migration streams can diverge.</li>
+              <li>The direct-Supabase versus backend-API rule is not consistently enforced in clients.</li>
+              <li>The standalone admin and main app admin are separate surfaces with overlapping responsibilities.</li>
+              <li>Route labels are inconsistent: scraper is documented as <code>/scraper</code> but standalone admin uses <code>/edutu-engine</code>.</li>
+              <li>Installed <code>node_modules</code> directories inside the local workspace increase scan noise and can hide real structure.</li>
+              <li>Because repo metadata is not visible in this workspace copy, CI/release ownership should be confirmed inside each actual repository checkout.</li>
+            </ul>
+          </div>
+        </div>
+
+        <h3>Recommended Architecture Decisions</h3>
+        <ol>
+          <li>Declare Edutu as an intentional multi-repo system in every README and onboarding document.</li>
+          <li>Declare <code>edutu-platform/backend/services/services/api</code> as the canonical backend root inside the platform repository documentation and scripts.</li>
+          <li>Create one canonical database migration source and mark other migration folders as historical, mobile-local, or pending merge.</li>
+          <li>Document feature-by-feature whether clients call backend, Supabase table APIs, or Supabase edge functions.</li>
+          <li>Decide whether standalone admin or embedded <code>/admin/*</code> is the long-term admin surface.</li>
+          <li>Add endpoint-level auth classification: public, authenticated, admin, webhook, service-only.</li>
+        </ol>
+      </section>
+
+      <section id="tasks">
+        <h2>Long Task List</h2>
+        <p>
+          This backlog is ordered from documentation and architecture hygiene to
+          production hardening. It is intentionally broad so it can be split
+          into issues, milestones, or agent tasks.
+        </p>
+
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Task</th>
+              <th>Owner area</th>
+              <th>Priority</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>1</td><td>Update each repository README to state that Edutu is intentionally multi-repo, with <code>edutu-platform</code> and <code>edutumobile</code> as separate ownership boundaries.</td><td>Docs</td><td>High</td></tr>
+            <tr><td>2</td><td>Add a backend path warning banner to platform developer docs.</td><td>Docs</td><td>High</td></tr>
+            <tr><td>3</td><td>Create an endpoint auth matrix for every NestJS controller route inside the platform repository.</td><td>Backend</td><td>High</td></tr>
+            <tr><td>4</td><td>Classify client data access paths as backend API, Supabase table, or edge function across both repository boundaries.</td><td>Architecture</td><td>High</td></tr>
+            <tr><td>5</td><td>Resolve admin route naming mismatch between <code>/scraper</code> and <code>/edutu-engine</code>.</td><td>Admin</td><td>High</td></tr>
+            <tr><td>6</td><td>Decide the canonical admin product: standalone admin, embedded web app admin, or both with separate mandates.</td><td>Product/Architecture</td><td>High</td></tr>
+            <tr><td>7</td><td>Create a database ownership document for all Drizzle tables and Supabase migrations, including which repository owns each migration stream.</td><td>Data</td><td>High</td></tr>
+            <tr><td>8</td><td>Reconcile migration folders across platform backend, platform web app, mobile repo, and platform Supabase directories.</td><td>Data</td><td>High</td></tr>
+            <tr><td>9</td><td>Add local environment examples for each package without secrets.</td><td>DevEx</td><td>High</td></tr>
+            <tr><td>10</td><td>Document Clerk-to-database ID conversion rules and Supabase RLS assumptions.</td><td>Auth</td><td>High</td></tr>
+            <tr><td>11</td><td>Audit all admin endpoints for <code>AdminGuard</code> or equivalent checks.</td><td>Backend</td><td>High</td></tr>
+            <tr><td>12</td><td>Audit billing webhook signature verification and replay protection.</td><td>Billing</td><td>High</td></tr>
+            <tr><td>13</td><td>Add integration tests for auth guard Clerk and Supabase token fallback.</td><td>Backend</td><td>High</td></tr>
+            <tr><td>14</td><td>Add integration tests for scraper source CRUD and run endpoint.</td><td>Backend/Scraper</td><td>Medium</td></tr>
+            <tr><td>15</td><td>Add AI route tests for disabled route, missing key, invalid JSON, and usage logging.</td><td>AI</td><td>Medium</td></tr>
+            <tr><td>16</td><td>Document AI feature routes and default provider/model choices.</td><td>AI</td><td>Medium</td></tr>
+            <tr><td>17</td><td>Add admin UI labels that match backend terms for campaigns, flags, and widget feeds.</td><td>Admin/Mobile</td><td>Medium</td></tr>
+            <tr><td>18</td><td>Create mobile control QA checklist for campaigns, feature flags, and widget feeds.</td><td>Mobile</td><td>Medium</td></tr>
+            <tr><td>19</td><td>Document offline cache behavior in mobile API client and opportunity services.</td><td>Mobile</td><td>Medium</td></tr>
+            <tr><td>20</td><td>Document push notification token lifecycle and quiet-hour behavior.</td><td>Notifications</td><td>Medium</td></tr>
+            <tr><td>21</td><td>Add seed data documentation for local development.</td><td>Data/DevEx</td><td>Medium</td></tr>
+            <tr><td>22</td><td>Create scraper source onboarding checklist with robots.txt, selectors, rate limits, and quality score thresholds.</td><td>Scraper</td><td>Medium</td></tr>
+            <tr><td>23</td><td>Move archived scraper experiments under a clearly marked archive README.</td><td>Repo Hygiene</td><td>Low</td></tr>
+            <tr><td>24</td><td>Exclude committed <code>node_modules</code> from architecture scans and future check-ins in each separate repository.</td><td>Repo Hygiene</td><td>Medium</td></tr>
+            <tr><td>25</td><td>Add repository-local task runners for common commands; avoid coupling the two repos into a monorepo workflow.</td><td>DevEx</td><td>Low</td></tr>
+            <tr><td>26</td><td>Generate OpenAPI documentation from NestJS decorators or add manual API docs.</td><td>Backend/Docs</td><td>Medium</td></tr>
+            <tr><td>27</td><td>Document observability: logs, Sentry, AI usage logs, scraper logs, notification queue metrics.</td><td>Ops</td><td>Medium</td></tr>
+            <tr><td>28</td><td>Add production deployment notes for backend, web app, admin, mobile, and Supabase functions.</td><td>Ops</td><td>Medium</td></tr>
+            <tr><td>29</td><td>Document rollback procedure for database migrations and mobile control changes.</td><td>Ops/Data</td><td>Medium</td></tr>
+            <tr><td>30</td><td>Create architecture decision records for backend-first business logic, AI provider routing, and admin surface ownership.</td><td>Architecture</td><td>Medium</td></tr>
+            <tr><td>31</td><td>Run backend unit/e2e tests and record current baseline.</td><td>QA</td><td>High</td></tr>
+            <tr><td>32</td><td>Run main web app typecheck, tests, and build; document failures if any.</td><td>QA</td><td>High</td></tr>
+            <tr><td>33</td><td>Run mobile typecheck/tests and capture Expo startup prerequisites.</td><td>QA</td><td>High</td></tr>
+            <tr><td>34</td><td>Run admin build and verify route access in browser.</td><td>QA</td><td>Medium</td></tr>
+            <tr><td>35</td><td>Build a living diagrams page from the JSON block in this document.</td><td>Docs</td><td>Low</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="evidence">
+        <h2>Evidence Log</h2>
+        <p>
+          This documentation was produced from direct local workspace reads and
+          tool-assisted review. The local workspace did not expose <code>.git</code>
+          metadata for <code>edutu-platform</code> or <code>edutumobile</code>,
+          but the documentation records them as separate intended repository
+          boundaries per project direction. The following sources were inspected.
+        </p>
+        <ul>
+          <li><code>AGENTS.md</code> for repository conventions and expected commands.</li>
+          <li><code>opencode.json</code> for Apify MCP actor configuration.</li>
+          <li><code>edutu-platform/backend/services/services/api/package.json</code>, <code>src/app.module.ts</code>, <code>src/main.ts</code>, controllers, services, auth, AI, scraper, and Drizzle schema files.</li>
+          <li><code>edutu-platform/admin/src/App.tsx</code> and admin pages/libs.</li>
+          <li><code>edutu-platform/edutu-web-app/src/App.tsx</code>, services, hooks, libs, admin components, Supabase functions, and migrations.</li>
+          <li><code>edutumobile/app</code>, <code>components</code>, <code>lib</code>, <code>packages/core</code>, Supabase functions, and package scripts.</li>
+          <li><code>edutu-platform/crawl4ai-scraper/README.md</code>, <code>crawler.py</code>, <code>main.py</code>, <code>cli.py</code>, extractor, cleaner, and Supabase client.</li>
+          <li><code>edutu-platform/edutu-web/app/page.tsx</code>, waitlist component, and waitlist scripts.</li>
+        </ul>
+
+        <div class="note">
+          Multi-agent review was attempted for backend, clients, and scraper/data
+          slices. The agent IDs returned unavailable during collection, so this
+          final artifact is based on direct local inspection rather than
+          sub-agent summaries.
+        </div>
+
+        <h3>Skills Applied</h3>
+        <ul>
+          <li><strong>senior-architect:</strong> system boundary, components, interfaces, risks, and decisions.</li>
+          <li><strong>information-architect:</strong> documentation hierarchy, labels, and navigation.</li>
+          <li><strong>frontend-design:</strong> standalone HTML artifact design and readability.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

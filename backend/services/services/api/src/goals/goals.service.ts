@@ -66,7 +66,9 @@ export class GoalsService {
   async remove(userId: string, id: string) {
     // Cascade delete is configured in DB, but good practice to be explicit or handle cleanup
     // Drizzle schema reference "onDelete: cascade" handles milestones, but let's just delete the goal
-    await db.delete(goals).where(and(eq(goals.id, id), eq(goals.userId, userId)));
+    await db
+      .delete(goals)
+      .where(and(eq(goals.id, id), eq(goals.userId, userId)));
     return { success: true };
   }
 }

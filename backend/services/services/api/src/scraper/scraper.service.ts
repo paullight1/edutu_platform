@@ -1,11 +1,13 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { SchedulerRegistry } from '@nestjs/schedule';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { CronJob } from 'cron';
-import axios from 'axios';
-import { z } from 'zod';
-import * as cheerio from 'cheerio';
-import { AiService } from '../ai';
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { SchedulerRegistry } from "@nestjs/schedule";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { CronJob } from "cron";
+import axios from "axios";
+import { z } from "zod";
+import * as cheerio from "cheerio";
+import { AiService } from "../ai";
+import { OpportunityShareCardService } from "../opportunities/opportunity-share-card.service";
+import { categorizeOpportunity } from "../opportunities/opportunity-categorization";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -43,16 +45,44 @@ interface RawItem {
   requirements?: string[];
   benefits?: string[];
   application_process?: string[];
+  summary?: string;
+  eligibility?: Record<string, unknown>;
+  funding_type?: string;
+  target_region?: string;
+  enrichment_confidence?: number;
+  enrichment_notes?: string[];
+  canonical_category?: string;
   source: string;
   source_url: string;
+  source_id?: number;
 }
 
+const boundedString = (max: number) =>
+  z.preprocess(
+    (value) => (value === null ? undefined : value),
+    z
+      .string()
+      .trim()
+      .max(max)
+      .optional()
+      .transform((value) => value || undefined),
+  );
+
 const GeminiExtractionSchema = z.object({
-  requirements: z.array(z.string()).optional().default([]),
-  benefits: z.array(z.string()).optional().default([]),
+  summary: boundedString(320),
+  description: boundedString(1800),
+  requirements: z.array(z.string().trim().min(2)).optional().default([]),
+  benefits: z.array(z.string().trim().min(2)).optional().default([]),
   deadline: z.string().nullable().optional(),
-  description: z.string().optional(),
-  application_process: z.array(z.string()).optional().default([]),
+  application_process: z
+    .array(z.string().trim().min(2))
+    .optional()
+    .default([]),
+  eligibility: z.record(z.string(), z.unknown()).optional().default({}),
+  funding_type: boundedString(120),
+  target_region: boundedString(120),
+  confidence: z.number().min(0).max(1).optional().default(0),
+  notes: z.array(z.string().trim().min(2)).optional().default([]),
 });
 
 type GeminiExtraction = z.infer<typeof GeminiExtractionSchema>;
@@ -60,9 +90,10 @@ type GeminiExtraction = z.infer<typeof GeminiExtractionSchema>;
 interface SourceResult {
   name: string;
   url: string;
-  status: 'success' | 'failed' | 'skipped';
+  status: "success" | "failed" | "skipped";
   itemsFound: number;
   itemsSaved: number;
+  urlsDiscovered?: number;
   error?: string;
   duration?: number;
 }
@@ -81,11 +112,11 @@ export interface ScrapeResult {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const BROWSER_HEADERS = {
-  'User-Agent':
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
   Accept:
-    'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-  'Accept-Language': 'en-US,en;q=0.5',
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.5",
 };
 
 const DEFAULT_CONTENT_SELECTORS =
@@ -102,14 +133,14 @@ const MIN_PUBLISH_QUALITY_SCORE = 60;
 
 // Currency symbol → ISO code map
 const CURRENCY_SYMBOLS: Record<string, string> = {
-  '€': 'EUR',
-  '£': 'GBP',
-  $: 'USD',
+  "€": "EUR",
+  "£": "GBP",
+  $: "USD",
 };
 
 // Months for deadline regex
 const MONTH_PATTERN =
-  'January|February|March|April|May|June|July|August|September|October|November|December';
+  "January|February|March|April|May|June|July|August|September|October|November|December";
 
 // Apply button text pattern
 const APPLY_TEXT_RE =
@@ -117,29 +148,29 @@ const APPLY_TEXT_RE =
 
 // Category keyword map
 const CATEGORY_MAP: Record<string, string[]> = {
-  'Computer Science': [
-    'computer science',
-    'software',
-    'programming',
-    'coding',
-    'data science',
-    'ai',
-    'machine learning',
+  "Computer Science": [
+    "computer science",
+    "software",
+    "programming",
+    "coding",
+    "data science",
+    "ai",
+    "machine learning",
   ],
-  Engineering: ['engineering', 'mechanical', 'electrical', 'civil', 'chemical'],
+  Engineering: ["engineering", "mechanical", "electrical", "civil", "chemical"],
   Business: [
-    'business',
-    'mba',
-    'entrepreneurship',
-    'finance',
-    'accounting',
-    'economics',
+    "business",
+    "mba",
+    "entrepreneurship",
+    "finance",
+    "accounting",
+    "economics",
   ],
-  Medical: ['medical', 'medicine', 'health', 'nursing', 'pharmacy', 'biology'],
-  Arts: ['art', 'design', 'music', 'film', 'creative', 'writing', 'journalism'],
-  Law: ['law', 'legal', 'jurisprudence', 'llm'],
-  Science: ['physics', 'chemistry', 'mathematics', 'research'],
-  Education: ['education', 'teaching', 'teacher'],
+  Medical: ["medical", "medicine", "health", "nursing", "pharmacy", "biology"],
+  Arts: ["art", "design", "music", "film", "creative", "writing", "journalism"],
+  Law: ["law", "legal", "jurisprudence", "llm"],
+  Science: ["physics", "chemistry", "mathematics", "research"],
+  Education: ["education", "teaching", "teacher"],
 };
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -152,29 +183,30 @@ export class ScraperService implements OnModuleInit {
   constructor(
     private schedulerRegistry: SchedulerRegistry,
     private readonly aiService: AiService,
+    private readonly opportunityShareCardService: OpportunityShareCardService,
   ) {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (url && key) {
       this.supabase = createClient(url, key);
-      this.logger.log('Supabase client initialized.');
+      this.logger.log("Supabase client initialized.");
     } else {
       this.logger.warn(
-        'Supabase not configured — scraping will use mock data.',
+        "Supabase not configured — scraping will use mock data.",
       );
     }
   }
 
   async onModuleInit() {
-    if (process.env.SCRAPER_SCHEDULER_ENABLED !== 'true') {
+    if (process.env.SCRAPER_SCHEDULER_ENABLED === "false") {
       this.logger.log(
-        'Scraper scheduler disabled. Set SCRAPER_SCHEDULER_ENABLED=true to enable it.',
+        "Scraper scheduler disabled by SCRAPER_SCHEDULER_ENABLED=false.",
       );
       return;
     }
 
-    this.logger.log('Initializing dynamic scraper schedule...');
+    this.logger.log("Initializing dynamic scraper schedule...");
     await this.initializeSchedule();
   }
 
@@ -183,18 +215,18 @@ export class ScraperService implements OnModuleInit {
 
     try {
       const { data: configs } = await this.supabase
-        .from('scraper_config')
-        .select('*');
+        .from("scraper_config")
+        .select("*");
 
       const enabled =
-        configs?.find((c) => c.key === 'auto_run_enabled')?.value === true;
+        configs?.find((c) => c.key === "auto_run_enabled")?.value === true;
       const schedule =
-        configs?.find((c) => c.key === 'cron_schedule')?.value || '0 0 * * *';
+        configs?.find((c) => c.key === "cron_schedule")?.value || "0 0 * * *";
 
       if (enabled) {
         this.scheduleJob(schedule);
       } else {
-        this.logger.log('Auto-run is disabled in config.');
+        this.logger.log("Auto-run is disabled in config.");
       }
     } catch (error) {
       this.logger.error(`Failed to initialize schedule: ${error.message}`);
@@ -202,7 +234,7 @@ export class ScraperService implements OnModuleInit {
   }
 
   private scheduleJob(cronTime: string) {
-    const jobName = 'scheduled-scrape';
+    const jobName = "scheduled-scrape";
 
     // Remove existing job if any
     try {
@@ -223,17 +255,64 @@ export class ScraperService implements OnModuleInit {
 
   // ─── Public: Settings ─────────────────────────────────────────────────────
 
+  async getEngineStatus() {
+    const settings = await this.getSettings().catch(() => null);
+    const aiConfig = await this.aiService.listConfig().catch((error) => {
+      this.logger.warn(
+        `Could not read AI control-plane config: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return null;
+    });
+    const scraperRoute = aiConfig?.routes?.find(
+      (route: any) => route.feature === "scraper.extract",
+    );
+    const geminiKey = aiConfig?.providerKeys?.find(
+      (key: any) => key.provider === "gemini" && key.isActive,
+    );
+
+    return {
+      success: true,
+      database: {
+        configured: Boolean(this.supabase),
+      },
+      ai: {
+        geminiConfigured: Boolean(process.env.GEMINI_API_KEY || geminiKey),
+        source:
+          geminiKey && process.env.GEMINI_API_KEY
+            ? "control-plane-and-env"
+            : geminiKey
+              ? "control-plane"
+              : process.env.GEMINI_API_KEY
+                ? "env"
+                : "missing",
+        feature: "scraper.extract",
+        provider: scraperRoute?.provider || "gemini",
+        model: scraperRoute?.model || "gemini-2.5-flash",
+        enabled: scraperRoute?.isEnabled ?? true,
+      },
+      scraper: {
+        schedulerEnabled: process.env.SCRAPER_SCHEDULER_ENABLED !== "false",
+        autoRunEnabled: settings?.auto_run_enabled ?? false,
+        cronSchedule: settings?.cron_schedule ?? "0 0 * * *",
+        dataRetentionDays: settings?.data_retention_days ?? null,
+        enrichConcurrency: ENRICH_CONCURRENCY,
+        maxPagesCap: MAX_PAGES_CAP,
+        minPublishQualityScore: MIN_PUBLISH_QUALITY_SCORE,
+      },
+    };
+  }
+
   async getSettings() {
     if (!this.supabase)
-      return { auto_run_enabled: false, cron_schedule: '0 0 * * *' };
-    const { data } = await this.supabase.from('scraper_config').select('*');
+      return { auto_run_enabled: false, cron_schedule: "0 0 * * *" };
+    const { data } = await this.supabase.from("scraper_config").select("*");
     return {
       auto_run_enabled:
-        data?.find((c) => c.key === 'auto_run_enabled')?.value ?? false,
+        data?.find((c) => c.key === "auto_run_enabled")?.value ?? false,
       cron_schedule:
-        data?.find((c) => c.key === 'cron_schedule')?.value ?? '0 0 * * *',
+        data?.find((c) => c.key === "cron_schedule")?.value ?? "0 0 * * *",
       data_retention_days:
-        data?.find((c) => c.key === 'data_retention_days')?.value ?? null,
+        data?.find((c) => c.key === "data_retention_days")?.value ?? null,
     };
   }
 
@@ -242,27 +321,27 @@ export class ScraperService implements OnModuleInit {
     cron_schedule?: string;
     data_retention_days?: number | null;
   }) {
-    if (!this.supabase) return { success: false, error: 'No database' };
+    if (!this.supabase) return { success: false, error: "No database" };
 
     if (body.auto_run_enabled !== undefined) {
       await this.supabase
-        .from('scraper_config')
+        .from("scraper_config")
         .update({ value: body.auto_run_enabled })
-        .eq('key', 'auto_run_enabled');
+        .eq("key", "auto_run_enabled");
     }
     if (body.cron_schedule !== undefined) {
       await this.supabase
-        .from('scraper_config')
+        .from("scraper_config")
         .update({ value: body.cron_schedule })
-        .eq('key', 'cron_schedule');
+        .eq("key", "cron_schedule");
     }
     if (body.data_retention_days !== undefined) {
       // Logic for data_retention_days
       const { data, error } = await this.supabase
-        .from('scraper_config')
+        .from("scraper_config")
         .upsert(
-          { key: 'data_retention_days', value: body.data_retention_days },
-          { onConflict: 'key' },
+          { key: "data_retention_days", value: body.data_retention_days },
+          { onConflict: "key" },
         );
       if (error) this.logger.error(`Upsert retention failed: ${error.message}`);
     }
@@ -284,7 +363,7 @@ export class ScraperService implements OnModuleInit {
     );
 
     if (!this.supabase) {
-      this.logger.warn('No Supabase client — returning mock data');
+      this.logger.warn("No Supabase client — returning mock data");
       return this.mockScrape();
     }
 
@@ -294,7 +373,7 @@ export class ScraperService implements OnModuleInit {
       const sources = await this.resolveSources({ sourceId, allSources });
 
       if (sources.length === 0) {
-        this.logger.warn('No sources found — creating default sources');
+        this.logger.warn("No sources found — creating default sources");
         return await this.createDefaultSources();
       }
 
@@ -306,7 +385,7 @@ export class ScraperService implements OnModuleInit {
       );
       const duration = Math.round((Date.now() - startTime) / 1000);
 
-      await this.finishJobLog(jobLogId, 'completed', {
+      await this.finishJobLog(jobLogId, "completed", {
         itemsFound: results.length,
         duration,
         sourceResults,
@@ -323,12 +402,12 @@ export class ScraperService implements OnModuleInit {
       };
     } catch (error: any) {
       this.logger.error(`Scraper error: ${error.message}`, error.stack);
-      await this.finishJobLog(jobLogId, 'failed', {
+      await this.finishJobLog(jobLogId, "failed", {
         errorMessage: error.message,
       });
       return {
         success: false,
-        error: error.message ?? 'Unknown error occurred',
+        error: error.message ?? "Unknown error occurred",
       };
     }
   }
@@ -337,14 +416,19 @@ export class ScraperService implements OnModuleInit {
 
   private async startJobLog(options: ScrapeOptions): Promise<string | null> {
     const { data, error } = await this.supabase
-      .from('scrape_logs')
+      .from("scrape_logs")
       .insert({
-        status: 'running',
+        status: "running",
         started_at: new Date().toISOString(),
-        options: JSON.stringify(options),
-        run_type: 'manual',
+        run_type: "manual",
+        warnings: [
+          {
+            type: "options",
+            options,
+          },
+        ],
       })
-      .select('id')
+      .select("id")
       .single();
 
     if (error) {
@@ -356,7 +440,7 @@ export class ScraperService implements OnModuleInit {
 
   private async finishJobLog(
     jobLogId: string | null,
-    status: 'completed' | 'failed',
+    status: "completed" | "failed",
     extra: {
       itemsFound?: number;
       duration?: number;
@@ -366,21 +450,27 @@ export class ScraperService implements OnModuleInit {
   ): Promise<void> {
     if (!jobLogId) return;
     await this.supabase
-      .from('scrape_logs')
+      .from("scrape_logs")
       .update({
         status,
-        finished_at: new Date().toISOString(),
-        ...(extra.itemsFound != null && { items_found: extra.itemsFound }),
-        ...(extra.duration != null && { duration_seconds: extra.duration }),
+        completed_at: new Date().toISOString(),
+        ...(extra.itemsFound != null && { urls_scraped: extra.itemsFound }),
         ...(extra.sourceResults && {
-          source_results: JSON.stringify(extra.sourceResults),
+          urls_saved: extra.sourceResults.reduce(
+            (sum, source) => sum + (source.itemsSaved || 0),
+            0,
+          ),
+          warnings: extra.sourceResults,
         }),
-        ...(extra.errorMessage && { error_message: extra.errorMessage }),
+        ...(extra.duration != null && { duration_seconds: extra.duration }),
+        ...(extra.errorMessage && {
+          errors: [{ message: extra.errorMessage }],
+        }),
       })
-      .eq('id', jobLogId);
+      .eq("id", jobLogId);
 
     // Auto-enforce retention policy after successful job
-    if (status === 'completed') {
+    if (status === "completed") {
       await this.enforceRetentionPolicy();
     }
   }
@@ -389,11 +479,11 @@ export class ScraperService implements OnModuleInit {
     if (!this.supabase) return;
     try {
       const { data: settings } = await this.supabase
-        .from('scraper_config')
-        .select('*')
-        .eq('key', 'data_retention_days')
+        .from("scraper_config")
+        .select("*")
+        .eq("key", "data_retention_days")
         .single();
-      const days = typeof settings?.value === 'number' ? settings.value : null;
+      const days = typeof settings?.value === "number" ? settings.value : null;
       if (!days || days <= 0) return;
 
       const cutoffDate = new Date();
@@ -404,9 +494,9 @@ export class ScraperService implements OnModuleInit {
       let hasMore = true;
       while (hasMore) {
         const { data, error } = await this.supabase
-          .from('opportunities')
-          .select('id')
-          .lt('created_at', cutoffDate.toISOString())
+          .from("opportunities")
+          .select("id")
+          .lt("created_at", cutoffDate.toISOString())
           .limit(1000);
 
         if (error) throw error;
@@ -417,9 +507,9 @@ export class ScraperService implements OnModuleInit {
 
         const ids = data.map((row) => row.id);
         const { error: deleteError } = await this.supabase
-          .from('opportunities')
+          .from("opportunities")
           .delete()
-          .in('id', ids);
+          .in("id", ids);
 
         if (deleteError) throw deleteError;
         deletedCount += ids.length;
@@ -444,23 +534,23 @@ export class ScraperService implements OnModuleInit {
   private async resolveSources({
     sourceId,
     allSources,
-  }: Pick<ScrapeOptions, 'sourceId' | 'allSources'>): Promise<ScrapeSource[]> {
+  }: Pick<ScrapeOptions, "sourceId" | "allSources">): Promise<ScrapeSource[]> {
     if (allSources) {
       const { data, error } = await this.supabase
-        .from('scraping_sources')
-        .select('*')
-        .eq('enabled', true)
-        .eq('is_group', false)
-        .order('priority');
+        .from("scraping_sources")
+        .select("*")
+        .eq("enabled", true)
+        .eq("is_group", false)
+        .order("priority");
       if (error) throw new Error(`Failed to fetch sources: ${error.message}`);
       return data ?? [];
     }
 
     if (sourceId) {
       const { data: source, error: sourceError } = await this.supabase
-        .from('scraping_sources')
-        .select('*')
-        .eq('id', sourceId)
+        .from("scraping_sources")
+        .select("*")
+        .eq("id", sourceId)
         .single();
       if (sourceError)
         throw new Error(`Failed to fetch source: ${sourceError.message}`);
@@ -468,10 +558,10 @@ export class ScraperService implements OnModuleInit {
 
       if (source.is_group) {
         const { data: children, error: childrenError } = await this.supabase
-          .from('scraping_sources')
-          .select('*')
-          .eq('parent_id', sourceId)
-          .eq('enabled', true);
+          .from("scraping_sources")
+          .select("*")
+          .eq("parent_id", sourceId)
+          .eq("enabled", true);
         if (childrenError)
           throw new Error(
             `Failed to fetch child sources: ${childrenError.message}`,
@@ -490,36 +580,81 @@ export class ScraperService implements OnModuleInit {
   private async createDefaultSources(): Promise<ScrapeResult> {
     const defaults = [
       {
-        url: 'https://opportunitiescircle.com/scholarships/',
-        name: 'Opportunities Circle',
-        description: 'Scholarship aggregator',
+        url: "https://opportunitiescircle.com/scholarships/",
+        name: "Opportunities Circle",
+        description: "Scholarship aggregator",
         tier: 1,
-        category: 'scholarship',
+        category: "scholarship",
         enabled: true,
         priority: 1,
+        config: {
+          item_selector: ".post-item, .opportunity-card, article",
+          title_selector: "h2, h3, .entry-title",
+          link_selector:
+            "a[href*='/scholarship/'], a[href*='/opportunity/'], a[href*='/fellowship/']",
+        },
       },
       {
-        url: 'https://scholars4dev.com/',
-        name: 'Scholars4Dev',
-        description: 'International scholarships',
+        url: "https://scholars4dev.com/",
+        name: "Scholars4Dev",
+        description: "International scholarships",
         tier: 1,
-        category: 'scholarship',
+        category: "scholarship",
         enabled: true,
         priority: 2,
+        config: {
+          item_selector: ".td-module-image-wrap, .wpb_text_column, .post",
+          title_selector: "h3, .entry-title, h2",
+          link_selector: "a[href*='/']",
+        },
       },
       {
-        url: 'https://www.scholarshipportal.com/scholarships',
-        name: 'Scholarship Portal',
-        description: 'European scholarships',
-        tier: 2,
-        category: 'scholarship',
+        url: "https://oyaopportunities.com/scholarships/",
+        name: "OYA Opportunities",
+        description: "Scholarships and youth opportunities",
+        tier: 1,
+        category: "scholarship",
         enabled: true,
         priority: 3,
+        config: {
+          item_selector: ".listing-item, .opportunity, .card, article",
+          title_selector: ".title, h3, h2",
+          link_selector:
+            "a.button, a[href*='/apply'], a[href*='/opp/'], a[href]",
+        },
+      },
+      {
+        url: "https://globalscholardesk.com/scholarships/",
+        name: "Global Scholar Desk",
+        description: "Global scholarship listings",
+        tier: 2,
+        category: "scholarship",
+        enabled: true,
+        priority: 4,
+        config: {
+          item_selector: ".scholarship-card, .post, .card, article",
+          title_selector: "h2, .scholarship-title, .entry-title",
+          link_selector: "a[href*='/scholarship/'], a[href*='/opp/'], a[href]",
+        },
+      },
+      {
+        url: "https://www.scholarshipportal.com/scholarships",
+        name: "Scholarship Portal",
+        description: "European scholarships",
+        tier: 2,
+        category: "scholarship",
+        enabled: true,
+        priority: 5,
+        config: {
+          item_selector: ".scholarship-item, .program-card, .listing, article",
+          title_selector: ".scholarship-title, h3, h2",
+          link_selector: "a[href*='/scholarship/'], a[href]",
+        },
       },
     ];
-    const { error } = await this.supabase
-      .from('scraping_sources')
-      .upsert(defaults, { onConflict: 'url' });
+    const { data, error } = await this.supabase
+      .from("scraping_sources")
+      .upsert(defaults, { onConflict: "url" });
     if (error) {
       this.logger.error(`Failed to create default sources: ${error.message}`);
       return { success: false, error: error.message };
@@ -547,6 +682,7 @@ export class ScraperService implements OnModuleInit {
     for (const source of sources) {
       const sourceStartTime = Date.now();
       let itemsFound = 0;
+      let urlsDiscovered = 0;
 
       try {
         this.logger.log(`Crawling: ${source.name} (${source.url})`);
@@ -567,6 +703,8 @@ export class ScraperService implements OnModuleInit {
               break;
             }
             const basicItems = this.extractItemsFromList(html, source);
+            urlsDiscovered += basicItems.length;
+            await this.recordDiscoveredUrls(source, basicItems);
             const enrichedItems = await this.enrichItems(
               basicItems,
               source.config?.content_selectors,
@@ -586,25 +724,38 @@ export class ScraperService implements OnModuleInit {
           await this.delay(LIST_PAGE_DELAY_MS);
         }
 
-        await this.updateSourceStatus(source.id, true, itemsFound);
+        await this.updateSourceStatus(
+          source.id,
+          true,
+          itemsFound,
+          urlsDiscovered,
+        );
         const duration = Math.round((Date.now() - sourceStartTime) / 1000);
         sourceResults.push({
           name: source.name,
           url: source.url,
-          status: 'success',
+          status: "success",
           itemsFound,
           itemsSaved: 0,
+          urlsDiscovered,
           duration,
         });
       } catch (error: any) {
         this.logger.error(`Error crawling "${source.name}": ${error.message}`);
-        await this.updateSourceStatus(source.id, false, 0, error.message);
+        await this.updateSourceStatus(
+          source.id,
+          false,
+          0,
+          urlsDiscovered,
+          error.message,
+        );
         sourceResults.push({
           name: source.name,
           url: source.url,
-          status: 'failed',
+          status: "failed",
           itemsFound: 0,
           itemsSaved: 0,
+          urlsDiscovered,
           error: error.message,
         });
       }
@@ -615,6 +766,43 @@ export class ScraperService implements OnModuleInit {
     }
 
     return { results: allResults, sourceResults };
+  }
+
+  private async recordDiscoveredUrls(
+    source: ScrapeSource,
+    items: RawItem[],
+  ): Promise<void> {
+    if (!this.supabase || items.length === 0) return;
+
+    const now = new Date().toISOString();
+    const rows = Array.from(
+      new Map(
+        items
+          .map((item) => this.normalizeUrl(item.apply_url))
+          .filter(Boolean)
+          .map((url) => [
+            url,
+            {
+              url,
+              source_id: source.id,
+              status: "pending",
+              last_checked: now,
+            },
+          ]),
+      ).values(),
+    );
+
+    if (!rows.length) return;
+
+    const { data, error } = await this.supabase
+      .from("scraped_urls")
+      .upsert(rows, { onConflict: "url", ignoreDuplicates: false });
+
+    if (error) {
+      this.logger.warn(
+        `Could not record discovered URLs for ${source.name}: ${error.message}`,
+      );
+    }
   }
 
   private async persistOpportunities(
@@ -633,16 +821,19 @@ export class ScraperService implements OnModuleInit {
       const url = rec.canonical_url as string;
       if (!seenUrls.has(url)) {
         seenUrls.add(url);
-        uniqueRecords.push(rec as Record<string, unknown>);
+        uniqueRecords.push(rec);
       }
     }
 
-    const { error } = await this.supabase
-      .from('opportunities')
+    const { data, error } = await this.supabase
+      .from("opportunities")
       .upsert(uniqueRecords, {
-        onConflict: 'canonical_url',
+        onConflict: "canonical_url",
         ignoreDuplicates: false,
-      });
+      })
+      .select(
+        "id, title, summary, description, organization, category, canonical_category, close_date, deadline, location, eligibility, funding_type, target_region, application_url, apply_url, canonical_url, image_url, stipend, currency, source, metadata",
+      );
 
     if (error) {
       this.logger.warn(`Could not save opportunities: ${error.message}`);
@@ -651,9 +842,55 @@ export class ScraperService implements OnModuleInit {
         `Saved/updated ${uniqueRecords.length} opportunities in database.`,
       );
       sourceResults.forEach((sr) => {
-        if (sr.status === 'success') sr.itemsSaved = uniqueRecords.length;
+        if (sr.status !== "success") return;
+        sr.itemsSaved = uniqueRecords.filter((record) => {
+          const metadata = record.metadata as Record<string, unknown> | null;
+          return metadata?.source_url === sr.url;
+        }).length;
       });
+      await this.markProcessedUrls(data ?? []);
+      await this.opportunityShareCardService.ensureShareCardsForOpportunities(
+        data ?? [],
+      );
     }
+  }
+
+  private async markProcessedUrls(
+    records: Array<{
+      id?: string | null;
+      application_url?: string | null;
+      canonical_url?: string | null;
+      metadata?: Record<string, any> | null;
+    }>,
+  ): Promise<void> {
+    if (!this.supabase || records.length === 0) return;
+
+    await Promise.all(
+      records.map(async (record) => {
+        const url = this.normalizeUrl(
+          record.metadata?.aggregator_url ||
+            record.application_url ||
+            record.canonical_url ||
+            "",
+        );
+        if (!url) return;
+
+        const { error } = await this.supabase
+          .from("scraped_urls")
+          .update({
+            status: "processed",
+            opportunity_id: record.id ?? null,
+            last_checked: new Date().toISOString(),
+          })
+          .eq("url", url);
+
+        if (error) {
+          this.logger.warn(
+            `Could not mark URL processed (${url}): ${error.message}`,
+          );
+        }
+      }),
+    );
   }
 
   // ─── Deep Enrichment ──────────────────────────────────────────────────────
@@ -681,15 +918,17 @@ export class ScraperService implements OnModuleInit {
     customContentSelectors?: string,
     retry = 1,
   ): Promise<RawItem> {
-    if (!item.apply_url?.startsWith('http')) return item;
+    if (!item.apply_url?.startsWith("http")) return item;
 
     // Cache check: skip deep fetch if already enriched
     if (this.supabase && retry === 1) {
       // Only check cache on first attempt
       const { data: existing } = await this.supabase
-        .from('opportunities')
-        .select('metadata, description, image_url, application_url')
-        .eq('application_url', item.apply_url)
+        .from("opportunities")
+        .select(
+          "metadata, summary, description, image_url, application_url, eligibility, funding_type, target_region",
+        )
+        .eq("application_url", item.apply_url)
         .maybeSingle();
 
       const cached = existing?.metadata as Record<string, any> | null;
@@ -701,8 +940,26 @@ export class ScraperService implements OnModuleInit {
         this.logger.log(`  ↳ Cache hit for ${item.apply_url}`);
         return {
           ...item,
+          summary: (existing?.summary as string | undefined) ?? item.summary,
           requirements: cached.requirements,
           benefits: cached.benefits ?? [],
+          application_process:
+            cached.application_process ?? item.application_process ?? [],
+          eligibility:
+            (existing?.eligibility as Record<string, unknown> | undefined) ??
+            cached.eligibility ??
+            item.eligibility,
+          funding_type:
+            (existing?.funding_type as string | undefined) ??
+            cached.funding_type ??
+            item.funding_type,
+          target_region:
+            (existing?.target_region as string | undefined) ??
+            cached.target_region ??
+            item.target_region,
+          enrichment_confidence:
+            Number(cached.enrichment_confidence ?? item.enrichment_confidence ?? 0),
+          enrichment_notes: cached.enrichment_notes ?? item.enrichment_notes ?? [],
           description:
             (existing?.description as string | undefined) ?? item.description,
           direct_apply_url: existing?.application_url ?? item.direct_apply_url,
@@ -749,6 +1006,7 @@ export class ScraperService implements OnModuleInit {
         ...item,
         direct_apply_url: directApplyUrl ?? item.direct_apply_url,
         image_url: imageUrl ?? item.image_url,
+        summary: ai.summary || item.summary,
         requirements: ai.requirements?.length
           ? ai.requirements
           : (item.requirements ?? []),
@@ -757,7 +1015,12 @@ export class ScraperService implements OnModuleInit {
         deadline: ai.deadline || item.deadline,
         application_process: ai.application_process?.length
           ? ai.application_process
-          : (item.application_process ?? ['Online application']),
+          : (item.application_process ?? ["Online application"]),
+        eligibility: ai.eligibility ?? item.eligibility,
+        funding_type: ai.funding_type ?? item.funding_type,
+        target_region: ai.target_region ?? item.target_region,
+        enrichment_confidence: ai.confidence,
+        enrichment_notes: ai.notes,
       };
     } catch (e: any) {
       this.logger.warn(
@@ -831,14 +1094,16 @@ export class ScraperService implements OnModuleInit {
   }
 
   private extractTextFromHTML(html: string, customSelector?: string): string {
-    if (!html) return '';
+    if (!html) return "";
     const $ = cheerio.load(html);
-    $('script, style, noscript, nav, footer, header, aside, form, iframe').remove();
+    $(
+      "script, style, noscript, nav, footer, header, aside, form, iframe",
+    ).remove();
     const selector = customSelector || DEFAULT_CONTENT_SELECTORS;
     const candidates: string[] = [];
 
     $(selector).each((_, el) => {
-      const candidate = $(el).text().replace(/\s+/g, ' ').trim();
+      const candidate = $(el).text().replace(/\s+/g, " ").trim();
       if (candidate.length >= 120) {
         candidates.push(candidate);
       }
@@ -848,38 +1113,92 @@ export class ScraperService implements OnModuleInit {
       ? candidates
           .sort((a, b) => b.length - a.length)
           .slice(0, 3)
-          .join('\n\n')
-      : $('body').text();
-    return text.replace(/\s+/g, ' ').trim().substring(0, DEEP_TEXT_MAX_CHARS);
+          .join("\n\n")
+      : $("body").text();
+    return text.replace(/\s+/g, " ").trim().substring(0, DEEP_TEXT_MAX_CHARS);
   }
 
   // ─── Gemini Refinement ────────────────────────────────────────────────────
 
   private async refineWithGemini(text: string): Promise<GeminiExtraction> {
     const fallback: GeminiExtraction = {
+      summary: undefined,
+      description: undefined,
       requirements: [],
       benefits: [],
       application_process: [],
+      eligibility: {},
+      funding_type: undefined,
+      target_region: undefined,
+      confidence: 0,
+      notes: [],
     };
     if (!text || text.length < 80) return fallback;
 
-    const prompt = `You are an educational opportunity data extraction API. From the text below, extract fields and return ONLY valid JSON matching this schema exactly:
+    const prompt = `You are Edutu's scholarship opportunity enrichment API. Extract only facts supported by the source text. Make the opportunity useful for a student who wants a brief but complete detail page.
+
+Return ONLY valid JSON matching this schema exactly:
 {
+  "summary": "one concise 35-55 word user-facing summary",
+  "description": "4-6 sentence complete overview covering who it is for, what is funded/offered, location/level, deadline if present, and why it matters",
   "requirements": ["string"],
   "benefits": ["string"],
   "deadline": "YYYY-MM-DD or short readable date, or null",
-  "description": "3-4 sentence summary of the opportunity",
-  "application_process": ["step"]
+  "application_process": ["step"],
+  "eligibility": {
+    "level": "string if stated",
+    "nationality": "string if stated",
+    "field": "string if stated"
+  },
+  "funding_type": "string if stated",
+  "target_region": "string if stated",
+  "confidence": 0.0,
+  "notes": ["short caveats about missing or unclear facts"]
 }
-Leave arrays empty and strings null if not found. Do NOT add any markdown or commentary.
+Rules:
+- Do not invent amounts, deadlines, eligibility, or links.
+- Prefer concrete bullet-style requirements and benefits.
+- If a deadline is ambiguous, preserve the readable source wording.
+- If the source text is thin, still write the best factual summary from available facts and lower confidence.
+- Leave arrays empty and nullable strings null if not found. Do NOT add markdown or commentary.
 TEXT:
 ${text}`;
 
     try {
       const parsedJSON = await this.aiService.generateJson({
-        feature: 'scraper.extract',
+        feature: "scraper.extract",
         prompt,
-        responseMimeType: 'application/json',
+        responseMimeType: "application/json",
+        responseJsonSchema: {
+          type: "object",
+          properties: {
+            summary: { type: "string" },
+            description: { type: "string" },
+            requirements: { type: "array", items: { type: "string" } },
+            benefits: { type: "array", items: { type: "string" } },
+            deadline: { type: ["string", "null"] },
+            application_process: { type: "array", items: { type: "string" } },
+            eligibility: { type: "object" },
+            funding_type: { type: ["string", "null"] },
+            target_region: { type: ["string", "null"] },
+            confidence: { type: "number" },
+            notes: { type: "array", items: { type: "string" } },
+          },
+          required: [
+            "summary",
+            "description",
+            "requirements",
+            "benefits",
+            "deadline",
+            "application_process",
+            "eligibility",
+            "funding_type",
+            "target_region",
+            "confidence",
+            "notes",
+          ],
+          additionalProperties: false,
+        },
         temperature: 0.05,
         metadata: { textLength: text.length },
       });
@@ -903,7 +1222,7 @@ ${text}`;
 
     const itemSelector =
       source.config?.item_selector ||
-      'article, .scholarship-card, .opportunity-card, .post-item, .listing-item, .program-card, .td-module-image-wrap';
+      "article, .scholarship-card, .opportunity-card, .post-item, .listing-item, .program-card, .td-module-image-wrap";
     const cards = $(itemSelector);
 
     if (cards.length > 0) {
@@ -911,28 +1230,27 @@ ${text}`;
         const $card = $(el);
         const titleSelector =
           source.config?.title_selector ||
-          'h1, h2, h3, h4, .title, .entry-title';
+          "h1, h2, h3, h4, .title, .entry-title";
         const title =
           $card.find(titleSelector).first().text().trim() ||
-          $card.find('a').first().text().trim();
+          $card.find("a").first().text().trim();
         if (!title || title.length < 5) return;
 
-        const linkSelector = source.config?.link_selector || 'a[href]';
-        const href = $card.find(linkSelector).first().attr('href') ?? '';
-        const applyUrl = href.startsWith('http')
-          ? href
-          : `${source.url.replace(/\/$/, '')}${href}`;
+        const linkSelector = source.config?.link_selector || "a[href]";
+        const href = $card.find(linkSelector).first().attr("href") ?? "";
+        const applyUrl = this.resolveUrl(href, source.url);
         const cardText = $card.text();
 
         items.push({
           title: this.cleanText(title),
           apply_url: applyUrl,
-          description: this.cleanText($card.find('p').first().text(), 1200),
+          description: this.cleanText($card.find("p").first().text(), 1200),
           amount: this.extractAmount(cardText),
           deadline: this.extractDeadline(cardText),
           location: this.extractLocation(cardText),
           source: source.name,
           source_url: source.url,
+          source_id: source.id,
         });
       });
     } else {
@@ -943,14 +1261,13 @@ ${text}`;
         const $el = $(el);
         const title = $el.text().trim();
         if (!title || title.length < 5) return;
-        const href = $el.attr('href') ?? '';
+        const href = $el.attr("href") ?? "";
         items.push({
           title: this.cleanText(title),
-          apply_url: href.startsWith('http')
-            ? href
-            : `${source.url.replace(/\/$/, '')}${href}`,
+          apply_url: this.resolveUrl(href, source.url),
           source: source.name,
           source_url: source.url,
+          source_id: source.id,
         });
       });
     }
@@ -977,12 +1294,12 @@ ${text}`;
     };
 
     // Priority 1: explicit apply/register text links to external domain
-    $('a[href]').each((_, el) => {
+    $("a[href]").each((_, el) => {
       if (found) return;
-      const href = $(el).attr('href') ?? '';
+      const href = $(el).attr("href") ?? "";
       const text = $(el).text().trim();
       if (
-        href.startsWith('http') &&
+        href.startsWith("http") &&
         isExternal(href) &&
         APPLY_TEXT_RE.test(text)
       ) {
@@ -995,8 +1312,8 @@ ${text}`;
     $('a[class*="btn"], a[class*="button"], a[class*="apply"]').each(
       (_, el) => {
         if (found) return;
-        const href = $(el).attr('href') ?? '';
-        if (href.startsWith('http') && isExternal(href)) found = href;
+        const href = $(el).attr("href") ?? "";
+        if (href.startsWith("http") && isExternal(href)) found = href;
       },
     );
 
@@ -1012,17 +1329,17 @@ ${text}`;
     try {
       // 1. Download image
       const res = await axios.get(imageUrl, {
-        responseType: 'arraybuffer',
+        responseType: "arraybuffer",
         timeout: 10_000,
       });
       const buffer = res.data;
       const contentType =
-        (res.headers['content-type'] as string) || 'image/jpeg';
-      const extension = contentType.split('/')[1] || 'jpg';
+        (res.headers["content-type"] as string) || "image/jpeg";
+      const extension = contentType.split("/")[1] || "jpg";
       const filename = `img_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${extension}`;
 
       // 2. Ensure bucket exists
-      const bucketName = 'opportunities_images';
+      const bucketName = "opportunities_images";
       const { data: buckets } = await this.supabase.storage.listBuckets();
       if (!buckets?.find((b) => b.name === bucketName)) {
         await this.supabase.storage.createBucket(bucketName, { public: true });
@@ -1054,19 +1371,19 @@ ${text}`;
   private extractOgImage(html: string): string | null {
     const $ = cheerio.load(html);
     const og =
-      $('meta[property="og:image"]').attr('content') ||
-      $('meta[name="og:image"]').attr('content') ||
-      $('meta[name="twitter:image"]').attr('content') ||
-      $('meta[property="twitter:image"]').attr('content');
+      $('meta[property="og:image"]').attr("content") ||
+      $('meta[name="og:image"]').attr("content") ||
+      $('meta[name="twitter:image"]').attr("content") ||
+      $('meta[property="twitter:image"]').attr("content");
 
-    if (og?.startsWith('http')) return og;
+    if (og?.startsWith("http")) return og;
 
     let imgSrc: string | null = null;
-    $('article img, .entry-content img, .post-content img, main img').each(
+    $("article img, .entry-content img, .post-content img, main img").each(
       (_, el) => {
         if (imgSrc) return;
-        const src = $(el).attr('src') ?? '';
-        if (src.startsWith('http') && !/logo|icon|avatar/i.test(src))
+        const src = $(el).attr("src") ?? "";
+        if (src.startsWith("http") && !/logo|icon|avatar/i.test(src))
           imgSrc = src;
       },
     );
@@ -1081,28 +1398,29 @@ ${text}`;
   } {
     let score = 0;
     const missingFields: string[] = [];
-    const description = item.description?.trim() || '';
+    const description = item.description?.trim() || "";
 
     if (item.title?.trim().length >= 8) score += 15;
-    else missingFields.push('title');
+    else missingFields.push("title");
 
     if (description.length >= MIN_DESCRIPTION_CHARS) score += 25;
     else if (description.length >= 100) score += 12;
-    else missingFields.push('description');
+    else missingFields.push("description");
 
-    if ((item.direct_apply_url || item.apply_url)?.startsWith('http')) score += 15;
-    else missingFields.push('application_url');
+    if ((item.direct_apply_url || item.apply_url)?.startsWith("http"))
+      score += 15;
+    else missingFields.push("application_url");
 
     if (item.requirements?.length) score += 15;
-    else missingFields.push('requirements');
+    else missingFields.push("requirements");
 
     if (item.benefits?.length || item.amount != null) score += 10;
-    else missingFields.push('benefits_or_funding');
+    else missingFields.push("benefits_or_funding");
 
     if (item.deadline) score += 10;
-    else missingFields.push('deadline');
+    else missingFields.push("deadline");
 
-    if (item.location && item.location !== 'Worldwide') score += 5;
+    if (item.location && item.location !== "Worldwide") score += 5;
     if (item.image_url) score += 5;
 
     return {
@@ -1120,66 +1438,98 @@ ${text}`;
     const closeDate = this.parseDate(item.deadline);
     const quality = this.evaluateOpportunityQuality(item);
 
-    const rawUrl = item.direct_apply_url || item.apply_url || '';
-    let application_url = rawUrl.split('?')[0].split('#')[0];
+    const rawUrl = item.direct_apply_url || item.apply_url || "";
+    let application_url = rawUrl.split("?")[0].split("#")[0];
 
-    if (!application_url || application_url.trim() === '') {
-      const safeTitle = (item.title || 'untitled')
-        .replace(/[^a-zA-Z0-9]/g, '-')
+    if (!application_url || application_url.trim() === "") {
+      const safeTitle = (item.title || "untitled")
+        .replace(/[^a-zA-Z0-9]/g, "-")
         .toLowerCase();
-      const baseUrl = item.source_url || 'https://unknown-source.com';
-      application_url = baseUrl.endsWith('/')
+      const baseUrl = item.source_url || "https://unknown-source.com";
+      application_url = baseUrl.endsWith("/")
         ? `${baseUrl}${safeTitle}`
         : `${baseUrl}/${safeTitle}`;
     }
 
     const canonicalUrl = this.normalizeUrl(application_url);
     const contentFingerprint = this.createContentFingerprint(
-      item.title || 'Untitled Opportunity',
+      item.title || "Untitled Opportunity",
       item.source,
       closeDate,
     );
 
     return {
-      title: item.title || 'Untitled Opportunity',
+      title: item.title || "Untitled Opportunity",
+      summary: item.summary || this.createFallbackSummary(item),
       organization: item.source,
-      category: this.categorize(item.title, item.description ?? ''),
+      category: this.categorize(item.title, item.description ?? ""),
+      canonical_category: categorizeOpportunity(item as unknown as Record<string, unknown>),
       close_date: closeDate,
-      location: item.location || 'Worldwide',
-      description: item.description || '',
+      location: item.location || "Worldwide",
+      eligibility: item.eligibility ?? {},
+      funding_type: item.funding_type ?? null,
+      target_region: item.target_region ?? null,
+      description: item.description || "",
       application_url,
       canonical_url: canonicalUrl,
       content_fingerprint: contentFingerprint,
       quality_score: quality.score,
-      validation_status: quality.score >= MIN_PUBLISH_QUALITY_SCORE ? 'valid' : 'needs_review',
+      validation_status:
+        quality.score >= MIN_PUBLISH_QUALITY_SCORE ? "valid" : "needs_review",
       image_url: item.image_url || null,
       stipend,
       currency,
-      source: 'scraper',
-      tags: ['Scraped', 'Scholarship'],
+      source: "scraper",
+      tags: ["Scraped", "Scholarship"],
       metadata: {
         source_url: item.source_url,
         aggregator_url: item.apply_url,
         scrape_job_id: jobLogId,
+        ai_enriched: (item.enrichment_confidence ?? 0) > 0,
+        ai_feature: "scraper.extract",
+        canonical_category: categorizeOpportunity(item as unknown as Record<string, unknown>),
+        ai_model_hint: "gemini-2.5-flash",
+        enrichment_confidence: item.enrichment_confidence ?? 0,
+        enrichment_notes: item.enrichment_notes ?? [],
         extraction_quality_score: quality.score,
         extraction_missing_fields: quality.missingFields,
         description_length: item.description?.length ?? 0,
         needs_review: quality.score < MIN_PUBLISH_QUALITY_SCORE,
         requirements: item.requirements ?? [],
         benefits: item.benefits ?? [],
-        application_process: item.application_process ?? ['Online application'],
+        application_process: item.application_process ?? ["Online application"],
+        eligibility: item.eligibility ?? {},
+        funding_type: item.funding_type ?? null,
+        target_region: item.target_region ?? null,
       },
       created_at: now,
       updated_at: now,
-      status: quality.score >= MIN_PUBLISH_QUALITY_SCORE ? 'active' : 'pending_review',
+      last_seen_at: now,
+      verification_next_check_at: now,
+      status:
+        quality.score >= MIN_PUBLISH_QUALITY_SCORE
+          ? "active"
+          : "pending_review",
     };
+  }
+
+  private createFallbackSummary(item: RawItem): string {
+    const parts = [
+      item.title,
+      item.source ? `from ${item.source}` : null,
+      item.location ? `for applicants in ${item.location}` : null,
+      item.deadline ? `with deadline ${item.deadline}` : null,
+    ].filter(Boolean);
+    return parts.length
+      ? `${parts.join(" ")}.`
+      : "Scholarship opportunity details are being verified by Edutu.";
   }
 
   private normalizeUrl(url: string): string {
     return url
       .trim()
-      .replace(/[?#].*$/, '')
-      .replace(/\/+$/, '')
+      .replace(/[?#].*$/, "")
+      .replace(/\/+$/, "")
       .toLowerCase();
   }
 
@@ -1188,10 +1538,10 @@ ${text}`;
     organization: string,
     closeDate: string | null,
   ): string {
-    return `${title}|${organization}|${closeDate ?? ''}`
+    return `${title}|${organization}|${closeDate ?? ""}`
       .trim()
       .toLowerCase()
-      .replace(/\s+/g, ' ');
+      .replace(/\s+/g, " ");
   }
 
   // ─── Deletion ─────────────────────────────────────────────────────────────
@@ -1199,23 +1549,23 @@ ${text}`;
   async deleteJobWithOpportunities(
     jobId: string,
   ): Promise<{ success: boolean; error?: string }> {
-    if (!this.supabase) return { success: false, error: 'No database client' };
+    if (!this.supabase) return { success: false, error: "No database client" };
 
     try {
       // Delete opportunities whose metadata->>'scrape_job_id' equals jobId
       // We can use a raw delete by query since Supabase PostgREST supports JSON filtering:
       const { error: oppError } = await this.supabase
-        .from('opportunities')
+        .from("opportunities")
         .delete()
-        .eq('metadata->>scrape_job_id', jobId);
+        .eq("metadata->>scrape_job_id", jobId);
 
       if (oppError) throw oppError;
 
       // Delete the scraping job log itself
       const { error: jobError } = await this.supabase
-        .from('scrape_logs')
+        .from("scrape_logs")
         .delete()
-        .eq('id', jobId);
+        .eq("id", jobId);
 
       if (jobError) throw jobError;
 
@@ -1233,26 +1583,26 @@ ${text}`;
     stipend: number | null;
     currency: string;
   } {
-    if (raw == null) return { stipend: null, currency: 'USD' };
-    if (typeof raw === 'number')
-      return { stipend: isNaN(raw) ? null : raw, currency: 'USD' };
+    if (raw == null) return { stipend: null, currency: "USD" };
+    if (typeof raw === "number")
+      return { stipend: isNaN(raw) ? null : raw, currency: "USD" };
 
     const str = String(raw);
     for (const [symbol, code] of Object.entries(CURRENCY_SYMBOLS)) {
       if (str.includes(symbol)) {
-        const val = parseFloat(str.replace(/[^0-9.]/g, ''));
+        const val = parseFloat(str.replace(/[^0-9.]/g, ""));
         return { stipend: isNaN(val) ? null : val, currency: code };
       }
     }
-    const val = parseFloat(str.replace(/[^0-9.]/g, ''));
-    return { stipend: isNaN(val) ? null : val, currency: 'USD' };
+    const val = parseFloat(str.replace(/[^0-9.]/g, ""));
+    return { stipend: isNaN(val) ? null : val, currency: "USD" };
   }
 
   private parseDate(raw: string | null | undefined): string | null {
     if (!raw) return null;
     try {
       const d = new Date(raw);
-      return isNaN(d.getTime()) ? null : d.toISOString().split('T')[0];
+      return isNaN(d.getTime()) ? null : d.toISOString().split("T")[0];
     } catch {
       return null;
     }
@@ -1260,13 +1610,22 @@ ${text}`;
 
   private buildPageUrl(baseUrl: string, page: number): string {
     if (page === 1) return baseUrl;
-    return baseUrl.includes('?')
+    return baseUrl.includes("?")
       ? `${baseUrl}&page=${page}`
-      : `${baseUrl.replace(/\/$/, '')}/page/${page}/`;
+      : `${baseUrl.replace(/\/$/, "")}/page/${page}/`;
+  }
+
+  private resolveUrl(href: string, baseUrl: string): string {
+    if (!href) return "";
+    try {
+      return new URL(href, baseUrl).toString();
+    } catch {
+      return href.startsWith("http") ? href : "";
+    }
   }
 
   private cleanText(text: string, maxChars = 500): string {
-    return (text ?? '').replace(/\s+/g, ' ').trim().substring(0, maxChars);
+    return (text ?? "").replace(/\s+/g, " ").trim().substring(0, maxChars);
   }
 
   private delay(ms: number): Promise<void> {
@@ -1276,7 +1635,7 @@ ${text}`;
   private extractAmount(text: string): number | null {
     const match = text.match(/[$€£]([\d,]+)/);
     if (match) {
-      const n = parseFloat(match[1].replace(/,/g, ''));
+      const n = parseFloat(match[1].replace(/,/g, ""));
       return isNaN(n) ? null : n;
     }
     return null;
@@ -1286,8 +1645,8 @@ ${text}`;
     const patterns = [
       /deadline[:\s]*([^\n,]{5,40})/i,
       /closes?\s+(?:on\s+)?([^\n,]{5,40})/i,
-      new RegExp(`(${MONTH_PATTERN})\\s+\\d{1,2},?\\s+\\d{4}`, 'i'),
-      new RegExp(`\\d{1,2}\\s+(${MONTH_PATTERN})\\s+\\d{4}`, 'i'),
+      new RegExp(`(${MONTH_PATTERN})\\s+\\d{1,2},?\\s+\\d{4}`, "i"),
+      new RegExp(`\\d{1,2}\\s+(${MONTH_PATTERN})\\s+\\d{4}`, "i"),
     ];
     for (const p of patterns) {
       const m = text.match(p);
@@ -1300,15 +1659,15 @@ ${text}`;
     const m =
       text.match(/location[:\s]*([^\n,]{3,40})/i) ||
       text.match(/based\s+in[:\s]*([^\n,]{3,40})/i);
-    return m ? m[1].trim() : 'Worldwide';
+    return m ? m[1].trim() : "Worldwide";
   }
 
-  private categorize(title = '', description = ''): string {
+  private categorize(title = "", description = ""): string {
     const t = `${title} ${description}`.toLowerCase();
     for (const [category, keywords] of Object.entries(CATEGORY_MAP)) {
       if (keywords.some((kw) => t.includes(kw))) return category;
     }
-    return 'General';
+    return "General";
   }
 
   // ─── Source Status ────────────────────────────────────────────────────────
@@ -1317,20 +1676,35 @@ ${text}`;
     id: number,
     success: boolean,
     scraped: number,
+    discovered = 0,
     error?: string,
   ): Promise<void> {
     if (!this.supabase || !id) return;
+    const { data: current } = await this.supabase
+      .from("scraping_sources")
+      .select(
+        "consecutive_failures,total_failed,total_scraped,total_urls_discovered",
+      )
+      .eq("id", id)
+      .maybeSingle();
+
     const update: Record<string, unknown> = {
       last_scraped: new Date().toISOString(),
+      total_urls_discovered:
+        Number(current?.total_urls_discovered || 0) + discovered,
     };
     if (success) {
       update.last_success = update.last_scraped;
       update.last_error = null;
-      update.total_scraped = scraped;
+      update.consecutive_failures = 0;
+      update.total_scraped = Number(current?.total_scraped || 0) + scraped;
     } else {
       update.last_error = error ?? null;
+      update.consecutive_failures =
+        Number(current?.consecutive_failures || 0) + 1;
+      update.total_failed = Number(current?.total_failed || 0) + 1;
     }
-    await this.supabase.from('scraping_sources').update(update).eq('id', id);
+    await this.supabase.from("scraping_sources").update(update).eq("id", id);
   }
 
   // ─── Public: Sources / Jobs / Stats ──────────────────────────────────────
@@ -1338,9 +1712,9 @@ ${text}`;
   async getSources(): Promise<ScrapeSource[]> {
     if (!this.supabase) return [];
     const { data, error } = await this.supabase
-      .from('scraping_sources')
-      .select('*')
-      .order('priority');
+      .from("scraping_sources")
+      .select("*")
+      .order("priority");
     if (error) {
       this.logger.error(error.message);
       return [];
@@ -1357,13 +1731,13 @@ ${text}`;
     is_group?: boolean;
   }) {
     if (!this.supabase)
-      return { success: false, error: 'No database configured' };
+      return { success: false, error: "No database configured" };
     const { data, error } = await this.supabase
-      .from('scraping_sources')
+      .from("scraping_sources")
       .insert({
         name: body.name,
         url: body.url,
-        category: body.category ?? 'scholarship',
+        category: body.category ?? "scholarship",
         tier: body.tier ?? 2,
         enabled: true,
         parent_id: body.parent_id || null,
@@ -1378,30 +1752,30 @@ ${text}`;
 
   async deleteSource(id: number) {
     if (!this.supabase)
-      return { success: false, error: 'No database configured' };
+      return { success: false, error: "No database configured" };
     const { error } = await this.supabase
-      .from('scraping_sources')
+      .from("scraping_sources")
       .delete()
-      .eq('id', id);
+      .eq("id", id);
     return { success: !error, error: error?.message };
   }
 
   async updateSource(id: number, body: { enabled?: boolean }) {
     if (!this.supabase)
-      return { success: false, error: 'No database configured' };
+      return { success: false, error: "No database configured" };
     const { error } = await this.supabase
-      .from('scraping_sources')
+      .from("scraping_sources")
       .update(body)
-      .eq('id', id);
+      .eq("id", id);
     return { success: !error, error: error?.message };
   }
 
   async getJobs() {
     if (!this.supabase) return [];
     const { data, error } = await this.supabase
-      .from('scrape_logs')
-      .select('*')
-      .order('created_at', { ascending: false })
+      .from("scrape_logs")
+      .select("*")
+      .order("created_at", { ascending: false })
       .limit(20);
     if (error) return [];
     return data ?? [];
@@ -1414,18 +1788,22 @@ ${text}`;
     if (!this.supabase) return { total: 0, bySource: {} };
 
     // Use aggregation query instead of fetching all rows
-    const { data, error } = await this.supabase.rpc('count_opportunities_by_source');
+    const { data, error } = await this.supabase.rpc(
+      "count_opportunities_by_source",
+    );
 
     if (error) {
-      this.logger.warn(`Stats query failed: ${error.message}, falling back to row fetch`);
+      this.logger.warn(
+        `Stats query failed: ${error.message}, falling back to row fetch`,
+      );
       const { data: fallbackData, error: fallbackError } = await this.supabase
-        .from('opportunities')
-        .select('source');
+        .from("opportunities")
+        .select("source");
       if (fallbackError) return { total: 0, bySource: {} };
 
       const bySource: Record<string, number> = {};
       for (const item of fallbackData ?? []) {
-        const src = item.source ?? 'manual';
+        const src = item.source ?? "manual";
         bySource[src] = (bySource[src] ?? 0) + 1;
       }
       return { total: fallbackData?.length ?? 0, bySource };
@@ -1446,45 +1824,46 @@ ${text}`;
     const now = new Date().toISOString();
     const mock = [
       {
-        title: 'International Scholarship for Students',
-        organization: 'Global Education Foundation',
-        category: 'Education',
-        close_date: '2025-12-31',
-        location: 'Worldwide',
+        title: "International Scholarship for Students",
+        organization: "Global Education Foundation",
+        category: "Education",
+        close_date: "2025-12-31",
+        location: "Worldwide",
         description:
-          'Fully funded scholarship for international students pursuing undergraduate studies.',
+          "Fully funded scholarship for international students pursuing undergraduate studies.",
         metadata: {
           requirements: [
-            'High school diploma',
-            'English proficiency',
-            'Leadership experience',
+            "High school diploma",
+            "English proficiency",
+            "Leadership experience",
           ],
-          benefits: ['Full tuition', 'Living stipend', 'Travel allowance'],
+          benefits: ["Full tuition", "Living stipend", "Travel allowance"],
           application_process: [
-            'Online application',
-            'Essay submission',
-            'Interview',
+            "Online application",
+            "Essay submission",
+            "Interview",
           ],
         },
-        application_url: 'https://example.com/apply',
-        canonical_url: 'https://example.com/apply',
-        content_fingerprint: 'international scholarship for students|global education foundation|2025-12-31',
+        application_url: "https://example.com/apply",
+        canonical_url: "https://example.com/apply",
+        content_fingerprint:
+          "international scholarship for students|global education foundation|2025-12-31",
         quality_score: 100,
-        validation_status: 'valid',
+        validation_status: "valid",
         stipend: 50000,
-        currency: 'USD',
-        source: 'scraper',
+        currency: "USD",
+        source: "scraper",
         created_at: now,
         updated_at: now,
-        status: 'active',
-        tags: ['Scholarship', 'International', 'Fully Funded'],
+        status: "active",
+        tags: ["Scholarship", "International", "Fully Funded"],
       },
     ];
 
     if (this.supabase) {
       const { error } = await this.supabase
-        .from('opportunities')
-        .upsert(mock, { onConflict: 'canonical_url' });
+        .from("opportunities")
+        .upsert(mock, { onConflict: "canonical_url" });
       if (error) this.logger.warn(`Mock save failed: ${error.message}`);
     }
 
@@ -1493,12 +1872,12 @@ ${text}`;
       sourcesScraped: 1,
       totalResults: mock.length,
       duration: 1,
-      sources: ['Mock Source'],
+      sources: ["Mock Source"],
       sourceResults: [
         {
-          name: 'Mock Source',
-          url: 'https://example.com',
-          status: 'success',
+          name: "Mock Source",
+          url: "https://example.com",
+          status: "success",
           itemsFound: mock.length,
           itemsSaved: mock.length,
           duration: 1,

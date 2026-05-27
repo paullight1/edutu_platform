@@ -31,12 +31,6 @@
             "short_name": "Home",
             "description": "View your dashboard",
             "url": "/app/home"
-        },
-        {
-            "name": "AI Coach",
-            "short_name": "AI",
-            "description": "Chat with Edutu AI",
-            "url": "/app/chat"
         }
     ],
     "prefer_related_applications": false

@@ -1,7 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://sioxocmrjmdevsdlzjns.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNpb3hvY21yam1kZXZzZGx6am5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1OTU5MzksImV4cCI6MjA3NzE3MTkzOX0.q__hzhcra0rbY1cB92JIG4fUUA4YtTEi4GjUgDz_3d0';
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Set SUPABASE_URL and SUPABASE_ANON_KEY before running this test.');
+}
 
 console.log('Testing ANON connection to:', supabaseUrl);
 

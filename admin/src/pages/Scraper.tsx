@@ -70,6 +70,31 @@ interface ScrapeStats {
     recent_scrape_count: number;
 }
 
+interface EngineStatus {
+    success: boolean;
+    database?: {
+        configured: boolean;
+    };
+    ai?: {
+        geminiConfigured: boolean;
+        source: string;
+        feature: string;
+        provider: string;
+        model: string;
+        enabled: boolean;
+    };
+    scraper?: {
+        schedulerEnabled: boolean;
+        autoRunEnabled: boolean;
+        cronSchedule: string;
+        dataRetentionDays: number | null;
+        enrichConcurrency: number;
+        maxPagesCap: number;
+        minPublishQualityScore: number;
+    };
+    error?: string;
+}
+
 interface SourceResult {
     name: string;
     url: string;
@@ -130,6 +155,7 @@ export default function ScraperDashboard() {
     const [jobs, setJobs] = useState<ScrapeJob[]>([]);
     const [showAllJobs, setShowAllJobs] = useState(false);
     const [stats, setStats] = useState<ScrapeStats | null>(null);
+    const [engineStatus, setEngineStatus] = useState<EngineStatus | null>(null);
     const [loading, setLoading] = useState(true);
     const [scraping, setScraping] = useState(false);
     const [maxPages, setMaxPages] = useState(3);
@@ -199,6 +225,23 @@ export default function ScraperDashboard() {
             }
         } catch (error) {
             console.error('Failed to fetch settings:', error);
+        }
+    };
+
+    const fetchEngineStatus = async () => {
+        try {
+            const response = await fetch(`${API_URL}/engine-status`, {
+                headers: await getAuthHeaders()
+            });
+            if (response.ok) {
+                setEngineStatus(await response.json());
+            }
+        } catch (error) {
+            console.error('Failed to fetch engine status:', error);
+            setEngineStatus({
+                success: false,
+                error: error instanceof Error ? error.message : 'Engine status unavailable',
+            });
         }
     };
 
@@ -356,6 +399,7 @@ export default function ScraperDashboard() {
     async function loadData() {
         setLoading(true);
         try {
+            await fetchEngineStatus();
             await loadRecentOpportunities();
 
             let sourcesData = [];
@@ -1032,6 +1076,87 @@ export default function ScraperDashboard() {
                             </div>
                         )}
                     </div>
+                </div>
+            )}
+
+            {/* Stats Grid - Google Material Style */}
+            {engineStatus && (
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: '12px',
+                    marginBottom: '24px'
+                }}>
+                    {[
+                        {
+                            icon: Database,
+                            label: 'Database',
+                            value: engineStatus.database?.configured ? 'Configured' : 'Missing',
+                            ok: Boolean(engineStatus.database?.configured),
+                            detail: 'Supabase service role',
+                        },
+                        {
+                            icon: Zap,
+                            label: 'Gemini',
+                            value: engineStatus.ai?.geminiConfigured ? 'Ready' : 'Missing key',
+                            ok: Boolean(engineStatus.ai?.geminiConfigured && engineStatus.ai.enabled),
+                            detail: engineStatus.ai?.model || 'scraper.extract',
+                        },
+                        {
+                            icon: Activity,
+                            label: 'Scheduler',
+                            value: engineStatus.scraper?.schedulerEnabled ? 'Enabled' : 'Disabled',
+                            ok: Boolean(engineStatus.scraper?.schedulerEnabled),
+                            detail: engineStatus.scraper?.autoRunEnabled
+                                ? engineStatus.scraper.cronSchedule
+                                : 'Manual / external cron',
+                        },
+                        {
+                            icon: FileCheck,
+                            label: 'Quality Gate',
+                            value: `${engineStatus.scraper?.minPublishQualityScore ?? 60}+`,
+                            ok: true,
+                            detail: `${engineStatus.scraper?.enrichConcurrency ?? 3} concurrent enrichers`,
+                        },
+                    ].map((item) => (
+                        <div
+                            key={item.label}
+                            style={{
+                                padding: '16px',
+                                background: 'var(--bg-secondary)',
+                                border: '1px solid var(--border-light)',
+                                borderRadius: 12,
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: 12,
+                            }}
+                        >
+                            <div style={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: 10,
+                                background: item.ok ? 'rgba(52, 199, 89, 0.12)' : 'rgba(255, 149, 0, 0.14)',
+                                color: item.ok ? '#34c759' : '#ff9500',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                            }}>
+                                <item.icon size={18} />
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 600 }}>
+                                    {item.label}
+                                </div>
+                                <div style={{ fontSize: 15, color: 'var(--text-primary)', fontWeight: 700, marginTop: 2 }}>
+                                    {item.value}
+                                </div>
+                                <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 3, wordBreak: 'break-word' }}>
+                                    {item.detail}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             )}
 

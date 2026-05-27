@@ -163,7 +163,11 @@
     },
     "navigation": {
         "home": "Home",
+        "discover": "Discover",
         "explore": "Explore",
+        "plan": "Plan",
+        "track": "Track",
+        "me": "Me",
         "ai": "Edutu AI",
         "market": "Market",
         "more": "More",

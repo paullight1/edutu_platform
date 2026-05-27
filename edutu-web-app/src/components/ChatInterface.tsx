@@ -331,6 +331,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ user, onBack }) => {
     }
   }, [user?.id, loadThreads, startNewConversation]);
 
+  useEffect(() => {
+    const storedPrompt = window.sessionStorage.getItem('edutu.aiPrompt');
+    if (!storedPrompt) return;
+
+    window.sessionStorage.removeItem('edutu.aiPrompt');
+    startNewConversation();
+    setInput(storedPrompt);
+  }, [startNewConversation]);
+
   const selectedThread = useMemo(
     () => (selectedThreadId ? threads.find((thread) => thread.id === selectedThreadId) ?? null : null),
     [selectedThreadId, threads],

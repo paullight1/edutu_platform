@@ -32,7 +32,6 @@ export const initializeCapacitor = async (options: {
     isDarkMode?: boolean;
 }) => {
     if (!isNativePlatform) {
-        console.log('Not running in Capacitor, skipping native initialization');
         return;
     }
 

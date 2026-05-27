@@ -1,4 +1,3 @@
-// Mock hook to replace Firebase AI tuning functionality
 import { useEffect, useState } from 'react';
 
 export interface AITuningConfig {
@@ -45,11 +44,9 @@ export function useAITuning() {
     const loadConfig = async () => {
       try {
         setLoading(true);
-        // In a real implementation, this would fetch from Supabase
-        console.log('Loading AI tuning config (using mock implementation)');
-        
-        // Simulate API call delay
-        await new Promise(resolve => setTimeout(resolve, 500));
+        if (import.meta.env.DEV) {
+          console.debug('AI tuning backend is unconfigured; using local development defaults.');
+        }
         
         setConfig(defaultConfig);
       } catch (err) {
@@ -63,15 +60,14 @@ export function useAITuning() {
   }, []);
 
   const updateConfig = async (updates: AITuningInput): Promise<boolean> => {
-    console.log('Updating AI config (using mock implementation)', updates);
     setLoading(true);
     setError(null);
     
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 500));
+      if (!import.meta.env.DEV) {
+        throw new Error('AI tuning is not connected to the backend yet.');
+      }
       
-      // Update local state with mock
       const updatedConfig = {
         ...defaultConfig,
         ...updates,

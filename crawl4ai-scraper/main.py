@@ -52,7 +52,11 @@ async def main():
     all_items = []
     for result in results:
         if result.get("html"):
-            items = extractor.extract_from_html(result["html"], result.get("source", "Unknown"))
+            items = extractor.extract_from_html(
+                result["html"],
+                result.get("source", "Unknown"),
+                result.get("url"),
+            )
             logger.info(f"Extracted {len(items)} items from {result.get('url')}")
             all_items.extend(items)
 

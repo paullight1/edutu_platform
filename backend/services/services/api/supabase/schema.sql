@@ -957,10 +957,12 @@ create table if not exists public.opportunities (
   summary text,
   description text,
   category text,
+  canonical_category text not null default 'other' check (canonical_category in ('scholarships', 'careers', 'leadership', 'global_programs', 'other')),
   organization text,
   location text,
   is_remote boolean not null default false,
   application_url text,
+  image_url text,
   tags text[] not null default '{}'::text[],
   eligibility jsonb not null default '{}'::jsonb,
   stipend numeric,
@@ -975,6 +977,7 @@ create table if not exists public.opportunities (
 );
 
 create index if not exists opportunities_category_idx on public.opportunities (category);
+create index if not exists opportunities_canonical_category_idx on public.opportunities (canonical_category);
 create index if not exists opportunities_tags_idx on public.opportunities using gin (tags);
 create index if not exists opportunities_close_date_idx on public.opportunities (close_date);
 
