@@ -6,7 +6,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import {
   DollarSign, TrendingUp, CreditCard, Search, Filter, ChevronLeft, ChevronRight,
-  ArrowUpRight, ArrowDownLeft, Calendar, User
+  ArrowUpRight, ArrowDownLeft, RefreshCw, Receipt, WalletCards
 } from 'lucide-react';
 import { getTransactions, getPaymentsStats, type CreditTransaction } from '../../services/admin/paymentsAdmin';
 
@@ -73,132 +73,190 @@ const PaymentsPage: React.FC = () => {
   }, [fetchData]);
 
   const totalPages = Math.ceil(totalCount / pageSize);
+  const visibleTransactions = transactions.filter((tx) => {
+    if (!search.trim()) return true;
+    const query = search.toLowerCase();
+    return [
+      TYPE_LABELS[tx.type] || tx.type,
+      tx.description,
+      tx.user_id,
+      tx.amount.toString(),
+      tx.created_at,
+    ].some((value) => String(value || '').toLowerCase().includes(query));
+  });
+
+  const statCards = [
+    {
+      label: 'Total Revenue',
+      helper: 'Credits purchased',
+      value: stats.totalRevenue.toLocaleString(),
+      icon: DollarSign,
+      gradient: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+    },
+    {
+      label: 'Credits Spent',
+      helper: 'Used across products',
+      value: stats.totalCreditsSpent.toLocaleString(),
+      icon: TrendingUp,
+      gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+    },
+    {
+      label: 'Transactions',
+      helper: 'All credit movements',
+      value: stats.totalTransactions.toLocaleString(),
+      icon: CreditCard,
+      gradient: 'linear-gradient(135deg, #ff6600 0%, #ff4500 100%)',
+    },
+    {
+      label: 'Purchases',
+      helper: 'Credit purchase events',
+      value: stats.purchaseTransactions.toLocaleString(),
+      icon: ArrowUpRight,
+      gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+    },
+  ];
 
   return (
-    <div className="space-y-6">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
-              <DollarSign size={20} className="text-emerald-600 dark:text-emerald-400" />
-            </div>
-            <span className="text-sm text-gray-500 dark:text-gray-400">Total Revenue (Credits)</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalRevenue.toLocaleString()}</p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Payments</h1>
+          <p style={{ color: 'var(--text-secondary)', marginTop: '6px' }}>
+            Monitor credit purchases, spending, refunds, and creator earnings.
+          </p>
         </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-              <TrendingUp size={20} className="text-red-600 dark:text-red-400" />
-            </div>
-            <span className="text-sm text-gray-500 dark:text-gray-400">Total Spent (Credits)</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalCreditsSpent.toLocaleString()}</p>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              <CreditCard size={20} className="text-blue-600 dark:text-blue-400" />
-            </div>
-            <span className="text-sm text-gray-500 dark:text-gray-400">Total Transactions</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalTransactions.toLocaleString()}</p>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-              <ArrowUpRight size={20} className="text-purple-600 dark:text-purple-400" />
-            </div>
-            <span className="text-sm text-gray-500 dark:text-gray-400">Purchases</span>
-          </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.purchaseTransactions.toLocaleString()}</p>
-        </div>
+        <button className="btn btn-secondary" onClick={() => void fetchData()} disabled={loading}>
+          <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+          Refresh
+        </button>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+      <div className="stats-grid">
+        {statCards.map((item) => {
+          const Icon = item.icon;
+          return (
+            <div
+              key={item.label}
+              className="stat-card card-hover"
+              style={{
+                background: item.gradient,
+                color: '#ffffff',
+                minHeight: '124px',
+                justifyContent: 'space-between',
+                boxShadow: 'var(--shadow-md)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
+                <div>
+                  <div className="stat-value" style={{ color: '#ffffff', marginBottom: '8px' }}>{item.value}</div>
+                  <div className="stat-label" style={{ color: 'rgba(255,255,255,0.92)', fontWeight: 700 }}>{item.label}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: '12px', marginTop: '4px' }}>{item.helper}</div>
+                </div>
+                <Icon size={30} style={{ color: 'rgba(255,255,255,0.86)' }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="card" style={{ padding: '16px 20px' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: '1 1 280px' }}>
+            <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search transactions..."
-              className="w-full pl-10 pr-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+              placeholder="Search by user, type, description, amount..."
+              className="input-field"
+              style={{ paddingLeft: '40px' }}
             />
           </div>
-          <div className="flex items-center gap-2">
-            <Filter size={16} className="text-gray-400" />
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <select
               value={typeFilter}
               onChange={(e) => { setTypeFilter(e.target.value); setPage(0); }}
-              className="px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white outline-none"
+              className="input-field"
+              style={{ width: '170px' }}
             >
               <option value="">All Types</option>
               {Object.entries(TYPE_LABELS).map(([key, label]) => (
                 <option key={key} value={key}>{label}</option>
               ))}
             </select>
+            <button className="btn btn-secondary">
+              <Filter size={18} />
+              Filter
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Transactions Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Transaction History</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{totalCount} total transactions</p>
+      <div className="card" style={{ overflow: 'hidden' }}>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
+          <div>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Transaction History</h2>
+            <p style={{ fontSize: '14px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
+              {totalCount} total transactions
+            </p>
+          </div>
+          <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
+            <Receipt size={22} />
+          </div>
         </div>
 
         {loading ? (
-          <div className="p-8 text-center">
-            <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-sm text-gray-500">Loading transactions...</p>
+          <div className="empty-state">
+            <RefreshCw size={36} className="animate-spin" style={{ marginBottom: '12px', color: 'var(--primary)' }} />
+            <p>Loading transactions...</p>
           </div>
-        ) : transactions.length === 0 ? (
-          <div className="p-8 text-center">
-            <CreditCard size={40} className="mx-auto mb-3 text-gray-300 dark:text-gray-600" />
-            <p className="text-gray-500 dark:text-gray-400">No transactions found</p>
+        ) : visibleTransactions.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">
+              <WalletCards size={54} />
+            </div>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+              No transactions found
+            </h3>
+            <p style={{ maxWidth: '360px' }}>
+              Credit purchases, refunds, grants, and spending events will appear here once users start transacting.
+            </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div style={{ overflowX: 'auto' }}>
+            <table className="table">
               <thead>
-                <tr className="bg-gray-50 dark:bg-gray-750">
-                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Description</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">User ID</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
+                <tr>
+                  <th>Type</th>
+                  <th>Amount</th>
+                  <th>Description</th>
+                  <th>User ID</th>
+                  <th>Date</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {transactions.map((tx) => (
-                  <tr key={tx.id} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
-                    <td className="px-5 py-3">
+              <tbody>
+                {visibleTransactions.map((tx) => (
+                  <tr key={tx.id}>
+                    <td>
                       <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${TYPE_COLORS[tx.type] || 'text-gray-600 bg-gray-100'}`}>
                         {TYPE_LABELS[tx.type] || tx.type}
                       </span>
                     </td>
-                    <td className="px-5 py-3">
-                      <span className={`font-medium ${tx.amount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                    <td>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: tx.amount > 0 ? '#10b981' : '#ef4444' }}>
+                        {tx.amount > 0 ? <ArrowUpRight size={15} /> : <ArrowDownLeft size={15} />}
                         {tx.amount > 0 ? '+' : ''}{tx.amount.toLocaleString()} credits
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-gray-600 dark:text-gray-300 max-w-[200px] truncate">
+                    <td style={{ maxWidth: '260px', color: 'var(--text-secondary)' }}>
                       {tx.description || '—'}
                     </td>
-                    <td className="px-5 py-3">
-                      <span className="font-mono text-xs text-gray-500 dark:text-gray-400">
+                    <td>
+                      <span style={{ fontFamily: 'monospace', fontSize: '12px', color: 'var(--text-tertiary)' }}>
                         {tx.user_id.slice(0, 8)}...
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                    <td style={{ whiteSpace: 'nowrap', color: 'var(--text-tertiary)' }}>
                       {new Date(tx.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </td>
                   </tr>
@@ -210,22 +268,24 @@ const PaymentsPage: React.FC = () => {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+          <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+            <p style={{ fontSize: '14px', color: 'var(--text-tertiary)' }}>
               Page {page + 1} of {totalPages}
             </p>
-            <div className="flex items-center gap-2">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <button
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
                 disabled={page === 0}
-                className="p-2 rounded-lg border border-gray-200 dark:border-gray-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
+                className="btn btn-secondary"
+                style={{ padding: '8px 10px', opacity: page === 0 ? 0.45 : 1 }}
               >
                 <ChevronLeft size={16} />
               </button>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
                 disabled={page >= totalPages - 1}
-                className="p-2 rounded-lg border border-gray-200 dark:border-gray-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
+                className="btn btn-secondary"
+                style={{ padding: '8px 10px', opacity: page >= totalPages - 1 ? 0.45 : 1 }}
               >
                 <ChevronRight size={16} />
               </button>

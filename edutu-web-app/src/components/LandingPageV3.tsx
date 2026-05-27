@@ -129,7 +129,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     ];
 
     return (
-        <div className={`min-h-screen overflow-x-hidden ${isDarkMode ? 'dark' : ''}`} style={{ backgroundColor: isDarkMode ? '#080808' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808', fontFamily: "'Inter', 'Arial', sans-serif" }}>
+        <div className={`landing-page min-h-screen overflow-x-hidden ${isDarkMode ? 'dark' : ''}`} style={{ backgroundColor: isDarkMode ? '#080808' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808', fontFamily: "'Inter', 'Arial', sans-serif" }}>
             {/* Navigation */}
             <motion.header
                 style={{ backgroundColor: headerBg }}
@@ -251,7 +251,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
 
             <main className="relative z-10">
                 {/* Hero Section */}
-                <section className="pt-[120px] pb-[96px] px-4 sm:px-6" id="platform">
+                <section className="landing-hero pt-[120px] pb-[96px] px-4 sm:px-6" id="platform">
                     <div className="max-w-[1200px] mx-auto flex flex-col items-center text-center">
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
@@ -274,13 +274,14 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             initial={{ opacity: 0, y: 30 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.6, delay: 0.1 }}
-                            className="text-[56px] sm:text-[72px] md:text-[80px] font-semibold leading-[1.04] tracking-[-0.8px] mb-8"
+                            className="landing-hero-title text-[56px] sm:text-[72px] md:text-[80px] font-semibold leading-[1.04] tracking-[-0.8px] mb-8"
                             style={{ color: isDarkMode ? '#ffffff' : '#080808' }}
                         >
                             Your AI Guide to{' '}
-                            <span style={{ color: '#146ef5', whiteSpace: 'nowrap' }}>
+                            <span className="landing-hero-highlight" style={{ color: '#146ef5', whiteSpace: 'nowrap' }}>
                                 Global{' '}
                                 <span
+                                    className="landing-hero-word"
                                     style={{
                                         display: 'inline-block',
                                         minWidth: '6.8em',
@@ -308,7 +309,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.6, delay: 0.2 }}
-                            className="max-w-[680px] text-[20px] leading-[1.4] font-normal mb-12"
+                            className="landing-hero-copy max-w-[680px] text-[20px] leading-[1.4] font-normal mb-12"
                             style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}
                         >
                             Edutu maps your ambition to global opportunities. We build automated paths to mastery through intelligence-driven career orchestration.
@@ -368,7 +369,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.6, delay: 0.4 }}
-                            className="grid grid-cols-3 gap-6 mt-16 max-w-[800px] w-full"
+                            className="landing-hero-stats grid grid-cols-3 gap-6 mt-16 max-w-[800px] w-full"
                         >
                             {[
                                 { label: 'ACTIVE LEARNERS', value: '50K+', color: '#146ef5' },
