@@ -1,5 +1,5 @@
 import { useState, type FC, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Eye, EyeOff, Lock, Loader2 } from 'lucide-react';
 
@@ -11,6 +11,11 @@ const ResetPassword: FC = () => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const goToSignIn = () => {
+    window.history.replaceState(null, document.title, '/login');
+    navigate('/login', { replace: true });
+  };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -38,7 +43,7 @@ const ResetPassword: FC = () => {
 
       setMessage('Password updated. Redirecting to sign in...');
       await supabase.auth.signOut();
-      setTimeout(() => navigate('/login', { replace: true }), 900);
+      setTimeout(goToSignIn, 900);
     } catch {
       setError('Unable to update password right now.');
     } finally {
@@ -126,7 +131,7 @@ const ResetPassword: FC = () => {
           </form>
 
           <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--border-light)', textAlign: 'center', fontSize: '14px' }}>
-            <Link to="/login" style={{ color: 'var(--apple-blue)', textDecoration: 'none', fontWeight: 500 }}>Back to Sign In</Link>
+            <button type="button" onClick={goToSignIn} style={{ color: 'var(--apple-blue)', textDecoration: 'none', fontWeight: 500, border: 0, background: 'transparent', cursor: 'pointer', font: 'inherit' }}>Back to Sign In</button>
           </div>
         </div>
       </div>
