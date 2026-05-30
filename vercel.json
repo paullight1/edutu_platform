@@ -1,0 +1,18 @@
+{
+  "experimentalServices": {
+    "frontend": {
+      "root": "edutu-web-app",
+      "routePrefix": "/",
+      "framework": "vite"
+    },
+    "admin": {
+      "root": "admin",
+      "routePrefix": "/admin",
+      "framework": "vite"
+    },
+    "backend": {
+      "root": "backend",
+      "routePrefix": "/_/backend"
+    }
+  }
+}
