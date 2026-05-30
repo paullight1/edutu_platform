@@ -14,6 +14,7 @@ import Scraper from './pages/Scraper';
 import MobileControl from './pages/MobileControl';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import ResetPassword from './pages/ResetPassword';
 import Profile from './pages/Profile';
 import { AlertTriangle } from 'lucide-react';
 
@@ -40,6 +41,13 @@ const useAuth = () => {
     async function initAuth() {
       try {
         console.log('[Auth] Initializing auth...');
+
+        if (window.location.pathname === '/reset-password' || window.location.hash.includes('type=recovery')) {
+          if (mounted) {
+            setAuth({ session: null, user: null, isAdmin: false, loading: false, error: null });
+          }
+          return;
+        }
 
         // Use a faster check
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -92,6 +100,10 @@ const useAuth = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('[Auth] State changed:', event);
+        if (window.location.pathname === '/reset-password' || event === 'PASSWORD_RECOVERY') {
+          setAuth({ session: session ?? null, user: session?.user ?? null, isAdmin: false, loading: false, error: null });
+          return;
+        }
         if (mounted) {
           if (!session?.user) {
             setAuth({ session: null, user: null, isAdmin: false, loading: false, error: null });
@@ -199,6 +211,16 @@ const UnauthorizedScreen: FC<{ error?: string }> = ({ error }) => (
 
 const AppRoutes: FC = () => {
   const { session, isAdmin, loading, error } = useAuth();
+  const isPasswordRecovery = window.location.pathname === '/reset-password' || window.location.hash.includes('type=recovery');
+
+  if (isPasswordRecovery) {
+    return (
+      <Routes>
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="*" element={<Navigate to="/reset-password" replace />} />
+      </Routes>
+    );
+  }
 
   if (loading) return <LoadingScreen />;
 
@@ -207,6 +229,7 @@ const AppRoutes: FC = () => {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
@@ -218,6 +241,7 @@ const AppRoutes: FC = () => {
     <Routes>
       <Route path="/login" element={<Navigate to="/" replace />} />
       <Route path="/signup" element={<Navigate to="/" replace />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/" element={<Layout />}>
         <Route index element={<Dashboard />} />
         <Route path="opportunities" element={<Opportunities />} />
