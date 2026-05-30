@@ -135,7 +135,7 @@ export class ClerkAuthGuard implements CanActivate {
         if (error || !user) continue;
 
         const dbUserId = toDatabaseUserId(user.id);
-        const profile = await this.findProfile(dbUserId);
+        const profile = await this.safeFindProfile(dbUserId);
 
         request.user = {
           id: dbUserId,
@@ -143,7 +143,11 @@ export class ClerkAuthGuard implements CanActivate {
           email: user.email || profile?.email,
           firstName: profile?.fullName?.split(" ")[0],
           lastName: undefined,
-          role: profile?.role || "user",
+          role:
+            profile?.role ||
+            user.app_metadata?.role ||
+            user.user_metadata?.role ||
+            "user",
           authProvider: "supabase",
         };
 
@@ -195,5 +199,13 @@ export class ClerkAuthGuard implements CanActivate {
       .execute();
 
     return profile || null;
+  }
+
+  private async safeFindProfile(userId: string) {
+    try {
+      return await this.findProfile(userId);
+    } catch {
+      return null;
+    }
   }
 }
