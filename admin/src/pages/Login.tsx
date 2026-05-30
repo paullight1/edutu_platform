@@ -16,16 +16,22 @@ const Login: FC = () => {
     setError(null);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
+      const login = supabase.auth.signInWithPassword({
+        email: email.trim(),
         password,
       });
+
+      const timeout = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Sign in timed out. Refresh the page and try again.')), 12000);
+      });
+
+      const { error } = await Promise.race([login, timeout]);
 
       if (error) {
         setError(error.message);
       }
-    } catch (err) {
-      setError('An unexpected error occurred');
+    } catch (err: any) {
+      setError(err?.message || 'An unexpected error occurred');
     } finally {
       setLoading(false);
     }

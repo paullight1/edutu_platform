@@ -98,7 +98,7 @@ const useAuth = () => {
     initAuth().finally(() => clearTimeout(timeoutId));
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         console.log('[Auth] State changed:', event);
         if (window.location.pathname === '/reset-password' || event === 'PASSWORD_RECOVERY') {
           setAuth({ session: session ?? null, user: session?.user ?? null, isAdmin: false, loading: false, error: null });
@@ -108,14 +108,26 @@ const useAuth = () => {
           if (!session?.user) {
             setAuth({ session: null, user: null, isAdmin: false, loading: false, error: null });
           } else {
-            const isAdmin = await checkAdminRole(session.user.id);
-            setAuth({
+            setAuth(prev => ({
+              ...prev,
               session,
               user: session.user,
-              isAdmin,
-              loading: false,
+              loading: true,
               error: null
-            });
+            }));
+
+            setTimeout(async () => {
+              const isAdmin = await checkAdminRole(session.user.id);
+              if (mounted) {
+                setAuth({
+                  session,
+                  user: session.user,
+                  isAdmin,
+                  loading: false,
+                  error: null
+                });
+              }
+            }, 0);
           }
         }
       }
