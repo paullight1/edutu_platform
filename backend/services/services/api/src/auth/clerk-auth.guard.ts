@@ -19,7 +19,7 @@ const BEARER_TOKEN_PATTERN = /^Bearer\s+(.+)$/i;
 
 @Injectable()
 export class ClerkAuthGuard implements CanActivate {
-  private supabase: SupabaseClient | null = null;
+  private supabaseClients: SupabaseClient[] | null = null;
 
   constructor(
     private reflector: Reflector,
@@ -122,58 +122,69 @@ export class ClerkAuthGuard implements CanActivate {
     token: string,
     request: any,
   ): Promise<boolean> {
-    const supabase = this.getSupabaseClient();
-    if (!supabase) return false;
+    const clients = this.getSupabaseClients();
+    if (clients.length === 0) return false;
 
-    try {
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser(token);
+    for (const supabase of clients) {
+      try {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser(token);
 
-      if (error || !user) return false;
+        if (error || !user) continue;
 
-      const dbUserId = toDatabaseUserId(user.id);
-      const profile = await this.findProfile(dbUserId);
+        const dbUserId = toDatabaseUserId(user.id);
+        const profile = await this.findProfile(dbUserId);
 
-      request.user = {
-        id: dbUserId,
-        authId: user.id,
-        email: user.email || profile?.email,
-        firstName: profile?.fullName?.split(" ")[0],
-        lastName: undefined,
-        role: profile?.role || "user",
-        authProvider: "supabase",
-      };
+        request.user = {
+          id: dbUserId,
+          authId: user.id,
+          email: user.email || profile?.email,
+          firstName: profile?.fullName?.split(" ")[0],
+          lastName: undefined,
+          role: profile?.role || "user",
+          authProvider: "supabase",
+        };
 
-      return true;
-    } catch {
-      return false;
+        return true;
+      } catch {
+        continue;
+      }
     }
+
+    return false;
   }
 
-  private getSupabaseClient(): SupabaseClient | null {
-    if (this.supabase) return this.supabase;
+  private getSupabaseClients(): SupabaseClient[] {
+    if (this.supabaseClients) return this.supabaseClients;
 
     const url = process.env.SUPABASE_URL;
-    const key =
-      process.env.SUPABASE_SERVICE_ROLE_KEY ||
-      process.env.SUPABASE_SERVICE_KEY ||
-      process.env.SUPABASE_KEY ||
-      process.env.SUPABASE_ANON_KEY ||
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-      process.env.VITE_SUPABASE_ANON_KEY ||
-      process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key) return null;
+    if (!url) {
+      this.supabaseClients = [];
+      return this.supabaseClients;
+    }
 
-    this.supabase = createClient(url, key, {
+    const keys = [
+      process.env.SUPABASE_ANON_KEY ||
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+        process.env.VITE_SUPABASE_ANON_KEY ||
+        process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+        process.env.SUPABASE_SERVICE_KEY ||
+        process.env.SUPABASE_KEY,
+    ].filter((key): key is string => Boolean(key && key.trim()));
+
+    const uniqueKeys = Array.from(new Set(keys));
+
+    this.supabaseClients = uniqueKeys.map((key) => createClient(url, key, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
       },
-    });
+    }));
 
-    return this.supabase;
+    return this.supabaseClients;
   }
 
   private async findProfile(userId: string) {
