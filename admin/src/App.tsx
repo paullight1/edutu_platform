@@ -145,16 +145,6 @@ const useAuth = () => {
 
 async function checkAdminRole(userId: string): Promise<boolean> {
   try {
-    const { data: adminUser, error: adminUserError } = await supabase
-      .from('admin_users')
-      .select('role')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (!adminUserError && adminUser?.role === 'admin') {
-      return true;
-    }
-
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('role')
