@@ -24,12 +24,22 @@ export function useAdminAuth() {
 
     const checkAdminRole = useCallback(async (userId: string): Promise<boolean> => {
         try {
+            const { data: adminUser } = await supabase
+                .from('admin_users')
+                .select('role')
+                .eq('user_id', userId)
+                .maybeSingle();
+
+            if (adminUser?.role === 'admin') {
+                return true;
+            }
+
             // Admin role must come from server-controlled profile data.
             const { data: profile } = await supabase
                 .from('profiles')
                 .select('role')
                 .eq('user_id', userId)
-                .single();
+                .maybeSingle();
 
             if (profile?.role === 'admin') {
                 return true;
@@ -174,12 +184,22 @@ export function withAdminCheck<T extends (...args: any[]) => Promise<any>>(
             throw new Error('Authentication required');
         }
 
+        const { data: adminUser } = await supabase
+            .from('admin_users')
+            .select('role')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+        if (adminUser?.role === 'admin') {
+            return fn(...args);
+        }
+
         // Admin role must come from server-controlled profile data.
         const { data: profile } = await supabase
             .from('profiles')
             .select('role')
             .eq('user_id', user.id)
-            .single();
+            .maybeSingle();
 
         if (profile?.role !== 'admin') {
             throw new Error(options?.errorMessage || 'Admin privileges required');
