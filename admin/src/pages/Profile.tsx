@@ -27,7 +27,7 @@ const Profile = () => {
       if (!user) return;
 
       const { data: profileData } = await supabase
-        .from('admin_users')
+        .from('profiles')
         .select('*')
         .eq('user_id', user.id)
         .single();
@@ -55,7 +55,7 @@ const Profile = () => {
       if (!user) return;
 
       const { error } = await supabase
-        .from('admin_users')
+        .from('profiles')
         .update({
           full_name: editData.full_name,
           avatar_url: editData.avatar_url,

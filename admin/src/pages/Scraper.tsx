@@ -76,7 +76,8 @@ interface EngineStatus {
         configured: boolean;
     };
     ai?: {
-        geminiConfigured: boolean;
+        deepseekConfigured: boolean;
+        geminiConfigured?: boolean;
         source: string;
         feature: string;
         provider: string;
@@ -168,7 +169,7 @@ export default function ScraperDashboard() {
     const [dataRetentionDays, setDataRetentionDays] = useState<number | null>(null);
     const [isSavingSettings, setIsSavingSettings] = useState(false);
 
-    const API_URL = `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000'}/api/scraper`;
+    const API_URL = `${import.meta.env.VITE_BACKEND_URL || 'https://edutu-platform.onrender.com'}/api/scraper`;
     const [showAddSource, setShowAddSource] = useState(false);
     const [newSource, setNewSource] = useState<{ name: string; url: string; category: string; asGroup?: boolean; parentId?: number }>({ name: '', url: '', category: 'scholarship', asGroup: false });
     const [filter, setFilter] = useState<'all' | 'enabled' | 'disabled'>('all');
@@ -205,11 +206,18 @@ export default function ScraperDashboard() {
     const abortControllerRef = { current: null as AbortController | null };
 
     const getAuthHeaders = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
+        let { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+            const refreshed = await supabase.auth.refreshSession();
+            session = refreshed.data.session;
+        }
         if (!session?.access_token) {
             throw new Error('Admin session is required');
         }
-        return { Authorization: `Bearer ${session.access_token}` };
+        return {
+            Authorization: `Bearer ${session.access_token}`,
+            'X-Edutu-Admin-Email': session.user?.email || '',
+        };
     };
 
     const fetchSettings = async () => {
@@ -500,7 +508,7 @@ export default function ScraperDashboard() {
 
         try {
             // Use port 3000 (NestJS default) unless overridden by env
-            const backendUrl = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+            const backendUrl = (import.meta.env.VITE_BACKEND_URL || 'https://edutu-platform.onrender.com').replace(/\/$/, '');
 
             // Step 1: Connecting to sources
             setCurrentStep(1);
@@ -1097,9 +1105,9 @@ export default function ScraperDashboard() {
                         },
                         {
                             icon: Zap,
-                            label: 'Gemini',
-                            value: engineStatus.ai?.geminiConfigured ? 'Ready' : 'Missing key',
-                            ok: Boolean(engineStatus.ai?.geminiConfigured && engineStatus.ai.enabled),
+                            label: 'DeepSeek',
+                            value: engineStatus.ai?.deepseekConfigured || engineStatus.ai?.geminiConfigured ? 'Ready' : 'Missing key',
+                            ok: Boolean((engineStatus.ai?.deepseekConfigured || engineStatus.ai?.geminiConfigured) && engineStatus.ai.enabled),
                             detail: engineStatus.ai?.model || 'scraper.extract',
                         },
                         {
