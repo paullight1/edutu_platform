@@ -148,13 +148,15 @@ const MONTH_PATTERN =
 
 // Apply button text pattern
 const APPLY_TEXT_RE =
-  /^(apply(\s+(now|here|online))?|register|official\s+link|click\s+here|get\s+started)$/i;
+  /\b(apply|application|apply\s+(now|here|online)|register|registration|official\s+(link|website|portal)|programme?\s+portal|submit|start\s+application|get\s+started)\b/i;
 const GENERIC_LINK_TITLE_RE =
   /^(read\s+more|learn\s+more|continue\s+reading|view\s+(details|more)|more|apply(\s+(now|here|online))?|click\s+here|visit\s+site|official\s+link|submit)$/i;
 const ROUNDUP_TITLE_RE =
   /^(top|best)\s+\d+\b|\b(top|best)\s+\d+\s+(scholarships?|grants?|fellowships?|internships?|programs?|programmes?|opportunities?)\b|\b(list|collection|roundup)\s+of\b/i;
 const NON_OPPORTUNITY_URL_RE =
   /\/(category|tag|author|page|search|privacy-policy|terms|about|contact)\/?$/i;
+const NON_APPLY_URL_RE =
+  /(facebook|twitter|x\.com|linkedin|instagram|youtube|tiktok|whatsapp|telegram|mailto:|tel:|\/feed\/|\/comments?\/|#respond)/i;
 
 // Category keyword map
 const CATEGORY_MAP: Record<string, string[]> = {
@@ -1076,9 +1078,9 @@ export class ScraperService implements OnModuleInit {
       const { data: existing } = await this.supabase
         .from("opportunities")
         .select(
-          "metadata, summary, description, image_url, application_url, eligibility, funding_type, target_region",
+          "metadata, summary, description, image_url, application_url, apply_url, eligibility, funding_type, target_region",
         )
-        .eq("application_url", item.apply_url)
+        .eq("apply_url", item.apply_url)
         .maybeSingle();
 
       const cached = existing?.metadata as Record<string, any> | null;
@@ -1129,8 +1131,9 @@ export class ScraperService implements OnModuleInit {
 
       // Extract structured data from HTML (all done on same fetched HTML, zero extra requests)
       const sourceHost = new URL(item.apply_url).hostname;
-      const directApplyUrl = this.extractApplyLink(html, sourceHost);
-      let imageUrl = this.extractOgImage(html);
+      const directApplyUrl =
+        item.direct_apply_url || this.extractApplyLink(html, sourceHost, item.apply_url);
+      let imageUrl = this.extractBestImageFromHTML(html, item.apply_url);
       if (imageUrl) {
         const proxiedUrl = await this.proxyImageToStorage(imageUrl);
         if (proxiedUrl) imageUrl = proxiedUrl;
@@ -1456,11 +1459,27 @@ ${text}`;
         this.logger.log(
           `  ↳ DixcoverHub feed discovered ${feedItems.length} article URLs`,
         );
+        return feedItems;
       }
-      return feedItems;
     } catch (error: any) {
       this.logger.warn(
         `  ↳ DixcoverHub feed discovery failed: ${error.message}`,
+      );
+    }
+
+    try {
+      const pageUrl = this.buildPageUrl(source.url, page);
+      const html = await this.fetchListHTML(pageUrl);
+      const htmlItems = this.extractItemsFromList(html, source);
+      if (htmlItems.length > 0) {
+        this.logger.log(
+          `  ↳ DixcoverHub HTML discovered ${htmlItems.length} article URLs`,
+        );
+      }
+      return htmlItems;
+    } catch (error: any) {
+      this.logger.warn(
+        `  ↳ DixcoverHub HTML discovery failed: ${error.message}`,
       );
       return [];
     }
@@ -1505,21 +1524,30 @@ ${text}`;
       .map((post: any) => {
         const title = this.cleanHtmlText(post?.title?.rendered ?? "", 240);
         const applyUrl = this.resolveUrl(post?.link ?? "", source.url);
+        const contentHtml = post?.content?.rendered ?? "";
         const description =
           this.cleanHtmlText(post?.excerpt?.rendered ?? "", 1200) ||
           this.createBriefDescriptionFromText(
-            this.cleanHtmlText(post?.content?.rendered ?? "", 2000),
+            this.cleanHtmlText(contentHtml, 2000),
           ) ||
           "";
         const imageUrl =
           post?._embedded?.["wp:featuredmedia"]?.[0]?.source_url ||
           post?._embedded?.["wp:featuredmedia"]?.[0]?.media_details?.sizes?.medium?.source_url ||
+          this.extractBestImageFromHTML(contentHtml, applyUrl || source.url) ||
           null;
-        const contentText = this.cleanHtmlText(post?.content?.rendered ?? "", 3000);
+        const contentText = this.cleanHtmlText(contentHtml, 3000);
+        const sourceHost = new URL(source.url).hostname;
+        const directApplyUrl = this.extractApplyLink(
+          contentHtml,
+          sourceHost,
+          applyUrl || source.url,
+        );
 
         return {
           title,
           apply_url: applyUrl,
+          direct_apply_url: directApplyUrl,
           image_url: imageUrl,
           description,
           amount: this.extractAmount(contentText),
@@ -1578,11 +1606,19 @@ ${text}`;
         const description =
           this.cleanHtmlText($item.find("description").first().text(), 1200) ||
           this.cleanHtmlText($item.find("content\\:encoded").first().text(), 1200);
+        const contentHtml = $item.find("content\\:encoded").first().text();
         const itemText = $item.text();
+        const sourceHost = new URL(source.url).hostname;
 
         items.push({
           title,
           apply_url: applyUrl,
+          direct_apply_url: this.extractApplyLink(
+            contentHtml || itemText,
+            sourceHost,
+            applyUrl || source.url,
+          ),
+          image_url: this.extractBestImageFromHTML(contentHtml, applyUrl || source.url),
           description,
           amount: this.extractAmount(itemText),
           deadline: this.extractDeadline(itemText),
@@ -1625,6 +1661,7 @@ ${text}`;
         items.push({
           title: this.cleanText(title),
           apply_url: applyUrl,
+          image_url: this.extractCardImage($card, source.url),
           description: this.extractCardDescription($card, title),
           amount: this.extractAmount(cardText),
           deadline: this.extractDeadline(cardText),
@@ -1647,6 +1684,7 @@ ${text}`;
         items.push({
           title: this.cleanText(title),
           apply_url: applyUrl,
+          image_url: this.extractCardImage($el.parent(), source.url),
           source: source.name,
           source_url: source.url,
           source_id: source.id,
@@ -1663,43 +1701,76 @@ ${text}`;
    * Finds the real "Apply Now" link from an aggregator detail page.
    * Only returns URLs pointing to a domain OTHER than the aggregator.
    */
-  private extractApplyLink(html: string, sourceHost: string): string | null {
+  private extractApplyLink(
+    html: string,
+    sourceHost: string,
+    baseUrl?: string,
+  ): string | null {
     const $ = cheerio.load(html);
-    let found: string | null = null;
+    const candidates: Array<{ href: string; score: number }> = [];
 
     const isExternal = (href: string): boolean => {
       try {
-        return new URL(href).hostname !== sourceHost;
+        const parsed = new URL(href);
+        return parsed.hostname.replace(/^www\./, "") !== sourceHost.replace(/^www\./, "");
       } catch {
         return false;
       }
     };
 
-    // Priority 1: explicit apply/register text links to external domain
-    $("a[href]").each((_, el) => {
-      if (found) return;
-      const href = $(el).attr("href") ?? "";
-      const text = $(el).text().trim();
-      if (
-        href.startsWith("http") &&
-        isExternal(href) &&
-        APPLY_TEXT_RE.test(text)
-      ) {
-        found = href;
+    const cleanHref = (rawHref: string): string => {
+      const resolved = this.resolveUrl(rawHref, baseUrl || `https://${sourceHost}`);
+      if (!resolved || NON_APPLY_URL_RE.test(resolved)) return "";
+
+      try {
+        const parsed = new URL(resolved);
+        const redirectTarget =
+          parsed.searchParams.get("url") ||
+          parsed.searchParams.get("u") ||
+          parsed.searchParams.get("target") ||
+          parsed.searchParams.get("redirect_to");
+        if (redirectTarget?.startsWith("http")) return redirectTarget;
+      } catch {
+        return resolved;
       }
+
+      return resolved;
+    };
+
+    $("a[href]").each((_, el) => {
+      const href = cleanHref($(el).attr("href") ?? "");
+      if (!href || !href.startsWith("http") || !isExternal(href)) return;
+
+      const $el = $(el);
+      const text = this.cleanText($el.text(), 180);
+      const aria = this.cleanText($el.attr("aria-label") || "", 180);
+      const title = this.cleanText($el.attr("title") || "", 180);
+      const className = this.cleanText($el.attr("class") || "", 180);
+      const context = `${text} ${aria} ${title} ${className}`.trim();
+
+      let score = 0;
+      if (APPLY_TEXT_RE.test(context)) score += 80;
+      if (/forms\.|form\.|application|apply|career|recruit|jobs|portal|smartsheet|typeform|google\.com\/forms|forms\.office|forms\.cloud\.microsoft/i.test(href)) {
+        score += 40;
+      }
+      if (/btn|button|apply|elementor-button/i.test(className)) score += 20;
+      if (/share|comment|reply|print|download/i.test(context)) score -= 60;
+      if (score > 0) candidates.push({ href, score });
     });
-    if (found) return found;
 
-    // Priority 2: styled buttons pointing externally
-    $('a[class*="btn"], a[class*="button"], a[class*="apply"]').each(
-      (_, el) => {
-        if (found) return;
-        const href = $(el).attr("href") ?? "";
-        if (href.startsWith("http") && isExternal(href)) found = href;
-      },
-    );
+    candidates.sort((a, b) => b.score - a.score);
+    return candidates[0]?.href ?? null;
+  }
 
-    return found;
+  private extractImageCandidate(rawValue: string | undefined, baseUrl: string): string | null {
+    if (!rawValue) return null;
+    const firstSrc = rawValue.split(",")[0]?.trim().split(/\s+/)[0];
+    const resolved = this.resolveUrl(firstSrc || rawValue, baseUrl);
+    if (!resolved || !resolved.startsWith("http")) return null;
+    if (/logo|icon|avatar|profile|placeholder|spinner|loading/i.test(resolved)) {
+      return null;
+    }
+    return resolved;
   }
 
   /**
@@ -1750,23 +1821,27 @@ ${text}`;
    * Extracts the best available image URL from open-graph or twitter card meta tags,
    * falling back to the first content image in the article body.
    */
-  private extractOgImage(html: string): string | null {
+  private extractBestImageFromHTML(html: string, baseUrl: string): string | null {
     const $ = cheerio.load(html);
     const og =
       $('meta[property="og:image"]').attr("content") ||
+      $('meta[property="og:image:secure_url"]').attr("content") ||
       $('meta[name="og:image"]').attr("content") ||
       $('meta[name="twitter:image"]').attr("content") ||
       $('meta[property="twitter:image"]').attr("content");
 
-    if (og?.startsWith("http")) return og;
+    const resolvedOg = this.extractImageCandidate(og, baseUrl);
+    if (resolvedOg) return resolvedOg;
 
     let imgSrc: string | null = null;
     $("article img, .entry-content img, .post-content img, main img").each(
       (_, el) => {
         if (imgSrc) return;
-        const src = $(el).attr("src") ?? "";
-        if (src.startsWith("http") && !/logo|icon|avatar/i.test(src))
-          imgSrc = src;
+        imgSrc =
+          this.extractImageCandidate($(el).attr("src"), baseUrl) ||
+          this.extractImageCandidate($(el).attr("data-src"), baseUrl) ||
+          this.extractImageCandidate($(el).attr("srcset"), baseUrl) ||
+          this.extractImageCandidate($(el).attr("data-srcset"), baseUrl);
       },
     );
     return imgSrc;
@@ -1789,7 +1864,7 @@ ${text}`;
     else if (description.length >= 100) score += 12;
     else missingFields.push("description");
 
-    if ((item.direct_apply_url || item.apply_url)?.startsWith("http"))
+    if (item.direct_apply_url?.startsWith("http"))
       score += 15;
     else missingFields.push("application_url");
 
@@ -1820,20 +1895,12 @@ ${text}`;
     const closeDate = this.parseDate(item.deadline);
     const quality = this.evaluateOpportunityQuality(item);
 
-    const rawUrl = item.direct_apply_url || item.apply_url || "";
-    let application_url = rawUrl.split("?")[0].split("#")[0];
-
-    if (!application_url || application_url.trim() === "") {
-      const safeTitle = (item.title || "untitled")
-        .replace(/[^a-zA-Z0-9]/g, "-")
-        .toLowerCase();
-      const baseUrl = item.source_url || "https://unknown-source.com";
-      application_url = baseUrl.endsWith("/")
-        ? `${baseUrl}${safeTitle}`
-        : `${baseUrl}/${safeTitle}`;
-    }
-
-    const canonicalUrl = this.normalizeUrl(application_url);
+    const detailUrl = item.apply_url || "";
+    const directApplyUrl = item.direct_apply_url || null;
+    const application_url = directApplyUrl
+      ? directApplyUrl.split("#")[0]
+      : null;
+    const canonicalUrl = this.normalizeUrl(application_url || detailUrl);
     const contentFingerprint = this.createContentFingerprint(
       item.title || "Untitled Opportunity",
       item.source,
@@ -1856,6 +1923,8 @@ ${text}`;
       target_region: item.target_region ?? null,
       description: item.description || "",
       application_url,
+      apply_url: detailUrl || null,
+      source_url: detailUrl || item.source_url || null,
       canonical_url: canonicalUrl,
       content_fingerprint: contentFingerprint,
       quality_score: quality.score,
@@ -1868,7 +1937,9 @@ ${text}`;
       tags: ["Scraped", "Scholarship"],
       metadata: {
         source_url: item.source_url,
-        aggregator_url: item.apply_url,
+        aggregator_url: detailUrl,
+        detail_url: detailUrl,
+        direct_apply_url: directApplyUrl,
         scrape_job_id: jobLogId,
         ai_enriched: (item.enrichment_confidence ?? 0) > 0,
         ai_feature: "scraper.extract",
@@ -2019,6 +2090,20 @@ ${text}`;
       .trim();
 
     return this.cleanText(text, 1200);
+  }
+
+  private extractCardImage(card: any, baseUrl: string): string | null {
+    let imageUrl: string | null = null;
+    card.find("img").each((_, el) => {
+      if (imageUrl) return;
+      const attrs = (el as any).attribs || {};
+      imageUrl =
+        this.extractImageCandidate(attrs.src, baseUrl) ||
+        this.extractImageCandidate(attrs["data-src"], baseUrl) ||
+        this.extractImageCandidate(attrs.srcset, baseUrl) ||
+        this.extractImageCandidate(attrs["data-srcset"], baseUrl);
+    });
+    return imageUrl;
   }
 
   private cleanHtmlText(text: string, maxChars = 500): string {
