@@ -8,19 +8,19 @@ import {
   Patch,
   Logger,
   UseGuards,
-} from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
-import { ScraperService, ScrapeSource } from './scraper.service';
-import { Public, AdminGuard } from '../auth';
+} from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
+import { ScraperService, ScrapeSource } from "./scraper.service";
+import { Public, AdminGuard } from "../auth";
 
-@Controller('api/scraper')
+@Controller("api/scraper")
 @UseGuards(AdminGuard)
 export class ScraperController {
   private readonly logger = new Logger(ScraperController.name);
   constructor(private readonly scraperService: ScraperService) {}
 
-  @Post('run')
-  @Throttle({ default: { limit: 5, ttl: 3600000 } })
+  @Post("run")
+  @Throttle({ default: { limit: 60, ttl: 3600000 } })
   async runScraper(
     @Body()
     body: {
@@ -41,12 +41,12 @@ export class ScraperController {
       this.logger.error(`Scraper run failed: ${error.message}`);
       return {
         success: false,
-        error: error.message || 'An error occurred',
+        error: error.message || "An error occurred",
       };
     }
   }
 
-  @Get('engine-status')
+  @Get("engine-status")
   async getEngineStatus() {
     try {
       return await this.scraperService.getEngineStatus();
@@ -54,12 +54,12 @@ export class ScraperController {
       this.logger.error(`Get engine status failed: ${error.message}`);
       return {
         success: false,
-        error: error.message || 'Could not read scraper engine status',
+        error: error.message || "Could not read scraper engine status",
       };
     }
   }
 
-  @Get('sources')
+  @Get("sources")
   async getSources() {
     try {
       return await this.scraperService.getSources();
@@ -69,7 +69,7 @@ export class ScraperController {
     }
   }
 
-  @Post('sources')
+  @Post("sources")
   async addSource(
     @Body()
     body: {
@@ -81,7 +81,7 @@ export class ScraperController {
   ) {
     try {
       if (!body.name || !body.url) {
-        return { success: false, error: 'Name and URL are required' };
+        return { success: false, error: "Name and URL are required" };
       }
       return await this.scraperService.addSource(body);
     } catch (error) {
@@ -89,8 +89,8 @@ export class ScraperController {
     }
   }
 
-  @Delete('sources/:id')
-  async deleteSource(@Param('id') id: number) {
+  @Delete("sources/:id")
+  async deleteSource(@Param("id") id: number) {
     try {
       return await this.scraperService.deleteSource(id);
     } catch (error) {
@@ -98,9 +98,9 @@ export class ScraperController {
     }
   }
 
-  @Patch('sources/:id')
+  @Patch("sources/:id")
   async updateSource(
-    @Param('id') id: number,
+    @Param("id") id: number,
     @Body() body: { enabled?: boolean },
   ) {
     try {
@@ -110,7 +110,7 @@ export class ScraperController {
     }
   }
 
-  @Get('jobs')
+  @Get("jobs")
   async getJobs() {
     try {
       return await this.scraperService.getJobs();
@@ -120,8 +120,8 @@ export class ScraperController {
     }
   }
 
-  @Delete('jobs/:id')
-  async deleteJob(@Param('id') id: string) {
+  @Delete("jobs/:id")
+  async deleteJob(@Param("id") id: string) {
     try {
       return await this.scraperService.deleteJobWithOpportunities(id);
     } catch (error: any) {
@@ -129,7 +129,7 @@ export class ScraperController {
     }
   }
 
-  @Get('stats')
+  @Get("stats")
   async getStats() {
     try {
       return await this.scraperService.getStats();
@@ -139,20 +139,20 @@ export class ScraperController {
     }
   }
 
-  @Get('settings')
+  @Get("settings")
   async getSettings() {
     try {
       return await this.scraperService.getSettings();
     } catch (error) {
       return {
         auto_run_enabled: false,
-        cron_schedule: '0 0 * * *',
+        cron_schedule: "0 0 * * *",
         data_retention_days: null,
       };
     }
   }
 
-  @Post('settings')
+  @Post("settings")
   async updateSettings(
     @Body()
     body: {
