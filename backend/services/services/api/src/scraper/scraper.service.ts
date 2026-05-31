@@ -725,26 +725,38 @@ export class ScraperService implements OnModuleInit {
           this.logger.log(`  → Fetching page ${page}: ${pageUrl}`);
 
           try {
-            const html = await this.fetchListHTML(pageUrl);
-            if (
-              page > 1 &&
-              !this.hasNextPage(html, page, source.config?.next_page_selector)
-            ) {
-              this.logger.log(
-                `  → No next page found after page ${page - 1}, stopping.`,
-              );
-              break;
-            }
-            let basicItems = this.extractItemsFromList(html, source);
+            let basicItems: RawItem[] = [];
 
-            if (basicItems.length === 0) {
-              const feedUrl = this.extractFeedUrlFromHTML(html, pageUrl);
-              if (feedUrl) {
-                this.logger.warn(
-                  `  ↳ No list cards found, trying feed fallback: ${feedUrl}`,
+            if (this.isDixcoverHubSource(source)) {
+              basicItems = await this.extractDixcoverHubItems(source, page);
+              if (page > 1 && basicItems.length === 0) {
+                this.logger.log(
+                  `  → DixcoverHub adapter found no items on page ${page}, stopping.`,
                 );
-                const feedHtml = await this.fetchHTML(feedUrl);
-                basicItems = this.extractItemsFromList(feedHtml, source);
+                break;
+              }
+            } else {
+              const html = await this.fetchListHTML(pageUrl);
+              if (
+                page > 1 &&
+                !this.hasNextPage(html, page, source.config?.next_page_selector)
+              ) {
+                this.logger.log(
+                  `  → No next page found after page ${page - 1}, stopping.`,
+                );
+                break;
+              }
+              basicItems = this.extractItemsFromList(html, source);
+
+              if (basicItems.length === 0) {
+                const feedUrl = this.extractFeedUrlFromHTML(html, pageUrl);
+                if (feedUrl) {
+                  this.logger.warn(
+                    `  ↳ No list cards found, trying feed fallback: ${feedUrl}`,
+                  );
+                  const feedHtml = await this.fetchHTML(feedUrl);
+                  basicItems = this.extractItemsFromList(feedHtml, source);
+                }
               }
             }
 
@@ -1330,7 +1342,145 @@ ${text}`;
 
   // ─── List Extraction ─────────────────────────────────────────────────────
 
-  private extractItemsFromList(html: string, source: ScrapeSource): RawItem[] {
+  private isDixcoverHubSource(source: ScrapeSource): boolean {
+    try {
+      return new URL(source.url).hostname.replace(/^www\./, "") === "jobs.smartyacad.com";
+    } catch {
+      return /jobs\.smartyacad\.com/i.test(source.url);
+    }
+  }
+
+  private async extractDixcoverHubItems(
+    source: ScrapeSource,
+    page: number,
+  ): Promise<RawItem[]> {
+    try {
+      const restItems = await this.extractDixcoverHubRestItems(source, page);
+      if (restItems.length > 0) {
+        this.logger.log(
+          `  ↳ DixcoverHub REST discovered ${restItems.length} article URLs`,
+        );
+        return restItems;
+      }
+    } catch (error: any) {
+      this.logger.warn(
+        `  ↳ DixcoverHub REST discovery failed: ${error.message}`,
+      );
+    }
+
+    try {
+      const feedItems = await this.extractDixcoverHubFeedItems(source, page);
+      if (feedItems.length > 0) {
+        this.logger.log(
+          `  ↳ DixcoverHub feed discovered ${feedItems.length} article URLs`,
+        );
+      }
+      return feedItems;
+    } catch (error: any) {
+      this.logger.warn(
+        `  ↳ DixcoverHub feed discovery failed: ${error.message}`,
+      );
+      return [];
+    }
+  }
+
+  private async extractDixcoverHubRestItems(
+    source: ScrapeSource,
+    page: number,
+  ): Promise<RawItem[]> {
+    const sourceUrl = new URL(source.url);
+    const categorySlug = this.extractWordPressCategorySlug(source.url);
+    if (!categorySlug) return [];
+
+    const categoryUrl = `${sourceUrl.origin}/wp-json/wp/v2/categories?slug=${encodeURIComponent(categorySlug)}`;
+    const categoryResponse = await axios.get(categoryUrl, {
+      timeout: 15_000,
+      headers: BROWSER_HEADERS,
+      validateStatus: (status) => status < 500,
+    });
+
+    if (categoryResponse.status >= 400) {
+      throw new Error(`Category REST returned HTTP ${categoryResponse.status}`);
+    }
+
+    const categoryId = Number(categoryResponse.data?.[0]?.id);
+    if (!categoryId) return [];
+
+    const postsUrl = `${sourceUrl.origin}/wp-json/wp/v2/posts?categories=${categoryId}&per_page=${MAX_ITEMS_PER_PAGE}&page=${page}&_embed=1`;
+    const postsResponse = await axios.get(postsUrl, {
+      timeout: 20_000,
+      headers: BROWSER_HEADERS,
+      validateStatus: (status) => status < 500,
+    });
+
+    if (postsResponse.status === 400 && page > 1) return [];
+    if (postsResponse.status >= 400) {
+      throw new Error(`Posts REST returned HTTP ${postsResponse.status}`);
+    }
+
+    const posts = Array.isArray(postsResponse.data) ? postsResponse.data : [];
+    return posts
+      .map((post: any) => {
+        const title = this.cleanHtmlText(post?.title?.rendered ?? "", 240);
+        const applyUrl = this.resolveUrl(post?.link ?? "", source.url);
+        const description =
+          this.cleanHtmlText(post?.excerpt?.rendered ?? "", 1200) ||
+          this.createBriefDescriptionFromText(
+            this.cleanHtmlText(post?.content?.rendered ?? "", 2000),
+          ) ||
+          "";
+        const imageUrl =
+          post?._embedded?.["wp:featuredmedia"]?.[0]?.source_url ||
+          post?._embedded?.["wp:featuredmedia"]?.[0]?.media_details?.sizes?.medium?.source_url ||
+          null;
+        const contentText = this.cleanHtmlText(post?.content?.rendered ?? "", 3000);
+
+        return {
+          title,
+          apply_url: applyUrl,
+          image_url: imageUrl,
+          description,
+          amount: this.extractAmount(contentText),
+          deadline: this.extractDeadline(contentText),
+          location: this.extractLocation(contentText),
+          source: source.name,
+          source_url: source.url,
+          source_id: source.id,
+        } satisfies RawItem;
+      })
+      .filter((item: RawItem) =>
+        this.isValidOpportunityCandidate(item.title, item.apply_url, source.url),
+      );
+  }
+
+  private async extractDixcoverHubFeedItems(
+    source: ScrapeSource,
+    page: number,
+  ): Promise<RawItem[]> {
+    const feedUrl = this.toWordPressFeedUrl(source.url);
+    if (!feedUrl) return [];
+
+    const html = await this.fetchHTML(feedUrl);
+    const allItems = this.extractItemsFromList(html, source, false);
+    const start = (page - 1) * MAX_ITEMS_PER_PAGE;
+    return allItems.slice(start, start + MAX_ITEMS_PER_PAGE);
+  }
+
+  private extractWordPressCategorySlug(url: string): string | null {
+    try {
+      const match = new URL(url).pathname.match(/\/category\/([^/]+)/i);
+      return match?.[1] ? decodeURIComponent(match[1]) : null;
+    } catch {
+      const match = url.match(/\/category\/([^/]+)/i);
+      return match?.[1] ? decodeURIComponent(match[1]) : null;
+    }
+  }
+
+  private extractItemsFromList(
+    html: string,
+    source: ScrapeSource,
+    limit = true,
+  ): RawItem[] {
     const isFeed = /^\s*(?:<\?xml|<rss|<feed)/i.test(html);
     const $ = cheerio.load(html, { xmlMode: isFeed });
     const items: RawItem[] = [];
@@ -1361,7 +1511,7 @@ ${text}`;
         });
       });
 
-      return items.slice(0, MAX_ITEMS_PER_PAGE);
+      return limit ? items.slice(0, MAX_ITEMS_PER_PAGE) : items;
     }
 
     const itemSelector =
@@ -1422,7 +1572,7 @@ ${text}`;
       });
     }
 
-    return items.slice(0, MAX_ITEMS_PER_PAGE);
+    return limit ? items.slice(0, MAX_ITEMS_PER_PAGE) : items;
   }
 
   // ─── Deep-Link & Image Extraction ────────────────────────────────────────
