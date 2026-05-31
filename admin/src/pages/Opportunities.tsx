@@ -198,6 +198,7 @@ export default function Opportunities() {
     const [totalOpportunities, setTotalOpportunities] = useState(0);
     const [totalPages, setTotalPages] = useState(1);
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+    const [enhancingIds, setEnhancingIds] = useState<Set<string>>(new Set());
 
     // Form data
     const [formData, setFormData] = useState({
@@ -347,6 +348,30 @@ export default function Opportunities() {
         }
     }
 
+    async function handleEnhanceOpportunity(id: string) {
+        setEnhancingIds(prev => new Set(prev).add(id));
+        try {
+            const response = await fetch(`${NEST_API_URL}/opportunities/admin/${id}/enhance`, {
+                method: 'POST',
+                headers: await getAdminHeaders(),
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || 'AI enhancement failed');
+            }
+            await fetchOpportunities();
+            alert(`AI enhancement complete: ${result.completeness?.score ?? 'updated'}%`);
+        } catch (error: any) {
+            alert(error.message || 'AI enhancement failed');
+        } finally {
+            setEnhancingIds(prev => {
+                const next = new Set(prev);
+                next.delete(id);
+                return next;
+            });
+        }
+    }
+
     function handleEdit(opp: Opportunity) {
         setFormData({
             title: opp.title,
@@ -374,8 +399,8 @@ export default function Opportunities() {
     }
 
     // Backend API URL - adjust based on environment
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-    const NEST_API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+    const API_URL = import.meta.env.VITE_API_URL || 'https://edutu-platform.onrender.com';
+    const NEST_API_URL = import.meta.env.VITE_BACKEND_URL || 'https://edutu-platform.onrender.com';
 
     async function getAdminHeaders() {
         const { data: { session } } = await supabase.auth.getSession();
@@ -683,6 +708,7 @@ export default function Opportunities() {
                             {filteredOpps.map((opp) => {
                                 const qualityScore = opp.metadata?.extraction_quality_score;
                                 const needsReview = opp.status === 'pending_review' || opp.metadata?.needs_review;
+                                const isEnhancing = enhancingIds.has(opp.id);
                                 return (
                                     <tr key={opp.id}>
                                         <td style={{ maxWidth: '320px' }}>
@@ -722,6 +748,15 @@ export default function Opportunities() {
                                                         <CheckCircle2 size={15} />
                                                     </button>
                                                 )}
+                                                <button
+                                                    className="btn btn-secondary"
+                                                    title="Improve details with AI"
+                                                    disabled={isEnhancing}
+                                                    onClick={() => handleEnhanceOpportunity(opp.id)}
+                                                    style={{ padding: '8px', color: '#a78bfa' }}
+                                                >
+                                                    {isEnhancing ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                                                </button>
                                                 <button className="btn btn-secondary" title="Open application URL" onClick={() => window.open(opp.application_url || opp.source_url, '_blank')} style={{ padding: '8px' }}>
                                                     <ExternalLink size={15} />
                                                 </button>
@@ -1020,6 +1055,7 @@ export default function Opportunities() {
                                 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
                             ];
                             const gradient = gradients[index % gradients.length];
+                            const isEnhancing = enhancingIds.has(opp.id);
                             
                             return (
                                 <div 
@@ -1205,6 +1241,18 @@ export default function Opportunities() {
                                             }}>
                                                 <p style={{ marginBottom: '10px', fontSize: '13px' }}>{opp.summary || opp.description?.slice(0, 150)}...</p>
                                                 <div style={{ display: 'flex', gap: '8px' }}>
+                                                    <button
+                                                        className="btn btn-secondary"
+                                                        style={{ padding: '8px 12px', fontSize: '12px', color: '#a78bfa', borderColor: 'rgba(139, 92, 246, 0.45)' }}
+                                                        disabled={isEnhancing}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleEnhanceOpportunity(opp.id);
+                                                        }}
+                                                    >
+                                                        {isEnhancing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                                                        AI
+                                                    </button>
                                                     {opp.status === 'pending_review' && (
                                                         <>
                                                             <button

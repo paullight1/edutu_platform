@@ -135,6 +135,24 @@ export class OpportunitiesController {
     return this.opportunitiesService.getAdminStats();
   }
 
+  @Post("admin/reclassify")
+  @UseGuards(AdminGuard)
+  reclassifyExisting(
+    @Body() body: { limit?: number; dryRun?: boolean } = {},
+  ) {
+    return this.opportunitiesService.reclassifyExistingOpportunities(body);
+  }
+
+  @Post("admin/:id/enhance")
+  @UseGuards(AdminGuard)
+  async enhanceSavedOpportunity(@Param("id") id: string) {
+    const result = await this.opportunitiesService.enhanceOpportunity(id);
+    if (!result) {
+      return { success: false, error: "Opportunity not found" };
+    }
+    return result;
+  }
+
   @Get("admin/verification/stats")
   @UseGuards(AdminGuard)
   getVerificationStats() {

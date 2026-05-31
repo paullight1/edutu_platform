@@ -113,10 +113,28 @@ interface ScrapedOpportunity {
     deadline?: string | null;
     location?: string;
     description?: string;
+    summary?: string;
     applyUrl?: string;
+    apply_url?: string;
+    imageUrl?: string;
+    image_url?: string;
     amount?: number | null;
     source: string;
     sourceUrl?: string;
+    source_url?: string;
+    requirements?: string[];
+    benefits?: string[];
+    application_process?: string[];
+    eligibility?: Record<string, unknown>;
+    funding_type?: string | null;
+    target_region?: string | null;
+    metadata?: {
+        extraction_quality_score?: number;
+        extraction_missing_fields?: string[];
+        needs_review?: boolean;
+        ai_improved_at?: string;
+        [key: string]: unknown;
+    };
 }
 
 interface ScrapeResult {
@@ -204,6 +222,8 @@ export default function ScraperDashboard() {
     const [opportunityFilter, setOpportunityFilter] = useState('');
     const [modalError, setModalError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [enhancingIndexes, setEnhancingIndexes] = useState<Set<number>>(new Set());
+    const [detailsOpportunity, setDetailsOpportunity] = useState<ScrapedOpportunity | null>(null);
     const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
     const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -688,6 +708,76 @@ export default function ScraperDashboard() {
         opp.organization?.toLowerCase().includes(opportunityFilter.toLowerCase()) ||
         opp.category?.toLowerCase().includes(opportunityFilter.toLowerCase())
     ) || [];
+
+    const getOpportunityQuality = (opp: ScrapedOpportunity) => {
+        const metadataScore = opp.metadata?.extraction_quality_score;
+        if (typeof metadataScore === 'number') {
+            return {
+                score: metadataScore,
+                status: metadataScore >= 70 ? 'complete' : 'not_complete',
+                missing: opp.metadata?.extraction_missing_fields || [],
+            };
+        }
+
+        const missing: string[] = [];
+        let score = 0;
+        if (opp.title?.trim().length >= 8) score += 15; else missing.push('title');
+        if ((opp.description || opp.summary || '').trim().length >= 180) score += 25; else missing.push('description');
+        if ((opp.applyUrl || opp.apply_url || '').startsWith('http')) score += 15; else missing.push('apply link');
+        if ((opp.sourceUrl || opp.source_url || '').startsWith('http')) score += 10; else missing.push('source link');
+        if (opp.imageUrl || opp.image_url) score += 10; else missing.push('image');
+        if (opp.deadline) score += 10; else missing.push('deadline');
+        if (opp.requirements?.length) score += 10; else missing.push('requirements');
+        if (opp.benefits?.length) score += 5; else missing.push('benefits');
+
+        return {
+            score: Math.min(100, score),
+            status: score >= 70 ? 'complete' : 'not_complete',
+            missing,
+        };
+    };
+
+    const improveOpportunityWithAI = async (opp: ScrapedOpportunity, filteredIndex: number) => {
+        const sourceIndex = scrapeResult?.opportunities?.findIndex(item =>
+            item === opp ||
+            ((item.applyUrl || item.apply_url || item.sourceUrl || item.source_url) === (opp.applyUrl || opp.apply_url || opp.sourceUrl || opp.source_url) && item.title === opp.title)
+        ) ?? -1;
+        const targetIndex = sourceIndex >= 0 ? sourceIndex : filteredIndex;
+
+        setEnhancingIndexes(prev => new Set(prev).add(targetIndex));
+        try {
+            const response = await fetch(`${API_URL}/enhance-preview`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(await getAuthHeaders()),
+                },
+                body: JSON.stringify(opp),
+            });
+
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || 'AI improvement failed');
+            }
+
+            setScrapeResult(prev => {
+                if (!prev?.opportunities) return prev;
+                const next = [...prev.opportunities];
+                next[targetIndex] = result.opportunity;
+                return { ...prev, opportunities: next };
+            });
+            setDetailsOpportunity(result.opportunity);
+            showNotification(`AI improved "${result.opportunity.title}"`, 'success');
+        } catch (error: any) {
+            showNotification(error.message || 'AI improvement failed', 'error');
+        } finally {
+            setEnhancingIndexes(prev => {
+                const next = new Set(prev);
+                next.delete(targetIndex);
+                return next;
+            });
+        }
+    };
 
     const formatElapsed = (seconds: number) => {
         const minutes = Math.floor(seconds / 60);
@@ -2559,7 +2649,15 @@ export default function ScraperDashboard() {
                                         gap: 12,
                                         flexDirection: viewMode === 'list' ? 'column' : undefined,
                                     }}>
-                                        {filteredOpportunities.map((opp, idx) => (
+                                        {filteredOpportunities.map((opp, idx) => {
+                                            const quality = getOpportunityQuality(opp);
+                                            const sourceIndex = scrapeResult?.opportunities?.findIndex(item =>
+                                                item === opp ||
+                                                ((item.applyUrl || item.apply_url || item.sourceUrl || item.source_url) === (opp.applyUrl || opp.apply_url || opp.sourceUrl || opp.source_url) && item.title === opp.title)
+                                            ) ?? idx;
+                                            const isEnhancing = enhancingIndexes.has(sourceIndex);
+
+                                            return (
                                             <div
                                                 key={idx}
                                                 onClick={() => toggleOpportunitySelection(idx)}
@@ -2590,6 +2688,16 @@ export default function ScraperDashboard() {
                                                             {opp.organization && (
                                                                 <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{opp.organization}</span>
                                                             )}
+                                                            <span style={{
+                                                                fontSize: 11,
+                                                                padding: '2px 8px',
+                                                                background: quality.status === 'complete' ? 'rgba(52, 199, 89, 0.12)' : 'rgba(255, 149, 0, 0.14)',
+                                                                borderRadius: 4,
+                                                                color: quality.status === 'complete' ? '#34c759' : '#ff9500',
+                                                                fontWeight: 700,
+                                                            }}>
+                                                                {quality.status === 'complete' ? 'Complete' : 'Not complete'} · {quality.score}%
+                                                            </span>
                                                             {opp.category && (
                                                                 <span style={{ fontSize: 11, padding: '2px 8px', background: 'var(--bg-tertiary)', borderRadius: 4, color: 'var(--text-secondary)' }}>
                                                                     {opp.category}
@@ -2605,18 +2713,70 @@ export default function ScraperDashboard() {
                                                             fontSize: 13, color: 'var(--text-tertiary)', margin: 0, lineHeight: 1.5,
                                                             display: '-webkit-box', WebkitLineClamp: 2,
                                                             WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                                                        }}>{opp.description || 'No description available'}</p>
-                                                        {opp.sourceUrl && (
-                                                            <a href={opp.sourceUrl} target="_blank" rel="noopener noreferrer"
-                                                                onClick={(e) => e.stopPropagation()}
-                                                                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, color: '#8b5cf6', textDecoration: 'none' }}>
-                                                                <ExternalLink size={12} /> View Source
-                                                            </a>
+                                                        }}>{opp.description || opp.summary || 'No description available'}</p>
+                                                        {quality.missing.length > 0 && (
+                                                            <p style={{ fontSize: 11, color: '#ff9500', margin: '8px 0 0' }}>
+                                                                Missing: {quality.missing.slice(0, 4).join(', ')}
+                                                            </p>
                                                         )}
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    improveOpportunityWithAI(opp, idx);
+                                                                }}
+                                                                disabled={isEnhancing}
+                                                                style={{
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    gap: 6,
+                                                                    padding: '7px 10px',
+                                                                    borderRadius: 8,
+                                                                    border: '1px solid rgba(139, 92, 246, 0.35)',
+                                                                    background: 'rgba(139, 92, 246, 0.12)',
+                                                                    color: '#a78bfa',
+                                                                    cursor: isEnhancing ? 'wait' : 'pointer',
+                                                                    fontSize: 12,
+                                                                    fontWeight: 700,
+                                                                }}
+                                                            >
+                                                                {isEnhancing ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} />}
+                                                                {isEnhancing ? 'Improving...' : 'AI Improve'}
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setDetailsOpportunity(opp);
+                                                                }}
+                                                                style={{
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    gap: 6,
+                                                                    padding: '7px 10px',
+                                                                    borderRadius: 8,
+                                                                    border: '1px solid var(--border-medium)',
+                                                                    background: 'transparent',
+                                                                    color: 'var(--text-secondary)',
+                                                                    cursor: 'pointer',
+                                                                    fontSize: 12,
+                                                                    fontWeight: 700,
+                                                                }}
+                                                            >
+                                                                <FileCheck size={13} /> Details
+                                                            </button>
+                                                            {(opp.sourceUrl || opp.source_url || opp.applyUrl || opp.apply_url) && (
+                                                                <a href={opp.sourceUrl || opp.source_url || opp.applyUrl || opp.apply_url} target="_blank" rel="noopener noreferrer"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#8b5cf6', textDecoration: 'none' }}>
+                                                                    <ExternalLink size={12} /> Source
+                                                                </a>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>
@@ -2674,6 +2834,200 @@ export default function ScraperDashboard() {
                     </div>
                 )
             }
+
+            {detailsOpportunity && (
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(0, 0, 0, 0.68)',
+                    backdropFilter: 'blur(10px)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1100,
+                    padding: 24,
+                }}>
+                    <div style={{
+                        width: 'min(760px, 96vw)',
+                        maxHeight: '88vh',
+                        overflow: 'auto',
+                        background: 'var(--bg-primary)',
+                        border: '1px solid var(--border-light)',
+                        borderRadius: 20,
+                        boxShadow: '0 30px 70px rgba(0,0,0,0.35)',
+                    }}>
+                        {(() => {
+                            const quality = getOpportunityQuality(detailsOpportunity);
+                            const imageUrl = detailsOpportunity.imageUrl || detailsOpportunity.image_url;
+                            const applyUrl = detailsOpportunity.applyUrl || detailsOpportunity.apply_url;
+                            const sourceUrl = detailsOpportunity.sourceUrl || detailsOpportunity.source_url || applyUrl;
+                            const improvedAt = detailsOpportunity.metadata?.ai_improved_at;
+
+                            return (
+                                <>
+                                    <div style={{
+                                        padding: 24,
+                                        borderBottom: '1px solid var(--border-light)',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        gap: 16,
+                                    }}>
+                                        <div>
+                                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
+                                                <span style={{
+                                                    fontSize: 12,
+                                                    fontWeight: 800,
+                                                    padding: '4px 10px',
+                                                    borderRadius: 999,
+                                                    background: quality.status === 'complete' ? 'rgba(52, 199, 89, 0.12)' : 'rgba(255, 149, 0, 0.14)',
+                                                    color: quality.status === 'complete' ? '#34c759' : '#ff9500',
+                                                }}>
+                                                    {quality.status === 'complete' ? 'Complete details' : 'Not complete'} · {quality.score}%
+                                                </span>
+                                                {improvedAt && (
+                                                    <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+                                                        AI improved {new Date(improvedAt).toLocaleString()}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: 22, lineHeight: 1.3 }}>
+                                                {detailsOpportunity.title}
+                                            </h2>
+                                            <p style={{ color: 'var(--text-tertiary)', margin: '8px 0 0', fontSize: 13 }}>
+                                                Latest checked: {new Date().toLocaleDateString()} · {detailsOpportunity.source || 'Edutu Engine'}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => setDetailsOpportunity(null)}
+                                            style={{ border: 'none', background: 'transparent', color: 'var(--text-tertiary)', cursor: 'pointer', height: 36 }}
+                                        >
+                                            <X size={24} />
+                                        </button>
+                                    </div>
+
+                                    {imageUrl && (
+                                        <img
+                                            src={imageUrl}
+                                            alt=""
+                                            style={{ width: '100%', maxHeight: 260, objectFit: 'cover', display: 'block' }}
+                                        />
+                                    )}
+
+                                    <div style={{ padding: 24, display: 'grid', gap: 18 }}>
+                                        {quality.missing.length > 0 && (
+                                            <div style={{
+                                                padding: 14,
+                                                borderRadius: 12,
+                                                background: 'rgba(255, 149, 0, 0.1)',
+                                                border: '1px solid rgba(255, 149, 0, 0.22)',
+                                                color: '#ffb454',
+                                                fontSize: 13,
+                                            }}>
+                                                Needs AI/detail review: {quality.missing.join(', ')}
+                                            </div>
+                                        )}
+
+                                        <section>
+                                            <h3 style={{ margin: '0 0 8px', fontSize: 14, color: 'var(--text-secondary)' }}>Description</h3>
+                                            <p style={{ margin: 0, color: 'var(--text-primary)', lineHeight: 1.7 }}>
+                                                {detailsOpportunity.description || detailsOpportunity.summary || 'No description available yet.'}
+                                            </p>
+                                        </section>
+
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+                                            {[
+                                                ['Category', detailsOpportunity.category],
+                                                ['Deadline', detailsOpportunity.deadline || 'Not stated'],
+                                                ['Location', detailsOpportunity.location || detailsOpportunity.target_region || 'Worldwide'],
+                                                ['Funding', detailsOpportunity.funding_type || (detailsOpportunity.amount ? `$${detailsOpportunity.amount.toLocaleString()}` : 'Not stated')],
+                                            ].map(([label, value]) => (
+                                                <div key={label} style={{ padding: 12, borderRadius: 12, background: 'var(--bg-secondary)', border: '1px solid var(--border-light)' }}>
+                                                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
+                                                    <div style={{ fontSize: 14, color: 'var(--text-primary)', fontWeight: 700, marginTop: 5 }}>{value || 'Not stated'}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {(detailsOpportunity.requirements?.length || detailsOpportunity.benefits?.length) && (
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
+                                                {detailsOpportunity.requirements?.length ? (
+                                                    <section>
+                                                        <h3 style={{ margin: '0 0 8px', fontSize: 14, color: 'var(--text-secondary)' }}>Requirements</h3>
+                                                        <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--text-primary)', lineHeight: 1.7 }}>
+                                                            {detailsOpportunity.requirements.slice(0, 8).map((item, index) => <li key={index}>{item}</li>)}
+                                                        </ul>
+                                                    </section>
+                                                ) : null}
+                                                {detailsOpportunity.benefits?.length ? (
+                                                    <section>
+                                                        <h3 style={{ margin: '0 0 8px', fontSize: 14, color: 'var(--text-secondary)' }}>Benefits</h3>
+                                                        <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--text-primary)', lineHeight: 1.7 }}>
+                                                            {detailsOpportunity.benefits.slice(0, 8).map((item, index) => <li key={index}>{item}</li>)}
+                                                        </ul>
+                                                    </section>
+                                                ) : null}
+                                            </div>
+                                        )}
+
+                                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'space-between', borderTop: '1px solid var(--border-light)', paddingTop: 18 }}>
+                                            <button
+                                                onClick={() => improveOpportunityWithAI(detailsOpportunity, 0)}
+                                                style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: 8,
+                                                    padding: '10px 14px',
+                                                    borderRadius: 10,
+                                                    border: '1px solid rgba(139, 92, 246, 0.35)',
+                                                    background: 'rgba(139, 92, 246, 0.12)',
+                                                    color: '#a78bfa',
+                                                    cursor: 'pointer',
+                                                    fontWeight: 800,
+                                                }}
+                                            >
+                                                <Zap size={16} /> Improve with AI
+                                            </button>
+                                            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                                {sourceUrl && (
+                                                    <a href={sourceUrl} target="_blank" rel="noopener noreferrer" style={{
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: 8,
+                                                        padding: '10px 14px',
+                                                        borderRadius: 10,
+                                                        border: '1px solid var(--border-medium)',
+                                                        color: 'var(--text-primary)',
+                                                        textDecoration: 'none',
+                                                        fontWeight: 700,
+                                                    }}>
+                                                        <ExternalLink size={16} /> Source
+                                                    </a>
+                                                )}
+                                                {applyUrl && (
+                                                    <a href={applyUrl} target="_blank" rel="noopener noreferrer" style={{
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: 8,
+                                                        padding: '10px 14px',
+                                                        borderRadius: 10,
+                                                        border: 'none',
+                                                        background: '#34c759',
+                                                        color: 'white',
+                                                        textDecoration: 'none',
+                                                        fontWeight: 800,
+                                                    }}>
+                                                        <ExternalLink size={16} /> Apply link
+                                                    </a>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            );
+                        })()}
+                    </div>
+                </div>
+            )}
 
             {/* Notifications UI */}
             <div className="notifications-container">
