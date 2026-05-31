@@ -149,6 +149,12 @@ const MONTH_PATTERN =
 // Apply button text pattern
 const APPLY_TEXT_RE =
   /^(apply(\s+(now|here|online))?|register|official\s+link|click\s+here|get\s+started)$/i;
+const GENERIC_LINK_TITLE_RE =
+  /^(read\s+more|learn\s+more|continue\s+reading|view\s+(details|more)|more|apply(\s+(now|here|online))?|click\s+here|visit\s+site|official\s+link|submit)$/i;
+const ROUNDUP_TITLE_RE =
+  /^(top|best)\s+\d+\b|\b(top|best)\s+\d+\s+(scholarships?|grants?|fellowships?|internships?|programs?|programmes?|opportunities?)\b|\b(list|collection|roundup)\s+of\b/i;
+const NON_OPPORTUNITY_URL_RE =
+  /\/(category|tag|author|page|search|privacy-policy|terms|about|contact)\/?$/i;
 
 // Category keyword map
 const CATEGORY_MAP: Record<string, string[]> = {
@@ -939,14 +945,25 @@ export class ScraperService implements OnModuleInit {
     customContentSelectors?: string,
   ): Promise<RawItem[]> {
     const enriched: RawItem[] = [];
+    const candidates = items.filter((item) =>
+      this.isValidOpportunityCandidate(item.title, item.apply_url, item.source_url),
+    );
 
     // Process in batches defined by ENRICH_CONCURRENCY
-    for (let i = 0; i < items.length; i += ENRICH_CONCURRENCY) {
-      const batch = items.slice(i, i + ENRICH_CONCURRENCY);
+    for (let i = 0; i < candidates.length; i += ENRICH_CONCURRENCY) {
+      const batch = candidates.slice(i, i + ENRICH_CONCURRENCY);
       const batchResults = await Promise.all(
         batch.map((item) => this.enrichItem(item, customContentSelectors)),
       );
-      enriched.push(...batchResults);
+      enriched.push(
+        ...batchResults.filter((item) =>
+          this.isValidOpportunityCandidate(
+            item.title,
+            item.direct_apply_url || item.apply_url,
+            item.source_url,
+          ),
+        ),
+      );
     }
 
     return enriched;
@@ -971,10 +988,13 @@ export class ScraperService implements OnModuleInit {
         .maybeSingle();
 
       const cached = existing?.metadata as Record<string, any> | null;
+      const cachedDescription =
+        typeof existing?.description === "string" ? existing.description : "";
       if (
         cached &&
         Array.isArray(cached.requirements) &&
-        cached.requirements.length > 0
+        cached.requirements.length > 0 &&
+        cachedDescription.trim().length >= 100
       ) {
         this.logger.log(`  ↳ Cache hit for ${item.apply_url}`);
         return {
@@ -1022,6 +1042,7 @@ export class ScraperService implements OnModuleInit {
         if (proxiedUrl) imageUrl = proxiedUrl;
       }
       const text = this.extractTextFromHTML(html, customContentSelectors);
+      const fallbackDescription = this.createBriefDescriptionFromText(text);
 
       if (directApplyUrl)
         this.logger.log(`    ↳ Direct apply link: ${directApplyUrl}`);
@@ -1047,12 +1068,12 @@ export class ScraperService implements OnModuleInit {
         ...item,
         direct_apply_url: directApplyUrl ?? item.direct_apply_url,
         image_url: imageUrl ?? item.image_url,
-        summary: ai.summary || item.summary,
+        summary: ai.summary || item.summary || fallbackDescription,
         requirements: ai.requirements?.length
           ? ai.requirements
           : (item.requirements ?? []),
         benefits: ai.benefits?.length ? ai.benefits : (item.benefits ?? []),
-        description: ai.description || item.description,
+        description: ai.description || item.description || fallbackDescription,
         deadline: ai.deadline || item.deadline,
         application_process: ai.application_process?.length
           ? ai.application_process
@@ -1319,16 +1340,17 @@ ${text}`;
         const $item = $(el);
         const title = this.cleanText($item.find("title").first().text());
         const href = $item.find("link").first().text().trim();
-        if (!title || title.length < 5 || !href) return;
+        const applyUrl = this.resolveUrl(href, source.url);
+        if (!this.isValidOpportunityCandidate(title, applyUrl, source.url)) return;
 
         const description =
-          this.cleanText($item.find("description").first().text(), 1200) ||
-          this.cleanText($item.find("content\\:encoded").first().text(), 1200);
+          this.cleanHtmlText($item.find("description").first().text(), 1200) ||
+          this.cleanHtmlText($item.find("content\\:encoded").first().text(), 1200);
         const itemText = $item.text();
 
         items.push({
           title,
-          apply_url: this.resolveUrl(href, source.url),
+          apply_url: applyUrl,
           description,
           amount: this.extractAmount(itemText),
           deadline: this.extractDeadline(itemText),
@@ -1358,7 +1380,6 @@ ${text}`;
         const title =
           $card.find(titleSelector).first().text().trim() ||
           $card.find("a").first().text().trim();
-        if (!title || title.length < 5) return;
 
         const linkSelector =
           source.config?.link_selector ||
@@ -1366,12 +1387,13 @@ ${text}`;
           "a.elementor-post__thumbnail__link, .elementor-post__title a, a[href]";
         const href = $card.find(linkSelector).first().attr("href") ?? "";
         const applyUrl = this.resolveUrl(href, source.url);
+        if (!this.isValidOpportunityCandidate(title, applyUrl, source.url)) return;
         const cardText = $card.text();
 
         items.push({
           title: this.cleanText(title),
           apply_url: applyUrl,
-          description: this.cleanText($card.find("p").first().text(), 1200),
+          description: this.extractCardDescription($card, title),
           amount: this.extractAmount(cardText),
           deadline: this.extractDeadline(cardText),
           location: this.extractLocation(cardText),
@@ -1387,11 +1409,12 @@ ${text}`;
       ).each((_, el) => {
         const $el = $(el);
         const title = $el.text().trim();
-        if (!title || title.length < 5) return;
         const href = $el.attr("href") ?? "";
+        const applyUrl = this.resolveUrl(href, source.url);
+        if (!this.isValidOpportunityCandidate(title, applyUrl, source.url)) return;
         items.push({
           title: this.cleanText(title),
-          apply_url: this.resolveUrl(href, source.url),
+          apply_url: applyUrl,
           source: source.name,
           source_url: source.url,
           source_id: source.id,
@@ -1713,6 +1736,74 @@ ${text}`;
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
+
+  private isValidOpportunityCandidate(
+    rawTitle: string | null | undefined,
+    rawUrl: string | null | undefined,
+    sourceUrl: string,
+  ): boolean {
+    const title = this.cleanText(rawTitle ?? "", 220);
+    if (title.length < 8) return false;
+    if (GENERIC_LINK_TITLE_RE.test(title)) return false;
+    if (ROUNDUP_TITLE_RE.test(title)) return false;
+    if (/\b(no description available|uncategorized|archives?)\b/i.test(title)) {
+      return false;
+    }
+
+    const url = rawUrl ?? "";
+    if (!url.startsWith("http")) return false;
+
+    try {
+      const parsedUrl = new URL(url);
+      const parsedSource = new URL(sourceUrl);
+      const normalizedPath = parsedUrl.pathname.replace(/\/+$/, "");
+      const sourcePath = parsedSource.pathname.replace(/\/+$/, "");
+
+      if (parsedUrl.hostname === parsedSource.hostname && normalizedPath === sourcePath) {
+        return false;
+      }
+
+      if (NON_OPPORTUNITY_URL_RE.test(parsedUrl.pathname)) return false;
+    } catch {
+      return false;
+    }
+
+    return true;
+  }
+
+  private extractCardDescription(card: any, title: string): string {
+    const directDescription =
+      card.find("p, .entry-summary, .excerpt, .post-excerpt, .elementor-post__excerpt")
+        .first()
+        .text();
+    if (directDescription) return this.cleanText(directDescription, 1200);
+
+    const cleanedTitle = this.cleanText(title, 220);
+    const text = card
+      .text()
+      .replace(cleanedTitle, "")
+      .replace(GENERIC_LINK_TITLE_RE, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    return this.cleanText(text, 1200);
+  }
+
+  private cleanHtmlText(text: string, maxChars = 500): string {
+    if (!text) return "";
+    const withoutTags = /<[^>]+>/.test(text)
+      ? cheerio.load(`<body>${text}</body>`)("body").text()
+      : text;
+    return this.cleanText(withoutTags, maxChars);
+  }
+
+  private createBriefDescriptionFromText(text: string): string | undefined {
+    const cleaned = this.cleanText(text, 900);
+    if (cleaned.length < 80) return undefined;
+
+    const sentenceMatch = cleaned.match(/^(.{120,420}?[.!?])\s/);
+    return sentenceMatch?.[1]?.trim() || cleaned.substring(0, 360).trim();
+  }
 
   private parseAmount(raw: number | string | null | undefined): {
     stipend: number | null;
