@@ -90,6 +90,7 @@ const ADMIN_OPPORTUNITY_COLUMNS = [
   "application_url",
   "source_url",
   "canonical_url",
+  "image_url",
   "tags",
   "close_date",
   "source",

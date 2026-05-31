@@ -181,10 +181,72 @@ export default function Opportunities() {
     }
 
     async function refineWithAI(opps: any[]) {
-        setLoadingStatus({ message: 'Analyzing with AI...', progress: 50, source: loadingStatus.source || '', phase: 'refine' });
-        // For now, just save - AI refinement can be added later
-        alert('AI refinement coming soon! Saving without AI for now.');
-        saveOpportunities(opps);
+        if (!opps.length) {
+            alert('No opportunities to refine.');
+            return;
+        }
+
+        setLoadingStatus({
+            message: 'Analyzing with AI...',
+            progress: 10,
+            source: loadingStatus.source || '',
+            phase: 'refine',
+        });
+
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token || ''}`,
+        };
+
+        const improved: any[] = [];
+        const errors: string[] = [];
+
+        for (let i = 0; i < opps.length; i += 1) {
+            const opp = opps[i];
+            const currentProgress = Math.min(10 + Math.round(((i + 1) / opps.length) * 70), 80);
+            setLoadingStatus({
+                message: `Analyzing with AI (${i + 1}/${opps.length})...`,
+                progress: currentProgress,
+                source: loadingStatus.source || '',
+                phase: 'refine',
+            });
+
+            try {
+                const response = await fetch(`${API_URL}/api/scraper/enhance-preview`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(opp),
+                });
+
+                const result = await response.json().catch(() => null);
+                if (!response.ok || !result?.success) {
+                    errors.push(result?.error || `Failed to refine ${opp.title || 'an opportunity'}`);
+                    improved.push(opp);
+                    continue;
+                }
+
+                improved.push(result.opportunity || opp);
+            } catch (error: any) {
+                errors.push(error.message || 'Unknown refinement error');
+                improved.push(opp);
+            }
+        }
+
+        setLoadedResults(improved);
+        setLoadingStatus({
+            message:
+                errors.length
+                    ? `Refine complete with ${errors.length} fallback items`
+                    : 'Refine complete',
+            progress: 100,
+            source: loadingStatus.source || '',
+            phase: 'refine',
+        });
+
+        if (errors.length) {
+            alert(`Refine finished with ${errors.length} issues. Results were kept for those items.`);
+        }
     }
 
     // Filters
