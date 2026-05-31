@@ -46,6 +46,20 @@ export class ScraperController {
     }
   }
 
+  @Post("enhance-preview")
+  @Throttle({ default: { limit: 120, ttl: 3600000 } })
+  async enhancePreview(@Body() body: Record<string, any>) {
+    try {
+      return await this.scraperService.enhancePreviewOpportunity(body || {});
+    } catch (error: any) {
+      this.logger.error(`Enhance preview failed: ${error.message}`);
+      return {
+        success: false,
+        error: error.message || "Could not improve opportunity",
+      };
+    }
+  }
+
   @Get("engine-status")
   async getEngineStatus() {
     try {

@@ -385,6 +385,88 @@ export class ScraperService implements OnModuleInit {
     return { success: true };
   }
 
+  async enhancePreviewOpportunity(input: Record<string, any>) {
+    const sourceUrl =
+      input.source_url || input.sourceUrl || input.source || input.apply_url || "";
+    const applyUrl =
+      input.apply_url ||
+      input.applyUrl ||
+      input.application_url ||
+      input.applicationUrl ||
+      sourceUrl;
+    const item: RawItem = {
+      title: this.cleanText(input.title || "Untitled Opportunity", 240),
+      apply_url: applyUrl,
+      direct_apply_url: input.direct_apply_url || input.directApplyUrl || null,
+      image_url: input.image_url || input.imageUrl || null,
+      description: input.description || input.summary || "",
+      amount: input.amount ?? null,
+      deadline: input.deadline || input.close_date || null,
+      location: input.location || input.target_region || "Worldwide",
+      requirements: input.requirements || input.metadata?.requirements || [],
+      benefits: input.benefits || input.metadata?.benefits || [],
+      application_process:
+        input.application_process || input.metadata?.application_process || [],
+      eligibility: input.eligibility || input.metadata?.eligibility || {},
+      funding_type: input.funding_type || input.fundingType || null,
+      target_region: input.target_region || input.targetRegion || null,
+      source: input.source || input.organization || "Edutu Engine",
+      source_url: sourceUrl || applyUrl,
+      source_id: input.source_id,
+    };
+
+    const enriched = await this.enrichItem(item);
+    const quality = this.evaluateOpportunityQuality(enriched);
+    const classification = classifyOpportunity(
+      enriched as unknown as Record<string, unknown>,
+    );
+
+    return {
+      success: true,
+      opportunity: {
+        ...input,
+        title: enriched.title,
+        summary: enriched.summary,
+        description: enriched.description,
+        deadline: enriched.deadline,
+        location: enriched.location,
+        applyUrl: enriched.direct_apply_url || enriched.apply_url,
+        apply_url: enriched.direct_apply_url || enriched.apply_url,
+        sourceUrl: enriched.apply_url,
+        source_url: enriched.source_url,
+        imageUrl: enriched.image_url,
+        image_url: enriched.image_url,
+        requirements: enriched.requirements ?? [],
+        benefits: enriched.benefits ?? [],
+        application_process: enriched.application_process ?? [],
+        eligibility: enriched.eligibility ?? {},
+        funding_type: enriched.funding_type ?? null,
+        target_region: enriched.target_region ?? null,
+        category: classification.canonicalCategory,
+        canonical_category: classification.canonicalCategory,
+        metadata: {
+          ...(input.metadata || {}),
+          ai_improved_at: new Date().toISOString(),
+          extraction_quality_score: quality.score,
+          extraction_missing_fields: quality.missingFields,
+          needs_review: quality.score < MIN_PUBLISH_QUALITY_SCORE,
+          requirements: enriched.requirements ?? [],
+          benefits: enriched.benefits ?? [],
+          application_process: enriched.application_process ?? [],
+        },
+      },
+      completeness: {
+        status:
+          quality.score >= MIN_PUBLISH_QUALITY_SCORE
+            ? "complete"
+            : "not_complete",
+        score: quality.score,
+        missingFields: quality.missingFields,
+        checkedAt: new Date().toISOString(),
+      },
+    };
+  }
+
   // ─── Public: run scraper ──────────────────────────────────────────────────
 
   async runScraper(options: ScrapeOptions): Promise<ScrapeResult> {

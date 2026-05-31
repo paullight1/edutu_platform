@@ -15,7 +15,10 @@ import {
 } from "./dto/personalization.dto";
 import { AiService } from "../ai";
 import { OpportunityShareCardService } from "./opportunity-share-card.service";
-import { categorizeOpportunity } from "./opportunity-categorization";
+import {
+  categorizeOpportunity,
+  classifyOpportunity,
+} from "./opportunity-categorization";
 // Note: Apify scraper disabled - using crawl4ai instead
 // import {
 //     runEdutuScraper,
@@ -337,6 +340,88 @@ export class OpportunitiesService {
     );
   }
 
+  async reclassifyExistingOpportunities(options: {
+    limit?: number;
+    dryRun?: boolean;
+  }) {
+    if (!this.supabase) {
+      throw new Error("Supabase is not configured");
+    }
+
+    const limit = Math.min(Math.max(Number(options.limit) || 200, 1), 1000);
+    const dryRun = Boolean(options.dryRun);
+    const { data, error } = await this.supabase
+      .from("opportunities")
+      .select("*")
+      .order("updated_at", { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const rows = (data ?? []) as Array<Record<string, any>>;
+    const updates = rows.map((row) => {
+      const input = {
+        ...row,
+        canonical_category: undefined,
+        canonicalCategory: undefined,
+      };
+      const classification = classifyOpportunity(input);
+      const metadata = {
+        ...((row.metadata as Record<string, unknown>) || {}),
+        canonical_category: classification.canonicalCategory,
+        classification_confidence: classification.confidence,
+        classification_reason: classification.reason,
+        classification_source: classification.source,
+        classification_signals: classification.matchedSignals,
+        classification_needs_review: classification.needsReview,
+        classification_updated_at: new Date().toISOString(),
+      };
+
+      return {
+        id: row.id,
+        title: row.title,
+        previousCategory: row.canonical_category ?? row.canonicalCategory,
+        nextCategory: classification.canonicalCategory,
+        confidence: classification.confidence,
+        reason: classification.reason,
+        needsReview: classification.needsReview,
+        metadata,
+      };
+    });
+
+    if (!dryRun) {
+      for (const update of updates) {
+        const { error: updateError } = await this.supabase
+          .from("opportunities")
+          .update({
+            canonical_category: update.nextCategory,
+            metadata: update.metadata,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", update.id);
+
+        if (updateError) {
+          this.logger.warn(
+            `Opportunity reclassification failed for ${update.id}: ${updateError.message}`,
+          );
+        }
+      }
+    }
+
+    return {
+      success: true,
+      dryRun,
+      inspected: rows.length,
+      changed: updates.filter(
+        (item) => item.previousCategory !== item.nextCategory,
+      ).length,
+      needsReview: updates.filter((item) => item.needsReview).length,
+      updates: updates.map(({ metadata, ...item }) => item),
+    };
+  }
+
   async create(dto: CreateOpportunityDto) {
     if (this.supabase) {
       const { data, error } = await this.supabase
@@ -439,6 +524,127 @@ export class OpportunitiesService {
     return this.findOne(id);
   }
 
+  async enhanceOpportunity(id: string) {
+    const opportunity = await this.findOne(id);
+    if (!opportunity) return null;
+
+    const metadata = (opportunity.metadata || {}) as Record<string, any>;
+    const prompt = `You are Edutu's opportunity completion assistant. Improve this saved opportunity using only the facts provided. Do not invent deadlines, countries, funding amounts, eligibility, or application links.
+
+Return ONLY JSON:
+{
+  "summary": "35-55 word concise summary",
+  "description": "4-6 sentence complete description",
+  "requirements": ["requirement"],
+  "benefits": ["benefit"],
+  "application_process": ["step"],
+  "funding_type": "string or null",
+  "target_region": "string or null",
+  "deadline": "YYYY-MM-DD, readable deadline, or null",
+  "tags": ["tag"],
+  "confidence": 0.0
+}
+
+Input:
+Title: ${opportunity.title || ""}
+Summary: ${opportunity.summary || ""}
+Description: ${opportunity.description || ""}
+Category: ${opportunity.category || opportunity.canonical_category || ""}
+Organization: ${opportunity.organization || ""}
+Location: ${opportunity.location || ""}
+Deadline: ${opportunity.close_date || opportunity.deadline || ""}
+Application URL: ${opportunity.application_url || opportunity.apply_url || ""}
+Source URL: ${opportunity.source_url || opportunity.canonical_url || ""}
+Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
+
+    const aiData = await this.aiService.generateJson<Record<string, any>>({
+      feature: "opportunities.enhance",
+      prompt,
+      responseMimeType: "application/json",
+      metadata: { id, title: opportunity.title },
+    });
+
+    const requirements = Array.isArray(aiData?.requirements)
+      ? aiData.requirements.filter(Boolean)
+      : metadata.requirements || [];
+    const benefits = Array.isArray(aiData?.benefits)
+      ? aiData.benefits.filter(Boolean)
+      : metadata.benefits || [];
+    const applicationProcess = Array.isArray(aiData?.application_process)
+      ? aiData.application_process.filter(Boolean)
+      : metadata.application_process || [];
+    const description = aiData?.description || opportunity.description || "";
+    const summary = aiData?.summary || opportunity.summary || "";
+    const qualityScore = this.scoreCanonicalOpportunity({
+      ...opportunity,
+      summary,
+      description,
+      requirements,
+      benefits,
+      deadline: aiData?.deadline || opportunity.close_date || opportunity.deadline,
+    });
+
+    const updatePayload = {
+      summary,
+      description,
+      close_date: aiData?.deadline || opportunity.close_date || undefined,
+      funding_type: aiData?.funding_type || opportunity.funding_type || undefined,
+      target_region: aiData?.target_region || opportunity.target_region || undefined,
+      tags: Array.isArray(aiData?.tags) ? aiData.tags : opportunity.tags,
+      validation_status: qualityScore.score >= 70 ? "complete" : "not_complete",
+      quality_score: qualityScore.score,
+      metadata: {
+        ...metadata,
+        requirements,
+        benefits,
+        application_process: applicationProcess,
+        funding_type: aiData?.funding_type || metadata.funding_type || null,
+        target_region: aiData?.target_region || metadata.target_region || null,
+        ai_improved_at: new Date().toISOString(),
+        ai_improvement_confidence: Number(aiData?.confidence ?? 0),
+        extraction_quality_score: qualityScore.score,
+        extraction_missing_fields: qualityScore.missingFields,
+        needs_review: qualityScore.score < 70,
+      },
+      updated_at: new Date().toISOString(),
+    };
+
+    if (this.supabase) {
+      const { data, error } = await this.supabase
+        .from("opportunities")
+        .update(updatePayload)
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (!error) {
+        return {
+          success: true,
+          opportunity: data,
+          completeness: {
+            status: qualityScore.score >= 70 ? "complete" : "not_complete",
+            score: qualityScore.score,
+            missingFields: qualityScore.missingFields,
+            checkedAt: new Date().toISOString(),
+          },
+        };
+      }
+
+      this.logger.warn(`AI enhancement update failed: ${error.message}`);
+    }
+
+    return {
+      success: false,
+      error: "Could not update opportunity",
+      completeness: {
+        status: qualityScore.score >= 70 ? "complete" : "not_complete",
+        score: qualityScore.score,
+        missingFields: qualityScore.missingFields,
+        checkedAt: new Date().toISOString(),
+      },
+    };
+  }
+
   async remove(id: string) {
     if (this.supabase) {
       const { error } = await this.supabase
@@ -477,6 +683,15 @@ export class OpportunitiesService {
     if (input.targetRegion !== undefined) {
       metadata.target_region = input.targetRegion;
     }
+    const classification = classifyOpportunity(
+      input as Record<string, unknown>,
+    );
+    metadata.canonical_category = classification.canonicalCategory;
+    metadata.classification_confidence = classification.confidence;
+    metadata.classification_reason = classification.reason;
+    metadata.classification_source = classification.source;
+    metadata.classification_signals = classification.matchedSignals;
+    metadata.classification_needs_review = classification.needsReview;
 
     const applicationUrl = input.applyUrl || input.sourceUrl || undefined;
     const now = new Date().toISOString();
@@ -484,7 +699,7 @@ export class OpportunitiesService {
       title: input.title,
       description: input.description,
       category: input.category,
-      canonical_category: categorizeOpportunity(input as Record<string, unknown>),
+      canonical_category: classification.canonicalCategory,
       location: input.targetRegion,
       is_remote: input.isRemote,
       close_date: input.deadline || undefined,
@@ -498,7 +713,7 @@ export class OpportunitiesService {
       status: input.status || defaultStatus,
       last_seen_at: now,
       verification_next_check_at: now,
-      metadata: Object.keys(metadata).length ? metadata : undefined,
+      metadata,
     };
 
     return Object.fromEntries(
@@ -512,6 +727,43 @@ export class OpportunitiesService {
       .replace(/[?#].*$/, "")
       .replace(/\/+$/, "")
       .toLowerCase();
+  }
+
+  private scoreCanonicalOpportunity(input: Record<string, any>): {
+    score: number;
+    missingFields: string[];
+  } {
+    let score = 0;
+    const missingFields: string[] = [];
+
+    if (String(input.title || "").trim().length >= 8) score += 15;
+    else missingFields.push("title");
+
+    if (String(input.summary || "").trim().length >= 50) score += 10;
+    else missingFields.push("summary");
+
+    if (String(input.description || "").trim().length >= 240) score += 25;
+    else missingFields.push("description");
+
+    if (String(input.application_url || input.apply_url || "").startsWith("http")) {
+      score += 15;
+    } else {
+      missingFields.push("application_url");
+    }
+
+    if (Array.isArray(input.requirements) && input.requirements.length > 0) score += 10;
+    else missingFields.push("requirements");
+
+    if (Array.isArray(input.benefits) && input.benefits.length > 0) score += 10;
+    else missingFields.push("benefits");
+
+    if (input.deadline || input.close_date) score += 10;
+    else missingFields.push("deadline");
+
+    if (input.image_url) score += 5;
+    else missingFields.push("image");
+
+    return { score: Math.min(100, score), missingFields };
   }
 
   private parseAdminCursor(cursor: string | undefined) {
@@ -572,7 +824,7 @@ export class OpportunitiesService {
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async handleCronSync() {
     this.logger.log(
-      "Starting scheduled Opportunities Sync via Serper API + Gemini",
+      "Starting scheduled Opportunities Sync via Serper API + DeepSeek",
     );
     await this.syncOpportunities();
   }
@@ -585,7 +837,7 @@ export class OpportunitiesService {
         return;
       }
 
-      const parsedData = await this.extractWithGemini(aiData);
+      const parsedData = await this.extractWithDeepSeek(aiData);
 
       if (parsedData && parsedData.length > 0) {
         const result = await this.bulkImport(parsedData);
@@ -918,7 +1170,7 @@ Output ONLY a JSON object with these fields:
     return response.data.organic;
   }
 
-  private async extractWithGemini(searchResults: any[]) {
+  private async extractWithDeepSeek(searchResults: any[]) {
     const prompt =
       "You are an expert scholarship data extractor. I have obtained the following Google Search results. Extract the opportunities into an array of JSON objects with: title, description, eligibilityCriteria, fundingType, targetRegion, sourceUrl, applyUrl, imageUrl. Output ONLY a valid JSON array. Data: " +
       JSON.stringify(searchResults);
@@ -932,11 +1184,11 @@ Output ONLY a JSON object with these fields:
       });
 
       if (!parsedJson) {
-        this.logger.error("Gemini returned empty response");
+        this.logger.error("DeepSeek returned empty response");
         return [];
       }
 
-      const GeminiOpportunitySchema = z.object({
+      const DeepSeekOpportunitySchema = z.object({
         title: z.string(),
         description: z.string().optional().nullable(),
         eligibilityCriteria: z.string().optional().nullable(),
@@ -947,16 +1199,16 @@ Output ONLY a JSON object with these fields:
         imageUrl: z.string().url().optional().nullable(),
       });
 
-      const GeminiResponseSchema = z.array(GeminiOpportunitySchema);
-      const result = GeminiResponseSchema.safeParse(parsedJson);
+      const DeepSeekResponseSchema = z.array(DeepSeekOpportunitySchema);
+      const result = DeepSeekResponseSchema.safeParse(parsedJson);
       if (!result.success) {
-        this.logger.error("Gemini extraction failed Zod validation");
+        this.logger.error("DeepSeek extraction failed Zod validation");
         return [];
       }
 
       return result.data;
     } catch (err) {
-      this.logger.error("Gemini extraction failed", err);
+      this.logger.error("DeepSeek extraction failed", err);
       return [];
     }
   }
