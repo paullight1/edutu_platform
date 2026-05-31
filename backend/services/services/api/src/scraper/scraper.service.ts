@@ -729,7 +729,19 @@ export class ScraperService implements OnModuleInit {
               );
               break;
             }
-            const basicItems = this.extractItemsFromList(html, source);
+            let basicItems = this.extractItemsFromList(html, source);
+
+            if (basicItems.length === 0) {
+              const feedUrl = this.extractFeedUrlFromHTML(html, pageUrl);
+              if (feedUrl) {
+                this.logger.warn(
+                  `  ↳ No list cards found, trying feed fallback: ${feedUrl}`,
+                );
+                const feedHtml = await this.fetchHTML(feedUrl);
+                basicItems = this.extractItemsFromList(feedHtml, source);
+              }
+            }
+
             urlsDiscovered += basicItems.length;
             await this.recordDiscoveredUrls(source, basicItems);
             const enrichedItems = await this.enrichItems(
@@ -1144,6 +1156,27 @@ export class ScraperService implements OnModuleInit {
       parsed.search = "";
       parsed.hash = "";
       return parsed.toString();
+    } catch {
+      return null;
+    }
+  }
+
+  private extractFeedUrlFromHTML(html: string, baseUrl: string): string | null {
+    const explicitFeedUrl = this.toWordPressFeedUrl(baseUrl);
+    if (explicitFeedUrl) return explicitFeedUrl;
+
+    try {
+      const $ = cheerio.load(html);
+      const href =
+        $('link[type="application/rss+xml"][href*="/category/"]')
+          .first()
+          .attr("href") ||
+        $('link[type="application/rss+xml"]')
+          .filter((_, el) => /category|feed/i.test($(el).attr("title") ?? ""))
+          .first()
+          .attr("href");
+
+      return href ? this.resolveUrl(href, baseUrl) : null;
     } catch {
       return null;
     }
