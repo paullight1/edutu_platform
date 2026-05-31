@@ -932,18 +932,6 @@ export default function ScraperDashboard() {
                         </div>
                     </td>
                     <td style={{ padding: '16px 24px' }}>
-                        <span style={{
-                            padding: '4px 10px',
-                            borderRadius: 6,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            background: source.tier === 1 ? 'rgba(0, 113, 227, 0.1)' : source.tier === 2 ? 'rgba(52, 199, 89, 0.1)' : 'rgba(175, 82, 222, 0.1)',
-                            color: source.tier === 1 ? '#0071e3' : source.tier === 2 ? '#34c759' : '#af52de',
-                        }}>
-                            Tier {source.tier}
-                        </span>
-                    </td>
-                    <td style={{ padding: '16px 24px' }}>
                         <button
                             onClick={(e) => { e.stopPropagation(); toggleSource(source); }}
                             style={{
@@ -1433,7 +1421,6 @@ export default function ScraperDashboard() {
                         <thead>
                             <tr style={{ background: 'var(--bg-tertiary)' }}>
                                 <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Source</th>
-                                <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tier</th>
                                 <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Status</th>
                                 <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Last Scraped</th>
                                 <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Success Rate</th>
@@ -1443,7 +1430,7 @@ export default function ScraperDashboard() {
                         <tbody>
                             {rootSources.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} style={{ padding: '48px 24px', textAlign: 'center' }}>
+                                    <td colSpan={5} style={{ padding: '48px 24px', textAlign: 'center' }}>
                                         <AlertCircle size={32} style={{ color: 'var(--text-tertiary)', margin: '0 auto 12px' }} />
                                         <p style={{ color: 'var(--text-tertiary)', fontSize: 14 }}>
                                             No sources found matching your frequency/filter.
