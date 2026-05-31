@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import {
     Bug,
@@ -187,6 +187,8 @@ export default function ScraperDashboard() {
     const [showResultsModal, setShowResultsModal] = useState(false);
     const [currentStep, setCurrentStep] = useState(0);
     const [scrapingProgress, setScrapingProgress] = useState<{ source: string; status: 'pending' | 'scraping' | 'completed' | 'failed'; progress: number }[]>([]);
+    const [scrapingStartedAt, setScrapingStartedAt] = useState<number | null>(null);
+    const [scrapingElapsedSeconds, setScrapingElapsedSeconds] = useState(0);
     const [selectedOpportunities, setSelectedOpportunities] = useState<Set<number>>(new Set());
     const [notifications, setNotifications] = useState<Notification[]>([]);
 
@@ -203,7 +205,17 @@ export default function ScraperDashboard() {
     const [modalError, setModalError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
-    const abortControllerRef = { current: null as AbortController | null };
+    const abortControllerRef = useRef<AbortController | null>(null);
+
+    useEffect(() => {
+        if (!showLoadingModal || !scrapingStartedAt || modalError || currentStep >= 4) return;
+
+        const interval = window.setInterval(() => {
+            setScrapingElapsedSeconds(Math.max(0, Math.floor((Date.now() - scrapingStartedAt) / 1000)));
+        }, 1000);
+
+        return () => window.clearInterval(interval);
+    }, [showLoadingModal, scrapingStartedAt, modalError, currentStep]);
 
     const getAuthHeaders = async () => {
         let { data: { session } } = await supabase.auth.getSession();
@@ -473,6 +485,8 @@ export default function ScraperDashboard() {
         setScraping(false);
         setShowLoadingModal(false);
         setModalError(null);
+        setScrapingStartedAt(null);
+        setScrapingElapsedSeconds(0);
     }
 
     async function startScrape(sourceId?: number) {
@@ -496,6 +510,8 @@ export default function ScraperDashboard() {
         setModalError(null);
         setShowLoadingModal(true);
         setCurrentStep(1);
+        setScrapingStartedAt(Date.now());
+        setScrapingElapsedSeconds(0);
 
         // Initialize progress tracking
         setScrapingProgress(
@@ -573,6 +589,7 @@ export default function ScraperDashboard() {
 
                 setShowLoadingModal(false);
                 setShowResultsModal(true);
+                setScrapingStartedAt(null);
                 await loadData();
                 await loadRecentOpportunities();
             } else {
@@ -671,6 +688,26 @@ export default function ScraperDashboard() {
         opp.organization?.toLowerCase().includes(opportunityFilter.toLowerCase()) ||
         opp.category?.toLowerCase().includes(opportunityFilter.toLowerCase())
     ) || [];
+
+    const formatElapsed = (seconds: number) => {
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
+    };
+
+    const activeScrapeSources = scrapingProgress.filter(progress => progress.status === 'scraping').length;
+    const completedScrapeSources = scrapingProgress.filter(progress => progress.status === 'completed').length;
+    const failedScrapeSources = scrapingProgress.filter(progress => progress.status === 'failed').length;
+    const totalScrapeSources = scrapingProgress.length;
+    const estimatedProgress = modalError
+        ? 0
+        : currentStep >= 4
+            ? 100
+            : currentStep === 3
+                ? Math.min(96, 78 + Math.floor(scrapingElapsedSeconds / 3))
+                : currentStep === 2
+                    ? Math.min(76, 28 + Math.floor(scrapingElapsedSeconds * 1.6))
+                    : Math.min(24, 8 + Math.floor(scrapingElapsedSeconds * 2));
 
     const toggleOpportunitySelection = (index: number) => {
         const newSelection = new Set(selectedOpportunities);
@@ -2152,6 +2189,51 @@ export default function ScraperDashboard() {
                                 </p>
                             </div>
 
+                            {!modalError && (
+                                <div style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(4, 1fr)',
+                                    gap: 10,
+                                    marginBottom: 24,
+                                }}>
+                                    {[
+                                        { label: 'Progress', value: `${estimatedProgress}%` },
+                                        { label: 'Elapsed', value: formatElapsed(scrapingElapsedSeconds) },
+                                        { label: 'Sources', value: totalScrapeSources ? `${completedScrapeSources + failedScrapeSources}/${totalScrapeSources}` : '0/0' },
+                                        { label: 'Pages', value: `${maxPages} max` },
+                                    ].map((item) => (
+                                        <div
+                                            key={item.label}
+                                            style={{
+                                                padding: '12px 10px',
+                                                borderRadius: 12,
+                                                background: 'rgba(139, 92, 246, 0.08)',
+                                                border: '1px solid rgba(139, 92, 246, 0.18)',
+                                                textAlign: 'center',
+                                            }}
+                                        >
+                                            <div style={{
+                                                fontSize: 18,
+                                                fontWeight: 700,
+                                                color: item.label === 'Progress' ? '#a78bfa' : 'var(--text-primary)',
+                                                lineHeight: 1.1,
+                                            }}>
+                                                {item.value}
+                                            </div>
+                                            <div style={{
+                                                fontSize: 11,
+                                                color: 'var(--text-tertiary)',
+                                                marginTop: 5,
+                                                textTransform: 'uppercase',
+                                                letterSpacing: 0.5,
+                                            }}>
+                                                {item.label}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
                             {/* Error Panel */}
                             {modalError && (
                                 <div style={{
@@ -2225,6 +2307,17 @@ export default function ScraperDashboard() {
                                                     </div>
                                                     {isActive && step === 2 && scrapingProgress.length > 0 && (
                                                         <div style={{ marginTop: 8 }}>
+                                                            <div style={{
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'space-between',
+                                                                marginBottom: 8,
+                                                                fontSize: 12,
+                                                                color: 'var(--text-tertiary)',
+                                                            }}>
+                                                                <span>{activeScrapeSources || totalScrapeSources} active source{(activeScrapeSources || totalScrapeSources) === 1 ? '' : 's'}</span>
+                                                                <span>{estimatedProgress}% • {formatElapsed(scrapingElapsedSeconds)}</span>
+                                                            </div>
                                                             {scrapingProgress.map((progress, idx) => (
                                                                 <div key={idx} style={{
                                                                     display: 'flex',
@@ -2240,7 +2333,9 @@ export default function ScraperDashboard() {
                                                                     {progress.status === 'failed' && <AlertCircle size={12} color="#ff3b30" />}
                                                                     <span>{progress.source}</span>
                                                                     <span style={{ marginLeft: 'auto' }}>
+                                                                        {progress.status === 'scraping' && `${estimatedProgress}%`}
                                                                         {progress.status === 'completed' && `${progress.progress}%`}
+                                                                        {progress.status === 'failed' && 'Failed'}
                                                                     </span>
                                                                 </div>
                                                             ))}
@@ -2267,7 +2362,7 @@ export default function ScraperDashboard() {
                                 }}>
                                     <div style={{
                                         height: '100%',
-                                        width: `${(currentStep / 4) * 100}%`,
+                                        width: `${estimatedProgress}%`,
                                         background: 'linear-gradient(90deg, #8b5cf6 0%, #a78bfa 100%)',
                                         borderRadius: 2,
                                         transition: 'width 0.5s ease',
