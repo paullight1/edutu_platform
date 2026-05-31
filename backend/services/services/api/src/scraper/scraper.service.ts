@@ -114,6 +114,13 @@ const BROWSER_HEADERS = {
   Accept:
     "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
   "Accept-Language": "en-US,en;q=0.5",
+  "Cache-Control": "no-cache",
+  Pragma: "no-cache",
+  Referer: "https://www.google.com/",
+  "Sec-Fetch-Dest": "document",
+  "Sec-Fetch-Mode": "navigate",
+  "Sec-Fetch-Site": "none",
+  "Upgrade-Insecure-Requests": "1",
 };
 
 const DEFAULT_CONTENT_SELECTORS =
@@ -712,7 +719,7 @@ export class ScraperService implements OnModuleInit {
           this.logger.log(`  → Fetching page ${page}: ${pageUrl}`);
 
           try {
-            const html = await this.fetchHTML(pageUrl);
+            const html = await this.fetchListHTML(pageUrl);
             if (
               page > 1 &&
               !this.hasNextPage(html, page, source.config?.next_page_selector)
@@ -1111,6 +1118,37 @@ export class ScraperService implements OnModuleInit {
   private fetchHTML(url: string): Promise<string> {
     return this.fetchWithBackoff(url, 30_000);
   }
+
+  private async fetchListHTML(url: string): Promise<string> {
+    try {
+      return await this.fetchHTML(url);
+    } catch (error: any) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes("HTTP 403")) throw error;
+
+      const feedUrl = this.toWordPressFeedUrl(url);
+      if (!feedUrl) throw error;
+
+      this.logger.warn(`  ↳ HTML blocked (403), using feed fallback: ${feedUrl}`);
+      return this.fetchHTML(feedUrl);
+    }
+  }
+
+  private toWordPressFeedUrl(url: string): string | null {
+    try {
+      const parsed = new URL(url);
+      const pathname = parsed.pathname.replace(/\/+$/, "");
+      if (!pathname.includes("/category/")) return null;
+
+      parsed.pathname = `${pathname}/feed/`;
+      parsed.search = "";
+      parsed.hash = "";
+      return parsed.toString();
+    } catch {
+      return null;
+    }
+  }
+
   private fetchDeepHTML(url: string): Promise<string> {
     return this.fetchWithBackoff(url, 15_000);
   }
@@ -1239,8 +1277,37 @@ ${text}`;
   // ─── List Extraction ─────────────────────────────────────────────────────
 
   private extractItemsFromList(html: string, source: ScrapeSource): RawItem[] {
-    const $ = cheerio.load(html);
+    const isFeed = /^\s*(?:<\?xml|<rss|<feed)/i.test(html);
+    const $ = cheerio.load(html, { xmlMode: isFeed });
     const items: RawItem[] = [];
+
+    if (isFeed) {
+      $("item").each((_, el) => {
+        const $item = $(el);
+        const title = this.cleanText($item.find("title").first().text());
+        const href = $item.find("link").first().text().trim();
+        if (!title || title.length < 5 || !href) return;
+
+        const description =
+          this.cleanText($item.find("description").first().text(), 1200) ||
+          this.cleanText($item.find("content\\:encoded").first().text(), 1200);
+        const itemText = $item.text();
+
+        items.push({
+          title,
+          apply_url: this.resolveUrl(href, source.url),
+          description,
+          amount: this.extractAmount(itemText),
+          deadline: this.extractDeadline(itemText),
+          location: this.extractLocation(itemText),
+          source: source.name,
+          source_url: source.url,
+          source_id: source.id,
+        });
+      });
+
+      return items.slice(0, MAX_ITEMS_PER_PAGE);
+    }
 
     const itemSelector =
       source.config?.item_selector ||
