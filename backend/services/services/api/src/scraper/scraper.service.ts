@@ -7,7 +7,7 @@ import { z } from "zod";
 import * as cheerio from "cheerio";
 import { AiService } from "../ai";
 import { OpportunityShareCardService } from "../opportunities/opportunity-share-card.service";
-import { categorizeOpportunity } from "../opportunities/opportunity-categorization";
+import { classifyOpportunity } from "../opportunities/opportunity-categorization";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -68,16 +68,13 @@ const boundedString = (max: number) =>
       .transform((value) => value || undefined),
   );
 
-const GeminiExtractionSchema = z.object({
+const DeepSeekExtractionSchema = z.object({
   summary: boundedString(320),
   description: boundedString(1800),
   requirements: z.array(z.string().trim().min(2)).optional().default([]),
   benefits: z.array(z.string().trim().min(2)).optional().default([]),
   deadline: z.string().nullable().optional(),
-  application_process: z
-    .array(z.string().trim().min(2))
-    .optional()
-    .default([]),
+  application_process: z.array(z.string().trim().min(2)).optional().default([]),
   eligibility: z.record(z.string(), z.unknown()).optional().default({}),
   funding_type: boundedString(120),
   target_region: boundedString(120),
@@ -85,7 +82,7 @@ const GeminiExtractionSchema = z.object({
   notes: z.array(z.string().trim().min(2)).optional().default([]),
 });
 
-type GeminiExtraction = z.infer<typeof GeminiExtractionSchema>;
+type DeepSeekExtraction = z.infer<typeof DeepSeekExtractionSchema>;
 
 interface SourceResult {
   name: string;
@@ -266,9 +263,36 @@ export class ScraperService implements OnModuleInit {
     const scraperRoute = aiConfig?.routes?.find(
       (route: any) => route.feature === "scraper.extract",
     );
+    const deepseekKey = aiConfig?.providerKeys?.find(
+      (key: any) => key.provider === "deepseek" && key.isActive,
+    );
     const geminiKey = aiConfig?.providerKeys?.find(
       (key: any) => key.provider === "gemini" && key.isActive,
     );
+    const hasDeepSeek = Boolean(process.env.DEEPSEEK_API_KEY || deepseekKey);
+    const hasGemini = Boolean(process.env.GEMINI_API_KEY || geminiKey);
+    const selectedProvider =
+      scraperRoute?.provider ||
+      (hasDeepSeek ? "deepseek" : hasGemini ? "gemini" : "deepseek");
+    const selectedModel =
+      scraperRoute?.model ||
+      (selectedProvider === "gemini" ? "gemini-2.0-flash" : "deepseek-chat");
+    let aiSource = "missing";
+    if (hasDeepSeek) {
+      aiSource =
+        deepseekKey && process.env.DEEPSEEK_API_KEY
+          ? "control-plane-and-env"
+          : deepseekKey
+            ? "control-plane"
+            : "env";
+    } else if (hasGemini) {
+      aiSource =
+        geminiKey && process.env.GEMINI_API_KEY
+          ? "gemini-control-plane-and-env"
+          : geminiKey
+            ? "gemini-control-plane"
+            : "gemini-env";
+    }
 
     return {
       success: true,
@@ -276,18 +300,14 @@ export class ScraperService implements OnModuleInit {
         configured: Boolean(this.supabase),
       },
       ai: {
+        deepseekConfigured: Boolean(
+          process.env.DEEPSEEK_API_KEY || deepseekKey,
+        ),
         geminiConfigured: Boolean(process.env.GEMINI_API_KEY || geminiKey),
-        source:
-          geminiKey && process.env.GEMINI_API_KEY
-            ? "control-plane-and-env"
-            : geminiKey
-              ? "control-plane"
-              : process.env.GEMINI_API_KEY
-                ? "env"
-                : "missing",
+        source: aiSource,
         feature: "scraper.extract",
-        provider: scraperRoute?.provider || "gemini",
-        model: scraperRoute?.model || "gemini-2.5-flash",
+        provider: selectedProvider,
+        model: selectedModel,
         enabled: scraperRoute?.isEnabled ?? true,
       },
       scraper: {
@@ -957,9 +977,11 @@ export class ScraperService implements OnModuleInit {
             (existing?.target_region as string | undefined) ??
             cached.target_region ??
             item.target_region,
-          enrichment_confidence:
-            Number(cached.enrichment_confidence ?? item.enrichment_confidence ?? 0),
-          enrichment_notes: cached.enrichment_notes ?? item.enrichment_notes ?? [],
+          enrichment_confidence: Number(
+            cached.enrichment_confidence ?? item.enrichment_confidence ?? 0,
+          ),
+          enrichment_notes:
+            cached.enrichment_notes ?? item.enrichment_notes ?? [],
           description:
             (existing?.description as string | undefined) ?? item.description,
           direct_apply_url: existing?.application_url ?? item.direct_apply_url,
@@ -986,9 +1008,9 @@ export class ScraperService implements OnModuleInit {
         this.logger.log(`    ↳ Direct apply link: ${directApplyUrl}`);
       if (imageUrl) this.logger.log(`    ↳ Image Proxied: ${imageUrl}`);
 
-      const ai = await this.refineWithGemini(text);
+      const ai = await this.refineWithDeepSeek(text);
 
-      // If Gemini returned empty data, and we have retries left, try again with a delay
+      // If DeepSeek returned empty data, and we have retries left, try again with a delay
       if (
         !ai.requirements?.length &&
         !ai.benefits?.length &&
@@ -1118,10 +1140,10 @@ export class ScraperService implements OnModuleInit {
     return text.replace(/\s+/g, " ").trim().substring(0, DEEP_TEXT_MAX_CHARS);
   }
 
-  // ─── Gemini Refinement ────────────────────────────────────────────────────
+  // ─── DeepSeek Refinement ────────────────────────────────────────────────────
 
-  private async refineWithGemini(text: string): Promise<GeminiExtraction> {
-    const fallback: GeminiExtraction = {
+  private async refineWithDeepSeek(text: string): Promise<DeepSeekExtraction> {
+    const fallback: DeepSeekExtraction = {
       summary: undefined,
       description: undefined,
       requirements: [],
@@ -1203,12 +1225,12 @@ ${text}`;
         metadata: { textLength: text.length },
       });
 
-      return GeminiExtractionSchema.parse(parsedJSON || fallback);
+      return DeepSeekExtractionSchema.parse(parsedJSON || fallback);
     } catch (e: any) {
       if (e instanceof z.ZodError) {
-        this.logger.warn(`Gemini validation failed: ${e.message}`);
+        this.logger.warn(`DeepSeek validation failed: ${e.message}`);
       } else {
-        this.logger.warn(`Gemini refinement failed: ${e.message}`);
+        this.logger.warn(`DeepSeek refinement failed: ${e.message}`);
       }
       return fallback;
     }
@@ -1222,7 +1244,8 @@ ${text}`;
 
     const itemSelector =
       source.config?.item_selector ||
-      "article, .scholarship-card, .opportunity-card, .post-item, .listing-item, .program-card, .td-module-image-wrap";
+      source.config?.selectors?.list ||
+      "article, .elementor-post, .scholarship-card, .opportunity-card, .post-item, .listing-item, .program-card, .td-module-image-wrap";
     const cards = $(itemSelector);
 
     if (cards.length > 0) {
@@ -1230,13 +1253,17 @@ ${text}`;
         const $card = $(el);
         const titleSelector =
           source.config?.title_selector ||
-          "h1, h2, h3, h4, .title, .entry-title";
+          source.config?.selectors?.title ||
+          "h1, h2, h3, h4, .title, .entry-title, .elementor-post__title";
         const title =
           $card.find(titleSelector).first().text().trim() ||
           $card.find("a").first().text().trim();
         if (!title || title.length < 5) return;
 
-        const linkSelector = source.config?.link_selector || "a[href]";
+        const linkSelector =
+          source.config?.link_selector ||
+          source.config?.selectors?.link ||
+          "a.elementor-post__thumbnail__link, .elementor-post__title a, a[href]";
         const href = $card.find(linkSelector).first().attr("href") ?? "";
         const applyUrl = this.resolveUrl(href, source.url);
         const cardText = $card.text();
@@ -1457,13 +1484,16 @@ ${text}`;
       item.source,
       closeDate,
     );
+    const classification = classifyOpportunity(
+      item as unknown as Record<string, unknown>,
+    );
 
     return {
       title: item.title || "Untitled Opportunity",
       summary: item.summary || this.createFallbackSummary(item),
       organization: item.source,
       category: this.categorize(item.title, item.description ?? ""),
-      canonical_category: categorizeOpportunity(item as unknown as Record<string, unknown>),
+      canonical_category: classification.canonicalCategory,
       close_date: closeDate,
       location: item.location || "Worldwide",
       eligibility: item.eligibility ?? {},
@@ -1487,8 +1517,13 @@ ${text}`;
         scrape_job_id: jobLogId,
         ai_enriched: (item.enrichment_confidence ?? 0) > 0,
         ai_feature: "scraper.extract",
-        canonical_category: categorizeOpportunity(item as unknown as Record<string, unknown>),
-        ai_model_hint: "gemini-2.5-flash",
+        canonical_category: classification.canonicalCategory,
+        classification_confidence: classification.confidence,
+        classification_reason: classification.reason,
+        classification_source: classification.source,
+        classification_signals: classification.matchedSignals,
+        classification_needs_review: classification.needsReview,
+        ai_model_hint: "deepseek-chat",
         enrichment_confidence: item.enrichment_confidence ?? 0,
         enrichment_notes: item.enrichment_notes ?? [],
         extraction_quality_score: quality.score,
