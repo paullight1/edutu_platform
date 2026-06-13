@@ -16,6 +16,10 @@ async function bootstrap() {
     "http://127.0.0.1:5173",
     "http://localhost:5174",
     "http://127.0.0.1:5174",
+    "http://localhost:5175",
+    "http://127.0.0.1:5175",
+    "http://localhost:5176",
+    "http://127.0.0.1:5176",
     "http://localhost:8081",
     "http://127.0.0.1:8081",
     process.env.ADMIN_URL,
@@ -40,4 +44,4 @@ async function bootstrap() {
   await app.listen(port);
   console.log(`API server running on http://localhost:${port}`);
 }
-bootstrap();
+void bootstrap();

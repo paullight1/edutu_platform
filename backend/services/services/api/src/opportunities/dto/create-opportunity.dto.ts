@@ -2,8 +2,11 @@ import { z } from "zod";
 
 export const CreateOpportunitySchema = z.object({
   title: z.string().min(1),
+  summary: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
   category: z.string().optional().nullable(),
+  organization: z.string().optional().nullable(),
+  location: z.string().optional().nullable(),
   type: z.string().optional().default("scholarship"),
   eligibilityCriteria: z.string().optional().nullable(),
   fundingType: z.string().optional().nullable(),
@@ -12,6 +15,8 @@ export const CreateOpportunitySchema = z.object({
   sourceUrl: z.string().optional().nullable(),
   applyUrl: z.string().optional().nullable(),
   imageUrl: z.string().optional().nullable(),
+  eligibility: z.record(z.string(), z.unknown()).optional(),
+  isFeatured: z.boolean().optional().default(false),
   isRemote: z.boolean().optional().default(true),
   status: z.string().optional().default("pending"),
 });

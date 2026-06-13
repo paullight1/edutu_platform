@@ -25,8 +25,8 @@ create index if not exists idx_ai_provider_keys_active
 create table if not exists public.ai_routes (
   id uuid primary key default gen_random_uuid(),
   feature text not null unique,
-  provider text not null default 'gemini',
-  model text not null default 'gemini-2.0-flash',
+  provider text not null default 'deepseek',
+  model text not null default 'deepseek-chat',
   provider_key_id uuid references public.ai_provider_keys on delete set null,
   system_prompt text,
   temperature integer not null default 20,
@@ -158,15 +158,15 @@ create policy "Service role reads ai usage logs"
 insert into public.ai_routes (feature, provider, model, temperature, response_mime_type, metadata)
 values
   ('chat.coach', 'openrouter', 'openrouter/auto', 20, null, '{"description":"Main learner chatbot"}'::jsonb),
-  ('chat.transcribe', 'gemini', 'gemini-2.0-flash', 20, null, '{"description":"Voice message transcription"}'::jsonb),
-  ('scraper.extract', 'gemini', 'gemini-2.5-flash', 5, 'application/json', '{"description":"Scholarship page extraction"}'::jsonb),
-  ('opportunities.enhance', 'gemini', 'gemini-1.5-flash', 20, 'application/json', '{"description":"Opportunity enrichment"}'::jsonb),
-  ('opportunities.extract', 'gemini', 'gemini-1.5-flash', 20, 'application/json', '{"description":"Search result extraction"}'::jsonb),
-  ('opportunities.rerank', 'gemini', 'gemini-2.0-flash', 20, 'application/json', '{"description":"Personalized opportunity reranking"}'::jsonb),
-  ('cv.draft', 'gemini', 'gemini-2.0-flash', 20, 'application/json', '{"description":"CV draft generation"}'::jsonb),
-  ('cv.tailor', 'gemini', 'gemini-2.0-flash', 20, 'application/json', '{"description":"CV tailoring"}'::jsonb),
-  ('roadmaps.questions', 'gemini', 'gemini-2.0-flash', 30, 'application/json', '{"description":"Roadmap intake questions"}'::jsonb),
-  ('roadmaps.intent_tags', 'gemini', 'gemini-2.0-flash', 20, 'application/json', '{"description":"Roadmap tagging and summary"}'::jsonb),
-  ('roadmaps.match', 'gemini', 'gemini-2.0-flash', 20, 'application/json', '{"description":"Roadmap intent matching"}'::jsonb),
-  ('quiz.generate', 'gemini', 'gemini-1.5-flash', 20, 'application/json', '{"description":"Quiz generation"}'::jsonb)
+  ('chat.transcribe', 'deepseek', 'deepseek-chat', 20, null, '{"description":"AI text response and ranking"}'::jsonb),
+  ('scraper.extract', 'deepseek', 'deepseek-chat', 5, 'application/json', '{"description":"Scholarship page extraction"}'::jsonb),
+  ('opportunities.enhance', 'deepseek', 'deepseek-chat', 20, 'application/json', '{"description":"Opportunity enrichment"}'::jsonb),
+  ('opportunities.extract', 'deepseek', 'deepseek-chat', 20, 'application/json', '{"description":"Search result extraction"}'::jsonb),
+  ('opportunities.rerank', 'deepseek', 'deepseek-chat', 20, 'application/json', '{"description":"Personalized opportunity reranking"}'::jsonb),
+  ('cv.draft', 'deepseek', 'deepseek-chat', 20, 'application/json', '{"description":"CV draft generation"}'::jsonb),
+  ('cv.tailor', 'deepseek', 'deepseek-chat', 20, 'application/json', '{"description":"CV tailoring"}'::jsonb),
+  ('roadmaps.questions', 'deepseek', 'deepseek-chat', 30, 'application/json', '{"description":"Roadmap intake questions"}'::jsonb),
+  ('roadmaps.intent_tags', 'deepseek', 'deepseek-chat', 20, 'application/json', '{"description":"Roadmap tagging and summary"}'::jsonb),
+  ('roadmaps.match', 'deepseek', 'deepseek-chat', 20, 'application/json', '{"description":"Roadmap intent matching"}'::jsonb),
+  ('quiz.generate', 'deepseek', 'deepseek-chat', 20, 'application/json', '{"description":"Quiz generation"}'::jsonb)
 on conflict (feature) do nothing;

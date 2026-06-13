@@ -603,7 +603,7 @@ POST /api/analytics/download
 ```env
 # apps/landing/.env
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxx
-VITE_API_URL=http://localhost:3001
+VITE_API_URL=https://edutu-api.onrender.com
 VITE_WEB_APP_URL=http://localhost:5173
 VITE_MOBILE_APP_SCHEME=edutu
 VITE_ANDROID_STORE_URL=https://play.google.com/store/apps/details?id=com.edutu.app

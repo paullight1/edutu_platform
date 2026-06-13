@@ -2,6 +2,14 @@ import { supabase } from './supabaseClient';
 import type { AppUser } from '../types/user';
 import type { OnboardingState } from '../types/onboarding';
 
+const POST_AUTH_REDIRECT_KEY = 'edutu_post_auth_from';
+
+export interface AuthRedirectSource {
+  pathname?: string | null;
+  search?: string | null;
+  hash?: string | null;
+}
+
 type ClerkLikeUser = {
   id: string;
   fullName?: string | null;
@@ -77,6 +85,74 @@ function splitFullName(fullName: string) {
   const firstName = parts.shift();
   const lastName = parts.length > 0 ? parts.join(' ') : undefined;
   return { firstName, lastName };
+}
+
+function normalizeRelativePath(path: string | null | undefined, fallback = '/app/home'): string {
+  const trimmed = typeof path === 'string' ? path.trim() : '';
+
+  if (!trimmed || !trimmed.startsWith('/')) {
+    return fallback;
+  }
+
+  if (trimmed.startsWith('/auth')) {
+    return fallback;
+  }
+
+  return trimmed;
+}
+
+export function resolvePostAuthRedirectPath(
+  source?: AuthRedirectSource | null,
+  fallback = '/app/home',
+): string {
+  const pathname = typeof source?.pathname === 'string' ? source.pathname.trim() : '';
+
+  if (!pathname || !pathname.startsWith('/')) {
+    return fallback;
+  }
+
+  if (pathname.startsWith('/auth')) {
+    return fallback;
+  }
+
+  const search = typeof source?.search === 'string' ? source.search : '';
+  const hash = typeof source?.hash === 'string' ? source.hash : '';
+  const rawPath = `${pathname}${search}${hash}`;
+  const shareMatch = rawPath.match(/^\/share\/opportunity\/([^/?#]+)/);
+
+  if (shareMatch?.[1]) {
+    return `/app/opportunity/${shareMatch[1]}`;
+  }
+
+  return normalizeRelativePath(rawPath, fallback);
+}
+
+export function rememberPostAuthRedirect(source?: AuthRedirectSource | null): string | null {
+  const target = resolvePostAuthRedirectPath(source, '');
+
+  if (!target) {
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem(POST_AUTH_REDIRECT_KEY);
+    }
+    return null;
+  }
+
+  if (typeof window !== 'undefined') {
+    window.sessionStorage.setItem(POST_AUTH_REDIRECT_KEY, target);
+  }
+
+  return target;
+}
+
+export function consumePostAuthRedirect(fallback = '/app/home'): string {
+  if (typeof window === 'undefined') {
+    return fallback;
+  }
+
+  const stored = window.sessionStorage.getItem(POST_AUTH_REDIRECT_KEY);
+  window.sessionStorage.removeItem(POST_AUTH_REDIRECT_KEY);
+
+  return normalizeRelativePath(stored, fallback);
 }
 
 function appUserFromClerkUser(user: ClerkLikeUser): AppUser {

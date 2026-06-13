@@ -69,9 +69,9 @@ Important scraper/AI migrations:
 Point clients to the deployed API:
 
 ```bash
-VITE_API_URL=https://api.yourdomain.com
-VITE_BACKEND_URL=https://api.yourdomain.com
-EXPO_PUBLIC_API_URL=https://api.yourdomain.com
+VITE_API_URL=https://edutu-api.onrender.com
+VITE_BACKEND_URL=https://edutu-api.onrender.com
+EXPO_PUBLIC_API_URL=https://edutu-api.onrender.com
 ```
 
 ## Launch Checklist

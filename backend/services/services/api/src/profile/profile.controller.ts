@@ -75,4 +75,3 @@ export class ProfileController {
     return this.notificationsService.savePreferences(userId, body);
   }
 }
-

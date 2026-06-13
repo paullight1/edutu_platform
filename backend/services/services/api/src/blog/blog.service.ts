@@ -1,22 +1,89 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { eq, desc, asc, like, or, and, sql } from 'drizzle-orm';
-import { db } from '../db';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import { randomUUID } from "crypto";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { eq, desc, asc, like, and, sql, type SQL } from "drizzle-orm";
+import { db } from "../db";
 import {
   blogPosts,
   blogComments,
   type BlogPost,
   type BlogComment,
-} from '../db/schema';
+} from "../db/schema";
 import {
   CreateBlogPostDto,
   UpdateBlogPostDto,
   CreateCommentDto,
-} from './blog.dto';
+} from "./blog.dto";
+
+const BLOG_IMAGES_BUCKET = process.env.BLOG_IMAGES_BUCKET || "blog-images";
+
+interface BlogUploadFile {
+  buffer: Buffer;
+  mimetype: string;
+  originalname?: string;
+}
 
 @Injectable()
 export class BlogService {
+  private readonly supabase: SupabaseClient | null;
+
+  constructor() {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    this.supabase =
+      url && key
+        ? createClient(url, key, { auth: { persistSession: false } })
+        : null;
+  }
+
+  async uploadImage(
+    file: BlogUploadFile,
+  ): Promise<{ url: string; path: string }> {
+    if (!file) {
+      throw new BadRequestException("Image file is required");
+    }
+
+    if (!this.supabase) {
+      throw new BadRequestException("Image uploads are not configured");
+    }
+
+    if (!file.mimetype?.startsWith("image/")) {
+      throw new BadRequestException("Only image uploads are supported");
+    }
+
+    await this.ensureBucket();
+
+    const extension = this.extensionFromMime(file.mimetype, file.originalname);
+    const path = `${randomUUID()}.${extension}`;
+    const { error } = await this.supabase.storage
+      .from(BLOG_IMAGES_BUCKET)
+      .upload(path, file.buffer, {
+        contentType: file.mimetype,
+        upsert: false,
+        cacheControl: "31536000",
+      });
+
+    if (error) {
+      throw error;
+    }
+
+    const { data } = this.supabase.storage
+      .from(BLOG_IMAGES_BUCKET)
+      .getPublicUrl(path);
+
+    return {
+      url: data.publicUrl,
+      path,
+    };
+  }
+
   async findAll(params?: {
-    status?: 'draft' | 'published' | 'archived';
+    status?: "draft" | "published" | "archived" | "all";
     category?: string;
     tag?: string;
     featured?: boolean;
@@ -24,7 +91,7 @@ export class BlogService {
     offset?: number;
   }): Promise<BlogPost[]> {
     const {
-      status = 'published',
+      status = "published",
       category,
       tag,
       featured,
@@ -32,7 +99,11 @@ export class BlogService {
       offset = 0,
     } = params || {};
 
-    const conditions = [eq(blogPosts.status, status)];
+    const conditions: SQL[] = [];
+
+    if (status && status !== "all") {
+      conditions.push(eq(blogPosts.status, status));
+    }
 
     if (category) {
       conditions.push(eq(blogPosts.category, category));
@@ -46,15 +117,23 @@ export class BlogService {
       conditions.push(eq(blogPosts.featured, true));
     }
 
-    const posts = await db
-      .select()
-      .from(blogPosts)
-      .where(and(...conditions))
-      .orderBy(desc(blogPosts.publishedAt))
-      .limit(limit)
-      .offset(offset);
+    try {
+      const posts = await db
+        .select()
+        .from(blogPosts)
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(
+          status && status !== "all"
+            ? desc(blogPosts.publishedAt)
+            : desc(blogPosts.updatedAt),
+        )
+        .limit(limit)
+        .offset(offset);
 
-    return posts;
+      return posts;
+    } catch {
+      return [];
+    }
   }
 
   async findOne(id: string): Promise<BlogPost> {
@@ -153,7 +232,7 @@ export class BlogService {
       .where(
         and(
           eq(blogComments.postId, postId),
-          eq(blogComments.status, 'approved'),
+          eq(blogComments.status, "approved"),
         ),
       )
       .orderBy(asc(blogComments.createdAt));
@@ -169,7 +248,7 @@ export class BlogService {
 
   async moderateComment(
     commentId: string,
-    status: 'approved' | 'rejected',
+    status: "approved" | "rejected",
   ): Promise<BlogComment> {
     const comments = await db
       .update(blogComments)
@@ -199,17 +278,64 @@ export class BlogService {
   }
 
   async getCategories(): Promise<{ category: string; count: number }[]> {
-    const results = await db
-      .select({
-        category: blogPosts.category,
-        count: sql<number>`count(*)`,
-      })
-      .from(blogPosts)
-      .where(eq(blogPosts.status, 'published'))
-      .groupBy(blogPosts.category);
+    try {
+      const results = await db
+        .select({
+          category: blogPosts.category,
+          count: sql<number>`count(*)`,
+        })
+        .from(blogPosts)
+        .where(eq(blogPosts.status, "published"))
+        .groupBy(blogPosts.category);
 
-    return results
-      .filter((r) => r.category !== null)
-      .map((r) => ({ category: r.category!, count: r.count }));
+      return results
+        .filter((r) => r.category !== null)
+        .map((r) => ({ category: r.category!, count: r.count }));
+    } catch {
+      return [];
+    }
+  }
+
+  private async ensureBucket(): Promise<void> {
+    if (!this.supabase) {
+      return;
+    }
+
+    const { data: buckets, error } = await this.supabase.storage.listBuckets();
+    if (error) throw error;
+
+    if (buckets?.some((bucket) => bucket.name === BLOG_IMAGES_BUCKET)) {
+      return;
+    }
+
+    const { error: createError } = await this.supabase.storage.createBucket(
+      BLOG_IMAGES_BUCKET,
+      {
+        public: true,
+      },
+    );
+
+    if (createError) {
+      throw createError;
+    }
+  }
+
+  private extensionFromMime(mimeType: string, originalName?: string): string {
+    const fallback = originalName?.split(".").pop()?.toLowerCase() || "png";
+
+    switch (mimeType) {
+      case "image/jpeg":
+        return "jpg";
+      case "image/png":
+        return "png";
+      case "image/webp":
+        return "webp";
+      case "image/gif":
+        return "gif";
+      case "image/svg+xml":
+        return "svg";
+      default:
+        return fallback;
+    }
   }
 }

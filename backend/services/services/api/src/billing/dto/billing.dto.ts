@@ -1,4 +1,4 @@
-export type BillingInterval = 'monthly' | 'yearly';
+export type BillingInterval = "monthly" | "yearly";
 
 export interface CreateCheckoutDto {
   plan?: BillingInterval;

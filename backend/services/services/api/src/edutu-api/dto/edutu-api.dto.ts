@@ -23,6 +23,7 @@ const optionalDateString = z
 export const ListOpportunitiesQuerySchema = z.object({
   q: optionalString,
   category: optionalString,
+  canonicalCategory: optionalString,
   type: optionalString,
   fundingType: optionalString,
   targetRegion: optionalString,
@@ -49,6 +50,7 @@ export const ListOpportunitiesQuerySchema = z.object({
 export interface ListOpportunitiesQuery {
   q?: string;
   category?: string;
+  canonicalCategory?: string;
   type?: string;
   fundingType?: string;
   targetRegion?: string;

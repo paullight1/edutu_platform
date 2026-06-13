@@ -6,4 +6,4 @@ export {
   UpdateFlashcardDto,
   ReviewFlashcardDto,
   CreateStudySessionDto,
-} from './flashcard.dto';
+} from "./flashcard.dto";

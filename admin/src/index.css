@@ -448,6 +448,11 @@ a:hover {
   color: var(--warning);
 }
 
+.badge-secondary {
+  background-color: rgba(148, 163, 184, 0.15);
+  color: var(--text-secondary);
+}
+
 .badge-danger {
   background-color: rgba(255, 59, 48, 0.15);
   color: var(--danger);

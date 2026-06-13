@@ -100,6 +100,7 @@ export interface ScrapeResult {
   sourcesScraped?: number;
   totalResults?: number;
   duration?: number;
+  jobId?: string;
   sources?: string[];
   error?: string;
   sourceResults?: SourceResult[];
@@ -286,6 +287,22 @@ export class ScraperService implements OnModuleInit {
     );
     const hasDeepSeek = Boolean(process.env.DEEPSEEK_API_KEY || deepseekKey);
     const hasGemini = Boolean(process.env.GEMINI_API_KEY || geminiKey);
+    let databaseReachable = false;
+    let databaseError: string | undefined;
+
+    if (this.supabase) {
+      const { error } = await this.supabase
+        .from("scraper_config")
+        .select("key", { head: true, count: "exact" })
+        .limit(1);
+
+      if (error) {
+        databaseError = error.message;
+      } else {
+        databaseReachable = true;
+      }
+    }
+
     const selectedProvider =
       scraperRoute?.provider ||
       (hasDeepSeek ? "deepseek" : hasGemini ? "gemini" : "deepseek");
@@ -313,6 +330,8 @@ export class ScraperService implements OnModuleInit {
       success: true,
       database: {
         configured: Boolean(this.supabase),
+        reachable: databaseReachable,
+        error: databaseError,
       },
       ai: {
         deepseekConfigured: Boolean(
@@ -513,6 +532,7 @@ export class ScraperService implements OnModuleInit {
         sourcesScraped: sources.length,
         totalResults: results.length,
         duration,
+        jobId: jobLogId ?? undefined,
         sources: sources.map((s) => s.name),
         sourceResults,
         opportunities: results,
@@ -993,6 +1013,9 @@ export class ScraperService implements OnModuleInit {
       await this.opportunityShareCardService.ensureShareCardsForOpportunities(
         data ?? [],
       );
+      await this.opportunityShareCardService.ensureSharePdfsForOpportunities(
+        data ?? [],
+      );
     }
   }
 
@@ -1086,20 +1109,31 @@ export class ScraperService implements OnModuleInit {
       const cached = existing?.metadata as Record<string, any> | null;
       const cachedDescription =
         typeof existing?.description === "string" ? existing.description : "";
+      const cachedSummary = typeof existing?.summary === "string" ? existing.summary : "";
+      const cachedRequirements = this.normalizeStringList(cached?.requirements);
+      const cachedBenefits = this.normalizeStringList(cached?.benefits);
+      const cachedApplicationProcess = this.normalizeStringList(
+        cached?.application_process,
+      );
       if (
         cached &&
-        Array.isArray(cached.requirements) &&
-        cached.requirements.length > 0 &&
-        cachedDescription.trim().length >= 100
+        cachedSummary.trim().length >= 80 &&
+        cachedDescription.trim().length >= 180 &&
+        cachedRequirements.length > 0 &&
+        cachedBenefits.length > 0 &&
+        cachedApplicationProcess.length > 0
       ) {
         this.logger.log(`  ↳ Cache hit for ${item.apply_url}`);
         return {
           ...item,
-          summary: (existing?.summary as string | undefined) ?? item.summary,
-          requirements: cached.requirements,
-          benefits: cached.benefits ?? [],
-          application_process:
-            cached.application_process ?? item.application_process ?? [],
+          summary: this.normalizeSummary(
+            cachedSummary || item.summary || "",
+            cachedDescription || item.description || "",
+            item.title,
+          ),
+          requirements: cachedRequirements,
+          benefits: cachedBenefits,
+          application_process: cachedApplicationProcess,
           eligibility:
             (existing?.eligibility as Record<string, unknown> | undefined) ??
             cached.eligibility ??
@@ -1165,16 +1199,26 @@ export class ScraperService implements OnModuleInit {
         ...item,
         direct_apply_url: directApplyUrl ?? item.direct_apply_url,
         image_url: imageUrl ?? item.image_url,
-        summary: ai.summary || item.summary || fallbackDescription,
-        requirements: ai.requirements?.length
-          ? ai.requirements
-          : (item.requirements ?? []),
-        benefits: ai.benefits?.length ? ai.benefits : (item.benefits ?? []),
-        description: ai.description || item.description || fallbackDescription,
+        summary: this.normalizeSummary(
+          ai.summary || item.summary || fallbackDescription || "",
+          ai.description || item.description || fallbackDescription || "",
+          item.title,
+        ),
+        requirements: this.normalizeStringList(
+          ai.requirements?.length ? ai.requirements : (item.requirements ?? []),
+        ),
+        benefits: this.normalizeStringList(
+          ai.benefits?.length ? ai.benefits : (item.benefits ?? []),
+        ),
+        description: this.normalizeDescription(
+          ai.description || item.description || fallbackDescription || "",
+        ),
         deadline: ai.deadline || item.deadline,
-        application_process: ai.application_process?.length
-          ? ai.application_process
-          : (item.application_process ?? ["Online application"]),
+        application_process: this.normalizeStringList(
+          ai.application_process?.length
+            ? ai.application_process
+            : (item.application_process ?? ["Online application"]),
+        ),
         eligibility: ai.eligibility ?? item.eligibility,
         funding_type: ai.funding_type ?? item.funding_type,
         target_region: ai.target_region ?? item.target_region,
@@ -1350,7 +1394,7 @@ export class ScraperService implements OnModuleInit {
 
 Return ONLY valid JSON matching this schema exactly:
 {
-  "summary": "one concise 35-55 word user-facing summary",
+  "summary": "one concise 25-45 word user-facing summary",
   "description": "4-6 sentence complete overview covering who it is for, what is funded/offered, location/level, deadline if present, and why it matters",
   "requirements": ["string"],
   "benefits": ["string"],
@@ -1855,10 +1899,19 @@ ${text}`;
   } {
     let score = 0;
     const missingFields: string[] = [];
+    const summary = this.normalizeSummary(
+      this.cleanOptionalText(item.summary, 360) || this.createFallbackSummary(item),
+      item.description || "",
+      item.title,
+    );
     const description = item.description?.trim() || "";
 
     if (item.title?.trim().length >= 8) score += 15;
     else missingFields.push("title");
+
+    if (summary.length >= 120) score += 10;
+    else if (summary.length >= 60) score += 5;
+    else missingFields.push("summary");
 
     if (description.length >= MIN_DESCRIPTION_CHARS) score += 25;
     else if (description.length >= 100) score += 12;
@@ -1894,6 +1947,11 @@ ${text}`;
     const { stipend, currency } = this.parseAmount(item.amount);
     const closeDate = this.parseDate(item.deadline);
     const quality = this.evaluateOpportunityQuality(item);
+    const summary = this.normalizeSummary(
+      item.summary || this.createFallbackSummary(item),
+      item.description || "",
+      item.title,
+    );
 
     const detailUrl = item.apply_url || "";
     const directApplyUrl = item.direct_apply_url || null;
@@ -1912,7 +1970,7 @@ ${text}`;
 
     return {
       title: item.title || "Untitled Opportunity",
-      summary: item.summary || this.createFallbackSummary(item),
+      summary,
       organization: item.source,
       category: this.categorize(item.title, item.description ?? ""),
       canonical_category: classification.canonicalCategory,
@@ -1921,7 +1979,7 @@ ${text}`;
       eligibility: item.eligibility ?? {},
       funding_type: item.funding_type ?? null,
       target_region: item.target_region ?? null,
-      description: item.description || "",
+      description: this.normalizeDescription(item.description || ""),
       application_url,
       apply_url: detailUrl || null,
       source_url: detailUrl || item.source_url || null,
@@ -1981,9 +2039,10 @@ ${text}`;
       item.location ? `for applicants in ${item.location}` : null,
       item.deadline ? `with deadline ${item.deadline}` : null,
     ].filter(Boolean);
-    return parts.length
+    const raw = parts.length
       ? `${parts.join(" ")}.`
       : "Scholarship opportunity details are being verified by Edutu.";
+    return this.normalizeSummary(raw, item.description || "", item.title);
   }
 
   private normalizeUrl(url: string): string {
@@ -1992,6 +2051,71 @@ ${text}`;
       .replace(/[?#].*$/, "")
       .replace(/\/+$/, "")
       .toLowerCase();
+  }
+
+  private cleanOptionalText(
+    value: unknown,
+    maxChars = 500,
+  ): string | undefined {
+    const cleaned = this.cleanText(String(value ?? ""), maxChars);
+    if (!cleaned) return undefined;
+    if (
+      /^(n\/a|na|none|null|unknown(?:\s+.*)?|not available|not provided|not stated|not specified|unspecified|tbd|tba)$/i.test(
+        cleaned,
+      )
+    ) {
+      return undefined;
+    }
+    return cleaned;
+  }
+
+  private normalizeSummary(
+    summary: string | null | undefined,
+    description: string | null | undefined,
+    title: string,
+  ): string {
+    const cleanedSummary = this.cleanOptionalText(summary, 420);
+    const cleanedDescription = this.cleanText(String(description || ""), 1200);
+    const fallback =
+      this.firstSentence(cleanedDescription) ||
+      this.cleanText(title, 220) ||
+      "Scholarship opportunity details are being verified by Edutu.";
+    const candidate = cleanedSummary || fallback;
+    const words = candidate.split(/\s+/).filter(Boolean);
+    const limited = words.length > 45 ? words.slice(0, 45).join(" ") : candidate;
+    return /[.!?]$/.test(limited) ? limited : `${limited}.`;
+  }
+
+  private normalizeDescription(description: string | null | undefined): string {
+    return this.cleanOptionalText(description, 1800) || "";
+  }
+
+  private normalizeStringList(value: unknown): string[] {
+    const queue = Array.isArray(value) ? value : value ? [value] : [];
+    const flattened = queue.flatMap((entry) => {
+      if (Array.isArray(entry)) return entry;
+      if (typeof entry === "string") return [entry];
+      if (entry && typeof entry === "object") {
+        return Object.values(entry as Record<string, unknown>).map((value) =>
+          String(value ?? ""),
+        );
+      }
+      return [String(entry ?? "")];
+    });
+
+    return Array.from(
+      new Set(
+        flattened
+          .map((entry) => this.cleanOptionalText(entry, 220))
+          .filter((entry): entry is string => Boolean(entry)),
+      ),
+    ).slice(0, 12);
+  }
+
+  private firstSentence(text: string): string {
+    if (!text) return "";
+    const sentenceMatch = text.match(/^(.{40,240}?[.!?])(?:\s|$)/);
+    return sentenceMatch?.[1]?.trim() || text.substring(0, 220).trim();
   }
 
   private createContentFingerprint(
@@ -2267,7 +2391,7 @@ ${text}`;
 
   async addSource(body: {
     name: string;
-    url: string;
+    url?: string;
     category?: string;
     tier?: number;
     parent_id?: number;
@@ -2279,7 +2403,7 @@ ${text}`;
       .from("scraping_sources")
       .insert({
         name: body.name,
-        url: body.url,
+        url: body.url ?? "",
         category: body.category ?? "scholarship",
         tier: body.tier ?? 2,
         enabled: true,
@@ -2321,6 +2445,25 @@ ${text}`;
       .order("created_at", { ascending: false })
       .limit(20);
     if (error) return [];
+    return data ?? [];
+  }
+
+  async getJobOpportunities(jobId: string, limit = 200) {
+    if (!this.supabase) return [];
+
+    const cappedLimit = Math.min(Math.max(Number(limit) || 200, 1), 1000);
+    const { data, error } = await this.supabase
+      .from("opportunities")
+      .select("*")
+      .eq("metadata->>scrape_job_id", jobId)
+      .order("created_at", { ascending: false })
+      .limit(cappedLimit);
+
+    if (error) {
+      this.logger.error(`Failed to load job opportunities: ${error.message}`);
+      return [];
+    }
+
     return data ?? [];
   }
 

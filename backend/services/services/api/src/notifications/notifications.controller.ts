@@ -36,10 +36,7 @@ export class NotificationsController {
   }
 
   @Get("summary")
-  summary(
-    @CurrentUser("id") userId: string,
-    @Query("limit") limit?: number,
-  ) {
+  summary(@CurrentUser("id") userId: string, @Query("limit") limit?: number) {
     return this.notificationsService.getSummary(userId, limit);
   }
 

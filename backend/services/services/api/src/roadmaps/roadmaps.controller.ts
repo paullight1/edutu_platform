@@ -8,8 +8,8 @@ import {
   Param,
   Query,
   UseGuards,
-} from '@nestjs/common';
-import { RoadmapsService } from './roadmaps.service';
+} from "@nestjs/common";
+import { RoadmapsService } from "./roadmaps.service";
 import type {
   CreateRoadmapDto,
   UpdateRoadmapDto,
@@ -17,60 +17,60 @@ import type {
   RoadmapFeedbackDto,
   AIAssistDto,
   AdoptRoadmapDto,
-} from './dto/roadmap.dto';
-import { CurrentUser } from '../auth/current-user.decorator';
-import { Public } from '../auth/public.decorator';
-import { AdminGuard } from '../auth/admin.guard';
+} from "./dto/roadmap.dto";
+import { CurrentUser } from "../auth/current-user.decorator";
+import { Public } from "../auth/public.decorator";
+import { AdminGuard } from "../auth/admin.guard";
 
-@Controller('roadmaps')
+@Controller("roadmaps")
 export class RoadmapsController {
   constructor(private readonly roadmapsService: RoadmapsService) {}
 
   @Public()
   @Get()
   findAll(
-    @Query('status') _status?: string,
-    @Query('category') category?: string,
-    @Query('difficulty') difficulty?: string,
-    @Query('search') search?: string,
-    @Query('featured') featured?: string,
-    @Query('limit') limit?: number,
-    @Query('offset') offset?: number,
+    @Query("status") _status?: string,
+    @Query("category") category?: string,
+    @Query("difficulty") difficulty?: string,
+    @Query("search") search?: string,
+    @Query("featured") featured?: string,
+    @Query("limit") limit?: number,
+    @Query("offset") offset?: number,
   ) {
     return this.roadmapsService.findAll({
-      status: 'published',
+      status: "published",
       category,
       difficulty,
       search,
-      featured: featured === 'true',
+      featured: featured === "true",
       limit,
       offset,
     });
   }
 
   @Public()
-  @Get('slug/:slug')
-  findBySlug(@Param('slug') slug: string) {
+  @Get("slug/:slug")
+  findBySlug(@Param("slug") slug: string) {
     return this.roadmapsService.findBySlug(slug);
   }
 
-  @Get('admin/list')
+  @Get("admin/list")
   @UseGuards(AdminGuard)
   findAllForAdmin(
-    @Query('status') status?: string,
-    @Query('category') category?: string,
-    @Query('difficulty') difficulty?: string,
-    @Query('search') search?: string,
-    @Query('featured') featured?: string,
-    @Query('limit') limit?: number,
-    @Query('offset') offset?: number,
+    @Query("status") status?: string,
+    @Query("category") category?: string,
+    @Query("difficulty") difficulty?: string,
+    @Query("search") search?: string,
+    @Query("featured") featured?: string,
+    @Query("limit") limit?: number,
+    @Query("offset") offset?: number,
   ) {
     return this.roadmapsService.findAll({
       status,
       category,
       difficulty,
       search,
-      featured: featured === 'true',
+      featured: featured === "true",
       limit,
       offset,
     });
@@ -80,71 +80,71 @@ export class RoadmapsController {
   @UseGuards(AdminGuard)
   create(
     @Body() dto: CreateRoadmapDto,
-    @CurrentUser('id') userId: string,
+    @CurrentUser("id") userId: string,
     @CurrentUser() user: any,
   ) {
-    return this.roadmapsService.create(dto, userId, user?.firstName || 'Admin');
+    return this.roadmapsService.create(dto, userId, user?.firstName || "Admin");
   }
 
-  @Post('creator')
+  @Post("creator")
   createByCreator(
     @Body() dto: CreateRoadmapDto,
-    @CurrentUser('id') userId: string,
+    @CurrentUser("id") userId: string,
     @CurrentUser() user: any,
   ) {
     return this.roadmapsService.createByCreator(
       dto,
       userId,
-      user?.firstName || 'Edutu Creator',
+      user?.firstName || "Edutu Creator",
     );
   }
 
-  @Put(':id')
+  @Put(":id")
   @UseGuards(AdminGuard)
-  update(@Param('id') id: string, @Body() dto: UpdateRoadmapDto) {
+  update(@Param("id") id: string, @Body() dto: UpdateRoadmapDto) {
     return this.roadmapsService.update(id, dto);
   }
 
-  @Delete(':id')
+  @Delete(":id")
   @UseGuards(AdminGuard)
-  remove(@Param('id') id: string) {
+  remove(@Param("id") id: string) {
     return this.roadmapsService.remove(id);
   }
 
-  @Post('adopt/:roadmapId')
+  @Post("adopt/:roadmapId")
   adopt(
-    @Param('roadmapId') roadmapId: string,
-    @CurrentUser('id') userId: string,
+    @Param("roadmapId") roadmapId: string,
+    @CurrentUser("id") userId: string,
     @Body() dto: AdoptRoadmapDto,
   ) {
     return this.roadmapsService.adopt(userId, roadmapId, dto);
   }
 
-  @Post('enroll/:roadmapId')
+  @Post("enroll/:roadmapId")
   enroll(
-    @Param('roadmapId') roadmapId: string,
-    @CurrentUser('id') userId: string,
+    @Param("roadmapId") roadmapId: string,
+    @CurrentUser("id") userId: string,
   ) {
     return this.roadmapsService.enroll(userId, roadmapId);
   }
 
-  @Get('my-enrollments')
-  getMyEnrollments(@CurrentUser('id') userId: string) {
+  @Get("my-enrollments")
+  getMyEnrollments(@CurrentUser("id") userId: string) {
     return this.roadmapsService.getUserEnrollments(userId);
   }
 
-  @Get('enrollments/:enrollmentId/calendar')
+  @Get("enrollments/:enrollmentId/calendar")
   getEnrollmentCalendar(
-    @Param('enrollmentId') enrollmentId: string,
-    @CurrentUser('id') userId: string,
+    @Param("enrollmentId") enrollmentId: string,
+    @CurrentUser("id") userId: string,
   ) {
     return this.roadmapsService.getEnrollmentCalendar(userId, enrollmentId);
   }
 
-  @Post('progress/:roadmapId')
+  @Post("progress/:roadmapId")
   updateProgress(
-    @Param('roadmapId') roadmapId: string,
-    @CurrentUser('id') userId: string,
+    @Param("roadmapId") roadmapId: string,
+    @CurrentUser("id") userId: string,
     @Body() body: { stepId: string; completed: boolean },
   ) {
     return this.roadmapsService.updateProgress(
@@ -155,40 +155,40 @@ export class RoadmapsController {
     );
   }
 
-  @Post('intent')
-  saveIntent(@CurrentUser('id') userId: string, @Body() dto: RoadmapIntentDto) {
+  @Post("intent")
+  saveIntent(@CurrentUser("id") userId: string, @Body() dto: RoadmapIntentDto) {
     return this.roadmapsService.saveIntent(userId, dto);
   }
 
-  @Get('intent')
-  getIntent(@CurrentUser('id') userId: string) {
+  @Get("intent")
+  getIntent(@CurrentUser("id") userId: string) {
     return this.roadmapsService.getIntent(userId);
   }
 
-  @Get('recommended')
+  @Get("recommended")
   getRecommended(
-    @CurrentUser('id') userId: string,
-    @Query('limit') limit?: number,
+    @CurrentUser("id") userId: string,
+    @Query("limit") limit?: number,
   ) {
     return this.roadmapsService.getRecommendedRoadmaps(userId, limit);
   }
 
-  @Post('feedback')
+  @Post("feedback")
   submitFeedback(
-    @CurrentUser('id') userId: string,
+    @CurrentUser("id") userId: string,
     @Body() dto: RoadmapFeedbackDto,
   ) {
     return this.roadmapsService.submitFeedback(userId, dto);
   }
 
   @Public()
-  @Get('feedback/:roadmapId')
-  getFeedbackSummary(@Param('roadmapId') roadmapId: string) {
+  @Get("feedback/:roadmapId")
+  getFeedbackSummary(@Param("roadmapId") roadmapId: string) {
     return this.roadmapsService.getFeedbackSummary(roadmapId);
   }
 
   @Public()
-  @Post('ai/assist')
+  @Post("ai/assist")
   generateAIMatch(@Body() dto: AIAssistDto) {
     return this.roadmapsService.generateAIMatchQuestions(
       dto.topic,
@@ -196,15 +196,15 @@ export class RoadmapsController {
     );
   }
 
-  @Get('stats')
+  @Get("stats")
   @UseGuards(AdminGuard)
   getStats() {
     return this.roadmapsService.getStats();
   }
 
   @Public()
-  @Get(':id')
-  findOne(@Param('id') id: string) {
+  @Get(":id")
+  findOne(@Param("id") id: string) {
     return this.roadmapsService.findPublishedById(id);
   }
 }

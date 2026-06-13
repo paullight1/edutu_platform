@@ -22,7 +22,9 @@ export const profiles = pgTable("profiles", {
   skills: text("skills").array(), // PostgreSQL array of text
   creditsBalance: integer("credits_balance").default(0), // In-app credits currency
   creatorStatus: text("creator_status").default("none"), // 'none', 'pending', 'approved', 'rejected'
-  creatorMetadata: jsonb("creator_metadata").$type<Record<string, unknown>>().default({}),
+  creatorMetadata: jsonb("creator_metadata")
+    .$type<Record<string, unknown>>()
+    .default({}),
   creatorRejectionReason: text("creator_rejection_reason"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -585,7 +587,7 @@ export const aiProviderKeys = pgTable(
   "ai_provider_keys",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    provider: text("provider").notNull(), // 'gemini', 'openrouter', 'openai', 'groq', etc.
+    provider: text("provider").notNull(), // 'deepseek', 'gemini', 'openrouter', 'openai', 'groq', etc.
     label: text("label").notNull(),
     encryptedKey: text("encrypted_key").notNull(),
     keyPreview: text("key_preview").notNull(),
@@ -605,8 +607,8 @@ export const aiRoutes = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     feature: text("feature").notNull().unique(), // e.g. 'chat.coach', 'cv.tailor', 'scraper.extract'
-    provider: text("provider").notNull().default("gemini"),
-    model: text("model").notNull().default("gemini-2.0-flash"),
+    provider: text("provider").notNull().default("deepseek"),
+    model: text("model").notNull().default("deepseek-chat"),
     providerKeyId: uuid("provider_key_id").references(() => aiProviderKeys.id, {
       onDelete: "set null",
     }),
@@ -943,6 +945,14 @@ export const mobileCampaignEvents = pgTable(
     index("idx_mobile_campaign_events_user_id").on(table.userId),
   ],
 );
+
+export const adminSettings = pgTable("admin_settings", {
+  key: text("key").primaryKey().default("global"),
+  settings: jsonb("settings").$type<Record<string, unknown>>().notNull().default({}),
+  updatedBy: text("updated_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
 
 export type Roadmap = typeof roadmaps.$inferSelect;
 export type NewRoadmap = typeof roadmaps.$inferInsert;

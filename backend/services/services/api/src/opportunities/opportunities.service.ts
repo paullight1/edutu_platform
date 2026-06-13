@@ -4,7 +4,7 @@ import { db } from "../db";
 import { opportunities } from "../db/schema";
 import axios from "axios";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { eq, or, and, sql } from "drizzle-orm";
+import { eq, or, and, sql, lt, isNull, desc } from "drizzle-orm";
 import { z } from "zod";
 import { OpportunityRankingService } from "./opportunity-ranking.service";
 import {
@@ -31,8 +31,11 @@ const CHUNKS_TO_FETCH = 10;
 
 const OpportunityDtoSchema = z.object({
   title: z.string().min(1),
+  summary: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
   category: z.string().optional().nullable(),
+  organization: z.string().optional().nullable(),
+  location: z.string().optional().nullable(),
   type: z.string().optional().default("scholarship"),
   eligibilityCriteria: z.string().optional().nullable(),
   fundingType: z.string().optional().nullable(),
@@ -41,6 +44,8 @@ const OpportunityDtoSchema = z.object({
   sourceUrl: z.string().optional().nullable(),
   applyUrl: z.string().optional().nullable(),
   imageUrl: z.string().optional().nullable(),
+  eligibility: z.record(z.string(), z.unknown()).optional(),
+  isFeatured: z.boolean().optional().default(false),
   isRemote: z.boolean().optional().default(true),
   status: z.string().optional().default("pending"),
   tags: z.array(z.string()).optional(),
@@ -48,16 +53,24 @@ const OpportunityDtoSchema = z.object({
 
 const ProcessedItemSchema = z.object({
   title: z.string(),
+  summary: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
+  organization: z.string().optional().nullable(),
   category: z.string().optional().nullable(),
   type: z.string().optional().default("scholarship"),
   eligibilityCriteria: z.string().optional().nullable(),
   fundingType: z.string().optional().nullable(),
   targetRegion: z.string().optional().nullable(),
+  eligibility: z.record(z.string(), z.unknown()).optional().default({}),
+  requirements: z.array(z.string()).optional().default([]),
+  benefits: z.array(z.string()).optional().default([]),
+  applicationProcess: z.array(z.string()).optional().default([]),
   deadline: z.string().optional().nullable(),
   sourceUrl: z.string().optional().nullable(),
   applyUrl: z.string().optional().nullable(),
   imageUrl: z.string().optional().nullable(),
+  confidence: z.number().optional().default(0),
+  notes: z.array(z.string()).optional().default([]),
   isRemote: z.boolean().optional().default(true),
   status: z.string().optional().default("pending"),
   tags: z.array(z.string()).optional().default([]),
@@ -223,11 +236,28 @@ export class OpportunitiesService {
     };
   }
 
-  async findAdminList(query: AdminOpportunityListQuery) {
-    if (!this.supabase) {
-      throw new Error("Supabase is not configured");
+  async getSharePdf(id: string) {
+    const opportunity = await this.findOne(id);
+    if (!opportunity) {
+      return null;
     }
 
+    const sharePdfResult =
+      await this.opportunityShareCardService.buildSharePdfForOpportunity(
+        opportunity,
+      );
+
+    if (!sharePdfResult?.buffer) {
+      throw new Error("Share PDF unavailable");
+    }
+
+    return {
+      buffer: sharePdfResult.buffer,
+      fileName: this.buildSharePdfFileName(opportunity),
+    };
+  }
+
+  async findAdminList(query: AdminOpportunityListQuery) {
     const limit = Math.min(Math.max(Number(query.limit) || 50, 10), 100);
     const page = Math.max(Number(query.page) || 1, 1);
     const from = (page - 1) * limit;
@@ -241,60 +271,82 @@ export class OpportunitiesService {
     };
     const sort = sortMap[query.sortBy || "newest"] ?? sortMap.newest;
 
-    let request = this.supabase
-      .from("opportunities")
-      .select(ADMIN_OPPORTUNITY_COLUMNS, { count: "planned" })
-      .order(sort.column, { ascending: sort.ascending, nullsFirst: false })
-      .order("id", { ascending: sort.ascending });
+    try {
+      if (!this.supabase) {
+        throw new Error("Supabase is not configured");
+      }
 
-    if (query.status && query.status !== "all") {
-      request = request.eq("status", query.status);
-    }
+      let request = this.supabase
+        .from("opportunities")
+        .select(ADMIN_OPPORTUNITY_COLUMNS, { count: "planned" })
+        .order(sort.column, { ascending: sort.ascending, nullsFirst: false })
+        .order("id", { ascending: sort.ascending });
 
-    if (query.category && query.category !== "all") {
-      request = request.eq("category", query.category);
-    }
+      if (query.status && query.status !== "all") {
+        request = request.eq("status", query.status);
+      }
 
-    const search = query.search?.trim();
-    if (search) {
-      const escaped = search.replaceAll("%", "\\%").replaceAll(",", " ");
-      request = request.or(
-        `title.ilike.%${escaped}%,organization.ilike.%${escaped}%,category.ilike.%${escaped}%,source.ilike.%${escaped}%`,
+      if (query.category && query.category !== "all") {
+        request = request.eq("category", query.category);
+      }
+
+      const search = query.search?.trim();
+      if (search) {
+        const escaped = search.replaceAll("%", "\\%").replaceAll(",", " ");
+        request = request.or(
+          `title.ilike.%${escaped}%,organization.ilike.%${escaped}%,category.ilike.%${escaped}%,source.ilike.%${escaped}%`,
+        );
+      }
+
+      const cursor = this.parseAdminCursor(query.cursor);
+      if (cursor?.value) {
+        const operator = sort.ascending ? "gt" : "lt";
+        request = request
+          .or(
+            `${sort.column}.${operator}.${cursor.value},and(${sort.column}.eq.${cursor.value},id.${operator}.${cursor.id})`,
+          )
+          .limit(limit);
+      } else {
+        request = request.range(from, to);
+      }
+
+      const { data, error, count } = await request;
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
+      const nextCursor =
+        rows.length === limit
+          ? this.buildAdminCursor(rows[rows.length - 1], sort.column)
+          : null;
+
+      return {
+        data: rows,
+        page,
+        limit,
+        total: count ?? 0,
+        totalPages: Math.max(Math.ceil((count ?? 0) / limit), 1),
+        hasMore: Boolean(nextCursor) || to + 1 < (count ?? 0),
+        nextCursor,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Admin opportunity list unavailable, returning empty fallback: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
       );
+
+      return {
+        data: [],
+        page,
+        limit,
+        total: 0,
+        totalPages: 1,
+        hasMore: false,
+        nextCursor: null,
+      };
     }
-
-    const cursor = this.parseAdminCursor(query.cursor);
-    if (cursor?.value) {
-      const operator = sort.ascending ? "gt" : "lt";
-      request = request
-        .or(
-          `${sort.column}.${operator}.${cursor.value},and(${sort.column}.eq.${cursor.value},id.${operator}.${cursor.id})`,
-        )
-        .limit(limit);
-    } else {
-      request = request.range(from, to);
-    }
-
-    const { data, error, count } = await request;
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
-    const nextCursor =
-      rows.length === limit
-        ? this.buildAdminCursor(rows[rows.length - 1], sort.column)
-        : null;
-
-    return {
-      data: rows,
-      page,
-      limit,
-      total: count ?? 0,
-      totalPages: Math.max(Math.ceil((count ?? 0) / limit), 1),
-      hasMore: Boolean(nextCursor) || to + 1 < (count ?? 0),
-      nextCursor,
-    };
   }
 
   async getAdminStats() {
@@ -339,6 +391,56 @@ export class OpportunitiesService {
         expiringSoon: 0,
       }
     );
+  }
+
+  async getJobOpportunities(jobId: string, limit = 200) {
+    const cappedLimit = Math.min(Math.max(Number(limit) || 200, 1), 1000);
+
+    const rows = await db
+      .select()
+      .from(opportunities)
+      .where(sql`metadata->>'scrape_job_id' = ${jobId}`)
+      .orderBy(desc(opportunities.createdAt))
+      .limit(cappedLimit)
+      .execute();
+
+    return rows;
+  }
+
+  async purgeOpportunities(options: {
+    olderThanDays?: number | null;
+    missingImagesOnly?: boolean;
+  }) {
+    const hasMissingImagesFilter = Boolean(options.missingImagesOnly);
+    const hasAgeFilter =
+      typeof options.olderThanDays === "number" &&
+      Number.isFinite(options.olderThanDays) &&
+      options.olderThanDays > 0;
+
+    if (!hasMissingImagesFilter && !hasAgeFilter) {
+      return { success: true, deletedCount: 0 };
+    }
+
+    let deleteCondition = hasMissingImagesFilter
+      ? isNull(opportunities.imageUrl)
+      : undefined;
+
+    if (hasAgeFilter) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - Number(options.olderThanDays));
+      const ageCondition = lt(opportunities.createdAt, cutoff);
+      deleteCondition = deleteCondition
+        ? and(deleteCondition, ageCondition)
+        : ageCondition;
+    }
+
+    const deleted = await db
+      .delete(opportunities)
+      .where(deleteCondition!)
+      .returning({ id: opportunities.id })
+      .execute();
+
+    return { success: true, deletedCount: deleted.length };
   }
 
   async reclassifyExistingOpportunities(options: {
@@ -444,8 +546,11 @@ export class OpportunitiesService {
       .insert(opportunities)
       .values({
         title: dto.title,
+        summary: dto.summary,
         description: dto.description,
         category: dto.category,
+        organization: dto.organization,
+        location: dto.location || dto.targetRegion || undefined,
         type: dto.type || "scholarship",
         eligibilityCriteria: dto.eligibilityCriteria,
         fundingType: dto.fundingType,
@@ -454,6 +559,8 @@ export class OpportunitiesService {
         sourceUrl: dto.sourceUrl,
         applyUrl: dto.applyUrl || dto.sourceUrl,
         imageUrl: dto.imageUrl,
+        eligibility: dto.eligibility,
+        isFeatured: dto.isFeatured ?? false,
         isRemote: dto.isRemote ?? true,
         status: dto.status || "pending",
         originalJson: JSON.stringify(dto),
@@ -534,8 +641,9 @@ export class OpportunitiesService {
 
 Return ONLY JSON:
 {
-  "summary": "35-55 word concise summary",
+  "summary": "25-45 word concise summary",
   "description": "4-6 sentence complete description",
+  "organization": "hosting organization if clearly stated",
   "requirements": ["requirement"],
   "benefits": ["benefit"],
   "application_process": ["step"],
@@ -547,12 +655,12 @@ Return ONLY JSON:
 }
 
 Input:
-Title: ${opportunity.title || ""}
-Summary: ${opportunity.summary || ""}
-Description: ${opportunity.description || ""}
-Category: ${opportunity.category || opportunity.canonical_category || ""}
-Organization: ${opportunity.organization || ""}
-Location: ${opportunity.location || ""}
+  Title: ${opportunity.title || ""}
+  Summary: ${opportunity.summary || ""}
+  Description: ${opportunity.description || ""}
+  Organization: ${opportunity.organization || ""}
+  Category: ${opportunity.category || opportunity.canonical_category || ""}
+  Location: ${opportunity.location || ""}
 Deadline: ${opportunity.close_date || opportunity.deadline || ""}
 Application URL: ${opportunity.application_url || opportunity.apply_url || ""}
 Source URL: ${opportunity.source_url || opportunity.canonical_url || ""}
@@ -574,8 +682,18 @@ Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
     const applicationProcess = Array.isArray(aiData?.application_process)
       ? aiData.application_process.filter(Boolean)
       : metadata.application_process || [];
-    const description = aiData?.description || opportunity.description || "";
-    const summary = aiData?.summary || opportunity.summary || "";
+    const organization = this.cleanOptionalText(
+      aiData?.organization || opportunity.organization || "",
+      200,
+    );
+    const description = this.normalizeDescription(
+      aiData?.description || opportunity.description || "",
+    );
+    const summary = this.normalizeSummary(
+      aiData?.summary || opportunity.summary || "",
+      description,
+      opportunity.title || "",
+    );
     const qualityScore = this.scoreCanonicalOpportunity({
       ...opportunity,
       summary,
@@ -588,6 +706,7 @@ Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
     const updatePayload = {
       summary,
       description,
+      organization: organization || undefined,
       close_date: aiData?.deadline || opportunity.close_date || undefined,
       funding_type: aiData?.funding_type || opportunity.funding_type || undefined,
       target_region: aiData?.target_region || opportunity.target_region || undefined,
@@ -599,6 +718,7 @@ Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
         requirements,
         benefits,
         application_process: applicationProcess,
+        organization: organization || metadata.organization || null,
         funding_type: aiData?.funding_type || metadata.funding_type || null,
         target_region: aiData?.target_region || metadata.target_region || null,
         ai_improved_at: new Date().toISOString(),
@@ -667,9 +787,10 @@ Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
   }
 
   private toCanonicalOpportunityPayload(
-    input: Partial<CreateOpportunityDto>,
+    input: Partial<CreateOpportunityDto> & Record<string, any>,
     defaultStatus?: string,
   ) {
+    const record = input as Record<string, any>;
     const metadata: Record<string, unknown> = {};
     if (input.eligibilityCriteria !== undefined) {
       metadata.eligibility_criteria = input.eligibilityCriteria;
@@ -694,27 +815,70 @@ Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
     metadata.classification_signals = classification.matchedSignals;
     metadata.classification_needs_review = classification.needsReview;
 
+    const summary = this.normalizeSummary(
+      record.summary ?? record.description ?? "",
+      record.description ?? "",
+      String(input.title ?? ""),
+    );
+    const organization = this.cleanOptionalText(
+      record.organization ?? "",
+      200,
+    );
+    const eligibility =
+      (record.eligibility as Record<string, unknown> | undefined) || undefined;
+    const requirements = this.normalizeStringList(
+      record.requirements || metadata.requirements,
+    );
+    const benefits = this.normalizeStringList(
+      record.benefits || metadata.benefits,
+    );
+    const applicationProcess = this.normalizeStringList(
+      record.applicationProcess ||
+        record.application_process ||
+        metadata.application_process,
+    );
+
     const applicationUrl = input.applyUrl || input.sourceUrl || undefined;
     const now = new Date().toISOString();
     const payload: Record<string, unknown> = {
       title: input.title,
+      summary: summary || undefined,
       description: input.description,
       category: input.category,
       canonical_category: classification.canonicalCategory,
-      location: input.targetRegion,
+      organization: organization || undefined,
+      location: input.location || input.targetRegion,
       is_remote: input.isRemote,
       close_date: input.deadline || undefined,
+      eligibility,
+      funding_type: input.fundingType,
+      target_region: input.targetRegion || input.location,
       source_url: input.sourceUrl,
       application_url: applicationUrl,
       canonical_url: applicationUrl
         ? this.normalizeUrlForStorage(applicationUrl)
         : undefined,
       image_url: input.imageUrl,
+      is_featured: input.isFeatured ?? false,
       tags: input.tags,
       status: input.status || defaultStatus,
+      quality_score: record.qualityScore ?? record.quality_score,
+      validation_status:
+        record.validationStatus ?? record.validation_status ?? undefined,
       last_seen_at: now,
       verification_next_check_at: now,
-      metadata,
+      metadata: {
+        ...metadata,
+        summary: summary || null,
+        organization: organization || null,
+        requirements,
+        benefits,
+        application_process: applicationProcess,
+        eligibility: eligibility || {},
+        quality_score: record.qualityScore ?? record.quality_score ?? null,
+        validation_status:
+          record.validationStatus ?? record.validation_status ?? null,
+      },
     };
 
     return Object.fromEntries(
@@ -765,6 +929,168 @@ Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
     else missingFields.push("image");
 
     return { score: Math.min(100, score), missingFields };
+  }
+
+  private shouldEnhanceOpportunity(item: Record<string, any>): boolean {
+    const summary = this.cleanOptionalText(item.summary, 420) || "";
+    const description = this.cleanText(String(item.description ?? ""), 1800);
+    const requirements = this.normalizeStringList(
+      item.requirements || item.metadata?.requirements,
+    );
+    const benefits = this.normalizeStringList(
+      item.benefits || item.metadata?.benefits,
+    );
+    const applicationProcess = this.normalizeStringList(
+      item.applicationProcess ||
+        item.application_process ||
+        item.metadata?.application_process,
+    );
+
+    return (
+      !summary ||
+      summary.split(/\s+/).filter(Boolean).length < 18 ||
+      description.length < 180 ||
+      !this.cleanOptionalText(item.eligibilityCriteria) ||
+      !this.cleanOptionalText(item.fundingType) ||
+      !this.cleanOptionalText(item.targetRegion) ||
+      requirements.length === 0 ||
+      benefits.length === 0 ||
+      applicationProcess.length === 0
+    );
+  }
+
+  private normalizeProcessedItem(
+    item: Record<string, any>,
+    aiData?: Record<string, any> | null,
+  ): ProcessedItem {
+    const requirements = this.normalizeStringList(
+      aiData?.requirements || item.requirements || item.metadata?.requirements,
+    );
+    const benefits = this.normalizeStringList(
+      aiData?.benefits || item.benefits || item.metadata?.benefits,
+    );
+    const applicationProcess = this.normalizeStringList(
+      aiData?.applicationProcess ||
+        aiData?.application_process ||
+        item.applicationProcess ||
+        item.application_process ||
+        item.metadata?.application_process,
+    );
+    const summary = this.normalizeSummary(
+      aiData?.summary || item.summary || item.description || "",
+      aiData?.description || item.description || "",
+      String(item.title ?? ""),
+    );
+    const description = this.normalizeDescription(
+      aiData?.description || item.description || "",
+    );
+
+    return {
+      ...item,
+      summary,
+      description,
+      organization:
+        this.cleanOptionalText(
+          aiData?.organization || item.organization || "",
+          200,
+        ) || null,
+      eligibilityCriteria:
+        this.cleanOptionalText(
+          aiData?.eligibilityCriteria || item.eligibilityCriteria || "",
+          500,
+        ) || "",
+      fundingType:
+        this.cleanOptionalText(
+          aiData?.fundingType || item.fundingType || "",
+          200,
+        ) || "",
+      targetRegion:
+        this.cleanOptionalText(
+          aiData?.targetRegion || item.targetRegion || "",
+          200,
+        ) || "",
+      deadline: item.deadline || aiData?.deadline || null,
+      requirements,
+      benefits,
+      applicationProcess,
+      eligibility:
+        (aiData?.eligibility as Record<string, unknown>) || item.eligibility || {},
+      confidence: Number(aiData?.confidence ?? item.confidence ?? 0),
+      notes: this.normalizeStringList(aiData?.notes || item.notes),
+      tags: this.normalizeStringList([
+        ...(Array.isArray(item.tags) ? item.tags : []),
+        ...(Array.isArray(aiData?.tags) ? aiData.tags : []),
+      ]),
+    } as ProcessedItem;
+  }
+
+  private normalizeSummary(
+    summary: string | null | undefined,
+    description: string | null | undefined,
+    title: string,
+  ): string {
+    const cleanedSummary = this.cleanOptionalText(summary, 420);
+    const cleanedDescription = this.cleanText(String(description || ""), 1200);
+    const fallback =
+      this.firstSentence(cleanedDescription) ||
+      this.cleanText(title, 220) ||
+      "Scholarship opportunity details are being verified by Edutu.";
+    const candidate = cleanedSummary || fallback;
+    const words = candidate.split(/\s+/).filter(Boolean);
+    const limited = words.length > 45 ? words.slice(0, 45).join(" ") : candidate;
+    return /[.!?]$/.test(limited) ? limited : `${limited}.`;
+  }
+
+  private normalizeDescription(description: string | null | undefined): string {
+    return this.cleanOptionalText(description, 1800) || "";
+  }
+
+  private cleanText(text: string, maxChars = 500): string {
+    return (text ?? "").replace(/\s+/g, " ").trim().substring(0, maxChars);
+  }
+
+  private cleanOptionalText(
+    value: unknown,
+    maxChars = 500,
+  ): string | undefined {
+    const cleaned = this.cleanText(String(value ?? ""), maxChars);
+    if (!cleaned) return undefined;
+    if (
+      /^(n\/a|na|none|null|unknown(?:\s+.*)?|not available|not provided|not stated|not specified|unspecified|tbd|tba)$/i.test(
+        cleaned,
+      )
+    ) {
+      return undefined;
+    }
+    return cleaned;
+  }
+
+  private normalizeStringList(value: unknown): string[] {
+    const queue = Array.isArray(value) ? value : value ? [value] : [];
+    const flattened = queue.flatMap((entry) => {
+      if (Array.isArray(entry)) return entry;
+      if (typeof entry === "string") return [entry];
+      if (entry && typeof entry === "object") {
+        return Object.values(entry as Record<string, unknown>).map((value) =>
+          String(value ?? ""),
+        );
+      }
+      return [String(entry ?? "")];
+    });
+
+    return Array.from(
+      new Set(
+        flattened
+          .map((entry) => this.cleanOptionalText(entry, 220))
+          .filter((entry): entry is string => Boolean(entry)),
+      ),
+    ).slice(0, 12);
+  }
+
+  private firstSentence(text: string): string {
+    if (!text) return "";
+    const sentenceMatch = text.match(/^(.{40,240}?[.!?])(?:\s|$)/);
+    return sentenceMatch?.[1]?.trim() || text.substring(0, 220).trim();
   }
 
   private parseAdminCursor(cursor: string | undefined) {
@@ -879,9 +1205,8 @@ Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
 
     for (const item of items) {
       try {
-        // Skip if already has good data
-        if (item.description && item.eligibilityCriteria && item.fundingType) {
-          processedItems.push(item as ProcessedItem);
+        if (!this.shouldEnhanceOpportunity(item)) {
+          processedItems.push(this.normalizeProcessedItem(item));
           continue;
         }
 
@@ -889,26 +1214,41 @@ Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
 
 Input Data:
 Title: ${item.title}
+Summary: ${item.summary || "N/A"}
 Description: ${item.description || "N/A"}
+Organization: ${item.organization || "N/A"}
 URL: ${item.sourceUrl}
 Category: ${item.category}
 
 Please provide:
-1. A detailed description (if missing)
-2. Eligibility criteria (if missing)
-3. Funding type/amount (if missing)
-4. Target region/countries (if missing)
-5. 3-5 relevant tags (e.g., "STEM", "Women", "Africa", "Graduate", "Full-Ride")
-6. Deadline date in ISO format if mentioned (if missing)
+Use only facts supported by the input or source URL. Do not invent deadlines, countries, funding, eligibility, or application links.
+1. A short 25-45 word summary for preview cards
+2. A detailed description (if missing)
+3. Organization name if clearly stated
+4. Eligibility criteria (if missing)
+5. Requirements and documents if clearly stated
+6. Benefits or award details if clearly stated
+7. Application steps or process if clearly stated
+8. Funding type/amount (if missing)
+9. Target region/countries (if missing)
+10. 3-5 relevant tags (e.g., "STEM", "Women", "Africa", "Graduate", "Full-Ride")
+11. Deadline date in ISO format if mentioned (if missing)
 
 Output ONLY a JSON object with these fields:
 {
+  "summary": "short preview summary",
   "description": "detailed description",
+  "organization": "host organization or provider",
   "eligibilityCriteria": "who can apply",
   "fundingType": "amount or type",
   "targetRegion": "target countries/regions",
   "deadline": "YYYY-MM-DD or null",
-  "tags": ["tag1", "tag2", "tag3"]
+  "requirements": ["requirement"],
+  "benefits": ["benefit"],
+  "applicationProcess": ["step"],
+  "tags": ["tag1", "tag2", "tag3"],
+  "confidence": 0.0,
+  "notes": ["short caveat"]
 }`;
 
         const aiData = await this.aiService.generateJson<Record<string, any>>({
@@ -918,23 +1258,13 @@ Output ONLY a JSON object with these fields:
           metadata: { title: item.title, sourceUrl: item.sourceUrl },
         });
 
-        // Merge AI data with original item
-        processedItems.push({
-          ...item,
-          description: item.description || aiData?.description || "",
-          eligibilityCriteria:
-            item.eligibilityCriteria || aiData?.eligibilityCriteria || "",
-          fundingType: item.fundingType || aiData?.fundingType || "",
-          targetRegion: item.targetRegion || aiData?.targetRegion || "",
-          deadline: item.deadline || aiData?.deadline || null,
-          tags: aiData?.tags || [],
-        } as ProcessedItem);
+        processedItems.push(this.normalizeProcessedItem(item, aiData));
       } catch (err) {
         this.logger.warn(
           `AI processing failed for item: ${item.title}`,
           err.message,
         );
-        processedItems.push(item as ProcessedItem); // Keep original if AI fails
+        processedItems.push(this.normalizeProcessedItem(item)); // Keep original if AI fails
       }
     }
 
@@ -956,15 +1286,42 @@ Output ONLY a JSON object with these fields:
 
     if (this.supabase) {
       const records: Record<string, any>[] = validItems.map((item) => {
+        const summary = this.normalizeSummary(
+          item.summary || "",
+          item.description || "",
+          item.title,
+        );
+        const requirements = this.normalizeStringList(
+          item.requirements || item.metadata?.requirements,
+        );
+        const benefits = this.normalizeStringList(
+          item.benefits || item.metadata?.benefits,
+        );
+        const applicationProcess = this.normalizeStringList(
+          item.applicationProcess ||
+            item.application_process ||
+            item.metadata?.application_process,
+        );
+        const eligibility = item.eligibility || {};
+        const qualityScore = this.scoreCanonicalOpportunity({
+          ...item,
+          summary,
+          description: item.description || "",
+          requirements,
+          benefits,
+        });
         const base = this.toCanonicalOpportunityPayload(
           {
             title: item.title,
+            summary,
             description: item.description || null,
+            organization: item.organization || null,
             category: item.category || "scholarship",
             type: item.type || "scholarship",
             eligibilityCriteria: item.eligibilityCriteria || null,
             fundingType: item.fundingType || null,
             targetRegion: item.targetRegion || null,
+            eligibility,
             deadline: item.deadline || null,
             sourceUrl: item.sourceUrl,
             applyUrl: item.applyUrl || item.sourceUrl,
@@ -972,6 +1329,12 @@ Output ONLY a JSON object with these fields:
             isRemote: item.isRemote ?? true,
             status: "pending",
             tags: item.tags || [],
+            requirements,
+            benefits,
+            applicationProcess,
+            qualityScore: qualityScore.score,
+            validationStatus:
+              qualityScore.score >= 70 ? "complete" : "needs_review",
           },
           "pending",
         );
@@ -980,6 +1343,16 @@ Output ONLY a JSON object with these fields:
           ...base,
           metadata: {
             ...((base.metadata as Record<string, unknown>) || {}),
+            summary,
+            organization: item.organization || null,
+            requirements,
+            benefits,
+            application_process: applicationProcess,
+            eligibility,
+            quality_score: qualityScore.score,
+            validation_status:
+              qualityScore.score >= 70 ? "complete" : "needs_review",
+            extraction_missing_fields: qualityScore.missingFields,
             ...(item.tags?.length ? { tags: item.tags } : {}),
             original: item,
           },
@@ -1025,23 +1398,70 @@ Output ONLY a JSON object with these fields:
       return { inserted, skipped, opportunities: saved };
     }
 
-    const values = validItems.map((item) => ({
-      title: item.title,
-      description: item.description || null,
-      category: item.category || "scholarship",
-      canonicalCategory: categorizeOpportunity(item),
-      type: item.type || "scholarship",
-      eligibilityCriteria: item.eligibilityCriteria || null,
-      fundingType: item.fundingType || null,
-      targetRegion: item.targetRegion || null,
-      deadline: item.deadline ? new Date(item.deadline) : null,
-      sourceUrl: item.sourceUrl,
-      applyUrl: item.applyUrl || item.sourceUrl,
-      imageUrl: item.imageUrl || null,
-      isRemote: true,
-      status: "pending",
-      originalJson: JSON.stringify(item),
-    }));
+    const values = validItems.map((item) => {
+      const summary = this.normalizeSummary(
+        item.summary || "",
+        item.description || "",
+        item.title,
+      );
+      const requirements = this.normalizeStringList(
+        item.requirements || item.metadata?.requirements,
+      );
+      const benefits = this.normalizeStringList(
+        item.benefits || item.metadata?.benefits,
+      );
+      const applicationProcess = this.normalizeStringList(
+        item.applicationProcess ||
+          item.application_process ||
+          item.metadata?.application_process,
+      );
+      const eligibility = item.eligibility || {};
+      const qualityScore = this.scoreCanonicalOpportunity({
+        ...item,
+        summary,
+        description: item.description || "",
+        requirements,
+        benefits,
+      });
+
+      return {
+        title: item.title,
+        summary,
+        description: item.description || null,
+        organization: item.organization || null,
+        category: item.category || "scholarship",
+        canonicalCategory: categorizeOpportunity(item),
+        type: item.type || "scholarship",
+        eligibilityCriteria: item.eligibilityCriteria || null,
+        fundingType: item.fundingType || null,
+        targetRegion: item.targetRegion || null,
+        eligibility,
+        deadline: item.deadline ? new Date(item.deadline) : null,
+        sourceUrl: item.sourceUrl,
+        applyUrl: item.applyUrl || item.sourceUrl,
+        imageUrl: item.imageUrl || null,
+        tags: item.tags || [],
+        isRemote: true,
+        status: "pending",
+        qualityScore: qualityScore.score,
+        validationStatus:
+          qualityScore.score >= 70 ? "complete" : "needs_review",
+        metadata: {
+          summary,
+          organization: item.organization || null,
+          requirements,
+          benefits,
+          application_process: applicationProcess,
+          eligibility,
+          quality_score: qualityScore.score,
+          validation_status:
+            qualityScore.score >= 70 ? "complete" : "needs_review",
+          extraction_missing_fields: qualityScore.missingFields,
+          original: item,
+        },
+        originalJson: JSON.stringify(item),
+      };
+    });
 
     try {
       const result = await db
@@ -1212,5 +1632,18 @@ Output ONLY a JSON object with these fields:
       this.logger.error("DeepSeek extraction failed", err);
       return [];
     }
+  }
+
+  private buildSharePdfFileName(opportunity: {
+    id?: string;
+    title?: string;
+  }) {
+    const title = (opportunity.title || "edutu-opportunity")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+    const suffix = opportunity.id ? `-${opportunity.id}` : "";
+    return `${title || "edutu-opportunity"}${suffix}.pdf`;
   }
 }

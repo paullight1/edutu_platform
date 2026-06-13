@@ -860,18 +860,18 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
           <div className="relative flex min-h-[72px] items-center justify-between gap-4">
             <div className="max-w-xl">
               <h3 className="text-base sm:text-lg font-bold tracking-tight text-white">
-                Coming Soon to Play Store & App Store
+                Android release ready
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-white/82">
-                Mobile access is launching soon for Android and iOS.
+                The web app is live and the Android bundle is ready for Play Store submission.
               </p>
             </div>
             <div className="hidden gap-2 sm:flex">
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white/12 text-emerald-200 ring-1 ring-white/15 backdrop-blur">
-                Android
+                Web
               </span>
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white/12 text-white/80 ring-1 ring-white/15 backdrop-blur">
-                iOS
+                Android
               </span>
             </div>
           </div>

@@ -1,18 +1,24 @@
-export type AiProvider = 'gemini' | 'openrouter' | 'openai' | 'groq' | string;
+export type AiProvider =
+  | "deepseek"
+  | "gemini"
+  | "openrouter"
+  | "openai"
+  | "groq"
+  | string;
 
 export type AiFeature =
-  | 'chat.coach'
-  | 'chat.transcribe'
-  | 'scraper.extract'
-  | 'opportunities.enhance'
-  | 'opportunities.extract'
-  | 'opportunities.rerank'
-  | 'cv.draft'
-  | 'cv.tailor'
-  | 'roadmaps.questions'
-  | 'roadmaps.intent_tags'
-  | 'roadmaps.match'
-  | 'quiz.generate'
+  | "chat.coach"
+  | "chat.transcribe"
+  | "scraper.extract"
+  | "opportunities.enhance"
+  | "opportunities.extract"
+  | "opportunities.rerank"
+  | "cv.draft"
+  | "cv.tailor"
+  | "roadmaps.questions"
+  | "roadmaps.intent_tags"
+  | "roadmaps.match"
+  | "quiz.generate"
   | string;
 
 export interface AiGenerateOptions {

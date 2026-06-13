@@ -478,7 +478,7 @@ async function runIntelScraper(input = {}) {
         query: input.query || 'scholarship',
         first_generation: false,
         include_ai_analysis: true,
-        model_name: input.model_name || 'gemini/gemini-2.0-flash'
+        model_name: input.model_name || 'deepseek/deepseek-chat'
     };
     console.log('[Apify Intel] Running with input:', JSON.stringify(runInput));
     const { items } = await runApifyScraper(actorId, runInput);

@@ -5,7 +5,7 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
-import { refineOpportunityWithGemini, isGeminiConfigured } from './gemini.js';
+import { refineOpportunityWithDeepSeek, isDeepSeekConfigured } from './gemini.js';
 
 dotenv.config();
 
@@ -112,11 +112,11 @@ export async function checkConnection() {
 export async function insertOpportunity(data) {
     let finalData = { ...data };
 
-    // Apply second pass Gemini refinements if configured and not already refined
-    if (isGeminiConfigured() && !finalData.refined_summary) {
+    // Apply second pass DeepSeek refinements if configured and not already refined
+    if (isDeepSeekConfigured() && !finalData.refined_summary) {
         try {
             console.log(`[Database] 🧠 Running AI enrichment for: ${finalData.title}`);
-            const aiRefinement = await refineOpportunityWithGemini(finalData);
+            const aiRefinement = await refineOpportunityWithDeepSeek(finalData);
             if (aiRefinement) {
                 finalData = {
                     ...finalData,

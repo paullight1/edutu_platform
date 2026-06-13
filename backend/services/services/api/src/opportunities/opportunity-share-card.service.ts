@@ -13,7 +13,22 @@ export interface ShareCardResult {
   expiresAt: string | null;
 }
 
-const BUCKET = process.env.OPPORTUNITY_SHARE_CARD_BUCKET || "opportunity-share-cards";
+export interface SharePdfResult {
+  url: string;
+  path: string;
+  format: "pdf";
+  generatedAt: string;
+  fingerprint: string;
+  expiresAt: string | null;
+}
+
+interface SharePdfPreparationResult {
+  sharePdf: SharePdfResult | null;
+  buffer?: Buffer;
+}
+
+const BUCKET =
+  process.env.OPPORTUNITY_SHARE_CARD_BUCKET || "opportunity-share-cards";
 const CARD_WIDTH = 1080;
 const CARD_HEIGHT = 1680;
 
@@ -25,7 +40,10 @@ export class OpportunityShareCardService {
   constructor() {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    this.supabase = url && key ? createClient(url, key, { auth: { persistSession: false } }) : null;
+    this.supabase =
+      url && key
+        ? createClient(url, key, { auth: { persistSession: false } })
+        : null;
   }
 
   async ensureShareCardForOpportunity(
@@ -38,7 +56,11 @@ export class OpportunityShareCardService {
     const fingerprint = this.createFingerprint(opportunity);
     const existing = this.asRecord(metadata.share_card);
 
-    if (!options.force && existing?.url && existing?.fingerprint === fingerprint) {
+    if (
+      !options.force &&
+      existing?.url &&
+      existing?.fingerprint === fingerprint
+    ) {
       return existing as ShareCardResult;
     }
 
@@ -61,6 +83,14 @@ export class OpportunityShareCardService {
       }
 
       const { data } = this.supabase.storage.from(BUCKET).getPublicUrl(path);
+      const { data: latestOpportunity } = await this.supabase
+        .from("opportunities")
+        .select("metadata")
+        .eq("id", opportunity.id)
+        .maybeSingle();
+      const latestMetadata = this.asRecord(
+        latestOpportunity?.metadata ?? metadata,
+      );
       const shareCard: ShareCardResult = {
         url: data.publicUrl,
         path,
@@ -74,7 +104,7 @@ export class OpportunityShareCardService {
         .from("opportunities")
         .update({
           metadata: {
-            ...metadata,
+            ...latestMetadata,
             share_card: shareCard,
           },
           updated_at: new Date().toISOString(),
@@ -92,14 +122,73 @@ export class OpportunityShareCardService {
     }
   }
 
-  async ensureShareCardsForOpportunities(opportunities: OpportunityRecord[]): Promise<void> {
+  async buildSharePdfForOpportunity(
+    opportunity: OpportunityRecord,
+    options: { force?: boolean } = {},
+  ): Promise<{ sharePdf: SharePdfResult | null; buffer: Buffer } | null> {
+    if (!opportunity?.id) return null;
+
+    const prepared = await this.ensureSharePdfForOpportunity(opportunity, options);
+    if (prepared?.buffer) {
+      return { sharePdf: prepared.sharePdf, buffer: prepared.buffer };
+    }
+
+    if (prepared?.sharePdf?.url) {
+      const cachedBuffer = await this.downloadBufferFromUrl(prepared.sharePdf.url);
+      if (cachedBuffer) {
+        return { sharePdf: prepared.sharePdf, buffer: cachedBuffer };
+      }
+    }
+
+    const fallbackBuffer = await this.renderSharePdfBuffer(opportunity);
+    if (!fallbackBuffer) {
+      return null;
+    }
+
+    return {
+      sharePdf: prepared?.sharePdf ?? null,
+      buffer: fallbackBuffer,
+    };
+  }
+
+  async ensureShareCardsForOpportunities(
+    opportunities: OpportunityRecord[],
+  ): Promise<void> {
     const enabled = process.env.OPPORTUNITY_SHARE_CARD_GENERATION !== "false";
     if (!enabled || opportunities.length === 0) return;
 
-    const limit = Math.max(1, Math.min(Number(process.env.OPPORTUNITY_SHARE_CARD_CONCURRENCY) || 2, 5));
+    const limit = Math.max(
+      1,
+      Math.min(Number(process.env.OPPORTUNITY_SHARE_CARD_CONCURRENCY) || 2, 5),
+    );
     for (let index = 0; index < opportunities.length; index += limit) {
       const batch = opportunities.slice(index, index + limit);
-      await Promise.all(batch.map((opportunity) => this.ensureShareCardForOpportunity(opportunity)));
+      await Promise.all(
+        batch.map((opportunity) =>
+          this.ensureShareCardForOpportunity(opportunity),
+        ),
+      );
+    }
+  }
+
+  async ensureSharePdfsForOpportunities(
+    opportunities: OpportunityRecord[],
+  ): Promise<void> {
+    const enabled = process.env.OPPORTUNITY_SHARE_PDF_GENERATION !== "false";
+    if (!enabled || !this.supabase || opportunities.length === 0) return;
+
+    const limit = Math.max(
+      1,
+      Math.min(Number(process.env.OPPORTUNITY_SHARE_PDF_CONCURRENCY) || 2, 5),
+    );
+
+    for (let index = 0; index < opportunities.length; index += limit) {
+      const batch = opportunities.slice(index, index + limit);
+      await Promise.all(
+        batch.map(async (opportunity) => {
+          await this.ensureSharePdfForOpportunity(opportunity);
+        }),
+      );
     }
   }
 
@@ -108,7 +197,10 @@ export class OpportunityShareCardService {
     const { data: buckets, error } = await this.supabase.storage.listBuckets();
     if (error) throw error;
     if (buckets?.some((bucket) => bucket.name === BUCKET)) return;
-    const { error: createError } = await this.supabase.storage.createBucket(BUCKET, { public: true });
+    const { error: createError } = await this.supabase.storage.createBucket(
+      BUCKET,
+      { public: true },
+    );
     if (createError) throw createError;
   }
 
@@ -119,7 +211,7 @@ export class OpportunityShareCardService {
   }> {
     try {
       // Optional dependency: production installs sharp for WhatsApp-friendly PNG cards.
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+
       const sharp = require("sharp");
       const png = await sharp(Buffer.from(svg)).png({ quality: 92 }).toBuffer();
       return { body: png, contentType: "image/png", format: "png" };
@@ -132,14 +224,45 @@ export class OpportunityShareCardService {
     }
   }
 
+  private async renderPdf(svg: string): Promise<Buffer | null> {
+    try {
+      // Optional dependency: production installs sharp for PDF share cards.
+      const sharp = require("sharp");
+      const jpeg = await sharp(Buffer.from(svg)).jpeg({ quality: 92 }).toBuffer();
+      return this.buildSingleImagePdf(jpeg, CARD_WIDTH, CARD_HEIGHT);
+    } catch {
+      return null;
+    }
+  }
+
+  private async renderSharePdfBuffer(
+    opportunity: OpportunityRecord,
+  ): Promise<Buffer | null> {
+    const svg = this.renderSvg(opportunity);
+    return this.renderPdf(svg);
+  }
+
   private renderSvg(opportunity: OpportunityRecord): string {
     const metadata = this.asRecord(opportunity.metadata);
-    const requirements = this.arrayFrom(opportunity.requirements ?? metadata.requirements).slice(0, 5);
-    const benefits = this.arrayFrom(opportunity.benefits ?? metadata.benefits).slice(0, 5);
-    const application = this.arrayFrom(opportunity.application_process ?? metadata.application_process).slice(0, 3);
-    const titleLines = this.wrap(this.clean(opportunity.title, "Opportunity"), 24, 4);
+    const requirements = this.arrayFrom(
+      opportunity.requirements ?? metadata.requirements,
+    ).slice(0, 5);
+    const benefits = this.arrayFrom(
+      opportunity.benefits ?? metadata.benefits,
+    ).slice(0, 5);
+    const application = this.arrayFrom(
+      opportunity.application_process ?? metadata.application_process,
+    ).slice(0, 3);
+    const titleLines = this.wrap(
+      this.clean(opportunity.title, "Opportunity"),
+      24,
+      4,
+    );
     const summaryLines = this.wrap(
-      this.clean(opportunity.summary || opportunity.description, "A curated opportunity from Edutu. Review full details and apply through the official source."),
+      this.clean(
+        opportunity.summary || opportunity.description,
+        "A curated opportunity from Edutu. Review full details and apply through the official source.",
+      ),
       62,
       5,
     );
@@ -148,9 +271,21 @@ export class OpportunityShareCardService {
       ["Reward", this.funding(opportunity, benefits)],
       ["Category", this.clean(opportunity.category, "General")],
       ["Eligible Applicants", this.eligibility(opportunity)],
-      ["Deadline", this.deadline(opportunity.close_date || opportunity.deadline)],
-      ["Location", this.clean(opportunity.location || opportunity.target_region, "Worldwide")],
-      ["Source", this.clean(opportunity.organization || opportunity.source, "Edutu")],
+      [
+        "Deadline",
+        this.deadline(opportunity.close_date || opportunity.deadline),
+      ],
+      [
+        "Location",
+        this.clean(
+          opportunity.location || opportunity.target_region,
+          "Worldwide",
+        ),
+      ],
+      [
+        "Source",
+        this.clean(opportunity.organization || opportunity.source, "Edutu"),
+      ],
     ];
 
     return `<?xml version="1.0" encoding="UTF-8"?>
@@ -186,7 +321,10 @@ export class OpportunityShareCardService {
   }
 
   private providerBlock(opportunity: OpportunityRecord): string {
-    const provider = this.clean(opportunity.organization || opportunity.source, "Opportunity provider").toUpperCase();
+    const provider = this.clean(
+      opportunity.organization || opportunity.source,
+      "Opportunity provider",
+    ).toUpperCase();
     const lines = this.wrap(provider, 16, 4);
     return `
   <rect x="790" y="220" width="210" height="130" rx="28" fill="#FFFFFF" stroke="#D6E8FF"/>
@@ -207,14 +345,23 @@ export class OpportunityShareCardService {
       .join("\n  ");
   }
 
-  private section(title: string, items: string[], x: number, y: number): string {
-    const bulletLines = items.flatMap((item) => this.wrap(`• ${this.clean(item)}`, 72, 2));
+  private section(
+    title: string,
+    items: string[],
+    x: number,
+    y: number,
+  ): string {
+    const bulletLines = items.flatMap((item) =>
+      this.wrap(`• ${this.clean(item)}`, 72, 2),
+    );
     return `<text x="${x}" y="${y}" font-family="Inter, Arial, sans-serif" font-size="25" font-weight="900" fill="#2563EB">${this.escape(title)}</text>
   ${this.textBlock(bulletLines.slice(0, 10), x + 16, y + 40, 23, 31, "#0F172A", 500)}`;
   }
 
   private applySection(items: string[], x: number, y: number): string {
-    const lines = items.flatMap((item, index) => this.wrap(`${index + 1}. ${this.clean(item)}`, 76, 2));
+    const lines = items.flatMap((item, index) =>
+      this.wrap(`${index + 1}. ${this.clean(item)}`, 76, 2),
+    );
     return `<line x1="${x}" x2="1002" y1="${y - 28}" y2="${y - 28}" stroke="#2563EB" stroke-opacity="0.14" stroke-width="2"/>
   <text x="${x}" y="${y}" font-family="Inter, Arial, sans-serif" font-size="25" font-weight="900" fill="#2563EB">How To Apply</text>
   ${this.textBlock(lines.slice(0, 6), x, y + 40, 22, 30, "#0F172A", 600)}`;
@@ -237,6 +384,157 @@ export class OpportunityShareCardService {
           `<text x="${anchor === "middle" ? x + width / 2 : x}" y="${y + index * lineHeight}" text-anchor="${anchor}" font-family="Inter, Arial, sans-serif" font-size="${size}" font-weight="${weight}" fill="${fill}">${this.escape(line)}</text>`,
       )
       .join("\n  ");
+  }
+
+  private buildSingleImagePdf(
+    imageBytes: Buffer,
+    width: number,
+    height: number,
+  ): Buffer {
+    const parts: Buffer[] = [];
+    const offsets: number[] = [];
+    let byteLength = 0;
+
+    const add = (chunk: Buffer) => {
+      parts.push(chunk);
+      byteLength += chunk.length;
+    };
+
+    const addText = (value: string) => add(Buffer.from(value, "utf8"));
+
+    const addObject = (objectNumber: number, body: Buffer) => {
+      offsets[objectNumber] = byteLength;
+      addText(`${objectNumber} 0 obj\n`);
+      add(body);
+      addText("\nendobj\n");
+    };
+
+    addText("%PDF-1.4\n");
+
+    addObject(1, Buffer.from("<< /Type /Catalog /Pages 2 0 R >>", "utf8"));
+    addObject(2, Buffer.from("<< /Type /Pages /Kids [3 0 R] /Count 1 >>", "utf8"));
+    addObject(
+      3,
+      Buffer.from(
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${width} ${height}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>`,
+        "utf8",
+      ),
+    );
+
+    const imageHeader = Buffer.from(
+      `<< /Type /XObject /Subtype /Image /Width ${width} /Height ${height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imageBytes.length} >>\nstream\n`,
+      "utf8",
+    );
+    const imageFooter = Buffer.from("\nendstream", "utf8");
+    addObject(4, Buffer.concat([imageHeader, imageBytes, imageFooter]));
+
+    const contentStream = Buffer.from(`q\n${width} 0 0 ${height} 0 0 cm\n/Im0 Do\nQ`, "utf8");
+    const contentHeader = Buffer.from(`<< /Length ${contentStream.length} >>\nstream\n`, "utf8");
+    const contentFooter = Buffer.from("\nendstream", "utf8");
+    addObject(5, Buffer.concat([contentHeader, contentStream, contentFooter]));
+
+    const xrefOffset = byteLength;
+    let xref = "xref\n0 6\n0000000000 65535 f \n";
+    for (let index = 1; index <= 5; index += 1) {
+      xref += `${String(offsets[index] ?? 0).padStart(10, "0")} 00000 n \n`;
+    }
+    xref += `trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+    addText(xref);
+
+    return Buffer.concat(parts);
+  }
+
+  private async ensureSharePdfForOpportunity(
+    opportunity: OpportunityRecord,
+    options: { force?: boolean } = {},
+  ): Promise<SharePdfPreparationResult | null> {
+    if (!this.supabase || !opportunity?.id) return null;
+
+    const metadata = this.asRecord(opportunity.metadata);
+    const fingerprint = this.createFingerprint(opportunity);
+    const existing = this.asRecord(metadata.share_pdf);
+
+    if (
+      !options.force &&
+      existing?.url &&
+      existing?.fingerprint === fingerprint
+    ) {
+      return { sharePdf: existing as SharePdfResult };
+    }
+
+    const buffer = await this.renderSharePdfBuffer(opportunity);
+    if (!buffer) {
+      return null;
+    }
+
+    try {
+      await this.ensureBucket();
+      const path = `${this.storageFolder(opportunity)}/${opportunity.id}-${fingerprint}.pdf`;
+
+      const { error: uploadError } = await this.supabase.storage
+        .from(BUCKET)
+        .upload(path, buffer, {
+          contentType: "application/pdf",
+          upsert: true,
+          cacheControl: "31536000",
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data } = this.supabase.storage.from(BUCKET).getPublicUrl(path);
+      const { data: latestOpportunity } = await this.supabase
+        .from("opportunities")
+        .select("metadata")
+        .eq("id", opportunity.id)
+        .maybeSingle();
+      const latestMetadata = this.asRecord(
+        latestOpportunity?.metadata ?? metadata,
+      );
+      const sharePdf: SharePdfResult = {
+        url: data.publicUrl,
+        path,
+        format: "pdf",
+        generatedAt: new Date().toISOString(),
+        fingerprint,
+        expiresAt: this.computeExpiry(opportunity),
+      };
+
+      await this.supabase
+        .from("opportunities")
+        .update({
+          metadata: {
+            ...latestMetadata,
+            share_pdf: sharePdf,
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", opportunity.id);
+
+      return { sharePdf, buffer };
+    } catch (error) {
+      this.logger.warn(
+        `Could not generate share PDF for opportunity ${opportunity.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return { sharePdf: null, buffer };
+    }
+  }
+
+  private async downloadBufferFromUrl(url: string): Promise<Buffer | null> {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        return null;
+      }
+
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      return Buffer.from(bytes);
+    } catch {
+      return null;
+    }
   }
 
   private storageFolder(opportunity: OpportunityRecord): string {
@@ -280,20 +578,31 @@ export class OpportunityShareCardService {
         : String(opportunity.stipend);
     }
     return (
-      benefits.find((benefit) => /fund|stipend|tuition|grant|award/i.test(benefit)) ||
+      benefits.find((benefit) =>
+        /fund|stipend|tuition|grant|award/i.test(benefit),
+      ) ||
       opportunity.funding_type ||
       "Open opportunity"
     );
   }
 
   private eligibility(opportunity: OpportunityRecord): string {
-    const eligibility = this.asRecord(opportunity.eligibility ?? this.asRecord(opportunity.metadata).eligibility);
+    const eligibility = this.asRecord(
+      opportunity.eligibility ??
+        this.asRecord(opportunity.metadata).eligibility,
+    );
     const countries = eligibility.countries;
     if (Array.isArray(countries) && countries.length > 0) {
-      return countries.length > 3 ? `${countries.slice(0, 3).join(", ")} +${countries.length - 3}` : countries.join(", ");
+      return countries.length > 3
+        ? `${countries.slice(0, 3).join(", ")} +${countries.length - 3}`
+        : countries.join(", ");
     }
     if (typeof countries === "string") return countries;
-    return opportunity.target_region || opportunity.location || "Open to eligible applicants";
+    return (
+      opportunity.target_region ||
+      opportunity.location ||
+      "Open to eligible applicants"
+    );
   }
 
   private deadline(value?: string | Date | null): string {
@@ -301,7 +610,11 @@ export class OpportunityShareCardService {
     const date = new Date(value);
     return Number.isNaN(date.getTime())
       ? String(value)
-      : date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+      : date.toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        });
   }
 
   private wrap(value: string, maxChars: number, maxLines: number): string[] {
@@ -319,23 +632,31 @@ export class OpportunityShareCardService {
       if (lines.length === maxLines) break;
     }
     if (current && lines.length < maxLines) lines.push(current);
-    if (lines.length === maxLines && words.join(" ").length > lines.join(" ").length) {
+    if (
+      lines.length === maxLines &&
+      words.join(" ").length > lines.join(" ").length
+    ) {
       lines[maxLines - 1] = this.truncate(lines[maxLines - 1], maxChars);
     }
     return lines;
   }
 
   private arrayFrom(value: unknown): string[] {
-    return Array.isArray(value) ? value.map((item) => this.clean(String(item), "")).filter(Boolean) : [];
+    return Array.isArray(value)
+      ? value.map((item) => this.clean(String(item), "")).filter(Boolean)
+      : [];
   }
 
   private clean(value?: string | null, fallback = "Not specified"): string {
-    const text = typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+    const text =
+      typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
     return text || fallback;
   }
 
   private truncate(value: string, maxLength: number): string {
-    return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1).trim()}…`;
+    return value.length <= maxLength
+      ? value
+      : `${value.slice(0, maxLength - 1).trim()}…`;
   }
 
   private escape(value: string): string {
@@ -347,6 +668,8 @@ export class OpportunityShareCardService {
   }
 
   private asRecord(value: unknown): Record<string, any> {
-    return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, any>) : {};
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, any>)
+      : {};
   }
 }

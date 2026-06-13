@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { User, Mail, Shield, Calendar, Edit2, Save, X } from 'lucide-react';
+import { Mail, Shield, Calendar, Edit2, Save, X } from 'lucide-react';
 
 interface UserProfile {
   id: string;
@@ -67,9 +67,9 @@ const Profile = () => {
 
       setProfile(prev => prev ? { ...prev, ...editData } : null);
       setEditing(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating profile:', error);
-      alert('Failed to update profile: ' + error.message);
+      alert('Failed to update profile: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 

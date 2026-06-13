@@ -78,7 +78,8 @@ interface EngineStatus {
         configured: boolean;
     };
     ai?: {
-        geminiConfigured: boolean;
+        deepseekConfigured: boolean;
+        geminiConfigured?: boolean;
         source: string;
         feature: string;
         provider: string;
@@ -1122,9 +1123,9 @@ export default function ScraperDashboard() {
                         },
                         {
                             icon: Zap,
-                            label: 'Gemini',
-                            value: engineStatus.ai?.geminiConfigured ? 'Ready' : 'Missing key',
-                            ok: Boolean(engineStatus.ai?.geminiConfigured && engineStatus.ai.enabled),
+                            label: 'DeepSeek',
+                            value: engineStatus.ai?.deepseekConfigured || engineStatus.ai?.geminiConfigured ? 'Ready' : 'Missing key',
+                            ok: Boolean((engineStatus.ai?.deepseekConfigured || engineStatus.ai?.geminiConfigured) && engineStatus.ai.enabled),
                             detail: engineStatus.ai?.model || 'scraper.extract',
                         },
                         {

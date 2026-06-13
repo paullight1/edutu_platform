@@ -373,7 +373,9 @@ export class MeService {
 
   private async fetchNotificationCounts(dbUserId: string, authUserId?: string) {
     const userNotificationIds = [
-      ...new Set([authUserId, dbUserId].filter((id): id is string => Boolean(id))),
+      ...new Set(
+        [authUserId, dbUserId].filter((id): id is string => Boolean(id)),
+      ),
     ];
     const [
       backendTotal,
@@ -583,7 +585,10 @@ export class MeService {
     }
   }
 
-  private throwIfSupabaseError(error: { message?: string } | null, fallback: string) {
+  private throwIfSupabaseError(
+    error: { message?: string } | null,
+    fallback: string,
+  ) {
     if (!error) return;
     throw new BadRequestException(error.message || fallback);
   }

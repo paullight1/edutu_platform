@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { 
@@ -10,38 +10,62 @@ import {
     Save,
     X,
     Image as ImageIcon,
-    Link as LinkIcon,
     FileText,
     Clock,
     CheckCircle2,
     AlertCircle,
-    MoreVertical,
     Download
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { backendFetchJson } from '../lib/backend';
 
 interface BlogPost {
     id: string;
     title: string;
     slug: string;
     content: string;
-    excerpt: string;
-    cover_image: string | null;
-    status: 'draft' | 'published';
-    author_id: string;
-    author_name: string;
-    created_at: string;
-    updated_at: string;
-    published_at: string | null;
-    tags: string[];
+    excerpt: string | null;
+    coverImage: string | null;
+    status: 'draft' | 'published' | 'archived';
+    authorId: string;
+    authorName: string;
+    authorAvatar: string | null;
+    category: string | null;
+    createdAt: string;
+    updatedAt: string;
+    publishedAt: string | null;
+    tags: string[] | null;
+    featured: boolean;
     views: number;
+    likes: number;
+}
+
+function slugify(value: string): string {
+    return value
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+}
+
+function createUniqueSlug(title: string, existingSlugs: Set<string>): string {
+    const base = slugify(title) || 'post';
+    let slug = base;
+    let suffix = 2;
+
+    while (existingSlugs.has(slug)) {
+        slug = `${base}-${suffix}`;
+        suffix += 1;
+    }
+
+    return slug;
 }
 
 const Blog = () => {
     const [posts, setPosts] = useState<BlogPost[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'published'>('all');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'published' | 'archived'>('all');
     
     // Editor state
     const [showEditor, setShowEditor] = useState(false);
@@ -51,7 +75,7 @@ const Blog = () => {
     const [postExcerpt, setPostExcerpt] = useState('');
     const [postTags, setPostTags] = useState('');
     const [coverImage, setCoverImage] = useState<string | null>(null);
-    const [postStatus, setPostStatus] = useState<'draft' | 'published'>('draft');
+    const [postStatus, setPostStatus] = useState<'draft' | 'published' | 'archived'>('draft');
     const [saving, setSaving] = useState(false);
 
     // Stats
@@ -62,21 +86,10 @@ const Blog = () => {
         views: 0
     });
 
-    useEffect(() => {
-        fetchPosts();
-    }, []);
-
-    async function fetchPosts() {
+    const fetchPosts = useCallback(async () => {
         setLoading(true);
         try {
-            const { data, error } = await supabase
-                .from('blog_posts')
-                .select('*')
-                .order('created_at', { ascending: false });
-            
-            if (error) throw error;
-            
-            const postsData = data || [];
+            const postsData = await backendFetchJson<BlogPost[]>('/blog?status=all&limit=100');
             setPosts(postsData);
             
             // Calculate stats
@@ -88,17 +101,21 @@ const Blog = () => {
             });
         } catch (error) {
             console.error('Error fetching posts:', error);
-            // For demo, set empty array
             setPosts([]);
             setStats({ total: 0, published: 0, drafts: 0, views: 0 });
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
-    }
+    }, []);
+
+    useEffect(() => {
+        void fetchPosts();
+    }, [fetchPosts]);
 
     const filteredPosts = posts.filter(post => {
         const matchesSearch = 
             post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            post.excerpt.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (post.excerpt || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
             post.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
         
         const matchesStatus = statusFilter === 'all' || post.status === statusFilter;
@@ -115,42 +132,88 @@ const Blog = () => {
         setSaving(true);
         
         try {
-            const slug = postTitle.toLowerCase()
-                .replace(/[^a-z0-9]+/g, '-')
-                .replace(/^-|-$/g, '');
+            const existingPost = editingId ? posts.find((post) => post.id === editingId) : null;
+            const existingSlugs = new Set(posts.map((post) => post.slug).filter(Boolean));
+            if (existingPost?.slug) {
+                existingSlugs.delete(existingPost.slug);
+            }
+            const slug = editingId
+                ? existingPost?.slug || createUniqueSlug(postTitle, existingSlugs)
+                : createUniqueSlug(postTitle, existingSlugs);
+            const { data: { user } } = await supabase.auth.getUser();
+            const authorName =
+                user?.user_metadata?.full_name ||
+                user?.user_metadata?.name ||
+                user?.email ||
+                'Admin';
+            const authorAvatar = user?.user_metadata?.avatar_url || null;
+            const publishedAt = postStatus === 'published'
+                ? existingPost?.publishedAt || new Date().toISOString()
+                : null;
             
             const postData = {
                 title: postTitle,
-                slug: slug + '-' + Date.now(),
+                slug,
                 content: editorContent,
                 excerpt: postExcerpt || postTitle.slice(0, 150) + '...',
                 cover_image: coverImage,
                 status: postStatus,
                 tags: postTags.split(',').map(tag => tag.trim()).filter(Boolean),
-                updated_at: new Date().toISOString(),
-                published_at: postStatus === 'published' ? new Date().toISOString() : null
+                published_at: publishedAt,
+                category: existingPost?.category || 'general',
+                featured: existingPost?.featured ?? false,
+                author_id: existingPost?.authorId || user?.id || 'admin',
+                author_name: existingPost?.authorName || authorName,
+                author_avatar: authorAvatar
             };
 
             if (editingId) {
-                const { error } = await supabase
-                    .from('blog_posts')
-                    .update(postData)
-                    .eq('id', editingId);
-                if (error) throw error;
+                await backendFetchJson(`/blog/${editingId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        title: postData.title,
+                        slug: postData.slug,
+                        content: postData.content,
+                        excerpt: postData.excerpt,
+                        coverImage: postData.cover_image,
+                        status: postData.status,
+                        tags: postData.tags,
+                        publishedAt: postData.published_at || undefined,
+                        category: postData.category,
+                        featured: postData.featured,
+                        authorName: postData.author_name,
+                        authorAvatar: postData.author_avatar || undefined,
+                    }),
+                });
             } else {
-                const { data: { user } } = await supabase.auth.getUser();
-                const { error } = await supabase
-                    .from('blog_posts')
-                    .insert([{
-                        ...postData,
-                        author_id: user?.id || 'admin',
-                        author_name: 'Admin'
-                    }]);
-                if (error) throw error;
+                await backendFetchJson('/blog', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        title: postData.title,
+                        slug: postData.slug,
+                        content: postData.content,
+                        excerpt: postData.excerpt,
+                        coverImage: postData.cover_image,
+                        status: postData.status,
+                        tags: postData.tags,
+                        publishedAt: postData.published_at || undefined,
+                        category: postData.category,
+                        featured: postData.featured,
+                        authorId: postData.author_id,
+                        authorName: postData.author_name,
+                        authorAvatar: postData.author_avatar || undefined,
+                    }),
+                });
             }
 
             resetEditor();
-            fetchPosts();
+            await fetchPosts();
         } catch (error) {
             console.error('Error saving post:', error);
             alert('Error saving post. Please try again.');
@@ -163,12 +226,10 @@ const Blog = () => {
         if (!confirm('Are you sure you want to delete this post?')) return;
         
         try {
-            const { error } = await supabase
-                .from('blog_posts')
-                .delete()
-                .eq('id', id);
-            if (error) throw error;
-            fetchPosts();
+            await backendFetchJson<void>(`/blog/${id}`, {
+                method: 'DELETE',
+            });
+            await fetchPosts();
         } catch (error) {
             console.error('Error deleting post:', error);
         }
@@ -180,7 +241,7 @@ const Blog = () => {
         setPostExcerpt(post.excerpt || '');
         setEditorContent(post.content);
         setPostTags(post.tags?.join(', ') || '');
-        setCoverImage(post.cover_image);
+        setCoverImage(post.coverImage);
         setPostStatus(post.status);
         setShowEditor(true);
     };
@@ -205,21 +266,15 @@ const Blog = () => {
             if (!file) return;
 
             try {
-                const fileExt = file.name.split('.').pop();
-                const fileName = `${Date.now()}.${fileExt}`;
-                const filePath = `blog-images/${fileName}`;
+                const formData = new FormData();
+                formData.append('file', file);
 
-                const { error: uploadError } = await supabase.storage
-                    .from('blog-images')
-                    .upload(filePath, file);
+                const uploadResponse = await backendFetchJson<{ url: string; path: string }>('/blog/upload-image', {
+                    method: 'POST',
+                    body: formData,
+                });
 
-                if (uploadError) throw uploadError;
-
-                const { data: { publicUrl } } = supabase.storage
-                    .from('blog-images')
-                    .getPublicUrl(filePath);
-
-                setCoverImage(publicUrl);
+                setCoverImage(uploadResponse.url);
             } catch (error) {
                 console.error('Error uploading image:', error);
                 alert('Error uploading image');
@@ -545,7 +600,7 @@ const Blog = () => {
                                 <span style={{ fontSize: '14px', color: 'var(--text-tertiary)' }}>Status:</span>
                                 <select
                                     value={postStatus}
-                                    onChange={(e) => setPostStatus(e.target.value as 'draft' | 'published')}
+                                    onChange={(e) => setPostStatus(e.target.value as 'draft' | 'published' | 'archived')}
                                     style={{
                                         padding: '8px 12px',
                                         borderRadius: '8px',
@@ -557,6 +612,7 @@ const Blog = () => {
                                 >
                                     <option value="draft">Draft</option>
                                     <option value="published">Published</option>
+                                    <option value="archived">Archived</option>
                                 </select>
                             </div>
                             <div style={{ display: 'flex', gap: '12px' }}>
@@ -608,12 +664,13 @@ const Blog = () => {
                     <select
                         className="input-field"
                         value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value as 'all' | 'draft' | 'published')}
+                        onChange={(e) => setStatusFilter(e.target.value as 'all' | 'draft' | 'published' | 'archived')}
                         style={{ width: '150px' }}
                     >
                         <option value="all">All Posts</option>
                         <option value="published">Published</option>
                         <option value="draft">Drafts</option>
+                        <option value="archived">Archived</option>
                     </select>
                 </div>
             </div>
@@ -653,10 +710,10 @@ const Blog = () => {
                                 }}
                                 onClick={() => handleEdit(post)}
                             >
-                                {post.cover_image && (
+                                {post.coverImage && (
                                     <div style={{ height: '180px', overflow: 'hidden' }}>
                                         <img 
-                                            src={post.cover_image} 
+                                            src={post.coverImage} 
                                             alt={post.title}
                                             style={{
                                                 width: '100%',
@@ -680,14 +737,20 @@ const Blog = () => {
                                             fontWeight: 600,
                                             background: post.status === 'published' 
                                                 ? 'rgba(16, 185, 129, 0.15)' 
-                                                : 'rgba(255, 102, 0, 0.15)',
-                                            color: post.status === 'published' ? '#10b981' : '#ff6600'
+                                                : post.status === 'archived'
+                                                    ? 'rgba(107, 114, 128, 0.15)'
+                                                    : 'rgba(255, 102, 0, 0.15)',
+                                            color: post.status === 'published'
+                                                ? '#10b981'
+                                                : post.status === 'archived'
+                                                    ? '#6b7280'
+                                                    : '#ff6600'
                                         }}>
-                                            {post.status === 'published' ? 'Published' : 'Draft'}
+                                            {post.status === 'published' ? 'Published' : post.status === 'archived' ? 'Archived' : 'Draft'}
                                         </span>
                                         <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>
                                             <Clock size={12} style={{ display: 'inline', marginRight: '4px' }} />
-                                            {new Date(post.created_at).toLocaleDateString()}
+                                            {new Date(post.createdAt).toLocaleDateString()}
                                         </span>
                                     </div>
                                     <h3 style={{ 

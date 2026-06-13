@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { authService, getProfileFromUser } from '../../lib/auth';
+import {
+  authService,
+  consumePostAuthRedirect,
+  getProfileFromUser,
+  rememberPostAuthRedirect,
+  resolvePostAuthRedirectPath,
+} from '../../lib/auth';
 
 vi.mock('../../lib/supabaseClient', () => ({
   setClerkTokenGetter: vi.fn(),
@@ -18,6 +24,7 @@ describe('authService Clerk bridge', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.Clerk = undefined;
+    window.sessionStorage.clear();
   });
 
   it('returns null when Clerk has no current user', async () => {
@@ -113,5 +120,36 @@ describe('getProfileFromUser', () => {
     } as any);
 
     expect(profile?.name).toBe('john.doe');
+  });
+});
+
+describe('post auth redirects', () => {
+  it('maps public share pages to the authenticated opportunity route', () => {
+    expect(
+      resolvePostAuthRedirectPath({
+        pathname: '/share/opportunity/opp-123',
+        search: '?ref=whatsapp',
+      }),
+    ).toBe('/app/opportunity/opp-123');
+  });
+
+  it('remembers and consumes a mapped redirect target', () => {
+    expect(
+      rememberPostAuthRedirect({
+        pathname: '/share/opportunity/opp-123',
+        search: '?ref=whatsapp',
+      }),
+    ).toBe('/app/opportunity/opp-123');
+
+    expect(window.sessionStorage.getItem('edutu_post_auth_from')).toBe('/app/opportunity/opp-123');
+    expect(consumePostAuthRedirect()).toBe('/app/opportunity/opp-123');
+    expect(window.sessionStorage.getItem('edutu_post_auth_from')).toBeNull();
+  });
+
+  it('clears stale redirect state when no source is provided', () => {
+    window.sessionStorage.setItem('edutu_post_auth_from', '/app/home');
+
+    expect(rememberPostAuthRedirect(null)).toBeNull();
+    expect(window.sessionStorage.getItem('edutu_post_auth_from')).toBeNull();
   });
 });

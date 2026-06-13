@@ -1,8 +1,10 @@
-import { Module } from '@nestjs/common';
-import { CreatorService } from './creator.service';
-import { CreatorController } from './creator.controller';
+import { Module } from "@nestjs/common";
+import { CreatorService } from "./creator.service";
+import { CreatorController } from "./creator.controller";
+import { NotificationsModule } from "../notifications/notifications.module";
 
 @Module({
+  imports: [NotificationsModule],
   controllers: [CreatorController],
   providers: [CreatorService],
   exports: [CreatorService],

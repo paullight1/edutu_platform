@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useState, useCallback } from 'react';
 
 export interface ErrorState {
@@ -6,54 +7,61 @@ export interface ErrorState {
     details?: string;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
 /**
  * Standardized error handler for Supabase and API errors
  */
-export function handleError(error: any): ErrorState {
+export function handleError(error: unknown): ErrorState {
+    const record = isRecord(error) ? error : null;
+    const code = typeof record?.code === 'string' ? record.code : undefined;
+
     // Supabase errors
-    if (error?.code) {
-        switch (error.code) {
+    if (code) {
+        switch (code) {
             case 'PGRST116':
-                return { message: 'Record not found', code: error.code };
+                return { message: 'Record not found', code };
             case '23505':
-                return { message: 'This record already exists', code: error.code };
+                return { message: 'This record already exists', code };
             case '23503':
-                return { message: 'Related record not found', code: error.code };
+                return { message: 'Related record not found', code };
             case '42501':
-                return { message: 'Permission denied', code: error.code };
+                return { message: 'Permission denied', code };
             case '42P01':
-                return { message: 'Database table not found', code: error.code };
+                return { message: 'Database table not found', code };
             default:
                 return { 
-                    message: error.message || 'Database error occurred', 
-                    code: error.code,
-                    details: error.details
+                    message: typeof record?.message === 'string' && record.message ? record.message : 'Database error occurred', 
+                    code,
+                    details: typeof record?.details === 'string' ? record.details : undefined
                 };
         }
     }
 
     // Network errors
-    if (error?.name === 'TypeError' && error?.message?.includes('fetch')) {
+    if (typeof record?.name === 'string' && record.name === 'TypeError' && typeof record?.message === 'string' && record.message.includes('fetch')) {
         return { message: 'Network error. Please check your connection.', code: 'NETWORK_ERROR' };
     }
 
     // Timeout errors
-    if (error?.name === 'AbortError') {
+    if (typeof record?.name === 'string' && record.name === 'AbortError') {
         return { message: 'Request timed out. Please try again.', code: 'TIMEOUT' };
     }
 
     // Generic errors
     return {
-        message: error?.message || 'An unexpected error occurred',
-        code: error?.code || 'UNKNOWN_ERROR',
-        details: error?.stack
+        message: typeof record?.message === 'string' && record.message ? record.message : 'An unexpected error occurred',
+        code: code || 'UNKNOWN_ERROR',
+        details: typeof record?.stack === 'string' ? record.stack : undefined
     };
 }
 
 /**
  * Hook for managing async operations with error handling
  */
-export function useAsyncAction<T extends (...args: any[]) => Promise<any>>(
+export function useAsyncAction<T extends (...args: unknown[]) => Promise<unknown>>(
     action: T,
     options?: {
         onSuccess?: (result: Awaited<ReturnType<T>>) => void;
@@ -72,7 +80,7 @@ export function useAsyncAction<T extends (...args: any[]) => Promise<any>>(
         setSuccess(false);
 
         try {
-            const result = await action(...args);
+            const result = (await action(...args)) as Awaited<ReturnType<T>>;
             setSuccess(true);
             
             if (options?.successMessage) {
@@ -82,7 +90,7 @@ export function useAsyncAction<T extends (...args: any[]) => Promise<any>>(
             
             options?.onSuccess?.(result);
             return result;
-        } catch (err: any) {
+        } catch (err: unknown) {
             const errorState = handleError(err);
             setError(errorState);
             
@@ -165,8 +173,8 @@ export async function safeAsync<T>(
     try {
         const data = await fn();
         return { data, error: null };
-    } catch (err: any) {
-        return { data: fallback || null, error: handleError(err) };
+    } catch (err: unknown) {
+        return { data: fallback ?? null, error: handleError(err) };
     }
 }
 
@@ -182,7 +190,7 @@ export async function withRetry<T>(
     } = {}
 ): Promise<T> {
     const { maxRetries = 3, delay = 1000, backoff = 2 } = options;
-    let lastError: any;
+    let lastError: unknown;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
@@ -197,13 +205,13 @@ export async function withRetry<T>(
         }
     }
 
-    throw lastError;
+    throw lastError instanceof Error ? lastError : new Error('Operation failed after retries');
 }
 
 /**
  * Validate required fields in an object
  */
-export function validateRequired<T extends Record<string, any>>(
+export function validateRequired<T extends Record<string, unknown>>(
     data: T,
     requiredFields: (keyof T)[]
 ): { valid: boolean; missing: string[] } {

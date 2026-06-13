@@ -11,4 +11,3 @@ import { ProfileService } from "./profile.service";
   exports: [ProfileService],
 })
 export class ProfileModule {}
-

@@ -469,10 +469,10 @@ export class OpportunityVerificationService {
 
   private rows<T>(result: unknown): T[] {
     if (Array.isArray(result)) return result as T[];
-    return ((result as { rows?: T[] }).rows ?? []) as T[];
+    return (result as { rows?: T[] }).rows ?? [];
   }
 
   private firstRow<T = Record<string, unknown>>(result: unknown): T {
-    return (this.rows<T>(result)[0] ?? ({} as T)) as T;
+    return this.rows<T>(result)[0] ?? ({} as T);
   }
 }

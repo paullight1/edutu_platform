@@ -1,20 +1,20 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
-import { AdminGuard, CurrentUser } from '../auth';
-import { AiService } from './ai.service';
+import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
+import { AdminGuard, CurrentUser } from "../auth";
+import { AiService } from "./ai.service";
 
-@Controller('ai')
+@Controller("ai")
 @UseGuards(AdminGuard)
 export class AiController {
   constructor(private readonly aiService: AiService) {}
 
-  @Get('config')
+  @Get("config")
   getConfig() {
     return this.aiService.listConfig();
   }
 
-  @Post('provider-keys')
+  @Post("provider-keys")
   saveProviderKey(
-    @CurrentUser('id') userId: string | null,
+    @CurrentUser("id") userId: string | null,
     @Body()
     body: {
       provider: string;
@@ -30,9 +30,9 @@ export class AiController {
     });
   }
 
-  @Post('routes')
+  @Post("routes")
   upsertRoute(
-    @CurrentUser('id') userId: string | null,
+    @CurrentUser("id") userId: string | null,
     @Body()
     body: {
       feature: string;
@@ -55,7 +55,7 @@ export class AiController {
     });
   }
 
-  @Post('test')
+  @Post("test")
   async testRoute(
     @Body()
     body: {
@@ -68,7 +68,7 @@ export class AiController {
       feature: body.feature,
       prompt: body.prompt,
       responseMimeType: body.responseMimeType,
-      metadata: { source: 'admin-test' },
+      metadata: { source: "admin-test" },
     });
 
     return {

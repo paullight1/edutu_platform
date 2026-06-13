@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft, Calendar, MapPin, Users, Clock, Star, Bell, ExternalLink,
@@ -14,6 +14,15 @@ import { useAuth } from '@clerk/clerk-react';
 import type { Opportunity } from '../types/opportunity';
 import { addBookmark, removeBookmark, isBookmarked } from '../services/bookmarks';
 import { addApplication } from '../services/applications';
+import {
+  buildOpportunityShareFileName,
+  buildOpportunityShareText,
+  buildOpportunityShareUrl,
+  buildWhatsAppShareUrl,
+  downloadBlob,
+  fetchOpportunityShareCard,
+  fetchOpportunitySharePdfBlob,
+} from '../services/opportunityShare';
 
 interface OpportunityDetailProps {
   opportunity: Opportunity;
@@ -36,6 +45,32 @@ const staggerContainer = {
   }
 };
 
+function getCurrencySymbol(currency?: string | null): string {
+  switch (currency?.toUpperCase()) {
+    case 'NGN':
+      return '₦';
+    case 'GBP':
+      return '£';
+    case 'EUR':
+      return '€';
+    default:
+      return '$';
+  }
+}
+
+function getCurrencyLabel(currency?: string | null): string {
+  switch (currency?.toUpperCase()) {
+    case 'NGN':
+      return 'Nigerian Naira';
+    case 'GBP':
+      return 'British Pound';
+    case 'EUR':
+      return 'Euro';
+    default:
+      return 'US Dollar';
+  }
+}
+
 const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   opportunity,
   onBack,
@@ -47,11 +82,13 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   const [isBookmarkedState, setIsBookmarkedState] = useState(false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
-  const shareCardRef = useRef<HTMLDivElement>(null);
+  const [isSharing, setIsSharing] = useState(false);
   const { isDarkMode } = useDarkMode();
   const { success, error: showError } = useToast();
 
   const { userId, getToken } = useAuth();
+  const currencySymbol = getCurrencySymbol(opportunity.currency);
+  const currencyLabel = getCurrencyLabel(opportunity.currency);
 
   useEffect(() => {
     const checkBookmark = async () => {
@@ -98,101 +135,78 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   };
 
   const handleShare = async () => {
-    const url = window.location.href;
-    const fileName = `${opportunity.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-edutu.png`;
+    setIsSharing(true);
+
     try {
-      const blob = await createShareImageBlob();
-      if (blob) {
-        const file = new File([blob], fileName, { type: 'image/png' });
-        if (navigator.canShare?.({ files: [file] })) {
+      const shareUrl = buildOpportunityShareUrl(opportunity.id);
+      const shareText = buildOpportunityShareText(opportunity, shareUrl);
+      const shareCard = await fetchOpportunityShareCard(opportunity.id);
+      const imageSource = shareCard?.url || opportunity.image || null;
+      const pdfBlob = await fetchOpportunitySharePdfBlob(opportunity.id, imageSource);
+      const shareData = {
+        title: opportunity.title,
+        text: shareText,
+        url: shareUrl,
+      };
+
+      if (pdfBlob) {
+        const pdfFile = new File([pdfBlob], buildOpportunityShareFileName(opportunity, 'pdf'), {
+          type: 'application/pdf',
+        });
+
+        if (navigator.share && navigator.canShare?.({ files: [pdfFile] })) {
           await navigator.share({
-            title: opportunity.title,
-            text: `Check out this opportunity on Edutu: ${opportunity.title}`,
-            url,
-            files: [file],
+            ...shareData,
+            files: [pdfFile],
           });
           setShareCopied(true);
-          success('Opportunity image ready to share');
-        } else {
-          downloadBlob(blob, fileName);
-          await navigator.clipboard.writeText(url);
+          success('WhatsApp share card ready');
+        } else if (navigator.share) {
+          await navigator.share(shareData);
+          downloadBlob(pdfBlob, buildOpportunityShareFileName(opportunity, 'pdf'));
           setShareCopied(true);
-          success('Share image downloaded and link copied');
+          success('Shared the link and downloaded the PDF');
+        } else {
+          window.open(buildWhatsAppShareUrl(shareText), '_blank', 'noopener,noreferrer');
+          downloadBlob(pdfBlob, buildOpportunityShareFileName(opportunity, 'pdf'));
+          try {
+            await navigator.clipboard.writeText(`${shareText}\n\n${shareUrl}`);
+          } catch {
+            // Ignore clipboard failures in insecure or unsupported contexts.
+          }
+          setShareCopied(true);
+          success('Opened WhatsApp and downloaded the PDF');
         }
       } else if (navigator.share) {
-        await navigator.share({
-          title: opportunity.title,
-          text: `Check out this opportunity on Edutu: ${opportunity.title}`,
-          url,
-        });
+        await navigator.share(shareData);
         setShareCopied(true);
         success('Opportunity shared');
       } else {
-        await navigator.clipboard.writeText(url);
+        window.open(buildWhatsAppShareUrl(shareText), '_blank', 'noopener,noreferrer');
+        try {
+          await navigator.clipboard.writeText(`${shareText}\n\n${shareUrl}`);
+        } catch {
+          // Ignore clipboard failures in insecure or unsupported contexts.
+        }
         setShareCopied(true);
-        success('Link copied to clipboard');
+        success('Opened WhatsApp and copied the link');
       }
       setTimeout(() => setShareCopied(false), 2000);
-    } catch {
+    } catch (error) {
+      if (error instanceof DOMException && (error.name === 'AbortError' || error.name === 'NotAllowedError')) {
+        return;
+      }
+
       try {
-        await navigator.clipboard.writeText(url);
+        const shareUrl = buildOpportunityShareUrl(opportunity.id);
+        await navigator.clipboard.writeText(shareUrl);
         success('Link copied to clipboard');
       } catch {
         showError('Could not share this opportunity');
       }
-    }
-  };
-
-  const createShareImageBlob = async (): Promise<Blob | null> => {
-    const card = shareCardRef.current;
-    if (!card) return null;
-
-    const width = 1200;
-    const height = 1500;
-    const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-        <foreignObject width="100%" height="100%">
-          <div xmlns="http://www.w3.org/1999/xhtml">
-            ${card.outerHTML}
-          </div>
-        </foreignObject>
-      </svg>`;
-    const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-    const svgUrl = URL.createObjectURL(svgBlob);
-
-    try {
-      const img = await loadImage(svgUrl);
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const context = canvas.getContext('2d');
-      if (!context) return null;
-      context.fillStyle = '#fffaf0';
-      context.fillRect(0, 0, width, height);
-      context.drawImage(img, 0, 0, width, height);
-      return await new Promise((resolve) => canvas.toBlob(resolve, 'image/png', 0.95));
     } finally {
-      URL.revokeObjectURL(svgUrl);
+      setIsSharing(false);
     }
-  };
-
-  const loadImage = (src: string): Promise<HTMLImageElement> =>
-    new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = src;
-    });
-
-  const downloadBlob = (blob: Blob, fileName: string) => {
-    const href = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = href;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(href);
   };
 
   const difficultyLabel = opportunity.difficulty ?? 'Medium';
@@ -321,101 +335,9 @@ Description: ${opportunity.description || 'No description available'}`
   };
 
   const matchPercentage = Math.round(opportunity.match ?? 0);
-  const shareSummary = (opportunity.description || 'Open this opportunity in Edutu for full details.')
-    .replace(/\s+/g, ' ')
-    .slice(0, 260);
-  const shareReward =
-    opportunity.stipend !== undefined && opportunity.stipend !== null
-      ? `${opportunity.currency || 'USD'} ${opportunity.stipend.toLocaleString()}`
-      : 'Funded opportunity';
 
   return (
     <div className={`min-h-screen bg-surface-body ${isDarkMode ? 'dark' : ''}`}>
-      <div className="fixed -left-[9999px] top-0" aria-hidden="true">
-        <div
-          ref={shareCardRef}
-          style={{
-            width: 1200,
-            height: 1500,
-            boxSizing: 'border-box',
-            background: 'linear-gradient(135deg, #fffaf0 0%, #ffffff 52%, #eef8f3 100%)',
-            color: '#111827',
-            padding: 72,
-            fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-            position: 'relative',
-            overflow: 'hidden',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 56 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-              <img src="/edutu-logo.png" alt="" width="72" height="72" style={{ objectFit: 'contain' }} />
-              <div>
-                <div style={{ fontSize: 52, lineHeight: 1, fontWeight: 900 }}>Edutu</div>
-                <div style={{ marginTop: 8, color: '#64748b', fontSize: 20, fontWeight: 800, letterSpacing: 5 }}>
-                  GLOBAL OPPORTUNITIES
-                </div>
-              </div>
-            </div>
-            <div style={{ color: '#9a6b12', fontSize: 28, fontWeight: 900 }}>edutu.ai</div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 44 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ color: '#b7791f', fontSize: 24, fontWeight: 900, textTransform: 'uppercase' }}>
-                {opportunity.category || 'Opportunity'}
-              </div>
-              <h1 style={{ margin: '18px 0 0', fontSize: 72, lineHeight: 1.05, fontWeight: 950, letterSpacing: 0 }}>
-                {opportunity.title}
-              </h1>
-              <p style={{ margin: '28px 0 0', fontSize: 34, lineHeight: 1.35, color: '#1f2937' }}>
-                {shareSummary}
-              </p>
-            </div>
-            <div style={{ width: 260, textAlign: 'center' }}>
-              {opportunity.image ? (
-                <img
-                  src={opportunity.image}
-                  alt=""
-                  width="240"
-                  height="170"
-                  style={{ objectFit: 'cover', borderRadius: 24, border: '2px solid #e5e7eb' }}
-                  crossOrigin="anonymous"
-                />
-              ) : (
-                <div style={{ width: 220, height: 170, borderRadius: 24, background: '#f1f5f9', border: '2px solid #e2e8f0' }} />
-              )}
-              <div style={{ marginTop: 20, color: '#163b7a', fontSize: 28, lineHeight: 1.15, fontWeight: 900, textTransform: 'uppercase' }}>
-                {opportunity.organization}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 22, marginTop: 58 }}>
-            {[
-              ['Reward', shareReward],
-              ['Deadline', opportunity.deadline ? formatDeadline() : 'Rolling'],
-              ['Location', opportunity.location || 'Worldwide'],
-            ].map(([label, value]) => (
-              <div key={label} style={{ background: 'rgba(255,255,255,0.74)', border: '2px solid #e5e7eb', borderRadius: 22, padding: 24 }}>
-                <div style={{ color: '#b7791f', fontSize: 20, fontWeight: 900 }}>{label}</div>
-                <div style={{ marginTop: 10, color: '#111827', fontSize: 28, lineHeight: 1.18, fontWeight: 850 }}>{value}</div>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ position: 'absolute', left: 72, right: 72, bottom: 72 }}>
-            <div style={{ height: 2, background: '#e5e7eb', marginBottom: 28 }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 36, alignItems: 'center' }}>
-              <div style={{ color: '#111827', fontSize: 28, lineHeight: 1.25, fontWeight: 800 }}>
-                Open in Edutu for requirements, benefits, and application steps.
-              </div>
-              <div style={{ color: '#64748b', fontSize: 22, fontWeight: 800, textAlign: 'right' }}>
-                Share verified scholarship details.
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
       <div className="sticky top-0 z-10 bg-surface-layer/80 backdrop-blur-xl border-b border-subtle">
         <div className="max-w-7xl mx-auto px-4 lg:px-6 py-3">
           <div className="flex items-center gap-3">
@@ -431,7 +353,10 @@ Description: ${opportunity.description || 'No description available'}`
             </div>
             <button
               onClick={handleShare}
-              className={`p-2 rounded-xl transition-all ${shareCopied ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-surface-elevated border border-subtle text-muted hover:bg-surface-layer'}`}
+              disabled={isSharing}
+              aria-label="Share opportunity"
+              title="Share opportunity"
+              className={`p-2 rounded-xl transition-all ${shareCopied ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-surface-elevated border border-subtle text-muted hover:bg-surface-layer'} ${isSharing ? 'opacity-70 cursor-wait' : ''}`}
             >
               <Share2 size={18} />
             </button>
@@ -651,14 +576,14 @@ Description: ${opportunity.description || 'No description available'}`
                     <div>
                       <p className="text-xs text-muted">Stipend / Funding</p>
                       <p className="text-xl font-display font-bold text-emerald-700 dark:text-emerald-400">
-                        {opportunity.currency === 'NGN' ? '?' : opportunity.currency === 'GBP' ? '�' : opportunity.currency === 'EUR' ? '�' : '$'}
+                        {currencySymbol}
                         {opportunity.stipend.toLocaleString()}
                       </p>
                     </div>
                   </div>
                   {opportunity.currency && (
                     <p className="text-xs text-emerald-600/70 dark:text-emerald-400/70">
-                      {opportunity.currency === 'NGN' ? 'Nigerian Naira' : opportunity.currency === 'GBP' ? 'British Pound' : opportunity.currency === 'EUR' ? 'Euro' : 'US Dollar'}
+                      {currencyLabel}
                     </p>
                   )}
                 </Card>
@@ -700,7 +625,7 @@ Description: ${opportunity.description || 'No description available'}`
                     className="w-full bg-surface-elevated text-strong font-medium py-3 px-4 rounded-xl border border-subtle hover:border-brand-300 dark:hover:border-brand-700 transition-theme flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ExternalLink size={16} />
-                    {applyUrl ? 'Apply Now' : 'Link Coming Soon'}
+                    {applyUrl ? 'Apply Now' : 'Application Link Unavailable'}
                   </button>
                   <button
                     onClick={handleAddToGoals}

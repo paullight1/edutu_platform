@@ -1,13 +1,13 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
-    BookOpen, CheckCircle, XCircle, Clock, TrendingUp,
+    BookOpen, CheckCircle, XCircle, Clock,
     Search, Trash2, ChevronDown, ChevronUp,
     Loader2, AlertCircle, CheckCircle2,
-    Star, FileText, X, Plus, Sparkles, ArrowRight, ArrowLeft, Edit3, Eye, Users, ThumbsUp
+    Star, FileText, X, Plus, Sparkles, ArrowLeft, Users
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { getAdminAuthHeaders } from '../lib/backend';
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_BACKEND_URL || 'https://edutu-api.onrender.com';
 
 interface RoadmapStep {
     id: string;
@@ -67,11 +67,13 @@ interface AIAssistResponse {
     roadmapSuggestion: AIRoadmapSuggestion;
 }
 
+type RoadmapStatusFilter = 'all' | 'published' | 'draft';
+
 const Roadmaps = () => {
     const [roadmaps, setRoadmaps] = useState<Roadmap[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft'>('all');
+    const [statusFilter, setStatusFilter] = useState<RoadmapStatusFilter>('all');
     const [categoryFilter, setCategoryFilter] = useState('all');
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [stats, setStats] = useState({ total_roadmaps: 0, published_roadmaps: 0, draft_roadmaps: 0, total_enrollments: 0, avg_satisfaction: 0 });
@@ -105,7 +107,7 @@ const Roadmaps = () => {
             }
 
             const statsRes = await fetch(`${API_URL}/roadmaps/stats`, {
-                headers: { 'Authorization': `Bearer ${await getAuthToken()}` },
+                headers: await getAuthHeaders(),
             });
             if (statsRes.ok) {
                 const statsData = await statsRes.json();
@@ -118,9 +120,10 @@ const Roadmaps = () => {
         }
     }, [statusFilter]);
 
-    const getAuthToken = async () => {
-        const { data } = await supabase.auth.getSession();
-        return data?.session?.access_token || '';
+    const getAuthHeaders = async () => {
+        return getAdminAuthHeaders({
+            'Content-Type': 'application/json',
+        });
     };
 
     useEffect(() => { fetchRoadmaps(); }, [fetchRoadmaps]);
@@ -169,10 +172,10 @@ const Roadmaps = () => {
         if (!formData.title || !formData.description || steps.length === 0) return;
         setIsCreating(true);
         try {
-            const token = await getAuthToken();
+            const headers = await getAuthHeaders();
             const res = await fetch(`${API_URL}/roadmaps`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                headers,
                 body: JSON.stringify({
                     ...formData,
                     steps: steps.filter(s => s.title.trim()),
@@ -193,17 +196,17 @@ const Roadmaps = () => {
 
     const handleDelete = async (id: string) => {
         if (!confirm('Delete this roadmap?')) return;
-        const token = await getAuthToken();
-        await fetch(`${API_URL}/roadmaps/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+        const headers = await getAuthHeaders();
+        await fetch(`${API_URL}/roadmaps/${id}`, { method: 'DELETE', headers });
         fetchRoadmaps();
     };
 
     const handleStatusToggle = async (roadmap: Roadmap) => {
-        const token = await getAuthToken();
+        const headers = await getAuthHeaders();
         const newStatus = roadmap.status === 'published' ? 'draft' : 'published';
         await fetch(`${API_URL}/roadmaps/${roadmap.id}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            headers,
             body: JSON.stringify({ status: newStatus }),
         });
         fetchRoadmaps();
@@ -268,7 +271,7 @@ const Roadmaps = () => {
                     <select className="input-field" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} style={{ width: '160px' }}>
                         {categories.map(c => <option key={c} value={c}>{c === 'all' ? 'All Categories' : c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
                     </select>
-                    <select className="input-field" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)} style={{ width: '140px' }}>
+                    <select className="input-field" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as RoadmapStatusFilter)} style={{ width: '140px' }}>
                         <option value="all">All Status</option>
                         <option value="published">Published</option>
                         <option value="draft">Draft</option>
@@ -302,7 +305,18 @@ const Roadmaps = () => {
                                     <>
                                         <tr key={item.id}>
                                             <td>
-                                                <button onClick={() => { const n = new Set(expandedRows); n.has(item.id) ? n.delete(item.id) : n.add(item.id); setExpandedRows(n); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)' }}>
+                                                <button
+                                                    onClick={() => {
+                                                        const next = new Set(expandedRows);
+                                                        if (next.has(item.id)) {
+                                                            next.delete(item.id);
+                                                        } else {
+                                                            next.add(item.id);
+                                                        }
+                                                        setExpandedRows(next);
+                                                    }}
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)' }}
+                                                >
                                                     {expandedRows.has(item.id) ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                                                 </button>
                                             </td>

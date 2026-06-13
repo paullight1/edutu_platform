@@ -33,9 +33,12 @@ serve(async (req) => {
             .replace(/\s+/g, " ")
             .slice(0, 8000)
 
-        // 2. Extract with AI (Gemini)
-        const GEMINI_KEY = Deno.env.get('GEMINI_API_KEY')
-        if (!GEMINI_KEY) throw new Error('GEMINI_API_KEY not configured')
+        // 2. Extract with AI (DeepSeek)
+        const DEEPSEEK_KEY = Deno.env.get("DEEPSEEK_API_KEY");
+        const DEEPSEEK_API_URL =
+          Deno.env.get("DEEPSEEK_API_URL") ?? "https://api.deepseek.com/chat/completions";
+
+        if (!DEEPSEEK_KEY) throw new Error("DEEPSEEK_API_KEY not configured");
 
         const prompt = `Extract opportunity details from this text and return valid JSON.
 Text: ${textContent}
@@ -60,17 +63,26 @@ JSON Structure:
   }
 }`
 
-        const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+        const aiRes = await fetch(DEEPSEEK_API_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${DEEPSEEK_KEY}`,
+            },
             body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { responseMimeType: "application/json" }
-            })
+                model: "deepseek-chat",
+                messages: [{ role: "user", content: prompt }],
+                response_format: { type: "json_object" },
+                stream: false,
+            }),
         })
 
         const aiData = await aiRes.json()
-        const result = JSON.parse(aiData.candidates[0].content.parts[0].text)
+        const output =
+            aiData?.choices?.[0]?.message?.content ||
+            aiData?.choices?.[0]?.message?.text ||
+            "";
+        const result = JSON.parse(output);
 
         return new Response(JSON.stringify({
             success: true,

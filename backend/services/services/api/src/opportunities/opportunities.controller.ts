@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   Headers,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -12,8 +13,11 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
   UseGuards,
+  Res,
+  StreamableFile,
 } from "@nestjs/common";
 import { timingSafeEqual } from "crypto";
+import type { Response } from "express";
 import {
   BulkImportSchema,
   CreateOpportunitySchema,
@@ -135,6 +139,18 @@ export class OpportunitiesController {
     return this.opportunitiesService.getAdminStats();
   }
 
+  @Delete("admin/purge")
+  @UseGuards(AdminGuard)
+  purgeAdminOpportunities(
+    @Body()
+    body: {
+      olderThanDays?: number | null;
+      missingImagesOnly?: boolean;
+    } = {},
+  ) {
+    return this.opportunitiesService.purgeOpportunities(body);
+  }
+
   @Post("admin/reclassify")
   @UseGuards(AdminGuard)
   reclassifyExisting(
@@ -151,6 +167,14 @@ export class OpportunitiesController {
       return { success: false, error: "Opportunity not found" };
     }
     return result;
+  }
+
+  @Post("admin/bulk-import")
+  @UseGuards(AdminGuard)
+  async adminBulkImport(
+    @Body(new ZodValidationPipe(BulkImportSchema)) body: BulkImportDto,
+  ) {
+    return this.opportunitiesService.bulkImport(body.items);
   }
 
   @Get("admin/verification/stats")
@@ -216,6 +240,35 @@ export class OpportunitiesController {
       return { success: false, error: "Opportunity not found" };
     }
     return { success: true, ...result };
+  }
+
+  @Public()
+  @Get(":id/share-pdf")
+  async downloadSharePdf(
+    @Param("id") id: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    try {
+      const result = await this.opportunitiesService.getSharePdf(id);
+      if (!result) {
+        throw new NotFoundException("Opportunity not found");
+      }
+
+      response.setHeader("Content-Type", "application/pdf");
+      response.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${result.fileName}"`,
+      );
+      response.setHeader("Cache-Control", "no-store");
+
+      return new StreamableFile(result.buffer);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new ServiceUnavailableException("Share PDF unavailable");
+    }
   }
 
   @Post()

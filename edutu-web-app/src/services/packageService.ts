@@ -7,6 +7,10 @@ import type {
   CommunityResource,
   CommunityRoadmapStage
 } from '../types/community';
+import {
+  buildPackageTemplateZip,
+  createDataUrl
+} from './packageDownloads';
 
 // Define new types for the package functionality
 export interface PackageStep {
@@ -30,6 +34,7 @@ export interface PackageTemplate {
   title: string;
   fileUrl: string;
   fileType: string;
+  content?: string;
 }
 
 export interface PackageResource {
@@ -92,6 +97,14 @@ export interface CommunityPackage {
   reviews: PackageReview[];
   progress?: PackageProgress;
 }
+
+const createSampleMarkdownTemplate = (id: string, title: string, content: string): PackageTemplate => ({
+  id,
+  title,
+  fileType: 'Markdown',
+  content,
+  fileUrl: createDataUrl(content, 'text/markdown;charset=utf-8')
+});
 
 // Service function to get a single package by ID
 export async function getCommunityPackage(id: string): Promise<CommunityPackage | null> {
@@ -179,9 +192,69 @@ export async function getCommunityPackage(id: string): Promise<CommunityPackage 
         }
       ],
       templates: [
-        { id: "tmpl-1", title: "Personal Statement Template", fileUrl: "/templates/essay.pdf", fileType: "PDF" },
-        { id: "tmpl-2", title: "CV Template", fileUrl: "/templates/cv.docx", fileType: "DOCX" },
-        { id: "tmpl-3", title: "Recommendation Letter Template", fileUrl: "/templates/rec-letter.docx", fileType: "DOCX" }
+        createSampleMarkdownTemplate(
+          'tmpl-1',
+          'Personal Statement Template',
+          [
+            '# Personal Statement Template',
+            '',
+            '## Opening',
+            'Start with a clear story that shows why you care about the opportunity.',
+            '',
+            '## Background',
+            'Share your academic background, key experiences, and what shaped your goals.',
+            '',
+            '## Motivation',
+            'Explain why this program matters now and how it fits your long-term plans.',
+            '',
+            '## Impact',
+            'Close by showing the difference you will make if selected.'
+          ].join('\n')
+        ),
+        createSampleMarkdownTemplate(
+          'tmpl-2',
+          'CV Template',
+          [
+            '# CV Template',
+            '',
+            '## Name',
+            'Your full name',
+            '',
+            '## Contact',
+            'Email | Phone | Location | LinkedIn',
+            '',
+            '## Education',
+            '- Degree, School, Dates',
+            '',
+            '## Experience',
+            '- Role, Organization, Impact',
+            '',
+            '## Skills',
+            '- Key skill 1',
+            '- Key skill 2',
+            '- Key skill 3'
+          ].join('\n')
+        ),
+        createSampleMarkdownTemplate(
+          'tmpl-3',
+          'Recommendation Letter Template',
+          [
+            '# Recommendation Letter Template',
+            '',
+            'Dear [Committee / Admissions Team],',
+            '',
+            'I am pleased to recommend [Applicant Name] for [Program Name].',
+            '',
+            '## Relationship',
+            'Describe how you know the applicant and for how long.',
+            '',
+            '## Strengths',
+            'Highlight academic ability, character, leadership, and potential.',
+            '',
+            '## Closing',
+            'End with a strong endorsement and your contact details.'
+          ].join('\n')
+        )
       ],
       resources: [
         { id: "res-1", title: "Mastercard Foundation Official Site", url: "https://mastercardfdn.org", type: "link", notes: "Official scholarship information" },
@@ -251,12 +324,12 @@ export async function updatePackageTaskProgress(
 
 // Service function to download all templates
 export async function downloadAllPackageTemplates(packageId: string): Promise<Blob | null> {
-  // In a real implementation, this would fetch a zip file from an API
-  console.log(`Downloading all templates for package ${packageId}`);
-  
-  // This is where we would typically make a GET request to an endpoint like:
-  // GET /api/packages/:id/templates/bundle
-  return null;
+  const packageData = await getCommunityPackage(packageId);
+  if (!packageData || packageData.templates.length === 0) {
+    return null;
+  }
+
+  return buildPackageTemplateZip(packageData.templates);
 }
 
 // Service function to ask the creator a question

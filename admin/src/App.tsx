@@ -1,26 +1,29 @@
 import type { FC } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
+import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
+import { getLocalAdminEmail, getLocalAdminUserId, isLocalAdminBypassEnabled } from './lib/localAdmin';
 import Layout from './components/Layout';
-import Dashboard from './pages/Dashboard';
-import Opportunities from './pages/Opportunities';
-import Users from './pages/Users';
-import Creators from './pages/Creators';
-import Roadmaps from './pages/Roadmaps';
-import Blog from './pages/Blog';
-import Settings from './pages/Settings';
-import Scraper from './pages/Scraper';
-import MobileControl from './pages/MobileControl';
-import Login from './pages/Login';
-import Signup from './pages/Signup';
-import ResetPassword from './pages/ResetPassword';
-import Profile from './pages/Profile';
 import { AlertTriangle } from 'lucide-react';
 
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Opportunities = lazy(() => import('./pages/Opportunities'));
+const Users = lazy(() => import('./pages/Users'));
+const Creators = lazy(() => import('./pages/Creators'));
+const Roadmaps = lazy(() => import('./pages/Roadmaps'));
+const Blog = lazy(() => import('./pages/Blog'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Scraper = lazy(() => import('./pages/Scraper'));
+const MobileControl = lazy(() => import('./pages/MobileControl'));
+const Login = lazy(() => import('./pages/Login'));
+const Signup = lazy(() => import('./pages/Signup'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const Profile = lazy(() => import('./pages/Profile'));
+
 interface AuthState {
-  session: any;
-  user: any;
+  session: Session | null;
+  user: User | null;
   isAdmin: boolean;
   loading: boolean;
   error: string | null;
@@ -41,6 +44,29 @@ const useAuth = () => {
     async function initAuth() {
       try {
         console.log('[Auth] Initializing auth...');
+
+        if (isLocalAdminBypassEnabled()) {
+          const email = getLocalAdminEmail();
+          const userId = getLocalAdminUserId();
+          const localSession = {
+            access_token: 'local-dev-token',
+            user: {
+              id: userId,
+              email,
+            },
+          } as Session;
+
+          if (mounted) {
+            setAuth({
+              session: localSession,
+              user: localSession.user as User,
+              isAdmin: true,
+              loading: false,
+              error: null,
+            });
+          }
+          return;
+        }
 
         if (window.location.pathname === '/reset-password' || window.location.hash.includes('type=recovery')) {
           if (mounted) {
@@ -76,10 +102,14 @@ const useAuth = () => {
             error: null
           });
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('[Auth] Initialization error:', error);
         if (mounted) {
-          setAuth(prev => ({ ...prev, loading: false, error: error.message }));
+          setAuth(prev => ({
+            ...prev,
+            loading: false,
+            error: error instanceof Error ? error.message : 'Auth initialization failed',
+          }));
         }
       }
     }
@@ -96,6 +126,13 @@ const useAuth = () => {
     }, 10000);
 
     initAuth().finally(() => clearTimeout(timeoutId));
+
+    if (isLocalAdminBypassEnabled()) {
+      return () => {
+        mounted = false;
+        clearTimeout(timeoutId);
+      };
+    }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -157,7 +194,7 @@ async function checkAdminRole(userId: string): Promise<boolean> {
     }
 
     return profile?.role === 'admin';
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[Auth] checkAdminRole error:', error);
     return false;
   }
@@ -250,23 +287,26 @@ const AppRoutes: FC = () => {
   if (!isAdmin) return <UnauthorizedScreen error={error || undefined} />;
 
   return (
-    <Routes>
-      <Route path="/login" element={<Navigate to="/" replace />} />
-      <Route path="/signup" element={<Navigate to="/" replace />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/" element={<Layout />}>
-        <Route index element={<Dashboard />} />
-        <Route path="opportunities" element={<Opportunities />} />
-        <Route path="users" element={<Users />} />
-        <Route path="creators" element={<Creators />} />
-        <Route path="roadmaps" element={<Roadmaps />} />
-        <Route path="blog" element={<Blog />} />
-        <Route path="settings" element={<Settings />} />
-        <Route path="edutu-engine" element={<Scraper />} />
-        <Route path="mobile-control" element={<MobileControl />} />
-        <Route path="profile" element={<Profile />} />
-      </Route>
-    </Routes>
+    <Suspense fallback={<LoadingScreen />}>
+      <Routes>
+        <Route path="/login" element={<Navigate to="/" replace />} />
+        <Route path="/signup" element={<Navigate to="/" replace />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/" element={<Layout />}>
+          <Route index element={<Dashboard />} />
+          <Route path="dashboard" element={<Navigate to="/" replace />} />
+          <Route path="opportunities" element={<Opportunities />} />
+          <Route path="users" element={<Users />} />
+          <Route path="creators" element={<Creators />} />
+          <Route path="roadmaps" element={<Roadmaps />} />
+          <Route path="blog" element={<Blog />} />
+          <Route path="settings" element={<Settings />} />
+          <Route path="edutu-engine" element={<Scraper />} />
+          <Route path="mobile-control" element={<MobileControl />} />
+          <Route path="profile" element={<Profile />} />
+        </Route>
+      </Routes>
+    </Suspense>
   );
 };
 

@@ -1,9 +1,9 @@
-import { Injectable } from '@nestjs/common';
-import { db } from '../db';
-import { goals, milestones } from '../db/schema';
-import { and, eq } from 'drizzle-orm';
-import { CreateGoalDto } from './dto/create-goal.dto';
-import { UpdateGoalDto } from './dto/update-goal.dto';
+import { Injectable } from "@nestjs/common";
+import { db } from "../db";
+import { goals, milestones } from "../db/schema";
+import { and, eq } from "drizzle-orm";
+import { CreateGoalDto } from "./dto/create-goal.dto";
+import { UpdateGoalDto } from "./dto/update-goal.dto";
 
 @Injectable()
 export class GoalsService {
