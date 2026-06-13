@@ -3,8 +3,6 @@ import { Link } from 'react-router-dom';
 import {
     ArrowRight,
     Sparkles,
-    Sun,
-    Moon,
     Target,
     Eye,
     Heart,
@@ -25,6 +23,7 @@ import {
 } from 'lucide-react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { useDarkMode } from '../hooks/useDarkMode';
+import PublicSiteMenu from './PublicSiteMenu';
 
 const AboutPage: React.FC = () => {
     const { isDarkMode, toggleDarkMode } = useDarkMode();
@@ -87,7 +86,7 @@ const AboutPage: React.FC = () => {
     ];
 
     return (
-        <div className={`min-h-screen overflow-x-hidden ${isDarkMode ? 'dark' : ''}`} style={{ backgroundColor: isDarkMode ? '#080808' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808', fontFamily: "'Inter', 'Arial', sans-serif" }}>
+        <div className={`min-h-[100dvh] overflow-x-hidden ${isDarkMode ? 'dark' : ''}`} style={{ backgroundColor: isDarkMode ? '#080808' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808', fontFamily: "'Inter', 'Arial', sans-serif" }}>
             <motion.header
                 style={{ backgroundColor: headerBg }}
                 className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md transition-colors duration-300"
@@ -100,28 +99,7 @@ const AboutPage: React.FC = () => {
                         </span>
                     </Link>
 
-                    <div className="flex items-center gap-4">
-                        <Link
-                            to="/"
-                            className="inline-flex items-center gap-2 px-5 py-2.4 text-[16px] font-medium rounded cursor-pointer transition-all duration-200"
-                            style={{
-                                backgroundColor: '#146ef5',
-                                color: '#ffffff',
-                                borderRadius: '4px',
-                                boxShadow: webflowShadow
-                            }}
-                            onMouseEnter={(e) => {
-                                (e.target as HTMLElement).style.transform = 'translateY(-2px)';
-                                (e.target as HTMLElement).style.backgroundColor = '#0055d4';
-                            }}
-                            onMouseLeave={(e) => {
-                                (e.target as HTMLElement).style.transform = 'translateY(0)';
-                                (e.target as HTMLElement).style.backgroundColor = '#146ef5';
-                            }}
-                        >
-                            Back to Home <ArrowRight size={16} />
-                        </Link>
-                    </div>
+                    <PublicSiteMenu />
                 </div>
             </motion.header>
 

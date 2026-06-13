@@ -3,8 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
     ArrowRight,
     Sparkles,
-    Sun,
-    Moon,
     MapPin,
     Calendar,
     Search,
@@ -21,6 +19,7 @@ import { motion } from 'framer-motion';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { useOpportunities } from '../hooks/useOpportunities';
 import type { Opportunity } from '../types/opportunity';
+import PublicSiteMenu from './PublicSiteMenu';
 
 interface OpportunityCardProps {
     opportunity: Opportunity;
@@ -181,7 +180,7 @@ const OpportunitiesPage: React.FC = () => {
         : '0 1px 0 #d8d8d8, 0 13px 13px rgba(0,0,0,0.04), 0 3px 7px rgba(0,0,0,0.08)';
 
     return (
-        <div style={{ backgroundColor: isDarkMode ? '#080808' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808', fontFamily: "'Inter', 'Arial', sans-serif", minHeight: '100vh' }}>
+        <div style={{ backgroundColor: isDarkMode ? '#080808' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808', fontFamily: "'Inter', 'Arial', sans-serif", minHeight: '100dvh', overflowX: 'hidden' }}>
             <motion.header
                 className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md transition-colors duration-300"
                 style={{ backgroundColor: isDarkMode ? 'rgba(8, 8, 8, 0.9)' : 'rgba(255, 255, 255, 0.95)' }}
@@ -194,28 +193,7 @@ const OpportunitiesPage: React.FC = () => {
                         </span>
                     </Link>
 
-                    <div className="flex items-center gap-4">
-                        <Link
-                            to="/"
-                            className="inline-flex items-center gap-2 px-5 py-2.4 text-[16px] font-medium rounded cursor-pointer transition-all duration-200"
-                            style={{
-                                backgroundColor: '#146ef5',
-                                color: '#ffffff',
-                                borderRadius: '4px',
-                                boxShadow: webflowShadow
-                            }}
-                            onMouseEnter={(e) => {
-                                (e.target as HTMLElement).style.transform = 'translateY(-2px)';
-                                (e.target as HTMLElement).style.backgroundColor = '#0055d4';
-                            }}
-                            onMouseLeave={(e) => {
-                                (e.target as HTMLElement).style.transform = 'translateY(0)';
-                                (e.target as HTMLElement).style.backgroundColor = '#146ef5';
-                            }}
-                        >
-                            Back to Home <ArrowRight size={16} />
-                        </Link>
-                    </div>
+                    <PublicSiteMenu />
                 </div>
             </motion.header>
 
@@ -366,7 +344,7 @@ const OpportunitiesPage: React.FC = () => {
                                             Sign up to unlock <ArrowRight size={16} />
                                         </button>
                                         <button
-                                            onClick={() => navigate('/auth')}
+                                            onClick={() => navigate('/download')}
                                             className="inline-flex items-center justify-center gap-2 rounded-xl border px-7 py-3.5 text-sm font-bold"
                                             style={{ borderColor: isDarkMode ? 'rgba(255,255,255,0.18)' : '#b9dafb', color: isDarkMode ? '#ffffff' : '#08243d' }}
                                         >
@@ -435,7 +413,7 @@ const OpportunitiesPage: React.FC = () => {
                             </span>
                         </Link>
                         <p className="text-[16px] leading-[1.6]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                            Modular career operating system. Mapping potential to progress, one milestone at a time.
+                            Edutu helps you find the right opportunities and keep moving forward, one step at a time.
                         </p>
                     </div>
 

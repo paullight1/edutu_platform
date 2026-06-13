@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Calendar, Clock, User, Search, ChevronRight, BookOpen, TrendingUp, Lightbulb } from 'lucide-react';
+import { Calendar, Clock, User, Search, ChevronRight, BookOpen, TrendingUp, Lightbulb } from 'lucide-react';
 import { useDarkMode } from '../hooks/useDarkMode';
+import PublicSiteMenu from './PublicSiteMenu';
 
 interface BlogPost {
   id: string;
@@ -93,7 +94,7 @@ const BlogPage: React.FC = () => {
 
   return (
     <div
-      className="min-h-screen"
+      className="min-h-[100dvh] overflow-x-hidden"
       style={{ backgroundColor: isDarkMode ? '#080808' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808', fontFamily: "'Inter', 'Arial', sans-serif" }}
     >
       {/* Header */}
@@ -111,21 +112,7 @@ const BlogPage: React.FC = () => {
             </span>
           </Link>
 
-          <div className="flex items-center gap-4">
-            <Link
-              to="/"
-              className="inline-flex items-center gap-2 px-5 py-2.4 text-[14px] font-medium rounded cursor-pointer transition-all duration-200"
-              style={{
-                backgroundColor: 'transparent',
-                color: isDarkMode ? '#f5f5f5' : '#080808',
-                border: `1px solid ${isDarkMode ? '#363636' : '#d8d8d8'}`,
-                borderRadius: '4px',
-                textDecoration: 'none'
-              }}
-            >
-              <ArrowLeft size={14} /> Back to Home
-            </Link>
-          </div>
+          <PublicSiteMenu />
         </div>
       </header>
 

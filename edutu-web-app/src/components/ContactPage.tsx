@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-    ArrowLeft,
     Mail,
     MapPin,
     Twitter,
@@ -8,14 +7,13 @@ import {
     Github,
     Send,
     Sparkles,
-    Sun,
-    Moon,
     CheckCircle,
     AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { Link } from 'react-router-dom';
+import PublicSiteMenu from './PublicSiteMenu';
 
 interface FormData {
     fullName: string;
@@ -160,7 +158,7 @@ const ContactPage: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen" style={{ backgroundColor: isDarkMode ? '#080808' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808', fontFamily: "'Inter', 'Arial', sans-serif" }}>
+        <div className="min-h-[100dvh] overflow-x-hidden" style={{ backgroundColor: isDarkMode ? '#080808' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808', fontFamily: "'Inter', 'Arial', sans-serif" }}>
             {/* Navigation Header */}
             <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md transition-colors duration-300" style={{ backgroundColor: isDarkMode ? 'rgba(8, 8, 8, 0.95)' : 'rgba(255, 255, 255, 0.95)', borderBottom: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}` }}>
                 <div className="max-w-[1200px] mx-auto px-4 sm:px-6 h-[64px] flex items-center justify-between">
@@ -171,29 +169,7 @@ const ContactPage: React.FC = () => {
                         </span>
                     </Link>
 
-                    <div className="flex items-center gap-4">
-                        <Link
-                            to="/"
-                            className="inline-flex items-center gap-2 px-5 py-2.4 text-[14px] font-medium rounded cursor-pointer transition-all duration-200"
-                            style={{
-                                backgroundColor: 'transparent',
-                                color: isDarkMode ? '#f5f5f5' : '#080808',
-                                border: `1px solid ${isDarkMode ? '#363636' : '#d8d8d8'}`,
-                                borderRadius: '4px',
-                                textDecoration: 'none'
-                            }}
-                            onMouseEnter={(e) => {
-                                (e.currentTarget as HTMLElement).style.borderColor = '#146ef5';
-                                (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
-                            }}
-                            onMouseLeave={(e) => {
-                                (e.currentTarget as HTMLElement).style.borderColor = isDarkMode ? '#363636' : '#d8d8d8';
-                                (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
-                            }}
-                        >
-                            <ArrowLeft size={14} /> Back to Home
-                        </Link>
-                    </div>
+                    <PublicSiteMenu />
                 </div>
             </header>
 

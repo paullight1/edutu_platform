@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     ArrowRight,
     Brain,
@@ -20,6 +20,7 @@ import {
 import { Link } from 'react-router-dom';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import { useDarkMode } from '../hooks/useDarkMode';
+import { useOpportunities } from '../hooks/useOpportunities';
 import BentoBenefits from './BentoBenefits';
 
 interface LandingPageProps {
@@ -90,13 +91,107 @@ const institutions = [
 
 const heroOpportunityWords = ['Opportunities', 'Scholarships', 'Internships', 'Fellowships'];
 
+const heroBackdropImages = [
+    {
+        src: 'https://images.pexels.com/photos/267885/pexels-photo-267885.jpeg',
+        alt: 'Graduates celebrating a milestone',
+    },
+    {
+        src: 'https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg',
+        alt: 'Students collaborating around a laptop',
+    },
+    {
+        src: 'https://images.pexels.com/photos/1181671/pexels-photo-1181671.jpeg',
+        alt: 'A student studying on campus',
+    },
+    {
+        src: 'https://images.pexels.com/photos/1595391/pexels-photo-1595391.jpeg',
+        alt: 'Learners gathering in a bright classroom',
+    },
+];
+
+interface HeroStat {
+    label: string;
+    value: number;
+    suffix: string;
+    color: string;
+}
+
+interface AboutFeature {
+    title: string;
+    desc: string;
+    icon: React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>;
+    color: string;
+    bg: string;
+    surface: string;
+    darkSurface: string;
+}
+
+const AnimatedStatValue: React.FC<{ value: number; suffix: string; color: string; delayMs?: number }> = ({
+    value,
+    suffix,
+    color,
+    delayMs = 0,
+}) => {
+    const [displayValue, setDisplayValue] = useState(0);
+
+    useEffect(() => {
+        let frame = 0;
+        const duration = 1250;
+        const startAt = performance.now() + delayMs;
+
+        const tick = (now: number) => {
+            if (now < startAt) {
+                frame = window.requestAnimationFrame(tick);
+                return;
+            }
+
+            const progress = Math.min((now - startAt) / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            setDisplayValue(Math.round(value * eased));
+
+            if (progress < 1) {
+                frame = window.requestAnimationFrame(tick);
+            }
+        };
+
+        frame = window.requestAnimationFrame(tick);
+
+        return () => window.cancelAnimationFrame(frame);
+    }, [delayMs, value]);
+
+    return (
+        <span style={{ color }}>
+            {displayValue}
+            {suffix}
+        </span>
+    );
+};
+
 const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     const { isDarkMode, toggleDarkMode } = useDarkMode();
+    const { data: opportunities } = useOpportunities();
     const { scrollYProgress } = useScroll();
     const [activeNav, setActiveNav] = useState<string | null>(null);
     const [openFAQ, setOpenFAQ] = useState<number | null>(null);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [heroWordIndex, setHeroWordIndex] = useState(0);
+    const [heroBackdropIndex, setHeroBackdropIndex] = useState(0);
+    const heroSwipeStartX = useRef<number | null>(null);
+    const latestOpportunities = opportunities.slice(0, 3);
+    const heroStats: HeroStat[] = [
+        { label: 'ACTIVE LEARNERS', value: 50, suffix: 'K+', color: '#146ef5' },
+        { label: 'OPPORTUNITIES', value: 12, suffix: 'K+', color: '#7a3dff' },
+        { label: 'COUNTRIES', value: 80, suffix: '+', color: '#00d722' },
+    ];
+    const aboutFeatures: AboutFeature[] = [
+        { title: 'AI Mentorship', desc: 'Personalized guidance based on your specific career context and goals.', icon: Brain, color: '#7a3dff', bg: '#7a3dff10', surface: '#f2edff', darkSurface: 'rgba(122,61,255,0.13)' },
+        { title: 'Automated Roadmaps', desc: 'Milestones that shift based on market conditions and your progress.', icon: Zap, color: '#ff6b00', bg: '#ff6b0010', surface: '#fff3ea', darkSurface: 'rgba(255,107,0,0.12)' },
+        { title: 'Global Network', desc: 'Connect with mentors and peers in your niche across 80+ countries.', icon: Users, color: '#146ef5', bg: '#146ef510', surface: '#eaf3ff', darkSurface: 'rgba(20,110,245,0.14)' },
+        { title: 'CV Intelligence', desc: 'AI-powered CV analysis and optimization for every application.', icon: Target, color: '#ed52cb', bg: '#ed52cb10', surface: '#fff0fb', darkSurface: 'rgba(237,82,203,0.13)' },
+        { title: 'Opportunity Tracking', desc: 'Track deadlines, applications, and progress in one dashboard.', icon: BarChart3, color: '#00b86b', bg: '#00b86b12', surface: '#eafff5', darkSurface: 'rgba(0,184,107,0.13)' },
+        { title: 'Creator Marketplace', desc: 'Build and share learning roadmaps. Earn from your expertise.', icon: Globe, color: '#ffae13', bg: '#ffae1310', surface: '#fff8e8', darkSurface: 'rgba(255,174,19,0.13)' },
+    ];
 
     useEffect(() => {
         const interval = window.setInterval(() => {
@@ -106,10 +201,21 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
         return () => window.clearInterval(interval);
     }, []);
 
+    useEffect(() => {
+        const interval = window.setInterval(() => {
+            setHeroBackdropIndex((current) => (current + 1) % heroBackdropImages.length);
+        }, 5200);
+
+        return () => window.clearInterval(interval);
+    }, []);
+
     const headerBg = useTransform(
         scrollYProgress,
         [0, 0.05],
-        [isDarkMode ? 'rgba(8, 8, 8, 0)' : 'rgba(255, 255, 255, 0)', isDarkMode ? 'rgba(8, 8, 8, 0.9)' : 'rgba(255, 255, 255, 0.95)']
+        [
+            isDarkMode ? 'rgba(8, 8, 8, 0.995)' : 'rgba(255, 255, 255, 0.998)',
+            isDarkMode ? 'rgba(8, 8, 8, 1)' : 'rgba(255, 255, 255, 1)'
+        ]
     );
 
     const webflowShadow = isDarkMode
@@ -127,12 +233,52 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
         { label: 'Blog', to: '/blog' }
     ];
 
+    const handleHeroTouchStart = (event: React.TouchEvent<HTMLElement>) => {
+        heroSwipeStartX.current = event.touches[0]?.clientX ?? null;
+    };
+
+    const handleHeroTouchEnd = (event: React.TouchEvent<HTMLElement>) => {
+        const startX = heroSwipeStartX.current;
+        const endX = event.changedTouches[0]?.clientX ?? null;
+        heroSwipeStartX.current = null;
+
+        if (startX === null || endX === null) return;
+
+        const deltaX = startX - endX;
+        if (Math.abs(deltaX) < 50) return;
+
+        setHeroBackdropIndex((current) => {
+            const direction = deltaX > 0 ? 1 : -1;
+            return (current + direction + heroBackdropImages.length) % heroBackdropImages.length;
+        });
+    };
+
+    const formatOpportunityDeadline = (deadline?: string | null) => {
+        if (!deadline) {
+            return 'Open now';
+        }
+
+        const parsed = new Date(deadline);
+        if (Number.isNaN(parsed.getTime())) {
+            return deadline;
+        }
+
+        return parsed.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+        });
+    };
+
     return (
-        <div className={`landing-page min-h-screen overflow-x-hidden ${isDarkMode ? 'dark' : ''}`} style={{ backgroundColor: isDarkMode ? '#080808' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808', fontFamily: "'Inter', 'Arial', sans-serif" }}>
+        <div className={`landing-page min-h-[100dvh] overflow-x-hidden ${isDarkMode ? 'dark' : ''}`} style={{ backgroundColor: isDarkMode ? '#080808' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808', fontFamily: "'Inter', 'Arial', sans-serif" }}>
             {/* Navigation */}
             <motion.header
-                style={{ backgroundColor: headerBg }}
-                className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md transition-colors duration-300"
+                style={{
+                    backgroundColor: headerBg,
+                    boxShadow: isDarkMode ? '0 1px 0 rgba(255,255,255,0.05)' : '0 1px 0 rgba(15,23,42,0.08)',
+                }}
+                className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl transition-colors duration-300"
             >
                 <div className="max-w-[1200px] mx-auto px-4 sm:px-6 h-[64px] flex items-center justify-between" style={{ borderBottom: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}` }}>
                     <Link to="/" className="flex items-center gap-2.4 cursor-pointer">
@@ -184,7 +330,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                 (e.target as HTMLElement).style.backgroundColor = '#146ef5';
                             }}
                         >
-                            Get Started <ArrowRight size={16} />
+                            Join Edutu <ArrowRight size={16} />
                         </button>
 
                         {/* Hamburger Menu Button (mobile only) */}
@@ -240,7 +386,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                         borderRadius: '4px'
                                     }}
                                 >
-                                    Get Started
+                                    Join Edutu
                                 </button>
                             </nav>
                         </motion.div>
@@ -251,22 +397,61 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
             <main className="relative z-10">
                 {/* Hero Section */}
                 <section
-                    className="landing-hero relative overflow-hidden pt-[120px] pb-[96px] px-4 sm:px-6"
+                    className="landing-hero relative overflow-hidden min-h-[calc(100dvh-64px)] pt-[132px] pb-[128px] sm:pt-[148px] sm:pb-[144px] px-4 sm:px-6"
                     id="platform"
+                    onTouchStart={handleHeroTouchStart}
+                    onTouchEnd={handleHeroTouchEnd}
                     style={{
-                        background: isDarkMode
-                            ? 'radial-gradient(circle at 50% 12%, rgba(20,110,245,0.16), transparent 34%), radial-gradient(circle at 86% 30%, rgba(0,184,107,0.09), transparent 30%), linear-gradient(180deg, #0b0d10 0%, #080808 78%)'
-                            : 'radial-gradient(circle at 50% 12%, rgba(20,110,245,0.12), transparent 34%), radial-gradient(circle at 86% 30%, rgba(0,184,107,0.08), transparent 30%), linear-gradient(180deg, #f7fbff 0%, #ffffff 78%)',
+                        backgroundColor: isDarkMode ? '#080808' : '#f7fbff',
                     }}
                 >
-                    <div className="absolute inset-0 opacity-[0.18]" style={{ backgroundImage: 'linear-gradient(rgba(20,110,245,0.16) 1px, transparent 1px), linear-gradient(90deg, rgba(20,110,245,0.16) 1px, transparent 1px)', backgroundSize: '72px 72px', maskImage: 'radial-gradient(circle at center, black, transparent 74%)' }} />
+                    <div className="absolute inset-0">
+                        <AnimatePresence mode="wait" initial={false}>
+                            <motion.img
+                                key={heroBackdropImages[heroBackdropIndex].src}
+                                src={heroBackdropImages[heroBackdropIndex].src}
+                                alt={heroBackdropImages[heroBackdropIndex].alt}
+                                aria-hidden="true"
+                                initial={{ opacity: 0, scale: 1.06 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 1.02 }}
+                                transition={{ duration: 0.9, ease: 'easeOut' }}
+                                className="absolute inset-0 h-full w-full object-cover"
+                                style={{
+                                    filter: 'saturate(0.72) contrast(0.92) brightness(0.56)',
+                                }}
+                                draggable={false}
+                                loading="eager"
+                            />
+                        </AnimatePresence>
+                        <div
+                            className="absolute inset-x-0 top-0 h-[176px] pointer-events-none"
+                            style={{
+                                background: 'linear-gradient(180deg, rgba(3,8,18,0.94) 0%, rgba(3,8,18,0.62) 100%)',
+                            }}
+                        />
+                        <div
+                            className="absolute inset-0"
+                            style={{
+                                background: 'linear-gradient(180deg, rgba(3,8,18,0.72) 0%, rgba(3,8,18,0.52) 42%, rgba(3,8,18,0.84) 100%), radial-gradient(circle at 50% 12%, rgba(20,110,245,0.14), transparent 34%)',
+                            }}
+                        />
+                        <div
+                            className="absolute inset-0 opacity-[0.05]"
+                            style={{
+                                backgroundImage: 'linear-gradient(rgba(20,110,245,0.16) 1px, transparent 1px), linear-gradient(90deg, rgba(20,110,245,0.16) 1px, transparent 1px)',
+                                backgroundSize: '72px 72px',
+                                maskImage: 'radial-gradient(circle at center, black, transparent 74%)'
+                            }}
+                        />
+                    </div>
                     <div className="relative z-10 max-w-[1200px] mx-auto flex flex-col items-center text-center">
                         <motion.h1
                             initial={{ opacity: 0, y: 30 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.6, delay: 0.1 }}
-                            className="landing-hero-title text-[56px] sm:text-[72px] md:text-[80px] font-semibold leading-[1.04] tracking-[-0.8px] mb-8"
-                            style={{ color: isDarkMode ? '#ffffff' : '#080808' }}
+                            className="landing-hero-title text-[clamp(2.6rem,8vw,5rem)] sm:text-[clamp(3.8rem,7vw,5.5rem)] md:text-[80px] font-semibold leading-[1.04] tracking-[-0.8px] mb-8 text-balance"
+                            style={{ color: '#ffffff' }}
                         >
                             Your AI Guide to{' '}
                             <span className="landing-hero-highlight" style={{ color: 'inherit', whiteSpace: 'nowrap' }}>
@@ -274,7 +459,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                 <span
                                     className="landing-hero-word"
                                     style={{
-                                        color: '#146ef5',
+                                        color: '#ffffff',
                                         display: 'inline-block',
                                         minWidth: '6.8em',
                                         textAlign: 'left',
@@ -302,7 +487,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.6, delay: 0.2 }}
                             className="landing-hero-copy max-w-[680px] text-[20px] leading-[1.4] font-normal mb-12"
-                            style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}
+                            style={{ color: 'rgba(255,255,255,0.78)' }}
                         >
                             Edutu maps your ambition to global opportunities. We build automated paths to mastery through intelligence-driven career orchestration.
                         </motion.p>
@@ -331,28 +516,30 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                     (e.target as HTMLElement).style.backgroundColor = '#146ef5';
                                 }}
                             >
-                                Get Started <ArrowRight size={16} />
+                                Join Edutu <ArrowRight size={16} />
                             </button>
                             <Link
-                                to="/mentor"
+                                to="/download"
                                 className="inline-flex items-center gap-2 px-10 py-4 text-[16px] font-medium rounded cursor-pointer transition-all duration-200"
                                 style={{
-                                    backgroundColor: 'transparent',
-                                    color: isDarkMode ? '#f5f5f5' : '#080808',
-                                    border: `1px solid ${isDarkMode ? '#363636' : '#d8d8d8'}`,
+                                    backgroundColor: 'rgba(255,255,255,0.04)',
+                                    color: '#ffffff',
+                                    border: '1px solid rgba(255,255,255,0.34)',
                                     borderRadius: '4px',
                                     textDecoration: 'none'
                                 }}
                                 onMouseEnter={(e) => {
-                                    (e.target as HTMLElement).style.borderColor = '#898989';
+                                    (e.target as HTMLElement).style.borderColor = 'rgba(255,255,255,0.6)';
+                                    (e.target as HTMLElement).style.backgroundColor = 'rgba(255,255,255,0.08)';
                                     (e.target as HTMLElement).style.transform = 'translateX(6px)';
                                 }}
                                 onMouseLeave={(e) => {
-                                    (e.target as HTMLElement).style.borderColor = isDarkMode ? '#363636' : '#d8d8d8';
+                                    (e.target as HTMLElement).style.borderColor = 'rgba(255,255,255,0.34)';
+                                    (e.target as HTMLElement).style.backgroundColor = 'rgba(255,255,255,0.04)';
                                     (e.target as HTMLElement).style.transform = 'translateX(0)';
                                 }}
                             >
-                                Become a Mentor <ArrowRight size={16} />
+                                Download app <ArrowRight size={16} />
                             </Link>
                         </motion.div>
 
@@ -361,16 +548,20 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.6, delay: 0.4 }}
-                            className="landing-hero-stats grid grid-cols-3 gap-6 mt-16 max-w-[800px] w-full"
+                            className="landing-hero-stats grid grid-cols-3 gap-2 sm:gap-4 mt-10 sm:mt-12 max-w-[780px] w-full"
                         >
-                            {[
-                                { label: 'ACTIVE LEARNERS', value: '50K+', color: '#146ef5' },
-                                { label: 'OPPORTUNITIES', value: '12K+', color: '#7a3dff' },
-                                { label: 'COUNTRIES', value: '80+', color: '#00d722' }
-                            ].map((stat, i) => (
-                                <div key={i} className="text-center p-6 rounded" style={{ border: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`, borderRadius: '8px' }}>
-                                    <div className="text-[32px] font-semibold" style={{ color: stat.color }}>{stat.value}</div>
-                                    <div className="text-[10px] font-semibold tracking-[1.5px] mt-2" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>{stat.label}</div>
+                            {heroStats.map((stat, i) => (
+                                <div
+                                    key={stat.label}
+                                    className="landing-hero-stat-card text-center p-1.5 sm:p-3"
+                                    style={{ backgroundColor: 'transparent', border: '0', borderRadius: '0', boxShadow: 'none' }}
+                                >
+                                    <div className="landing-hero-stat-value text-[22px] sm:text-[36px] font-extrabold leading-none tracking-[-0.04em]" style={{ color: '#ffffff' }}>
+                                        <AnimatedStatValue value={stat.value} suffix={stat.suffix} color={stat.color} delayMs={i * 180} />
+                                    </div>
+                                    <div className="landing-hero-stat-label text-[8px] sm:text-[10px] font-semibold tracking-[1.5px] mt-0.5 sm:mt-1" style={{ color: 'rgba(255,255,255,0.68)' }}>
+                                        {stat.label}
+                                    </div>
                                 </div>
                             ))}
                         </motion.div>
@@ -380,16 +571,169 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                 {/* Bento Benefits Section */}
                 <BentoBenefits />
 
+                {/* Latest Opportunities */}
+                <section
+                    className="py-20 px-4 sm:px-6"
+                    style={{ borderTop: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}` }}
+                >
+                    <div className="max-w-[1200px] mx-auto">
+                        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between mb-12">
+                            <div className="max-w-2xl">
+                                <span className="text-[12.8px] font-semibold tracking-[1.5px]" style={{ color: '#146ef5' }}>
+                                    LATEST OPPORTUNITIES
+                                </span>
+                                <h2 className="landing-section-title text-[48px] sm:text-[56px] font-semibold leading-[1.04] mt-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
+                                    Fresh opportunities worth exploring
+                                </h2>
+                                <p className="landing-section-copy max-w-[640px] text-[18px] leading-[1.45] mt-4" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
+                                    A quick look at a few scholarships, fellowships, internships, and programs that are ready for action.
+                                </p>
+                            </div>
+
+                            <Link
+                                to="/opportunities"
+                                className="inline-flex items-center gap-2 self-start rounded px-5 py-3 text-[16px] font-medium no-underline transition-all duration-200"
+                                style={{
+                                    backgroundColor: '#146ef5',
+                                    color: '#ffffff',
+                                    borderRadius: '4px',
+                                    boxShadow: webflowShadow,
+                                }}
+                                onMouseEnter={(e) => {
+                                    (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
+                                    (e.currentTarget as HTMLElement).style.backgroundColor = '#0055d4';
+                                }}
+                                onMouseLeave={(e) => {
+                                    (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
+                                    (e.currentTarget as HTMLElement).style.backgroundColor = '#146ef5';
+                                }}
+                            >
+                                View all opportunities <ArrowRight size={16} />
+                            </Link>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+                            {latestOpportunities.map((opportunity, index) => {
+                                const opportunityImage = opportunity.image || heroBackdropImages[index % heroBackdropImages.length].src;
+
+                                return (
+                                    <motion.article
+                                        key={opportunity.id}
+                                        initial={{ opacity: 0, y: 16 }}
+                                        whileInView={{ opacity: 1, y: 0 }}
+                                        viewport={{ once: true, margin: '-40px' }}
+                                        transition={{ duration: 0.45, delay: index * 0.08 }}
+                                        whileHover={{ y: -4 }}
+                                        className="h-full overflow-hidden rounded-[28px] p-3 sm:p-4"
+                                        style={{
+                                            backgroundColor: isDarkMode ? '#111111' : '#ffffff',
+                                            border: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`,
+                                            boxShadow: 'none',
+                                        }}
+                                    >
+                                        <div className="relative aspect-[16/10] overflow-hidden rounded-[22px]">
+                                            <img
+                                                src={opportunityImage}
+                                                alt={opportunity.title}
+                                                className="h-full w-full object-cover"
+                                                loading="lazy"
+                                            />
+                                            <div
+                                                className="absolute inset-0"
+                                                style={{
+                                                    background: isDarkMode
+                                                        ? 'linear-gradient(180deg, rgba(0,0,0,0.02) 0%, rgba(0,0,0,0.52) 100%)'
+                                                        : 'linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(8,15,24,0.5) 100%)',
+                                                }}
+                                            />
+                                            <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+                                                <span className="rounded-full bg-white/92 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-900">
+                                                    {opportunity.category}
+                                                </span>
+                                                <span className="rounded-full bg-[#146ef5] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white">
+                                                    Match {opportunity.match}%
+                                                </span>
+                                            </div>
+                                            <div className="absolute bottom-3 left-3 right-3">
+                                                <div className="max-w-[84%] rounded-2xl bg-black/55 px-3 py-2 text-left backdrop-blur-md">
+                                                    <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/70">
+                                                        Deadline
+                                                    </div>
+                                                    <div className="mt-1 text-[14px] font-semibold text-white">
+                                                        {formatOpportunityDeadline(opportunity.deadline)}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-3 p-4 sm:p-5">
+                                            <h3 className="text-[18px] sm:text-[22px] font-semibold leading-[1.12]" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>
+                                                {opportunity.title}
+                                            </h3>
+                                            <p className="text-[14px] sm:text-[15px] leading-[1.45]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
+                                                {opportunity.organization}
+                                            </p>
+                                            <div className="flex flex-wrap gap-2">
+                                                <span
+                                                    className="rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
+                                                    style={{
+                                                        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : '#f2f6fb',
+                                                        color: isDarkMode ? '#d6e4f2' : '#334155',
+                                                    }}
+                                                >
+                                                    {opportunity.location}
+                                                </span>
+                                                <span
+                                                    className="rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
+                                                    style={{
+                                                        backgroundColor: isDarkMode ? 'rgba(20,110,245,0.12)' : '#eaf3ff',
+                                                        color: '#146ef5',
+                                                    }}
+                                                >
+                                                    {opportunity.difficulty ?? 'Open'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </motion.article>
+                                );
+                            })}
+                        </div>
+
+                        <div className="mt-10 flex justify-center">
+                            <Link
+                                to="/opportunities"
+                                className="inline-flex items-center gap-2 rounded px-5 py-3 text-[16px] font-medium no-underline transition-all duration-200"
+                                style={{
+                                    backgroundColor: 'transparent',
+                                    color: isDarkMode ? '#f5f5f5' : '#080808',
+                                    border: `1px solid ${isDarkMode ? '#363636' : '#d8d8d8'}`,
+                                    borderRadius: '4px',
+                                }}
+                                onMouseEnter={(e) => {
+                                    (e.currentTarget as HTMLElement).style.borderColor = '#898989';
+                                    (e.currentTarget as HTMLElement).style.transform = 'translateX(6px)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    (e.currentTarget as HTMLElement).style.borderColor = isDarkMode ? '#363636' : '#d8d8d8';
+                                    (e.currentTarget as HTMLElement).style.transform = 'translateX(0)';
+                                }}
+                            >
+                                Explore all opportunities <ArrowRight size={16} />
+                            </Link>
+                        </div>
+                    </div>
+                </section>
+
                 {/* Country Flags Marquee */}
                 <section className="py-24 px-4 sm:px-6 overflow-hidden" style={{ borderTop: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}` }}>
                     <div className="max-w-[1200px] mx-auto text-center mb-16">
                         <span className="text-[12.8px] font-semibold tracking-[1.5px]" style={{ color: '#146ef5' }}>
                             GLOBAL REACH
                         </span>
-                        <h2 className="text-[48px] sm:text-[56px] font-semibold leading-[1.04] mt-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
+                        <h2 className="landing-section-title text-[48px] sm:text-[56px] font-semibold leading-[1.04] mt-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
                             Opportunities from <span style={{ color: '#146ef5' }}>31 Countries</span>
                         </h2>
-                        <p className="max-w-[600px] text-[20px] leading-[1.4] mx-auto mt-4" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
+                        <p className="landing-section-copy max-w-[600px] text-[20px] leading-[1.4] mx-auto mt-4" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
                             Access scholarships, fellowships, and programs from every corner of the world.
                         </p>
                     </div>
@@ -433,15 +777,15 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         <span className="text-[12.8px] font-semibold tracking-[1.5px]" style={{ color: '#146ef5' }}>
                             TOP INSTITUTIONS
                         </span>
-                        <h2 className="text-[48px] sm:text-[56px] font-semibold leading-[1.04] mt-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
+                        <h2 className="landing-section-title text-[48px] sm:text-[56px] font-semibold leading-[1.04] mt-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
                             Scholarships from <span style={{ color: '#146ef5' }}>World-Class</span> Universities
                         </h2>
-                        <p className="max-w-[600px] text-[20px] leading-[1.4] mx-auto mt-4" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
+                        <p className="landing-section-copy max-w-[600px] text-[20px] leading-[1.4] mx-auto mt-4" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
                             Partner with leading institutions to find opportunities that match your ambition.
                         </p>
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-[1000px] mx-auto">
+                    <div className="landing-institution-grid grid grid-cols-3 md:grid-cols-4 gap-2 sm:gap-4 md:gap-6 max-w-[860px] mx-auto">
                         {institutions.map((inst, i) => (
                             <motion.div
                                 key={i}
@@ -449,33 +793,26 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                 whileInView={{ opacity: 1, y: 0 }}
                                 viewport={{ once: true }}
                                 transition={{ duration: 0.4, delay: i * 0.05 }}
-                                className="p-4 sm:p-5 flex items-center justify-center cursor-pointer transition-all duration-300"
+                                className="landing-institution-card p-2 sm:p-4 flex items-center justify-center transition-all duration-300"
                                 style={{
-                                    background: isDarkMode
-                                        ? 'linear-gradient(135deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03))'
-                                        : 'linear-gradient(135deg, #f8fbff, #ffffff)',
-                                    border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.12)' : '#d6e4f2'}`,
-                                    borderRadius: '8px',
-                                    boxShadow: cardShadow,
-                                    aspectRatio: '3/2'
+                                    background: 'transparent',
+                                    border: '0',
+                                    borderRadius: '0',
+                                    boxShadow: 'none',
+                                    aspectRatio: '1 / 1'
                                 }}
                                 onMouseEnter={(e) => {
-                                    (e.currentTarget as HTMLElement).style.borderColor = '#146ef5';
-                                    (e.currentTarget as HTMLElement).style.transform = 'translateY(-4px)';
+                                    (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
                                 }}
                                 onMouseLeave={(e) => {
-                                    (e.currentTarget as HTMLElement).style.borderColor = isDarkMode ? '#222' : '#d8d8d8';
                                     (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
                                 }}
                             >
-                            <div
-                                className="flex h-full w-full items-center justify-center rounded-md p-4"
-                                style={{ backgroundColor: '#ffffff', border: '1px solid rgba(15,23,42,0.08)' }}
-                            >
+                            <div className="landing-institution-shell flex h-full w-full items-center justify-center rounded-md">
                                 <img 
                                     src={inst.logo} 
                                     alt={inst.name} 
-                                    className="max-h-[74px] max-w-[150px] object-contain" 
+                                    className="landing-institution-logo max-h-[28px] sm:max-h-[58px] max-w-[70px] sm:max-w-[130px] object-contain" 
                                     loading="lazy"
                                     style={{ width: 'auto', height: 'auto' }}
                                     onError={(e) => {
@@ -485,7 +822,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                         if (parent) {
                                             const fallbackLabel = document.createElement('span');
                                             fallbackLabel.textContent = inst.name.split(' ')[0];
-                                            fallbackLabel.style.fontSize = '14px';
+                                            fallbackLabel.style.fontSize = '11px';
                                             fallbackLabel.style.fontWeight = '600';
                                             fallbackLabel.style.color = '#334155';
                                             fallbackLabel.style.textAlign = 'center';
@@ -506,23 +843,76 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             <span className="text-[12.8px] font-semibold tracking-[1.5px]" style={{ color: '#146ef5' }}>
                                 ABOUT
                             </span>
-                            <h2 className="text-[48px] sm:text-[56px] font-semibold leading-[1.04] mt-4 mb-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
+                            <h2 className="landing-section-title text-[48px] sm:text-[56px] font-semibold leading-[1.04] mt-4 mb-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
                                 Built for the <span style={{ color: '#146ef5' }}>Ambitious</span>
                             </h2>
-                            <p className="max-w-[600px] text-[20px] leading-[1.4]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
+                            <p className="landing-section-copy max-w-[600px] text-[20px] leading-[1.4]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
                                 Modular tools designed to scale your career from day one.
                             </p>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-                            {[
-                                { title: 'AI Mentorship', desc: 'Personalized guidance based on your specific career context and goals.', icon: Brain, color: '#7a3dff', bg: '#7a3dff10', surface: '#f2edff', darkSurface: 'rgba(122,61,255,0.13)' },
-                                { title: 'Automated Roadmaps', desc: 'Milestones that shift based on market conditions and your progress.', icon: Zap, color: '#ff6b00', bg: '#ff6b0010', surface: '#fff3ea', darkSurface: 'rgba(255,107,0,0.12)' },
-                                { title: 'Global Network', desc: 'Connect with mentors and peers in your niche across 80+ countries.', icon: Users, color: '#146ef5', bg: '#146ef510', surface: '#eaf3ff', darkSurface: 'rgba(20,110,245,0.14)' },
-                                { title: 'CV Intelligence', desc: 'AI-powered CV analysis and optimization for every application.', icon: Target, color: '#ed52cb', bg: '#ed52cb10', surface: '#fff0fb', darkSurface: 'rgba(237,82,203,0.13)' },
-                                { title: 'Opportunity Tracking', desc: 'Track deadlines, applications, and progress in one dashboard.', icon: BarChart3, color: '#00b86b', bg: '#00b86b12', surface: '#eafff5', darkSurface: 'rgba(0,184,107,0.13)' },
-                                { title: 'Creator Marketplace', desc: 'Build and share learning roadmaps. Earn from your expertise.', icon: Globe, color: '#ffae13', bg: '#ffae1310', surface: '#fff8e8', darkSurface: 'rgba(255,174,19,0.13)' }
-                            ].map((feature, i) => (
+                        <div className="md:hidden relative mx-auto mt-6 h-[338px] w-full max-w-[520px] overflow-visible pb-2">
+                            {aboutFeatures.map((feature, i) => (
+                                <motion.div
+                                    key={i}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    whileInView={{ opacity: 1, y: 0 }}
+                                    viewport={{ once: true, amount: 0.35 }}
+                                    transition={{
+                                        type: 'spring',
+                                        stiffness: 140,
+                                        damping: 20,
+                                        mass: 0.7,
+                                        delay: i * 0.05,
+                                    }}
+                                    className="absolute left-0 right-0 cursor-pointer overflow-hidden rounded-[28px] px-4 py-3 transition-transform duration-300 sm:px-5 sm:py-4"
+                                    style={{
+                                        top: 0,
+                                        zIndex: aboutFeatures.length - i,
+                                        minHeight: i === 0 ? '136px' : '88px',
+                                        transformOrigin: 'center top',
+                                        background: isDarkMode
+                                            ? `linear-gradient(135deg, ${feature.darkSurface}, rgba(255,255,255,0.035) 76%)`
+                                            : `linear-gradient(135deg, ${feature.surface}, #ffffff 76%)`,
+                                        border: `1px solid ${isDarkMode ? `${feature.color}34` : `${feature.color}26`}`,
+                                        borderRadius: '8px',
+                                        boxShadow: cardShadow
+                                    }}
+                                    animate={{
+                                        y: i * 54,
+                                        scale: 1 - i * 0.045,
+                                        rotate: i % 2 === 0 ? -0.85 : 0.85,
+                                        opacity: 1 - i * 0.06,
+                                    }}
+                                >
+                                    <div className="flex items-start gap-3 sm:gap-4">
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl sm:h-12 sm:w-12" style={{ backgroundColor: feature.bg, borderRadius: '14px' }}>
+                                            <feature.icon size={20} style={{ color: feature.color }} />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <h3 className="text-[16px] font-semibold leading-tight sm:text-[18px]" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>{feature.title}</h3>
+                                            {i === 0 && (
+                                                <p
+                                                    className="mt-1 text-[12px] leading-[1.4] sm:mt-2 sm:text-[13px]"
+                                                    style={{
+                                                        color: isDarkMode ? '#ababab' : '#5a5a5a',
+                                                        display: '-webkit-box',
+                                                        WebkitBoxOrient: 'vertical',
+                                                        WebkitLineClamp: 2,
+                                                        overflow: 'hidden',
+                                                    }}
+                                                >
+                                                    {feature.desc}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </div>
+
+                        <div className="hidden md:grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+                            {aboutFeatures.map((feature, i) => (
                                 <motion.div
                                     key={i}
                                     initial={{ opacity: 0, y: 20 }}
@@ -564,7 +954,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         <span className="text-[12.8px] font-semibold tracking-[1.5px]" style={{ color: '#146ef5' }}>
                             TESTIMONIALS
                         </span>
-                        <h2 className="text-[48px] sm:text-[56px] font-semibold leading-[1.04] mt-4 mb-16" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
+                        <h2 className="landing-section-title text-[48px] sm:text-[56px] font-semibold leading-[1.04] mt-4 mb-16" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
                             Trusted by <span style={{ color: '#146ef5' }}>Learners</span>
                         </h2>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -619,10 +1009,10 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             <span className="text-[12.8px] font-semibold tracking-[1.5px]" style={{ color: '#146ef5' }}>
                                 FAQ
                             </span>
-                            <h2 className="text-[48px] sm:text-[56px] font-semibold leading-[1.04] mt-4 mb-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
+                            <h2 className="landing-section-title text-[48px] sm:text-[56px] font-semibold leading-[1.04] mt-4 mb-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
                                 Common <span style={{ color: '#146ef5' }}>Questions</span>
                             </h2>
-                            <p className="max-w-[600px] text-[20px] leading-[1.4] mx-auto" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
+                            <p className="landing-section-copy max-w-[600px] text-[20px] leading-[1.4] mx-auto" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
                                 Everything you need to know about Edutu.
                             </p>
                         </div>
@@ -775,72 +1165,72 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
             </main>
 
             {/* Footer */}
-            <footer className="py-16 px-4 sm:px-6" style={{ borderTop: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}` }}>
+            <footer className="py-10 sm:py-16 px-4 sm:px-6" style={{ borderTop: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}` }}>
                 <div className="max-w-[1200px] mx-auto">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
-                        <div className="md:col-span-1">
-                            <div className="flex items-center gap-2 mb-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-8 md:gap-12 mb-10 md:mb-16">
+                        <div className="col-span-2 md:col-span-1">
+                            <div className="flex items-center gap-2 mb-3">
                                 <img src="/edutu-logo.png" alt="Edutu" className="h-8 w-8 object-contain" />
                                 <span className="font-bold text-xl tracking-tight" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
                                     edutu
                                 </span>
                             </div>
-                            <p className="text-[14px] leading-[1.7]" style={{ color: isDarkMode ? '#888' : '#666' }}>
+                            <p className="text-[13px] leading-[1.5] md:text-[14px] md:leading-[1.7] max-w-[20rem]" style={{ color: isDarkMode ? '#888' : '#666' }}>
                                 Find scholarships, jobs, and programs from around the world. We help you plan your next big step.
                             </p>
                         </div>
 
                         <div>
-                            <h4 className="text-[12px] font-bold tracking-widest mb-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
+                            <h4 className="text-[11px] md:text-[12px] font-bold tracking-widest mb-3 md:mb-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
                                 Product
                             </h4>
-                            <div className="space-y-3">
-                                <Link to="/opportunities" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Opportunities</Link>
-                                <a href="#platform" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Platform</a>
-                                <Link to="/mentor" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Become a Mentor</Link>
-                                <a href="#faq" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>FAQ</a>
+                            <div className="space-y-2 md:space-y-3">
+                                <Link to="/opportunities" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Opportunities</Link>
+                                <a href="#platform" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Platform</a>
+                                <Link to="/mentor" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Become a Mentor</Link>
+                                <a href="#faq" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>FAQ</a>
                             </div>
                         </div>
 
                         <div>
-                            <h4 className="text-[12px] font-bold tracking-widest mb-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
+                            <h4 className="text-[11px] md:text-[12px] font-bold tracking-widest mb-3 md:mb-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
                                 Company
                             </h4>
-                            <div className="space-y-3">
-                                <Link to="/about" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>About</Link>
-                                <Link to="/mentor" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Become a Mentor</Link>
-                                <Link to="/opportunities" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Opportunities</Link>
-                                <Link to="/blog" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Blog</Link>
-                                <Link to="/about" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Careers</Link>
+                            <div className="space-y-2 md:space-y-3">
+                                <Link to="/about" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>About</Link>
+                                <Link to="/mentor" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Become a Mentor</Link>
+                                <Link to="/opportunities" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Opportunities</Link>
+                                <Link to="/blog" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Blog</Link>
+                                <Link to="/about" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Careers</Link>
                             </div>
                         </div>
 
                         <div>
-                            <h4 className="text-[12px] font-bold tracking-widest mb-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
+                            <h4 className="text-[11px] md:text-[12px] font-bold tracking-widest mb-3 md:mb-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
                                 Resources
                             </h4>
-                            <div className="space-y-3">
-                                <Link to="/app/help" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Help Center</Link>
-                                <Link to="/admin" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Admin</Link>
-                                <Link to="/about" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Privacy Policy</Link>
-                                <Link to="/about" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Terms of Service</Link>
-                                <Link to="/opportunities" className="block text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Community</Link>
+                            <div className="space-y-2 md:space-y-3">
+                                <Link to="/app/help" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Help Center</Link>
+                                <Link to="/admin" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Admin</Link>
+                                <Link to="/about" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Privacy Policy</Link>
+                                <Link to="/about" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Terms of Service</Link>
+                                <Link to="/opportunities" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Community</Link>
                             </div>
                         </div>
                     </div>
 
-                    <div className="flex flex-col md:flex-row justify-between items-center pt-8" style={{ borderTop: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}` }}>
-                        <span className="text-[12px]" style={{ color: isDarkMode ? '#5a5a5a' : '#ababab' }}>
+                    <div className="flex flex-col md:flex-row justify-between items-center pt-6 md:pt-8" style={{ borderTop: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}` }}>
+                        <span className="text-[11px] md:text-[12px]" style={{ color: isDarkMode ? '#5a5a5a' : '#ababab' }}>
                             © {new Date().getFullYear()} Edutu Inc. All rights reserved.
                         </span>
-                        <div className="flex items-center gap-6 mt-4 md:mt-0">
-                            <a href="https://twitter.com/edutu" target="_blank" rel="noopener noreferrer" className="p-2 transition-colors" style={{ color: isDarkMode ? '#5a5a5a' : '#5a5a5a' }} onMouseEnter={(e) => (e.currentTarget.style.color = '#146ef5')} onMouseLeave={(e) => (e.currentTarget.style.color = isDarkMode ? '#5a5a5a' : '#5a5a5a')}>
+                        <div className="flex items-center gap-4 md:gap-6 mt-3 md:mt-0">
+                            <a href="https://twitter.com/edutu" target="_blank" rel="noopener noreferrer" className="p-1.5 md:p-2 transition-colors" style={{ color: isDarkMode ? '#5a5a5a' : '#5a5a5a' }} onMouseEnter={(e) => (e.currentTarget.style.color = '#146ef5')} onMouseLeave={(e) => (e.currentTarget.style.color = isDarkMode ? '#5a5a5a' : '#5a5a5a')}>
                                 <Twitter size={18} />
                             </a>
-                            <a href="https://linkedin.com/company/edutu" target="_blank" rel="noopener noreferrer" className="p-2 transition-colors" style={{ color: isDarkMode ? '#5a5a5a' : '#5a5a5a' }} onMouseEnter={(e) => (e.currentTarget.style.color = '#146ef5')} onMouseLeave={(e) => (e.currentTarget.style.color = isDarkMode ? '#5a5a5a' : '#5a5a5a')}>
+                            <a href="https://linkedin.com/company/edutu" target="_blank" rel="noopener noreferrer" className="p-1.5 md:p-2 transition-colors" style={{ color: isDarkMode ? '#5a5a5a' : '#5a5a5a' }} onMouseEnter={(e) => (e.currentTarget.style.color = '#146ef5')} onMouseLeave={(e) => (e.currentTarget.style.color = isDarkMode ? '#5a5a5a' : '#5a5a5a')}>
                                 <Linkedin size={18} />
                             </a>
-                            <a href="https://github.com/edutu" target="_blank" rel="noopener noreferrer" className="p-2 transition-colors" style={{ color: isDarkMode ? '#5a5a5a' : '#5a5a5a' }} onMouseEnter={(e) => (e.currentTarget.style.color = '#146ef5')} onMouseLeave={(e) => (e.currentTarget.style.color = isDarkMode ? '#5a5a5a' : '#5a5a5a')}>
+                            <a href="https://github.com/edutu" target="_blank" rel="noopener noreferrer" className="p-1.5 md:p-2 transition-colors" style={{ color: isDarkMode ? '#5a5a5a' : '#5a5a5a' }} onMouseEnter={(e) => (e.currentTarget.style.color = '#146ef5')} onMouseLeave={(e) => (e.currentTarget.style.color = isDarkMode ? '#5a5a5a' : '#5a5a5a')}>
                                 <Github size={18} />
                             </a>
                         </div>

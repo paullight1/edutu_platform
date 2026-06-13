@@ -13,7 +13,6 @@ import {
     Globe,
     Heart,
     BookOpen,
-    ArrowLeft,
     ShieldCheck,
     MessageCircle,
     TrendingUp,
@@ -29,6 +28,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { supabase } from '../lib/supabaseClient';
+import PublicSiteMenu from './PublicSiteMenu';
 
 interface MentorFormData {
     displayName: string;
@@ -312,7 +312,7 @@ const MentorPage: React.FC = () => {
 
     if (!showApplication) {
         return (
-            <div className="min-h-screen bg-surface-body" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808' }}>
+            <div className="min-h-[100dvh] bg-surface-body" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808' }}>
                 <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md" style={{ backgroundColor: isDarkMode ? 'rgba(10,10,10,0.9)' : 'rgba(255,255,255,0.95)', borderBottom: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}` }}>
                     <div className="max-w-[1200px] mx-auto px-4 sm:px-6 h-[64px] flex items-center justify-between">
                         <Link to="/" className="flex items-center gap-2">
@@ -573,8 +573,8 @@ const MentorPage: React.FC = () => {
 
     if (isSubmitted) {
         return (
-            <div className="min-h-screen" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808' }}>
-                <div className="max-w-[1200px] mx-auto px-4 sm:px-6 flex items-center justify-center min-h-screen">
+            <div className="min-h-[100dvh]" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808' }}>
+                <div className="max-w-[1200px] mx-auto px-4 sm:px-6 flex items-center justify-center min-h-[100dvh]">
                     <motion.div
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
@@ -599,17 +599,9 @@ const MentorPage: React.FC = () => {
                         <p className="text-base leading-relaxed mb-8" style={{ color: isDarkMode ? '#888' : '#666' }}>
                             Thanks for applying to be a mentor. We'll review your application and get back to you within 2-3 business days.
                         </p>
-                        <Link
-                            to="/"
-                            className="inline-flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-bold"
-                            style={{
-                                backgroundColor: '#146ef5',
-                                color: '#ffffff',
-                            }}
-                        >
-                            <ArrowLeft size={16} />
-                            Back to Home
-                        </Link>
+                        <div className="flex justify-center">
+                            <PublicSiteMenu />
+                        </div>
                     </motion.div>
                 </div>
             </div>
@@ -617,7 +609,7 @@ const MentorPage: React.FC = () => {
     }
 
     return (
-        <div className="min-h-screen" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808' }}>
+        <div className="min-h-[100dvh]" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808' }}>
             {/* Header */}
             <header className="sticky top-0 z-50 backdrop-blur-md" style={{ backgroundColor: isDarkMode ? 'rgba(10,10,10,0.9)' : 'rgba(255,255,255,0.95)', borderBottom: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}` }}>
                 <div className="max-w-[1200px] mx-auto px-4 sm:px-6 h-[64px] flex items-center justify-between">

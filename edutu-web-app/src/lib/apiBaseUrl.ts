@@ -1,4 +1,8 @@
 export function getApiBaseUrl(serviceName: string): string {
+  if (import.meta.env.DEV) {
+    return 'http://localhost:3010';
+  }
+
   const configuredUrl =
     import.meta.env.VITE_BACKEND_URL?.trim() ||
     import.meta.env.VITE_API_URL?.trim();
