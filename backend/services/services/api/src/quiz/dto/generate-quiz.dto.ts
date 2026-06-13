@@ -1,6 +1,6 @@
 export class GenerateQuizDto {
   topic: string;
-  difficulty?: 'easy' | 'medium' | 'hard';
+  difficulty?: "easy" | "medium" | "hard";
   questionCount?: number;
   description?: string;
 }

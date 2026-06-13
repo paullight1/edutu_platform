@@ -250,7 +250,7 @@ Admin Panel                    Web App                    Mobile App
 ### 1. API Service (services/api/)
 ```typescript
 // Shared base URL and configuration
-const API_BASE_URL = process.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = process.env.VITE_API_URL || 'https://edutu-api.onrender.com';
 
 // Common headers
 const getHeaders = () => ({
@@ -514,7 +514,7 @@ GET    /ai/rag                        // Get RAG data
 
 ```env
 # Shared
-VITE_API_URL=http://localhost:3001
+VITE_API_URL=https://edutu-api.onrender.com
 VITE_SUPABASE_URL=https://xxx.supabase.co
 VITE_SUPABASE_ANON_KEY=xxx
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxx

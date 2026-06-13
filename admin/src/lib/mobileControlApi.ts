@@ -1,6 +1,6 @@
-import { supabase } from './supabase';
+import { getAdminAuthHeaders } from './backend';
 
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'https://edutu-api.onrender.com';
 
 export interface MobileCampaign {
   id?: string;
@@ -45,11 +45,9 @@ export interface WidgetFeed {
 type ResourceName = 'campaigns' | 'feature-flags' | 'widget-feeds';
 
 async function authHeaders() {
-  const { data: { session } } = await supabase.auth.getSession();
-  return {
-    Authorization: `Bearer ${session?.access_token || ''}`,
+  return getAdminAuthHeaders({
     'Content-Type': 'application/json',
-  };
+  });
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {

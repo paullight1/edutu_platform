@@ -4,8 +4,8 @@ export class CreateFlashcardDeckDto {
   category?: string;
   tags?: string[];
   isPublic?: boolean;
-  difficulty?: 'easy' | 'medium' | 'hard';
-  sourceType?: 'manual' | 'ai_generated' | 'imported';
+  difficulty?: "easy" | "medium" | "hard";
+  sourceType?: "manual" | "ai_generated" | "imported";
   sourceId?: string;
 }
 
@@ -14,7 +14,7 @@ export class CreateFlashcardDto {
   front: string;
   back: string;
   hint?: string;
-  difficulty?: 'easy' | 'medium' | 'hard';
+  difficulty?: "easy" | "medium" | "hard";
   tags?: string[];
   mediaUrl?: string;
 }
@@ -22,7 +22,7 @@ export class CreateFlashcardDto {
 export class GenerateFlashcardsDto {
   topic: string;
   count?: number;
-  difficulty?: 'easy' | 'medium' | 'hard';
+  difficulty?: "easy" | "medium" | "hard";
   sourceContent?: string;
 }
 
@@ -32,14 +32,14 @@ export class UpdateFlashcardDeckDto {
   category?: string;
   tags?: string[];
   isPublic?: boolean;
-  difficulty?: 'easy' | 'medium' | 'hard';
+  difficulty?: "easy" | "medium" | "hard";
 }
 
 export class UpdateFlashcardDto {
   front?: string;
   back?: string;
   hint?: string;
-  difficulty?: 'easy' | 'medium' | 'hard';
+  difficulty?: "easy" | "medium" | "hard";
   tags?: string[];
   mediaUrl?: string;
 }

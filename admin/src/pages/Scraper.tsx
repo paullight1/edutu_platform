@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { backendFetchJson, getAdminAuthHeaders, getBackendBaseUrl } from '../lib/backend';
+import { isLocalAdminBypassEnabled } from '../lib/localAdmin';
 import {
     Bug,
     Play,
@@ -56,7 +58,7 @@ interface ScrapeJob {
     urls_saved?: number;
     urls_failed?: number;
     items_found?: number;
-    source_results?: any; // usually stringified JSON or array
+    source_results?: string | Array<Record<string, unknown>> | Record<string, unknown> | null;
     errors: string[];
     warnings: string[];
     duration_seconds: number;
@@ -74,6 +76,8 @@ interface EngineStatus {
     success: boolean;
     database?: {
         configured: boolean;
+        reachable?: boolean;
+        error?: string;
     };
     ai?: {
         deepseekConfigured: boolean;
@@ -107,6 +111,7 @@ interface SourceResult {
 }
 
 interface ScrapedOpportunity {
+    id?: string | number;
     title: string;
     organization?: string;
     category?: string;
@@ -118,6 +123,7 @@ interface ScrapedOpportunity {
     apply_url?: string;
     imageUrl?: string;
     image_url?: string;
+    application_url?: string;
     amount?: number | null;
     source: string;
     sourceUrl?: string;
@@ -142,6 +148,7 @@ interface ScrapeResult {
     sourcesScraped?: number;
     totalResults?: number;
     duration?: number;
+    jobId?: string;
     sources?: string[];
     error?: string;
     sourceResults?: SourceResult[];
@@ -169,6 +176,10 @@ interface Opportunity {
     createdAt: string;
 }
 
+async function getAuthHeaders() {
+    return getAdminAuthHeaders();
+}
+
 export default function ScraperDashboard() {
     const [sources, setSources] = useState<ScrapeSource[]>([]);
     const [jobs, setJobs] = useState<ScrapeJob[]>([]);
@@ -178,16 +189,13 @@ export default function ScraperDashboard() {
     const [loading, setLoading] = useState(true);
     const [scraping, setScraping] = useState(false);
     const [maxPages, setMaxPages] = useState(3);
-    const [showConfigureModal, setShowConfigureModal] = useState(false);
-    const [configSource, setConfigSource] = useState<ScrapeSource | null>(null);
-
     // Automation Settings State
     const [autoRunEnabled, setAutoRunEnabled] = useState(false);
     const [cronSchedule, setCronSchedule] = useState('0 0 * * *');
     const [dataRetentionDays, setDataRetentionDays] = useState<number | null>(null);
     const [isSavingSettings, setIsSavingSettings] = useState(false);
 
-    const API_URL = `${import.meta.env.VITE_BACKEND_URL || 'https://edutu-platform.onrender.com'}/api/scraper`;
+    const API_URL = `${getBackendBaseUrl()}/api/scraper`;
     const [showAddSource, setShowAddSource] = useState(false);
     const [newSource, setNewSource] = useState<{ name: string; url: string; category: string; asGroup?: boolean; parentId?: number }>({ name: '', url: '', category: 'scholarship', asGroup: false });
     const [filter, setFilter] = useState<'all' | 'enabled' | 'disabled'>('all');
@@ -196,7 +204,7 @@ export default function ScraperDashboard() {
 
     // Inspect Job & Data Retention
     const [inspectJobDetails, setInspectJobDetails] = useState<ScrapeJob | null>(null);
-    const [inspectOpportunities, setInspectOpportunities] = useState<any[]>([]);
+    const [inspectOpportunities, setInspectOpportunities] = useState<ScrapedOpportunity[]>([]);
     const [isLoadingInspect, setIsLoadingInspect] = useState(false);
     const [isPurging, setIsPurging] = useState(false);
 
@@ -208,6 +216,7 @@ export default function ScraperDashboard() {
     const [scrapingStartedAt, setScrapingStartedAt] = useState<number | null>(null);
     const [scrapingElapsedSeconds, setScrapingElapsedSeconds] = useState(0);
     const [selectedOpportunities, setSelectedOpportunities] = useState<Set<number>>(new Set());
+    const [activeScrapeJobId, setActiveScrapeJobId] = useState<string | null>(null);
     const [notifications, setNotifications] = useState<Notification[]>([]);
 
     const showNotification = (message: string, type: Notification['type'] = 'info') => {
@@ -237,22 +246,7 @@ export default function ScraperDashboard() {
         return () => window.clearInterval(interval);
     }, [showLoadingModal, scrapingStartedAt, modalError, currentStep]);
 
-    const getAuthHeaders = async () => {
-        let { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) {
-            const refreshed = await supabase.auth.refreshSession();
-            session = refreshed.data.session;
-        }
-        if (!session?.access_token) {
-            throw new Error('Admin session is required');
-        }
-        return {
-            Authorization: `Bearer ${session.access_token}`,
-            'X-Edutu-Admin-Email': session.user?.email || '',
-        };
-    };
-
-    const fetchSettings = async () => {
+    const fetchSettings = useCallback(async () => {
         try {
             const response = await fetch(`${API_URL}/settings`, {
                 headers: await getAuthHeaders()
@@ -266,24 +260,7 @@ export default function ScraperDashboard() {
         } catch (error) {
             console.error('Failed to fetch settings:', error);
         }
-    };
-
-    const fetchEngineStatus = async () => {
-        try {
-            const response = await fetch(`${API_URL}/engine-status`, {
-                headers: await getAuthHeaders()
-            });
-            if (response.ok) {
-                setEngineStatus(await response.json());
-            }
-        } catch (error) {
-            console.error('Failed to fetch engine status:', error);
-            setEngineStatus({
-                success: false,
-                error: error instanceof Error ? error.message : 'Engine status unavailable',
-            });
-        }
-    };
+    }, [API_URL]);
 
     const handleUpdateSettings = async () => {
         setIsSavingSettings(true);
@@ -317,16 +294,19 @@ export default function ScraperDashboard() {
         if (!confirm(`Are you sure you want to permanently delete all opportunities older than ${days} days?`)) return;
         setIsPurging(true);
         try {
-            const cutoffDate = new Date();
-            cutoffDate.setDate(cutoffDate.getDate() - days);
-            const { error } = await supabase
-                .from('opportunities')
-                .delete()
-                .lt('created_at', cutoffDate.toISOString());
+            const result = await backendFetchJson<{ success: boolean; deletedCount: number }>(
+                '/opportunities/admin/purge',
+                {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ olderThanDays: days }),
+                }
+            );
 
-            if (error) throw error;
-
-            showNotification(`Opportunities older than ${days} days purged.`, 'success');
+            showNotification(
+                `Opportunities older than ${days} days purged (${result.deletedCount} deleted).`,
+                'success',
+            );
             loadRecentOpportunities(); // refresh
         } catch (e) {
             console.error('Failed to purge data:', e);
@@ -366,16 +346,10 @@ export default function ScraperDashboard() {
         setInspectJobDetails(job);
         setIsLoadingInspect(true);
         try {
-            // Search opportunities that have this scrape_job_id in metadata
-            const { data, error } = await supabase
-                .from('opportunities')
-                .select('*')
-                // Wait, text search inside JSONB block:
-                // Using textSearch or containing logic. 
-                // Because metadata is JSONB, we can do: .contains('metadata', { scrape_job_id: job.id })
-                .contains('metadata', `{"scrape_job_id": "${job.id}"}`);
-
-            if (error) throw error;
+            const data = await backendFetchJson<ScrapedOpportunity[]>(
+                `/api/scraper/jobs/${job.id}/opportunities`,
+                { headers: await getAuthHeaders() },
+            );
             setInspectOpportunities(data || []);
         } catch (e) {
             console.error(e);
@@ -407,10 +381,94 @@ export default function ScraperDashboard() {
         }
     };
 
+    const loadRecentOpportunities = useCallback(async () => {
+        try {
+            const data = await backendFetchJson<{ data: Array<Record<string, unknown>> }>(
+                `/opportunities/admin/list?limit=10&sortBy=newest`,
+                { headers: await getAuthHeaders() },
+            );
+            const mappedRecentOpportunities = (data.data || []).map((row: Record<string, unknown>) => ({
+                id: String(row.id ?? ''),
+                title: String(row.title ?? ''),
+                organization: String(row.organization ?? row.provider_name ?? row.source ?? ''),
+                category: String(row.category ?? row.canonical_category ?? row.type ?? ''),
+                deadline: typeof row.close_date === 'string'
+                    ? row.close_date
+                    : typeof row.deadline === 'string'
+                        ? row.deadline
+                        : null,
+                location: String(row.location ?? ''),
+                description: String(row.description ?? row.summary ?? ''),
+                applyUrl: String(row.application_url ?? row.apply_url ?? row.source_url ?? ''),
+                amount: row.stipend === null || row.stipend === undefined
+                    ? null
+                    : Number(row.stipend),
+                source: String(row.source ?? 'manual'),
+                createdAt: String(row.created_at ?? row.createdAt ?? new Date().toISOString()),
+            })) as Opportunity[];
+            setRecentOpportunities(mappedRecentOpportunities);
+        } catch (e) {
+            console.warn('Could not load recent opportunities:', e);
+        }
+    }, []);
+
+    const loadData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const authHeaders = await getAuthHeaders();
+            const [engineStatusData, sourcesData, jobsData, statsData] = await Promise.allSettled([
+                backendFetchJson<EngineStatus>(`/api/scraper/engine-status`, { headers: authHeaders }),
+                backendFetchJson<ScrapeSource[]>(`/api/scraper/sources`, { headers: authHeaders }),
+                backendFetchJson<ScrapeJob[]>(`/api/scraper/jobs`, { headers: authHeaders }),
+                backendFetchJson<{ total: number; bySource: Record<string, number> }>(
+                    `/api/scraper/stats`,
+                    { headers: authHeaders },
+                ),
+            ]);
+
+            setEngineStatus(
+                engineStatusData.status === 'fulfilled'
+                    ? engineStatusData.value
+                    : {
+                        success: false,
+                        error: engineStatusData.reason instanceof Error
+                            ? engineStatusData.reason.message
+                            : 'Engine status unavailable',
+                    },
+            );
+            setSources(
+                sourcesData.status === 'fulfilled' && Array.isArray(sourcesData.value)
+                    ? sourcesData.value
+                    : [],
+            );
+            setJobs(
+                jobsData.status === 'fulfilled' && Array.isArray(jobsData.value)
+                    ? jobsData.value
+                    : [],
+            );
+            setStats({
+                total_opportunities: statsData.status === 'fulfilled' ? statsData.value.total || 0 : 0,
+                by_source: statsData.status === 'fulfilled' ? statsData.value.bySource || {} : {},
+                recent_scrape_count:
+                    jobsData.status === 'fulfilled' && Array.isArray(jobsData.value)
+                        ? jobsData.value.filter((j) => j.status === 'completed').length || 0
+                        : 0,
+            });
+            await loadRecentOpportunities();
+        } catch (error) {
+            console.error('Error loading data:', error);
+        }
+        setLoading(false);
+    }, [loadRecentOpportunities]);
+
     useEffect(() => {
-        loadData();
-        loadRecentOpportunities();
-        fetchSettings();
+        void loadData();
+        void loadRecentOpportunities();
+        void fetchSettings();
+
+        if (isLocalAdminBypassEnabled()) {
+            return undefined;
+        }
 
         // Subscribe to real-time scrape logs for live dashboard updates
         const scrapeLogsChannel = supabase
@@ -434,69 +492,7 @@ export default function ScraperDashboard() {
         return () => {
             supabase.removeChannel(scrapeLogsChannel);
         };
-    }, []);
-
-    async function loadData() {
-        setLoading(true);
-        try {
-            await fetchEngineStatus();
-            await loadRecentOpportunities();
-
-            let sourcesData = [];
-            try {
-                const sourcesRes = await supabase.from('scraping_sources').select('*').order('priority');
-                if (sourcesRes.data) sourcesData = sourcesRes.data;
-            } catch (e) {
-                console.warn('scraping_sources table not found:', e);
-            }
-            setSources(sourcesData);
-
-            let jobsData = [];
-            try {
-                const jobsRes = await supabase.from('scrape_logs').select('*').order('created_at', { ascending: false }).limit(20);
-                if (jobsRes.data) jobsData = jobsRes.data;
-            } catch (e) {
-                console.warn('scrape_logs table not found:', e);
-            }
-            setJobs(jobsData);
-
-            let statsData = [];
-            try {
-                const statsRes = await supabase.from('opportunities').select('source');
-                if (statsRes.data) statsData = statsRes.data;
-            } catch (e) {
-                console.warn('opportunities table not found:', e);
-            }
-
-            const bySource: Record<string, number> = {};
-            statsData.forEach((item: any) => {
-                const source = item.source || 'manual';
-                bySource[source] = (bySource[source] || 0) + 1;
-            });
-
-            setStats({
-                total_opportunities: statsData.length,
-                by_source: bySource,
-                recent_scrape_count: jobsData.filter((j: any) => j.status === 'completed').length || 0,
-            });
-        } catch (error) {
-            console.error('Error loading data:', error);
-        }
-        setLoading(false);
-    }
-
-    async function loadRecentOpportunities() {
-        try {
-            const { data } = await supabase
-                .from('opportunities')
-                .select('*')
-                .order('created_at', { ascending: false })
-                .limit(10);
-            if (data) setRecentOpportunities(data as Opportunity[]);
-        } catch (e) {
-            console.warn('Could not load recent opportunities:', e);
-        }
-    }
+    }, [fetchSettings, loadData, loadRecentOpportunities]);
 
     function stopScrape() {
         if (abortControllerRef.current) {
@@ -508,6 +504,67 @@ export default function ScraperDashboard() {
         setScrapingStartedAt(null);
         setScrapingElapsedSeconds(0);
     }
+
+    const getJobSourceResults = (job: ScrapeJob) => {
+        if (!job.source_results) return [];
+        try {
+            const results = typeof job.source_results === 'string'
+                ? JSON.parse(job.source_results)
+                : job.source_results;
+            return Array.isArray(results) ? results : [];
+        } catch {
+            return [];
+        }
+    };
+
+    const getJobDisplayName = (job: ScrapeJob) => {
+        let displayName = job.source_name || (job.source_id ? `Source #${job.source_id}` : 'Manual Extraction');
+        const results = getJobSourceResults(job);
+        if (results.length > 0) {
+            if (results.length === 1) {
+                displayName = results[0].name;
+            } else {
+                displayName = `${results.length} Sources (${results[0].name}, etc.)`;
+            }
+        }
+        return displayName;
+    };
+
+    const getJobFoundCount = (job: ScrapeJob) => {
+        if (typeof job.items_found === 'number' && job.items_found > 0) return job.items_found;
+        if (typeof job.urls_scraped === 'number' && job.urls_scraped > 0) return job.urls_scraped;
+        if (typeof job.urls_saved === 'number' && job.urls_saved > 0) return job.urls_saved;
+        return 0;
+    };
+
+    const getJobSavedCount = (job: ScrapeJob) => {
+        if (typeof job.urls_saved === 'number') return job.urls_saved;
+        return 0;
+    };
+
+    const groupedJobs = Object.values(
+        jobs.reduce<Record<string, { displayName: string; jobs: ScrapeJob[] }>>((acc, job) => {
+            const displayName = getJobDisplayName(job);
+            if (!acc[displayName]) {
+                acc[displayName] = { displayName, jobs: [] };
+            }
+            acc[displayName].jobs.push(job);
+            return acc;
+        }, {}),
+    )
+        .map((group) => ({
+            ...group,
+            jobs: [...group.jobs].sort(
+                (a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime(),
+            ),
+        }))
+        .sort((a, b) => {
+            const aTime = new Date(a.jobs[0]?.started_at || 0).getTime();
+            const bTime = new Date(b.jobs[0]?.started_at || 0).getTime();
+            return bTime - aTime;
+        });
+
+    const visibleJobGroups = showAllJobs ? groupedJobs : groupedJobs.slice(0, 6);
 
     async function startScrape(sourceId?: number) {
         // Guard: only scrape enabled sources
@@ -528,6 +585,7 @@ export default function ScraperDashboard() {
         setScraping(true);
         setScrapeResult(null);
         setModalError(null);
+        setActiveScrapeJobId(null);
         setShowLoadingModal(true);
         setCurrentStep(1);
         setScrapingStartedAt(Date.now());
@@ -544,7 +602,7 @@ export default function ScraperDashboard() {
 
         try {
             // Use port 3000 (NestJS default) unless overridden by env
-            const backendUrl = (import.meta.env.VITE_BACKEND_URL || 'https://edutu-platform.onrender.com').replace(/\/$/, '');
+            const backendUrl = (import.meta.env.VITE_BACKEND_URL || 'https://edutu-api.onrender.com').replace(/\/$/, '');
 
             // Step 1: Connecting to sources
             setCurrentStep(1);
@@ -582,6 +640,7 @@ export default function ScraperDashboard() {
                     sourcesScraped: result.sourcesScraped ?? sourcesToScrape.length,
                     totalResults: result.totalResults ?? 0,
                     duration: result.duration,
+                    jobId: result.jobId ?? result.jobLogId ?? undefined,
                     error: result.error,
                     sourceResults: result.sourceResults ?? sourcesToScrape.map(s => ({
                         name: s.name,
@@ -594,13 +653,16 @@ export default function ScraperDashboard() {
                 };
 
                 setScrapeResult(mapped);
+                setActiveScrapeJobId(mapped.jobId ?? null);
 
                 setScrapingProgress(
-                    (result.sourceResults ?? sourcesToScrape.map(s => ({ name: s.name, status: 'success' }))).map((sr: any) => ({
-                        source: sr.name,
-                        status: sr.status === 'failed' ? 'failed' as const : 'completed' as const,
-                        progress: 100,
-                    }))
+                    (result.sourceResults ?? sourcesToScrape.map(s => ({ name: s.name, status: 'success' as const }))).map(
+                        (sr: SourceResult | { name: string; status: 'success' | 'failed' | 'skipped' | 'pending' }) => ({
+                            source: sr.name,
+                            status: sr.status === 'failed' ? 'failed' as const : 'completed' as const,
+                            progress: 100,
+                        })
+                    )
                 );
 
                 // Step 4: Complete
@@ -639,17 +701,39 @@ export default function ScraperDashboard() {
     }
 
     async function toggleSource(source: ScrapeSource) {
-        await supabase
-            .from('scraping_sources')
-            .update({ enabled: !source.enabled })
-            .eq('id', source.id);
-        loadData();
+        try {
+            await backendFetchJson(
+                `${API_URL}/sources/${source.id}`,
+                {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: !source.enabled }),
+                }
+            );
+            showNotification(`${source.enabled ? 'Disabled' : 'Enabled'} "${source.name}"`, 'success');
+            loadData();
+        } catch (error) {
+            console.error('Failed to toggle source:', error);
+            showNotification('Failed to update source', 'error');
+        }
     }
 
     async function deleteSource(id: number) {
         if (!confirm('Delete this source?')) return;
-        await supabase.from('scraping_sources').delete().eq('id', id);
-        loadData();
+        try {
+            await backendFetchJson(
+                `${API_URL}/sources/${id}`,
+                {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                }
+            );
+            showNotification('Source deleted', 'success');
+            loadData();
+        } catch (error) {
+            console.error('Failed to delete source:', error);
+            showNotification('Failed to delete source', 'error');
+        }
     }
 
     async function addSource(parentId: number | null = null, asGroup: boolean = false) {
@@ -659,32 +743,27 @@ export default function ScraperDashboard() {
         }
 
         try {
-            const { error } = await supabase.from('scraping_sources').insert({
-                name: newSource.name,
-                url: asGroup ? '' : newSource.url,
-                category: newSource.category,
-                tier: 2,
-                enabled: true,
-                priority: sources.length + 1,
-                parent_id: parentId,
-                is_group: asGroup
-            });
-
-            if (error) {
-                if (error.code === '23505') {
-                    showNotification('Source with this URL already exists', 'error');
-                } else {
-                    showNotification(`Error adding source: ${error.message}`, 'error');
+            await backendFetchJson(
+                `${API_URL}/sources`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: newSource.name,
+                        url: asGroup ? '' : newSource.url,
+                        category: newSource.category,
+                        tier: 2,
+                        parent_id: parentId ?? undefined,
+                        is_group: asGroup,
+                    }),
                 }
-                return;
-            }
-
+            );
             showNotification(asGroup ? 'Group created' : 'Source added', 'success');
             setNewSource({ name: '', url: '', category: 'scholarship' });
             setShowAddSource(false);
             loadData();
-        } catch (err: any) {
-            showNotification(`Unexpected error: ${err.message}`, 'error');
+        } catch (err: unknown) {
+            showNotification(`Unexpected error: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
         }
     }
 
@@ -768,8 +847,8 @@ export default function ScraperDashboard() {
             });
             setDetailsOpportunity(result.opportunity);
             showNotification(`AI improved "${result.opportunity.title}"`, 'success');
-        } catch (error: any) {
-            showNotification(error.message || 'AI improvement failed', 'error');
+        } catch (error: unknown) {
+            showNotification(error instanceof Error ? error.message : 'AI improvement failed', 'error');
         } finally {
             setEnhancingIndexes(prev => {
                 const next = new Set(prev);
@@ -820,35 +899,74 @@ export default function ScraperDashboard() {
     const addSelectedOpportunities = async () => {
         if (selectedOpportunities.size === 0) return;
         setIsSaving(true);
-        let saved = 0;
         const oppsToSave = filteredOpportunities.filter((_, i) => selectedOpportunities.has(i));
+        const normalizeEligibilityCriteria = (values: string[] | undefined) =>
+            values?.length ? values.join('\n') : undefined;
+        const toBulkItem = (opp: ScrapedOpportunity) => {
+            const sourceUrl = opp.sourceUrl || opp.source_url || opp.applyUrl || opp.apply_url || '';
+            const applyUrl = opp.applyUrl || opp.apply_url || opp.application_url || sourceUrl;
 
-        for (const opp of oppsToSave) {
+            if (!sourceUrl) return null;
+
+            return {
+                title: opp.title,
+                summary: opp.summary || undefined,
+                description: opp.description || undefined,
+                category: opp.category || undefined,
+                organization: opp.organization || undefined,
+                location: opp.location || undefined,
+                type: 'scholarship',
+                eligibilityCriteria: normalizeEligibilityCriteria(opp.requirements),
+                fundingType: opp.funding_type || undefined,
+                targetRegion: opp.target_region || undefined,
+                deadline: opp.deadline || undefined,
+                sourceUrl,
+                applyUrl,
+                imageUrl: opp.imageUrl || opp.image_url || undefined,
+                eligibility: opp.eligibility || undefined,
+                isFeatured: false,
+                isRemote: true,
+                status: 'pending',
+                tags: [],
+            };
+        };
+        const items = oppsToSave.map(toBulkItem).filter((item): item is NonNullable<ReturnType<typeof toBulkItem>> => Boolean(item));
+
+        if (items.length === 0) {
+            setIsSaving(false);
+            showNotification('No valid opportunities to save', 'warning');
+            return;
+        }
+
+        let inserted = 0;
+        let skipped = 0;
+        const batches: Array<typeof items> = [];
+        for (let i = 0; i < items.length; i += 100) {
+            batches.push(items.slice(i, i + 100));
+        }
+
+        for (const batch of batches) {
             try {
-                const { error } = await supabase.from('opportunities').upsert(
+                const result = await backendFetchJson<{ success: boolean; inserted?: number; skipped?: number }>(
+                    `/opportunities/admin/bulk-import`,
                     {
-                        title: opp.title,
-                        organization: opp.organization || null,
-                        category: opp.category || null,
-                        deadline: opp.deadline || null,
-                        location: opp.location || null,
-                        description: opp.description || null,
-                        apply_url: opp.applyUrl || null,
-                        amount: opp.amount || null,
-                        source: opp.source || 'manual',
-                        source_url: opp.sourceUrl || null,
-                        status: 'active',
-                        created_at: new Date().toISOString(),
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ items: batch }),
                     },
-                    { onConflict: 'apply_url', ignoreDuplicates: true }
                 );
-                if (!error) saved++;
+
+                if (!result.success) {
+                    throw new Error('Bulk import failed');
+                }
+
+                inserted += result.inserted || 0;
+                skipped += result.skipped || 0;
             } catch (err) {
-                console.error('Failed to save opportunity:', err);
+                console.error('Failed to save opportunity batch:', err);
             }
         }
 
-        showNotification(`Successfully added ${saved} opportunities`, 'success');
         setIsSaving(false);
         setSelectedOpportunities(new Set());
         await loadRecentOpportunities();
@@ -859,7 +977,12 @@ export default function ScraperDashboard() {
             success: true,
             totalResults: (prev.totalResults || 0),
         } : null);
-        showNotification(`Successfully saved ${saved} opportunities`, 'success');
+        showNotification(
+            activeScrapeJobId
+                ? `Saved ${inserted} opportunities from this run${skipped ? `, skipped ${skipped}` : ''}`
+                : `Saved ${inserted} opportunities${skipped ? `, skipped ${skipped}` : ''}`,
+            'success'
+        );
     };
 
     // Grouping logic for the table
@@ -1214,9 +1337,13 @@ export default function ScraperDashboard() {
                         {
                             icon: Database,
                             label: 'Database',
-                            value: engineStatus.database?.configured ? 'Configured' : 'Missing',
-                            ok: Boolean(engineStatus.database?.configured),
-                            detail: 'Supabase service role',
+                            value: engineStatus.database?.reachable
+                                ? 'Connected'
+                                : engineStatus.database?.configured
+                                    ? 'Unreachable'
+                                    : 'Missing',
+                            ok: Boolean(engineStatus.database?.reachable),
+                            detail: engineStatus.database?.error || 'Supabase service role',
                         },
                         {
                             icon: Zap,
@@ -1280,6 +1407,29 @@ export default function ScraperDashboard() {
                             </div>
                         </div>
                     ))}
+                </div>
+            )}
+
+            {engineStatus?.database?.configured && !engineStatus.database.reachable && (
+                <div style={{
+                    padding: '14px 16px',
+                    marginBottom: '20px',
+                    borderRadius: 12,
+                    border: '1px solid rgba(255, 149, 0, 0.28)',
+                    background: 'rgba(255, 149, 0, 0.08)',
+                    color: 'var(--text-primary)',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 12,
+                }}>
+                    <AlertTriangle size={18} style={{ color: '#ff9500', marginTop: 2, flexShrink: 0 }} />
+                    <div>
+                        <div style={{ fontWeight: 700, marginBottom: 2 }}>Database access is unavailable</div>
+                        <div style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
+                            The backend has Supabase credentials, but the scraper database cannot be reached from this environment.
+                            {engineStatus.database.error ? ` ${engineStatus.database.error}` : ''}
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -1373,7 +1523,7 @@ export default function ScraperDashboard() {
                     <div style={{ display: 'flex', gap: '8px' }}>
                         <select
                             value={filter}
-                            onChange={(e) => setFilter(e.target.value as any)}
+                            onChange={(e) => setFilter(e.target.value as typeof filter)}
                             style={{
                                 padding: '8px 12px',
                                 borderRadius: 8,
@@ -1581,37 +1731,33 @@ export default function ScraperDashboard() {
                             <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Automatically purge old data. Currently: <strong style={{ color: 'var(--primary)' }}>{dataRetentionDays ? `${dataRetentionDays} Days` : 'Off'}</strong></p>
                         </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                        {[
-                            { label: 'Off', value: null },
-                            { label: '30 Days', value: 30 },
-                            { label: '3 Months', value: 90 },
-                            { label: '1 Year', value: 365 }
-                        ].map((opt) => {
-                            const isActive = dataRetentionDays === opt.value;
-                            return (
-                                <button
-                                    key={String(opt.value)}
-                                    onClick={() => handleSetRetention(opt.value)}
-                                    disabled={isPurging}
-                                    style={{
-                                        padding: '8px 16px',
-                                        background: isActive ? 'var(--primary)' : 'rgba(255, 149, 0, 0.08)',
-                                        color: isActive ? 'white' : '#ff9500',
-                                        border: isActive ? '1px solid var(--primary)' : '1px solid rgba(255, 149, 0, 0.2)',
-                                        borderRadius: 8,
-                                        fontSize: 13,
-                                        fontWeight: 600,
-                                        cursor: isPurging ? 'not-allowed' : 'pointer',
-                                        transition: 'all 0.2s ease',
-                                        opacity: isPurging ? 0.6 : 1,
-                                        boxShadow: isActive ? '0 4px 12px rgba(0, 113, 227, 0.2)' : 'none'
-                                    }}
-                                >
-                                    {opt.label}
-                                </button>
-                            );
-                        })}
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <select
+                            value={dataRetentionDays ?? 'off'}
+                            onChange={(event) => {
+                                const value = event.target.value === 'off' ? null : Number(event.target.value);
+                                handleSetRetention(value);
+                            }}
+                            disabled={isPurging}
+                            style={{
+                                minWidth: 170,
+                                padding: '9px 36px 9px 12px',
+                                background: 'rgba(255, 149, 0, 0.08)',
+                                color: '#ff9500',
+                                border: '1px solid rgba(255, 149, 0, 0.2)',
+                                borderRadius: 8,
+                                fontSize: 13,
+                                fontWeight: 600,
+                                cursor: isPurging ? 'not-allowed' : 'pointer',
+                                opacity: isPurging ? 0.6 : 1,
+                                outline: 'none'
+                            }}
+                        >
+                            <option value="off">Off</option>
+                            <option value="30">30 Days</option>
+                            <option value="90">3 Months</option>
+                            <option value="365">1 Year</option>
+                        </select>
 
                         <div style={{ width: '1px', height: '24px', background: 'var(--border-light)', margin: '0 8px' }} />
 
@@ -1620,11 +1766,17 @@ export default function ScraperDashboard() {
                                 if (!confirm('Purge all opportunities that are missing images?')) return;
                                 setIsPurging(true);
                                 try {
-                                    const { error } = await supabase.from('opportunities').delete().is('image_url', null);
-                                    if (error) throw error;
-                                    showNotification('Opportunities without images purged', 'success');
+                                    const result = await backendFetchJson<{ success: boolean; deletedCount: number }>(
+                                        '/opportunities/admin/purge',
+                                        {
+                                            method: 'DELETE',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ missingImagesOnly: true }),
+                                        }
+                                    );
+                                    showNotification(`Opportunities without images purged (${result.deletedCount} deleted)`, 'success');
                                     loadRecentOpportunities();
-                                } catch (e) {
+                                } catch {
                                     showNotification('Purge failed', 'error');
                                 } finally {
                                     setIsPurging(false);
@@ -1672,6 +1824,9 @@ export default function ScraperDashboard() {
                         <Clock size={18} style={{ color: 'var(--text-tertiary)' }} />
                         Recent Jobs
                     </h2>
+                    <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--text-tertiary)' }}>
+                        Grouped by source or run type. Open any run to inspect the opportunities it produced.
+                    </p>
                 </div>
                 <div style={{
                     padding: '0 24px 24px 24px'
@@ -1684,51 +1839,27 @@ export default function ScraperDashboard() {
                         <>
                             <div style={{
                                 display: 'grid',
-                                gridTemplateColumns: 'repeat(3, 1fr)',
+                                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
                                 gap: '16px',
                                 marginTop: '16px'
                             }}>
-                                {(showAllJobs ? jobs : jobs.slice(0, 6)).map(job => {
-                                    const statusColor = getStatusColor(job.status);
-
-                                    let displayName = job.source_name || (job.source_id ? `Source #${job.source_id}` : 'Manual Extraction');
-                                    if (job.source_results) {
-                                        try {
-                                            const results = typeof job.source_results === 'string'
-                                                ? JSON.parse(job.source_results)
-                                                : job.source_results;
-                                            if (Array.isArray(results) && results.length > 0) {
-                                                if (results.length === 1) {
-                                                    displayName = results[0].name;
-                                                } else {
-                                                    displayName = `${results.length} Sources (${results[0].name}, etc.)`;
-                                                }
-                                            }
-                                        } catch (e) {
-                                            // Ignore parse error
-                                        }
-                                    }
-
-                                    const itemsSaved = job.items_found !== undefined ? job.items_found : (job.urls_saved || 0);
+                                {visibleJobGroups.map(group => {
+                                    const latestJob = group.jobs[0];
+                                    const statusColor = getStatusColor(latestJob.status);
 
                                     return (
                                         <div
-                                            key={job.id}
-                                            onClick={() => handleInspectJob(job)}
+                                            key={group.displayName}
                                             style={{
-                                                padding: '16px 20px',
+                                                padding: '16px',
                                                 border: '1px solid var(--border-light)',
                                                 borderRadius: '12px',
                                                 background: 'rgba(0, 113, 227, 0.03)',
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                justifyContent: 'space-between',
                                                 transition: 'all 0.15s ease',
                                                 minHeight: '120px',
-                                                cursor: 'pointer'
                                             }}
                                             onMouseEnter={(e) => {
-                                                e.currentTarget.style.background = 'rgba(0, 113, 227, 0.08)';
+                                                e.currentTarget.style.background = 'rgba(0, 113, 227, 0.06)';
                                                 e.currentTarget.style.transform = 'translateY(-2px)';
                                                 e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)';
                                             }}
@@ -1738,69 +1869,213 @@ export default function ScraperDashboard() {
                                                 e.currentTarget.style.boxShadow = 'none';
                                             }}
                                         >
-                                            <div>
-                                                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
-                                                    <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 13, lineHeight: '1.4', paddingRight: '12px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                        <Search size={12} style={{ color: 'var(--text-tertiary)' }} />
-                                                        {displayName}
-                                                    </span>
-                                                    <span style={{
-                                                        padding: '3px 8px',
-                                                        borderRadius: 6,
-                                                        fontSize: 10,
+                                            <div style={{
+                                                display: 'flex',
+                                                alignItems: 'flex-start',
+                                                justifyContent: 'space-between',
+                                                gap: 12,
+                                                marginBottom: 12,
+                                            }}>
+                                                <div style={{ minWidth: 0 }}>
+                                                    <div style={{
                                                         fontWeight: 700,
-                                                        background: statusColor.bg,
-                                                        color: statusColor.text,
-                                                        flexShrink: 0,
-                                                        textTransform: 'uppercase'
-                                                    }}>
-                                                        {job.status}
-                                                    </span>
-                                                </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
-                                                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>
-                                                        {itemsSaved} <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}>opportunities</span>
-                                                    </p>
-                                                    <span style={{ height: 10, width: 1, background: 'var(--border-medium)' }} />
-                                                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-                                                        {job.duration_seconds}s
-                                                    </p>
-                                                </div>
-                                                <p style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8, opacity: 0.8 }}>
-                                                    {new Date(job.started_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
-                                                </p>
-                                            </div>
-                                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleDeleteJob(job.id);
-                                                    }}
-                                                    style={{
-                                                        background: 'transparent',
-                                                        border: 'none',
-                                                        cursor: 'pointer',
-                                                        color: '#ff3b30',
-                                                        padding: '6px',
-                                                        borderRadius: '8px',
+                                                        color: 'var(--text-primary)',
+                                                        fontSize: 14,
+                                                        lineHeight: 1.35,
                                                         display: 'flex',
                                                         alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        transition: 'background 0.2s',
-                                                    }}
-                                                    title="Delete this job and all opportunities scraped via it"
-                                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 59, 48, 0.1)'}
-                                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
+                                                        gap: 8,
+                                                        flexWrap: 'wrap',
+                                                    }}>
+                                                        <Search size={13} style={{ color: 'var(--text-tertiary)' }} />
+                                                        <span style={{ wordBreak: 'break-word' }}>{group.displayName}</span>
+                                                    </div>
+                                                    <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>
+                                                        {group.jobs.length} run{group.jobs.length === 1 ? '' : 's'} · latest {new Date(latestJob.started_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                                                    </p>
+                                                </div>
+                                                <span style={{
+                                                    padding: '3px 8px',
+                                                    borderRadius: 6,
+                                                    fontSize: 10,
+                                                    fontWeight: 700,
+                                                    background: statusColor.bg,
+                                                    color: statusColor.text,
+                                                    flexShrink: 0,
+                                                    textTransform: 'uppercase'
+                                                }}>
+                                                    {latestJob.status}
+                                                </span>
+                                            </div>
+
+                                            <div style={{
+                                                display: 'flex',
+                                                gap: 8,
+                                                flexWrap: 'wrap',
+                                                marginBottom: 12,
+                                            }}>
+                                                <span style={{
+                                                    padding: '4px 8px',
+                                                    borderRadius: 999,
+                                                    background: 'rgba(0, 113, 227, 0.08)',
+                                                    color: 'var(--text-primary)',
+                                                    fontSize: 11,
+                                                    fontWeight: 600,
+                                                }}>
+                                                    {getJobFoundCount(latestJob)} opportunities found
+                                                </span>
+                                                <span style={{
+                                                    padding: '4px 8px',
+                                                    borderRadius: 999,
+                                                    background: 'rgba(52, 199, 89, 0.1)',
+                                                    color: '#34c759',
+                                                    fontSize: 11,
+                                                    fontWeight: 600,
+                                                }}>
+                                                    {getJobSavedCount(latestJob)} saved
+                                                </span>
+                                                <span style={{
+                                                    padding: '4px 8px',
+                                                    borderRadius: 999,
+                                                    background: 'var(--bg-tertiary)',
+                                                    color: 'var(--text-secondary)',
+                                                    fontSize: 11,
+                                                    fontWeight: 600,
+                                                }}>
+                                                    {latestJob.duration_seconds}s
+                                                </span>
+                                            </div>
+
+                                            <div style={{
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: 8,
+                                            }}>
+                                                {group.jobs.slice(0, showAllJobs ? group.jobs.length : 3).map(job => {
+                                                    const jobStatus = getStatusColor(job.status);
+                                                    const foundCount = getJobFoundCount(job);
+                                                    const savedCount = getJobSavedCount(job);
+
+                                                    return (
+                                                        <div
+                                                            key={job.id}
+                                                            onClick={() => handleInspectJob(job)}
+                                                            style={{
+                                                                padding: '12px 14px',
+                                                                borderRadius: 10,
+                                                                border: '1px solid var(--border-light)',
+                                                                background: 'rgba(0, 0, 0, 0.02)',
+                                                                cursor: 'pointer',
+                                                                transition: 'all 0.15s ease',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'space-between',
+                                                                gap: 12,
+                                                            }}
+                                                            onMouseEnter={(e) => {
+                                                                e.currentTarget.style.background = 'rgba(0, 113, 227, 0.06)';
+                                                                e.currentTarget.style.borderColor = 'rgba(0, 113, 227, 0.2)';
+                                                            }}
+                                                            onMouseLeave={(e) => {
+                                                                e.currentTarget.style.background = 'rgba(0, 0, 0, 0.02)';
+                                                                e.currentTarget.style.borderColor = 'var(--border-light)';
+                                                            }}
+                                                        >
+                                                            <div style={{ minWidth: 0, flex: 1 }}>
+                                                                <div style={{
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    gap: 8,
+                                                                    flexWrap: 'wrap',
+                                                                    marginBottom: 4,
+                                                                }}>
+                                                                    <span style={{
+                                                                        fontWeight: 600,
+                                                                        color: 'var(--text-primary)',
+                                                                        fontSize: 13,
+                                                                        lineHeight: '1.4',
+                                                                    }}>
+                                                                        {new Date(job.started_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                                                                    </span>
+                                                                    <span style={{
+                                                                        padding: '3px 8px',
+                                                                        borderRadius: 999,
+                                                                        fontSize: 10,
+                                                                        fontWeight: 700,
+                                                                        background: jobStatus.bg,
+                                                                        color: jobStatus.text,
+                                                                        textTransform: 'uppercase'
+                                                                    }}>
+                                                                        {job.status}
+                                                                    </span>
+                                                                </div>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                                                                    <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>
+                                                                        {foundCount} <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}>found</span>
+                                                                    </span>
+                                                                    <span style={{ height: 10, width: 1, background: 'var(--border-medium)' }} />
+                                                                    <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>
+                                                                        {savedCount} <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}>saved</span>
+                                                                    </span>
+                                                                    <span style={{ height: 10, width: 1, background: 'var(--border-medium)' }} />
+                                                                    <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+                                                                        {job.duration_seconds}s
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleInspectJob(job);
+                                                                    }}
+                                                                    style={{
+                                                                        padding: '8px 10px',
+                                                                        borderRadius: 8,
+                                                                        border: '1px solid rgba(0, 113, 227, 0.18)',
+                                                                        background: 'rgba(0, 113, 227, 0.08)',
+                                                                        color: 'var(--primary)',
+                                                                        cursor: 'pointer',
+                                                                        fontSize: 12,
+                                                                        fontWeight: 700,
+                                                                    }}
+                                                                >
+                                                                    View
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleDeleteJob(job.id);
+                                                                    }}
+                                                                    style={{
+                                                                        background: 'transparent',
+                                                                        border: 'none',
+                                                                        cursor: 'pointer',
+                                                                        color: '#ff3b30',
+                                                                        padding: '6px',
+                                                                        borderRadius: '8px',
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        justifyContent: 'center',
+                                                                        transition: 'background 0.2s',
+                                                                    }}
+                                                                    title="Delete this job and all opportunities scraped via it"
+                                                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 59, 48, 0.1)'}
+                                                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                                                >
+                                                                    <Trash2 size={16} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                     );
                                 })}
                             </div>
 
-                            {jobs.length > 6 && !showAllJobs && (
+                            {groupedJobs.length > 6 && !showAllJobs && (
                                 <div style={{ display: 'flex', justifyContent: 'center', marginTop: '24px' }}>
                                     <button
                                         onClick={() => setShowAllJobs(true)}
@@ -1822,7 +2097,7 @@ export default function ScraperDashboard() {
                                             e.currentTarget.style.background = 'var(--surface)';
                                         }}
                                     >
-                                        See More Jobs ({jobs.length - 6} hidden)
+                                        See More Job Groups ({groupedJobs.length - 6} hidden)
                                     </button>
                                 </div>
                             )}

@@ -10,6 +10,7 @@ import type {
   PackageReview, 
   PackageProgress 
 } from './packageService';
+import { buildPackageTemplateZip } from './packageDownloads';
 
 /**
  * Maps a marketplace listing database row to a CommunityPackage
@@ -86,9 +87,12 @@ export async function updatePackageTaskProgress(
 }
 
 export async function downloadAllPackageTemplates(packageId: string): Promise<Blob | null> {
-  // This would typically involve fetching from Supabase Storage
-  console.log(`Downloading all templates for package ${packageId}`);
-  return null;
+  const packageData = await getCommunityPackage(packageId);
+  if (!packageData || packageData.templates.length === 0) {
+    return null;
+  }
+
+  return buildPackageTemplateZip(packageData.templates);
 }
 
 export async function askPackageCreator(

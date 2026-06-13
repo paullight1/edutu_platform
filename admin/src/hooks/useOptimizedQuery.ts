@@ -33,11 +33,22 @@ export function useOptimizedQuery<T>(
     const lastFetchTime = useRef<number>(0);
     const retryAttempt = useRef<number>(0);
     const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+    const dataRef = useRef<T | null>(null);
 
-    const fetchData = useCallback(async (isBackground = false) => {
+    useEffect(() => {
+        dataRef.current = state.data;
+    }, [state.data]);
+
+    const fetchData = useCallback(async function fetchData(isBackground = false) {
         // Check stale time
         const now = Date.now();
-        if (!isBackground && now - lastFetchTime.current < staleTime && state.data) {
+        const cachedData = getCachedQuery<T>(queryKey);
+        if (!isBackground && cachedData && now - lastFetchTime.current < staleTime) {
+            setState({ data: cachedData, loading: false, error: null });
+            return;
+        }
+
+        if (!isBackground && now - lastFetchTime.current < staleTime && dataRef.current) {
             return;
         }
 
@@ -49,16 +60,23 @@ export function useOptimizedQuery<T>(
             const data = await queryFn();
             lastFetchTime.current = Date.now();
             retryAttempt.current = 0;
+            setCachedQuery(queryKey, data);
             setState({ data, loading: false, error: null });
-        } catch (error: any) {
+        } catch (error: unknown) {
             if (retryAttempt.current < retryCount) {
                 retryAttempt.current++;
-                setTimeout(() => fetchData(isBackground), 1000 * retryAttempt.current);
+                setTimeout(() => {
+                    void fetchData(isBackground);
+                }, 1000 * retryAttempt.current);
                 return;
             }
-            setState({ data: null, loading: false, error });
+            setState({
+                data: null,
+                loading: false,
+                error: error instanceof Error ? error : new Error(String(error)),
+            });
         }
-    }, [queryFn, retryCount, staleTime]);
+}, [queryFn, queryKey, retryCount, staleTime]);
 
     useEffect(() => {
         if (!enabled) return;
@@ -86,12 +104,17 @@ export function useOptimizedQuery<T>(
  * Batched query hook for fetching related data
  * Prevents N+1 queries by loading all data in parallel
  */
-export function useBatchedQueries<T extends Record<string, any>>(
+export function useBatchedQueries<T extends Record<string, unknown>>(
     queries: { [K in keyof T]: () => Promise<T[K]> }
 ) {
     const [data, setData] = useState<T | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
+    const queriesRef = useRef(queries);
+
+    useEffect(() => {
+        queriesRef.current = queries;
+    }, [queries]);
 
     const fetchAll = useCallback(async () => {
         setLoading(true);
@@ -99,18 +122,20 @@ export function useBatchedQueries<T extends Record<string, any>>(
 
         try {
             // Execute all queries in parallel
-            const entries = Object.entries(queries);
+            const entries = Object.entries(queriesRef.current) as Array<
+                [keyof T, () => Promise<T[keyof T]>]
+            >;
             const promises = entries.map(([, queryFn]) => queryFn());
             const results = await Promise.all(promises);
 
-            const resultData = entries.reduce((acc, [key], index) => {
-                acc[key as keyof T] = results[index] as T[keyof T];
-                return acc;
-            }, {} as T);
+            const resultData = {} as T;
+            entries.forEach(([key], index) => {
+                resultData[key] = results[index] as T[keyof T];
+            });
 
             setData(resultData);
-        } catch (err: any) {
-            setError(err);
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err : new Error(String(err)));
         } finally {
             setLoading(false);
         }
@@ -148,8 +173,8 @@ export function usePagination<T>(
             setItems(prev => [...prev, ...data]);
             setCursor(nextCursor);
             setHasMore(!!nextCursor);
-        } catch (err: any) {
-            setError(err);
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err : new Error(String(err)));
         } finally {
             setLoading(false);
         }
@@ -169,7 +194,7 @@ export function usePagination<T>(
 
     useEffect(() => {
         loadMore();
-    }, []);
+    }, [loadMore]);
 
     return { items, loading, hasMore, error, loadMore, reset, refresh };
 }
@@ -178,13 +203,13 @@ export function usePagination<T>(
  * Real-time subscription hook with automatic cleanup
  * Prevents memory leaks
  */
-export function useRealtimeSubscription<T>(
+export function useRealtimeSubscription(
     table: string,
     filter: string,
-    onChange: (payload: any) => void
+    onChange: (payload: unknown) => void
 ) {
     const [isSubscribed, setIsSubscribed] = useState(false);
-    const channelRef = useRef<any>(null);
+    const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
     useEffect(() => {
         channelRef.current = supabase
@@ -270,13 +295,13 @@ export function useDebouncedSearch<T>(
 /**
  * Cache for storing query results
  */
-const queryCache = new Map<string, { data: any; timestamp: number }>();
+const queryCache = new Map<string, { data: unknown; timestamp: number }>();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 export function getCachedQuery<T>(key: string): T | null {
     const cached = queryCache.get(key);
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-        return cached.data;
+        return cached.data as T;
     }
     return null;
 }

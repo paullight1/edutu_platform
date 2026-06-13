@@ -2,15 +2,15 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import { db } from '../db';
+} from "@nestjs/common";
+import { db } from "../db";
 import {
   flashcardDecks,
   flashcards,
   flashcardReviews,
   flashcardStudySessions,
-} from '../db/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+} from "../db/schema";
+import { eq, and, desc, sql } from "drizzle-orm";
 import {
   CreateFlashcardDeckDto,
   CreateFlashcardDto,
@@ -19,7 +19,7 @@ import {
   ReviewFlashcardDto,
   CreateStudySessionDto,
   GenerateFlashcardsDto,
-} from './dto';
+} from "./dto";
 
 @Injectable()
 export class FlashcardsService {
@@ -79,8 +79,8 @@ export class FlashcardsService {
         category: dto.category,
         tags: dto.tags || [],
         isPublic: dto.isPublic ?? false,
-        difficulty: dto.difficulty ?? 'medium',
-        sourceType: dto.sourceType ?? 'manual',
+        difficulty: dto.difficulty ?? "medium",
+        sourceType: dto.sourceType ?? "manual",
         sourceId: dto.sourceId,
       })
       .returning();
@@ -115,7 +115,7 @@ export class FlashcardsService {
         front: dto.front,
         back: dto.back,
         hint: dto.hint,
-        difficulty: dto.difficulty ?? 'medium',
+        difficulty: dto.difficulty ?? "medium",
         tags: dto.tags || [],
         mediaUrl: dto.mediaUrl,
       })
@@ -130,7 +130,7 @@ export class FlashcardsService {
     const deckIds = new Set(cards.map((card) => card.deckId));
     if (deckIds.size !== 1) {
       throw new ForbiddenException(
-        'Bulk card creation must target one owned deck',
+        "Bulk card creation must target one owned deck",
       );
     }
     await this.assertDeckOwner(cards[0].deckId, userId);
@@ -143,7 +143,7 @@ export class FlashcardsService {
           front: c.front,
           back: c.back,
           hint: c.hint,
-          difficulty: c.difficulty ?? 'medium',
+          difficulty: c.difficulty ?? "medium",
           tags: c.tags || [],
           mediaUrl: c.mediaUrl,
           order: i,
@@ -342,7 +342,7 @@ export class FlashcardsService {
 
   async generateFlashcards(dto: GenerateFlashcardsDto) {
     const count = dto.count || 10;
-    const difficulty = dto.difficulty || 'medium';
+    const difficulty = dto.difficulty || "medium";
     const topic = dto.topic;
     const sourceContent = dto.sourceContent;
 
@@ -486,7 +486,7 @@ export class FlashcardsService {
   private async assertDeckOwner(deckId: string, userId: string) {
     const deck = await this.findDeckById(deckId, userId);
     if (!deck) {
-      throw new NotFoundException('Flashcard deck not found');
+      throw new NotFoundException("Flashcard deck not found");
     }
     return deck;
   }
@@ -499,7 +499,7 @@ export class FlashcardsService {
       .where(and(eq(flashcards.id, cardId), eq(flashcardDecks.userId, userId)));
 
     if (!result) {
-      throw new NotFoundException('Flashcard not found');
+      throw new NotFoundException("Flashcard not found");
     }
     return result;
   }

@@ -30,8 +30,8 @@ const Login: FC = () => {
       if (error) {
         setError(error.message);
       }
-    } catch (err: any) {
-      setError(err?.message || 'An unexpected error occurred');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
       setLoading(false);
     }
@@ -232,7 +232,7 @@ const Login: FC = () => {
             fontSize: '14px',
             color: 'var(--text-tertiary)'
           }}>
-            Don't have an admin account? <Link to="/signup" style={{ color: 'var(--apple-blue)', textDecoration: 'none', fontWeight: 500 }}>Sign Up</Link>
+            Need an invite? <Link to="/signup" style={{ color: 'var(--apple-blue)', textDecoration: 'none', fontWeight: 500 }}>View access instructions</Link>
           </div>
         </div>
       </div>

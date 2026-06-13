@@ -1,10 +1,10 @@
-import { Module, Global, Provider } from '@nestjs/common';
-import { ClerkClient, createClerkClient } from '@clerk/clerk-sdk-node';
-import { APP_GUARD } from '@nestjs/core';
-import { ClerkAuthGuard } from './clerk-auth.guard';
+import { Module, Global, Provider } from "@nestjs/common";
+import { ClerkClient, createClerkClient } from "@clerk/clerk-sdk-node";
+import { APP_GUARD } from "@nestjs/core";
+import { ClerkAuthGuard } from "./clerk-auth.guard";
 
 const ClerkClientProvider: Provider = {
-  provide: 'ClerkClient',
+  provide: "ClerkClient",
   useFactory: () => {
     return createClerkClient({
       secretKey: process.env.CLERK_SECRET_KEY,
@@ -21,6 +21,6 @@ const ClerkClientProvider: Provider = {
       useClass: ClerkAuthGuard,
     },
   ],
-  exports: ['ClerkClient'],
+  exports: ["ClerkClient"],
 })
 export class AuthModule {}

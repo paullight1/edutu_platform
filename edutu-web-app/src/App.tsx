@@ -5,7 +5,6 @@ import AppLayout from './components/AppLayout';
 import { useSwipe } from './hooks/useSwipe';
 import { PWAInstallBanner } from './hooks/usePWA';
 import { AuthGuard } from './components/AuthGuard';
-import { AdminGuard } from './components/AdminGuard';
 import { LazyRoute } from './components/LazyRoute';
 import OpportunityDetailFetcher from './components/OpportunityDetailFetcher';
 import OpportunityRoadmapFetcher from './components/OpportunityRoadmapFetcher';
@@ -31,14 +30,14 @@ import AppliedOpportunities from './components/AppliedOpportunities';
 import DeadlinesScreen from './components/DeadlinesScreen';
 import ChatInterface from './components/ChatInterface';
 import OpportunitiesPage from './components/OpportunitiesPage';
+import OpportunitySharePage from './components/OpportunitySharePage';
 import AddGoalScreen from './components/AddGoalScreen';
 import BillingPage from './components/BillingPage';
 import BillingSuccessPage from './components/BillingSuccessPage';
 import { PremiumGate } from './components/PremiumGate';
 import { useDarkMode } from './hooks/useDarkMode';
 import { Goal } from './hooks/useGoals';
-import { authService, isNewUser } from './lib/auth';
-import { isAdminAccessAllowed } from './lib/adminAccess';
+import { consumePostAuthRedirect, isNewUser, rememberPostAuthRedirect } from './lib/auth';
 import { useAnalytics } from './hooks/useAnalytics';
 import { initializeCapacitor, configureStatusBar, isNativePlatform } from './lib/capacitor';
 import type { OnboardingProfileData, OnboardingState } from './types/onboarding';
@@ -46,6 +45,28 @@ import type { AppUser } from './types/user';
 import { fetchUserProfile, saveOnboardingProfile, extractOnboardingState } from './services/profile';
 
 export type Screen = 'landing' | 'auth' | 'dashboard' | 'all-goals' | 'profile' | 'opportunity-detail' | 'all-opportunities' | 'roadmap' | 'opportunity-roadmap' | 'settings' | 'profile-edit' | 'notifications' | 'privacy' | 'help' | 'cv-management' | 'add-goal' | 'community-marketplace' | 'achievements' | 'package-detail' | 'personalization' | 'saved' | 'applied' | 'deadlines' | 'about' | 'blog';
+const ADMIN_PORTAL_URL = import.meta.env.VITE_ADMIN_URL || 'https://admin.edutu.org';
+
+function ExternalAdminRedirect() {
+  useEffect(() => {
+    window.location.replace(ADMIN_PORTAL_URL);
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-surface-body flex items-center justify-center px-6 text-center">
+      <div>
+        <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-strong font-semibold">Opening Edutu Admin...</p>
+        <p className="text-muted text-sm mt-2">
+          Admin now lives separately at{' '}
+          <a className="text-primary underline" href={ADMIN_PORTAL_URL}>
+            {ADMIN_PORTAL_URL}
+          </a>
+        </p>
+      </div>
+    </div>
+  );
+}
 
 import type { DashboardRef } from './components/Dashboard';
 
@@ -211,40 +232,13 @@ export function App() {
   };
 
   const resolveSignedInLandingPath = useCallback(async () => {
-    if (!clerkUser) return '/app/home';
-
-    const email = clerkUser.primaryEmailAddress?.emailAddress ?? null;
-    const publicRole = typeof clerkUser.publicMetadata?.role === 'string' ? clerkUser.publicMetadata.role : null;
-
-    if (isAdminAccessAllowed({ email, publicRole })) {
-      return '/admin';
-    }
-
-    try {
-      const profile = await authService.getProfile(clerkUser.id);
-      const profileRole = typeof profile?.role === 'string' ? profile.role : null;
-      if (isAdminAccessAllowed({ email, publicRole, profileRole })) {
-        return '/admin';
-      }
-    } catch (error) {
-      console.error('Failed to resolve post-auth admin access', error);
-    }
-
-    const storedFrom = sessionStorage.getItem('edutu_post_auth_from');
-    sessionStorage.removeItem('edutu_post_auth_from');
-
-    if (storedFrom && !storedFrom.startsWith('/auth')) {
-      return storedFrom;
-    }
-
-    return '/app/home';
-  }, [clerkUser]);
+    return consumePostAuthRedirect();
+  }, []);
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !clerkUser) return;
     if (
       location.pathname !== '/auth' &&
-      location.pathname !== '/auth/callback' &&
       location.pathname !== '/app/home'
     ) {
       return;
@@ -254,7 +248,7 @@ export function App() {
 
     const redirectSignedInUser = async () => {
       const targetPath = await resolveSignedInLandingPath();
-      if (location.pathname === '/app/home' && targetPath !== '/admin') return;
+      if (location.pathname === '/app/home') return;
       if (isActive) navigate(targetPath, { replace: true });
     };
 
@@ -272,12 +266,9 @@ export function App() {
     setManualOnboardingTrigger(false);
     setShowSplash(true);
 
-    const state = window.history.state?.usr as { from?: { pathname: string; search?: string } } | null;
-    const from = state?.from;
-    if (from?.pathname) {
-      sessionStorage.setItem('edutu_post_auth_from', `${from.pathname}${from.search ?? ''}`);
-    }
-  }, [clerkUser?.id]);
+    const from = (location.state as { from?: { pathname?: string; search?: string; hash?: string } } | null)?.from;
+    rememberPostAuthRedirect(from ?? null);
+  }, [clerkUser?.id, location.state]);
 
   const handleRedoOnboarding = () => {
     if (!user) return;
@@ -382,7 +373,8 @@ export function App() {
   useSwipe({
     onSwipeLeft: handleSwipeLeft,
     onSwipeRight: handleSwipeRight,
-    threshold: 50
+    threshold: 50,
+    preventDefault: false,
   });
 
   const handleGoalCreated = (goal: Goal) => {
@@ -397,7 +389,7 @@ export function App() {
   // Show loading state while Clerk is initializing
   if (!isLoaded) {
     return (
-      <div className="min-h-screen bg-surface-body flex items-center justify-center">
+      <div className="min-h-[100dvh] bg-surface-body flex items-center justify-center">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4" />
           <p className="text-muted">Loading Edutu...</p>
@@ -407,7 +399,7 @@ export function App() {
   }
 
   return (
-    <div className={`min-h-screen bg-surface-body text-strong transition-theme ${isDarkMode ? 'dark' : ''}`}>
+    <div className={`min-h-[100dvh] bg-surface-body text-strong transition-theme ${isDarkMode ? 'dark' : ''}`}>
       {/* Splash Screen */}
       {showSplash && (
         <SplashScreen
@@ -426,9 +418,10 @@ export function App() {
         <Route path="/signup" element={<Navigate to="/auth?signup=true" replace />} />
         <Route path="/auth" element={<AuthScreen onAuthSuccess={handleAuthSuccess} />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/share/opportunity/:id" element={<OpportunitySharePage />} />
         <Route path="/billing" element={<AuthGuard><BillingPage /></AuthGuard>} />
         <Route path="/billing/success" element={<AuthGuard><BillingSuccessPage /></AuthGuard>} />
-        <Route path="/admin/*" element={<AdminGuard><LazyRoute loader={() => import('./admin/AdminRoot')} /></AdminGuard>} />
+        <Route path="/admin/*" element={<ExternalAdminRedirect />} />
 
         <Route path="/app" element={
           <AuthGuard>

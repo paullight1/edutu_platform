@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 export const createBlogPostSchema = z.object({
   title: z.string().min(1).max(200),
@@ -10,11 +10,11 @@ export const createBlogPostSchema = z.object({
   authorName: z.string().min(1),
   authorAvatar: z.string().url().optional(),
   category: z
-    .enum(['general', 'scholarships', 'jobs', 'mentorship', 'tips', 'news'])
-    .default('general'),
+    .enum(["general", "scholarships", "jobs", "mentorship", "tips", "news"])
+    .default("general"),
   tags: z.array(z.string()).optional(),
   publishedAt: z.string().datetime().optional(),
-  status: z.enum(['draft', 'published', 'archived']).default('draft'),
+  status: z.enum(["draft", "published", "archived"]).default("draft"),
   featured: z.boolean().default(false),
 });
 
@@ -27,11 +27,11 @@ export const updateBlogPostSchema = z.object({
   authorName: z.string().min(1).optional(),
   authorAvatar: z.string().url().optional(),
   category: z
-    .enum(['general', 'scholarships', 'jobs', 'mentorship', 'tips', 'news'])
+    .enum(["general", "scholarships", "jobs", "mentorship", "tips", "news"])
     .optional(),
   tags: z.array(z.string()).optional(),
   publishedAt: z.string().datetime().optional(),
-  status: z.enum(['draft', 'published', 'archived']).optional(),
+  status: z.enum(["draft", "published", "archived"]).optional(),
   featured: z.boolean().optional(),
 });
 

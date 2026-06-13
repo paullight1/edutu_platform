@@ -560,7 +560,7 @@ const CVManagement: React.FC<CVManagementProps> = ({ onBack }) => {
       {loadingLibrary ? (
         <Card className="dark:bg-gray-800 dark:border-gray-700 flex items-center justify-center gap-3 p-6 text-sm text-gray-600 dark:text-gray-400">
           <Loader2 size={18} className="animate-spin" />
-          Loading library�
+          Loading library...
         </Card>
       ) : records.length === 0 ? (
         <Card className="dark:bg-gray-800 dark:border-gray-700 p-8 text-center text-sm text-gray-600 dark:text-gray-400">
@@ -581,7 +581,7 @@ const CVManagement: React.FC<CVManagementProps> = ({ onBack }) => {
                 >
                   <h4 className="text-md font-semibold text-gray-900 dark:text-white">{record.title}</h4>
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Uploaded {formatDate(record.uploadedAt)} � {formatSize(record.fileSize)}
+                    Uploaded {formatDate(record.uploadedAt)} - {formatSize(record.fileSize)}
                   </p>
                 </button>
                 <p className="mt-3 line-clamp-3 text-sm text-gray-600 dark:text-gray-400">

@@ -4,16 +4,16 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
-} from '@nestjs/common';
-import { db } from '../db';
+} from "@nestjs/common";
+import { db } from "../db";
 import {
   roadmaps,
   roadmapEnrollments,
   userRoadmapIntents,
   roadmapFeedback,
   profiles,
-} from '../db/schema';
-import { eq, and, or, ilike, desc, gte, sql } from 'drizzle-orm';
+} from "../db/schema";
+import { eq, and, or, ilike, desc, gte, sql } from "drizzle-orm";
 import {
   CreateRoadmapDto,
   UpdateRoadmapDto,
@@ -21,9 +21,9 @@ import {
   RoadmapFeedbackDto,
   AIAssistDto,
   AdoptRoadmapDto,
-} from './dto/roadmap.dto';
-import { AiService } from '../ai';
-import { toDatabaseUserId } from '../common/user-id';
+} from "./dto/roadmap.dto";
+import { AiService } from "../ai";
+import { toDatabaseUserId } from "../common/user-id";
 
 type RoadmapStep = {
   id: string;
@@ -61,7 +61,7 @@ export class RoadmapsService {
     offset?: number;
   }) {
     const {
-      status = 'published',
+      status = "published",
       category,
       difficulty,
       search,
@@ -97,7 +97,7 @@ export class RoadmapsService {
   async findOne(id: string) {
     const [item] = await db.select().from(roadmaps).where(eq(roadmaps.id, id));
 
-    if (!item) throw new NotFoundException('Roadmap not found');
+    if (!item) throw new NotFoundException("Roadmap not found");
     return this.serializeRoadmap(item);
   }
 
@@ -105,9 +105,9 @@ export class RoadmapsService {
     const [item] = await db
       .select()
       .from(roadmaps)
-      .where(and(eq(roadmaps.id, id), eq(roadmaps.status, 'published')));
+      .where(and(eq(roadmaps.id, id), eq(roadmaps.status, "published")));
 
-    if (!item) throw new NotFoundException('Roadmap not found');
+    if (!item) throw new NotFoundException("Roadmap not found");
     return this.serializeRoadmap(item);
   }
 
@@ -115,17 +115,17 @@ export class RoadmapsService {
     const [item] = await db
       .select()
       .from(roadmaps)
-      .where(and(eq(roadmaps.slug, slug), eq(roadmaps.status, 'published')));
+      .where(and(eq(roadmaps.slug, slug), eq(roadmaps.status, "published")));
 
-    if (!item) throw new NotFoundException('Roadmap not found');
+    if (!item) throw new NotFoundException("Roadmap not found");
     return this.serializeRoadmap(item);
   }
 
   async create(
     dto: CreateRoadmapDto,
     userId: string,
-    creatorName = 'Edutu Admin',
-    options: { status?: 'draft' | 'published' | 'archived' } = {},
+    creatorName = "Edutu Admin",
+    options: { status?: "draft" | "published" | "archived" } = {},
   ) {
     const dbUserId = toDatabaseUserId(userId);
     const steps = dto.steps.map((step) => ({
@@ -137,7 +137,7 @@ export class RoadmapsService {
     const resources = (dto.resources || []).map((res) => ({
       ...res,
       id: res.id || crypto.randomUUID(),
-      url: res.url || '',
+      url: res.url || "",
     }));
 
     let aiIntentTags: string[] = [];
@@ -149,7 +149,7 @@ export class RoadmapsService {
       aiGeneratedSummary = aiResult.summary;
     } catch (e) {
       this.logger.warn(
-        'AI intent generation failed, continuing without it',
+        "AI intent generation failed, continuing without it",
         e instanceof Error ? e.message : String(e),
       );
     }
@@ -162,7 +162,7 @@ export class RoadmapsService {
           dto.slug ||
           `${dto.title
             .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/[^a-z0-9]+/g, "-")
             .slice(0, 50)}-${crypto.randomUUID().slice(0, 6)}`,
         description: dto.description,
         category: dto.category,
@@ -178,8 +178,8 @@ export class RoadmapsService {
         communityId: dto.communityId || null,
         version: dto.version || 1,
         calendarSyncEnabled: dto.calendarSyncEnabled || false,
-        status: options.status || 'draft',
-        publishedAt: options.status === 'published' ? new Date() : null,
+        status: options.status || "draft",
+        publishedAt: options.status === "published" ? new Date() : null,
         createdBy: dbUserId,
         creatorName,
         isFeatured: dto.isFeatured,
@@ -197,7 +197,7 @@ export class RoadmapsService {
   async createByCreator(
     dto: CreateRoadmapDto,
     userId: string,
-    creatorName = 'Edutu Creator',
+    creatorName = "Edutu Creator",
   ) {
     const dbUserId = toDatabaseUserId(userId);
     const [profile] = await db
@@ -205,12 +205,12 @@ export class RoadmapsService {
       .from(profiles)
       .where(eq(profiles.userId, dbUserId));
 
-    const isApprovedCreator = profile?.creatorStatus === 'approved';
-    const isAdmin = profile?.role === 'admin' || profile?.role === 'moderator';
+    const isApprovedCreator = profile?.creatorStatus === "approved";
+    const isAdmin = profile?.role === "admin" || profile?.role === "moderator";
 
     if (!isApprovedCreator && !isAdmin) {
       throw new ForbiddenException(
-        'Only approved creators can submit roadmaps.',
+        "Only approved creators can submit roadmaps.",
       );
     }
 
@@ -220,8 +220,8 @@ export class RoadmapsService {
         isFeatured: false,
       },
       dbUserId,
-      creatorName || profile?.fullName || 'Edutu Creator',
-      { status: 'published' },
+      creatorName || profile?.fullName || "Edutu Creator",
+      { status: "published" },
     );
   }
 
@@ -233,7 +233,7 @@ export class RoadmapsService {
       updatedAt: new Date(),
     };
 
-    if (dto.status === 'published' && existing.status !== 'published') {
+    if (dto.status === "published" && existing.status !== "published") {
       updateData.publishedAt = new Date();
     }
 
@@ -249,7 +249,7 @@ export class RoadmapsService {
       updateData.resources = dto.resources.map((res) => ({
         ...res,
         id: res.id || crypto.randomUUID(),
-        url: res.url || '',
+        url: res.url || "",
       }));
     }
 
@@ -291,7 +291,7 @@ export class RoadmapsService {
       .values({
         userId,
         roadmapId,
-        status: 'enrolled',
+        status: "enrolled",
         progress: 0,
         currentStep: 0,
         completedSteps: [],
@@ -299,7 +299,7 @@ export class RoadmapsService {
       .onConflictDoUpdate({
         target: [roadmapEnrollments.userId, roadmapEnrollments.roadmapId],
         set: {
-          status: 'enrolled',
+          status: "enrolled",
           enrolledAt: new Date(),
           updatedAt: new Date(),
         },
@@ -348,7 +348,7 @@ export class RoadmapsService {
       .values({
         userId,
         roadmapId,
-        status: 'enrolled',
+        status: "enrolled",
         progress: existing?.progress || 0,
         currentStep: existing?.currentStep || 0,
         completedSteps: existing?.completedSteps || [],
@@ -362,7 +362,7 @@ export class RoadmapsService {
       .onConflictDoUpdate({
         target: [roadmapEnrollments.userId, roadmapEnrollments.roadmapId],
         set: {
-          status: 'enrolled',
+          status: "enrolled",
           targetOpportunityId,
           targetDeadline,
           calendarSyncEnabled,
@@ -414,14 +414,14 @@ export class RoadmapsService {
         ),
       );
 
-    if (!row) throw new NotFoundException('Enrollment not found');
+    if (!row) throw new NotFoundException("Enrollment not found");
 
     const calendar = this.buildCalendarExport(row.enrollment, row.roadmap);
     return {
       enrollmentId: row.enrollment.id,
       roadmapId: row.roadmap.id,
       filename: calendar.filename,
-      contentType: 'text/calendar',
+      contentType: "text/calendar",
       events: calendar.events,
       ics: calendar.ics,
     };
@@ -443,7 +443,7 @@ export class RoadmapsService {
         ),
       );
 
-    if (!enrollment) throw new NotFoundException('Enrollment not found');
+    if (!enrollment) throw new NotFoundException("Enrollment not found");
 
     const roadmap = await this.findOne(roadmapId);
     const steps = roadmap.steps as Array<{ id: string }>;
@@ -512,7 +512,7 @@ export class RoadmapsService {
     const intent = await this.getIntent(userId);
     const cappedLimit = Math.min(limit, 50);
 
-    const conditions = [eq(roadmaps.status, 'published')];
+    const conditions = [eq(roadmaps.status, "published")];
 
     if (intent?.targetCategory) {
       conditions.push(eq(roadmaps.category, intent.targetCategory));
@@ -537,7 +537,7 @@ export class RoadmapsService {
           .slice(0, cappedLimit)
           .map((item) => this.serializeRoadmap(item));
       } catch (e) {
-        this.logger.warn('AI scoring failed, returning unsorted results');
+        this.logger.warn("AI scoring failed, returning unsorted results");
       }
     }
 
@@ -612,7 +612,7 @@ export class RoadmapsService {
     questions: Array<{
       id: string;
       question: string;
-      type: 'text' | 'select' | 'multiselect';
+      type: "text" | "select" | "multiselect";
       options?: string[];
     }>;
     roadmapSuggestion: {
@@ -621,7 +621,7 @@ export class RoadmapsService {
       steps: Array<{ title: string; description: string; duration: string }>;
     };
   }> {
-    const prompt = `You are an educational roadmap designer. A user wants to create or find a roadmap about "${topic}"${category ? ` in the ${category} category` : ''}.
+    const prompt = `You are an educational roadmap designer. A user wants to create or find a roadmap about "${topic}"${category ? ` in the ${category} category` : ""}.
 
 Return ONLY valid JSON with this exact structure:
 {
@@ -645,9 +645,9 @@ Then suggest a roadmap with 4-8 steps tailored to "${topic}".
 
     try {
       const parsed = await this.aiService.generateJson<any>({
-        feature: 'roadmaps.questions',
+        feature: "roadmaps.questions",
         prompt,
-        responseMimeType: 'application/json',
+        responseMimeType: "application/json",
         temperature: 0.3,
         metadata: { topic, category },
       });
@@ -658,13 +658,13 @@ Then suggest a roadmap with 4-8 steps tailored to "${topic}".
         questions: parsed.questions || [],
         roadmapSuggestion: parsed.roadmapSuggestion || {
           title: topic,
-          description: '',
+          description: "",
           steps: [],
         },
       };
     } catch (e) {
       this.logger.warn(
-        'AI question generation failed',
+        "AI question generation failed",
         e instanceof Error ? e.message : String(e),
       );
       return this.getDefaultMatchQuestions(topic);
@@ -675,7 +675,7 @@ Then suggest a roadmap with 4-8 steps tailored to "${topic}".
     questions: Array<{
       id: string;
       question: string;
-      type: 'text' | 'select' | 'multiselect';
+      type: "text" | "select" | "multiselect";
       options?: string[];
     }>;
     roadmapSuggestion: {
@@ -687,26 +687,26 @@ Then suggest a roadmap with 4-8 steps tailored to "${topic}".
     return {
       questions: [
         {
-          id: 'q1',
-          question: 'What is your current experience level?',
-          type: 'select' as const,
-          options: ['Beginner', 'Intermediate', 'Advanced'],
+          id: "q1",
+          question: "What is your current experience level?",
+          type: "select" as const,
+          options: ["Beginner", "Intermediate", "Advanced"],
         },
         {
-          id: 'q2',
-          question: 'How much time can you commit per week?',
-          type: 'select' as const,
+          id: "q2",
+          question: "How much time can you commit per week?",
+          type: "select" as const,
           options: [
-            'Less than 5 hours',
-            '5-10 hours',
-            '10-20 hours',
-            '20+ hours',
+            "Less than 5 hours",
+            "5-10 hours",
+            "10-20 hours",
+            "20+ hours",
           ],
         },
         {
-          id: 'q3',
-          question: 'What specific skills or outcomes do you want?',
-          type: 'text' as const,
+          id: "q3",
+          question: "What specific skills or outcomes do you want?",
+          type: "text" as const,
         },
       ],
       roadmapSuggestion: {
@@ -714,24 +714,24 @@ Then suggest a roadmap with 4-8 steps tailored to "${topic}".
         description: `A structured guide to help you master ${topic}`,
         steps: [
           {
-            title: 'Foundation',
-            description: 'Learn the basics',
-            duration: 'Week 1-2',
+            title: "Foundation",
+            description: "Learn the basics",
+            duration: "Week 1-2",
           },
           {
-            title: 'Core Skills',
-            description: 'Build essential skills',
-            duration: 'Week 3-4',
+            title: "Core Skills",
+            description: "Build essential skills",
+            duration: "Week 3-4",
           },
           {
-            title: 'Advanced Topics',
-            description: 'Deep dive into complex areas',
-            duration: 'Week 5-6',
+            title: "Advanced Topics",
+            description: "Deep dive into complex areas",
+            duration: "Week 5-6",
           },
           {
-            title: 'Practice & Apply',
-            description: 'Put your knowledge to work',
-            duration: 'Week 7-8',
+            title: "Practice & Apply",
+            description: "Put your knowledge to work",
+            duration: "Week 7-8",
           },
         ],
       },
@@ -751,17 +751,17 @@ Roadmap:
 Title: ${dto.title}
 Description: ${dto.description}
 Category: ${dto.category}
-Target Audience: ${dto.targetAudience || 'Not specified'}
-Prerequisites: ${dto.prerequisites || 'None'}
-Outcomes: ${dto.outcomes || 'Not specified'}
-Steps: ${dto.steps.map((s) => `- ${s.title}: ${s.description}`).join('\n')}
+Target Audience: ${dto.targetAudience || "Not specified"}
+Prerequisites: ${dto.prerequisites || "None"}
+Outcomes: ${dto.outcomes || "Not specified"}
+Steps: ${dto.steps.map((s) => `- ${s.title}: ${s.description}`).join("\n")}
 `;
 
     try {
       const parsed = await this.aiService.generateJson<any>({
-        feature: 'roadmaps.intent_tags',
+        feature: "roadmaps.intent_tags",
         prompt,
-        responseMimeType: 'application/json',
+        responseMimeType: "application/json",
         temperature: 0.2,
         metadata: { title: dto.title, category: dto.category },
       });
@@ -785,19 +785,19 @@ Return ONLY valid JSON: { "scores": [{"id": "roadmap-id", "score": 0-100, "reaso
 
 User Intent:
 Goals: ${JSON.stringify(intent.goals || [])}
-Level: ${intent.currentLevel || 'Not specified'}
-Category: ${intent.targetCategory || 'Any'}
-Time: ${intent.timeCommitment || 'Not specified'}
+Level: ${intent.currentLevel || "Not specified"}
+Category: ${intent.targetCategory || "Any"}
+Time: ${intent.timeCommitment || "Not specified"}
 
 Roadmaps:
-${roadmapsList.map((r) => `- ID: ${r.id}, Title: ${r.title}, Category: ${r.category}, Difficulty: ${r.difficulty}, Tags: ${JSON.stringify(r.aiIntentTags || [])}`).join('\n')}
+${roadmapsList.map((r) => `- ID: ${r.id}, Title: ${r.title}, Category: ${r.category}, Difficulty: ${r.difficulty}, Tags: ${JSON.stringify(r.aiIntentTags || [])}`).join("\n")}
 `;
 
     try {
       const parsed = await this.aiService.generateJson<any>({
-        feature: 'roadmaps.match',
+        feature: "roadmaps.match",
         prompt,
-        responseMimeType: 'application/json',
+        responseMimeType: "application/json",
         temperature: 0.1,
         metadata: { roadmapCount: roadmapsList.length },
       });
@@ -814,7 +814,7 @@ ${roadmapsList.map((r) => `- ID: ${r.id}, Title: ${r.title}, Category: ${r.categ
           return {
             ...r,
             matchScore: match?.score || 50,
-            matchReason: match?.reason || '',
+            matchReason: match?.reason || "",
           };
         })
         .sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
@@ -828,7 +828,7 @@ ${roadmapsList.map((r) => `- ID: ${r.id}, Title: ${r.title}, Category: ${r.categ
 
     const parsed = new Date(targetDeadline);
     if (Number.isNaN(parsed.getTime())) {
-      throw new BadRequestException('targetDeadline must be a valid date');
+      throw new BadRequestException("targetDeadline must be a valid date");
     }
 
     return parsed;
@@ -923,7 +923,7 @@ ${roadmapsList.map((r) => `- ID: ${r.id}, Title: ${r.title}, Category: ${r.categ
       .filter((step) => step.dueAt)
       .map((step) => ({
         id: `roadmap-step-${step.id}`,
-        type: 'roadmap_step_due',
+        type: "roadmap_step_due",
         title: step.title,
         body: `Roadmap step due: ${step.title}`,
         scheduledFor: step.dueAt,
@@ -941,9 +941,9 @@ ${roadmapsList.map((r) => `- ID: ${r.id}, Title: ${r.title}, Category: ${r.categ
             scheduledFor.setDate(scheduledFor.getDate() - daysBefore);
             return {
               id: `roadmap-deadline-${enrollment.id}-${daysBefore}`,
-              type: 'opportunity_deadline',
-              title: `${daysBefore} day${daysBefore === 1 ? '' : 's'} until deadline`,
-              body: `${roadmap?.title || 'Your roadmap'} target deadline is approaching.`,
+              type: "opportunity_deadline",
+              title: `${daysBefore} day${daysBefore === 1 ? "" : "s"} until deadline`,
+              body: `${roadmap?.title || "Your roadmap"} target deadline is approaching.`,
               scheduledFor: scheduledFor.toISOString(),
               roadmapId: enrollment.roadmapId,
               enrollmentId: enrollment.id,
@@ -964,12 +964,12 @@ ${roadmapsList.map((r) => `- ID: ${r.id}, Title: ${r.title}, Category: ${r.categ
     if (!roadmap?.communityId) return null;
 
     return {
-      type: 'join_community',
+      type: "join_community",
       communityId: roadmap.communityId,
-      label: 'Join roadmap community',
+      label: "Join roadmap community",
       route: `/app/community?communityId=${encodeURIComponent(roadmap.communityId)}`,
       message:
-        'Continue with learners following this roadmap and ask for peer support.',
+        "Continue with learners following this roadmap and ask for peer support.",
     };
   }
 
@@ -984,25 +984,25 @@ ${roadmapsList.map((r) => `- ID: ${r.id}, Title: ${r.title}, Category: ${r.categ
       ...steps.map((step) => ({
         id: step.id,
         title: step.title,
-        description: step.description || '',
+        description: step.description || "",
         startsAt: step.dueAt ?? null,
-        type: 'roadmap_step',
+        type: "roadmap_step",
       })),
       ...(targetDeadline
         ? [
             {
               id: `deadline-${enrollment.id}`,
-              title: `${roadmap?.title || 'Roadmap'} target deadline`,
+              title: `${roadmap?.title || "Roadmap"} target deadline`,
               description:
-                adoptedPlan.deadlineStrategy || roadmap?.deadlineStrategy || '',
+                adoptedPlan.deadlineStrategy || roadmap?.deadlineStrategy || "",
               startsAt: new Date(targetDeadline).toISOString(),
-              type: 'target_deadline',
+              type: "target_deadline",
             },
           ]
         : []),
     ].filter((event) => event.startsAt);
 
-    const filename = `${this.slugify(roadmap?.title || 'edutu-roadmap')}-${enrollment.id}.ics`;
+    const filename = `${this.slugify(roadmap?.title || "edutu-roadmap")}-${enrollment.id}.ics`;
     const ics = this.buildIcs(filename, events);
 
     return { filename, events, ics };
@@ -1019,10 +1019,10 @@ ${roadmapsList.map((r) => `- ID: ${r.id}, Title: ${r.title}, Category: ${r.categ
     }>,
   ) {
     const lines = [
-      'BEGIN:VCALENDAR',
-      'VERSION:2.0',
-      'PRODID:-//Edutu//Roadmap Calendar//EN',
-      `X-WR-CALNAME:${this.escapeIcs(calendarName.replace(/\.ics$/i, ''))}`,
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//Edutu//Roadmap Calendar//EN",
+      `X-WR-CALNAME:${this.escapeIcs(calendarName.replace(/\.ics$/i, ""))}`,
     ];
 
     for (const event of events) {
@@ -1033,43 +1033,43 @@ ${roadmapsList.map((r) => `- ID: ${r.id}, Title: ${r.title}, Category: ${r.categ
       endsAt.setHours(endsAt.getHours() + 1);
 
       lines.push(
-        'BEGIN:VEVENT',
+        "BEGIN:VEVENT",
         `UID:${this.escapeIcs(`${event.id}@edutu-roadmaps`)}`,
         `DTSTAMP:${this.toIcsDate(new Date())}`,
         `DTSTART:${this.toIcsDate(startsAt)}`,
         `DTEND:${this.toIcsDate(endsAt)}`,
         `SUMMARY:${this.escapeIcs(event.title)}`,
         `DESCRIPTION:${this.escapeIcs(event.description || event.type)}`,
-        'END:VEVENT',
+        "END:VEVENT",
       );
     }
 
-    lines.push('END:VCALENDAR');
-    return `${lines.join('\r\n')}\r\n`;
+    lines.push("END:VCALENDAR");
+    return `${lines.join("\r\n")}\r\n`;
   }
 
   private toIcsDate(date: Date) {
     return date
       .toISOString()
-      .replace(/[-:]/g, '')
-      .replace(/\.\d{3}Z$/, 'Z');
+      .replace(/[-:]/g, "")
+      .replace(/\.\d{3}Z$/, "Z");
   }
 
   private escapeIcs(value: string) {
     return value
-      .replace(/\\/g, '\\\\')
-      .replace(/\n/g, '\\n')
-      .replace(/,/g, '\\,')
-      .replace(/;/g, '\\;');
+      .replace(/\\/g, "\\\\")
+      .replace(/\n/g, "\\n")
+      .replace(/,/g, "\\,")
+      .replace(/;/g, "\\;");
   }
 
   private slugify(value: string) {
     return (
       value
         .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '')
-        .slice(0, 60) || 'edutu-roadmap'
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 60) || "edutu-roadmap"
     );
   }
 

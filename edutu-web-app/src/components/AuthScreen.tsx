@@ -2,7 +2,9 @@ import React, { FormEvent, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, Eye, EyeOff, Loader2, LockKeyhole, Mail, ShieldCheck, Star, User } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useClerk, useSignIn, useSignUp } from '@clerk/clerk-react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { rememberPostAuthRedirect } from '../lib/auth';
 
 interface AuthScreenProps {
   onAuthSuccess: (userData: any) => void;
@@ -73,6 +75,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   const { setActive } = useClerk();
   const { signIn: clerkSignIn } = useSignIn();
   const { signUp: clerkSignUp } = useSignUp();
+  const location = useLocation();
 
   const [mode, setMode] = useState<AuthMode>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -101,6 +104,11 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
 
   const emailRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const from = (location.state as { from?: { pathname?: string; search?: string; hash?: string } } | null)?.from;
+    rememberPostAuthRedirect(from ?? null);
+  }, [location.state]);
 
   const parseError = (err: unknown): string => {
     if (!err) return 'Something went wrong';

@@ -1,10 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { db } from '../db';
-import { quizzes, quizQuestions, quizAttempts } from '../db/schema';
-import { eq, and } from 'drizzle-orm';
-import { z } from 'zod';
-import { GenerateQuizDto, SubmitQuizDto } from './dto/generate-quiz.dto';
-import { AiService } from '../ai';
+import { Injectable, Logger } from "@nestjs/common";
+import { db } from "../db";
+import { quizzes, quizQuestions, quizAttempts } from "../db/schema";
+import { eq, and } from "drizzle-orm";
+import { z } from "zod";
+import { GenerateQuizDto, SubmitQuizDto } from "./dto/generate-quiz.dto";
+import { AiService } from "../ai";
 
 const QuizQuestionSchema = z.object({
   questionText: z.string(),
@@ -23,7 +23,7 @@ export class QuizService {
 
   async generate(userId: string, dto: GenerateQuizDto) {
     const questionCount = dto.questionCount || 5;
-    const difficulty = dto.difficulty || 'medium';
+    const difficulty = dto.difficulty || "medium";
 
     const prompt = `
 You are an expert quiz creator. Generate a ${difficulty} level quiz about "${dto.topic}".
@@ -45,28 +45,28 @@ Requirements:
 - All 4 options should be plausible but only one correct
 - correctIndex must be 0, 1, 2, or 3 (indexing the correct answer in options array)
 - Include a brief explanation for each answer
-${dto.description ? `- Additional context: ${dto.description}` : ''}
+${dto.description ? `- Additional context: ${dto.description}` : ""}
         `.trim();
 
     try {
       const parsedJson = await this.aiService.generateJson({
-        feature: 'quiz.generate',
+        feature: "quiz.generate",
         prompt,
-        responseMimeType: 'application/json',
+        responseMimeType: "application/json",
         metadata: { userId, topic: dto.topic, difficulty },
       });
 
       if (!parsedJson) {
-        throw new Error('AI returned empty response');
+        throw new Error("AI returned empty response");
       }
 
       const result = QuizResponseSchema.safeParse(parsedJson);
       if (!result.success) {
         this.logger.error(
-          'Quiz generation failed Zod validation',
+          "Quiz generation failed Zod validation",
           result.error,
         );
-        throw new Error('Failed to generate valid quiz questions');
+        throw new Error("Failed to generate valid quiz questions");
       }
 
       const [newQuiz] = await db
@@ -78,7 +78,7 @@ ${dto.description ? `- Additional context: ${dto.description}` : ''}
           topic: dto.topic,
           difficulty,
           questionCount: result.data.length,
-          status: 'generated',
+          status: "generated",
         })
         .returning();
 
@@ -96,7 +96,7 @@ ${dto.description ? `- Additional context: ${dto.description}` : ''}
 
       return this.findOne(userId, newQuiz.id);
     } catch (err) {
-      this.logger.error('Quiz generation failed', err);
+      this.logger.error("Quiz generation failed", err);
       throw err;
     }
   }
@@ -156,7 +156,7 @@ ${dto.description ? `- Additional context: ${dto.description}` : ''}
   async submit(userId: string, quizId: string, dto: SubmitQuizDto) {
     const quiz = await this.findOneWithAnswers(userId, quizId);
     if (!quiz) {
-      throw new Error('Quiz not found');
+      throw new Error("Quiz not found");
     }
 
     let score = 0;
@@ -180,7 +180,7 @@ ${dto.description ? `- Additional context: ${dto.description}` : ''}
 
     await db
       .update(quizzes)
-      .set({ status: 'completed', updatedAt: new Date() })
+      .set({ status: "completed", updatedAt: new Date() })
       .where(eq(quizzes.id, quizId));
 
     return {

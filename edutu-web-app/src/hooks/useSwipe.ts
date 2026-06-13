@@ -8,17 +8,28 @@ interface SwipeOptions {
 }
 
 export const useSwipe = (options: SwipeOptions = {}) => {
-  const { onSwipeLeft, onSwipeRight, threshold = 50, preventDefault = true } = options;
+  const { onSwipeLeft, onSwipeRight, threshold = 50, preventDefault = false } = options;
   
   const [startX, setStartX] = useState(0);
   const [startY, setStartY] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
   
   const touchStartRef = useRef(false);
+  const swipeIgnoreSelector = 'input, textarea, select, button, a, [role="button"], [data-swipe-ignore="true"], [data-horizontal-scroll="true"]';
+
+  const shouldIgnoreSwipeTarget = useCallback((target: EventTarget | null) => {
+    if (!(target instanceof HTMLElement)) {
+      return false;
+    }
+
+    return Boolean(target.closest(swipeIgnoreSelector));
+  }, []);
 
   const onTouchStart = useCallback((e: TouchEvent | React.TouchEvent) => {
-    if (preventDefault) {
-      e.preventDefault?.();
+    if (shouldIgnoreSwipeTarget(e.target)) {
+      setIsSwiping(false);
+      touchStartRef.current = false;
+      return;
     }
     
     const touch = 'touches' in e ? e.touches[0] : (e as TouchEvent).touches[0];
@@ -26,24 +37,27 @@ export const useSwipe = (options: SwipeOptions = {}) => {
     setStartY(touch.clientY);
     setIsSwiping(true);
     touchStartRef.current = true;
-  }, [preventDefault]);
+  }, [shouldIgnoreSwipeTarget]);
 
   const onTouchMove = useCallback((e: TouchEvent | React.TouchEvent) => {
-    if (!isSwiping) return;
-    if (preventDefault) {
-      e.preventDefault?.();
-    }
-    
-    const touch = 'touches' in e ? e.touches[0] : (e as TouchEvent).changedTouches[0];
+    if (!isSwiping || !touchStartRef.current) return;
+
+    const touch = 'touches' in e ? e.touches[0] : (e as TouchEvent).changedTouches[0] ?? (e as TouchEvent).touches[0];
+    if (!touch) return;
+
     const diffX = touch.clientX - startX;
     const diffY = touch.clientY - startY;
-    
-    // If vertical swipe is larger than horizontal, ignore it
+
     if (Math.abs(diffY) > Math.abs(diffX)) {
+      setIsSwiping(false);
+      touchStartRef.current = false;
       return;
     }
-    
-    // Check if swiping horizontally exceeds threshold
+
+    if (preventDefault && Math.abs(diffX) > 8) {
+      e.preventDefault?.();
+    }
+
     if (Math.abs(diffX) > threshold) {
       if (diffX > threshold && onSwipeRight) {
         onSwipeRight();

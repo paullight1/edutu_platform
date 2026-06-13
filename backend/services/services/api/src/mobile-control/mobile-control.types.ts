@@ -58,6 +58,6 @@ export interface MobileControlConfig {
 
 export interface CampaignEventDto {
   campaignId?: string;
-  eventType: 'impression' | 'click' | 'dismiss' | 'conversion';
+  eventType: "impression" | "click" | "dismiss" | "conversion";
   metadata?: JsonRecord;
 }

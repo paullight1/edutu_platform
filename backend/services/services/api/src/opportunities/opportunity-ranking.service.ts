@@ -211,7 +211,7 @@ export class OpportunityRankingService {
       .sort((a, b) => b.match - a.match)
       .slice(0, limit * 2);
 
-    ranked = await this.rerankWithGemini(
+    ranked = await this.rerankWithDeepSeek(
       ranked,
       profile,
       preferences,
@@ -311,7 +311,11 @@ export class OpportunityRankingService {
       title: row.title,
       description: row.description,
       category: row.category,
-      canonicalCategory: row.canonical_category || row.canonicalCategory || metadata.canonical_category || null,
+      canonicalCategory:
+        row.canonical_category ||
+        row.canonicalCategory ||
+        metadata.canonical_category ||
+        null,
       type: row.type || row.category || "scholarship",
       eligibilityCriteria:
         row.eligibility_criteria ||
@@ -646,7 +650,7 @@ export class OpportunityRankingService {
     };
   }
 
-  private async rerankWithGemini(
+  private async rerankWithDeepSeek(
     candidates: RankedOpportunity[],
     profile: RecommendationQueryDto["profile"],
     preferences: OpportunityPreferenceDto | null,
@@ -735,7 +739,7 @@ ${JSON.stringify(
         .slice(0, limit);
     } catch (error) {
       this.logger.warn(
-        `Gemini rerank failed: ${error instanceof Error ? error.message : String(error)}`,
+        `DeepSeek rerank failed: ${error instanceof Error ? error.message : String(error)}`,
       );
       return shortlist.slice(0, limit);
     }

@@ -28,6 +28,11 @@ import {
   type CommunityPackage,
   type PackageTask
 } from '../services/packageService';
+import {
+  downloadBlob,
+  downloadPackageTemplate,
+  getPackageBundleFileName
+} from '../services/packageDownloads';
 
 interface PackageDetailProps {
   packageId: string;
@@ -213,28 +218,23 @@ const PackageDetail: React.FC<PackageDetailProps> = ({ packageId, onBack, onNavi
 
   const handleDownloadAll = async () => {
     if (!displayData) return;
+    if (!displayData.templates.length) {
+      alert('This package does not include downloadable templates yet.');
+      return;
+    }
 
     try {
       const blob = await downloadAllPackageTemplates(displayData.id);
       if (blob) {
-        // Create a download link for the blob
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${displayData.title.replace(/\s+/g, '_')}_templates.zip`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-
+        downloadBlob(blob, getPackageBundleFileName(displayData.title));
         // Track template download
         trackTemplateDownload();
       } else {
-        // If blob is null, that means we don't have the actual file yet, so let's still track
-        trackTemplateDownload();
+        alert('Unable to prepare the template bundle right now. Please try again.');
       }
     } catch (error) {
       console.error('Error downloading templates:', error);
+      alert('Unable to download templates right now. Please try again.');
     }
   };
 
@@ -311,7 +311,7 @@ const PackageDetail: React.FC<PackageDetailProps> = ({ packageId, onBack, onNavi
   const progressPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   return (
-    <div className={`min-h-screen transition-theme ${isDarkMode ? 'dark bg-gray-900' : 'bg-white'}`}>
+    <div className={`min-h-[100dvh] transition-theme ${isDarkMode ? 'dark bg-gray-900' : 'bg-white'}`}>
       {/* Header Section */}
       <div className={`border-b ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'}`}>
         <div className="max-w-4xl mx-auto px-4 py-4">
@@ -520,8 +520,12 @@ const PackageDetail: React.FC<PackageDetailProps> = ({ packageId, onBack, onNavi
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
-          <nav className="flex space-x-8">
+        <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
+          <nav
+            className="flex gap-2 overflow-x-auto pb-3 scrollbar-hide [-webkit-overflow-scrolling:touch]"
+            role="tablist"
+            aria-label="Package detail sections"
+          >
             {[
               { id: 'roadmap', label: 'Roadmap', icon: Play },
               { id: 'templates', label: 'Templates', icon: FileText },
@@ -534,10 +538,13 @@ const PackageDetail: React.FC<PackageDetailProps> = ({ packageId, onBack, onNavi
               return (
                 <button
                   key={tab.id}
-                  className={`py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  className={`shrink-0 rounded-full border px-4 py-2.5 text-sm font-semibold transition-all flex items-center gap-2 ${
                     activeTab === tab.id
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                      ? 'border-primary bg-primary text-white shadow-sm shadow-primary/20'
+                      : 'border-gray-200 bg-gray-50 text-gray-500 hover:border-gray-300 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
                   }`}
                   onClick={() => setActiveTab(tab.id)}
                 >
@@ -605,56 +612,74 @@ const PackageDetail: React.FC<PackageDetailProps> = ({ packageId, onBack, onNavi
           {/* Templates Tab */}
           {activeTab === 'templates' && (
             <div className="space-y-4">
-              <div className="flex justify-end mb-4">
-                <Button
-                  variant="secondary"
-                  className="flex items-center gap-2"
-                  onClick={handleDownloadAll}
-                >
-                  <Download size={16} />
-                  Download All
-                </Button>
-              </div>
+              {displayData.templates.length > 0 ? (
+                <>
+                  <div className="flex justify-end mb-4">
+                    <Button
+                      variant="secondary"
+                      className="flex items-center gap-2"
+                      onClick={handleDownloadAll}
+                    >
+                      <Download size={16} />
+                      Download All
+                    </Button>
+                  </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {displayData.templates.map((template) => (
-                  <Card
-                    key={template.id}
-                    className={`p-4 ${isDarkMode ? 'dark:bg-gray-800 dark:border-gray-700' : ''}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                        <FileText size={20} className="text-blue-500" />
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-gray-900 dark:text-white">
-                          {template.title}
-                        </h4>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {template.fileType}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-3">
-                      <Button
-                        className="w-full"
-                        variant="secondary"
-                        onClick={() => {
-                          // Download single template
-                          const link = document.createElement('a');
-                          link.href = template.fileUrl;
-                          link.download = template.title.replace(/\s+/g, '_');
-                          document.body.appendChild(link);
-                          link.click();
-                          document.body.removeChild(link);
-                        }}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {displayData.templates.map((template) => (
+                      <Card
+                        key={template.id}
+                        className={`p-4 ${isDarkMode ? 'dark:bg-gray-800 dark:border-gray-700' : ''}`}
                       >
-                        Download
-                      </Button>
-                    </div>
-                  </Card>
-                ))}
-              </div>
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                            <FileText size={20} className="text-blue-500" />
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-gray-900 dark:text-white">
+                              {template.title}
+                            </h4>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {template.fileType}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-3">
+                          <Button
+                            className="w-full"
+                            variant="secondary"
+                            onClick={async () => {
+                              try {
+                                const result = await downloadPackageTemplate(template);
+                                if (!result) {
+                                  alert('This template is not available for download yet.');
+                                  return;
+                                }
+                                downloadBlob(result.blob, result.fileName);
+                              } catch (error) {
+                                console.error('Error downloading template:', error);
+                                alert('Unable to download this template right now. Please try again.');
+                              }
+                            }}
+                          >
+                            Download
+                          </Button>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <Card className={`p-6 text-center ${isDarkMode ? 'dark:bg-gray-800 dark:border-gray-700' : ''}`}>
+                  <FileText size={28} className="mx-auto text-gray-400" />
+                  <h3 className="mt-3 text-base font-semibold text-gray-900 dark:text-white">
+                    No downloadable templates yet
+                  </h3>
+                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                    The creator has not added template files for this package yet.
+                  </p>
+                </Card>
+              )}
             </div>
           )}
 
@@ -757,73 +782,108 @@ const PackageDetail: React.FC<PackageDetailProps> = ({ packageId, onBack, onNavi
             <div className="space-y-6">
               {/* Write Review */}
               {user && (
-                <Card className={`p-6 ${isDarkMode ? 'dark:bg-gray-800 dark:border-gray-700' : ''}`}>
-                  <h3 className="font-semibold text-gray-900 dark:text-white mb-4">
-                    Write a Review
-                  </h3>
-                  <div className="flex items-center gap-2 mb-4">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        onClick={() => setRating(star)}
-                        className={`text-2xl ${star <= rating ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'}`}
-                      >
-                        ★
-                      </button>
-                    ))}
-                  </div>
-                  <textarea
-                    value={reviewText}
-                    onChange={(e) => setReviewText(e.target.value)}
-                    placeholder="Share your experience with this guide..."
-                    className={`w-full p-3 rounded-lg border ${
-                      isDarkMode
-                        ? 'bg-gray-700 border-gray-600 text-white'
-                        : 'bg-white border-gray-300 text-gray-900'
-                    }`}
-                    rows={3}
-                  />
-                  <div className="mt-4">
-                    <Button onClick={handleAddReview}>
-                      Submit Review
-                    </Button>
+                <Card className={`p-5 sm:p-6 ${isDarkMode ? 'dark:bg-gray-800 dark:border-gray-700' : ''}`}>
+                  <div className="space-y-5">
+                    <div className="flex flex-col gap-1">
+                      <h3 className="text-base font-semibold text-gray-900 dark:text-white sm:text-lg">
+                        Write a Review
+                      </h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Share what was useful, what was missing, and anything that would help the next learner.
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                          Your rating
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => setRating(star)}
+                              aria-label={`${star} star${star === 1 ? '' : 's'}`}
+                              className={`rounded-full p-1 text-xl transition-transform active:scale-95 ${
+                                star <= rating ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'
+                              }`}
+                            >
+                              ★
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <textarea
+                        value={reviewText}
+                        onChange={(e) => setReviewText(e.target.value)}
+                        placeholder="Share your experience with this guide..."
+                        className={`w-full min-h-[120px] rounded-2xl border p-4 text-sm leading-relaxed outline-none transition focus:ring-2 ${
+                          isDarkMode
+                            ? 'border-gray-600 bg-gray-700 text-white placeholder:text-gray-400 focus:border-primary focus:ring-primary/20'
+                            : 'border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-primary/20'
+                        }`}
+                        rows={4}
+                      />
+                    </div>
+
+                    <div className="flex justify-end">
+                      <Button onClick={handleAddReview} className="w-full sm:w-auto">
+                        Submit Review
+                      </Button>
+                    </div>
                   </div>
                 </Card>
               )}
 
               {/* Reviews List */}
-              <div className="space-y-4">
-                {displayData.reviews.map((review) => (
-                  <Card
-                    key={review.id}
-                    className={`p-4 ${isDarkMode ? 'dark:bg-gray-800 dark:border-gray-700' : ''}`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          {[...Array(5)].map((_, i) => (
-                            <span
-                              key={i}
-                              className={`text-sm ${i < review.rating ? 'text-yellow-400' : 'text-gray-300'}`}
-                            >
-                              ★
-                            </span>
-                          ))}
+              {displayData.reviews.length > 0 ? (
+                <div className="space-y-4">
+                  {displayData.reviews.map((review) => (
+                    <Card
+                      key={review.id}
+                      className={`p-5 sm:p-6 ${isDarkMode ? 'dark:bg-gray-800 dark:border-gray-700' : ''}`}
+                    >
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0 space-y-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex items-center gap-1">
+                              {[...Array(5)].map((_, i) => (
+                                <span
+                                  key={i}
+                                  className={`text-sm ${i < review.rating ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-600'}`}
+                                >
+                                  ★
+                                </span>
+                              ))}
+                            </div>
+                            <h4 className="font-medium text-gray-900 dark:text-white">
+                              Anonymous User
+                            </h4>
+                          </div>
+                          <p className="break-words whitespace-pre-wrap text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+                            {review.comment}
+                          </p>
                         </div>
-                        <h4 className="font-medium text-gray-900 dark:text-white mt-1">
-                          Anonymous User
-                        </h4>
-                        <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
-                          {review.comment}
-                        </p>
+                        <span className="shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400 sm:pt-1">
+                          {new Date(review.createdAt).toLocaleDateString()}
+                        </span>
                       </div>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {new Date(review.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </Card>
-                ))}
-              </div>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <Card className={`p-6 text-center ${isDarkMode ? 'dark:bg-gray-800 dark:border-gray-700' : ''}`}>
+                  <MessageCircle size={28} className="mx-auto text-gray-400" />
+                  <h3 className="mt-3 text-base font-semibold text-gray-900 dark:text-white">
+                    No reviews yet
+                  </h3>
+                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                    The first review helps other learners understand whether this package is right for them.
+                  </p>
+                </Card>
+              )}
             </div>
           )}
         </div>

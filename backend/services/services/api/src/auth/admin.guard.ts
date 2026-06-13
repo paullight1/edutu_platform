@@ -4,11 +4,11 @@ import {
   ExecutionContext,
   ForbiddenException,
   SetMetadata,
-} from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { IS_PUBLIC_KEY } from './public.decorator';
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import { IS_PUBLIC_KEY } from "./public.decorator";
 
-export const IS_ADMIN_KEY = 'isAdmin';
+export const IS_ADMIN_KEY = "isAdmin";
 export const RequireAdmin = () => SetMetadata(IS_ADMIN_KEY, true);
 
 @Injectable()
@@ -29,14 +29,14 @@ export class AdminGuard implements CanActivate {
     const user = request.user;
 
     if (!user) {
-      throw new ForbiddenException('Authentication required');
+      throw new ForbiddenException("Authentication required");
     }
 
     const adminEmails = (
       process.env.ADMIN_EMAILS ||
-      'admin@edutu.ai,founder@edutu.ai,nwosupaul3@gmail.com,nwouspaul3@gmail.com'
+      "admin@edutu.ai,founder@edutu.ai,nwosupaul3@gmail.com,nwouspaul3@gmail.com"
     )
-      .split(',')
+      .split(",")
       .map((e) => e.trim().toLowerCase());
 
     const userEmail = user.email?.toLowerCase();
@@ -46,16 +46,16 @@ export class AdminGuard implements CanActivate {
     }
 
     const allowedRoles = new Set([
-      'admin',
-      'super_admin',
-      'moderator',
-      'support_agent',
+      "admin",
+      "super_admin",
+      "moderator",
+      "support_agent",
     ]);
 
     if (allowedRoles.has(user.role)) {
       return true;
     }
 
-    throw new ForbiddenException('Admin access required');
+    throw new ForbiddenException("Admin access required");
   }
 }

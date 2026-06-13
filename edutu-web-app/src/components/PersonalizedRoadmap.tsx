@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   Target,
@@ -70,6 +71,7 @@ const PersonalizedRoadmap: React.FC<PersonalizedRoadmapProps> = ({
   goalId,
   communityStory
 }) => {
+  const navigate = useNavigate();
   const { goals, updateGoal } = useGoals();
   const activeGoal = useMemo(
     () => {
@@ -400,7 +402,7 @@ const PersonalizedRoadmap: React.FC<PersonalizedRoadmapProps> = ({
 
   const handleJoinCommunity = () => {
     scrollToTop();
-    // Navigate to community page
+    navigate('/app/community');
   };
 
   const totalTasks = allTasks.length;

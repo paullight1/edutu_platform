@@ -2,6 +2,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { ScraperService } from "./scraper.service";
 import { SchedulerRegistry } from "@nestjs/schedule";
 import { AiService } from "../ai";
+import { OpportunityShareCardService } from "../opportunities/opportunity-share-card.service";
 
 describe("ScraperService", () => {
   let service: ScraperService;
@@ -12,6 +13,12 @@ describe("ScraperService", () => {
   };
   const mockAiService = {
     generateJson: jest.fn(),
+  };
+  const mockOpportunityShareCardService = {
+    ensureShareCardsForOpportunities: jest.fn(),
+    ensureSharePdfsForOpportunities: jest.fn(),
+    ensureShareCardForOpportunity: jest.fn(),
+    buildSharePdfForOpportunity: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -25,6 +32,10 @@ describe("ScraperService", () => {
         ScraperService,
         { provide: SchedulerRegistry, useValue: mockSchedulerRegistry },
         { provide: AiService, useValue: mockAiService },
+        {
+          provide: OpportunityShareCardService,
+          useValue: mockOpportunityShareCardService,
+        },
       ],
     }).compile();
 

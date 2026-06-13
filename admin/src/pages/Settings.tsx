@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { 
     Globe, 
     Mail, 
@@ -9,12 +9,10 @@ import {
     Webhook,
     Users,
     FileText,
-    Eye,
-    EyeOff,
-    RefreshCw,
     Download,
     Trash2
 } from 'lucide-react';
+import { backendFetchJson } from '../lib/backend';
 
 interface AdminSettings {
     platform: {
@@ -50,75 +48,181 @@ interface AdminSettings {
     };
 }
 
-const Settings = () => {
-    const [activeSection, setActiveSection] = useState<'platform' | 'content' | 'notifications' | 'security' | 'api'>('platform');
-    const [showApiKey, setShowApiKey] = useState(false);
-    const [savedMessage, setSavedMessage] = useState('');
-    const [hasChanges, setHasChanges] = useState(false);
-    
-    const [settings, setSettings] = useState<AdminSettings>({
+interface AdminSettingsResponse {
+    success: boolean;
+    source: 'database' | 'fallback';
+    settings: AdminSettings;
+    error?: string;
+}
+
+const defaultSettings: AdminSettings = {
+    platform: {
+        siteName: 'Edutu',
+        supportEmail: 'support@edutu.org',
+        maintenanceMode: false,
+        allowRegistrations: true,
+        requireApproval: false,
+    },
+    content: {
+        autoModerate: true,
+        requireCreatorApproval: true,
+        maxUploadSize: 10,
+        allowedFileTypes: ['jpg', 'jpeg', 'png', 'pdf'],
+    },
+    notifications: {
+        adminEmail: 'admin@edutu.org',
+        notifyNewUsers: true,
+        notifyNewOpportunities: false,
+        notifyReports: true,
+        dailyDigest: true,
+    },
+    security: {
+        maxLoginAttempts: 5,
+        passwordMinLength: 8,
+        requireStrongPassword: true,
+        sessionDuration: 24,
+    },
+    api: {
+        apiKey: 'Managed on the server',
+        webhookUrl: import.meta.env.VITE_WEBHOOK_URL || 'https://api.edutu.org/webhooks',
+        rateLimitPerMinute: 100,
+    },
+};
+
+function mergeSettings(value: Partial<AdminSettings> | null | undefined): AdminSettings {
+    return {
+        ...defaultSettings,
+        ...value,
         platform: {
-            siteName: 'Edutu',
-            supportEmail: 'support@edutu.org',
-            maintenanceMode: false,
-            allowRegistrations: true,
-            requireApproval: false,
+            ...defaultSettings.platform,
+            ...(value?.platform ?? {}),
         },
         content: {
-            autoModerate: true,
-            requireCreatorApproval: true,
-            maxUploadSize: 10,
-            allowedFileTypes: ['jpg', 'jpeg', 'png', 'pdf'],
+            ...defaultSettings.content,
+            ...(value?.content ?? {}),
         },
         notifications: {
-            adminEmail: 'admin@edutu.org',
-            notifyNewUsers: true,
-            notifyNewOpportunities: false,
-            notifyReports: true,
-            dailyDigest: true,
+            ...defaultSettings.notifications,
+            ...(value?.notifications ?? {}),
         },
         security: {
-            maxLoginAttempts: 5,
-            passwordMinLength: 8,
-            requireStrongPassword: true,
-            sessionDuration: 24,
+            ...defaultSettings.security,
+            ...(value?.security ?? {}),
         },
         api: {
-            apiKey: import.meta.env.VITE_OPENROUTER_API_KEY || '',
-            webhookUrl: import.meta.env.VITE_WEBHOOK_URL || 'https://api.edutu.org/webhooks',
-            rateLimitPerMinute: 100,
+            ...defaultSettings.api,
+            ...(value?.api ?? {}),
         },
-    });
+    };
+}
 
-    // Load saved settings
-    useEffect(() => {
-        const saved = localStorage.getItem('adminPanelSettings');
-        if (saved) {
-            setSettings(JSON.parse(saved));
+const Settings = () => {
+    const [activeSection, setActiveSection] = useState<'platform' | 'content' | 'notifications' | 'security' | 'api'>('platform');
+    const [savedMessage, setSavedMessage] = useState('');
+    const [hasChanges, setHasChanges] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    
+    const [settings, setSettings] = useState<AdminSettings>(defaultSettings);
+
+    const fetchSettings = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+
+        try {
+            const data = await backendFetchJson<AdminSettingsResponse>('/admin/settings');
+            setSettings(mergeSettings(data.settings));
+            setHasChanges(false);
+            if (!data.success || data.source === 'fallback') {
+                setError(data.error || 'Settings loaded from fallback defaults because the database is unavailable');
+            }
+        } catch (err) {
+            console.error('Failed to load admin settings:', err);
+            setSettings(defaultSettings);
+            setError(err instanceof Error ? err.message : 'Unable to load server settings');
+        } finally {
+            setLoading(false);
         }
     }, []);
 
-    const handleSave = () => {
-        localStorage.setItem('adminPanelSettings', JSON.stringify(settings));
-        setSavedMessage('Settings saved successfully');
-        setHasChanges(false);
+    useEffect(() => {
+        void fetchSettings();
+    }, [fetchSettings]);
+
+    const handleSave = async () => {
+        setSaving(true);
+        setError(null);
+
+        try {
+            const saved = await backendFetchJson<AdminSettingsResponse>('/admin/settings', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(settings),
+            });
+
+            setSettings(mergeSettings(saved.settings));
+            if (saved.success && saved.source === 'database') {
+                setSavedMessage('Settings saved successfully');
+                setHasChanges(false);
+                setTimeout(() => setSavedMessage(''), 3000);
+            } else {
+                setError(saved.error || 'Settings could not be persisted because the database is unavailable');
+            }
+        } catch (err) {
+            console.error('Failed to save admin settings:', err);
+            setError(err instanceof Error ? err.message : 'Failed to save settings');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleResetAllSettings = () => {
+        if (!window.confirm('Reset all settings to their default values? You will still need to save to persist the reset.')) {
+            return;
+        }
+
+        setSettings(defaultSettings);
+        setHasChanges(true);
+        setError(null);
+        setSavedMessage('Settings reset to defaults. Save Changes to apply.');
         setTimeout(() => setSavedMessage(''), 3000);
     };
 
-    const updateSetting = (section: keyof AdminSettings, key: string, value: any) => {
-        setSettings(prev => ({
-            ...prev,
-            [section]: {
-                ...prev[section],
-                [key]: value
-            }
-        }));
-        setHasChanges(true);
+    const handleExportConfiguration = () => {
+        const payload = {
+            exportedAt: new Date().toISOString(),
+            settings,
+        };
+
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `edutu-admin-settings-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        setSavedMessage('Configuration exported');
+        setTimeout(() => setSavedMessage(''), 3000);
     };
 
-    const regenerateApiKey = () => {
-        const newKey = 'sk_live_' + crypto.randomUUID().replace(/-/g, '');
-        updateSetting('api', 'apiKey', newKey);
+    const updateSetting = <S extends keyof AdminSettings>(
+        section: S,
+        key: string,
+        value: unknown,
+    ) => {
+        setSettings((prev) => ({
+            ...prev,
+            [section]: {
+                ...(prev[section] as Record<string, unknown>),
+                [key]: value,
+            } as AdminSettings[S],
+        }));
+        setHasChanges(true);
     };
 
     const menuItems = [
@@ -469,54 +573,23 @@ const Settings = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div className="card" style={{ padding: '24px' }}>
                 <h3 style={{ margin: '0 0 20px 0', fontSize: '19px', fontWeight: 600 }}>API Configuration</h3>
-                
-                <div className="form-group">
-                    <label className="form-label">API Key</label>
-                    <div style={{ position: 'relative' }}>
-                        <input 
-                            type={showApiKey ? 'text' : 'password'}
-                            className="input-field"
-                            value={settings.api.apiKey}
-                            readOnly
-                            style={{ paddingRight: '100px' }}
-                        />
-                        <div style={{ 
-                            position: 'absolute', 
-                            right: '8px', 
-                            top: '50%', 
-                            transform: 'translateY(-50%)',
-                            display: 'flex',
-                            gap: '4px'
-                        }}>
-                            <button 
-                                onClick={() => setShowApiKey(!showApiKey)}
-                                style={{ 
-                                    background: 'none',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    color: 'var(--text-tertiary)',
-                                    padding: '4px'
-                                }}
-                            >
-                                {showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}
-                            </button>
-                        </div>
+
+                <div
+                    style={{
+                        padding: '16px',
+                        borderRadius: '12px',
+                        background: 'rgba(255, 102, 0, 0.08)',
+                        border: '1px solid rgba(255, 102, 0, 0.18)',
+                        marginBottom: '20px'
+                    }}
+                >
+                    <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
+                        Server-managed secrets
                     </div>
-                    <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
-                        <button 
-                            className="btn btn-secondary"
-                            onClick={regenerateApiKey}
-                        >
-                            <RefreshCw size={16} />
-                            Regenerate
-                        </button>
-                        <button 
-                            className="btn btn-pill"
-                            onClick={() => navigator.clipboard.writeText(settings.api.apiKey)}
-                        >
-                            Copy to Clipboard
-                        </button>
-                    </div>
+                    <p style={{ margin: 0, color: 'var(--text-tertiary)', fontSize: '14px', lineHeight: 1.6 }}>
+                        API keys are kept in backend environment variables and are not editable from the browser.
+                        Use the backend deploy or secret manager to rotate them safely.
+                    </p>
                 </div>
 
                 <div className="form-group" style={{ marginBottom: 0 }}>
@@ -572,11 +645,11 @@ const Settings = () => {
                     These actions are irreversible. Proceed with caution.
                 </p>
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                    <button className="btn btn-danger">
+                    <button className="btn btn-danger" onClick={handleResetAllSettings}>
                         <Trash2 size={16} />
                         Reset All Settings
                     </button>
-                    <button className="btn btn-secondary">
+                    <button className="btn btn-secondary" onClick={handleExportConfiguration}>
                         <Download size={16} />
                         Export Configuration
                     </button>
@@ -596,6 +669,11 @@ const Settings = () => {
                     </p>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    {loading && (
+                        <div className="badge" style={{ background: 'rgba(255, 102, 0, 0.12)', color: '#ff6600' }}>
+                            Syncing with server
+                        </div>
+                    )}
                     {savedMessage && (
                         <div className="badge badge-success" style={{ animation: 'fadeIn 0.3s ease' }}>
                             <Check size={14} style={{ marginRight: '6px' }} />
@@ -610,14 +688,29 @@ const Settings = () => {
                     <button 
                         className="btn btn-primary"
                         onClick={handleSave}
-                        disabled={!hasChanges}
-                        style={{ opacity: hasChanges ? 1 : 0.5 }}
+                        disabled={!hasChanges || loading || saving}
+                        style={{ opacity: hasChanges && !loading && !saving ? 1 : 0.5 }}
                     >
                         <Save size={18} />
-                        Save Changes
+                        {saving ? 'Saving...' : 'Save Changes'}
                     </button>
                 </div>
             </div>
+
+            {error && (
+                <div className="card" style={{
+                    padding: '16px 20px',
+                    border: '1px solid rgba(255, 59, 48, 0.24)',
+                    background: 'rgba(255, 59, 48, 0.08)',
+                }}>
+                    <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                        Settings sync problem
+                    </div>
+                    <div style={{ color: 'var(--text-tertiary)', fontSize: '14px', lineHeight: 1.6 }}>
+                        {error}
+                    </div>
+                </div>
+            )}
 
             <div style={{ display: 'flex', gap: '24px' }}>
                 {/* Sidebar Menu */}

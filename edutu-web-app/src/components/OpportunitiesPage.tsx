@@ -77,7 +77,7 @@ const OpportunityCard: React.FC<OpportunityCardProps & { onNavigate: (path: stri
                 (e.currentTarget as HTMLElement).style.borderColor = isDarkMode ? '#222' : '#d8d8d8';
                 (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
             }}
-            onClick={() => onNavigate('/auth')}
+            onClick={() => onNavigate(`/share/opportunity/${encodeURIComponent(opportunity.id)}`)}
         >
             <div className="relative h-40 overflow-hidden" style={{ borderRadius: '8px 8px 0 0' }}>
                 <img

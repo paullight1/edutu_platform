@@ -26,7 +26,11 @@ import {
     isSupabaseConnected
 } from './database.js';
 import { runApifyScraper, runEdutuScraper, runIntelScraper, runCustomScraper, runScholarshipApiScraper, normalizeOpportunity, checkActorExists, ACTOR_IDS } from './apify-client.js';
-import { isGeminiConfigured, refineOpportunityWithGemini, scoreOpportunityMatchWithGemini } from './gemini.js';
+import {
+  isDeepSeekConfigured,
+  refineOpportunityWithDeepSeek,
+  scoreOpportunityMatchWithDeepSeek,
+} from './gemini.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -150,17 +154,18 @@ app.get('/health', async (req, res) => {
         health.services.supabase = 'disconnected';
     }
 
-    // Check Gemini
-    health.services.gemini = isGeminiConfigured()
+    // Check DeepSeek
+    health.services.deepseek = isDeepSeekConfigured()
         ? 'configured' 
         : 'missing';
+    health.services.gemini = health.services.deepseek;
 
     // Check Playwright (implicit - if server runs, playwright is available)
     health.services.playwright = 'available';
 
     // Overall status
-    const allHealthy = health.services.supabase !== 'disconnected' && 
-                       health.services.gemini !== 'missing';
+    const allHealthy = health.services.supabase !== 'disconnected' &&
+                       health.services.deepseek !== 'missing';
     
     health.status = allHealthy ? 'ok' : 'degraded';
     
@@ -204,12 +209,16 @@ app.get('/health/detailed', async (req, res) => {
         };
     }
 
-    // Gemini check
-    if (isGeminiConfigured()) {
-        checks.checks.gemini = { status: 'pass' };
+    // DeepSeek check
+    if (isDeepSeekConfigured()) {
+        checks.checks.deepseek = { status: 'pass' };
     } else {
-        checks.checks.gemini = { status: 'warn', message: 'API key not configured' };
+        checks.checks.deepseek = {
+          status: 'warn',
+          message: 'API key not configured',
+        };
     }
+    checks.checks.gemini = checks.checks.deepseek;
 
     // Database stats
     try {
@@ -1085,7 +1094,8 @@ app.get('/api/stats', authenticate, (req, res) => {
         stats: {
             environment: process.env.NODE_ENV || 'development',
             database: isSupabaseConnected ? 'connected' : 'fallback',
-            gemini: isGeminiConfigured() ? 'configured' : 'missing',
+            deepseek: isDeepSeekConfigured() ? 'configured' : 'missing',
+            gemini: isDeepSeekConfigured() ? 'configured' : 'missing',
             sourceConfigs: Object.keys(getSourceConfigs()).length,
             defaultConfig: getDefaultConfig()
         }
@@ -1373,9 +1383,9 @@ async function buildOpportunityFeed(opportunities, profile) {
             ? calculateMatchScore(opp, profile)
             : 75;
 
-        const aiRefinement = await refineOpportunityWithGemini(opp);
+        const aiRefinement = await refineOpportunityWithDeepSeek(opp);
         const aiMatch = profile && Object.keys(profile).length > 0
-            ? await scoreOpportunityMatchWithGemini({
+            ? await scoreOpportunityMatchWithDeepSeek({
                 ...opp,
                 tags: aiRefinement.tags,
                 summary: aiRefinement.summary,
@@ -1434,7 +1444,8 @@ app.post('/api/opportunities/filter', async (req, res) => {
         res.json({ 
             success: true, 
             count: filtered.length,
-            aiEnabled: isGeminiConfigured(),
+            aiEnabled: isDeepSeekConfigured(),
+            deepseekEnabled: isDeepSeekConfigured(),
             opportunities: filtered 
         });
 

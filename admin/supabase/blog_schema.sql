@@ -9,25 +9,50 @@ CREATE TABLE IF NOT EXISTS blog_posts (
     content TEXT NOT NULL DEFAULT '',
     excerpt TEXT,
     cover_image TEXT,
-    status TEXT CHECK (status IN ('draft', 'published')) DEFAULT 'draft',
+    category TEXT DEFAULT 'general',
+    author_avatar TEXT,
+    status TEXT CHECK (status IN ('draft', 'published', 'archived')) DEFAULT 'draft',
     author_id TEXT NOT NULL,
     author_name TEXT DEFAULT 'Admin',
     tags TEXT[] DEFAULT '{}',
+    featured BOOLEAN DEFAULT FALSE,
     views INTEGER DEFAULT 0,
+    likes INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     published_at TIMESTAMP WITH TIME ZONE
 );
 
+ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'general';
+ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS author_avatar TEXT;
+ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS featured BOOLEAN DEFAULT FALSE;
+ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS likes INTEGER DEFAULT 0;
+
 -- Enable RLS
 ALTER TABLE blog_posts ENABLE ROW LEVEL SECURITY;
 
--- Policy: Allow all operations for authenticated users (admin)
-CREATE POLICY "Allow full access for authenticated users" ON blog_posts
+-- Policy: Allow admins and service-role writers
+CREATE POLICY "Admins and service role manage blog posts" ON blog_posts
     FOR ALL
     TO authenticated
-    USING (true)
-    WITH CHECK (true);
+    USING (
+        auth.role() = 'service_role'
+        OR EXISTS (
+            SELECT 1
+            FROM public.profiles p
+            WHERE p.user_id = auth.uid()
+              AND p.role IN ('admin', 'super_admin')
+        )
+    )
+    WITH CHECK (
+        auth.role() = 'service_role'
+        OR EXISTS (
+            SELECT 1
+            FROM public.profiles p
+            WHERE p.user_id = auth.uid()
+              AND p.role IN ('admin', 'super_admin')
+        )
+    );
 
 -- Policy: Allow public read access for published posts
 CREATE POLICY "Allow public read for published posts" ON blog_posts

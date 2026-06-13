@@ -8,8 +8,8 @@ import {
   Param,
   Query,
   UseGuards,
-} from '@nestjs/common';
-import { FlashcardsService } from './flashcards.service';
+} from "@nestjs/common";
+import { FlashcardsService } from "./flashcards.service";
 import {
   CreateFlashcardDeckDto,
   CreateFlashcardDto,
@@ -18,33 +18,33 @@ import {
   ReviewFlashcardDto,
   CreateStudySessionDto,
   GenerateFlashcardsDto,
-} from './dto';
-import { CurrentUser } from '../auth/current-user.decorator';
-import { Public } from '../auth/public.decorator';
-import { AdminGuard } from '../auth/admin.guard';
+} from "./dto";
+import { CurrentUser } from "../auth/current-user.decorator";
+import { Public } from "../auth/public.decorator";
+import { AdminGuard } from "../auth/admin.guard";
 
-@Controller('flashcards')
+@Controller("flashcards")
 export class FlashcardsController {
   constructor(private readonly flashcardsService: FlashcardsService) {}
 
-  @Post('decks')
+  @Post("decks")
   createDeck(
-    @CurrentUser('id') userId: string,
+    @CurrentUser("id") userId: string,
     @Body() dto: CreateFlashcardDeckDto,
   ) {
     return this.flashcardsService.createDeck(userId, dto);
   }
 
-  @Get('decks')
-  getDecks(@CurrentUser('id') userId: string) {
+  @Get("decks")
+  getDecks(@CurrentUser("id") userId: string) {
     return this.flashcardsService.findAllDecksByUser(userId);
   }
 
   @Public()
-  @Get('decks/public')
+  @Get("decks/public")
   getPublicDecks(
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string,
   ) {
     return this.flashcardsService.findPublicDecks(
       limit ? Math.min(parseInt(limit, 10), 100) : 20,
@@ -52,65 +52,65 @@ export class FlashcardsController {
     );
   }
 
-  @Get('decks/:id')
-  getDeck(@CurrentUser('id') userId: string, @Param('id') id: string) {
+  @Get("decks/:id")
+  getDeck(@CurrentUser("id") userId: string, @Param("id") id: string) {
     return this.flashcardsService.findDeckById(id, userId);
   }
 
-  @Get('decks/:id/cards')
-  getDeckWithCards(@CurrentUser('id') userId: string, @Param('id') id: string) {
+  @Get("decks/:id/cards")
+  getDeckWithCards(@CurrentUser("id") userId: string, @Param("id") id: string) {
     return this.flashcardsService.findDeckWithCards(id, userId);
   }
 
-  @Put('decks/:id')
+  @Put("decks/:id")
   updateDeck(
-    @CurrentUser('id') userId: string,
-    @Param('id') id: string,
+    @CurrentUser("id") userId: string,
+    @Param("id") id: string,
     @Body() dto: UpdateFlashcardDeckDto,
   ) {
     return this.flashcardsService.updateDeck(id, userId, dto);
   }
 
-  @Delete('decks/:id')
-  deleteDeck(@CurrentUser('id') userId: string, @Param('id') id: string) {
+  @Delete("decks/:id")
+  deleteDeck(@CurrentUser("id") userId: string, @Param("id") id: string) {
     return this.flashcardsService.deleteDeck(id, userId);
   }
 
-  @Post('cards')
+  @Post("cards")
   createCard(
-    @CurrentUser('id') userId: string,
+    @CurrentUser("id") userId: string,
     @Body() dto: CreateFlashcardDto,
   ) {
     return this.flashcardsService.createCard(userId, dto);
   }
 
-  @Post('cards/bulk')
+  @Post("cards/bulk")
   createCards(
-    @CurrentUser('id') userId: string,
+    @CurrentUser("id") userId: string,
     @Body() cards: CreateFlashcardDto[],
   ) {
     return this.flashcardsService.createCards(userId, cards);
   }
 
-  @Put('cards/:id')
+  @Put("cards/:id")
   updateCard(
-    @CurrentUser('id') userId: string,
-    @Param('id') id: string,
+    @CurrentUser("id") userId: string,
+    @Param("id") id: string,
     @Body() dto: UpdateFlashcardDto,
   ) {
     return this.flashcardsService.updateCard(id, userId, dto);
   }
 
-  @Delete('cards/:id')
-  deleteCard(@CurrentUser('id') userId: string, @Param('id') id: string) {
+  @Delete("cards/:id")
+  deleteCard(@CurrentUser("id") userId: string, @Param("id") id: string) {
     return this.flashcardsService.deleteCard(id, userId);
   }
 
-  @Get('decks/:deckId/review')
+  @Get("decks/:deckId/review")
   getCardsForReview(
-    @CurrentUser('id') userId: string,
-    @Param('deckId') deckId: string,
-    @Query('limit') limit?: string,
+    @CurrentUser("id") userId: string,
+    @Param("deckId") deckId: string,
+    @Query("limit") limit?: string,
   ) {
     return this.flashcardsService.getCardsForReview(
       deckId,
@@ -119,29 +119,29 @@ export class FlashcardsController {
     );
   }
 
-  @Post('cards/:cardId/review')
+  @Post("cards/:cardId/review")
   reviewCard(
-    @CurrentUser('id') userId: string,
-    @Param('cardId') cardId: string,
+    @CurrentUser("id") userId: string,
+    @Param("cardId") cardId: string,
     @Body() dto: ReviewFlashcardDto,
   ) {
     return this.flashcardsService.reviewCard(cardId, userId, dto);
   }
 
-  @Post('sessions')
+  @Post("sessions")
   createStudySession(
-    @CurrentUser('id') userId: string,
+    @CurrentUser("id") userId: string,
     @Body() dto: CreateStudySessionDto,
   ) {
     return this.flashcardsService.createStudySession(userId, dto);
   }
 
-  @Get('stats')
-  getStudyStats(@CurrentUser('id') userId: string) {
+  @Get("stats")
+  getStudyStats(@CurrentUser("id") userId: string) {
     return this.flashcardsService.getStudyStats(userId);
   }
 
-  @Post('generate')
+  @Post("generate")
   @UseGuards(AdminGuard)
   generateFlashcards(@Body() dto: GenerateFlashcardsDto) {
     return this.flashcardsService.generateFlashcards(dto);

@@ -2,8 +2,8 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
-} from '@nestjs/common';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+} from "@nestjs/common";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type {
   CampaignEventDto,
   JsonRecord,
@@ -11,18 +11,18 @@ import type {
   MobileControlConfig,
   MobileFeatureFlag,
   WidgetFeed,
-} from './mobile-control.types';
+} from "./mobile-control.types";
 
 type ControlTable =
-  | 'mobile_app_campaigns'
-  | 'mobile_feature_flags'
-  | 'widget_feeds';
+  | "mobile_app_campaigns"
+  | "mobile_feature_flags"
+  | "widget_feeds";
 type ControlRow = MobileCampaign | MobileFeatureFlag | WidgetFeed;
 
 const TABLES = {
-  campaigns: 'mobile_app_campaigns',
-  featureFlags: 'mobile_feature_flags',
-  widgetFeeds: 'widget_feeds',
+  campaigns: "mobile_app_campaigns",
+  featureFlags: "mobile_feature_flags",
+  widgetFeeds: "widget_feeds",
 } as const satisfies Record<string, ControlTable>;
 
 const SELECT_LIMIT = 500;
@@ -43,9 +43,13 @@ export class MobileControlService {
 
   async getConfig(): Promise<MobileControlConfig> {
     const [campaigns, featureFlags, widgetFeeds] = await Promise.all([
-      this.listActive<MobileCampaign>(TABLES.campaigns),
-      this.listActiveFeatureFlags(),
-      this.listActive<WidgetFeed>(TABLES.widgetFeeds),
+      this.listActive<MobileCampaign>(TABLES.campaigns).catch(
+        () => [] as MobileCampaign[],
+      ),
+      this.listActiveFeatureFlags().catch(() => [] as MobileFeatureFlag[]),
+      this.listActive<WidgetFeed>(TABLES.widgetFeeds).catch(
+        () => [] as WidgetFeed[],
+      ),
     ]);
 
     return {
@@ -62,8 +66,8 @@ export class MobileControlService {
     const supabase = this.requireSupabase();
     const { data, error } = await supabase
       .from(table)
-      .select('*')
-      .order('updated_at', { ascending: false })
+      .select("*")
+      .order("updated_at", { ascending: false })
       .limit(SELECT_LIMIT);
 
     if (error) throw new BadRequestException(error.message);
@@ -80,7 +84,7 @@ export class MobileControlService {
     const { data, error } = await supabase
       .from(table)
       .insert(row)
-      .select('*')
+      .select("*")
       .single();
 
     if (error) throw new BadRequestException(error.message);
@@ -96,8 +100,8 @@ export class MobileControlService {
     const { data, error } = await supabase
       .from(table)
       .update({ ...payload, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select('*')
+      .eq("id", id)
+      .select("*")
       .single();
 
     if (error) throw new BadRequestException(error.message);
@@ -109,7 +113,7 @@ export class MobileControlService {
     id: string,
   ): Promise<{ id: string; deleted: true }> {
     const supabase = this.requireSupabase();
-    const { error } = await supabase.from(table).delete().eq('id', id);
+    const { error } = await supabase.from(table).delete().eq("id", id);
     if (error) throw new BadRequestException(error.message);
     return { id, deleted: true };
   }
@@ -119,11 +123,11 @@ export class MobileControlService {
     body: CampaignEventDto,
   ): Promise<{ recorded: true }> {
     if (!body?.eventType) {
-      throw new BadRequestException('eventType is required');
+      throw new BadRequestException("eventType is required");
     }
 
     const supabase = this.requireSupabase();
-    const { error } = await supabase.from('mobile_campaign_events').insert({
+    const { error } = await supabase.from("mobile_campaign_events").insert({
       campaign_id: body.campaignId || null,
       user_id: userId,
       event_type: body.eventType,
@@ -144,8 +148,8 @@ export class MobileControlService {
     const supabase = this.requireSupabase();
     const { data, error } = await supabase
       .from(table)
-      .select('*')
-      .eq('status', 'active')
+      .select("*")
+      .eq("status", "active")
       .limit(SELECT_LIMIT);
 
     if (error) throw new BadRequestException(error.message);
@@ -156,9 +160,9 @@ export class MobileControlService {
     const supabase = this.requireSupabase();
     const { data, error } = await supabase
       .from(TABLES.featureFlags)
-      .select('*')
-      .eq('enabled', true)
-      .order('sort_order', { ascending: true })
+      .select("*")
+      .eq("enabled", true)
+      .order("sort_order", { ascending: true })
       .limit(SELECT_LIMIT);
 
     if (error) throw new BadRequestException(error.message);
@@ -195,10 +199,10 @@ export class MobileControlService {
     };
 
     if (table === TABLES.campaigns) {
-      if (!base.status) base.status = 'draft';
+      if (!base.status) base.status = "draft";
       if (base.priority === undefined) base.priority = 0;
-      if (!base.campaign_type) base.campaign_type = 'popup';
-      if (!base.placement) base.placement = 'global';
+      if (!base.campaign_type) base.campaign_type = "popup";
+      if (!base.placement) base.placement = "global";
       if (!base.audience) base.audience = {};
       if (!base.creative) base.creative = {};
       if (!base.frequency) base.frequency = {};
@@ -214,10 +218,10 @@ export class MobileControlService {
     }
 
     if (table === TABLES.widgetFeeds) {
-      if (!base.status) base.status = 'draft';
+      if (!base.status) base.status = "draft";
       if (base.priority === undefined) base.priority = 0;
-      if (!base.feed_type) base.feed_type = 'opportunities';
-      if (!base.placement) base.placement = 'home';
+      if (!base.feed_type) base.feed_type = "opportunities";
+      if (!base.placement) base.placement = "home";
       if (!base.items) base.items = [];
       if (!base.audience) base.audience = {};
     }
@@ -227,7 +231,7 @@ export class MobileControlService {
 
   private requireSupabase(): SupabaseClient {
     if (!this.supabase) {
-      throw new InternalServerErrorException('Supabase is not configured');
+      throw new InternalServerErrorException("Supabase is not configured");
     }
     return this.supabase;
   }

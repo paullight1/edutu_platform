@@ -18,6 +18,10 @@ import { NotificationsModule } from "./notifications/notifications.module";
 import { EdutuApiModule } from "./edutu-api/edutu-api.module";
 import { ProfileModule } from "./profile/profile.module";
 import { MeModule } from "./me/me.module";
+import { ChatModule } from "./chat/chat.module";
+import { SettingsModule } from "./settings/settings.module";
+import { AdminModule } from "./admin/admin.module";
+import { HealthModule } from "./health/health.module";
 import { ScheduleModule } from "@nestjs/schedule";
 import { ConfigModule } from "@nestjs/config";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
@@ -49,6 +53,10 @@ import { APP_GUARD } from "@nestjs/core";
     NotificationsModule,
     ProfileModule,
     MeModule,
+    ChatModule,
+    SettingsModule,
+    AdminModule,
+    HealthModule,
     EdutuApiModule,
   ],
   controllers: [AppController],

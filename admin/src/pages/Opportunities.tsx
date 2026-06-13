@@ -1,5 +1,6 @@
-import { useEffect, useState, useRef, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, useRef, type ChangeEvent, type FormEvent } from 'react';
 import { supabase } from '../lib/supabase';
+import { getAdminAuthHeaders } from '../lib/backend';
 import {
     Target,
     Plus,
@@ -86,8 +87,246 @@ interface OpportunityListResponse {
     hasMore: boolean;
 }
 
+interface OpportunityEligibilityForm {
+    school: string;
+    major: string;
+    min_cgpa: string;
+    countries: string[];
+}
+
+interface OpportunityPreviewItem {
+    title: string;
+    summary?: string;
+    description?: string;
+    category?: string;
+    organization?: string;
+    location?: string;
+    amount?: number | string | null;
+    award_amount?: number | string | null;
+    deadline?: string | null;
+    close_date?: string | null;
+    application_url?: string;
+    applyUrl?: string;
+    apply_url?: string;
+    sourceUrl?: string;
+    source_url?: string;
+    imageUrl?: string;
+    image_url?: string;
+    source?: string;
+    status?: string;
+    is_remote?: boolean;
+    is_featured?: boolean;
+    confidence?: number;
+    errors?: string[];
+    eligibility?: {
+        school?: string;
+        major?: string;
+        min_cgpa?: number | string;
+        countries?: string[];
+        [key: string]: unknown;
+    };
+    funding_type?: string | null;
+    target_region?: string | null;
+    requirements?: string[];
+    benefits?: string[];
+    application_process?: string[];
+    metadata?: {
+        extraction_quality_score?: number;
+        extraction_missing_fields?: string[];
+        needs_review?: boolean;
+        [key: string]: unknown;
+    };
+    [key: string]: unknown;
+}
+
+interface BulkPreviewItem extends OpportunityPreviewItem {
+    confidence: number;
+    status: 'ready' | 'needs_review';
+    errors: string[];
+}
+
+interface OpportunityFormValues {
+    title: string;
+    summary: string;
+    description: string;
+    category: string;
+    organization: string;
+    location: string;
+    is_remote: boolean;
+    application_url: string;
+    close_date: string;
+    image_url: string;
+    is_featured: boolean;
+    status: OpportunityStatus;
+    eligibility: OpportunityEligibilityForm;
+}
+
+const BACKEND_STATUSES = new Set<OpportunityStatus | 'pending' | 'expired'>([
+    'active',
+    'closed',
+    'draft',
+    'pending_review',
+    'rejected',
+    'pending',
+    'expired',
+]);
+
+function getErrorMessage(error: unknown, fallback = 'Unknown error') {
+    if (error instanceof Error) return error.message || fallback;
+    if (typeof error === 'string') return error || fallback;
+    return fallback;
+}
+
+function guessTitleFromUrl(rawUrl: string) {
+    try {
+        const parsed = new URL(rawUrl);
+        const segments = parsed.pathname.split('/').filter(Boolean);
+        const lastSegment = segments[segments.length - 1] || parsed.hostname.replace(/^www\./, '');
+        const candidate = decodeURIComponent(lastSegment)
+            .replace(/\.[a-z0-9]+$/i, '')
+            .replace(/[-_]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        if (!candidate) {
+            return parsed.hostname.replace(/^www\./, '').replace(/\./g, ' ');
+        }
+
+        return candidate
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+    } catch {
+        return rawUrl.trim() || 'Untitled Opportunity';
+    }
+}
+
+function formatEligibilityCriteria(eligibility: OpportunityEligibilityForm | OpportunityPreviewItem['eligibility']) {
+    if (!eligibility) return null;
+
+    const parts: string[] = [];
+
+    if ('school' in eligibility && eligibility.school) {
+        parts.push(`School: ${eligibility.school}`);
+    }
+    if ('major' in eligibility && eligibility.major) {
+        parts.push(`Major: ${eligibility.major}`);
+    }
+
+    const minCgpa = 'min_cgpa' in eligibility ? eligibility.min_cgpa : undefined;
+    if (minCgpa !== undefined && minCgpa !== null && String(minCgpa).trim()) {
+        parts.push(`Minimum CGPA: ${minCgpa}`);
+    }
+
+    const countries = 'countries' in eligibility ? eligibility.countries : undefined;
+    if (Array.isArray(countries) && countries.length > 0) {
+        parts.push(`Countries: ${countries.filter(Boolean).join(', ')}`);
+    }
+
+    return parts.length > 0 ? parts.join(' | ') : null;
+}
+
+function normalizeOpportunityStatus(status?: string, confidence?: number): OpportunityStatus {
+    const normalized = status?.trim().toLowerCase();
+    if (normalized && BACKEND_STATUSES.has(normalized as OpportunityStatus | 'pending' | 'expired')) {
+        if (normalized === 'pending') return 'pending_review';
+        if (normalized === 'expired') return 'closed';
+        return normalized as OpportunityStatus;
+    }
+
+    return confidence !== undefined && confidence >= 60 ? 'active' : 'pending_review';
+}
+
+function mapPreviewToFormValues(
+    opportunity: OpportunityPreviewItem,
+    fallback?: OpportunityFormValues,
+): OpportunityFormValues {
+    const sourceUrl =
+        opportunity.application_url ||
+        opportunity.applyUrl ||
+        opportunity.apply_url ||
+        opportunity.sourceUrl ||
+        opportunity.source_url ||
+        fallback?.application_url ||
+        '';
+
+    const location = opportunity.location ?? fallback?.location ?? '';
+    const eligibility = opportunity.eligibility;
+
+    return {
+        title: opportunity.title || fallback?.title || guessTitleFromUrl(sourceUrl),
+        summary: opportunity.summary || fallback?.summary || '',
+        description: opportunity.description || fallback?.description || '',
+        category: opportunity.category || fallback?.category || 'Scholarships',
+        organization: opportunity.organization || opportunity.source || fallback?.organization || '',
+        location,
+        is_remote: opportunity.is_remote ?? fallback?.is_remote ?? false,
+        application_url: sourceUrl,
+        close_date:
+            (opportunity.close_date || opportunity.deadline || fallback?.close_date || '').split('T')[0],
+        image_url: opportunity.image_url || opportunity.imageUrl || fallback?.image_url || '',
+        is_featured: opportunity.is_featured ?? fallback?.is_featured ?? false,
+        status: normalizeOpportunityStatus(opportunity.status, opportunity.confidence),
+        eligibility: {
+            school: eligibility?.school || fallback?.eligibility?.school || '',
+            major: eligibility?.major || fallback?.eligibility?.major || '',
+            min_cgpa:
+                eligibility?.min_cgpa !== undefined && eligibility?.min_cgpa !== null
+                    ? String(eligibility.min_cgpa)
+                    : fallback?.eligibility?.min_cgpa || '',
+            countries: eligibility?.countries || fallback?.eligibility?.countries || [],
+        },
+    };
+}
+
+function buildOpportunityPayload(
+    input: OpportunityFormValues | OpportunityPreviewItem,
+) {
+    const previewInput = input as OpportunityPreviewItem;
+    const eligibility = input.eligibility;
+    const sourceUrl =
+        input.application_url ||
+        previewInput.applyUrl ||
+        previewInput.apply_url ||
+        previewInput.sourceUrl ||
+        previewInput.source_url ||
+        '';
+    const location = input.location || (eligibility?.countries || []).join(', ');
+
+    return {
+        title: input.title,
+        summary: input.summary || undefined,
+        description: input.description || undefined,
+        category: input.category || undefined,
+        organization: input.organization || previewInput.source || undefined,
+        location: location || undefined,
+        type: 'scholarship',
+        eligibilityCriteria: formatEligibilityCriteria(eligibility) || undefined,
+        fundingType: previewInput.funding_type || undefined,
+        targetRegion: previewInput.target_region || location || undefined,
+        deadline: input.close_date || previewInput.deadline || undefined,
+        sourceUrl: sourceUrl || undefined,
+        applyUrl: sourceUrl || undefined,
+        imageUrl: input.image_url || previewInput.imageUrl || previewInput.image_url || undefined,
+        eligibility: input.eligibility || undefined,
+        isFeatured: input.is_featured || previewInput.is_featured || false,
+        isRemote: input.is_remote ?? true,
+        status: normalizeOpportunityStatus(input.status, previewInput.confidence),
+        requirements: 'requirements' in previewInput ? previewInput.requirements : undefined,
+        benefits: 'benefits' in previewInput ? previewInput.benefits : undefined,
+        applicationProcess:
+            'application_process' in previewInput
+                ? previewInput.application_process
+                : undefined,
+        application_process:
+            'application_process' in previewInput
+                ? previewInput.application_process
+                : undefined,
+        tags: 'tags' in previewInput ? previewInput.tags : undefined,
+    };
+}
+
 export default function Opportunities() {
-    const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
     const [filteredOpps, setFilteredOpps] = useState<Opportunity[]>([]);
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState<Stats>({ total: 0, active: 0, featured: 0, expiringSoon: 0, needsReview: 0 });
@@ -99,11 +338,11 @@ export default function Opportunities() {
     const [isScraping, setIsScraping] = useState(false);
     const [showAddDropdown, setShowAddDropdown] = useState(false);
     const [showLoadingModal, setShowLoadingModal] = useState(false);
-    const [loadingStatus, setLoadingStatus] = useState<{ message: string; progress: number; source?: string; phase?: string; opportunities?: any[] }>({ message: 'Initializing...', progress: 0 });
-    const [loadedResults, setLoadedResults] = useState<any[]>([]);
-    const [scrapedData, setScrapedData] = useState<any>(null);
+    const [loadingStatus, setLoadingStatus] = useState<{ message: string; progress: number; source?: string; phase?: 'preview' | 'save' | 'refine' | 'error' }>({ message: 'Initializing...', progress: 0 });
+    const [loadedResults, setLoadedResults] = useState<OpportunityPreviewItem[]>([]);
+    const [scrapedData, setScrapedData] = useState<OpportunityFormValues | null>(null);
     const [urlInput, setUrlInput] = useState('');
-    const [bulkPreview, setBulkPreview] = useState<any[]>([]);
+    const [bulkPreview, setBulkPreview] = useState<BulkPreviewItem[]>([]);
 
     const addMethods = [
         { id: 'manual', name: 'Manual Entry', icon: <Plus size={16} />, desc: 'Create manually', action: () => { setShowAddDropdown(false); setShowModal(true); } },
@@ -119,68 +358,117 @@ export default function Opportunities() {
     async function triggerApifySync(sourceId: string) {
         setShowLoadingModal(true);
         setLoadedResults([]);
-        setLoadingStatus({ message: 'Connecting to Apify...', progress: 10, source: sourceId, phase: 'preview' });
-        
+        setLoadingStatus({ message: 'Connecting to Edutu Engine...', progress: 10, source: sourceId, phase: 'preview' });
+
         try {
             setLoadingStatus({ message: `Running ${sourceId} scraper...`, progress: 30, source: sourceId, phase: 'preview' });
-            const { data: { session } } = await supabase.auth.getSession();
-            
-            setLoadingStatus({ message: 'Fetching opportunities...', progress: 50, source: sourceId, phase: 'preview' });
-            const response = await fetch(`${API_URL}/api/opportunities/apify-preview?sources=${sourceId}`, {
-                method: 'GET',
-                headers: { 'Authorization': `Bearer ${session?.access_token || ''}` }
+            const response = await fetch(`${NEST_API_URL}/api/scraper/run`, {
+                method: 'POST',
+                headers: await getAdminHeaders(),
+                body: JSON.stringify({
+                    allSources: true,
+                    maxPages: 3,
+                }),
             });
-            
+
             setLoadingStatus({ message: 'Processing results...', progress: 70, source: sourceId, phase: 'preview' });
             const result = await response.json();
-            
-            if (result.success && result.opportunities && result.opportunities.length > 0) {
-                console.log('[Preview] Opportunities:', result.opportunities);
+
+            if (response.ok && result.success && result.opportunities && result.opportunities.length > 0) {
                 setLoadedResults(result.opportunities);
-                setLoadingStatus({ message: `Found ${result.opportunities.length} opportunities`, progress: 100, source: sourceId, phase: 'preview' });
+                setLoadingStatus({
+                    message: `Found ${result.opportunities.length} opportunities`,
+                    progress: 100,
+                    source: sourceId,
+                    phase: 'preview',
+                });
             } else {
                 const errMsg = result.errors?.[0] || result.error || 'No opportunities found';
                 setLoadingStatus({ message: errMsg, progress: 100, source: sourceId, phase: 'error' });
             }
-        } catch (error: any) {
-            setLoadingStatus({ message: 'Error: ' + error.message, progress: 100, source: sourceId, phase: 'preview' });
+        } catch (error: unknown) {
+            const message = getErrorMessage(error);
+            setLoadingStatus({ message: 'Error: ' + message, progress: 100, source: sourceId, phase: 'error' });
             setTimeout(() => {
                 setShowLoadingModal(false);
-                alert('Preview failed: ' + error.message);
+                alert('Preview failed: ' + message);
             }, 2000);
         }
     }
 
-    async function saveOpportunities(opps: any[]) {
+    async function saveOpportunities(opps: OpportunityPreviewItem[] | BulkPreviewItem[]) {
         setLoadingStatus({ message: 'Saving to database...', progress: 30, source: loadingStatus.source || '', phase: 'save' });
-        
+
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const response = await fetch(`${API_URL}/api/opportunities/apify-save`, {
-                method: 'POST',
-                headers: { 
-                    'Authorization': `Bearer ${session?.access_token || ''}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ opportunities: opps })
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                setLoadingStatus({ message: `Saved ${result.inserted} opportunities!`, progress: 100, source: loadingStatus.source || '', phase: 'save' });
-                setShowLoadingModal(false);
-                fetchOpportunities();
-                alert(`Successfully saved ${result.inserted} opportunities!\nSkipped (duplicates): ${result.skipped}`);
-            } else {
-                alert('Save failed: ' + result.error);
+            const items = opps
+                .map((item) => {
+                    const payload = buildOpportunityPayload(item);
+                    return {
+                        ...payload,
+                        sourceUrl: payload.sourceUrl || item.source_url || item.sourceUrl || item.application_url || item.applyUrl || item.apply_url,
+                        status: normalizeOpportunityStatus(
+                            item.status,
+                            item.confidence ?? item.metadata?.extraction_quality_score,
+                        ),
+                    };
+                })
+                .filter((item) => Boolean(item.title && item.sourceUrl)) as Array<Record<string, unknown>>;
+
+            if (!items.length) {
+                throw new Error('No valid opportunities to save');
             }
-        } catch (error: any) {
-            alert('Save failed: ' + error.message);
+
+            const headers = await getAdminHeaders();
+            const batches: Array<Array<Record<string, unknown>>> = [];
+            for (let index = 0; index < items.length; index += 100) {
+                batches.push(items.slice(index, index + 100));
+            }
+
+            let inserted = 0;
+            let skipped = 0;
+
+            for (let index = 0; index < batches.length; index += 1) {
+                const batch = batches[index];
+                setLoadingStatus({
+                    message: `Saving batch ${index + 1} of ${batches.length}...`,
+                    progress: Math.round(((index + 1) / batches.length) * 100),
+                    source: loadingStatus.source || '',
+                    phase: 'save',
+                });
+
+                const response = await fetch(`${NEST_API_URL}/opportunities/admin/bulk-import`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ items: batch }),
+                });
+
+                const result = await response.json().catch(() => ({}));
+
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || `Save failed for batch ${index + 1}`);
+                }
+
+                inserted += Number(result.inserted || 0);
+                skipped += Number(result.skipped || 0);
+            }
+
+            setLoadingStatus({
+                message: `Saved ${inserted} opportunities!`,
+                progress: 100,
+                source: loadingStatus.source || '',
+                phase: 'save',
+            });
+            setShowLoadingModal(false);
+            setLoadedResults([]);
+            setBulkPreview([]);
+            void fetchOpportunities();
+            alert(`Successfully saved ${inserted} opportunities!\nSkipped (duplicates): ${skipped}`);
+        } catch (error: unknown) {
+            alert('Save failed: ' + getErrorMessage(error));
         }
     }
 
-    async function refineWithAI(opps: any[]) {
+    async function refineWithAI(opps: OpportunityPreviewItem[]) {
         if (!opps.length) {
             alert('No opportunities to refine.');
             return;
@@ -193,13 +481,9 @@ export default function Opportunities() {
             phase: 'refine',
         });
 
-        const { data: { session } } = await supabase.auth.getSession();
-        const headers = {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token || ''}`,
-        };
+        const headers = await getAdminHeaders();
 
-        const improved: any[] = [];
+        const improved: OpportunityPreviewItem[] = [];
         const errors: string[] = [];
 
         for (let i = 0; i < opps.length; i += 1) {
@@ -213,7 +497,7 @@ export default function Opportunities() {
             });
 
             try {
-                const response = await fetch(`${API_URL}/api/scraper/enhance-preview`, {
+                const response = await fetch(`${NEST_API_URL}/api/scraper/enhance-preview`, {
                     method: 'POST',
                     headers,
                     body: JSON.stringify(opp),
@@ -227,8 +511,8 @@ export default function Opportunities() {
                 }
 
                 improved.push(result.opportunity || opp);
-            } catch (error: any) {
-                errors.push(error.message || 'Unknown refinement error');
+            } catch (error: unknown) {
+                errors.push(getErrorMessage(error, 'Unknown refinement error'));
                 improved.push(opp);
             }
         }
@@ -263,7 +547,7 @@ export default function Opportunities() {
     const [enhancingIds, setEnhancingIds] = useState<Set<string>>(new Set());
 
     // Form data
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<OpportunityFormValues>({
         title: '',
         summary: '',
         description: '',
@@ -286,13 +570,82 @@ export default function Opportunities() {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    const NEST_API_URL = (
+        import.meta.env.VITE_BACKEND_URL ||
+        import.meta.env.VITE_API_URL ||
+        'http://localhost:3000'
+    ).replace(/\/$/, '');
+
+    const getAdminHeaders = useCallback(async () => {
+        return getAdminAuthHeaders({
+            'Content-Type': 'application/json',
+        });
+    }, []);
+
+    const fetchOpportunities = useCallback(async () => {
+        setLoading(true);
+        try {
+            const params = new URLSearchParams({
+                page: String(currentPage),
+                limit: String(pageSize),
+                sortBy,
+            });
+
+            if (searchQuery.trim()) params.set('search', searchQuery.trim());
+            if (categoryFilter !== 'all') params.set('category', categoryFilter);
+            if (statusFilter !== 'all') params.set('status', statusFilter);
+
+            const headers = await getAdminHeaders();
+            const [listResponse, statsResponse] = await Promise.all([
+                fetch(`${NEST_API_URL}/opportunities/admin/list?${params.toString()}`, {
+                    headers,
+                }),
+                fetch(`${NEST_API_URL}/opportunities/admin/stats`, {
+                    headers,
+                }),
+            ]);
+
+            if (!listResponse.ok) {
+                const error = await listResponse.json().catch(() => ({}));
+                throw new Error(error.message || 'Failed to load opportunities');
+            }
+
+            const result = (await listResponse.json()) as OpportunityListResponse;
+            const opps = result.data || [];
+            setFilteredOpps(opps);
+            setTotalOpportunities(result.total || 0);
+            setTotalPages(result.totalPages || 1);
+
+            if (statsResponse.ok) {
+                setStats(await statsResponse.json());
+            }
+        } catch (error: unknown) {
+            console.error('Failed to load opportunities:', error);
+            alert(getErrorMessage(error, 'Failed to load opportunities'));
+            setFilteredOpps([]);
+            setTotalOpportunities(0);
+            setTotalPages(1);
+        } finally {
+            setLoading(false);
+        }
+    }, [
+        categoryFilter,
+        currentPage,
+        getAdminHeaders,
+        NEST_API_URL,
+        pageSize,
+        searchQuery,
+        sortBy,
+        statusFilter,
+    ]);
+
     useEffect(() => {
         const handle = window.setTimeout(() => {
-            fetchOpportunities();
+            void fetchOpportunities();
         }, 250);
 
         return () => window.clearTimeout(handle);
-    }, [currentPage, pageSize, searchQuery, categoryFilter, statusFilter, sortBy]);
+    }, [fetchOpportunities]);
 
     useEffect(() => {
         setCurrentPage(1);
@@ -314,67 +667,14 @@ export default function Opportunities() {
             .channel('opportunities-changes')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'opportunities' }, (payload) => {
                 console.log('[Realtime] Opportunity changed:', payload);
-                fetchOpportunities();
+                void fetchOpportunities();
             })
             .subscribe();
 
         return () => {
             supabase.removeChannel(channel);
         };
-    }, []);
-
-    async function fetchOpportunities() {
-        setLoading(true);
-        try {
-            const params = new URLSearchParams({
-                page: String(currentPage),
-                limit: String(pageSize),
-                sortBy,
-            });
-
-            if (searchQuery.trim()) params.set('search', searchQuery.trim());
-            if (categoryFilter !== 'all') params.set('category', categoryFilter);
-            if (statusFilter !== 'all') params.set('status', statusFilter);
-
-            const [listResponse, statsResponse] = await Promise.all([
-                fetch(`${NEST_API_URL}/opportunities/admin/list?${params.toString()}`, {
-                    headers: await getAdminHeaders(),
-                }),
-                fetch(`${NEST_API_URL}/opportunities/admin/stats`, {
-                    headers: await getAdminHeaders(),
-                }),
-            ]);
-
-            if (!listResponse.ok) {
-                const error = await listResponse.json().catch(() => ({}));
-                throw new Error(error.message || 'Failed to load opportunities');
-            }
-
-            const result = (await listResponse.json()) as OpportunityListResponse;
-            const opps = result.data || [];
-            setOpportunities(opps);
-            setFilteredOpps(opps);
-            setTotalOpportunities(result.total || 0);
-            setTotalPages(result.totalPages || 1);
-
-            if (statsResponse.ok) {
-                setStats(await statsResponse.json());
-            }
-        } catch (error: any) {
-            console.error('Failed to load opportunities:', error);
-            alert(error.message || 'Failed to load opportunities');
-            setOpportunities([]);
-            setFilteredOpps([]);
-            setTotalOpportunities(0);
-            setTotalPages(1);
-        } finally {
-            setLoading(false);
-        }
-    }
-
-    function filterOpportunities() {
-        setFilteredOpps(opportunities);
-    }
+    }, [fetchOpportunities]);
 
     async function handleDelete(id: string) {
         if (!window.confirm('Are you sure you want to delete this opportunity? This action cannot be undone.')) return;
@@ -387,9 +687,9 @@ export default function Opportunities() {
                 const error = await response.json().catch(() => ({}));
                 throw new Error(error.message || 'Failed to delete opportunity');
             }
-            fetchOpportunities();
-        } catch (error: any) {
-            alert(error.message || 'Failed to delete opportunity');
+            void fetchOpportunities();
+        } catch (error: unknown) {
+            alert(getErrorMessage(error, 'Failed to delete opportunity'));
         }
     }
 
@@ -404,9 +704,9 @@ export default function Opportunities() {
                 const error = await response.json().catch(() => ({}));
                 throw new Error(error.message || 'Failed to update status');
             }
-            fetchOpportunities();
-        } catch (error: any) {
-            alert(error.message || 'Failed to update status');
+            void fetchOpportunities();
+        } catch (error: unknown) {
+            alert(getErrorMessage(error, 'Failed to update status'));
         }
     }
 
@@ -423,8 +723,8 @@ export default function Opportunities() {
             }
             await fetchOpportunities();
             alert(`AI enhancement complete: ${result.completeness?.score ?? 'updated'}%`);
-        } catch (error: any) {
-            alert(error.message || 'AI enhancement failed');
+        } catch (error: unknown) {
+            alert(getErrorMessage(error, 'AI enhancement failed'));
         } finally {
             setEnhancingIds(prev => {
                 const next = new Set(prev);
@@ -460,21 +760,6 @@ export default function Opportunities() {
         setShowModal(true);
     }
 
-    // Backend API URL - adjust based on environment
-    const API_URL = import.meta.env.VITE_API_URL || 'https://edutu-platform.onrender.com';
-    const NEST_API_URL = import.meta.env.VITE_BACKEND_URL || 'https://edutu-platform.onrender.com';
-
-    async function getAdminHeaders() {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) {
-            throw new Error('Admin session is required');
-        }
-        return {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-        };
-    }
-
     async function handleScrapeUrl() {
         if (!urlInput.trim()) return;
 
@@ -489,17 +774,16 @@ export default function Opportunities() {
         setScrapedData(null);
 
         try {
-            // Get current session for authentication
-            const { data: { session } } = await supabase.auth.getSession();
-
-            // Call the local backend server for scraping
-            const response = await fetch(`${API_URL}/api/scrape`, {
+            const headers = await getAdminHeaders();
+            const response = await fetch(`${NEST_API_URL}/api/scraper/enhance-preview`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session?.access_token || ''}`
-                },
-                body: JSON.stringify({ url: urlInput })
+                headers,
+                body: JSON.stringify({
+                    title: guessTitleFromUrl(urlInput),
+                    application_url: urlInput,
+                    source_url: urlInput,
+                    source: urlInput,
+                })
             });
 
             if (!response.ok) {
@@ -509,24 +793,27 @@ export default function Opportunities() {
 
             const result = await response.json();
 
-            if (!result || !result.data) {
-                throw new Error('No data received from scraper');
+            if (!result || !result.success || !result.opportunity) {
+                throw new Error(result?.error || 'No data received from scraper');
             }
 
-            setScrapedData(result.data);
+            const opportunity = result.opportunity as OpportunityPreviewItem;
+            const mapped = mapPreviewToFormValues(opportunity, formData);
+            setScrapedData(mapped);
             setFormData(prev => ({
                 ...prev,
-                ...result.data,
+                ...mapped,
                 application_url: urlInput
             }));
 
-            if (result.confidence < 60) {
-                alert(`Warning: Low confidence extraction (${result.confidence}%).`);
+            const confidence = Number(result.completeness?.score ?? opportunity.confidence ?? 0);
+            if (confidence < 60) {
+                alert(`Warning: Low confidence extraction (${confidence}%).`);
             }
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Scraping failed:', error);
-            alert(`Scraping failed: ${error.message || 'Check backend connection'}`);
+            alert(`Scraping failed: ${getErrorMessage(error, 'Check backend connection')}`);
         } finally {
             setIsScraping(false);
         }
@@ -539,46 +826,79 @@ export default function Opportunities() {
         setBulkPreview([]);
 
         try {
-            // Get current session for authentication
-            const { data: { session } } = await supabase.auth.getSession();
+            const headers = await getAdminHeaders();
+            const previewResults: BulkPreviewItem[] = [];
 
-            // Call the local backend server for bulk scraping
-            const response = await fetch(`${API_URL}/api/scrape/bulk`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session?.access_token || ''}`
-                },
-                body: JSON.stringify({ urls })
-            });
+            for (let index = 0; index < urls.length; index += 1) {
+                const url = urls[index];
+                setLoadingStatus({
+                    message: `Previewing ${index + 1} of ${urls.length}...`,
+                    progress: Math.round(((index + 1) / urls.length) * 100),
+                    source: url,
+                    phase: 'preview',
+                });
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || `Server error: ${response.status}`);
+                try {
+                    const response = await fetch(`${NEST_API_URL}/api/scraper/enhance-preview`, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify({
+                            title: guessTitleFromUrl(url),
+                            application_url: url,
+                            source_url: url,
+                            source: url,
+                        }),
+                    });
+
+                    const result = await response.json().catch(() => ({}));
+                    if (!response.ok || !result.success || !result.opportunity) {
+                        previewResults.push({
+                            title: guessTitleFromUrl(url),
+                            organization: 'Unknown',
+                            category: 'Scholarships',
+                            application_url: url,
+                            source_url: url,
+                            confidence: 0,
+                            status: 'needs_review',
+                            errors: [result.error || `Failed to preview ${url}`],
+                        });
+                        continue;
+                    }
+
+                    const opportunity = result.opportunity as OpportunityPreviewItem;
+                    const confidence = Number(result.completeness?.score ?? opportunity.confidence ?? 0);
+                    previewResults.push({
+                        ...opportunity,
+                        title: opportunity.title || guessTitleFromUrl(url),
+                        application_url: opportunity.application_url || opportunity.applyUrl || opportunity.apply_url || url,
+                        source_url: opportunity.source_url || opportunity.sourceUrl || url,
+                        confidence,
+                        status: confidence >= 60 ? 'ready' : 'needs_review',
+                        errors: [],
+                    });
+                } catch (error: unknown) {
+                    previewResults.push({
+                        title: guessTitleFromUrl(url),
+                        organization: 'Unknown',
+                        category: 'Scholarships',
+                        application_url: url,
+                        source_url: url,
+                        confidence: 0,
+                        status: 'needs_review',
+                        errors: [getErrorMessage(error, 'Preview failed')],
+                    });
+                }
             }
 
-            const result = await response.json();
+            setBulkPreview(previewResults);
 
-            if (result && result.results) {
-                const formattedResults = result.results.map((r: any, idx: number) => ({
-                    id: idx,
-                    title: r.data?.title || 'Untitled',
-                    organization: r.data?.organization || 'Unknown',
-                    category: r.data?.category || 'Scholarships',
-                    status: (r.data?.confidence || 0) >= 60 ? 'ready' : 'needs_review',
-                    confidence: r.data?.confidence || 0,
-                    errors: r.errors || []
-                }));
-                setBulkPreview(formattedResults);
+            const errorCount = previewResults.filter(item => item.errors.length > 0).length;
+            if (errorCount > 0) {
+                alert(`Processed ${urls.length} URLs. ${errorCount} had issues.`);
             }
-
-            if (result.errors > 0) {
-                alert(`Processed ${urls.length} URLs. ${result.errors} had issues.`);
-            }
-
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Bulk scraping failed:', error);
-            alert(`Bulk import failed: ${error.message}`);
+            alert(`Bulk import failed: ${getErrorMessage(error)}`);
         } finally {
             setIsScraping(false);
         }
@@ -586,22 +906,29 @@ export default function Opportunities() {
 
     async function handleCreate(e: FormEvent) {
         e.preventDefault();
-        const payload = {
-            ...formData,
-            eligibility: {
-                ...formData.eligibility,
-                min_cgpa: formData.eligibility.min_cgpa ? parseFloat(formData.eligibility.min_cgpa as string) : null
-            }
-        };
+        const payload = buildOpportunityPayload(formData);
 
-        if (editingId) {
-            await supabase.from('opportunities').update(payload).eq('id', editingId);
-        } else {
-            await supabase.from('opportunities').insert([payload]);
+        try {
+            const response = await fetch(
+                editingId ? `${NEST_API_URL}/opportunities/${editingId}` : `${NEST_API_URL}/opportunities`,
+                {
+                    method: editingId ? 'PATCH' : 'POST',
+                    headers: await getAdminHeaders(),
+                    body: JSON.stringify(payload),
+                }
+            );
+
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({}));
+                throw new Error(error.message || 'Failed to save opportunity');
+            }
+
+            resetForm();
+            setShowModal(false);
+            void fetchOpportunities();
+        } catch (error: unknown) {
+            alert(getErrorMessage(error, 'Failed to save opportunity'));
         }
-        resetForm();
-        setShowModal(false);
-        fetchOpportunities();
     }
 
     function resetForm() {
@@ -627,7 +954,7 @@ export default function Opportunities() {
         setEditingId(null);
     }
 
-    async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    async function handleFileUpload(e: ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0];
         if (!file) return;
 
@@ -1444,7 +1771,7 @@ export default function Opportunities() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {loadedResults.map((opp: any, i: number) => (
+                                            {loadedResults.map((opp, i: number) => (
                                                 <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
                                                     <td style={{ padding: '10px 12px', maxWidth: 250 }}>
                                                         <div style={{ fontWeight: 500 }}>{opp.title?.slice(0, 50)}{opp.title?.length > 50 ? '...' : ''}</div>
@@ -1706,7 +2033,7 @@ export default function Opportunities() {
                                         </div>
                                         <h4 style={{ margin: '0 0 8px 0', fontSize: '16px' }}>Drop your file here</h4>
                                         <p style={{ color: 'var(--text-tertiary)', margin: '0 0 20px 0', fontSize: '14px' }}>
-                                            or click to browse • Supports Excel & CSV
+                                            or click to browse • Supports CSV
                                         </p>
                                         <button className="btn btn-secondary">
                                             <Upload size={18} />
@@ -1715,7 +2042,7 @@ export default function Opportunities() {
                                         <input
                                             ref={fileInputRef}
                                             type="file"
-                                            accept=".xlsx,.csv"
+                                            accept=".csv"
                                             onChange={handleFileUpload}
                                             style={{ display: 'none' }}
                                         />
@@ -2077,7 +2404,7 @@ export default function Opportunities() {
                                 >
                                     Cancel
                                 </button>
-                                <button className="btn btn-primary">
+                                <button className="btn btn-primary" onClick={() => saveOpportunities(bulkPreview)}>
                                     <Upload size={18} />
                                     Import {bulkPreview.length} Opportunities
                                 </button>

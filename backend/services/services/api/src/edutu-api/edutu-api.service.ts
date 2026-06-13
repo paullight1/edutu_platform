@@ -95,8 +95,8 @@ export class EdutuApiService {
       where status = 'active'
     `);
 
-    const row = ((statsResult as { rows?: Record<string, unknown>[] })
-      .rows?.[0] ?? {}) as Record<string, unknown>;
+    const row =
+      (statsResult as { rows?: Record<string, unknown>[] }).rows?.[0] ?? {};
 
     return {
       object: "opportunity.catalog_stats",
@@ -179,8 +179,16 @@ export class EdutuApiService {
   private buildOpportunityFilters(query: ListOpportunitiesQuery) {
     const filters = [eq(opportunities.status, "active")];
 
-    if (query.category)
-      filters.push(eq(opportunities.category, query.category));
+    if (query.canonicalCategory) {
+      filters.push(eq(opportunities.canonicalCategory, query.canonicalCategory));
+    } else if (query.category) {
+      filters.push(
+        or(
+          eq(opportunities.canonicalCategory, query.category),
+          eq(opportunities.category, query.category),
+        )!,
+      );
+    }
     if (query.type) filters.push(eq(opportunities.type, query.type));
     if (query.fundingType) {
       filters.push(eq(opportunities.fundingType, query.fundingType));
@@ -249,6 +257,11 @@ export class EdutuApiService {
       title: row.title,
       description: row.description,
       category: row.category,
+      canonicalCategory:
+        row.canonicalCategory ||
+        row.canonical_category ||
+        row.metadata?.canonical_category ||
+        null,
       type: row.type,
       eligibilityCriteria: row.eligibilityCriteria,
       fundingType: row.fundingType,

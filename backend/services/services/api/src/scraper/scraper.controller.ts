@@ -88,14 +88,19 @@ export class ScraperController {
     @Body()
     body: {
       name: string;
-      url: string;
+      url?: string;
       category?: string;
       tier?: number;
+      parent_id?: number;
+      is_group?: boolean;
     },
   ) {
     try {
-      if (!body.name || !body.url) {
-        return { success: false, error: "Name and URL are required" };
+      if (!body.name || (!body.url && !body.is_group)) {
+        return {
+          success: false,
+          error: "Name and URL are required unless this is a group source",
+        };
       }
       return await this.scraperService.addSource(body);
     } catch (error) {
@@ -104,9 +109,9 @@ export class ScraperController {
   }
 
   @Delete("sources/:id")
-  async deleteSource(@Param("id") id: number) {
+  async deleteSource(@Param("id") id: string) {
     try {
-      return await this.scraperService.deleteSource(id);
+      return await this.scraperService.deleteSource(Number(id));
     } catch (error) {
       return { success: false, error: error.message };
     }
@@ -114,11 +119,11 @@ export class ScraperController {
 
   @Patch("sources/:id")
   async updateSource(
-    @Param("id") id: number,
+    @Param("id") id: string,
     @Body() body: { enabled?: boolean },
   ) {
     try {
-      return await this.scraperService.updateSource(id, body);
+      return await this.scraperService.updateSource(Number(id), body);
     } catch (error) {
       return { success: false, error: error.message };
     }
@@ -130,6 +135,16 @@ export class ScraperController {
       return await this.scraperService.getJobs();
     } catch (error) {
       this.logger.error(`Get jobs failed: ${error.message}`);
+      return [];
+    }
+  }
+
+  @Get("jobs/:id/opportunities")
+  async getJobOpportunities(@Param("id") id: string) {
+    try {
+      return await this.scraperService.getJobOpportunities(id);
+    } catch (error) {
+      this.logger.error(`Get job opportunities failed: ${error.message}`);
       return [];
     }
   }

@@ -15,7 +15,7 @@ import {
     QUALITY_THRESHOLDS 
 } from './filters.js';
 import { format, parseISO, isValid, addDays, addMonths } from 'date-fns';
-import { generateGeminiJson, isGeminiConfigured } from './gemini.js';
+import { generateDeepSeekJson, isDeepSeekConfigured } from './gemini.js';
 
 /**
  * @typedef {Object} ScrapeResult
@@ -298,14 +298,14 @@ function extractFromMetaTags(html, url) {
 }
 
 /**
- * AI-powered extraction using Gemini (Tier 2)
+ * AI-powered extraction using DeepSeek (Tier 2)
  * @param {string} html - Cleaned HTML content
  * @param {string} url - Source URL
  * @returns {Promise<OpportunityData>}
  */
 async function extractWithAI(html, url) {
-    if (!isGeminiConfigured()) {
-        console.warn('[Scraper] Gemini client not configured');
+    if (!isDeepSeekConfigured()) {
+        console.warn('[Scraper] DeepSeek client not configured');
         return {};
     }
 
@@ -361,12 +361,12 @@ Rules:
 - Return ONLY valid JSON, no explanations`;
 
     try {
-        const parsed = await generateGeminiJson({
+        const parsed = await generateDeepSeekJson({
             systemInstruction: 'You are a precise data extraction assistant. Extract opportunity information from web content and return only valid JSON. Be thorough and accurate. Never fabricate information.',
             prompt,
             cacheKey: `scrape:${url}:${mainContent.slice(0, 1200)}`,
         });
-        if (!parsed) throw new Error('No structured response from Gemini');
+        if (!parsed) throw new Error('No structured response from DeepSeek');
         
         let finalCloseDate = parsed.close_date || '';
         if (finalCloseDate && finalCloseDate.length > 0) {

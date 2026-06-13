@@ -1,30 +1,30 @@
-import { Body, Controller, Get, Headers, Post, Req } from '@nestjs/common';
-import { Public, CurrentUser } from '../auth';
-import { BillingService } from './billing.service';
-import type { CreateCheckoutDto } from './dto/billing.dto';
+import { Body, Controller, Get, Headers, Post, Req } from "@nestjs/common";
+import { Public, CurrentUser } from "../auth";
+import { BillingService } from "./billing.service";
+import type { CreateCheckoutDto } from "./dto/billing.dto";
 
-@Controller('billing')
+@Controller("billing")
 export class BillingController {
   constructor(private readonly billingService: BillingService) {}
 
-  @Get('status')
-  getStatus(@CurrentUser('id') userId: string) {
+  @Get("status")
+  getStatus(@CurrentUser("id") userId: string) {
     return this.billingService.getStatus(userId);
   }
 
-  @Post('checkout')
+  @Post("checkout")
   createCheckout(
-    @CurrentUser('id') userId: string,
-    @CurrentUser('email') email: string | undefined,
+    @CurrentUser("id") userId: string,
+    @CurrentUser("email") email: string | undefined,
     @Body() dto: CreateCheckoutDto,
   ) {
     return this.billingService.createCheckout(userId, email, dto);
   }
 
   @Public()
-  @Post('webhooks/paystack')
+  @Post("webhooks/paystack")
   handlePaystackWebhook(
-    @Headers('x-paystack-signature') signature: string | undefined,
+    @Headers("x-paystack-signature") signature: string | undefined,
     @Req() request: any,
   ) {
     return this.billingService.handlePaystackWebhook(

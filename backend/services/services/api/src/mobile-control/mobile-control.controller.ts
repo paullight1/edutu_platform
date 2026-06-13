@@ -7,35 +7,35 @@ import {
   Patch,
   Post,
   UseGuards,
-} from '@nestjs/common';
-import { AdminGuard, CurrentUser, Public } from '../auth';
-import { MobileControlService, TABLES } from './mobile-control.service';
+} from "@nestjs/common";
+import { AdminGuard, CurrentUser, Public } from "../auth";
+import { MobileControlService, TABLES } from "./mobile-control.service";
 import type {
   CampaignEventDto,
   MobileCampaign,
   MobileFeatureFlag,
   WidgetFeed,
-} from './mobile-control.types';
+} from "./mobile-control.types";
 
-@Controller('mobile-control')
+@Controller("mobile-control")
 export class MobileControlController {
   constructor(private readonly mobileControlService: MobileControlService) {}
 
   @Public()
-  @Get('config')
+  @Get("config")
   getConfig() {
     return this.mobileControlService.getConfig();
   }
 
-  @Post('events')
+  @Post("events")
   recordEvent(
-    @CurrentUser('id') userId: string,
+    @CurrentUser("id") userId: string,
     @Body() body: CampaignEventDto,
   ) {
     return this.mobileControlService.recordCampaignEvent(userId, body);
   }
 
-  @Get('admin/campaigns')
+  @Get("admin/campaigns")
   @UseGuards(AdminGuard)
   listCampaigns() {
     return this.mobileControlService.listAdmin<MobileCampaign>(
@@ -43,10 +43,10 @@ export class MobileControlController {
     );
   }
 
-  @Post('admin/campaigns')
+  @Post("admin/campaigns")
   @UseGuards(AdminGuard)
   createCampaign(
-    @CurrentUser('id') userId: string,
+    @CurrentUser("id") userId: string,
     @Body() body: Partial<MobileCampaign>,
   ) {
     return this.mobileControlService.createAdmin<MobileCampaign>(
@@ -56,10 +56,10 @@ export class MobileControlController {
     );
   }
 
-  @Patch('admin/campaigns/:id')
+  @Patch("admin/campaigns/:id")
   @UseGuards(AdminGuard)
   updateCampaign(
-    @Param('id') id: string,
+    @Param("id") id: string,
     @Body() body: Partial<MobileCampaign>,
   ) {
     return this.mobileControlService.updateAdmin<MobileCampaign>(
@@ -69,13 +69,13 @@ export class MobileControlController {
     );
   }
 
-  @Delete('admin/campaigns/:id')
+  @Delete("admin/campaigns/:id")
   @UseGuards(AdminGuard)
-  deleteCampaign(@Param('id') id: string) {
+  deleteCampaign(@Param("id") id: string) {
     return this.mobileControlService.deleteAdmin(TABLES.campaigns, id);
   }
 
-  @Get('admin/feature-flags')
+  @Get("admin/feature-flags")
   @UseGuards(AdminGuard)
   listFeatureFlags() {
     return this.mobileControlService.listAdmin<MobileFeatureFlag>(
@@ -83,7 +83,7 @@ export class MobileControlController {
     );
   }
 
-  @Post('admin/feature-flags')
+  @Post("admin/feature-flags")
   @UseGuards(AdminGuard)
   createFeatureFlag(@Body() body: Partial<MobileFeatureFlag>) {
     return this.mobileControlService.createAdmin<MobileFeatureFlag>(
@@ -92,10 +92,10 @@ export class MobileControlController {
     );
   }
 
-  @Patch('admin/feature-flags/:id')
+  @Patch("admin/feature-flags/:id")
   @UseGuards(AdminGuard)
   updateFeatureFlag(
-    @Param('id') id: string,
+    @Param("id") id: string,
     @Body() body: Partial<MobileFeatureFlag>,
   ) {
     return this.mobileControlService.updateAdmin<MobileFeatureFlag>(
@@ -105,19 +105,19 @@ export class MobileControlController {
     );
   }
 
-  @Delete('admin/feature-flags/:id')
+  @Delete("admin/feature-flags/:id")
   @UseGuards(AdminGuard)
-  deleteFeatureFlag(@Param('id') id: string) {
+  deleteFeatureFlag(@Param("id") id: string) {
     return this.mobileControlService.deleteAdmin(TABLES.featureFlags, id);
   }
 
-  @Get('admin/widget-feeds')
+  @Get("admin/widget-feeds")
   @UseGuards(AdminGuard)
   listWidgetFeeds() {
     return this.mobileControlService.listAdmin<WidgetFeed>(TABLES.widgetFeeds);
   }
 
-  @Post('admin/widget-feeds')
+  @Post("admin/widget-feeds")
   @UseGuards(AdminGuard)
   createWidgetFeed(@Body() body: Partial<WidgetFeed>) {
     return this.mobileControlService.createAdmin<WidgetFeed>(
@@ -126,9 +126,9 @@ export class MobileControlController {
     );
   }
 
-  @Patch('admin/widget-feeds/:id')
+  @Patch("admin/widget-feeds/:id")
   @UseGuards(AdminGuard)
-  updateWidgetFeed(@Param('id') id: string, @Body() body: Partial<WidgetFeed>) {
+  updateWidgetFeed(@Param("id") id: string, @Body() body: Partial<WidgetFeed>) {
     return this.mobileControlService.updateAdmin<WidgetFeed>(
       TABLES.widgetFeeds,
       id,
@@ -136,9 +136,9 @@ export class MobileControlController {
     );
   }
 
-  @Delete('admin/widget-feeds/:id')
+  @Delete("admin/widget-feeds/:id")
   @UseGuards(AdminGuard)
-  deleteWidgetFeed(@Param('id') id: string) {
+  deleteWidgetFeed(@Param("id") id: string) {
     return this.mobileControlService.deleteAdmin(TABLES.widgetFeeds, id);
   }
 }

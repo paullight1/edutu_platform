@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
   Target, 
@@ -49,10 +50,30 @@ interface OpportunityRoadmapProps {
   opportunity: Opportunity;
 }
 
+function getDaysUntilDeadline(deadline?: string | null): number | null {
+  if (!deadline) {
+    return null;
+  }
+
+  const deadlineDate = new Date(deadline);
+  if (Number.isNaN(deadlineDate.getTime())) {
+    return null;
+  }
+
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
+  const startOfDeadline = new Date(deadlineDate);
+  startOfDeadline.setHours(0, 0, 0, 0);
+
+  return Math.ceil((startOfDeadline.getTime() - startOfToday.getTime()) / (24 * 60 * 60 * 1000));
+}
+
 const OpportunityRoadmap: React.FC<OpportunityRoadmapProps> = ({ 
   onBack, 
   opportunity 
 }) => {
+  const navigate = useNavigate();
   const [roadmapData, setRoadmapData] = useState<Month[]>([
     {
       id: 'month1',
@@ -226,13 +247,21 @@ const OpportunityRoadmap: React.FC<OpportunityRoadmapProps> = ({
 
   const [showNotification, setShowNotification] = useState(false);
   const { isDarkMode } = useDarkMode();
+  const daysUntilDeadline = getDaysUntilDeadline(opportunity.deadline);
   const deadlineLabel = opportunity.deadline ?? 'No deadline listed';
+  const deadlineStatusText =
+    daysUntilDeadline === null
+      ? 'No deadline listed'
+      : daysUntilDeadline <= 0
+        ? 'Deadline passed'
+        : `${daysUntilDeadline} ${daysUntilDeadline === 1 ? 'day' : 'days'} left`;
+  const isDeadlineUrgent = daysUntilDeadline !== null && daysUntilDeadline <= 30;
 
   const motivationalQuotes = [
-    "Success is where preparation meets opportunity! ≡ƒÆ¬",
-    "Every application is a step closer to your dreams! Γ£¿",
-    "Your dedication today shapes your tomorrow! ≡ƒîƒ",
-    "Believe in yourself - you've got this! ≡ƒÜÇ"
+    'Success comes from consistent preparation.',
+    'Every application moves you closer to your goal.',
+    'Your effort today shapes your results tomorrow.',
+    "Believe in yourself. You've got this."
   ];
 
   const scrollToTop = () => {
@@ -336,11 +365,10 @@ const OpportunityRoadmap: React.FC<OpportunityRoadmapProps> = ({
 
   const handleJoinCommunity = () => {
     scrollToTop();
-    // Navigate to community page
+    navigate('/app/community');
   };
 
   const progress = calculateProgress();
-  const daysUntilDeadline = 74; // Updated to be similar to application deadline
 
   return (
     <div className={`min-h-screen bg-white dark:bg-gray-900 animate-fade-in ${isDarkMode ? 'dark' : ''}`}>
@@ -348,7 +376,7 @@ const OpportunityRoadmap: React.FC<OpportunityRoadmapProps> = ({
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
         <div className="p-4">
           <div className="flex items-center gap-3 mb-4">
-            <Button
+              <Button
               variant="secondary"
               onClick={handleBack}
               className="p-2 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
@@ -356,24 +384,26 @@ const OpportunityRoadmap: React.FC<OpportunityRoadmapProps> = ({
               <ArrowLeft size={20} />
             </Button>
             <div className="flex-1">
-              <h1 className="text-lg font-bold text-gray-800 dark:text-white">Application Roadmap ≡ƒÄ»</h1>
+              <h1 className="text-lg font-bold text-gray-800 dark:text-white">Application Roadmap</h1>
               <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-1">{opportunity.title}</p>
             </div>
             <div className="text-right">
-              <div className={`text-sm font-medium ${daysUntilDeadline <= 30 ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'}`}>
-                {daysUntilDeadline} days left
+              <div className={`text-sm font-medium ${isDeadlineUrgent ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                {deadlineStatusText}
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-500">{deadlineLabel}</div>
             </div>
           </div>
 
           {/* Deadline Alert */}
-          {daysUntilDeadline <= 30 && (
+          {isDeadlineUrgent && (
             <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl">
               <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
                 <AlertTriangle size={16} />
                 <span className="text-sm font-medium">
-                  Deadline approaching! Only {daysUntilDeadline} days remaining.
+                  {daysUntilDeadline !== null && daysUntilDeadline <= 0
+                    ? 'This deadline has passed. Use the roadmap to review next steps and follow-up actions.'
+                    : `Deadline approaching! Only ${daysUntilDeadline} ${daysUntilDeadline === 1 ? 'day' : 'days'} remaining.`}
                 </span>
               </div>
             </div>
@@ -553,7 +583,7 @@ const OpportunityRoadmap: React.FC<OpportunityRoadmapProps> = ({
         {/* Completion Celebration */}
         {progress === 100 && (
           <Card className="text-center bg-gradient-to-r from-primary/10 to-accent/10 border-primary/20 dark:from-primary/20 dark:to-accent/20 dark:border-primary/30 dark:bg-gray-800 animate-bounce-subtle">
-            <div className="text-4xl mb-3">≡ƒÄë</div>
+            <Star size={36} className="mx-auto mb-3 text-primary" />
             <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">Application Complete!</h3>
             <p className="text-gray-600 dark:text-gray-300 mb-4">
               Congratulations! You've completed all preparation tasks. Now it's time to wait for the results and prepare for potential interviews.

@@ -448,7 +448,7 @@ POST /api/links/create
 ```env
 # .env
 EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_xxx
-EXPO_PUBLIC_API_URL=http://localhost:3001
+EXPO_PUBLIC_API_URL=https://edutu-api.onrender.com
 EXPO_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=xxx
 EXPO_PUBLIC_DEEP_LINK_SCHEME=edutu

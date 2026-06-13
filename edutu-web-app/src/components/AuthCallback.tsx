@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useClerk } from '@clerk/clerk-react';
 import { Loader2 } from 'lucide-react';
+import { consumePostAuthRedirect } from '../lib/auth';
 
 const AuthCallback: React.FC = () => {
   const { handleRedirectCallback } = useClerk();
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [attempted, setAttempted] = useState(false);
@@ -14,9 +14,17 @@ const AuthCallback: React.FC = () => {
     if (attempted) return;
     setAttempted(true);
 
+    const redirectTarget = consumePostAuthRedirect();
+    const signUpRedirect =
+      redirectTarget === '/app/home'
+        ? '/app/home?signup=true'
+        : redirectTarget.startsWith('/app/home?') && !redirectTarget.includes('signup=true')
+          ? `${redirectTarget}&signup=true`
+          : redirectTarget;
+
     handleRedirectCallback({
-      signInForceRedirectUrl: '/app/home',
-      signUpForceRedirectUrl: '/app/home?signup=true',
+      signInForceRedirectUrl: redirectTarget,
+      signUpForceRedirectUrl: signUpRedirect,
     }).catch((err: unknown) => {
       console.error('Auth callback error:', err);
       setError('Authentication failed. Please try signing in again.');

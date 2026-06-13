@@ -65,10 +65,12 @@ export class CreatorController {
   @Get("admin/creator-applications")
   listApplications(
     @CurrentUser("id") adminId: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: { role?: string },
     @Query("status") status?: string,
   ) {
-    if (user.role !== "admin") {
+    const currentUserRole = (user as { role?: string } | undefined)?.role;
+
+    if (currentUserRole !== "admin") {
       throw new ForbiddenException("Admin access required");
     }
     return this.creatorService.listApplications(status);
@@ -78,11 +80,13 @@ export class CreatorController {
   reviewApplication(
     @Param("id") id: string,
     @CurrentUser("id") adminId: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: { role?: string },
     @Body(new ZodValidationPipe(CreatorReviewSchema))
     body: CreatorReviewDto,
   ) {
-    if (user.role !== "admin") {
+    const currentUserRole = (user as { role?: string } | undefined)?.role;
+
+    if (currentUserRole !== "admin") {
       throw new ForbiddenException("Admin access required");
     }
     return this.creatorService.reviewApplication(

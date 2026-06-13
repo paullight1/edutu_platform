@@ -420,7 +420,7 @@ POST /api/admin/quick-action
 
 ```env
 # .env
-VITE_API_URL=http://localhost:3001
+VITE_API_URL=https://edutu-api.onrender.com
 VITE_WS_URL=ws://localhost:3001
 VITE_LANDING_URL=http://localhost:5174
 VITE_MOBILE_DEEP_LINK=https://edutu.app

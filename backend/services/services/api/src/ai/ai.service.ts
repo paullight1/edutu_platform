@@ -1,100 +1,100 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { and, desc, eq } from 'drizzle-orm';
-import { db } from '../db';
-import { aiProviderKeys, aiRoutes, aiUsageLogs } from '../db/schema';
-import { AiEncryptionService } from './ai-encryption.service';
+import { Injectable, Logger } from "@nestjs/common";
+import { and, desc, eq } from "drizzle-orm";
+import { db } from "../db";
+import { aiProviderKeys, aiRoutes, aiUsageLogs } from "../db/schema";
+import { AiEncryptionService } from "./ai-encryption.service";
 import {
   AiGenerateOptions,
   AiGenerateResult,
   AiProvider,
   AiProviderAdapter,
   AiRouteConfig,
-} from './ai.types';
-import { GeminiAdapter } from './adapters/gemini.adapter';
-import { OpenRouterAdapter } from './adapters/openrouter.adapter';
+} from "./ai.types";
+import { DeepSeekAdapter, GeminiAdapter } from "./adapters/gemini.adapter";
+import { OpenRouterAdapter } from "./adapters/openrouter.adapter";
 
 const DEFAULT_ROUTES: Record<
   string,
-  Omit<AiRouteConfig, 'feature' | 'apiKey'>
+  Omit<AiRouteConfig, "feature" | "apiKey">
 > = {
-  'chat.coach': {
-    provider: 'openrouter',
-    model: 'openrouter/auto',
+  "chat.coach": {
+    provider: "deepseek",
+    model: "deepseek-chat",
     temperature: 0.2,
     isEnabled: true,
   },
-  'chat.transcribe': {
-    provider: 'gemini',
-    model: 'gemini-2.0-flash',
+  "chat.transcribe": {
+    provider: "deepseek",
+    model: "deepseek-chat",
     temperature: 0.2,
     isEnabled: true,
   },
-  'scraper.extract': {
-    provider: 'gemini',
-    model: 'gemini-2.5-flash',
+  "scraper.extract": {
+    provider: "deepseek",
+    model: "deepseek-chat",
     temperature: 0.05,
     maxOutputTokens: 4096,
-    responseMimeType: 'application/json',
+    responseMimeType: "application/json",
     isEnabled: true,
   },
-  'opportunities.enhance': {
-    provider: 'gemini',
-    model: 'gemini-1.5-flash',
-    responseMimeType: 'application/json',
+  "opportunities.enhance": {
+    provider: "deepseek",
+    model: "deepseek-chat",
+    responseMimeType: "application/json",
     isEnabled: true,
   },
-  'opportunities.extract': {
-    provider: 'gemini',
-    model: 'gemini-1.5-flash',
-    responseMimeType: 'application/json',
+  "opportunities.extract": {
+    provider: "deepseek",
+    model: "deepseek-chat",
+    responseMimeType: "application/json",
     isEnabled: true,
   },
-  'opportunities.rerank': {
-    provider: 'gemini',
-    model: 'gemini-2.0-flash',
+  "opportunities.rerank": {
+    provider: "deepseek",
+    model: "deepseek-chat",
     temperature: 0.2,
-    responseMimeType: 'application/json',
+    responseMimeType: "application/json",
     isEnabled: true,
   },
-  'cv.draft': {
-    provider: 'gemini',
-    model: 'gemini-2.0-flash',
+  "cv.draft": {
+    provider: "deepseek",
+    model: "deepseek-chat",
     temperature: 0.2,
-    responseMimeType: 'application/json',
+    responseMimeType: "application/json",
     isEnabled: true,
   },
-  'cv.tailor': {
-    provider: 'gemini',
-    model: 'gemini-2.0-flash',
+  "cv.tailor": {
+    provider: "deepseek",
+    model: "deepseek-chat",
     temperature: 0.2,
-    responseMimeType: 'application/json',
+    responseMimeType: "application/json",
     isEnabled: true,
   },
-  'roadmaps.questions': {
-    provider: 'gemini',
-    model: 'gemini-2.0-flash',
+  "roadmaps.questions": {
+    provider: "deepseek",
+    model: "deepseek-chat",
     temperature: 0.3,
-    responseMimeType: 'application/json',
+    responseMimeType: "application/json",
     isEnabled: true,
   },
-  'roadmaps.intent_tags': {
-    provider: 'gemini',
-    model: 'gemini-2.0-flash',
+  "roadmaps.intent_tags": {
+    provider: "deepseek",
+    model: "deepseek-chat",
     temperature: 0.2,
-    responseMimeType: 'application/json',
+    responseMimeType: "application/json",
     isEnabled: true,
   },
-  'roadmaps.match': {
-    provider: 'gemini',
-    model: 'gemini-2.0-flash',
+  "roadmaps.match": {
+    provider: "deepseek",
+    model: "deepseek-chat",
     temperature: 0.2,
-    responseMimeType: 'application/json',
+    responseMimeType: "application/json",
     isEnabled: true,
   },
-  'quiz.generate': {
-    provider: 'gemini',
-    model: 'gemini-1.5-flash',
-    responseMimeType: 'application/json',
+  "quiz.generate": {
+    provider: "deepseek",
+    model: "deepseek-chat",
+    responseMimeType: "application/json",
     isEnabled: true,
   },
 };
@@ -106,9 +106,11 @@ export class AiService {
 
   constructor(
     private readonly encryption: AiEncryptionService,
+    deepseek: DeepSeekAdapter,
     gemini: GeminiAdapter,
     openRouter: OpenRouterAdapter,
   ) {
+    this.adapters.set(deepseek.provider, deepseek);
     this.adapters.set(gemini.provider, gemini);
     this.adapters.set(openRouter.provider, openRouter);
   }
@@ -141,7 +143,7 @@ export class AiService {
   ): Promise<T | null> {
     const result = await this.generateText({
       ...options,
-      responseMimeType: options.responseMimeType || 'application/json',
+      responseMimeType: options.responseMimeType || "application/json",
     });
 
     if (!result.text) return null;
@@ -255,12 +257,14 @@ export class AiService {
       .execute();
 
     const fallback = DEFAULT_ROUTES[options.feature] || {
-      provider: 'gemini',
-      model: 'gemini-2.0-flash',
+      provider: "deepseek",
+      model: "deepseek-chat",
       isEnabled: true,
     };
 
-    const provider = (storedRoute?.provider || fallback.provider).toLowerCase();
+    const provider = this.normalizeProvider(
+      storedRoute?.provider || fallback.provider,
+    );
     const providerKey = storedRoute?.providerKeyId
       ? await this.getKeyById(storedRoute.providerKeyId)
       : await this.getLatestKey(provider);
@@ -268,7 +272,8 @@ export class AiService {
     return {
       feature: options.feature,
       provider,
-      model: storedRoute?.model || fallback.model,
+      model:
+        storedRoute?.model || this.getDefaultModel(provider) || fallback.model,
       apiKey: providerKey || this.getEnvKey(provider),
       systemPrompt:
         storedRoute?.systemPrompt ||
@@ -276,7 +281,7 @@ export class AiService {
         options.systemInstruction ||
         null,
       temperature:
-        typeof options.temperature === 'number'
+        typeof options.temperature === "number"
           ? options.temperature
           : (this.fromStoredTemperature(storedRoute?.temperature) ??
             fallback.temperature ??
@@ -307,12 +312,14 @@ export class AiService {
   }
 
   private async getLatestKey(provider: string) {
+    const normalizedProvider = this.normalizeProvider(provider);
+
     const [key] = await db
       .select()
       .from(aiProviderKeys)
       .where(
         and(
-          eq(aiProviderKeys.provider, provider),
+          eq(aiProviderKeys.provider, normalizedProvider),
           eq(aiProviderKeys.isActive, true),
         ),
       )
@@ -320,34 +327,56 @@ export class AiService {
       .limit(1)
       .execute();
 
-    return key ? this.encryption.decrypt(key.encryptedKey) : null;
-  }
+    if (key) {
+      return this.encryption.decrypt(key.encryptedKey);
+    }
 
-  private getEnvKey(provider: string) {
-    if (provider === 'openrouter')
-      return process.env.OPENROUTER_API_KEY || null;
-    if (provider === 'gemini') return process.env.GEMINI_API_KEY || null;
-    if (provider === 'openai') return process.env.OPENAI_API_KEY || null;
-    if (provider === 'groq') return process.env.GROQ_API_KEY || null;
     return null;
   }
 
+  private getEnvKey(provider: string) {
+    const normalizedProvider = this.normalizeProvider(provider);
+
+    if (normalizedProvider === "openrouter")
+      return process.env.OPENROUTER_API_KEY || null;
+    if (normalizedProvider === "deepseek")
+      return process.env.DEEPSEEK_API_KEY || null;
+    if (normalizedProvider === "gemini")
+      return process.env.GEMINI_API_KEY || null;
+    if (normalizedProvider === "openai")
+      return process.env.OPENAI_API_KEY || null;
+    if (normalizedProvider === "groq") return process.env.GROQ_API_KEY || null;
+    return null;
+  }
+
+  private getDefaultModel(provider: string) {
+    const normalizedProvider = this.normalizeProvider(provider);
+
+    if (normalizedProvider === "deepseek") return "deepseek-chat";
+    if (normalizedProvider === "gemini") return "gemini-2.0-flash";
+    return null;
+  }
+
+  private normalizeProvider(provider: string) {
+    return (provider || "").toLowerCase();
+  }
+
   private toStoredTemperature(value: number | null | undefined) {
-    if (typeof value !== 'number') return 20;
+    if (typeof value !== "number") return 20;
     return Math.round(Math.max(0, Math.min(2, value)) * 100);
   }
 
   private fromStoredTemperature(value: number | null | undefined) {
-    if (typeof value !== 'number') return null;
+    if (typeof value !== "number") return null;
     return value / 100;
   }
 
   private normalizeJson(text: string) {
     return text
       .trim()
-      .replace(/^```json\s*/i, '')
-      .replace(/^```\s*/i, '')
-      .replace(/```\s*$/i, '')
+      .replace(/^```json\s*/i, "")
+      .replace(/^```\s*/i, "")
+      .replace(/```\s*$/i, "")
       .trim();
   }
 
@@ -363,7 +392,7 @@ export class AiService {
         feature: options.feature,
         provider: route.provider,
         model: route.model,
-        status: error ? 'error' : 'success',
+        status: error ? "error" : "success",
         latencyMs,
         promptTokens: result?.usage?.promptTokens ?? null,
         completionTokens: result?.usage?.completionTokens ?? null,

@@ -1,11 +1,6 @@
 import { z } from "zod";
 
-const nullableTrimmedString = z
-  .string()
-  .trim()
-  .min(1)
-  .nullable()
-  .optional();
+const nullableTrimmedString = z.string().trim().min(1).nullable().optional();
 
 export const UpdateProfileSchema = z
   .object({
@@ -46,4 +41,3 @@ export const ProfileNotificationPreferencesSchema = z
 export type ProfileNotificationPreferencesDto = z.infer<
   typeof ProfileNotificationPreferencesSchema
 >;
-

@@ -90,7 +90,9 @@ export class NotificationsService {
       db
         .select({ count: count() })
         .from(notifications)
-        .where(and(eq(notifications.userId, dbUserId), isNull(notifications.readAt))),
+        .where(
+          and(eq(notifications.userId, dbUserId), isNull(notifications.readAt)),
+        ),
       db
         .select()
         .from(notifications)

@@ -1,6 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { z } from 'zod';
-import { AiService } from '../ai';
+import { Injectable, Logger } from "@nestjs/common";
+import { z } from "zod";
+import { AiService } from "../ai";
 import {
   CVDataDto,
   CVGoalContextDto,
@@ -8,7 +8,7 @@ import {
   CVProfileContextDto,
   GenerateCVDraftDto,
   TailorCVDto,
-} from './dto/cv-ai.dto';
+} from "./dto/cv-ai.dto";
 
 const CVDataSchema = z.object({
   header: z
@@ -101,9 +101,9 @@ export class CvService {
   async generateDraft(userId: string, dto: GenerateCVDraftDto) {
     try {
       const parsed = await this.aiService.generateJson({
-        feature: 'cv.draft',
+        feature: "cv.draft",
         prompt: this.buildDraftPrompt(userId, dto),
-        responseMimeType: 'application/json',
+        responseMimeType: "application/json",
         temperature: 0.2,
         metadata: { userId },
       });
@@ -127,9 +127,9 @@ export class CvService {
     return {
       cv: fallbackCv,
       suggestions: [
-        'Review the summary and make it more specific to your target opportunity.',
-        'Add measurable achievements under experience and projects.',
-        'Keep skills aligned to the opportunities you want to apply for.',
+        "Review the summary and make it more specific to your target opportunity.",
+        "Add measurable achievements under experience and projects.",
+        "Keep skills aligned to the opportunities you want to apply for.",
       ],
     };
   }
@@ -137,9 +137,9 @@ export class CvService {
   async tailor(userId: string, dto: TailorCVDto) {
     try {
       const parsed = await this.aiService.generateJson({
-        feature: 'cv.tailor',
+        feature: "cv.tailor",
         prompt: this.buildTailorPrompt(userId, dto),
-        responseMimeType: 'application/json',
+        responseMimeType: "application/json",
         temperature: 0.2,
         metadata: { userId, opportunityId: dto.opportunity?.id },
       });
@@ -202,10 +202,10 @@ Current CV:
 ${JSON.stringify(dto.currentCV || {}, null, 2)}
 
 Prompt:
-${dto.prompt || ''}
+${dto.prompt || ""}
 
 LinkedIn URL:
-${dto.linkedInUrl || ''}`;
+${dto.linkedInUrl || ""}`;
   }
 
   private buildTailorPrompt(userId: string, dto: TailorCVDto) {
@@ -246,7 +246,7 @@ Opportunity:
 ${JSON.stringify(dto.opportunity, null, 2)}
 
 User notes:
-${dto.userNotes || ''}`;
+${dto.userNotes || ""}`;
   }
 
   private buildFallbackDraft(
@@ -257,7 +257,7 @@ ${dto.userNotes || ''}`;
     linkedInUrl?: string,
   ): CVDataDto {
     const goalTitles = goals
-      .map((goal) => goal.title || goal.description || '')
+      .map((goal) => goal.title || goal.description || "")
       .filter(Boolean);
     const mergedSkills = this.unique([
       ...(currentCV?.skills || []),
@@ -266,50 +266,50 @@ ${dto.userNotes || ''}`;
     ]);
 
     const summaryParts = [
-      profile?.field_of_study ? `${profile.field_of_study} student` : '',
-      profile?.education_level ? `${profile.education_level} level` : '',
+      profile?.field_of_study ? `${profile.field_of_study} student` : "",
+      profile?.education_level ? `${profile.education_level} level` : "",
       mergedSkills.length
-        ? `with strengths in ${mergedSkills.slice(0, 5).join(', ')}`
-        : '',
-      prompt ? `targeting ${prompt}` : '',
+        ? `with strengths in ${mergedSkills.slice(0, 5).join(", ")}`
+        : "",
+      prompt ? `targeting ${prompt}` : "",
     ].filter(Boolean);
 
     return {
       header: {
-        full_name: currentCV?.header?.full_name || profile?.full_name || '',
-        email: currentCV?.header?.email || profile?.email || '',
-        phone: currentCV?.header?.phone || '',
+        full_name: currentCV?.header?.full_name || profile?.full_name || "",
+        email: currentCV?.header?.email || profile?.email || "",
+        phone: currentCV?.header?.phone || "",
         location:
           currentCV?.header?.location ||
           profile?.location ||
           profile?.country ||
-          '',
-        linkedin: currentCV?.header?.linkedin || linkedInUrl || '',
-        portfolio: currentCV?.header?.portfolio || '',
-        website: currentCV?.header?.website || '',
+          "",
+        linkedin: currentCV?.header?.linkedin || linkedInUrl || "",
+        portfolio: currentCV?.header?.portfolio || "",
+        website: currentCV?.header?.website || "",
       },
       summary:
         currentCV?.summary ||
         (summaryParts.length
-          ? `Motivated ${summaryParts.join(' ')}.`
-          : 'Motivated student building a strong academic and professional profile.'),
+          ? `Motivated ${summaryParts.join(" ")}.`
+          : "Motivated student building a strong academic and professional profile."),
       experience: currentCV?.experience?.length
         ? currentCV.experience
         : goalTitles.slice(0, 2).map((goal, index) => ({
             id: `exp-${index + 1}`,
-            company: 'Edutu Experience',
-            role: goal || 'Student Project',
-            description: `Worked toward ${goal || 'career growth'} with focus on learning, execution, and measurable progress.`,
+            company: "Edutu Experience",
+            role: goal || "Student Project",
+            description: `Worked toward ${goal || "career growth"} with focus on learning, execution, and measurable progress.`,
             highlights: mergedSkills.slice(index * 2, index * 2 + 3),
           })),
       education: currentCV?.education?.length
         ? currentCV.education
         : [
             {
-              id: 'edu-1',
-              institution: profile?.institution || '',
-              degree: profile?.education_level || 'Student',
-              field: profile?.field_of_study || '',
+              id: "edu-1",
+              institution: profile?.institution || "",
+              degree: profile?.education_level || "Student",
+              field: profile?.field_of_study || "",
             },
           ],
       skills: mergedSkills,
@@ -348,14 +348,14 @@ ${dto.userNotes || ''}`;
     );
 
     const tailoredSummary = [
-      `Targeting ${dto.opportunity.title || 'this opportunity'}${dto.opportunity.organization ? ` at ${dto.opportunity.organization}` : ''}.`,
-      dto.currentCV.summary || '',
+      `Targeting ${dto.opportunity.title || "this opportunity"}${dto.opportunity.organization ? ` at ${dto.opportunity.organization}` : ""}.`,
+      dto.currentCV.summary || "",
       matchedKeywords.length
-        ? `Relevant strengths include ${matchedKeywords.slice(0, 4).join(', ')}.`
-        : '',
+        ? `Relevant strengths include ${matchedKeywords.slice(0, 4).join(", ")}.`
+        : "",
     ]
       .filter(Boolean)
-      .join(' ');
+      .join(" ");
 
     const matchScore = Math.min(
       100,
@@ -379,13 +379,13 @@ ${dto.userNotes || ''}`;
       },
       match_score: matchScore,
       improvements: [
-        `Tailored the summary toward ${dto.opportunity.title || 'the target role'}.`,
+        `Tailored the summary toward ${dto.opportunity.title || "the target role"}.`,
         matchedKeywords.length
-          ? `Emphasized matched skills: ${matchedKeywords.slice(0, 4).join(', ')}.`
-          : 'Add more directly relevant skills or project keywords.',
+          ? `Emphasized matched skills: ${matchedKeywords.slice(0, 4).join(", ")}.`
+          : "Add more directly relevant skills or project keywords.",
         missingKeywords.length
-          ? `Review missing areas: ${missingKeywords.slice(0, 5).join(', ')}.`
-          : 'Good keyword coverage for this opportunity.',
+          ? `Review missing areas: ${missingKeywords.slice(0, 5).join(", ")}.`
+          : "Good keyword coverage for this opportunity.",
       ],
       matched_keywords: matchedKeywords,
       missing_keywords: missingKeywords.slice(0, 10),
@@ -395,7 +395,7 @@ ${dto.userNotes || ''}`;
   private unique(values: Array<string | null | undefined>) {
     return Array.from(
       new Set(
-        values.map((value) => String(value || '').trim()).filter(Boolean),
+        values.map((value) => String(value || "").trim()).filter(Boolean),
       ),
     );
   }

@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-const BACKEND_URL = process.env.VITE_BACKEND_URL || 'http://localhost:3001'
+const BACKEND_URL = process.env.VITE_BACKEND_URL || 'https://edutu-api.onrender.com'
 
 export default defineConfig({
   plugins: [react()],

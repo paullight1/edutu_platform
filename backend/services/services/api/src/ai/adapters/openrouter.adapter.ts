@@ -1,51 +1,51 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable } from "@nestjs/common";
 import {
   AiGenerateOptions,
   AiGenerateResult,
   AiProviderAdapter,
   AiRouteConfig,
-} from '../ai.types';
+} from "../ai.types";
 
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 @Injectable()
 export class OpenRouterAdapter implements AiProviderAdapter {
-  readonly provider = 'openrouter';
+  readonly provider = "openrouter";
 
   async generateText(
     config: AiRouteConfig,
     options: AiGenerateOptions,
   ): Promise<AiGenerateResult> {
     if (!config.apiKey) {
-      throw new Error('OpenRouter API key is not configured');
+      throw new Error("OpenRouter API key is not configured");
     }
 
     const messages = [
       ...(config.systemPrompt || options.systemInstruction
         ? [
             {
-              role: 'system',
+              role: "system",
               content: config.systemPrompt || options.systemInstruction,
             },
           ]
         : []),
-      { role: 'user', content: options.prompt },
+      { role: "user", content: options.prompt },
     ];
 
     const response = await fetch(OPENROUTER_URL, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         Authorization: `Bearer ${config.apiKey}`,
-        'HTTP-Referer': process.env.OPENROUTER_REFERRER || 'https://edutu.app',
-        'X-Title': process.env.OPENROUTER_TITLE || 'Edutu AI',
+        "HTTP-Referer": process.env.OPENROUTER_REFERRER || "https://edutu.app",
+        "X-Title": process.env.OPENROUTER_TITLE || "Edutu AI",
       },
       body: JSON.stringify({
         model: config.model,
         messages,
         stream: false,
-        ...(typeof config.temperature === 'number' ||
-        typeof options.temperature === 'number'
+        ...(typeof config.temperature === "number" ||
+        typeof options.temperature === "number"
           ? { temperature: config.temperature ?? options.temperature }
           : {}),
         ...(config.maxOutputTokens || options.maxOutputTokens
@@ -62,7 +62,7 @@ export class OpenRouterAdapter implements AiProviderAdapter {
 
     const payload = await response.json();
     return {
-      text: payload?.choices?.[0]?.message?.content?.trim() || '',
+      text: payload?.choices?.[0]?.message?.content?.trim() || "",
       provider: this.provider,
       model: config.model,
       usage: {
