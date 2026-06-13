@@ -141,11 +141,16 @@
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background: rgb(var(--surface-body));
   color: rgb(var(--text-primary));
   font-family: var(--font-body);
-  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
   text-rendering: optimizeLegibility;
   transition: background-color var(--transition-medium), color var(--transition-medium);
 }
@@ -857,29 +862,30 @@ body {
 
   .landing-hero {
     min-height: auto;
-    padding-top: 92px !important;
-    padding-bottom: 56px !important;
+    padding-top: 110px !important;
+    padding-bottom: 128px !important;
   }
 
   .landing-hero-title {
-    font-size: clamp(2.8rem, 15vw, 4.25rem) !important;
-    line-height: 0.98 !important;
+    font-size: clamp(2.2rem, 10.8vw, 4rem) !important;
+    line-height: 0.95 !important;
+    letter-spacing: -0.06em;
     max-width: 100%;
-    overflow-wrap: anywhere;
+    text-wrap: balance;
   }
 
   .landing-hero-highlight {
-    display: block;
+    display: inline;
     white-space: normal !important;
   }
 
   .landing-hero-word {
-    display: block !important;
+    display: inline-block !important;
     min-width: 0 !important;
-    width: 100%;
+    width: auto;
     max-width: 100%;
-    text-align: center !important;
-    overflow-wrap: anywhere;
+    text-align: left !important;
+    white-space: nowrap !important;
   }
 
   .landing-hero-copy {
@@ -889,9 +895,37 @@ body {
   }
 
   .landing-hero-stats {
-    grid-template-columns: 1fr !important;
-    gap: 0.75rem !important;
-    margin-top: 2.5rem !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 0.4rem !important;
+    margin-top: 2.25rem !important;
+  }
+
+  .landing-hero-stat-card {
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0.25rem 0 !important;
+  }
+
+  .landing-hero-stat-value {
+    font-size: 1.05rem !important;
+  }
+
+  .landing-hero-stat-label {
+    font-size: 0.62rem !important;
+    letter-spacing: 0.18em !important;
+  }
+
+  .landing-section-title {
+    font-size: clamp(1.95rem, 7.4vw, 3rem) !important;
+    line-height: 1.06 !important;
+    letter-spacing: -0.05em !important;
+  }
+
+  .landing-section-copy {
+    font-size: 0.98rem !important;
+    line-height: 1.55 !important;
   }
 }
 

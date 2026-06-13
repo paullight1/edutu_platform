@@ -23,16 +23,16 @@ const BentoBenefits: React.FC = () => {
 
     const FloatingAvatars = () => {
         const positions = [
-            { x: 12, y: 18, size: 36, color: '#146ef5', delay: 0 },
-            { x: 72, y: 14, size: 32, color: '#00a6d6', delay: 0.15 },
-            { x: 78, y: 68, size: 36, color: '#00d722', delay: 0.3 },
-            { x: 18, y: 72, size: 32, color: '#ff6b00', delay: 0.45 },
-            { x: 66, y: 82, size: 36, color: '#ffae13', delay: 0.6 },
+            { x: 12, y: 18, size: 42, color: '#146ef5', delay: 0 },
+            { x: 72, y: 14, size: 38, color: '#00a6d6', delay: 0.15 },
+            { x: 78, y: 68, size: 42, color: '#00d722', delay: 0.3 },
+            { x: 18, y: 72, size: 38, color: '#ff6b00', delay: 0.45 },
+            { x: 66, y: 82, size: 42, color: '#ffae13', delay: 0.6 },
         ];
         return (
             <div className="relative w-full h-full overflow-hidden">
                 <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="relative w-40 h-40">
+                    <div className="relative w-48 h-48 sm:w-40 sm:h-40">
                         <motion.div
                             animate={{ rotate: 360 }}
                             transition={{ duration: 30, repeat: Infinity, ease: 'linear' }}
@@ -42,7 +42,7 @@ const BentoBenefits: React.FC = () => {
                                 border: `1px solid ${isDarkMode ? 'rgba(20,110,245,0.2)' : 'rgba(20,110,245,0.1)'}`,
                             }}
                         >
-                            <Target size={64} className="text-[#146ef5]" />
+                            <Target size={76} className="text-[#146ef5]" />
                         </motion.div>
                         <motion.div
                             animate={{ scale: [1, 1.15, 1], opacity: [0.3, 0.6, 0.3] }}
@@ -93,11 +93,11 @@ const BentoBenefits: React.FC = () => {
             { label: 'Submit', value: 88, color: '#146ef5' },
         ];
         return (
-            <div className="relative flex h-full w-full flex-col items-center justify-center gap-3 overflow-hidden px-2">
+            <div className="relative flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden px-2">
                 <motion.div
                     animate={{ rotate: 360 }}
                     transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-                    className="absolute h-36 w-36 rounded-full"
+                    className="absolute h-44 w-44 rounded-full sm:h-36 sm:w-36"
                     style={{ border: `1px dashed ${isDarkMode ? 'rgba(255,255,255,0.16)' : 'rgba(20,110,245,0.18)'}` }}
                 />
                 <motion.div
@@ -109,7 +109,7 @@ const BentoBenefits: React.FC = () => {
                     <span className="h-2 w-2 rounded-full bg-[#00b86b]" />
                     On track
                 </motion.div>
-                <div className="relative z-10 w-full max-w-[250px] space-y-2.5">
+                <div className="relative z-10 w-full max-w-[270px] space-y-3">
                     {milestones.map((milestone, i) => (
                         <motion.div
                             key={milestone.label}
@@ -117,14 +117,14 @@ const BentoBenefits: React.FC = () => {
                             whileInView={{ opacity: 1, x: 0 }}
                             viewport={{ once: true }}
                             transition={{ delay: i * 0.1 }}
-                            className="rounded-2xl p-3"
+                            className="rounded-2xl p-4"
                             style={{ backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.78)' }}
                         >
-                            <div className="mb-2 flex items-center justify-between text-xs font-bold" style={{ color: isDarkMode ? '#dbeafe' : '#1f2937' }}>
+                            <div className="mb-2 flex items-center justify-between text-[11px] font-bold" style={{ color: isDarkMode ? '#dbeafe' : '#1f2937' }}>
                                 <span>{milestone.label}</span>
                                 <span>{milestone.value}%</span>
                             </div>
-                            <div className="h-2 overflow-hidden rounded-full" style={{ backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#dce9f5' }}>
+                            <div className="h-2.5 overflow-hidden rounded-full" style={{ backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#dce9f5' }}>
                                 <motion.div
                                     animate={{ scaleX: [(milestone.value - 18) / 100, milestone.value / 100, (milestone.value - 6) / 100, milestone.value / 100] }}
                                     transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: i * 0.35 }}
@@ -147,25 +147,25 @@ const BentoBenefits: React.FC = () => {
             { day: '04', month: 'Jul', title: 'Vanier CGS', country: 'Canada', color: '#146ef5' },
         ];
         return (
-            <div className="relative h-full w-full overflow-hidden px-3">
-                <div className="absolute inset-x-8 top-7 h-24 rounded-full blur-2xl" style={{ backgroundColor: isDarkMode ? 'rgba(20,110,245,0.16)' : 'rgba(20,110,245,0.12)' }} />
+            <div className="relative h-full w-full overflow-hidden px-4">
+                <div className="absolute inset-x-8 top-6 h-28 rounded-full blur-2xl" style={{ backgroundColor: isDarkMode ? 'rgba(20,110,245,0.16)' : 'rgba(20,110,245,0.12)' }} />
                 <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-10" style={{ background: `linear-gradient(180deg, ${isDarkMode ? '#111' : '#f8fbff'}, transparent)` }} />
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-10" style={{ background: `linear-gradient(0deg, ${isDarkMode ? '#111' : '#f8fbff'}, transparent)` }} />
                 <motion.div
                     animate={{ y: [0, -68, -136, -204, 0] }}
                     transition={{ duration: 9, repeat: Infinity, ease: [0.76, 0, 0.24, 1], times: [0, 0.24, 0.48, 0.72, 1] }}
-                    className="space-y-3 pt-10"
+                    className="space-y-4 pt-12"
                 >
                     {[...deadlines, ...deadlines.slice(0, 3)].map((d, i) => (
                         <motion.div
                             key={i}
                             animate={{ scale: [0.94, 1.04, 0.94], opacity: [0.58, 1, 0.58] }}
                             transition={{ duration: 3, repeat: Infinity, delay: (i % deadlines.length) * 0.2, ease: 'easeInOut' }}
-                            className="flex w-full items-center gap-3 rounded-2xl p-3"
+                            className="flex w-full items-center gap-3 rounded-2xl p-4"
                             style={{ backgroundColor: isDarkMode ? 'rgba(255,255,255,0.055)' : 'rgba(255,255,255,0.8)' }}
                         >
                             <div
-                                className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl"
+                                className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-xl"
                                 style={{
                                     backgroundColor: `${d.color}15`,
                                     border: `1px solid ${d.color}30`,
@@ -175,7 +175,7 @@ const BentoBenefits: React.FC = () => {
                                 <span className="text-[8px] font-bold uppercase" style={{ color: d.color }}>{d.month}</span>
                             </div>
                             <div className="min-w-0 flex-1">
-                                <div className="truncate text-xs font-bold" style={{ color: isDarkMode ? '#f7fbff' : '#102033' }}>{d.title}</div>
+                                <div className="truncate text-[13px] font-bold" style={{ color: isDarkMode ? '#f7fbff' : '#102033' }}>{d.title}</div>
                                 <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: isDarkMode ? '#7f8b98' : '#64748b' }}>{d.country}</div>
                             </div>
                             <Bell size={16} style={{ color: d.color }} />
@@ -196,7 +196,7 @@ const BentoBenefits: React.FC = () => {
         ];
         return (
             <div className="relative h-full w-full overflow-hidden">
-                <div className="absolute inset-x-10 top-8 h-28 rounded-full blur-2xl" style={{ backgroundColor: isDarkMode ? 'rgba(20,110,245,0.14)' : 'rgba(0,184,107,0.1)' }} />
+                <div className="absolute inset-x-10 top-6 h-32 rounded-full blur-2xl" style={{ backgroundColor: isDarkMode ? 'rgba(20,110,245,0.14)' : 'rgba(0,184,107,0.1)' }} />
                 <svg className="absolute inset-0 w-full h-full">
                     <motion.line
                         x1="12%" y1="28%" x2="50%" y2="18%"
@@ -244,8 +244,8 @@ const BentoBenefits: React.FC = () => {
                         style={{
                             left: `${n.x}%`,
                             top: `${n.y}%`,
-                            width: n.isCenter ? 48 : 38,
-                            height: n.isCenter ? 48 : 38,
+                            width: n.isCenter ? 56 : 44,
+                            height: n.isCenter ? 56 : 44,
                             backgroundColor: isDarkMode ? '#151b22' : '#ffffff',
                             transform: 'translate(-50%, -50%)',
                             border: `2px solid ${n.isCenter ? '#146ef5' : isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(20,110,245,0.2)'}`,
@@ -269,7 +269,7 @@ const BentoBenefits: React.FC = () => {
 
     const SuccessAnimation = () => (
         <div className="relative flex h-full w-full items-center justify-center overflow-hidden">
-            <div className="absolute h-40 w-40 rounded-full blur-2xl" style={{ backgroundColor: isDarkMode ? 'rgba(0,184,107,0.14)' : 'rgba(0,184,107,0.16)' }} />
+            <div className="absolute h-48 w-48 rounded-full blur-2xl" style={{ backgroundColor: isDarkMode ? 'rgba(0,184,107,0.14)' : 'rgba(0,184,107,0.16)' }} />
             {[0, 1, 2].map((i) => (
                 <motion.div
                     key={i}
@@ -277,7 +277,7 @@ const BentoBenefits: React.FC = () => {
                     transition={{ duration: 4 + i * 0.35, repeat: Infinity, ease: 'easeInOut', delay: i * 0.25 }}
                     className="absolute rounded-2xl p-3"
                     style={{
-                        width: i === 1 ? 170 : 128,
+                        width: i === 1 ? 184 : 140,
                         left: i === 0 ? '12%' : i === 1 ? '26%' : '54%',
                         top: i === 0 ? '45%' : i === 1 ? '24%' : '50%',
                         backgroundColor: isDarkMode ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.9)',
@@ -304,10 +304,10 @@ const BentoBenefits: React.FC = () => {
             <motion.div
                 animate={{ scale: [1, 1.08, 1], opacity: [0.9, 1, 0.9] }}
                 transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
-                className="relative z-10 flex h-20 w-20 items-center justify-center rounded-full"
+                className="relative z-10 flex h-24 w-24 items-center justify-center rounded-full"
                 style={{ background: 'linear-gradient(135deg, #146ef5 0%, #00b86b 100%)', boxShadow: '0 18px 44px rgba(20,110,245,0.35)' }}
             >
-                <Rocket size={30} className="text-white" />
+                <Rocket size={36} className="text-white" />
             </motion.div>
         </div>
     );
@@ -361,11 +361,11 @@ const BentoBenefits: React.FC = () => {
     const VoiceWaveform = () => {
         const bars = [20, 40, 60, 80, 100, 80, 60, 40, 20, 40, 60, 80, 60, 40, 20];
         return (
-            <div className="relative flex h-full w-full flex-col items-center justify-center gap-4 overflow-hidden">
+            <div className="relative flex h-full w-full flex-col items-center justify-between gap-4 overflow-hidden py-4">
                 <motion.div
                     animate={{ scale: [1, 1.18, 1], opacity: [0.45, 0.78, 0.45] }}
                     transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
-                    className="absolute h-44 w-44 rounded-full blur-2xl"
+                    className="absolute h-52 w-52 rounded-full blur-2xl sm:h-44 sm:w-44"
                     style={{ background: isDarkMode ? 'radial-gradient(circle, rgba(20,110,245,0.42), transparent 68%)' : 'radial-gradient(circle, rgba(20,110,245,0.2), transparent 68%)' }}
                 />
                 <motion.div
@@ -373,28 +373,28 @@ const BentoBenefits: React.FC = () => {
                     whileInView={{ scale: 1, opacity: 1 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.4 }}
-                    className="relative z-10 flex items-center gap-3 mb-2"
+                    className="relative z-10 flex items-center gap-4 mb-1"
                 >
                     <div
-                        className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                        className="w-20 h-20 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center"
                         style={{
                             background: 'linear-gradient(135deg, #146ef5 0%, #7a3dff 100%)',
                             boxShadow: '0 8px 24px rgba(20,110,245,0.3)',
                         }}
                     >
-                        <Brain size={32} className="text-white" />
+                        <Brain size={40} className="text-white sm:scale-90" />
                     </div>
                     <div
-                        className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                        className="w-20 h-20 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center"
                         style={{
                             backgroundColor: isDarkMode ? 'rgba(20,110,245,0.1)' : 'rgba(20,110,245,0.06)',
                             border: `1px solid ${isDarkMode ? 'rgba(20,110,245,0.2)' : 'rgba(20,110,245,0.1)'}`,
                         }}
                     >
-                        <Mic size={32} className="text-[#146ef5]" />
+                        <Mic size={40} className="text-[#146ef5] sm:scale-90" />
                     </div>
                 </motion.div>
-                <div className="relative z-10 flex h-24 w-full items-center justify-center gap-1.5 px-4">
+                <div className="relative z-10 flex h-28 w-full items-center justify-center gap-2 px-5">
                     {bars.map((h, i) => (
                         <motion.div
                             key={i}
@@ -407,7 +407,7 @@ const BentoBenefits: React.FC = () => {
                                 delay: i * 0.08,
                                 ease: 'easeInOut',
                             }}
-                            className="h-20 w-2 origin-center rounded-full"
+                            className="h-24 w-2.5 origin-center rounded-full sm:h-20 sm:w-2"
                             style={{
                                 background: i >= 5 && i <= 9
                                     ? 'linear-gradient(180deg, #146ef5 0%, #7a3dff 100%)'
@@ -423,7 +423,7 @@ const BentoBenefits: React.FC = () => {
                     whileInView={{ opacity: 1 }}
                     viewport={{ once: true }}
                     transition={{ duration: 0.5, delay: 0.6 }}
-                    className="relative z-10 flex items-center gap-2 text-sm font-medium"
+                    className="relative z-10 flex items-center gap-2 text-[13px] font-medium sm:text-sm"
                     style={{ color: '#146ef5' }}
                 >
                     <motion.div
@@ -440,44 +440,38 @@ const BentoBenefits: React.FC = () => {
     const bentoItems = [
         {
             title: 'Smart Opportunity Matching',
-            desc: 'Personalized recommendations based on your skills and goals.',
             visual: <FloatingAvatars />,
             gradient: false,
         },
         {
             title: 'Real-Time Progress Tracking',
-            desc: 'Track applications, deadlines, and milestones.',
             visual: <AnimatedBarChart />,
             gradient: false,
         },
         {
             title: 'Fewer Missed Deadlines',
-            desc: 'Smart reminders for every application window.',
             visual: <DeadlineReminders />,
             gradient: false,
         },
         {
             title: 'AI Roadmap Generator',
-            desc: 'Step-by-step preparation plans powered by AI.',
             visual: <AINodes />,
             gradient: false,
         },
         {
             title: 'Higher Success Rate',
-            desc: 'AI-powered CV optimization and guidance.',
             visual: <SuccessAnimation />,
             gradient: false,
         },
         {
             title: 'AI Voice Assistant',
-            desc: 'Hands-free career guidance with voice commands.',
             visual: <VoiceWaveform />,
             gradient: false,
         },
     ];
 
     return (
-        <section className="py-20 px-4" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#f5f5f5' }}>
+        <section id="benefits" className="py-20 px-4" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#f5f5f5' }}>
             <div className="max-w-7xl mx-auto">
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
@@ -516,7 +510,7 @@ const BentoBenefits: React.FC = () => {
                     </p>
                 </motion.div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-2 gap-4 sm:gap-5 md:grid-cols-3 md:gap-6">
                     {bentoItems.map((item, index) => (
                         <motion.div
                             key={index}
@@ -528,9 +522,9 @@ const BentoBenefits: React.FC = () => {
                                 scale: 1.01,
                                 transition: { duration: 0.25, ease: 'easeOut' },
                             }}
-                            className="relative overflow-hidden rounded-3xl"
+                            className="relative overflow-hidden rounded-[24px] p-3 sm:p-5 md:p-6 min-h-[208px] sm:min-h-[320px]"
                             style={{
-                                aspectRatio: '1 / 1',
+                                aspectRatio: '1.08 / 1',
                                 background: isDarkMode
                                     ? '#111111'
                                     : index % 3 === 0
@@ -538,36 +532,36 @@ const BentoBenefits: React.FC = () => {
                                         : index % 3 === 1
                                             ? 'linear-gradient(135deg, #edf7ff, #ffffff)'
                                             : 'linear-gradient(135deg, #fff8e8, #ffffff)',
-                                border: `1px solid ${isDarkMode ? '#1e1e1e' : index % 3 === 0 ? '#bdebd6' : index % 3 === 1 ? '#c8ddff' : '#ffe2a8'}`,
+                                border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.06)' : index % 3 === 0 ? 'rgba(29, 78, 216, 0.12)' : index % 3 === 1 ? 'rgba(59, 130, 246, 0.12)' : 'rgba(245, 158, 11, 0.12)'}`,
                                 boxShadow: isDarkMode
-                                    ? '0 4px 12px rgba(0,0,0,0.3), 0 12px 36px rgba(0,0,0,0.2)'
-                                    : '0 4px 12px rgba(0,0,0,0.05), 0 12px 36px rgba(0,0,0,0.08)',
-                                padding: '24px',
+                                    ? 'none'
+                                    : '0 12px 28px rgba(15, 23, 42, 0.06)',
                                 display: 'flex',
                                 flexDirection: 'column',
+                                justifyContent: 'space-between',
+                                textAlign: 'center',
                             }}
                         >
                             <div
-                                className="flex-1 min-h-0 mb-5 relative"
+                                className="relative flex min-h-[112px] items-center justify-center origin-center scale-[0.56] sm:min-h-[180px] sm:scale-100"
                                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                             >
                                 {item.visual}
                             </div>
 
-                            <div className="mt-auto">
+                            <div className="mt-2 sm:mt-5">
                                 <h3
-                                    className="text-base font-bold mb-1.5 leading-tight"
-                                    style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}
+                                    className="mx-auto max-w-[11ch] text-[12px] font-semibold leading-[1.15] text-center sm:max-w-[12ch] sm:text-base sm:font-bold"
+                                    style={{
+                                        color: isDarkMode ? '#fafafa' : '#0a0a0a',
+                                        display: '-webkit-box',
+                                        WebkitBoxOrient: 'vertical',
+                                        WebkitLineClamp: 2,
+                                        overflow: 'hidden',
+                                    }}
                                 >
                                     {item.title}
                                 </h3>
-
-                                <p
-                                    className="text-xs leading-relaxed"
-                                    style={{ color: isDarkMode ? '#888' : '#666' }}
-                                >
-                                    {item.desc}
-                                </p>
                             </div>
                         </motion.div>
                     ))}

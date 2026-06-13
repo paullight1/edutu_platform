@@ -15,6 +15,7 @@ import PackageDetailFetcher from './components/PackageDetailFetcher';
 import LandingPage from './components/LandingPageV3';
 import AboutPage from './components/AboutPage';
 import BlogPage from './components/BlogPage';
+import DownloadPage from './components/DownloadPage';
 import AuthScreen from './components/AuthScreen';
 import AuthCallback from './components/AuthCallback';
 import Dashboard from './components/Dashboard';
@@ -412,6 +413,7 @@ export function App() {
         <Route path="/" element={<LandingPage onGetStarted={() => handleGetStarted()} />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/opportunities" element={<OpportunitiesPage />} />
+        <Route path="/download" element={<DownloadPage />} />
         <Route path="/blog" element={<BlogPage />} />
         <Route path="/mentor" element={<MentorPage />} />
         <Route path="/login" element={<Navigate to="/auth?mode=sign-in" replace />} />

@@ -1,10 +1,13 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
+import { existsSync } from "fs";
+import { readFile } from "fs/promises";
 import { db } from "../db";
 import { opportunities } from "../db/schema";
 import axios from "axios";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { eq, or, and, sql, lt, isNull, desc } from "drizzle-orm";
+import * as path from "path";
 import { z } from "zod";
 import { OpportunityRankingService } from "./opportunity-ranking.service";
 import {
@@ -116,6 +119,156 @@ const ADMIN_OPPORTUNITY_COLUMNS = [
   "updated_at",
 ].join(",");
 
+const STATIC_OPPORTUNITY_SNAPSHOT_FILENAME = path.join(
+  "edutu-web-app",
+  "public",
+  "data",
+  "opportunities.json",
+);
+
+const STATIC_OPPORTUNITY_LOADED_AT = new Date().toISOString();
+
+type StaticOpportunityRow = Record<string, unknown>;
+
+let cachedStaticOpportunityRows: StaticOpportunityRow[] | null = null;
+
+function resolveStaticOpportunitySnapshotPath(): string | null {
+  const roots = new Set<string>([
+    process.cwd(),
+    __dirname,
+    path.resolve(process.cwd(), ".."),
+    path.resolve(process.cwd(), "../.."),
+    path.resolve(process.cwd(), "../../.."),
+    path.resolve(process.cwd(), "../../../.."),
+    path.resolve(__dirname, ".."),
+    path.resolve(__dirname, "../.."),
+    path.resolve(__dirname, "../../.."),
+    path.resolve(__dirname, "../../../.."),
+  ]);
+
+  for (const root of roots) {
+    let current = root;
+
+    while (true) {
+      const candidate = path.join(current, STATIC_OPPORTUNITY_SNAPSHOT_FILENAME);
+      if (existsSync(candidate)) {
+        return candidate;
+      }
+
+      const parent = path.dirname(current);
+      if (parent === current) {
+        break;
+      }
+
+      current = parent;
+    }
+  }
+
+  return null;
+}
+
+function normaliseStaticOpportunityRow(row: Record<string, any>): StaticOpportunityRow {
+  const deadline =
+    row.deadline ??
+    row.close_date ??
+    row.application_deadline ??
+    null;
+  const imageUrl = row.image_url ?? row.imageUrl ?? row.image ?? null;
+  const applicationUrl =
+    row.application_url ??
+    row.apply_url ??
+    row.applyUrl ??
+    row.url ??
+    null;
+  const lastUpdated =
+    row.updated_at ??
+    row.updatedAt ??
+    row.updated ??
+    row.lastUpdated ??
+    STATIC_OPPORTUNITY_LOADED_AT;
+  const createdAt = row.created_at ?? row.createdAt ?? lastUpdated;
+  const isRemote =
+    typeof row.is_remote === "boolean"
+      ? row.is_remote
+      : typeof row.isRemote === "boolean"
+        ? row.isRemote
+        : String(row.location ?? "").toLowerCase().includes("remote");
+
+  return {
+    ...row,
+    deadline,
+    close_date: row.close_date ?? deadline,
+    image_url: imageUrl,
+    application_url: applicationUrl,
+    updated_at: lastUpdated,
+    created_at: createdAt,
+    is_remote: isRemote,
+    status: row.status ?? "active",
+    source: row.source ?? "static-snapshot",
+  };
+}
+
+function filterStaticOpportunityRows(
+  rows: StaticOpportunityRow[],
+  limit: number,
+  offset: number,
+  status?: string,
+  category?: string,
+): StaticOpportunityRow[] {
+  const normalizedStatus = (status || "active").trim().toLowerCase();
+  const normalizedCategory = category?.trim().toLowerCase();
+
+  if (normalizedStatus !== "active" && normalizedStatus !== "all") {
+    return [];
+  }
+
+  const filtered = rows.filter((row) => {
+    const rowCategory = String(row.category ?? row.canonical_category ?? "").trim().toLowerCase();
+    const rowStatus = String(row.status ?? "active").trim().toLowerCase();
+
+    if (normalizedStatus !== "all" && rowStatus !== normalizedStatus) {
+      return false;
+    }
+
+    if (normalizedCategory && rowCategory !== normalizedCategory) {
+      return false;
+    }
+
+    return true;
+  });
+
+  return filtered.slice(offset, offset + limit);
+}
+
+async function loadStaticOpportunitySnapshot(): Promise<StaticOpportunityRow[]> {
+  if (cachedStaticOpportunityRows) {
+    return cachedStaticOpportunityRows;
+  }
+
+  const snapshotPath = resolveStaticOpportunitySnapshotPath();
+  if (!snapshotPath) {
+    return [];
+  }
+
+  try {
+    const raw = await readFile(snapshotPath, "utf8");
+    const parsed = JSON.parse(raw);
+    const rows = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray((parsed as { data?: unknown }).data)
+        ? ((parsed as { data: unknown[] }).data as Record<string, unknown>[])
+        : [];
+
+    cachedStaticOpportunityRows = rows.map((row) => normaliseStaticOpportunityRow(row as Record<string, any>));
+    return cachedStaticOpportunityRows;
+  } catch (error: any) {
+    console.warn(
+      `Could not load static opportunity snapshot from ${snapshotPath}: ${error?.message ?? String(error)}`,
+    );
+    return [];
+  }
+}
+
 @Injectable()
 export class OpportunitiesService {
   private readonly logger = new Logger(OpportunitiesService.name);
@@ -146,77 +299,109 @@ export class OpportunitiesService {
     const cappedLimit = Math.min(Number(limit) || 20, 100);
     const normalizedOffset = Number(offset) || 0;
 
-    if (this.supabase) {
-      let request = this.supabase
-        .from("opportunities")
-        .select("*")
-        .eq("status", statusFilter)
-        .order("created_at", { ascending: false })
-        .range(normalizedOffset, normalizedOffset + cappedLimit - 1);
+    try {
+      if (this.supabase) {
+        let request = this.supabase
+          .from("opportunities")
+          .select("*")
+          .eq("status", statusFilter)
+          .order("created_at", { ascending: false })
+          .range(normalizedOffset, normalizedOffset + cappedLimit - 1);
 
-      if (category) {
-        request = request.eq("category", category);
+        if (category) {
+          request = request.eq("category", category);
+        }
+
+        const { data, error } = await request;
+        if (!error) {
+          const rows = data ?? [];
+          if (rows.length > 0) {
+            return rows;
+          }
+        } else {
+          this.logger.warn(
+            `Canonical opportunity list query failed, falling back to Drizzle schema: ${error.message}`,
+          );
+        }
       }
 
-      const { data, error } = await request;
-      if (!error) {
-        return data ?? [];
-      }
+      const query = category
+        ? db
+            .select()
+            .from(opportunities)
+            .where(
+              and(
+                eq(opportunities.status, statusFilter),
+                eq(opportunities.category, category),
+              ),
+            )
+            .limit(cappedLimit)
+            .offset(normalizedOffset)
+            .orderBy(opportunities.createdAt)
+        : db
+            .select()
+            .from(opportunities)
+            .where(eq(opportunities.status, statusFilter))
+            .limit(cappedLimit)
+            .offset(normalizedOffset)
+            .orderBy(opportunities.createdAt);
 
+      const rows = await query.execute();
+      if (rows.length > 0) {
+        return rows;
+      }
+    } catch (error: any) {
       this.logger.warn(
-        `Canonical opportunity list query failed, falling back to Drizzle schema: ${error.message}`,
+        `Canonical opportunity list unavailable, falling back to static snapshot: ${error?.message ?? String(error)}`,
       );
     }
 
-    if (category) {
-      return db
-        .select()
-        .from(opportunities)
-        .where(
-          and(
-            eq(opportunities.status, statusFilter),
-            eq(opportunities.category, category),
-          ),
-        )
-        .limit(cappedLimit)
-        .offset(normalizedOffset)
-        .orderBy(opportunities.createdAt)
-        .execute();
-    }
-
-    return db
-      .select()
-      .from(opportunities)
-      .where(eq(opportunities.status, statusFilter))
-      .limit(cappedLimit)
-      .offset(normalizedOffset)
-      .orderBy(opportunities.createdAt)
-      .execute();
+    const snapshotRows = await loadStaticOpportunitySnapshot();
+    return filterStaticOpportunityRows(
+      snapshotRows,
+      cappedLimit,
+      normalizedOffset,
+      statusFilter,
+      category,
+    );
   }
 
   async findOne(id: string) {
-    if (this.supabase) {
-      const { data, error } = await this.supabase
-        .from("opportunities")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
+    try {
+      if (this.supabase) {
+        const { data, error } = await this.supabase
+          .from("opportunities")
+          .select("*")
+          .eq("id", id)
+          .maybeSingle();
 
-      if (!error) {
-        return data ?? null;
+        if (!error) {
+          if (data) {
+            return data;
+          }
+        } else {
+          this.logger.warn(
+            `Canonical opportunity detail query failed, falling back to Drizzle schema: ${error.message}`,
+          );
+        }
       }
 
+      const res = await db
+        .select()
+        .from(opportunities)
+        .where(eq(opportunities.id, id))
+        .execute();
+      if (res[0]) {
+        return res[0];
+      }
+    } catch (error: any) {
       this.logger.warn(
-        `Canonical opportunity detail query failed, falling back to Drizzle schema: ${error.message}`,
+        `Canonical opportunity detail unavailable, falling back to static snapshot: ${error?.message ?? String(error)}`,
       );
     }
 
-    const res = await db
-      .select()
-      .from(opportunities)
-      .where(eq(opportunities.id, id))
-      .execute();
-    return res[0] ?? null;
+    const snapshotRows = await loadStaticOpportunitySnapshot();
+    return snapshotRows.find((row) => String(row.id) === String(id)) ?? null;
   }
 
   async ensureShareCard(id: string) {
