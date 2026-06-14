@@ -21,7 +21,8 @@ import {
     X,
     DollarSign,
     Upload,
-    FileCheck
+    FileCheck,
+    Rocket
 } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -313,62 +314,19 @@ const MentorPage: React.FC = () => {
     if (!showApplication) {
         return (
             <div className="min-h-[100dvh] bg-surface-body" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808' }}>
-                <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md" style={{ backgroundColor: isDarkMode ? 'rgba(10,10,10,0.9)' : 'rgba(255,255,255,0.95)', borderBottom: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}` }}>
+                <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md transition-colors duration-300" style={{ backgroundColor: isDarkMode ? 'rgba(10,10,10,0.92)' : 'rgba(255,255,255,0.95)', borderBottom: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}` }}>
                     <div className="max-w-[1200px] mx-auto px-4 sm:px-6 h-[64px] flex items-center justify-between">
                         <Link to="/" className="flex items-center gap-2">
                             <img src="/edutu-logo.png" alt="Edutu" className="h-8 w-8 object-contain" />
                             <span className="font-bold text-xl tracking-tight" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>edutu</span>
                         </Link>
-                        <nav className="hidden md:flex items-center gap-8 text-sm font-medium" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                            <a href="#why">Why mentor</a>
-                            <a href="#options">Ways to contribute</a>
-                            <a href="#process">How it works</a>
-                        </nav>
-                        <div className="flex items-center gap-3">
-                            <button
-                                type="button"
-                                onClick={startApplication}
-                                className="hidden sm:inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-600/20"
-                                style={{ backgroundColor: '#146ef5', color: '#ffffff' }}
-                            >
-                                Become a Mentor <ArrowRight size={16} />
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setMobileMenuOpen((value) => !value)}
-                                className="md:hidden h-10 w-10 rounded-xl border flex items-center justify-center"
-                                style={{ borderColor: isDarkMode ? '#2a2a2a' : '#e8e8e8' }}
-                                aria-label="Open menu"
-                            >
-                                {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
-                            </button>
-                        </div>
+                        <PublicSiteMenu />
                     </div>
-                    <AnimatePresence>
-                        {mobileMenuOpen && (
-                            <motion.div
-                                initial={{ opacity: 0, y: -8 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -8 }}
-                                className="md:hidden border-t px-4 py-4"
-                                style={{ borderColor: isDarkMode ? '#1e1e1e' : '#e8e8e8', backgroundColor: isDarkMode ? '#0a0a0a' : '#ffffff' }}
-                            >
-                                <div className="flex flex-col gap-3 text-sm font-bold" style={{ color: isDarkMode ? '#fafafa' : '#080808' }}>
-                                    <a href="#why" onClick={() => setMobileMenuOpen(false)}>Why mentor</a>
-                                    <a href="#options" onClick={() => setMobileMenuOpen(false)}>Ways to contribute</a>
-                                    <a href="#process" onClick={() => setMobileMenuOpen(false)}>How it works</a>
-                                    <button type="button" onClick={startApplication} className="mt-2 inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3" style={{ backgroundColor: '#146ef5', color: '#ffffff' }}>
-                                        Become a Mentor <ArrowRight size={16} />
-                                    </button>
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
                 </header>
 
                 <main>
                     <section className="relative overflow-hidden">
-                        <div className="absolute inset-0 opacity-40" style={{ background: isDarkMode ? 'radial-gradient(circle at 50% 10%, rgba(20,110,245,0.24), transparent 34%)' : 'radial-gradient(circle at 50% 10%, rgba(20,110,245,0.12), transparent 35%)' }} />
+                        <div className="absolute inset-0" style={{ background: isDarkMode ? 'radial-gradient(circle at 50% 10%, rgba(20,110,245,0.16), transparent 34%)' : 'radial-gradient(circle at 50% 10%, rgba(20,110,245,0.08), transparent 35%)' }} />
                         <div className="relative max-w-[1200px] mx-auto px-4 sm:px-6 pt-32 pb-20 md:pt-36 md:pb-28 text-center">
                             <motion.div
                                 initial={{ opacity: 0, y: 14 }}
@@ -388,7 +346,7 @@ const MentorPage: React.FC = () => {
                                 initial={{ opacity: 0, y: 18 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.05 }}
-                                className="max-w-4xl mx-auto text-5xl md:text-7xl font-bold tracking-tight leading-[1.02] mb-7"
+                                className="max-w-3xl mx-auto text-[clamp(2.6rem,6vw,4.35rem)] md:text-[clamp(3.4rem,6vw,5.2rem)] font-semibold tracking-[-0.04em] leading-[1.02] mb-7"
                                 style={{ color: isDarkMode ? '#fafafa' : '#080808' }}
                             >
                                 Help ambitious learners turn opportunity into{' '}
@@ -399,7 +357,7 @@ const MentorPage: React.FC = () => {
                                 initial={{ opacity: 0, y: 16 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.1 }}
-                                className="max-w-2xl mx-auto text-lg md:text-xl leading-relaxed mb-10"
+                                className="max-w-2xl mx-auto text-base md:text-lg leading-relaxed mb-10"
                                 style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}
                             >
                                 Join Edutu as a mentor, roadmap creator, or resource expert. Share what worked for you and help students prepare stronger applications, career plans, and next steps.
@@ -502,13 +460,16 @@ const MentorPage: React.FC = () => {
                                         We review each mentor application so learners get trusted, relevant guidance. Once accepted, you can publish resources, create roadmaps, and offer mentorship inside Edutu.
                                     </p>
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                    {[
-                                        { title: 'Sign up', desc: 'Create or access your Edutu account.' },
-                                        { title: 'Apply', desc: 'Tell us your expertise and mentoring focus.' },
-                                        { title: 'Launch', desc: 'Start helping learners after approval.' },
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                {[
+                                        { title: 'Sign up', desc: 'Create or access your Edutu account.', icon: Users },
+                                        { title: 'Apply', desc: 'Tell us your expertise and mentoring focus.', icon: FileCheck },
+                                        { title: 'Launch', desc: 'Start helping learners after approval.', icon: Rocket },
                                     ].map((step, index) => (
                                         <div key={step.title} className="p-5 rounded-2xl border" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#ffffff', borderColor: isDarkMode ? '#1e1e1e' : '#e8e8e8' }}>
+                                            <div className="w-11 h-11 rounded-2xl flex items-center justify-center mb-5" style={{ backgroundColor: '#146ef510', color: '#146ef5' }}>
+                                                <step.icon size={20} />
+                                            </div>
                                             <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold mb-5" style={{ backgroundColor: '#146ef5', color: '#fff' }}>{index + 1}</div>
                                             <h3 className="font-bold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#080808' }}>{step.title}</h3>
                                             <p className="text-sm leading-relaxed" style={{ color: isDarkMode ? '#888' : '#666' }}>{step.desc}</p>
@@ -533,8 +494,20 @@ const MentorPage: React.FC = () => {
                                 <MessageCircle size={30} className="mx-auto mb-5" />
                                 <h2 className="text-3xl md:text-4xl font-bold mb-4">Guide learners into funded opportunities</h2>
                                 <p className="max-w-2xl mx-auto text-white/80 mb-8">
-                                    Start your application and show us how your experience can help students discover scholarships, prepare stronger applications, and win globally.
+                                    Share your journey, then guide learners with a clearer path, better tools, and more confidence.
                                 </p>
+                                <div className="mb-8 flex flex-wrap items-center justify-center gap-3">
+                                    {[
+                                        { label: 'Scholarships', icon: BookOpen },
+                                        { label: 'Applications', icon: FileCheck },
+                                        { label: 'Global Reach', icon: Globe },
+                                    ].map((item) => (
+                                        <div key={item.label} className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold" style={{ backgroundColor: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.16)' }}>
+                                            <item.icon size={14} />
+                                            {item.label}
+                                        </div>
+                                    ))}
+                                </div>
                                 <button
                                     type="button"
                                     onClick={startApplication}

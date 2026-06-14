@@ -861,9 +861,9 @@ body {
   }
 
   .landing-hero {
-    min-height: auto;
-    padding-top: 110px !important;
-    padding-bottom: 128px !important;
+    min-height: 100dvh !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
   }
 
   .landing-hero-title {

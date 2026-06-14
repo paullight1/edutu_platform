@@ -16,6 +16,8 @@ const defaultNavItems: NavItem[] = [
   { label: 'Mentor', to: '/mentor' },
   { label: 'About', to: '/about' },
   { label: 'Blog', to: '/blog' },
+  { label: 'Docs', to: '/docs' },
+  { label: 'Scholarship API', to: '/scholarship-api' },
   { label: 'Contact', to: '/contact' },
 ];
 

@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 import {
-  ArrowLeft, Calendar, MapPin, Users, Clock, Star, Bell, ExternalLink,
-  Target, BookOpen, Loader2, Heart, Share2, Sparkles, Tag, DollarSign,
-  CheckCircle2, AlertTriangle, Trophy, ChevronRight, Bookmark
+  ArrowLeft,
+  Bookmark,
+  CheckCircle2,
+  ExternalLink,
+  Heart,
+  Loader2,
+  Share2,
+  Sparkles,
+  Trophy,
 } from 'lucide-react';
-import Button from './ui/Button';
-import Card from './ui/Card';
-import ImageWithFallback from './ImageWithFallback';
-import { useDarkMode } from '../hooks/useDarkMode';
-import { useToast } from './ui/ToastProvider';
 import { useAuth } from '@clerk/clerk-react';
+import { useToast } from './ui/ToastProvider';
 import type { Opportunity } from '../types/opportunity';
 import { addBookmark, removeBookmark, isBookmarked } from '../services/bookmarks';
 import { addApplication } from '../services/applications';
@@ -23,6 +24,7 @@ import {
   fetchOpportunityShareCard,
   fetchOpportunitySharePdfBlob,
 } from '../services/opportunityShare';
+import PublicEditorialShell from './PublicEditorialShell';
 
 interface OpportunityDetailProps {
   opportunity: Opportunity;
@@ -30,20 +32,6 @@ interface OpportunityDetailProps {
   onAddToGoals: (opportunity: Opportunity) => void;
   onNavigateToRoadmap?: () => void;
 }
-
-const fadeInUp = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.4, ease: [0.2, 0.8, 0.2, 1] }
-};
-
-const staggerContainer = {
-  animate: {
-    transition: {
-      staggerChildren: 0.08
-    }
-  }
-};
 
 function getCurrencySymbol(currency?: string | null): string {
   switch (currency?.toUpperCase()) {
@@ -71,34 +59,78 @@ function getCurrencyLabel(currency?: string | null): string {
   }
 }
 
+function formatDeadline(deadline?: string | null): string {
+  if (!deadline) return 'No deadline listed';
+  const date = new Date(deadline);
+  if (Number.isNaN(date.getTime())) return 'No deadline listed';
+  return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+function getDaysUntilDeadline(deadline?: string | null): number | null {
+  if (!deadline) return null;
+  const parsed = new Date(deadline);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const diffTime = parsed.getTime() - Date.now();
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+}
+
 const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   opportunity,
   onBack,
   onAddToGoals,
-  onNavigateToRoadmap
+  onNavigateToRoadmap,
 }) => {
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
-  const [isAddingToGoals, setIsAddingToGoals] = useState(false);
-  const [isBookmarkedState, setIsBookmarkedState] = useState(false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
+  const [isBookmarkedState, setIsBookmarkedState] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
-  const { isDarkMode } = useDarkMode();
+  const [isAddingToGoals, setIsAddingToGoals] = useState(false);
   const { success, error: showError } = useToast();
-
   const { userId, getToken } = useAuth();
+
   const currencySymbol = getCurrencySymbol(opportunity.currency);
   const currencyLabel = getCurrencyLabel(opportunity.currency);
+  const daysUntilDeadline = getDaysUntilDeadline(opportunity.deadline);
+  const applyUrl = opportunity.applyUrl && opportunity.applyUrl.length > 0 ? opportunity.applyUrl : null;
+  const matchPercentage = Math.round(opportunity.match ?? 0);
+  const difficultyLabel = opportunity.difficulty ?? 'Medium';
+  const applicantsCopy = opportunity.applicants ? `${opportunity.applicants} applicants` : 'No applicant data';
+  const successRateCopy = opportunity.successRate ?? 'Success rate not shared yet';
+  const requirements = opportunity.requirements.length > 0
+    ? opportunity.requirements
+    : ['Requirements will be updated soon.'];
+  const benefits = opportunity.benefits.length > 0
+    ? opportunity.benefits
+    : ['Benefits will be updated soon.'];
+  const applicationSteps = opportunity.applicationProcess.length > 0
+    ? opportunity.applicationProcess
+    : ['Application steps will be confirmed soon.'];
+  const shareUrl = buildOpportunityShareUrl(opportunity.id);
+  const shareText = buildOpportunityShareText(opportunity, shareUrl);
 
   useEffect(() => {
+    let isActive = true;
+
     const checkBookmark = async () => {
       if (!userId) return;
       const token = await getToken().catch(() => null);
       const bookmarked = await isBookmarked(userId, opportunity.id, token);
-      setIsBookmarkedState(bookmarked);
+      if (isActive) {
+        setIsBookmarkedState(bookmarked);
+      }
     };
-    checkBookmark();
+
+    void checkBookmark();
+
+    return () => {
+      isActive = false;
+    };
   }, [getToken, opportunity.id, userId]);
+
+  const handleBack = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    onBack();
+  };
 
   const handleBookmark = async () => {
     if (!userId) return;
@@ -121,10 +153,11 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
           category: opportunity.category,
           deadline: opportunity.deadline,
           location: opportunity.location,
-          match_percentage: opportunity.match
+          match_percentage: opportunity.match,
         },
-        token
+        token,
       );
+
       if (added) {
         setIsBookmarkedState(true);
         success('Opportunity saved');
@@ -138,8 +171,6 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
     setIsSharing(true);
 
     try {
-      const shareUrl = buildOpportunityShareUrl(opportunity.id);
-      const shareText = buildOpportunityShareText(opportunity, shareUrl);
       const shareCard = await fetchOpportunityShareCard(opportunity.id);
       const imageSource = shareCard?.url || opportunity.image || null;
       const pdfBlob = await fetchOpportunitySharePdfBlob(opportunity.id, imageSource);
@@ -191,6 +222,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
         setShareCopied(true);
         success('Opened WhatsApp and copied the link');
       }
+
       setTimeout(() => setShareCopied(false), 2000);
     } catch (error) {
       if (error instanceof DOMException && (error.name === 'AbortError' || error.name === 'NotAllowedError')) {
@@ -198,7 +230,6 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
       }
 
       try {
-        const shareUrl = buildOpportunityShareUrl(opportunity.id);
         await navigator.clipboard.writeText(shareUrl);
         success('Link copied to clipboard');
       } catch {
@@ -208,25 +239,6 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
       setIsSharing(false);
     }
   };
-
-  const difficultyLabel = opportunity.difficulty ?? 'Medium';
-  const applicantsCopy = opportunity.applicants
-    ? `${opportunity.applicants} applicants`
-    : 'No applicant data';
-  const successRateCopy = opportunity.successRate ?? 'Success rate not shared yet';
-  const requirements =
-    opportunity.requirements.length > 0
-      ? opportunity.requirements
-      : ['Requirements will be updated soon.'];
-  const benefits =
-    opportunity.benefits.length > 0
-      ? opportunity.benefits
-      : ['Benefits will be updated soon.'];
-  const applicationSteps =
-    opportunity.applicationProcess.length > 0
-      ? opportunity.applicationProcess
-      : ['Application steps will be confirmed soon.'];
-  const applyUrl = opportunity.applyUrl && opportunity.applyUrl.length > 0 ? opportunity.applyUrl : null;
 
   const handleApply = async () => {
     if (!applyUrl) return;
@@ -241,7 +253,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
           category: opportunity.category,
         },
         undefined,
-        token
+        token,
       );
 
       if (tracked) {
@@ -256,7 +268,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
 
   const handleAddToGoals = async () => {
     setIsAddingToGoals(true);
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 1200));
     setIsAddingToGoals(false);
     onAddToGoals(opportunity);
   };
@@ -264,423 +276,280 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   const handleWinThisOpportunity = () => {
     if (onNavigateToRoadmap) {
       onNavigateToRoadmap();
-    } else {
-      window.location.hash = `/app/opportunity/${opportunity.id}/roadmap`;
+      return;
     }
+    window.location.hash = `/app/opportunity/${opportunity.id}/roadmap`;
   };
 
   const handleAskAI = (intent: string) => {
     window.sessionStorage.setItem(
       'edutu.aiPrompt',
-      `${intent}
-
-Opportunity: ${opportunity.title}
-Organization: ${opportunity.organization || 'Unknown'}
-Category: ${opportunity.category || 'Opportunity'}
-Deadline: ${opportunity.deadline || 'Rolling'}
-Description: ${opportunity.description || 'No description available'}`
+      `${intent}\n\nOpportunity: ${opportunity.title}\nOrganization: ${opportunity.organization || 'Unknown'}\nCategory: ${
+        opportunity.category || 'Opportunity'
+      }\nDeadline: ${opportunity.deadline || 'Rolling'}\nDescription: ${
+        opportunity.description || 'No description available'
+      }`,
     );
     window.location.hash = '/app/chat';
   };
 
-  const getDifficultyColor = (difficulty: string | null | undefined) => {
-    switch (difficulty) {
-      case 'Easy': return 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800';
-      case 'Medium': return 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800';
-      case 'Hard': return 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800';
-      default: return 'bg-gray-50 text-gray-700 border border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700';
-    }
-  };
-
-  const getMatchColor = (match: number) => {
-    if (match >= 70) return 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800';
-    if (match >= 40) return 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800';
-    return 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800';
-  };
-
-  const getDaysUntilDeadline = () => {
-    if (!opportunity.deadline) return null;
-    const deadline = new Date(opportunity.deadline);
-    const today = new Date();
-    const diffTime = deadline.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  };
-
-  const daysUntilDeadline = getDaysUntilDeadline();
-
-  const getDeadlineUrgency = () => {
-    if (daysUntilDeadline === null) return { bg: 'bg-gray-50 dark:bg-gray-800', border: 'border-gray-200 dark:border-gray-700', text: 'text-gray-700 dark:text-gray-300', icon: 'text-gray-500' };
-    if (daysUntilDeadline <= 0) return { bg: 'bg-rose-50 dark:bg-rose-900/20', border: 'border-rose-200 dark:border-rose-800', text: 'text-rose-700 dark:text-rose-400', icon: 'text-rose-500' };
-    if (daysUntilDeadline <= 14) return { bg: 'bg-rose-50 dark:bg-rose-900/20', border: 'border-rose-200 dark:border-rose-800', text: 'text-rose-700 dark:text-rose-400', icon: 'text-rose-500' };
-    if (daysUntilDeadline <= 30) return { bg: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-200 dark:border-amber-800', text: 'text-amber-700 dark:text-amber-400', icon: 'text-amber-500' };
-    return { bg: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'border-emerald-200 dark:border-emerald-800', text: 'text-emerald-700 dark:text-emerald-400', icon: 'text-emerald-500' };
-  };
-
-  const deadlineUrgency = getDeadlineUrgency();
-
-  const formatDeadline = () => {
-    if (!opportunity.deadline) return 'No deadline listed';
-    const date = new Date(opportunity.deadline);
-    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  };
-
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleBack = () => {
-    scrollToTop();
-    onBack();
-  };
-
-  const matchPercentage = Math.round(opportunity.match ?? 0);
-
   return (
-    <div className={`min-h-screen bg-surface-body ${isDarkMode ? 'dark' : ''}`}>
-      <div className="sticky top-0 z-10 bg-surface-layer/80 backdrop-blur-xl border-b border-subtle">
-        <div className="max-w-7xl mx-auto px-4 lg:px-6 py-3">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleBack}
-              className="p-2 rounded-xl bg-surface-elevated border border-subtle hover:bg-surface-layer transition-theme"
-            >
-              <ArrowLeft size={20} className="text-soft" />
-            </button>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-lg font-display font-bold text-strong line-clamp-1">{opportunity.title}</h1>
-              <p className="text-sm text-muted truncate">{opportunity.organization}</p>
-            </div>
-            <button
-              onClick={handleShare}
-              disabled={isSharing}
-              aria-label="Share opportunity"
-              title="Share opportunity"
-              className={`p-2 rounded-xl transition-all ${shareCopied ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-surface-elevated border border-subtle text-muted hover:bg-surface-layer'} ${isSharing ? 'opacity-70 cursor-wait' : ''}`}
-            >
-              <Share2 size={18} />
-            </button>
-            <button
-              onClick={handleBookmark}
-              disabled={bookmarkLoading}
-              className={`p-2 rounded-xl transition-all ${
-                isBookmarkedState
-                  ? 'bg-rose-500 text-white'
-                  : 'bg-surface-elevated border border-subtle text-muted hover:bg-surface-layer'
-              }`}
-            >
-              <Heart size={18} fill={isBookmarkedState ? 'currentColor' : 'none'} />
-            </button>
-          </div>
+    <PublicEditorialShell>
+      <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:py-10">
+        <div className="mb-6 flex flex-wrap items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
+          <button
+            type="button"
+            onClick={handleBack}
+            className="inline-flex items-center gap-2 border-b border-transparent pb-1 font-medium text-slate-700 transition-colors hover:border-slate-300 hover:text-brand-600 dark:text-slate-200 dark:hover:border-white/20"
+          >
+            <ArrowLeft size={16} />
+            Back to opportunities
+          </button>
+          <span aria-hidden="true">•</span>
+          <span>Open application</span>
         </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto px-4 lg:px-6 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="relative h-56 sm:h-72 lg:h-80 rounded-2xl overflow-hidden bg-surface-elevated"
-            >
-              <ImageWithFallback
-                src={opportunity.image ?? ''}
-                alt={opportunity.title}
-                className="w-full h-full object-cover"
-                fallbackClassName="w-full h-full"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
-              <div className="absolute bottom-0 left-0 right-0 p-6">
-                <div className="flex flex-wrap gap-2 mb-3">
-                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-white/20 text-white backdrop-blur-sm border border-white/10">
-                    {opportunity.category}
-                  </span>
-                  {opportunity.isRemote && (
-                    <span className="px-3 py-1 rounded-full text-xs font-medium bg-white/20 text-white backdrop-blur-sm border border-white/10">
-                      Remote
-                    </span>
-                  )}
-                  {opportunity.featured && (
-                    <span className="px-3 py-1 rounded-full text-xs font-medium bg-amber-400/90 text-amber-900 backdrop-blur-sm">
-                      Featured
-                    </span>
-                  )}
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <article className="space-y-10">
+            <header className="space-y-5 border-b border-slate-200 pb-8 dark:border-white/10">
+              <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.35em] text-brand-600 dark:text-brand-300">
+                <Sparkles size={13} />
+                Opportunity detail
+              </p>
+              <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl dark:text-white">
+                {opportunity.title}
+              </h1>
+              <p className="max-w-3xl text-lg leading-8 text-slate-600 dark:text-slate-300">{opportunity.organization}</p>
+              <p className="max-w-3xl text-base leading-7 text-slate-600 dark:text-slate-300">
+                {opportunity.description || 'A straightforward application preview with the core details you need to decide, save, and apply.'}
+              </p>
+            </header>
+
+            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {[
+                ['Match', `${matchPercentage}%`],
+                ['Difficulty', difficultyLabel],
+                ['Deadline', formatDeadline(opportunity.deadline)],
+                ['Location', opportunity.location || 'Worldwide'],
+              ].map(([label, value]) => (
+                <div key={label} className="border-b border-slate-200 pb-4 dark:border-white/10">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">{label}</p>
+                  <p className="mt-2 text-sm font-medium leading-6 text-slate-950 dark:text-white">{value}</p>
                 </div>
-                <h2 className="text-2xl lg:text-3xl font-display font-bold text-white mb-2">{opportunity.title}</h2>
-                <p className="text-white/80 text-sm">{opportunity.organization}</p>
-              </div>
-            </motion.div>
-
-            <motion.div
-              variants={staggerContainer}
-              initial="initial"
-              animate="animate"
-              className="flex flex-wrap gap-2"
-            >
-              <motion.span variants={fadeInUp} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border ${getMatchColor(matchPercentage)}`}>
-                <Target size={14} />
-                {matchPercentage}% match
-              </motion.span>
-              <motion.span variants={fadeInUp} className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium ${getDifficultyColor(difficultyLabel)}`}>
-                {difficultyLabel}
-              </motion.span>
-              {opportunity.tags && opportunity.tags.length > 0 && opportunity.tags.slice(0, 4).map((tag, i) => (
-                <motion.span key={tag} variants={fadeInUp} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-brand-50 text-brand-700 border border-brand-200 dark:bg-brand-900/20 dark:text-brand-400 dark:border-brand-800">
-                  <Tag size={12} />
-                  {tag}
-                </motion.span>
               ))}
-            </motion.div>
-
-            <motion.div
-              variants={staggerContainer}
-              initial="initial"
-              animate="animate"
-              className="grid grid-cols-2 gap-4"
-            >
-              <motion.div variants={fadeInUp} className="flex items-center gap-3 p-4 rounded-xl bg-surface-layer border border-subtle">
-                <MapPin size={20} className="text-brand-500 flex-shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-xs text-muted">Location</p>
-                  <p className="text-sm font-medium text-strong truncate">{opportunity.location}</p>
+              {(opportunity.stipend !== undefined && opportunity.stipend !== null) ? (
+                <div className="border-b border-slate-200 pb-4 dark:border-white/10">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">Funding</p>
+                  <p className="mt-2 text-sm font-medium leading-6 text-slate-950 dark:text-white">
+                    {currencySymbol}
+                    {opportunity.stipend.toLocaleString()}
+                  </p>
+                  {opportunity.currency ? (
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{currencyLabel}</p>
+                  ) : null}
                 </div>
-              </motion.div>
-              <motion.div variants={fadeInUp} className="flex items-center gap-3 p-4 rounded-xl bg-surface-layer border border-subtle">
-                <Users size={20} className="text-brand-500 flex-shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-xs text-muted">Applicants</p>
-                  <p className="text-sm font-medium text-strong truncate">{applicantsCopy}</p>
-                </div>
-              </motion.div>
-            </motion.div>
+              ) : null}
+              <div className="border-b border-slate-200 pb-4 dark:border-white/10">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">Applicants</p>
+                <p className="mt-2 text-sm font-medium leading-6 text-slate-950 dark:text-white">{applicantsCopy}</p>
+              </div>
+            </section>
 
-            {opportunity.description && (
-              <motion.div {...fadeInUp}>
-                <Card>
-                  <h3 className="text-lg font-display font-semibold text-strong mb-3">About This Opportunity</h3>
-                  <p className="text-soft leading-relaxed">{opportunity.description}</p>
-                </Card>
-              </motion.div>
-            )}
+            <section className="space-y-3">
+              <h2 className="text-xl font-semibold tracking-tight text-slate-950 dark:text-white">Requirements</h2>
+              <ul className="space-y-3 text-base leading-7 text-slate-600 dark:text-slate-300">
+                {requirements.map((item, index) => (
+                  <li key={`${item}-${index}`} className="flex gap-3">
+                    <span className="mt-3 h-1.5 w-1.5 rounded-full bg-brand-500" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
 
-            <motion.div {...fadeInUp}>
-              <Card>
-                <h3 className="text-lg font-display font-semibold text-strong mb-3">Requirements</h3>
-                <ul className="space-y-2.5">
-                  {requirements.map((req, index) => (
-                    <li key={index} className="flex items-start gap-3">
-                      <CheckCircle2 size={18} className="text-brand-500 flex-shrink-0 mt-0.5" />
-                      <span className="text-soft">{req}</span>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            </motion.div>
+            <section className="space-y-3">
+              <h2 className="text-xl font-semibold tracking-tight text-slate-950 dark:text-white">Benefits</h2>
+              <ul className="space-y-3 text-base leading-7 text-slate-600 dark:text-slate-300">
+                {benefits.map((item, index) => (
+                  <li key={`${item}-${index}`} className="flex gap-3">
+                    <span className="mt-3 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
 
-            <motion.div {...fadeInUp}>
-              <Card>
-                <h3 className="text-lg font-display font-semibold text-strong mb-3">Benefits</h3>
-                <ul className="space-y-2.5">
-                  {benefits.map((benefit, index) => (
-                    <li key={index} className="flex items-start gap-3">
-                      <Star size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
-                      <span className="text-soft">{benefit}</span>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            </motion.div>
+            <section className="space-y-3">
+              <h2 className="text-xl font-semibold tracking-tight text-slate-950 dark:text-white">Application process</h2>
+              <ol className="space-y-3 text-base leading-7 text-slate-600 dark:text-slate-300">
+                {applicationSteps.map((item, index) => (
+                  <li key={`${item}-${index}`} className="flex gap-4">
+                    <span className="mt-0.5 text-sm font-semibold text-brand-600 dark:text-brand-300">
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ol>
+            </section>
 
-            <motion.div {...fadeInUp}>
-              <Card>
-                <h3 className="text-lg font-display font-semibold text-strong mb-4">Application Process</h3>
-                <div className="space-y-4">
-                  {applicationSteps.map((step, index) => (
-                    <div key={index} className="flex gap-4">
-                      <div className="w-8 h-8 rounded-full gradient-accent flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                        {index + 1}
-                      </div>
-                      <div className="flex-1 pt-1">
-                        <p className="text-soft">{step}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            </motion.div>
-
-            {opportunity.tags && opportunity.tags.length > 4 && (
-              <motion.div {...fadeInUp}>
-                <Card>
-                  <h3 className="text-lg font-display font-semibold text-strong mb-3 flex items-center gap-2">
-                    <Sparkles size={18} className="text-brand-500" />
-                    AI Tags
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {opportunity.tags.map((tag) => (
-                      <span key={tag} className="px-3 py-1.5 rounded-lg text-sm bg-surface-elevated text-muted border border-subtle hover:border-brand-300 dark:hover:border-brand-700 transition-theme cursor-default">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </Card>
-              </motion.div>
-            )}
-          </div>
-
-          <div className="space-y-6">
-            {daysUntilDeadline !== null && (
-              <motion.div {...fadeInUp}>
-                <Card className={`${deadlineUrgency.bg} ${deadlineUrgency.border}`}>
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className={`p-2 rounded-lg ${deadlineUrgency.bg}`}>
-                      <Calendar size={20} className={deadlineUrgency.icon} />
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted">Application Deadline</p>
-                      <p className={`text-sm font-semibold ${deadlineUrgency.text}`}>{formatDeadline()}</p>
-                    </div>
-                  </div>
-                  {daysUntilDeadline > 0 && (
-                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${deadlineUrgency.bg}`}>
-                      {daysUntilDeadline <= 14 ? (
-                        <AlertTriangle size={16} className={deadlineUrgency.icon} />
-                      ) : (
-                        <Clock size={16} className={deadlineUrgency.icon} />
-                      )}
-                      <span className={`text-sm font-medium ${deadlineUrgency.text}`}>
-                        {daysUntilDeadline} {daysUntilDeadline === 1 ? 'day' : 'days'} remaining
-                      </span>
-                    </div>
-                  )}
-                  {daysUntilDeadline <= 0 && (
-                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${deadlineUrgency.bg}`}>
-                      <AlertTriangle size={16} className={deadlineUrgency.icon} />
-                      <span className={`text-sm font-medium ${deadlineUrgency.text}`}>
-                        Deadline has passed
-                      </span>
-                    </div>
-                  )}
-                </Card>
-              </motion.div>
-            )}
-
-            {(opportunity.stipend !== undefined && opportunity.stipend !== null) && (
-              <motion.div {...fadeInUp}>
-                <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200 dark:from-emerald-900/20 dark:to-teal-900/20 dark:border-emerald-800">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/40">
-                      <DollarSign size={20} className="text-emerald-600 dark:text-emerald-400" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted">Stipend / Funding</p>
-                      <p className="text-xl font-display font-bold text-emerald-700 dark:text-emerald-400">
-                        {currencySymbol}
-                        {opportunity.stipend.toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                  {opportunity.currency && (
-                    <p className="text-xs text-emerald-600/70 dark:text-emerald-400/70">
-                      {currencyLabel}
-                    </p>
-                  )}
-                </Card>
-              </motion.div>
-            )}
-
-            <motion.div {...fadeInUp}>
-              <Card>
-                <h3 className="text-sm font-semibold text-strong mb-4">Quick Actions</h3>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      ['Eligibility', 'Check my eligibility for this opportunity. Be specific about likely gaps and what I should verify.'],
-                      ['Fit', 'Explain why this opportunity fits me and what profile details would improve the match.'],
-                      ['CV', 'Suggest how to tailor my CV for this opportunity with concrete bullet improvements.'],
-                      ['Prep', 'Create a concise preparation plan for this application before the deadline.'],
-                    ].map(([label, prompt]) => (
-                      <button
-                        key={label}
-                        type="button"
-                        onClick={() => handleAskAI(prompt)}
-                        className="rounded-xl border border-brand-500/20 bg-brand-500/5 px-3 py-2 text-xs font-bold text-brand-600 transition hover:bg-brand-500 hover:text-white dark:text-brand-300"
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    onClick={handleWinThisOpportunity}
-                    className="w-full gradient-accent text-white font-medium py-3 px-4 rounded-xl hover:opacity-95 transition-theme flex items-center justify-center gap-2 shadow-soft"
-                  >
-                    <Trophy size={18} />
-                    Win This Opportunity
-                    <ChevronRight size={16} />
-                  </button>
-                  <button
-                    onClick={handleApply}
-                    disabled={!applyUrl}
-                    className="w-full bg-surface-elevated text-strong font-medium py-3 px-4 rounded-xl border border-subtle hover:border-brand-300 dark:hover:border-brand-700 transition-theme flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <ExternalLink size={16} />
-                    {applyUrl ? 'Apply Now' : 'Application Link Unavailable'}
-                  </button>
-                  <button
-                    onClick={handleAddToGoals}
-                    disabled={isAddingToGoals}
-                    className="w-full bg-surface-elevated text-muted font-medium py-2.5 px-4 rounded-xl border border-subtle hover:text-strong hover:border-subtle transition-theme flex items-center justify-center gap-2 text-sm disabled:opacity-50"
-                  >
-                    {isAddingToGoals ? (
-                      <>
-                        <Loader2 size={14} className="animate-spin" />
-                        Adding...
-                      </>
-                    ) : (
-                      <>
-                        <Bookmark size={14} />
-                        Track Deadline Only
-                      </>
-                    )}
-                  </button>
-                </div>
-              </Card>
-            </motion.div>
-
-            <motion.div {...fadeInUp}>
-              <Card>
-                <h3 className="text-sm font-semibold text-strong mb-3">Success Rate</h3>
-                <div className="flex items-center gap-3">
-                  <Trophy size={20} className="text-amber-500" />
-                  <p className="text-soft text-sm">{successRateCopy}</p>
-                </div>
-              </Card>
-            </motion.div>
-
-            {notificationsEnabled && (
-              <motion.div {...fadeInUp}>
-                <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-                  <div className="flex items-center gap-3">
-                    <Bell size={18} className="text-blue-600 dark:text-blue-400" />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-blue-800 dark:text-blue-300">Notifications Enabled</p>
-                      <p className="text-xs text-blue-600 dark:text-blue-400">We'll remind you about important deadlines</p>
-                    </div>
-                    <button
-                      onClick={() => setNotificationsEnabled(false)}
-                      className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+            {opportunity.tags && opportunity.tags.length > 0 ? (
+              <section className="space-y-3 border-t border-slate-200 pt-8 dark:border-white/10">
+                <h2 className="text-xl font-semibold tracking-tight text-slate-950 dark:text-white">Tags</h2>
+                <div className="flex flex-wrap gap-2">
+                  {opportunity.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center rounded-full border border-slate-200 px-3 py-1 text-sm text-slate-600 dark:border-white/10 dark:text-slate-300"
                     >
-                      <ArrowLeft size={16} className="rotate-180" />
-                    </button>
-                  </div>
-                </Card>
-              </motion.div>
-            )}
-          </div>
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+          </article>
+
+          <aside className="space-y-6">
+            <section className="border-y border-slate-200 py-5 dark:border-white/10">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
+                Quick facts
+              </p>
+              <dl className="mt-4 space-y-4">
+                <div>
+                  <dt className="text-sm text-slate-500 dark:text-slate-400">Success rate</dt>
+                  <dd className="mt-1 text-sm font-medium text-slate-950 dark:text-white">{successRateCopy}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm text-slate-500 dark:text-slate-400">Remote</dt>
+                  <dd className="mt-1 text-sm font-medium text-slate-950 dark:text-white">
+                    {opportunity.isRemote ? 'Yes' : 'Not specified'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm text-slate-500 dark:text-slate-400">Deadline urgency</dt>
+                  <dd className="mt-1 text-sm font-medium text-slate-950 dark:text-white">
+                    {daysUntilDeadline === null
+                      ? 'No deadline set'
+                      : daysUntilDeadline <= 0
+                        ? 'Deadline has passed'
+                        : `${daysUntilDeadline} days remaining`}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+
+            <section className="border-y border-slate-200 py-5 dark:border-white/10">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
+                Actions
+              </p>
+              <div className="mt-4 space-y-3">
+                <button
+                  type="button"
+                  onClick={handleApply}
+                  disabled={!applyUrl}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <ExternalLink size={16} />
+                  {applyUrl ? 'Apply now' : 'Application link unavailable'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleWinThisOpportunity}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-950 dark:border-white/15 dark:text-slate-200 dark:hover:text-white"
+                >
+                  <Trophy size={16} />
+                  Win this opportunity
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddToGoals}
+                  disabled={isAddingToGoals}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-950 disabled:cursor-wait disabled:opacity-50 dark:border-white/15 dark:text-slate-200 dark:hover:text-white"
+                >
+                  {isAddingToGoals ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    <>
+                      <Bookmark size={16} />
+                      Track deadline only
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleShare}
+                  disabled={isSharing}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-950 disabled:cursor-wait disabled:opacity-50 dark:border-white/15 dark:text-slate-200 dark:hover:text-white"
+                >
+                  <Share2 size={16} />
+                  {shareCopied ? 'Link copied' : 'Share preview'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBookmark}
+                  disabled={bookmarkLoading}
+                  className={`inline-flex w-full items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-semibold transition-colors disabled:cursor-wait disabled:opacity-50 ${
+                    isBookmarkedState
+                      ? 'bg-rose-500 text-white hover:bg-rose-600'
+                      : 'border border-slate-300 text-slate-700 hover:border-slate-400 hover:text-slate-950 dark:border-white/15 dark:text-slate-200 dark:hover:text-white'
+                  }`}
+                >
+                  <Heart size={16} fill={isBookmarkedState ? 'currentColor' : 'none'} />
+                  {isBookmarkedState ? 'Saved' : 'Save'}
+                </button>
+              </div>
+            </section>
+
+            <section className="border-y border-slate-200 py-5 dark:border-white/10">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
+                Ask Edutu AI
+              </p>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                {[
+                  ['Eligibility', 'Check my eligibility for this opportunity. Be specific about likely gaps and what I should verify.'],
+                  ['Fit', 'Explain why this opportunity fits me and what profile details would improve the match.'],
+                  ['CV', 'Suggest how to tailor my CV for this opportunity with concrete bullet improvements.'],
+                  ['Prep', 'Create a concise preparation plan for this application before the deadline.'],
+                ].map(([label, prompt]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => handleAskAI(prompt)}
+                    className="rounded-2xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-600 dark:border-white/10 dark:text-slate-300 dark:hover:text-white"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="border-y border-slate-200 py-5 dark:border-white/10">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
+                Why sign up?
+              </p>
+              <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                <li className="flex gap-3">
+                  <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-brand-500" />
+                  Unlock the full opportunity description, requirements, and application steps.
+                </li>
+                <li className="flex gap-3">
+                  <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-brand-500" />
+                  Save opportunities and track deadlines from one place.
+                </li>
+                <li className="flex gap-3">
+                  <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-brand-500" />
+                  Continue straight into the private opportunity page after sign-up.
+                </li>
+              </ul>
+            </section>
+          </aside>
         </div>
-      </div>
-    </div>
+      </section>
+    </PublicEditorialShell>
   );
 };
 

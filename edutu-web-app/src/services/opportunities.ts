@@ -355,14 +355,45 @@ export async function getOpportunity(id: string): Promise<Opportunity | null> {
     }
   }
 
-  const response = await fetch(buildBackendUrl(`/opportunities/${encodeURIComponent(id)}`), {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json',
-    },
-  });
+  try {
+    const response = await fetch(buildBackendUrl(`/opportunities/${encodeURIComponent(id)}`), {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+    });
 
-  if (!response.ok) {
+    if (!response.ok) {
+      try {
+        const snapshot = await requestStaticOpportunitySnapshot();
+        return snapshot.find((opportunity) => opportunity.id === id) ?? null;
+      } catch {
+        return null;
+      }
+    }
+
+    const payload = await response.json().catch(() => null);
+    if (!payload) {
+      try {
+        const snapshot = await requestStaticOpportunitySnapshot();
+        return snapshot.find((opportunity) => opportunity.id === id) ?? null;
+      } catch {
+        return null;
+      }
+    }
+
+    const row = extractOpportunityRows(payload)[0] ?? (Array.isArray(payload) ? payload[0] : payload);
+    if (!row || typeof row !== 'object') {
+      return null;
+    }
+
+    const opportunity = normaliseOpportunity(row as BackendOpportunityRow);
+    cachedOpportunities = cachedOpportunities
+      ? cachedOpportunities.map((item) => (item.id === opportunity.id ? opportunity : item))
+      : [opportunity];
+
+    return opportunity;
+  } catch {
     try {
       const snapshot = await requestStaticOpportunitySnapshot();
       return snapshot.find((opportunity) => opportunity.id === id) ?? null;
@@ -370,28 +401,6 @@ export async function getOpportunity(id: string): Promise<Opportunity | null> {
       return null;
     }
   }
-
-  const payload = await response.json().catch(() => null);
-  if (!payload) {
-    try {
-      const snapshot = await requestStaticOpportunitySnapshot();
-      return snapshot.find((opportunity) => opportunity.id === id) ?? null;
-    } catch {
-      return null;
-    }
-  }
-
-  const row = extractOpportunityRows(payload)[0] ?? (Array.isArray(payload) ? payload[0] : payload);
-  if (!row || typeof row !== 'object') {
-    return null;
-  }
-
-  const opportunity = normaliseOpportunity(row as BackendOpportunityRow);
-  cachedOpportunities = cachedOpportunities
-    ? cachedOpportunities.map((item) => (item.id === opportunity.id ? opportunity : item))
-    : [opportunity];
-
-  return opportunity;
 }
 
 export function clearOpportunitiesCache() {
