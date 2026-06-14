@@ -18,7 +18,7 @@ const defaultNavItems: NavItem[] = [
   { label: 'Blog', to: '/blog' },
   { label: 'Docs', to: '/docs' },
   { label: 'Scholarship API', to: '/scholarship-api' },
-  { label: 'Contact', to: '/contact' },
+  { label: 'About', to: '/contact' },
 ];
 
 const PublicSiteMenu: React.FC = () => {
@@ -42,7 +42,7 @@ const PublicSiteMenu: React.FC = () => {
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className={`inline-flex h-11 items-center gap-2 rounded-[12px] border px-4 text-sm font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 ${
+        className={`inline-flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-[12px] border px-4 text-sm font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 ${
           isDarkMode
             ? 'border-white/10 bg-white/5 text-white hover:bg-white/10'
             : 'border-slate-200 bg-white text-slate-900 hover:bg-slate-50'
