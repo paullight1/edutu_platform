@@ -8,7 +8,6 @@ import {
     Database,
     Globe,
     Layers3,
-    RefreshCw,
     Server,
     ShieldCheck,
     Smartphone,
@@ -17,108 +16,126 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useDarkMode } from '../hooks/useDarkMode';
-import PublicSiteMenu from './PublicSiteMenu';
+import PublicEditorialShell from './PublicEditorialShell';
 
-type CardItem = {
-    icon: React.ComponentType<{ size?: number }>;
-    title: string;
-    description: string;
-    accent: string;
+type DocLink = {
+    label: string;
+    href: string;
 };
 
-const apiCards: CardItem[] = [
+type Endpoint = {
+    method: string;
+    path: string;
+    title: string;
+    description: string;
+};
+
+type PlatformCard = {
+    icon: React.ComponentType<{ size?: number }>;
+    title: string;
+    subtitle: string;
+    accent: string;
+    items: string[];
+};
+
+const tocLinks: DocLink[] = [
+    { label: 'Overview', href: '#overview' },
+    { label: 'Endpoints', href: '#endpoints' },
+    { label: 'Platform setup', href: '#platform-setup' },
+    { label: 'SEO pages', href: '#seo-pages' },
+    { label: 'Data contract', href: '#data-contract' },
+    { label: 'Examples', href: '#examples' },
+    { label: 'Support', href: '#support' },
+];
+
+const endpointGroups: Endpoint[] = [
     {
-        icon: Database,
-        title: 'Public opportunity feed',
-        description: 'Use `GET /opportunities` to power listings, search pages, and homepage sections. The client helper falls back to a local snapshot if the backend is unavailable.',
-        accent: '#146ef5',
+        method: 'GET',
+        path: '/opportunities',
+        title: 'Global opportunities API',
+        description: 'Returns the canonical public feed for scholarships, fellowships, internships, and other opportunities. Use it for home pages, filters, search, and list views.',
     },
     {
-        icon: Code2,
-        title: 'Opportunity detail endpoint',
-        description: 'Use `GET /opportunities/:id` for deep links, share pages, and detail views across web and mobile.',
-        accent: '#7a3dff',
+        method: 'GET',
+        path: '/opportunities/:id',
+        title: 'Scholarship detail API',
+        description: 'Loads one normalized opportunity record for detail pages, SEO-friendly public shares, and application handoff screens.',
     },
     {
-        icon: RefreshCw,
-        title: 'Admin sync pipeline',
-        description: 'Scraper output and manual admin edits converge through the same opportunity inventory and cache refresh flow.',
-        accent: '#00b86b',
+        method: 'GET',
+        path: '/api/scraper/stats',
+        title: 'Scraper health',
+        description: 'Shows the current scrape coverage and sync status so your admin surface can reflect whether the inventory is fresh.',
     },
     {
-        icon: Smartphone,
-        title: 'Mobile-first contract',
-        description: 'The Expo app reads the same backend feed, so your scholarship data stays aligned across devices.',
-        accent: '#ffae13',
+        method: 'POST',
+        path: '/api/scraper/run',
+        title: 'Manual sync trigger',
+        description: 'Triggers the ingestion workflow used by the admin panel and automated sources. Ideal for re-syncing after content updates.',
     },
 ];
 
-const envCards: CardItem[] = [
+const platformCards: PlatformCard[] = [
     {
-        icon: Terminal,
+        icon: Globe,
         title: 'Web app',
-        description: '`VITE_BACKEND_URL` or `VITE_API_URL` points the public app at the opportunity backend. In local development, the helper uses the local API automatically.',
+        subtitle: 'Public feed + SEO',
         accent: '#146ef5',
+        items: [
+            'Use `VITE_API_URL` or `VITE_BACKEND_URL` for the live feed',
+            'Render the same normalized contract on list and detail pages',
+            'Keep share pages text-first so search engines can index them cleanly',
+        ],
     },
     {
         icon: Smartphone,
         title: 'Mobile app',
-        description: '`EXPO_PUBLIC_API_URL` keeps the Expo client on the same feed while `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` and Supabase vars handle auth.',
+        subtitle: 'Expo client',
         accent: '#7a3dff',
+        items: [
+            '`EXPO_PUBLIC_API_URL` keeps mobile on the same source of truth',
+            '`EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` handles auth',
+            'Bookmark, apply, and roadmap flows all use the same opportunity payload',
+        ],
     },
     {
         icon: Server,
         title: 'Admin panel',
-        description: '`VITE_API_URL`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_ANON_KEY` keep the admin workflow connected to the same source of truth.',
+        subtitle: 'Ingestion + review',
         accent: '#00b86b',
+        items: [
+            '`VITE_API_URL`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_ANON_KEY` keep the review surface connected',
+            'Manual edits and scraper imports merge into the same inventory',
+            'Use the sync endpoints to refresh the public feed after changes',
+        ],
     },
 ];
 
-const quickSteps = [
-    {
-        step: '01',
-        title: 'Fetch the feed',
-        description: 'Call `fetchOpportunities()` from `src/services/opportunities.ts` to load live opportunities by status, category, or limit.',
-    },
-    {
-        step: '02',
-        title: 'Render the contract',
-        description: 'Map the normalized `Opportunity` shape directly into cards, detail pages, bookmarks, and roadmap entry points.',
-    },
-    {
-        step: '03',
-        title: 'Sync updates',
-        description: 'Keep admin and scraper data fresh through the webhook pipeline handled by `processN8nWebhook()` and the manual admin helpers.',
-    },
-];
-
-const codeBlocks = [
+const codeSamples = [
     {
         label: 'Web',
         title: 'Load the public opportunity feed',
-        snippet: `import { fetchOpportunities } from '../services/opportunities';
+        code: `import { fetchOpportunities } from '../services/opportunities';
 
 const opportunities = await fetchOpportunities({
   status: 'active',
-  limit: 12,
   category: 'Scholarships',
-});
-
-const featured = opportunities.slice(0, 3);`,
+  limit: 12,
+});`,
     },
     {
         label: 'Mobile',
-        title: 'Use the same backend URL inside Expo',
-        snippet: `const apiUrl =
-  process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3010';
+        title: 'Point Expo at the same backend',
+        code: `const apiUrl =
+  process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 const response = await fetch(\`\${apiUrl}/opportunities?status=active\`);
 const opportunities = await response.json();`,
     },
     {
         label: 'Admin',
-        title: 'Keep the inventory in sync',
-        snippet: `await processN8nWebhook({
+        title: 'Refresh the inventory after scraping',
+        code: `await processN8nWebhook({
   action: 'bulk_sync',
   source: 'scraper',
   timestamp: new Date().toISOString(),
@@ -143,412 +160,490 @@ const opportunityFields = [
     'difficulty',
 ];
 
+const quickRefs = [
+    {
+        title: 'Scholarship API',
+        text: 'Use `/opportunities` and `/opportunities/:id` for live scholarship and global opportunities data.',
+    },
+    {
+        title: 'SEO-ready pages',
+        text: 'Keep share pages descriptive, text-first, and canonical so crawlers can understand each opportunity.',
+    },
+    {
+        title: 'Shared schema',
+        text: 'The public feed, mobile app, and admin panel all consume the same normalized opportunity contract.',
+    },
+];
+
 const DeveloperDocsPage: React.FC = () => {
     const { isDarkMode } = useDarkMode();
 
     return (
-        <div
-            className="min-h-[100dvh] overflow-x-hidden"
-            style={{ backgroundColor: isDarkMode ? '#080808' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808', fontFamily: "'Inter', 'Arial', sans-serif" }}
-        >
-            <header
-                className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md transition-colors duration-300"
-                style={{ backgroundColor: isDarkMode ? 'rgba(8, 8, 8, 0.95)' : 'rgba(255, 255, 255, 0.95)', borderBottom: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}` }}
+        <PublicEditorialShell>
+            <div
+                className="min-h-[100dvh] overflow-x-hidden"
+                style={{
+                    backgroundColor: isDarkMode ? '#080808' : '#f7f9fc',
+                    color: isDarkMode ? '#f5f5f5' : '#080808',
+                    fontFamily: "'Inter', 'Arial', sans-serif",
+                }}
             >
-                <div className="max-w-[1200px] mx-auto px-4 sm:px-6 h-[64px] flex items-center justify-between">
-                    <Link to="/" className="flex items-center gap-2" style={{ textDecoration: 'none' }}>
-                        <img src="/edutu-logo.png" alt="Edutu" className="h-8 w-8 object-contain" />
-                        <span className="font-bold text-xl tracking-tight" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
-                            edutu
-                        </span>
-                    </Link>
-
-                    <PublicSiteMenu />
-                </div>
-            </header>
-
-            <main className="pt-[120px] pb-[96px] px-4 sm:px-6">
-                <div className="max-w-[1200px] mx-auto">
-                    <motion.section
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.6 }}
-                        className="text-center mb-16"
-                    >
-                        <div
-                            className="inline-flex items-center gap-2 px-4 py-2 mb-8 rounded"
-                            style={{
-                                backgroundColor: '#146ef510',
-                                border: '1px solid rgba(20,110,245,0.2)',
-                                borderRadius: '4px',
-                            }}
-                        >
-                            <BookOpen size={14} style={{ color: '#146ef5' }} />
-                            <span className="text-[12px] font-semibold tracking-[1.5px]" style={{ color: '#146ef5' }}>
-                                DEVELOPER DOCS
-                            </span>
-                        </div>
-
-                        <h1 className="text-[48px] sm:text-[64px] md:text-[72px] font-semibold leading-[1.05] tracking-[-0.8px] mb-6" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
-                            Integrate Edutu into your product stack.
-                        </h1>
-
-                        <p className="max-w-[820px] mx-auto text-[18px] leading-[1.65]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                            This guide shows how the public opportunity feed, the mobile client, and the admin ingestion pipeline fit together. The same scholarship data contract powers every surface in the platform.
-                        </p>
-                    </motion.section>
-
-                    <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-16">
-                        {envCards.map((card, index) => (
-                            <motion.article
-                                key={card.title}
-                                initial={{ opacity: 0, y: 16 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true }}
-                                transition={{ duration: 0.45, delay: index * 0.08 }}
-                                className="p-6 rounded-[24px]"
+                <main className="mx-auto max-w-[1480px] px-4 py-10 sm:px-6 lg:px-8 lg:py-12">
+                    <div className="grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)_240px]">
+                        <aside className="hidden lg:block">
+                            <div
+                                className="sticky top-24 rounded-[24px] border p-4"
                                 style={{
                                     backgroundColor: isDarkMode ? '#111' : '#ffffff',
-                                    border: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`,
-                                    boxShadow: '0 13px 13px rgba(0,0,0,0.04)',
+                                    borderColor: isDarkMode ? '#222' : '#d8e1eb',
                                 }}
                             >
-                                <div className="h-11 w-11 rounded-2xl flex items-center justify-center mb-6" style={{ backgroundColor: `${card.accent}15`, color: card.accent }}>
-                                    <card.icon size={20} />
+                                <div className="mb-4 flex items-center gap-2 text-[#146ef5]">
+                                    <BookOpen size={16} />
+                                    <span className="text-[11px] font-bold uppercase tracking-[0.24em]">On this page</span>
                                 </div>
-                                <h2 className="text-[20px] font-semibold mb-3" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
-                                    {card.title}
-                                </h2>
-                                <p className="text-[15px] leading-[1.65]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                                    {card.description}
-                                </p>
-                            </motion.article>
-                        ))}
-                    </section>
+                                <nav className="space-y-1">
+                                    {tocLinks.map((link) => (
+                                        <a
+                                            key={link.href}
+                                            href={link.href}
+                                            className="block rounded-xl px-3 py-2 text-sm font-medium transition-colors hover:bg-slate-50"
+                                            style={{ color: isDarkMode ? '#d6dae1' : '#475569' }}
+                                        >
+                                            {link.label}
+                                        </a>
+                                    ))}
+                                </nav>
 
-                    <section className="mb-16">
-                        <div className="max-w-[820px] mb-8">
-                            <span className="text-[12px] font-semibold tracking-[1.5px]" style={{ color: '#146ef5' }}>
-                                API SURFACE
-                            </span>
-                            <h2 className="text-[32px] md:text-[40px] font-semibold leading-[1.08] mt-4 mb-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
-                                The same opportunity contract powers the public app, mobile, and admin tooling.
-                            </h2>
-                            <p className="text-[15px] leading-[1.7]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                                Build against the backend first, then let each client read the same normalized data. That keeps scholarship pages, mobile views, and admin workflows synchronized without extra mapping layers.
-                            </p>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {apiCards.map((card, index) => (
-                                <motion.article
-                                    key={card.title}
-                                    initial={{ opacity: 0, y: 16 }}
-                                    whileInView={{ opacity: 1, y: 0 }}
-                                    viewport={{ once: true }}
-                                    transition={{ duration: 0.45, delay: index * 0.08 }}
-                                    className="p-6 rounded-[24px]"
+                                <div
+                                    className="mt-5 rounded-[20px] p-4"
                                     style={{
-                                        backgroundColor: isDarkMode ? '#111' : '#ffffff',
-                                        border: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`,
-                                        boxShadow: '0 13px 13px rgba(0,0,0,0.04)',
+                                        backgroundColor: isDarkMode ? '#0b0b0b' : '#f8fbff',
+                                        border: `1px solid ${isDarkMode ? '#1d1d1d' : '#e5edf6'}`,
                                     }}
                                 >
-                                    <div className="flex items-start gap-4">
-                                        <div className="h-11 w-11 shrink-0 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${card.accent}15`, color: card.accent }}>
-                                            <card.icon size={20} />
-                                        </div>
-                                        <div className="min-w-0">
-                                            <p className="text-[11px] font-bold tracking-[0.18em] uppercase mb-2" style={{ color: card.accent }}>
-                                                {card.title}
-                                            </p>
-                                            <p className="text-[15px] leading-[1.65] mb-4" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                                                {card.description}
-                                            </p>
-                                            <div className="rounded-[18px] px-4 py-3" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#f8fbff', border: `1px solid ${isDarkMode ? '#1f1f1f' : '#e5eef9'}` }}>
-                                                <div className="flex items-center gap-2 text-[12px] font-semibold" style={{ color: isDarkMode ? '#f5f5f5' : '#0f172a' }}>
-                                                    <Terminal size={14} />
-                                                    <span>{card.accent === '#00b86b' ? 'Sync flow' : 'Endpoint'}</span>
+                                    <div className="flex items-center gap-2 text-[#146ef5]">
+                                        <ShieldCheck size={14} />
+                                        <span className="text-[10px] font-bold uppercase tracking-[0.22em]">Quick ref</span>
+                                    </div>
+                                    <p className="mt-3 text-sm leading-6" style={{ color: isDarkMode ? '#aab2c0' : '#64748b' }}>
+                                        The Edutu API powers the public app, the Expo mobile client, and the admin ingest flow.
+                                    </p>
+                                </div>
+                            </div>
+                        </aside>
+
+                        <div className="min-w-0">
+                            <section id="overview" className="scroll-mt-28 border-b pb-10 sm:pb-12">
+                                <motion.div
+                                    initial={{ opacity: 0, y: 16 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.45 }}
+                                >
+                                    <div className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[11px] font-bold uppercase tracking-[0.26em] text-[#146ef5]">
+                                        <Code2 size={14} />
+                                        edutu-api
+                                    </div>
+
+                                    <div className="mt-6 max-w-4xl space-y-5">
+                                        <h1
+                                            className="text-[clamp(2.3rem,4.2vw,4.6rem)] font-semibold leading-[0.98] tracking-[-0.05em]"
+                                            style={{ color: isDarkMode ? '#fafafa' : '#0b1220' }}
+                                        >
+                                            Integrate Edutu with a clean, predictable API contract.
+                                        </h1>
+                                        <p
+                                            className="max-w-3xl text-[16px] leading-[1.8] sm:text-[18px]"
+                                            style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}
+                                        >
+                                            The same scholarship and global opportunities data powers the public web feed, the mobile client, and the admin ingestion pipeline. Start with the live feed, then layer on SEO pages, mobile views, and sync tooling.
+                                        </p>
+                                    </div>
+
+                                    <div className="mt-8 grid gap-3 sm:grid-cols-3">
+                                        {quickRefs.map((item) => (
+                                            <div
+                                                key={item.title}
+                                                className="rounded-[20px] border p-4"
+                                                style={{
+                                                    backgroundColor: isDarkMode ? '#111' : '#ffffff',
+                                                    borderColor: isDarkMode ? '#222' : '#d8e1eb',
+                                                }}
+                                            >
+                                                <p className="text-[12px] font-bold uppercase tracking-[0.18em]" style={{ color: '#146ef5' }}>
+                                                    {item.title}
+                                                </p>
+                                                <p className="mt-2 text-sm leading-6" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                                    {item.text}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </motion.div>
+                            </section>
+
+                            <section
+                                id="endpoints"
+                                className="scroll-mt-28 py-10 sm:py-12"
+                            >
+                                <div className="max-w-3xl">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.26em] text-[#146ef5]">
+                                        API surface
+                                    </p>
+                                    <h2
+                                        className="mt-3 text-[clamp(1.8rem,3vw,3rem)] font-semibold leading-[1.05] tracking-[-0.045em]"
+                                        style={{ color: isDarkMode ? '#fafafa' : '#0b1220' }}
+                                    >
+                                        Scholarship and global opportunities endpoints.
+                                    </h2>
+                                    <p className="mt-4 text-[15px] leading-[1.75]" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                        Build against the backend once, then let every surface consume the same normalized opportunity object. That keeps lists, share pages, detail pages, and admin tools aligned.
+                                    </p>
+                                </div>
+
+                                <div className="mt-8 grid gap-4">
+                                    {endpointGroups.map((endpoint, index) => (
+                                        <motion.article
+                                            key={endpoint.path}
+                                            initial={{ opacity: 0, y: 14 }}
+                                            whileInView={{ opacity: 1, y: 0 }}
+                                            viewport={{ once: true, margin: '-40px' }}
+                                            transition={{ duration: 0.35, delay: index * 0.05 }}
+                                            className="grid gap-4 rounded-[24px] border p-5 sm:grid-cols-[160px_minmax(0,1fr)] sm:items-start"
+                                            style={{
+                                                backgroundColor: isDarkMode ? '#111' : '#ffffff',
+                                                borderColor: isDarkMode ? '#222' : '#d8e1eb',
+                                            }}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div
+                                                    className="flex h-12 w-12 items-center justify-center rounded-2xl"
+                                                    style={{
+                                                        backgroundColor: endpoint.method === 'GET' ? 'rgba(20,110,245,0.12)' : 'rgba(0,184,107,0.12)',
+                                                        color: endpoint.method === 'GET' ? '#146ef5' : '#00b86b',
+                                                    }}
+                                                >
+                                                    <Terminal size={18} />
+                                                </div>
+                                                <div>
+                                                    <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#146ef5]">
+                                                        {endpoint.method}
+                                                    </div>
+                                                    <div className="mt-1 font-mono text-[13px] text-slate-500">
+                                                        {endpoint.path}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    </div>
-                                </motion.article>
-                            ))}
-                        </div>
-                    </section>
 
-                    <section className="grid grid-cols-1 lg:grid-cols-[0.95fr_1.05fr] gap-6 mb-16">
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            transition={{ duration: 0.5 }}
-                            className="p-8 rounded-[28px]"
-                            style={{
-                                backgroundColor: isDarkMode ? '#111' : '#fafafa',
-                                border: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`,
-                            }}
-                        >
-                            <div className="flex items-center gap-2 mb-4 text-[#146ef5]">
-                                <Layers3 size={18} />
-                                <span className="text-[11px] font-bold tracking-[0.18em] uppercase">Quick start</span>
-                            </div>
-                            <h2 className="text-[30px] font-semibold mb-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
-                                Build once, consume everywhere.
-                            </h2>
-                            <p className="text-[15px] leading-[1.7] mb-6" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                                The public web app, Expo mobile app, and admin workflows all depend on the same normalized opportunity contract. That keeps your components simple and your data consistent.
-                            </p>
+                                            <div>
+                                                <h3 className="text-lg font-semibold tracking-[-0.02em]" style={{ color: isDarkMode ? '#fafafa' : '#0b1220' }}>
+                                                    {endpoint.title}
+                                                </h3>
+                                                <p className="mt-2 max-w-3xl text-[15px] leading-[1.75]" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                                    {endpoint.description}
+                                                </p>
+                                            </div>
+                                        </motion.article>
+                                    ))}
+                                </div>
+                            </section>
 
-                            <div className="space-y-4">
-                                {quickSteps.map((item) => (
-                                    <div
-                                        key={item.step}
-                                        className="flex gap-4 p-4 rounded-[20px]"
-                                        style={{
-                                            backgroundColor: isDarkMode ? '#0a0a0a' : '#ffffff',
-                                            border: `1px solid ${isDarkMode ? '#1f1f1f' : '#e5eef9'}`,
-                                        }}
+                            <section id="platform-setup" className="scroll-mt-28 border-y py-10 sm:py-12">
+                                <div className="max-w-3xl">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.26em] text-[#146ef5]">
+                                        Platform setup
+                                    </p>
+                                    <h2
+                                        className="mt-3 text-[clamp(1.8rem,3vw,3rem)] font-semibold leading-[1.05] tracking-[-0.045em]"
+                                        style={{ color: isDarkMode ? '#fafafa' : '#0b1220' }}
                                     >
-                                        <div className="h-12 w-12 shrink-0 rounded-2xl flex items-center justify-center font-bold text-[14px]" style={{ backgroundColor: '#146ef510', color: '#146ef5' }}>
-                                            {item.step}
-                                        </div>
-                                        <div>
-                                            <h3 className="text-[16px] font-semibold mb-1" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
-                                                {item.title}
-                                            </h3>
-                                            <p className="text-[14px] leading-[1.65]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                                                {item.description}
-                                            </p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </motion.div>
+                                        One opportunity source, three clients.
+                                    </h2>
+                                    <p className="mt-4 text-[15px] leading-[1.75]" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                        The web app, Expo mobile app, and admin panel all point at the same contract. That is the simplest way to keep scholarship data, editorial pages, and sync jobs in agreement.
+                                    </p>
+                                </div>
 
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            transition={{ duration: 0.5, delay: 0.1 }}
-                            className="p-8 rounded-[28px]"
-                            style={{
-                                backgroundColor: isDarkMode ? '#111' : '#ffffff',
-                                border: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`,
-                            }}
-                        >
-                            <div className="flex items-center gap-2 mb-4 text-[#146ef5]">
-                                <Code2 size={18} />
-                                <span className="text-[11px] font-bold tracking-[0.18em] uppercase">Code samples</span>
-                            </div>
-                            <h2 className="text-[30px] font-semibold mb-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
-                                Ready-to-drop snippets for web, mobile, and admin.
-                            </h2>
-
-                            <div className="grid grid-cols-1 gap-4">
-                                {codeBlocks.map((block) => (
-                                    <div
-                                        key={block.label}
-                                        className="rounded-[24px] p-5"
-                                        style={{
-                                            backgroundColor: isDarkMode ? '#0a0a0a' : '#f8fbff',
-                                            border: `1px solid ${isDarkMode ? '#1f1f1f' : '#e5eef9'}`,
-                                        }}
-                                    >
-                                        <div className="flex items-center gap-2 mb-3 text-[#146ef5]">
-                                            <ShieldCheck size={14} />
-                                            <span className="text-[11px] font-bold tracking-[0.18em] uppercase">{block.label}</span>
-                                        </div>
-                                        <h3 className="text-[18px] font-semibold mb-3" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
-                                            {block.title}
-                                        </h3>
-                                        <pre
-                                            className="overflow-x-auto rounded-[18px] p-4 text-[12px] leading-[1.6] whitespace-pre-wrap"
+                                <div className="mt-8 grid gap-4 lg:grid-cols-3">
+                                    {platformCards.map((card, index) => (
+                                        <motion.article
+                                            key={card.title}
+                                            initial={{ opacity: 0, y: 14 }}
+                                            whileInView={{ opacity: 1, y: 0 }}
+                                            viewport={{ once: true, margin: '-40px' }}
+                                            transition={{ duration: 0.35, delay: index * 0.05 }}
+                                            className="rounded-[24px] border p-5"
                                             style={{
-                                                backgroundColor: isDarkMode ? '#050505' : '#ffffff',
-                                                border: `1px solid ${isDarkMode ? '#1a1a1a' : '#dfe9f4'}`,
-                                                color: isDarkMode ? '#d8d8d8' : '#1e293b',
+                                                backgroundColor: isDarkMode ? '#111' : '#ffffff',
+                                                borderColor: isDarkMode ? '#222' : '#d8e1eb',
                                             }}
                                         >
-{block.snippet}
-                                        </pre>
-                                    </div>
-                                ))}
-                            </div>
-                        </motion.div>
-                    </section>
-
-                    <section className="grid grid-cols-1 lg:grid-cols-[1fr_0.9fr] gap-6 mb-16">
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            transition={{ duration: 0.5 }}
-                            className="p-8 rounded-[28px]"
-                            style={{
-                                backgroundColor: isDarkMode ? '#111' : '#ffffff',
-                                border: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`,
-                            }}
-                        >
-                            <div className="flex items-center gap-2 mb-4 text-[#146ef5]">
-                                <Database size={18} />
-                                <span className="text-[11px] font-bold tracking-[0.18em] uppercase">Opportunity schema</span>
-                            </div>
-                            <h2 className="text-[30px] font-semibold mb-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
-                                The feed is normalized for predictable rendering.
-                            </h2>
-                            <p className="text-[15px] leading-[1.7] mb-6" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                                Each opportunity carries the same core fields, so cards, detail pages, bookmarks, and roadmap builders can all render from one contract.
-                            </p>
-
-                            <div className="flex flex-wrap gap-2">
-                                {opportunityFields.map((field) => (
-                                    <span
-                                        key={field}
-                                        className="rounded-full px-3 py-1 text-[12px] font-medium"
-                                        style={{
-                                            backgroundColor: isDarkMode ? '#0a0a0a' : '#f8fbff',
-                                            color: isDarkMode ? '#d8d8d8' : '#334155',
-                                            border: `1px solid ${isDarkMode ? '#1f1f1f' : '#e5eef9'}`,
-                                        }}
-                                    >
-                                        {field}
-                                    </span>
-                                ))}
-                            </div>
-                        </motion.div>
-
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            transition={{ duration: 0.5, delay: 0.1 }}
-                            className="p-8 rounded-[28px]"
-                            style={{
-                                backgroundColor: isDarkMode ? '#111' : '#fafafa',
-                                border: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`,
-                            }}
-                        >
-                            <div className="flex items-center gap-2 mb-4 text-[#146ef5]">
-                                <Workflow size={18} />
-                                <span className="text-[11px] font-bold tracking-[0.18em] uppercase">Integration flow</span>
-                            </div>
-                            <h2 className="text-[30px] font-semibold mb-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
-                                One pipeline from source to screen.
-                            </h2>
-                            <div className="space-y-4">
-                                {[
-                                    { icon: Globe, title: 'Public web', text: 'The public site reads through `fetchOpportunities()` and `getOpportunity()` from the backend feed.' },
-                                    { icon: Smartphone, title: 'Mobile app', text: 'The Expo client uses the same API base URL so scholarship cards and detail pages stay in sync.' },
-                                    { icon: Server, title: 'Admin panel', text: 'n8n imports and manual admin edits update the canonical feed, then clear the cache.' },
-                                ].map((item) => (
-                                    <div
-                                        key={item.title}
-                                        className="flex gap-4 p-4 rounded-[20px]"
-                                        style={{
-                                            backgroundColor: isDarkMode ? '#0a0a0a' : '#ffffff',
-                                            border: `1px solid ${isDarkMode ? '#1f1f1f' : '#e5eef9'}`,
-                                        }}
-                                    >
-                                        <div className="h-11 w-11 shrink-0 rounded-2xl flex items-center justify-center" style={{ backgroundColor: '#146ef510', color: '#146ef5' }}>
-                                            <item.icon size={18} />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-[16px] font-semibold mb-1" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
-                                                {item.title}
-                                            </h3>
-                                            <p className="text-[14px] leading-[1.65]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                                                {item.text}
+                                            <div
+                                                className="flex h-11 w-11 items-center justify-center rounded-2xl"
+                                                style={{ backgroundColor: `${card.accent}12`, color: card.accent }}
+                                            >
+                                                <card.icon size={20} />
+                                            </div>
+                                            <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.24em]" style={{ color: card.accent }}>
+                                                {card.subtitle}
                                             </p>
+                                            <h3 className="mt-2 text-xl font-semibold tracking-[-0.03em]" style={{ color: isDarkMode ? '#fafafa' : '#0b1220' }}>
+                                                {card.title}
+                                            </h3>
+                                            <ul className="mt-4 space-y-2">
+                                                {card.items.map((item) => (
+                                                    <li key={item} className="flex items-start gap-2 text-sm leading-6" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                                        <CheckCircle size={15} className="mt-0.5 shrink-0" style={{ color: card.accent }} />
+                                                        <span>{item}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </motion.article>
+                                    ))}
+                                </div>
+                            </section>
+
+                            <section id="seo-pages" className="scroll-mt-28 py-10 sm:py-12">
+                                <div className="max-w-3xl">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.26em] text-[#146ef5]">
+                                        SEO pages
+                                    </p>
+                                    <h2
+                                        className="mt-3 text-[clamp(1.8rem,3vw,3rem)] font-semibold leading-[1.05] tracking-[-0.045em]"
+                                        style={{ color: isDarkMode ? '#fafafa' : '#0b1220' }}
+                                    >
+                                        Make public pages readable, crawlable, and useful.
+                                    </h2>
+                                    <p className="mt-4 text-[15px] leading-[1.75]" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                        Opportunity share pages should read like a concise article: descriptive title, plain summary, source details, deadline, and a clear action. That structure helps scholarship pages rank and makes previews look trustworthy when shared.
+                                    </p>
+                                </div>
+
+                                <div className="mt-6 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                                    <div
+                                        className="rounded-[24px] border p-5"
+                                        style={{
+                                            backgroundColor: isDarkMode ? '#111' : '#ffffff',
+                                            borderColor: isDarkMode ? '#222' : '#d8e1eb',
+                                        }}
+                                    >
+                                        <div className="flex items-center gap-2 text-[#146ef5]">
+                                            <Globe size={16} />
+                                            <span className="text-[11px] font-bold uppercase tracking-[0.24em]">Public routes</span>
+                                        </div>
+                                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                            {[
+                                                { route: '/opportunities', text: 'Browseable global opportunities' },
+                                                { route: '/share/opportunity/:id', text: 'SEO-friendly share page' },
+                                                { route: '/opportunities/:id', text: 'Detail page for applications' },
+                                                { route: '/blog', text: 'Supporting editorial content' },
+                                            ].map((item) => (
+                                                <div
+                                                    key={item.route}
+                                                    className="rounded-[18px] border px-4 py-3"
+                                                    style={{
+                                                        backgroundColor: isDarkMode ? '#0a0a0a' : '#f8fbff',
+                                                        borderColor: isDarkMode ? '#1f1f1f' : '#e5edf6',
+                                                    }}
+                                                >
+                                                    <p className="font-mono text-[12px] text-[#146ef5]">{item.route}</p>
+                                                    <p className="mt-1 text-sm leading-6" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                                        {item.text}
+                                                    </p>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
-                                ))}
-                            </div>
-                        </motion.div>
-                    </section>
 
-                    <section className="py-4">
-                        <div
-                            className="rounded-[32px] p-8 md:p-12"
-                            style={{
-                                background: isDarkMode ? 'linear-gradient(135deg, #111, #0a0a0a)' : 'linear-gradient(135deg, #f8fbff, #ffffff)',
-                                border: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`,
-                            }}
-                        >
-                            <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] gap-10 items-center">
-                                <div>
-                                    <div className="flex items-center gap-2 mb-4 text-[#146ef5]">
-                                        <ShieldCheck size={18} />
-                                        <span className="text-[11px] font-bold tracking-[0.18em] uppercase">Need help</span>
+                                    <div
+                                        className="rounded-[24px] border p-5"
+                                        style={{
+                                            backgroundColor: isDarkMode ? '#111' : '#ffffff',
+                                            borderColor: isDarkMode ? '#222' : '#d8e1eb',
+                                        }}
+                                    >
+                                        <div className="flex items-center gap-2 text-[#146ef5]">
+                                            <Database size={16} />
+                                            <span className="text-[11px] font-bold uppercase tracking-[0.24em]">Metadata tips</span>
+                                        </div>
+                                        <ul className="mt-4 space-y-3 text-sm leading-6" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                            <li>• Keep title, summary, organization, and location visible in the first screen.</li>
+                                            <li>• Use descriptive headings and consistent field names across pages.</li>
+                                            <li>• Treat the share page as a public article, not a dense dashboard card.</li>
+                                        </ul>
                                     </div>
-                                    <h2 className="text-[32px] md:text-[40px] font-semibold leading-[1.08] mb-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
-                                        Build with Edutu, then move faster with the same opportunity engine.
+                                </div>
+                            </section>
+
+                            <section id="data-contract" className="scroll-mt-28 border-y py-10 sm:py-12">
+                                <div className="max-w-3xl">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.26em] text-[#146ef5]">
+                                        Data contract
+                                    </p>
+                                    <h2
+                                        className="mt-3 text-[clamp(1.8rem,3vw,3rem)] font-semibold leading-[1.05] tracking-[-0.045em]"
+                                        style={{ color: isDarkMode ? '#fafafa' : '#0b1220' }}
+                                    >
+                                        The same normalized fields power every surface.
                                     </h2>
-                                    <p className="text-[15px] leading-[1.7] mb-8" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                                        If you are wiring Edutu into a product, school portal, or community platform, the public feed, mobile client, and admin console are all designed around the same opportunity model.
+                                    <p className="mt-4 text-[15px] leading-[1.75]" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                        Once an opportunity is normalized, the public web app, the mobile app, and the admin panel all read the same keys without extra mapping layers.
+                                    </p>
+                                </div>
+
+                                <div className="mt-6 flex flex-wrap gap-2">
+                                    {opportunityFields.map((field) => (
+                                        <span
+                                            key={field}
+                                            className="rounded-full border px-3 py-1 text-[12px] font-medium"
+                                            style={{
+                                                backgroundColor: isDarkMode ? '#111' : '#ffffff',
+                                                color: isDarkMode ? '#d8dee9' : '#334155',
+                                                borderColor: isDarkMode ? '#222' : '#d8e1eb',
+                                            }}
+                                        >
+                                            {field}
+                                        </span>
+                                    ))}
+                                </div>
+                            </section>
+
+                            <section id="examples" className="scroll-mt-28 py-10 sm:py-12">
+                                <div className="max-w-3xl">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.26em] text-[#146ef5]">
+                                        Examples
+                                    </p>
+                                    <h2
+                                        className="mt-3 text-[clamp(1.8rem,3vw,3rem)] font-semibold leading-[1.05] tracking-[-0.045em]"
+                                        style={{ color: isDarkMode ? '#fafafa' : '#0b1220' }}
+                                    >
+                                        Copy-paste starts for web, mobile, and admin.
+                                    </h2>
+                                </div>
+
+                                <div className="mt-8 grid gap-4">
+                                    {codeSamples.map((sample) => (
+                                        <div
+                                            key={sample.label}
+                                            className="rounded-[24px] border p-5"
+                                            style={{
+                                                backgroundColor: isDarkMode ? '#111' : '#ffffff',
+                                                borderColor: isDarkMode ? '#222' : '#d8e1eb',
+                                            }}
+                                        >
+                                            <div className="flex items-center gap-2 text-[#146ef5]">
+                                                <Layers3 size={14} />
+                                                <span className="text-[10px] font-bold uppercase tracking-[0.24em]">{sample.label}</span>
+                                            </div>
+                                            <h3 className="mt-2 text-lg font-semibold tracking-[-0.02em]" style={{ color: isDarkMode ? '#fafafa' : '#0b1220' }}>
+                                                {sample.title}
+                                            </h3>
+                                            <pre
+                                                className="mt-4 overflow-x-auto rounded-[18px] border p-4 text-[12px] leading-[1.7] whitespace-pre-wrap"
+                                                style={{
+                                                    backgroundColor: isDarkMode ? '#0a0a0a' : '#f8fbff',
+                                                    borderColor: isDarkMode ? '#1f1f1f' : '#e5edf6',
+                                                    color: isDarkMode ? '#d8dee9' : '#0f172a',
+                                                }}
+                                            >
+{sample.code}
+                                            </pre>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+
+                            <section id="support" className="scroll-mt-28 py-10 sm:py-12">
+                                <div
+                                    className="rounded-[28px] border p-6 sm:p-8"
+                                    style={{
+                                        background: isDarkMode ? 'linear-gradient(180deg, #111 0%, #0a0a0a 100%)' : 'linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)',
+                                        borderColor: isDarkMode ? '#222' : '#d8e1eb',
+                                    }}
+                                >
+                                    <div className="flex items-center gap-2 text-[#146ef5]">
+                                        <ShieldCheck size={16} />
+                                        <span className="text-[11px] font-bold uppercase tracking-[0.24em]">Support</span>
+                                    </div>
+                                    <h2
+                                        className="mt-4 text-[clamp(1.8rem,3vw,2.8rem)] font-semibold leading-[1.08] tracking-[-0.04em]"
+                                        style={{ color: isDarkMode ? '#fafafa' : '#0b1220' }}
+                                    >
+                                        Build with Edutu, then ship faster with one opportunity engine.
+                                    </h2>
+                                    <p className="mt-4 max-w-3xl text-[15px] leading-[1.75]" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                        If you are wiring Edutu into a school portal, a scholarship directory, or a community platform, keep every surface pointed at the same backend and the same opportunity schema.
                                     </p>
 
-                                    <div className="flex flex-wrap gap-3">
+                                    <div className="mt-6 flex flex-wrap gap-3">
                                         <Link
                                             to="/scholarship-api"
-                                            className="inline-flex items-center gap-2 rounded px-5 py-3 text-sm font-semibold no-underline"
-                                            style={{ backgroundColor: '#146ef5', color: '#ffffff' }}
+                                            className="inline-flex items-center gap-2 rounded-full bg-[#146ef5] px-5 py-3 text-sm font-semibold text-white no-underline transition-transform duration-200 hover:translate-y-[-1px]"
                                         >
-                                            Open Scholarship API <ArrowRight size={16} />
+                                            Open Scholarship API
+                                            <ArrowRight size={16} />
                                         </Link>
                                         <Link
-                                            to="/opportunities"
-                                            className="inline-flex items-center gap-2 rounded px-5 py-3 text-sm font-semibold no-underline"
+                                            to="/download"
+                                            className="inline-flex items-center gap-2 rounded-full border px-5 py-3 text-sm font-semibold no-underline transition-colors hover:bg-slate-50"
                                             style={{
-                                                backgroundColor: 'transparent',
-                                                color: isDarkMode ? '#f5f5f5' : '#080808',
-                                                border: `1px solid ${isDarkMode ? '#363636' : '#d8d8d8'}`,
+                                                color: isDarkMode ? '#fafafa' : '#0b1220',
+                                                borderColor: isDarkMode ? '#363636' : '#d8e1eb',
                                             }}
                                         >
-                                            Browse opportunities
+                                            View download page
                                         </Link>
                                     </div>
                                 </div>
+                            </section>
+                        </div>
 
-                                <div className="grid grid-cols-1 gap-4">
-                                    <div
-                                        className="p-5 rounded-[24px]"
-                                        style={{
-                                            backgroundColor: isDarkMode ? '#111' : '#ffffff',
-                                            border: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`,
-                                        }}
-                                    >
-                                        <div className="flex items-center gap-2 mb-3 text-[#146ef5]">
-                                            <BookOpen size={16} />
-                                            <span className="text-[11px] font-bold tracking-[0.18em] uppercase">Key files</span>
-                                        </div>
-                                        <p className="text-[14px] leading-[1.65]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                                            `src/services/opportunities.ts`, `src/services/admin/opportunitiesWebhook.ts`, and `src/types/opportunity.ts` define the exact contract behind the public feed and the admin sync pipeline.
-                                        </p>
+                        <aside className="hidden xl:block">
+                            <div className="sticky top-24 space-y-4">
+                                <div
+                                    className="rounded-[24px] border p-4"
+                                    style={{
+                                        backgroundColor: isDarkMode ? '#111' : '#ffffff',
+                                        borderColor: isDarkMode ? '#222' : '#d8e1eb',
+                                    }}
+                                >
+                                    <div className="flex items-center gap-2 text-[#146ef5]">
+                                        <Workflow size={15} />
+                                        <span className="text-[11px] font-bold uppercase tracking-[0.24em]">Quick refs</span>
                                     </div>
-                                    <div
-                                        className="p-5 rounded-[24px]"
-                                        style={{
-                                            backgroundColor: isDarkMode ? '#111' : '#ffffff',
-                                            border: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`,
-                                        }}
-                                    >
-                                        <div className="flex items-center gap-2 mb-3 text-[#146ef5]">
-                                            <CheckCircle size={16} />
-                                            <span className="text-[11px] font-bold tracking-[0.18em] uppercase">What to expect</span>
+                                    <div className="mt-4 space-y-3">
+                                        <div className="rounded-[18px] border px-3 py-3" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#f8fbff', borderColor: isDarkMode ? '#1f1f1f' : '#e5edf6' }}>
+                                            <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: '#146ef5' }}>
+                                                Base URL
+                                            </p>
+                                            <p className="mt-1 font-mono text-[13px]" style={{ color: isDarkMode ? '#d8dee9' : '#0f172a' }}>
+                                                http://localhost:3000
+                                            </p>
                                         </div>
-                                        <p className="text-[14px] leading-[1.65]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                                            Consistent field names, simple list rendering, and a fallback snapshot make the integration resilient even when the live backend is unavailable.
-                                        </p>
+                                        <div className="rounded-[18px] border px-3 py-3" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#f8fbff', borderColor: isDarkMode ? '#1f1f1f' : '#e5edf6' }}>
+                                            <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: '#146ef5' }}>
+                                                Public pages
+                                            </p>
+                                            <p className="mt-1 text-sm leading-6" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                                `share/opportunity/:id`, `/opportunities`, `/blog`
+                                            </p>
+                                        </div>
+                                        <div className="rounded-[18px] border px-3 py-3" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#f8fbff', borderColor: isDarkMode ? '#1f1f1f' : '#e5edf6' }}>
+                                            <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: '#146ef5' }}>
+                                                Integrations
+                                            </p>
+                                            <p className="mt-1 text-sm leading-6" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                                Web, Expo mobile, admin sync, and scraper ingestion all read the same contract.
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </section>
-                </div>
-            </main>
-        </div>
+                        </aside>
+                    </div>
+                </main>
+            </div>
+        </PublicEditorialShell>
     );
 };
 

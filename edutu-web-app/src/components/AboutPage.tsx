@@ -10,23 +10,18 @@ import {
     Award,
     Users,
     Lightbulb,
-    TrendingUp,
-    MapPin,
-    Calendar,
-    ChevronRight,
     Twitter,
     Linkedin,
     Github,
     BookOpen,
-    Zap,
-    Shield
+    Zap
 } from 'lucide-react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { useDarkMode } from '../hooks/useDarkMode';
 import PublicSiteMenu from './PublicSiteMenu';
 
 const AboutPage: React.FC = () => {
-    const { isDarkMode, toggleDarkMode } = useDarkMode();
+    const { isDarkMode } = useDarkMode();
     const { scrollYProgress } = useScroll();
 
     const headerBg = useTransform(
@@ -57,29 +52,28 @@ const AboutPage: React.FC = () => {
     };
 
     const timelineEvents = [
-        { year: '2022', title: 'The Idea', desc: 'Edutu was born from a simple observation: talented students worldwide were missing opportunities simply because they did not know where to look.' },
-        { year: '2023', title: 'First Prototype', desc: 'We built our first AI-powered opportunity matching engine, connecting learners with scholarships, fellowships, and programs across 15 countries.' },
-        { year: '2024', title: 'Community Launch', desc: 'Edutu opened to the public, reaching 10K learners in the first quarter. The creator marketplace launched, enabling mentors to share roadmaps.' },
-        { year: '2025', title: 'Global Scale', desc: '50K+ active learners, 12K+ opportunities catalogued, and presence in 31+ countries. The Intelligence Career OS is here.' }
+        { year: '2022', title: 'The Idea', desc: 'Edutu started when we saw talented African students miss global opportunities because the information was scattered, slow, and hard to trust.' },
+        { year: '2023', title: 'First Prototype', desc: 'We built a simple matching engine that helped learners find scholarships, fellowships, and internships without having to search everywhere.' },
+        { year: '2024', title: 'Public Launch', desc: 'Edutu opened to more learners across Africa, making global opportunities easier to reach from everyday phones and browsers.' },
+        { year: '2025', title: 'Growing Access', desc: 'Edutu now helps more learners discover, save, and apply for opportunities across 31+ countries with one shared system.' }
     ];
 
     const stats = [
-        { icon: Users, label: 'ACTIVE LEARNERS', value: '50K+', color: '#146ef5' },
-        { icon: BookOpen, label: 'OPPORTUNITIES', value: '12K+', color: '#7a3dff' },
-        { icon: Globe, label: 'COUNTRIES', value: '31+', color: '#00d722' },
-        { icon: Award, label: 'SUCCESS STORIES', value: '3.2K', color: '#ff6b00' },
+        { icon: Users, label: 'LEARNERS REACHED', value: '50K+', color: '#146ef5' },
+        { icon: BookOpen, label: 'OPPORTUNITIES TRACKED', value: '12K+', color: '#7a3dff' },
+        { icon: Globe, label: 'COUNTRIES COVERED', value: '31+', color: '#00d722' },
+        { icon: Award, label: 'APPLICATIONS GUIDED', value: '3.2K', color: '#ff6b00' },
         { icon: Zap, label: 'AI ROADMAPS', value: '28K+', color: '#ed52cb' }
     ];
 
-    const teamMembers = [
-        { name: 'Nwosu Paul Light', role: 'Founder & CTO', initials: 'NPL', bio: 'Building the future of career discovery' }
-    ];
+    const founderImage = 'https://images.pexels.com/photos/5647656/pexels-photo-5647656.jpeg?cs=srgb&dl=pexels-ono-kosuki-5647656.jpg&fm=jpg';
+    const northStarImage = 'https://images.pexels.com/photos/3183186/pexels-photo-3183186.jpeg?auto=compress&cs=tinysrgb&w=1200';
 
     const values = [
-        { icon: Lightbulb, title: 'Innovation', desc: 'We push boundaries with AI-driven solutions that transform how learners discover and pursue opportunities.', color: '#146ef5', bg: '#146ef510', image: 'https://images.pexels.com/photos/3182812/pexels-photo-3182812.jpeg' },
-        { icon: Globe, title: 'Accessibility', desc: 'Every learner deserves access to global opportunities regardless of location, background, or resources.', color: '#00d722', bg: '#00d72210', image: 'https://images.pexels.com/photos/3183186/pexels-photo-3183186.jpeg' },
-        { icon: Award, title: 'Excellence', desc: 'We hold ourselves to the highest standards in design, performance, and user experience.', color: '#ffae13', bg: '#ffae1310', image: 'https://images.pexels.com/photos/1595391/pexels-photo-1595391.jpeg' },
-        { icon: Heart, title: 'Community', desc: 'Learning is better together. We build spaces where mentors, peers, and creators thrive.', color: '#ed52cb', bg: '#ed52cb10', image: 'https://images.pexels.com/photos/1181391/pexels-photo-1181391.jpeg' }
+        { icon: Lightbulb, title: 'Clarity', desc: 'We turn scattered opportunity hunts into one clean place to search, compare, and act.', color: '#146ef5', bg: '#146ef510', image: 'https://images.pexels.com/photos/3182812/pexels-photo-3182812.jpeg' },
+        { icon: Globe, title: 'Access', desc: 'We build for underprivileged African learners who need simple, mobile-first access to global opportunity.', color: '#00d722', bg: '#00d72210', image: 'https://images.pexels.com/photos/3183186/pexels-photo-3183186.jpeg' },
+        { icon: Award, title: 'Trust', desc: 'We keep the platform accurate, fast, and easy to read so learners can act with confidence.', color: '#ffae13', bg: '#ffae1310', image: 'https://images.pexels.com/photos/1595391/pexels-photo-1595391.jpeg' },
+        { icon: Heart, title: 'Community', desc: 'We bring learners, mentors, and builders together to share what works and help more people rise.', color: '#ed52cb', bg: '#ed52cb10', image: 'https://images.pexels.com/photos/1181391/pexels-photo-1181391.jpeg' }
     ];
 
     return (
@@ -127,9 +121,9 @@ const AboutPage: React.FC = () => {
                             className="text-[56px] sm:text-[72px] md:text-[80px] font-semibold leading-[1.04] tracking-[-0.8px] mb-8"
                             style={{ color: isDarkMode ? '#ffffff' : '#080808' }}
                         >
-                            Mapping Ambition
+                            Global opportunities
                             <br />
-                            <span style={{ color: '#146ef5' }}>To Progress</span>
+                            <span style={{ color: '#146ef5' }}>at your fingertips</span>
                         </motion.h1>
 
                         <motion.p
@@ -139,7 +133,7 @@ const AboutPage: React.FC = () => {
                             className="max-w-[720px] text-[20px] leading-[1.5] font-normal"
                             style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}
                         >
-                            Edutu is the Intelligence Career OS that automates your path to global opportunities. We believe every learner deserves a clear roadmap from where they are to where they want to be.
+                            Edutu helps underprivileged African learners find scholarships, internships, and fellowships faster. We make global opportunities easier to discover, understand, and apply for from the phone or browser they already use.
                         </motion.p>
                     </div>
                 </section>
@@ -160,13 +154,13 @@ const AboutPage: React.FC = () => {
                                 From Frustration to <span style={{ color: '#146ef5' }}>Mission</span>
                             </h2>
                             <p className="text-[18px] leading-[1.7] mb-6" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                                The idea for Edutu came from a personal experience. Our founder watched brilliant friends miss life-changing scholarships because they did not know about them, missed deadlines, or could not navigate complex application processes.
+                                Edutu came from a real problem: talented African students kept missing life-changing opportunities because the information was scattered, the deadlines were hidden, and the application steps were hard to follow.
                             </p>
                             <p className="text-[18px] leading-[1.7] mb-6" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                                We realized that talent is distributed equally but opportunity is not. Edutu was built to close that gap using AI, automation, and community-driven knowledge sharing.
+                                We realized that talent is everywhere, but access is not. Edutu closes that gap with AI, simple design, and a system that brings global opportunities into one place.
                             </p>
                             <p className="text-[18px] leading-[1.7]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                                Today, we are a growing team of builders, educators, and dreamers committed to making global opportunities accessible to every learner on the planet.
+                                Today, we are focused on making global opportunities easier to reach for African learners, especially those with less access, less time, and less support.
                             </p>
                         </motion.div>
 
@@ -178,13 +172,60 @@ const AboutPage: React.FC = () => {
                             transition={{ delay: 0.2 }}
                             className="lg:w-1/2 mt-16 lg:mt-0"
                         >
-                            <div className="w-full p-12" style={{ backgroundColor: isDarkMode ? '#111' : '#f8f8f8', border: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`, borderRadius: '8px', boxShadow: webflowShadow }}>
-                                <div className="h-20 w-20 flex items-center justify-center text-white mb-8" style={{ backgroundColor: '#146ef5', borderRadius: '8px', boxShadow: '0 0 40px rgba(20, 110, 245, 0.3)' }}>
-                                    <Target size={32} />
+                            <div
+                                className="grid grid-cols-1 md:grid-cols-[1.02fr_0.98fr] overflow-hidden"
+                                style={{
+                                    backgroundColor: isDarkMode ? '#111' : '#f8f8f8',
+                                    border: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`,
+                                    borderRadius: '20px',
+                                    boxShadow: webflowShadow
+                                }}
+                            >
+                                <div className="relative min-h-[280px] md:min-h-[420px]">
+                                    <img
+                                        src={northStarImage}
+                                        alt="African learners collaborating"
+                                        className="h-full w-full object-cover"
+                                        loading="lazy"
+                                    />
+                                    <div className="absolute inset-0 bg-gradient-to-br from-[#08080840] via-transparent to-[#146ef520]" />
+                                    <div className="absolute left-5 bottom-5 inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-[12px] font-semibold tracking-[1.2px] text-[#080808] shadow-lg backdrop-blur-sm">
+                                        <Target size={14} className="text-[#146ef5]" />
+                                        GLOBAL ACCESS
+                                    </div>
                                 </div>
-                                <div className="text-[28px] font-semibold mb-3" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>Our North Star</div>
-                                <div className="text-[16px] leading-[1.6]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                                    To democratize access to global educational and career opportunities through intelligent automation and community-powered discovery.
+
+                                <div className="flex flex-col justify-center gap-4 p-8 sm:p-10 lg:p-12">
+                                    <div className="inline-flex items-center gap-2.4 px-4 py-2 rounded" style={{ backgroundColor: '#146ef510', border: `1px solid ${isDarkMode ? '#146ef530' : '#146ef530'}`, borderRadius: '999px' }}>
+                                        <Target size={14} style={{ color: '#146ef5' }} />
+                                        <span className="text-[12px] font-semibold tracking-[1.5px]" style={{ color: '#146ef5' }}>
+                                            OUR NORTH STAR
+                                        </span>
+                                    </div>
+                                    <div className="text-[28px] font-semibold leading-[1.08]" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
+                                        Global opportunities, made easy to reach.
+                                    </div>
+                                    <div className="text-[16px] leading-[1.7]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
+                                        Edutu exists to make global opportunities easy to find, easy to trust, and easy to act on for every African learner, no matter where they live.
+                                    </div>
+                                    <div className="grid gap-3 pt-2">
+                                        <div className="rounded-2xl border px-4 py-4" style={{ backgroundColor: isDarkMode ? '#121212' : '#ffffff', borderColor: isDarkMode ? '#222' : '#d8d8d8' }}>
+                                            <div className="text-[13px] font-semibold tracking-[1.2px] uppercase mb-1" style={{ color: '#146ef5' }}>
+                                                Find
+                                            </div>
+                                            <div className="text-[15px] leading-[1.6]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
+                                                Curate scholarships, internships, and fellowships in one place.
+                                            </div>
+                                        </div>
+                                        <div className="rounded-2xl border px-4 py-4" style={{ backgroundColor: isDarkMode ? '#121212' : '#ffffff', borderColor: isDarkMode ? '#222' : '#d8d8d8' }}>
+                                            <div className="text-[13px] font-semibold tracking-[1.2px] uppercase mb-1" style={{ color: '#146ef5' }}>
+                                                Act
+                                            </div>
+                                            <div className="text-[15px] leading-[1.6]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
+                                                Give learners the clarity they need to move from discovery to application.
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </motion.div>
@@ -260,7 +301,7 @@ const AboutPage: React.FC = () => {
                                 </div>
                                 <h3 className="text-[28px] font-semibold mb-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>Our Mission</h3>
                                 <p className="text-[17px] leading-[1.7]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                                    To empower every learner with AI-driven career intelligence, automated roadmaps, and direct access to global opportunities that match their unique potential and ambitions.
+                                To empower African learners with AI-driven guidance, clear roadmaps, and direct access to scholarships, internships, and fellowships that match their goals.
                                 </p>
                             </motion.div>
 
@@ -279,7 +320,7 @@ const AboutPage: React.FC = () => {
                                 </div>
                                 <h3 className="text-[28px] font-semibold mb-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>Our Vision</h3>
                                 <p className="text-[17px] leading-[1.7]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                                    A world where no opportunity goes undiscovered and no learner is left behind. We envision a future where AI bridges the gap between ambition and achievement for everyone.
+                                A world where a learner in Lagos, Accra, Nairobi, or any African city can reach global opportunities as easily as anyone else.
                                 </p>
                             </motion.div>
                         </motion.div>
@@ -403,36 +444,72 @@ const AboutPage: React.FC = () => {
                             initial="hidden"
                             whileInView="visible"
                             viewport={{ once: true }}
-                            className="grid grid-cols-1 max-w-md mx-auto gap-6"
+                            className="max-w-[1120px] mx-auto overflow-hidden"
                         >
-                            {teamMembers.map((member, i) => (
-                                <motion.div
-                                    key={i}
-                                    variants={fadeUp}
-                                    className="p-8 text-center cursor-pointer transition-all duration-300"
-                                    style={{
-                                        backgroundColor: isDarkMode ? '#111' : '#ffffff',
-                                        border: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`,
-                                        borderRadius: '8px',
-                                        boxShadow: cardShadow
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        (e.currentTarget as HTMLElement).style.borderColor = '#146ef5';
-                                        (e.currentTarget as HTMLElement).style.transform = 'translateY(-4px)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        (e.currentTarget as HTMLElement).style.borderColor = isDarkMode ? '#222' : '#d8d8d8';
-                                        (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
-                                    }}
-                                >
-                                    <div className="h-20 w-20 flex items-center justify-center mx-auto mb-6 rounded-full font-bold text-[20px]" style={{ backgroundColor: '#146ef5', color: '#ffffff', borderRadius: '50%' }}>
-                                        {member.initials}
+                            <motion.div
+                                variants={fadeUp}
+                                className="grid grid-cols-1 lg:grid-cols-[0.94fr_1.06fr] overflow-hidden"
+                                style={{
+                                    backgroundColor: isDarkMode ? '#111' : '#ffffff',
+                                    border: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`,
+                                    borderRadius: '20px',
+                                    boxShadow: cardShadow
+                                }}
+                            >
+                                <div className="relative min-h-[320px] lg:min-h-[520px]">
+                                    <img
+                                        src={founderImage}
+                                        alt="Nwosu Paul Light working with a laptop"
+                                        className="h-full w-full object-cover object-center"
+                                        loading="lazy"
+                                    />
+                                    <div className="absolute inset-0 bg-gradient-to-br from-[#08080855] via-transparent to-[#146ef520]" />
+                                    <div className="absolute left-6 bottom-6 inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-[12px] font-semibold tracking-[1.2px] text-[#080808] shadow-lg backdrop-blur-sm">
+                                        <Sparkles size={14} className="text-[#146ef5]" />
+                                        FOUNDERS VIEW
                                     </div>
-                                    <h3 className="text-[20px] font-semibold mb-1" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>{member.name}</h3>
-                                    <div className="text-[13px] font-semibold tracking-[1.5px] mb-3" style={{ color: '#146ef5' }}>{member.role}</div>
-                                    <p className="text-[14px]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>{member.bio}</p>
-                                </motion.div>
-                            ))}
+                                </div>
+
+                                <div className="flex flex-col justify-center gap-6 p-8 sm:p-10 lg:p-12" style={{ backgroundColor: isDarkMode ? '#0f0f0f' : '#f8fbff' }}>
+                                    <div className="inline-flex items-center gap-2.4 px-4 py-2 rounded" style={{ backgroundColor: '#146ef510', border: `1px solid ${isDarkMode ? '#146ef530' : '#146ef530'}`, borderRadius: '999px' }}>
+                                        <Sparkles size={14} style={{ color: '#146ef5' }} />
+                                        <span className="text-[12px] font-semibold tracking-[1.5px]" style={{ color: '#146ef5' }}>
+                                            THE FOUNDER
+                                        </span>
+                                    </div>
+
+                                    <div>
+                                        <h3 className="text-[28px] sm:text-[34px] lg:text-[40px] font-semibold leading-[1.05] mb-3" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
+                                            Nwosu Paul Light
+                                        </h3>
+                                        <div className="text-[13px] sm:text-[14px] font-semibold tracking-[1.5px] uppercase mb-4" style={{ color: '#146ef5' }}>
+                                            Founder & CTO
+                                        </div>
+                                        <p className="text-[18px] sm:text-[19px] leading-[1.7]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
+                                            AI & ML Systems Engineer and founder of Top100 Africa Future Leaders, building Edutu to help African learners reach global opportunities faster.
+                                        </p>
+                                    </div>
+
+                                    <div className="grid gap-3">
+                                        <div className="rounded-2xl border px-4 py-4" style={{ backgroundColor: isDarkMode ? '#121212' : '#ffffff', borderColor: isDarkMode ? '#222' : '#d8d8d8' }}>
+                                            <div className="text-[13px] font-semibold tracking-[1.2px] uppercase mb-1" style={{ color: '#146ef5' }}>
+                                                Focus
+                                            </div>
+                                            <div className="text-[16px] leading-[1.6]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
+                                                Using AI and a clean product flow to make scholarships and opportunities easier to discover.
+                                            </div>
+                                        </div>
+                                        <div className="rounded-2xl border px-4 py-4" style={{ backgroundColor: isDarkMode ? '#121212' : '#ffffff', borderColor: isDarkMode ? '#222' : '#d8d8d8' }}>
+                                            <div className="text-[13px] font-semibold tracking-[1.2px] uppercase mb-1" style={{ color: '#146ef5' }}>
+                                                Community
+                                            </div>
+                                            <div className="text-[16px] leading-[1.6]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
+                                                Top100 Africa Future Leaders amplifies young African talent and helps them grow into visible leaders.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </motion.div>
                         </motion.div>
                     </div>
                 </section>
@@ -440,10 +517,10 @@ const AboutPage: React.FC = () => {
                 <section className="py-32 px-4 sm:px-6" style={{ borderTop: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}` }}>
                     <div className="max-w-[1000px] mx-auto text-center p-12 lg:p-20" style={{ backgroundColor: '#146ef5', borderRadius: '8px', boxShadow: webflowShadow }}>
                         <h2 className="text-[40px] md:text-[56px] font-semibold leading-[1.04] mb-6 text-white">
-                            Ready to start your journey?
+                            Ready to help more learners find opportunities?
                         </h2>
                         <p className="max-w-[500px] mx-auto text-[18px] leading-[1.5] mb-10" style={{ color: '#ffffffcc' }}>
-                            Join thousands of learners already using Edutu to discover opportunities and build their future.
+                            Join the mission to make global opportunities easier to reach for African learners everywhere.
                         </p>
                         <Link
                             to="/"
@@ -461,7 +538,7 @@ const AboutPage: React.FC = () => {
                                 (e.target as HTMLElement).style.transform = 'translateY(0)';
                             }}
                         >
-                            Get Started <ArrowRight size={16} />
+                            Browse Opportunities <ArrowRight size={16} />
                         </Link>
                     </div>
                 </section>
@@ -477,7 +554,7 @@ const AboutPage: React.FC = () => {
                             </span>
                         </Link>
                         <p className="text-[16px] leading-[1.6]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                            Modular career operating system. Mapping potential to progress, one milestone at a time.
+                            Global opportunities at your fingertips for African learners, one step at a time.
                         </p>
                     </div>
 

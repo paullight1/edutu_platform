@@ -351,14 +351,16 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         {/* Hamburger Menu Button (mobile only) */}
                         <button
                             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                            className="md:hidden p-2 rounded cursor-pointer transition-all duration-200"
+                            className="md:hidden inline-flex h-11 items-center gap-2 rounded-[12px] border px-4 text-sm font-bold whitespace-nowrap cursor-pointer transition-all duration-200"
                             style={{
                                 border: `1px solid ${isDarkMode ? '#363636' : '#d8d8d8'}`,
-                                backgroundColor: isDarkMode ? '#222' : 'transparent',
+                                backgroundColor: isDarkMode ? '#222' : '#ffffff',
                                 color: isDarkMode ? '#f5f5f5' : '#080808'
                             }}
+                            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
                         >
-                            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+                            {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+                            <span>Menu</span>
                         </button>
                     </div>
                 </div>
