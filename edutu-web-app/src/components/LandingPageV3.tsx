@@ -1,7 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     ArrowRight,
     Brain,
+    BookOpen,
+    Calendar,
+    Clock,
+    User,
     Twitter,
     Linkedin,
     Sun,
@@ -90,6 +94,7 @@ const institutions = [
 ];
 
 const heroOpportunityWords = ['Opportunities', 'Scholarships', 'Internships', 'Fellowships'];
+const heroBackdropVideoUrl = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260403_050628_c4e32401-fab4-4a27-b7a8-6e9291cd5959.mp4';
 
 const heroBackdropImages = [
     {
@@ -107,6 +112,46 @@ const heroBackdropImages = [
     {
         src: 'https://images.pexels.com/photos/1595391/pexels-photo-1595391.jpeg',
         alt: 'Learners gathering in a bright classroom',
+    },
+];
+
+interface LandingArticle {
+    category: string;
+    title: string;
+    excerpt: string;
+    author: string;
+    date: string;
+    readTime: string;
+    image: string;
+}
+
+const landingBlogArticles: LandingArticle[] = [
+    {
+        category: 'Scholarships',
+        title: 'How to Win Scholarships in 2026: AI-Powered Strategies',
+        excerpt: 'Use AI to spot the right opportunities faster, tailor stronger applications, and stay ahead of deadlines.',
+        author: 'Paul Adeyemi',
+        date: 'May 5, 2026',
+        readTime: '5 min read',
+        image: 'https://images.pexels.com/photos/267885/pexels-photo-267885.jpeg',
+    },
+    {
+        category: 'Career',
+        title: 'Building a Roadmap That Actually Matches Your Ambition',
+        excerpt: 'A simple framework for turning scattered goals into a clear step-by-step plan you can follow every week.',
+        author: 'Sarah Chen',
+        date: 'Apr 28, 2026',
+        readTime: '6 min read',
+        image: 'https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg',
+    },
+    {
+        category: 'Study Abroad',
+        title: 'Top Global Programs Learners Are Applying To Right Now',
+        excerpt: 'From fellowships to internships, see the kinds of opportunities building momentum inside Edutu today.',
+        author: 'James Okafor',
+        date: 'Apr 20, 2026',
+        readTime: '4 min read',
+        image: 'https://images.pexels.com/photos/1595391/pexels-photo-1595391.jpeg',
     },
 ];
 
@@ -176,8 +221,6 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     const [openFAQ, setOpenFAQ] = useState<number | null>(null);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [heroWordIndex, setHeroWordIndex] = useState(0);
-    const [heroBackdropIndex, setHeroBackdropIndex] = useState(0);
-    const heroSwipeStartX = useRef<number | null>(null);
     const latestOpportunities = opportunities.slice(0, 3);
     const heroStats: HeroStat[] = [
         { label: 'ACTIVE LEARNERS', value: 50, suffix: 'K+', color: '#146ef5' },
@@ -197,14 +240,6 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
         const interval = window.setInterval(() => {
             setHeroWordIndex((current) => (current + 1) % heroOpportunityWords.length);
         }, 2400);
-
-        return () => window.clearInterval(interval);
-    }, []);
-
-    useEffect(() => {
-        const interval = window.setInterval(() => {
-            setHeroBackdropIndex((current) => (current + 1) % heroBackdropImages.length);
-        }, 5200);
 
         return () => window.clearInterval(interval);
     }, []);
@@ -232,26 +267,6 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
         { label: 'About', to: '/about' },
         { label: 'Blog', to: '/blog' }
     ];
-
-    const handleHeroTouchStart = (event: React.TouchEvent<HTMLElement>) => {
-        heroSwipeStartX.current = event.touches[0]?.clientX ?? null;
-    };
-
-    const handleHeroTouchEnd = (event: React.TouchEvent<HTMLElement>) => {
-        const startX = heroSwipeStartX.current;
-        const endX = event.changedTouches[0]?.clientX ?? null;
-        heroSwipeStartX.current = null;
-
-        if (startX === null || endX === null) return;
-
-        const deltaX = startX - endX;
-        if (Math.abs(deltaX) < 50) return;
-
-        setHeroBackdropIndex((current) => {
-            const direction = deltaX > 0 ? 1 : -1;
-            return (current + direction + heroBackdropImages.length) % heroBackdropImages.length;
-        });
-    };
 
     const formatOpportunityDeadline = (deadline?: string | null) => {
         if (!deadline) {
@@ -397,55 +412,35 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
             <main className="relative z-10">
                 {/* Hero Section */}
                 <section
-                    className="landing-hero relative overflow-hidden min-h-[calc(100dvh-64px)] pt-[132px] pb-[128px] sm:pt-[148px] sm:pb-[144px] px-4 sm:px-6"
+                    className="landing-hero relative min-h-dvh overflow-hidden px-4 sm:px-6"
                     id="platform"
-                    onTouchStart={handleHeroTouchStart}
-                    onTouchEnd={handleHeroTouchEnd}
                     style={{
                         backgroundColor: isDarkMode ? '#080808' : '#f7fbff',
                     }}
                 >
                     <div className="absolute inset-0">
-                        <AnimatePresence mode="wait" initial={false}>
-                            <motion.img
-                                key={heroBackdropImages[heroBackdropIndex].src}
-                                src={heroBackdropImages[heroBackdropIndex].src}
-                                alt={heroBackdropImages[heroBackdropIndex].alt}
-                                aria-hidden="true"
-                                initial={{ opacity: 0, scale: 1.06 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 1.02 }}
-                                transition={{ duration: 0.9, ease: 'easeOut' }}
-                                className="absolute inset-0 h-full w-full object-cover"
-                                style={{
-                                    filter: 'saturate(0.72) contrast(0.92) brightness(0.56)',
-                                }}
-                                draggable={false}
-                                loading="eager"
-                            />
-                        </AnimatePresence>
-                        <div
-                            className="absolute inset-x-0 top-0 h-[176px] pointer-events-none"
+                        <video
+                            src={heroBackdropVideoUrl}
+                            aria-hidden="true"
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
+                            preload="auto"
+                            className="absolute inset-0 h-full w-full object-cover"
                             style={{
-                                background: 'linear-gradient(180deg, rgba(3,8,18,0.94) 0%, rgba(3,8,18,0.62) 100%)',
+                                filter: 'saturate(0.9) contrast(0.98) brightness(0.84)',
+                                objectPosition: 'center center',
                             }}
                         />
                         <div
                             className="absolute inset-0"
                             style={{
-                                background: 'linear-gradient(180deg, rgba(3,8,18,0.72) 0%, rgba(3,8,18,0.52) 42%, rgba(3,8,18,0.84) 100%), radial-gradient(circle at 50% 12%, rgba(20,110,245,0.14), transparent 34%)',
-                            }}
-                        />
-                        <div
-                            className="absolute inset-0 opacity-[0.05]"
-                            style={{
-                                backgroundImage: 'linear-gradient(rgba(20,110,245,0.16) 1px, transparent 1px), linear-gradient(90deg, rgba(20,110,245,0.16) 1px, transparent 1px)',
-                                backgroundSize: '72px 72px',
-                                maskImage: 'radial-gradient(circle at center, black, transparent 74%)'
+                                background: 'linear-gradient(180deg, rgba(3,8,18,0.16) 0%, rgba(3,8,18,0.08) 42%, rgba(3,8,18,0.24) 100%), radial-gradient(circle at 50% 12%, rgba(20,110,245,0.08), transparent 34%)',
                             }}
                         />
                     </div>
-                    <div className="relative z-10 max-w-[1200px] mx-auto flex flex-col items-center text-center">
+                    <div className="relative z-10 mx-auto flex min-h-dvh max-w-[1200px] flex-col items-center justify-center pb-20 pt-24 text-center sm:pb-24 sm:pt-28">
                         <motion.h1
                             initial={{ opacity: 0, y: 30 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -473,9 +468,9 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                             animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                                             exit={{ opacity: 0, y: -24, filter: 'blur(8px)' }}
                                             transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
-                                            style={{ display: 'inline-block' }}
+                                            style={{ display: 'inline-block', color: '#69a8ff' }}
                                         >
-                                            {heroOpportunityWords[heroWordIndex]}.
+                                            {heroOpportunityWords[heroWordIndex]}
                                         </motion.span>
                                     </AnimatePresence>
                                 </span>
@@ -542,34 +537,8 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                 Download app <ArrowRight size={16} />
                             </Link>
                         </motion.div>
-
-                        {/* Hero Stats */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.6, delay: 0.4 }}
-                            className="landing-hero-stats grid grid-cols-3 gap-2 sm:gap-4 mt-10 sm:mt-12 max-w-[780px] w-full"
-                        >
-                            {heroStats.map((stat, i) => (
-                                <div
-                                    key={stat.label}
-                                    className="landing-hero-stat-card text-center p-1.5 sm:p-3"
-                                    style={{ backgroundColor: 'transparent', border: '0', borderRadius: '0', boxShadow: 'none' }}
-                                >
-                                    <div className="landing-hero-stat-value text-[22px] sm:text-[36px] font-extrabold leading-none tracking-[-0.04em]" style={{ color: '#ffffff' }}>
-                                        <AnimatedStatValue value={stat.value} suffix={stat.suffix} color={stat.color} delayMs={i * 180} />
-                                    </div>
-                                    <div className="landing-hero-stat-label text-[8px] sm:text-[10px] font-semibold tracking-[1.5px] mt-0.5 sm:mt-1" style={{ color: 'rgba(255,255,255,0.68)' }}>
-                                        {stat.label}
-                                    </div>
-                                </div>
-                            ))}
-                        </motion.div>
                     </div>
                 </section>
-
-                {/* Bento Benefits Section */}
-                <BentoBenefits />
 
                 {/* Latest Opportunities */}
                 <section
@@ -577,7 +546,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                     style={{ borderTop: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}` }}
                 >
                     <div className="max-w-[1200px] mx-auto">
-                        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between mb-12">
+                        <div className="flex flex-col gap-6 mb-12">
                             <div className="max-w-2xl">
                                 <span className="text-[12.8px] font-semibold tracking-[1.5px]" style={{ color: '#146ef5' }}>
                                     LATEST OPPORTUNITIES
@@ -589,114 +558,57 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                     A quick look at a few scholarships, fellowships, internships, and programs that are ready for action.
                                 </p>
                             </div>
-
-                            <Link
-                                to="/opportunities"
-                                className="inline-flex items-center gap-2 self-start rounded px-5 py-3 text-[16px] font-medium no-underline transition-all duration-200"
-                                style={{
-                                    backgroundColor: '#146ef5',
-                                    color: '#ffffff',
-                                    borderRadius: '4px',
-                                    boxShadow: webflowShadow,
-                                }}
-                                onMouseEnter={(e) => {
-                                    (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
-                                    (e.currentTarget as HTMLElement).style.backgroundColor = '#0055d4';
-                                }}
-                                onMouseLeave={(e) => {
-                                    (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
-                                    (e.currentTarget as HTMLElement).style.backgroundColor = '#146ef5';
-                                }}
-                            >
-                                View all opportunities <ArrowRight size={16} />
-                            </Link>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-                            {latestOpportunities.map((opportunity, index) => {
-                                const opportunityImage = opportunity.image || heroBackdropImages[index % heroBackdropImages.length].src;
-
-                                return (
-                                    <motion.article
-                                        key={opportunity.id}
-                                        initial={{ opacity: 0, y: 16 }}
-                                        whileInView={{ opacity: 1, y: 0 }}
-                                        viewport={{ once: true, margin: '-40px' }}
-                                        transition={{ duration: 0.45, delay: index * 0.08 }}
-                                        whileHover={{ y: -4 }}
-                                        className="h-full overflow-hidden rounded-[28px] p-3 sm:p-4"
-                                        style={{
-                                            backgroundColor: isDarkMode ? '#111111' : '#ffffff',
-                                            border: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`,
-                                            boxShadow: 'none',
-                                        }}
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                            {latestOpportunities.map((opportunity, index) => (
+                                <motion.article
+                                    key={opportunity.id}
+                                    initial={{ opacity: 0, y: 16 }}
+                                    whileInView={{ opacity: 1, y: 0 }}
+                                    viewport={{ once: true, margin: '-40px' }}
+                                    transition={{ duration: 0.45, delay: index * 0.08 }}
+                                    whileHover={{ y: -3 }}
+                                    className="overflow-hidden rounded-[22px]"
+                                    style={{
+                                        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.035)' : '#ffffff',
+                                        border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.09)' : '#dfe7f2'}`,
+                                        boxShadow: 'none',
+                                    }}
+                                >
+                                    <Link
+                                        to={`/share/opportunity/${encodeURIComponent(opportunity.id)}`}
+                                        className="block no-underline"
+                                        aria-label={`View ${opportunity.title}`}
                                     >
-                                        <div className="relative aspect-[16/10] overflow-hidden rounded-[22px]">
+                                        <div className="relative h-[210px] overflow-hidden">
                                             <img
-                                                src={opportunityImage}
-                                                alt={opportunity.title}
+                                                src={opportunity.image || heroBackdropImages[index % heroBackdropImages.length].src}
+                                                alt=""
                                                 className="h-full w-full object-cover"
                                                 loading="lazy"
                                             />
                                             <div
                                                 className="absolute inset-0"
                                                 style={{
-                                                    background: isDarkMode
-                                                        ? 'linear-gradient(180deg, rgba(0,0,0,0.02) 0%, rgba(0,0,0,0.52) 100%)'
-                                                        : 'linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(8,15,24,0.5) 100%)',
+                                                    background: 'linear-gradient(180deg, rgba(8,18,36,0.05) 0%, rgba(8,18,36,0.2) 100%)',
                                                 }}
                                             />
-                                            <div className="absolute left-3 top-3 flex flex-wrap gap-2">
-                                                <span className="rounded-full bg-white/92 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-900">
-                                                    {opportunity.category}
-                                                </span>
-                                                <span className="rounded-full bg-[#146ef5] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white">
-                                                    Match {opportunity.match}%
-                                                </span>
-                                            </div>
-                                            <div className="absolute bottom-3 left-3 right-3">
-                                                <div className="max-w-[84%] rounded-2xl bg-black/55 px-3 py-2 text-left backdrop-blur-md">
-                                                    <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/70">
-                                                        Deadline
-                                                    </div>
-                                                    <div className="mt-1 text-[14px] font-semibold text-white">
-                                                        {formatOpportunityDeadline(opportunity.deadline)}
-                                                    </div>
-                                                </div>
-                                            </div>
                                         </div>
-
-                                        <div className="space-y-3 p-4 sm:p-5">
-                                            <h3 className="text-[18px] sm:text-[22px] font-semibold leading-[1.12]" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>
+                                        <div className="p-5 sm:p-6">
+                                            <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: '#146ef5' }}>
+                                                {opportunity.category}
+                                            </p>
+                                            <h3 className="mt-3 text-[20px] font-semibold leading-[1.18] tracking-[-0.02em] sm:text-[22px]" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>
                                                 {opportunity.title}
                                             </h3>
-                                            <p className="text-[14px] sm:text-[15px] leading-[1.45]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
+                                            <p className="mt-2 text-[15px] leading-[1.5]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
                                                 {opportunity.organization}
                                             </p>
-                                            <div className="flex flex-wrap gap-2">
-                                                <span
-                                                    className="rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
-                                                    style={{
-                                                        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : '#f2f6fb',
-                                                        color: isDarkMode ? '#d6e4f2' : '#334155',
-                                                    }}
-                                                >
-                                                    {opportunity.location}
-                                                </span>
-                                                <span
-                                                    className="rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
-                                                    style={{
-                                                        backgroundColor: isDarkMode ? 'rgba(20,110,245,0.12)' : '#eaf3ff',
-                                                        color: '#146ef5',
-                                                    }}
-                                                >
-                                                    {opportunity.difficulty ?? 'Open'}
-                                                </span>
-                                            </div>
                                         </div>
-                                    </motion.article>
-                                );
-                            })}
+                                    </Link>
+                                </motion.article>
+                            ))}
                         </div>
 
                         <div className="mt-10 flex justify-center">
@@ -723,6 +635,9 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         </div>
                     </div>
                 </section>
+
+                {/* Bento Benefits Section */}
+                <BentoBenefits />
 
                 {/* Country Flags Marquee */}
                 <section className="py-24 px-4 sm:px-6 overflow-hidden" style={{ borderTop: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}` }}>
@@ -851,7 +766,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             </p>
                         </div>
 
-                        <div className="md:hidden relative mx-auto mt-6 h-[338px] w-full max-w-[520px] overflow-visible pb-2">
+                        <div className="md:hidden mx-auto mt-6 grid w-full max-w-[520px] grid-cols-1 gap-3">
                             {aboutFeatures.map((feature, i) => (
                                 <motion.div
                                     key={i}
@@ -865,24 +780,12 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                         mass: 0.7,
                                         delay: i * 0.05,
                                     }}
-                                    className="absolute left-0 right-0 cursor-pointer overflow-hidden rounded-[28px] px-4 py-3 transition-transform duration-300 sm:px-5 sm:py-4"
+                                    className="cursor-pointer overflow-hidden rounded-[24px] px-4 py-4 transition-transform duration-300 sm:px-5 sm:py-5"
                                     style={{
-                                        top: 0,
-                                        zIndex: aboutFeatures.length - i,
-                                        minHeight: i === 0 ? '136px' : '88px',
-                                        transformOrigin: 'center top',
-                                        background: isDarkMode
-                                            ? `linear-gradient(135deg, ${feature.darkSurface}, rgba(255,255,255,0.035) 76%)`
-                                            : `linear-gradient(135deg, ${feature.surface}, #ffffff 76%)`,
+                                        backgroundColor: isDarkMode ? feature.darkSurface : feature.surface,
                                         border: `1px solid ${isDarkMode ? `${feature.color}34` : `${feature.color}26`}`,
                                         borderRadius: '8px',
                                         boxShadow: cardShadow
-                                    }}
-                                    animate={{
-                                        y: i * 54,
-                                        scale: 1 - i * 0.045,
-                                        rotate: i % 2 === 0 ? -0.85 : 0.85,
-                                        opacity: 1 - i * 0.06,
                                     }}
                                 >
                                     <div className="flex items-start gap-3 sm:gap-4">
@@ -891,20 +794,18 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                         </div>
                                         <div className="min-w-0 flex-1">
                                             <h3 className="text-[16px] font-semibold leading-tight sm:text-[18px]" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>{feature.title}</h3>
-                                            {i === 0 && (
-                                                <p
-                                                    className="mt-1 text-[12px] leading-[1.4] sm:mt-2 sm:text-[13px]"
-                                                    style={{
-                                                        color: isDarkMode ? '#ababab' : '#5a5a5a',
-                                                        display: '-webkit-box',
-                                                        WebkitBoxOrient: 'vertical',
-                                                        WebkitLineClamp: 2,
-                                                        overflow: 'hidden',
-                                                    }}
-                                                >
-                                                    {feature.desc}
-                                                </p>
-                                            )}
+                                            <p
+                                                className="mt-1 text-[12px] leading-[1.4] sm:mt-2 sm:text-[13px]"
+                                                style={{
+                                                    color: isDarkMode ? '#ababab' : '#5a5a5a',
+                                                    display: '-webkit-box',
+                                                    WebkitBoxOrient: 'vertical',
+                                                    WebkitLineClamp: 2,
+                                                    overflow: 'hidden',
+                                                }}
+                                            >
+                                                {feature.desc}
+                                            </p>
                                         </div>
                                     </div>
                                 </motion.div>
@@ -921,9 +822,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                     transition={{ duration: 0.4, delay: i * 0.1 }}
                                     className="p-5 sm:p-8 cursor-pointer transition-all duration-300"
                                     style={{
-                                        background: isDarkMode
-                                            ? `linear-gradient(135deg, ${feature.darkSurface}, rgba(255,255,255,0.035) 76%)`
-                                            : `linear-gradient(135deg, ${feature.surface}, #ffffff 76%)`,
+                                        backgroundColor: isDarkMode ? feature.darkSurface : feature.surface,
                                         border: `1px solid ${isDarkMode ? `${feature.color}38` : `${feature.color}30`}`,
                                         borderRadius: '8px',
                                         boxShadow: cardShadow
@@ -943,6 +842,100 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                     <h3 className="text-[20px] sm:text-[24px] font-semibold mb-2 sm:mb-3" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>{feature.title}</h3>
                                     <p className="text-[14px] sm:text-[16px] leading-[1.55] sm:leading-[1.6]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>{feature.desc}</p>
                                 </motion.div>
+                            ))}
+                        </div>
+                    </div>
+                </section>
+
+                {/* Blog Preview */}
+                <section className="py-24 px-4 sm:px-6" style={{ borderTop: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`, backgroundColor: isDarkMode ? '#0a0a0a' : '#fafafa' }}>
+                    <div className="max-w-[1200px] mx-auto">
+                        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between mb-12">
+                            <div className="max-w-2xl">
+                                <span className="text-[12.8px] font-semibold tracking-[1.5px]" style={{ color: '#146ef5' }}>
+                                    FROM THE BLOG
+                                </span>
+                                <h2 className="landing-section-title text-[48px] sm:text-[56px] font-semibold leading-[1.04] mt-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
+                                    Stories and ideas for{' '}
+                                    <span style={{ color: '#146ef5' }}>ambitious learners</span>
+                                </h2>
+                                <p className="landing-section-copy max-w-[620px] text-[18px] leading-[1.45] mt-4" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
+                                    Practical guides, scholarship advice, and founder notes to help you move with more clarity.
+                                </p>
+                            </div>
+
+                            <Link
+                                to="/blog"
+                                className="inline-flex items-center gap-2 self-start rounded px-5 py-3 text-[16px] font-medium no-underline transition-all duration-200"
+                                style={{
+                                    backgroundColor: 'transparent',
+                                    color: isDarkMode ? '#f5f5f5' : '#080808',
+                                    border: `1px solid ${isDarkMode ? '#363636' : '#d8d8d8'}`,
+                                    borderRadius: '4px',
+                                }}
+                            >
+                                Read the blog <ArrowRight size={16} />
+                            </Link>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                            {landingBlogArticles.map((article, index) => (
+                                <motion.article
+                                    key={article.title}
+                                    initial={{ opacity: 0, y: 16 }}
+                                    whileInView={{ opacity: 1, y: 0 }}
+                                    viewport={{ once: true, margin: '-40px' }}
+                                    transition={{ duration: 0.45, delay: index * 0.08 }}
+                                    whileHover={{ y: -3 }}
+                                    className="overflow-hidden rounded-[22px]"
+                                    style={{
+                                        backgroundColor: isDarkMode ? '#111' : '#ffffff',
+                                        border: `1px solid ${isDarkMode ? '#222' : '#dfe7f2'}`,
+                                        boxShadow: 'none',
+                                    }}
+                                >
+                                    <Link to="/blog" className="block no-underline">
+                                        <div className="relative h-[220px] overflow-hidden">
+                                            <img
+                                                src={article.image}
+                                                alt=""
+                                                className="h-full w-full object-cover"
+                                                loading="lazy"
+                                            />
+                                            <div
+                                                className="absolute inset-0"
+                                                style={{
+                                                    background: 'linear-gradient(180deg, rgba(8,18,36,0.02) 0%, rgba(8,18,36,0.24) 100%)',
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="p-5 sm:p-6">
+                                            <span className="rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ backgroundColor: isDarkMode ? 'rgba(20,110,245,0.12)' : '#edf5ff', color: '#146ef5' }}>
+                                                {article.category}
+                                            </span>
+                                            <h3 className="mt-4 text-[20px] font-semibold leading-[1.18] tracking-[-0.02em] sm:text-[22px]" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>
+                                                {article.title}
+                                            </h3>
+                                            <p className="mt-2 text-[15px] leading-[1.55]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
+                                                {article.excerpt}
+                                            </p>
+                                            <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] font-medium" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
+                                                <span className="inline-flex items-center gap-1.5">
+                                                    <User size={12} />
+                                                    {article.author}
+                                                </span>
+                                                <span className="inline-flex items-center gap-1.5">
+                                                    <Calendar size={12} />
+                                                    {article.date}
+                                                </span>
+                                                <span className="inline-flex items-center gap-1.5">
+                                                    <Clock size={12} />
+                                                    {article.readTime}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </Link>
+                                </motion.article>
                             ))}
                         </div>
                     </div>
@@ -1082,60 +1075,74 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             whileInView={{ opacity: 1, y: 0 }}
                             viewport={{ once: true }}
                             transition={{ duration: 0.5 }}
-                            className="relative overflow-hidden rounded-3xl py-16 px-8 sm:px-16"
+                            className="relative overflow-hidden rounded-3xl px-6 py-16 sm:px-16 sm:py-20"
                             style={{
-                                backgroundColor: isDarkMode ? '#111111' : '#ffffff',
-                                border: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}`,
-                                boxShadow: isDarkMode
-                                    ? '0 4px 12px rgba(0,0,0,0.3), 0 12px 36px rgba(0,0,0,0.2)'
-                                    : '0 4px 12px rgba(0,0,0,0.05), 0 12px 36px rgba(0,0,0,0.08)',
+                                backgroundColor: '#07111f',
+                                border: '1px solid rgba(255,255,255,0.16)',
+                                boxShadow: 'none',
                             }}
                         >
-                            <motion.div
-                                animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.5, 0.3] }}
-                                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                                className="absolute -left-16 top-1/2 -translate-y-1/2 w-32 h-32 rounded-full"
-                                style={{ background: 'radial-gradient(circle, rgba(20,110,245,0.2) 0%, transparent 70%)' }}
+                            <img
+                                src={heroBackdropImages[0].src}
+                                alt=""
+                                aria-hidden="true"
+                                className="absolute inset-0 h-full w-full object-cover"
+                                style={{ filter: 'saturate(0.76) contrast(0.94) brightness(0.5)' }}
+                                loading="lazy"
+                                draggable={false}
                             />
-                            <motion.div
-                                animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.5, 0.3] }}
-                                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
-                                className="absolute -right-16 top-1/2 -translate-y-1/2 w-32 h-32 rounded-full"
-                                style={{ background: 'radial-gradient(circle, rgba(122,61,255,0.2) 0%, transparent 70%)' }}
+                            <video
+                                src={heroBackdropVideoUrl}
+                                poster={heroBackdropImages[0].src}
+                                aria-hidden="true"
+                                autoPlay
+                                muted
+                                loop
+                                playsInline
+                                preload="metadata"
+                                className="absolute inset-0 h-full w-full object-cover"
+                                style={{ filter: 'saturate(0.78) contrast(0.95) brightness(0.48)' }}
                             />
-                            <div className="relative z-10 flex flex-col lg:flex-row items-center gap-12">
-                                <div className="flex-1 text-center lg:text-left">
+                            <div
+                                className="absolute inset-0"
+                                style={{
+                                    background: 'linear-gradient(180deg, rgba(3,8,18,0.74) 0%, rgba(3,8,18,0.62) 46%, rgba(3,8,18,0.78) 100%), radial-gradient(circle at 50% 18%, rgba(20,110,245,0.22), transparent 38%)',
+                                }}
+                            />
+                            <div className="relative z-10 mx-auto flex max-w-[820px] flex-col items-center gap-8 text-center">
+                                <div>
                                     <div
                                         className="inline-flex items-center gap-2 px-3 py-1.5 mb-5 rounded-full"
                                         style={{
-                                            backgroundColor: isDarkMode ? 'rgba(20,110,245,0.08)' : 'rgba(20,110,245,0.06)',
-                                            border: `1px solid ${isDarkMode ? 'rgba(20,110,245,0.15)' : 'rgba(20,110,245,0.12)'}`,
+                                            backgroundColor: 'rgba(255,255,255,0.08)',
+                                            border: '1px solid rgba(255,255,255,0.18)',
                                         }}
                                     >
-                                        <Sparkles size={12} className="text-[#146ef5]" />
-                                        <span className="text-[10px] font-bold tracking-widest text-[#146ef5]">Global Matches</span>
+                                        <Sparkles size={12} className="text-white" />
+                                        <span className="text-[10px] font-bold tracking-widest text-white">Global Matches</span>
                                     </div>
                                     <h2
                                         className="text-3xl md:text-4xl font-bold mb-3 tracking-tight"
-                                        style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}
+                                        style={{ color: '#ffffff' }}
                                     >
                                         Find scholarships
                                         <br />
-                                        and <span style={{ color: '#146ef5' }}>global opportunities</span>
+                                        and <span style={{ color: '#69a8ff' }}>global opportunities</span>
                                     </h2>
                                     <p
-                                        className="text-sm leading-relaxed"
-                                        style={{ color: isDarkMode ? '#888' : '#666' }}
+                                        className="mx-auto max-w-[620px] text-center text-sm leading-relaxed sm:text-base"
+                                        style={{ color: 'rgba(255,255,255,0.78)' }}
                                     >
-                                        Explore scholarships, fellowships, internships, and funded programs matched to your goals before deadlines pass.
+                                        <span className="block">Explore scholarships, fellowships, internships, and funded programs</span>
+                                        <span className="block">matched to your goals before deadlines pass.</span>
                                     </p>
                                 </div>
-                                <div className="flex flex-col sm:flex-row gap-3 flex-shrink-0">
+                                <div className="flex w-full max-w-[560px] flex-col gap-3 sm:flex-row sm:justify-center">
                                     <motion.button
                                         onClick={onGetStarted}
                                         whileHover={{ scale: 1.02 }}
                                         whileTap={{ scale: 0.98 }}
-                                        className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl text-sm font-bold"
+                                        className="inline-flex items-center justify-center gap-2 rounded-xl px-8 py-3.5 text-sm font-bold"
                                         style={{
                                             backgroundColor: '#146ef5',
                                             color: '#ffffff',
@@ -1145,18 +1152,17 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                         Get Scholarship Matches
                                         <ArrowRight size={14} />
                                     </motion.button>
-                                    <motion.button
-                                        whileHover={{ scale: 1.02 }}
-                                        whileTap={{ scale: 0.98 }}
-                                        className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl text-sm font-bold"
+                                    <Link
+                                        to="/opportunities"
+                                        className="inline-flex items-center justify-center gap-2 rounded-xl px-8 py-3.5 text-sm font-bold no-underline transition-transform duration-200 hover:scale-[1.02]"
                                         style={{
-                                            backgroundColor: isDarkMode ? '#1a1a1a' : '#fafafa',
-                                            color: isDarkMode ? '#fafafa' : '#0a0a0a',
-                                            border: `1px solid ${isDarkMode ? '#2a2a2a' : '#e5e5e5'}`,
+                                            backgroundColor: 'rgba(255,255,255,0.08)',
+                                            color: '#ffffff',
+                                            border: '1px solid rgba(255,255,255,0.28)',
                                         }}
                                     >
                                         Browse Opportunities
-                                    </motion.button>
+                                    </Link>
                                 </div>
                             </div>
                         </motion.div>
@@ -1211,6 +1217,8 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             </h4>
                             <div className="space-y-2 md:space-y-3">
                                 <Link to="/app/help" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Help Center</Link>
+                                <Link to="/docs" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Developer Docs</Link>
+                                <Link to="/scholarship-api" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Scholarship API</Link>
                                 <Link to="/admin" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Admin</Link>
                                 <Link to="/about" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Privacy Policy</Link>
                                 <Link to="/about" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Terms of Service</Link>

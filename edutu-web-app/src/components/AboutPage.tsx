@@ -72,17 +72,14 @@ const AboutPage: React.FC = () => {
     ];
 
     const teamMembers = [
-        { name: 'Paul Adeyemi', role: 'Founder & CEO', initials: 'PA', bio: 'Building the future of career discovery' },
-        { name: 'Sarah Chen', role: 'Head of AI', initials: 'SC', bio: 'Making intelligence accessible to all' },
-        { name: 'James Okafor', role: 'Lead Engineer', initials: 'JO', bio: 'Architecting scalable systems' },
-        { name: 'Maria Santos', role: 'Community Lead', initials: 'MS', bio: 'Connecting learners globally' }
+        { name: 'Nwosu Paul Light', role: 'Founder & CTO', initials: 'NPL', bio: 'Building the future of career discovery' }
     ];
 
     const values = [
-        { icon: Lightbulb, title: 'Innovation', desc: 'We push boundaries with AI-driven solutions that transform how learners discover and pursue opportunities.', color: '#146ef5', bg: '#146ef510' },
-        { icon: Globe, title: 'Accessibility', desc: 'Every learner deserves access to global opportunities regardless of location, background, or resources.', color: '#00d722', bg: '#00d72210' },
-        { icon: Award, title: 'Excellence', desc: 'We hold ourselves to the highest standards in design, performance, and user experience.', color: '#ffae13', bg: '#ffae1310' },
-        { icon: Heart, title: 'Community', desc: 'Learning is better together. We build spaces where mentors, peers, and creators thrive.', color: '#ed52cb', bg: '#ed52cb10' }
+        { icon: Lightbulb, title: 'Innovation', desc: 'We push boundaries with AI-driven solutions that transform how learners discover and pursue opportunities.', color: '#146ef5', bg: '#146ef510', image: 'https://images.pexels.com/photos/3182812/pexels-photo-3182812.jpeg' },
+        { icon: Globe, title: 'Accessibility', desc: 'Every learner deserves access to global opportunities regardless of location, background, or resources.', color: '#00d722', bg: '#00d72210', image: 'https://images.pexels.com/photos/3183186/pexels-photo-3183186.jpeg' },
+        { icon: Award, title: 'Excellence', desc: 'We hold ourselves to the highest standards in design, performance, and user experience.', color: '#ffae13', bg: '#ffae1310', image: 'https://images.pexels.com/photos/1595391/pexels-photo-1595391.jpeg' },
+        { icon: Heart, title: 'Community', desc: 'Learning is better together. We build spaces where mentors, peers, and creators thrive.', color: '#ed52cb', bg: '#ed52cb10', image: 'https://images.pexels.com/photos/1181391/pexels-photo-1181391.jpeg' }
     ];
 
     return (
@@ -350,9 +347,9 @@ const AboutPage: React.FC = () => {
                                 <motion.div
                                     key={i}
                                     variants={fadeUp}
-                                    className="p-8 cursor-pointer transition-all duration-300"
+                                    className="overflow-hidden cursor-pointer transition-all duration-300"
                                     style={{
-                                        backgroundColor: isDarkMode ? '#111' : '#ffffff',
+                                        backgroundColor: isDarkMode ? '#111' : value.bg,
                                         border: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`,
                                         borderRadius: '8px',
                                         boxShadow: cardShadow
@@ -366,11 +363,21 @@ const AboutPage: React.FC = () => {
                                         (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
                                     }}
                                 >
-                                    <div className="h-12 w-12 flex items-center justify-center rounded mb-6" style={{ backgroundColor: value.bg, borderRadius: '8px' }}>
-                                        <value.icon size={24} style={{ color: value.color }} />
+                                    <div className="h-36 w-full overflow-hidden">
+                                        <img
+                                            src={value.image}
+                                            alt={value.title}
+                                            className="h-full w-full object-cover"
+                                            loading="lazy"
+                                        />
                                     </div>
-                                    <h3 className="text-[22px] font-semibold mb-3" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>{value.title}</h3>
-                                    <p className="text-[15px] leading-[1.6]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>{value.desc}</p>
+                                    <div className="p-6">
+                                        <div className="h-12 w-12 flex items-center justify-center rounded mb-5" style={{ backgroundColor: value.bg, borderRadius: '8px' }}>
+                                            <value.icon size={24} style={{ color: value.color }} />
+                                        </div>
+                                        <h3 className="text-[22px] font-semibold mb-3" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>{value.title}</h3>
+                                        <p className="text-[15px] leading-[1.6]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>{value.desc}</p>
+                                    </div>
                                 </motion.div>
                             ))}
                         </motion.div>
@@ -381,13 +388,13 @@ const AboutPage: React.FC = () => {
                     <div className="max-w-[1200px] mx-auto">
                         <div className="mb-16 text-center">
                             <span className="text-[12.8px] font-semibold tracking-[1.5px]" style={{ color: '#146ef5' }}>
-                                THE TEAM
+                                THE FOUNDER
                             </span>
                             <h2 className="text-[48px] sm:text-[56px] font-semibold leading-[1.04] mt-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
-                                Meet the <span style={{ color: '#146ef5' }}>Builders</span>
+                                Meet the <span style={{ color: '#146ef5' }}>Founder</span>
                             </h2>
                             <p className="max-w-[600px] text-[18px] leading-[1.5] mx-auto mt-4" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                                A passionate team dedicated to transforming how learners navigate their careers.
+                                A focused leadership story centered on building Edutu into a reliable career discovery engine.
                             </p>
                         </div>
 
@@ -396,7 +403,7 @@ const AboutPage: React.FC = () => {
                             initial="hidden"
                             whileInView="visible"
                             viewport={{ once: true }}
-                            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
+                            className="grid grid-cols-1 max-w-md mx-auto gap-6"
                         >
                             {teamMembers.map((member, i) => (
                                 <motion.div

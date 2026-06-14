@@ -75,19 +75,15 @@ const BLOG_POSTS: BlogPost[] = [
   },
 ];
 
-const CATEGORIES = ['All', 'Scholarships', 'Fellowships', 'Career', 'Applications', 'Study Abroad'];
-
 const BlogPage: React.FC = () => {
   const { isDarkMode } = useDarkMode();
-  const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredPosts = BLOG_POSTS.filter((post) => {
-    const matchesCategory = selectedCategory === 'All' || post.category === selectedCategory;
     const matchesSearch = searchQuery === '' ||
       post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       post.excerpt.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
+    return matchesSearch;
   });
 
   const featuredPost = BLOG_POSTS.find((p) => p.featured);
@@ -133,7 +129,7 @@ const BlogPage: React.FC = () => {
             </p>
           </motion.div>
 
-          {/* Search & Filter */}
+          {/* Search */}
           <div className="flex flex-col md:flex-row gap-4 mb-10">
             <div className="flex-1 relative">
               <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: isDarkMode ? '#666' : '#94a3b8' }} />
@@ -147,29 +143,13 @@ const BlogPage: React.FC = () => {
                   backgroundColor: isDarkMode ? '#111' : '#f8f8f8',
                   border: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`,
                   color: isDarkMode ? '#f5f5f5' : '#080808',
-                }}
-              />
-            </div>
-            <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
-              {CATEGORIES.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className="px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all"
-                  style={{
-                    backgroundColor: selectedCategory === cat ? '#146ef5' : isDarkMode ? '#111' : '#f8f8f8',
-                    color: selectedCategory === cat ? '#fff' : isDarkMode ? '#ababab' : '#5a5a5a',
-                    border: `1px solid ${selectedCategory === cat ? '#146ef5' : isDarkMode ? '#222' : '#d8d8d8'}`,
                   }}
-                >
-                  {cat}
-                </button>
-              ))}
+                />
             </div>
           </div>
 
           {/* Featured Post */}
-          {featuredPost && selectedCategory === 'All' && searchQuery === '' && (
+          {featuredPost && searchQuery === '' && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -212,7 +192,7 @@ const BlogPage: React.FC = () => {
           {/* Blog Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredPosts
-              .filter((p) => !p.featured || selectedCategory !== 'All' || searchQuery !== '')
+              .filter((p) => !p.featured || searchQuery !== '')
               .map((post, index) => (
                 <motion.article
                   key={post.id}

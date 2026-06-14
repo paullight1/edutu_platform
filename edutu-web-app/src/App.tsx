@@ -16,6 +16,7 @@ import LandingPage from './components/LandingPageV3';
 import AboutPage from './components/AboutPage';
 import BlogPage from './components/BlogPage';
 import DownloadPage from './components/DownloadPage';
+import DeveloperDocsPage from './components/DeveloperDocsPage';
 import AuthScreen from './components/AuthScreen';
 import AuthCallback from './components/AuthCallback';
 import Dashboard from './components/Dashboard';
@@ -23,6 +24,7 @@ import SplashScreen from './components/SplashScreen';
 import NotFoundPage from './components/NotFoundPage';
 import IntroductionPopup from './components/IntroductionPopup';
 import MentorPage from './components/MentorPage';
+import ScholarshipApiPage from './components/ScholarshipApiPage';
 import AllOpportunities from './components/AllOpportunities';
 import CommunityMarketplace from './components/CommunityMarketplace';
 import AchievementsScreen from './components/AchievementsScreen';
@@ -412,6 +414,9 @@ export function App() {
       <Routes>
         <Route path="/" element={<LandingPage onGetStarted={() => handleGetStarted()} />} />
         <Route path="/about" element={<AboutPage />} />
+        <Route path="/docs" element={<DeveloperDocsPage />} />
+        <Route path="/scholarship-api" element={<ScholarshipApiPage />} />
+        <Route path="/contact" element={<Navigate to="/about" replace />} />
         <Route path="/opportunities" element={<OpportunitiesPage />} />
         <Route path="/download" element={<DownloadPage />} />
         <Route path="/blog" element={<BlogPage />} />
