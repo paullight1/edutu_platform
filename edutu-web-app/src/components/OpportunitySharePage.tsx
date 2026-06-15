@@ -4,26 +4,13 @@ import { useAuth } from '@clerk/clerk-react';
 import {
   ArrowLeft,
   ArrowRight,
-  Copy,
-  Download,
-  ExternalLink,
   LockKeyhole,
-  MessageCircle,
   Sparkles,
 } from 'lucide-react';
-import { useToast } from './ui/ToastProvider';
 import ImageWithFallback from './ImageWithFallback';
 import type { Opportunity } from '../types/opportunity';
 import { getOpportunity } from '../services/opportunities';
-import {
-  buildOpportunityShareFileName,
-  buildOpportunityShareText,
-  buildOpportunityShareUrl,
-  buildWhatsAppShareUrl,
-  downloadBlob,
-  fetchOpportunityShareCard,
-  fetchOpportunitySharePdfBlob,
-} from '../services/opportunityShare';
+import { fetchOpportunityShareCard } from '../services/opportunityShare';
 import PublicEditorialShell from './PublicEditorialShell';
 
 function truncateDescription(value: string, maxLength = 220): string {
@@ -47,24 +34,15 @@ export default function OpportunitySharePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { isLoaded, isSignedIn } = useAuth();
-  const { success, error: showError } = useToast();
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
   const [shareCardUrl, setShareCardUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [working, setWorking] = useState<'copy' | 'whatsapp' | 'download' | null>(null);
 
   const publicSharePath = useMemo(() => {
     if (!id) return '/opportunities';
     return `/share/opportunity/${id}`;
   }, [id]);
-
-  const shareUrl = useMemo(() => (id ? buildOpportunityShareUrl(id) : ''), [id]);
-
-  const shareText = useMemo(() => {
-    if (!opportunity || !shareUrl) return '';
-    return buildOpportunityShareText(opportunity, shareUrl);
-  }, [opportunity, shareUrl]);
 
   useEffect(() => {
     if (!id) {
@@ -183,82 +161,6 @@ export default function OpportunitySharePage() {
     navigate(`/auth?${mode === 'sign-up' ? 'signup=true' : 'mode=sign-in'}`, {
       state: { from: { pathname: publicSharePath } },
     });
-  };
-
-  const handleCopyLink = async () => {
-    setWorking('copy');
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      success('Share link copied');
-    } catch {
-      showError('Could not copy the share link');
-    } finally {
-      setWorking(null);
-    }
-  };
-
-  const handleWhatsAppShare = async () => {
-    setWorking('whatsapp');
-    try {
-      const pdfBlob = await fetchOpportunitySharePdfBlob(opportunity.id, imageSource);
-      if (pdfBlob) {
-        const pdfFile = new File([pdfBlob], buildOpportunityShareFileName(opportunity, 'pdf'), {
-          type: 'application/pdf',
-        });
-        const shareData = {
-          title: opportunity.title,
-          text: shareText,
-          url: shareUrl,
-          files: [pdfFile],
-        };
-
-        if (navigator.share && navigator.canShare?.({ files: [pdfFile] })) {
-          await navigator.share(shareData);
-          success('Opened the share sheet');
-          return;
-        }
-
-        if (navigator.share) {
-          await navigator.share({
-            title: opportunity.title,
-            text: shareText,
-            url: shareUrl,
-          });
-          downloadBlob(pdfBlob, buildOpportunityShareFileName(opportunity, 'pdf'));
-          success('Opened the share sheet and downloaded the PDF');
-          return;
-        }
-
-        downloadBlob(pdfBlob, buildOpportunityShareFileName(opportunity, 'pdf'));
-      }
-
-      window.open(buildWhatsAppShareUrl(shareText), '_blank', 'noopener,noreferrer');
-      success('Opening WhatsApp');
-    } catch (error) {
-      if (error instanceof DOMException && (error.name === 'AbortError' || error.name === 'NotAllowedError')) {
-        return;
-      }
-      showError('Could not open WhatsApp');
-    } finally {
-      setWorking(null);
-    }
-  };
-
-  const handleDownloadPdf = async () => {
-    setWorking('download');
-    try {
-      const pdfBlob = await fetchOpportunitySharePdfBlob(opportunity.id, imageSource);
-      if (!pdfBlob) {
-        throw new Error('Could not generate the PDF preview.');
-      }
-
-      downloadBlob(pdfBlob, buildOpportunityShareFileName(opportunity, 'pdf'));
-      success('PDF downloaded');
-    } catch (error) {
-      showError(error instanceof Error ? error.message : 'Could not download the PDF preview');
-    } finally {
-      setWorking(null);
-    }
   };
 
   const detailRows = [
@@ -424,76 +326,14 @@ export default function OpportunitySharePage() {
               </dl>
             </section>
 
-            <section className="rounded-[24px] border border-slate-200 bg-slate-50 p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
-                Actions
-              </p>
-              <div className="mt-4 space-y-3">
-                <button
-                  type="button"
-                  onClick={handleCopyLink}
-                  disabled={working !== null}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-950 disabled:cursor-wait disabled:opacity-60 dark:border-white/15 dark:bg-transparent dark:text-slate-200 dark:hover:text-white"
-                >
-                  <Copy size={16} />
-                  Copy link
-                </button>
-                <button
-                  type="button"
-                  onClick={handleWhatsAppShare}
-                  disabled={working !== null}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-950 disabled:cursor-wait disabled:opacity-60 dark:border-white/15 dark:bg-transparent dark:text-slate-200 dark:hover:text-white"
-                >
-                  <MessageCircle size={16} />
-                  WhatsApp share
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDownloadPdf}
-                  disabled={working !== null || !imageSource}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-950 disabled:cursor-wait disabled:opacity-60 dark:border-white/15 dark:bg-transparent dark:text-slate-200 dark:hover:text-white"
-                >
-                  <Download size={16} />
-                  Download PDF
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAuth('sign-up')}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-600"
-                >
-                  Sign up
-                  <ArrowRight size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAuth('sign-in')}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-950 dark:border-white/15 dark:text-slate-200 dark:hover:text-white"
-                >
-                  Already have an account?
-                  <ExternalLink size={16} />
-                </button>
-              </div>
-            </section>
-
-            <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-950/50">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
-                Why sign up?
-              </p>
-              <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                <li className="flex gap-3">
-                  <span className="mt-2 h-1.5 w-1.5 rounded-full bg-brand-500" />
-                  Unlock the full opportunity description, requirements, and application steps.
-                </li>
-                <li className="flex gap-3">
-                  <span className="mt-2 h-1.5 w-1.5 rounded-full bg-brand-500" />
-                  Save opportunities and track deadlines from one place.
-                </li>
-                <li className="flex gap-3">
-                  <span className="mt-2 h-1.5 w-1.5 rounded-full bg-brand-500" />
-                  Continue into the private opportunity page after sign-up.
-                </li>
-              </ul>
-            </section>
+            <button
+              type="button"
+              onClick={() => handleAuth('sign-up')}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-500 px-5 py-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-600"
+            >
+              Apply now
+              <ArrowRight size={16} />
+            </button>
           </aside>
         </div>
       </section>

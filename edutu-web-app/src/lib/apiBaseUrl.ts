@@ -1,8 +1,4 @@
 export function getApiBaseUrl(serviceName: string): string {
-  if (import.meta.env.DEV) {
-    return 'http://localhost:3010';
-  }
-
   const configuredUrl =
     import.meta.env.VITE_BACKEND_URL?.trim() ||
     import.meta.env.VITE_API_URL?.trim();
@@ -12,7 +8,7 @@ export function getApiBaseUrl(serviceName: string): string {
   }
 
   if (import.meta.env.DEV) {
-    return 'https://edutu-api.onrender.com';
+    return 'http://localhost:3010';
   }
 
   throw new Error(`${serviceName} is not configured. Set VITE_BACKEND_URL or VITE_API_URL in Vercel environment variables.`);

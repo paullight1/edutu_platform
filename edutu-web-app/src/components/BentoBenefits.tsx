@@ -200,7 +200,7 @@ const BentoBenefits: React.FC = () => {
                                             <h3 className="text-[22px] font-semibold leading-[1.04] tracking-[-0.04em] text-white sm:text-[24px]">
                                                 {card.title}
                                             </h3>
-                                            <p className="mt-2 text-[13px] leading-[1.55] text-white/78 sm:text-[14px]">
+                                            <p className="mt-2 text-[13px] font-medium leading-[1.55] text-white sm:text-[14px]" style={{ textShadow: '0 1px 10px rgba(0,0,0,0.45)' }}>
                                                 {card.copy}
                                             </p>
                                         </div>
