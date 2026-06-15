@@ -553,7 +553,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                 <span className="text-[12.8px] font-semibold tracking-[1.5px]" style={{ color: '#146ef5' }}>
                                     LATEST OPPORTUNITIES
                                 </span>
-                                <h2 className="landing-section-title text-[48px] sm:text-[56px] font-semibold leading-[1.04] mt-4" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
+                                <h2 className="landing-section-title text-[34px] sm:text-[42px] font-medium leading-[1.12] mt-4 max-w-xl" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
                                     Fresh opportunities worth exploring
                                 </h2>
                                 <p className="landing-section-copy max-w-[640px] text-[18px] leading-[1.45] mt-4" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
