@@ -1,13 +1,15 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Menu, Moon, Search, Sun } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
-import Input from '../../ui/Input';
-import Button from '../../ui/Button';
-import { useDarkMode } from '../../../hooks/useDarkMode';
-import { adminNavItems, adminRouteFallbacks } from '../../../pages/admin/admin-navigation';
-import { authService } from '../../../lib/auth';
-import { cn } from '../../../lib/cn';
-import type { User } from '@supabase/supabase-js';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, Menu, Search } from "lucide-react";
+import { useLocation } from "react-router-dom";
+import Input from "../../ui/Input";
+import Button from "../../ui/Button";
+import {
+  adminNavItems,
+  adminRouteFallbacks,
+} from "../../../pages/admin/admin-navigation";
+import { authService } from "../../../lib/auth";
+import { cn } from "../../../lib/cn";
+import type { User } from "@supabase/supabase-js";
 
 interface TopbarProps {
   onToggleSidebar: () => void;
@@ -15,26 +17,25 @@ interface TopbarProps {
 }
 
 const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar, user }) => {
-  const { isDarkMode, toggleDarkMode } = useDarkMode();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const normalisedPath = useMemo(() => {
-    if (!location.pathname || location.pathname === '') {
-      return '/';
+    if (!location.pathname || location.pathname === "") {
+      return "/";
     }
-    return location.pathname.replace(/\/+$/, '') || '/';
+    return location.pathname.replace(/\/+$/, "") || "/";
   }, [location.pathname]);
 
   const activeNav = useMemo(() => {
-    if (normalisedPath === '/' || normalisedPath === '') {
+    if (normalisedPath === "/" || normalisedPath === "") {
       return adminNavItems[0];
     }
 
     return adminNavItems.find((item) => {
-      if (item.path === '/') {
-        return normalisedPath === '/' || normalisedPath === '';
+      if (item.path === "/") {
+        return normalisedPath === "/" || normalisedPath === "";
       }
       return normalisedPath.startsWith(item.path);
     });
@@ -42,29 +43,30 @@ const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar, user }) => {
 
   const fallbackMeta = useMemo(() => {
     return Object.entries(adminRouteFallbacks).find(([path]) =>
-      normalisedPath.startsWith(path)
+      normalisedPath.startsWith(path),
     )?.[1];
   }, [normalisedPath]);
 
-  const pageTitle = activeNav?.name ?? fallbackMeta?.title ?? 'Admin Control Center';
+  const pageTitle =
+    activeNav?.name ?? fallbackMeta?.title ?? "Admin Control Center";
   const pageSubtitle =
     activeNav?.description ??
     fallbackMeta?.description ??
-    'Oversee Edutu operations, insights, and personalization controls.';
+    "Oversee Edutu operations, insights, and personalization controls.";
 
   const initials = useMemo(() => {
     if (user?.displayName) {
       return user.displayName
-        .split(' ')
+        .split(" ")
         .filter(Boolean)
         .slice(0, 2)
-        .map((chunk) => chunk[0]?.toUpperCase() ?? '')
-        .join('');
+        .map((chunk) => chunk[0]?.toUpperCase() ?? "")
+        .join("");
     }
     if (user?.email) {
-      return user.email[0]?.toUpperCase() ?? 'A';
+      return user.email[0]?.toUpperCase() ?? "A";
     }
-    return 'AD';
+    return "AD";
   }, [user]);
 
   useEffect(() => {
@@ -74,20 +76,20 @@ const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar, user }) => {
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleLogout = async () => {
     try {
       await authService.signOut();
       setMenuOpen(false);
-      if (typeof window !== 'undefined') {
-        window.location.href = '/';
+      if (typeof window !== "undefined") {
+        window.location.href = "/";
       }
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.error('Failed to sign out admin', error);
+      console.error("Failed to sign out admin", error);
     }
   };
 
@@ -104,8 +106,12 @@ const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar, user }) => {
             <Menu size={18} strokeWidth={2} />
           </button>
           <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold text-strong md:text-xl">{pageTitle}</h1>
-            <p className="mt-0.5 hidden text-xs text-muted sm:block">{pageSubtitle}</p>
+            <h1 className="truncate text-lg font-semibold text-strong md:text-xl">
+              {pageTitle}
+            </h1>
+            <p className="mt-0.5 hidden text-xs text-muted sm:block">
+              {pageSubtitle}
+            </p>
           </div>
         </div>
 
@@ -118,27 +124,6 @@ const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar, user }) => {
               className="h-7 border-none bg-transparent px-0 text-sm text-strong placeholder:text-muted focus-visible:outline-none focus-visible:ring-0"
             />
           </div>
-
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="hidden items-center gap-2 rounded-xl border border-transparent px-3 py-2 text-xs font-medium text-soft hover:border-brand-200 hover:text-strong md:flex"
-            onClick={toggleDarkMode}
-            aria-label="Toggle color theme"
-          >
-            {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-            <span>{isDarkMode ? 'Light mode' : 'Dark mode'}</span>
-          </Button>
-
-          <button
-            type="button"
-            onClick={toggleDarkMode}
-            aria-label="Toggle color theme"
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-subtle text-muted transition hover:text-strong md:hidden"
-          >
-            {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
 
           <div className="relative" ref={menuRef}>
             <button
@@ -153,15 +138,18 @@ const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar, user }) => {
               </span>
               <div className="hidden min-w-[120px] flex-col items-start text-left sm:flex">
                 <span className="truncate text-sm font-semibold text-strong">
-                  {user?.displayName ?? 'Admin User'}
+                  {user?.displayName ?? "Admin User"}
                 </span>
                 <span className="truncate text-xs text-muted">
-                  {user?.email ?? 'admin@edutu.ai'}
+                  {user?.email ?? "admin@edutu.ai"}
                 </span>
               </div>
               <ChevronDown
                 size={16}
-                className={cn('text-muted transition', menuOpen ? 'rotate-180 text-strong' : '')}
+                className={cn(
+                  "text-muted transition",
+                  menuOpen ? "rotate-180 text-strong" : "",
+                )}
               />
             </button>
 
@@ -169,17 +157,19 @@ const Topbar: React.FC<TopbarProps> = ({ onToggleSidebar, user }) => {
               <div className="absolute right-0 mt-2 w-52 overflow-hidden rounded-xl border border-subtle bg-surface-layer shadow-elevated transition">
                 <div className="border-b border-subtle/80 bg-surface-elevated/70 px-4 py-3 text-sm text-soft">
                   <p className="truncate font-medium text-strong">
-                    {user?.displayName ?? 'Admin User'}
+                    {user?.displayName ?? "Admin User"}
                   </p>
-                  <p className="truncate text-xs text-muted">{user?.email ?? 'admin@edutu.ai'}</p>
+                  <p className="truncate text-xs text-muted">
+                    {user?.email ?? "admin@edutu.ai"}
+                  </p>
                 </div>
                 <button
                   type="button"
                   className="w-full px-4 py-2.5 text-left text-sm text-soft transition hover:bg-neutral-100/80 hover:text-strong dark:hover:bg-neutral-800/40"
                   onClick={() => {
                     setMenuOpen(false);
-                    if (typeof window !== 'undefined') {
-                      window.location.href = '/profile';
+                    if (typeof window !== "undefined") {
+                      window.location.href = "/profile";
                     }
                   }}
                 >
