@@ -1,23 +1,17 @@
 import React from 'react';
-import { useParams, Navigate, useNavigate } from 'react-router-dom';
+import { useParams, Navigate } from 'react-router-dom';
 import { useOpportunities } from '../hooks/useOpportunities';
-import type { Opportunity } from '../types/opportunity';
 
 const OpportunityDetail = React.lazy(() => import('./OpportunityDetail'));
 
 interface OpportunityDetailFetcherProps {
   onBack: () => void;
-  onSelectOpportunity: (opportunity: Opportunity) => void;
-  onAddToGoals: (opportunity: Opportunity) => void;
 }
 
 const OpportunityDetailFetcher: React.FC<OpportunityDetailFetcherProps> = ({
   onBack,
-  onSelectOpportunity,
-  onAddToGoals,
 }) => {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const { data: opportunities, loading } = useOpportunities();
 
   if (loading) {
@@ -31,12 +25,8 @@ const OpportunityDetailFetcher: React.FC<OpportunityDetailFetcherProps> = ({
   const opportunity = opportunities.find((o) => o.id === id);
 
   if (!opportunity) {
-    return <Navigate to="/app/opportunities" replace />;
+    return <Navigate to="/opportunities" replace />;
   }
-
-  const handleNavigateToRoadmap = () => {
-    navigate(`/app/opportunity/${id}/ai-roadmap`);
-  };
 
   return (
     <React.Suspense
@@ -49,8 +39,6 @@ const OpportunityDetailFetcher: React.FC<OpportunityDetailFetcherProps> = ({
       <OpportunityDetail
         opportunity={opportunity}
         onBack={onBack}
-        onAddToGoals={onAddToGoals}
-        onNavigateToRoadmap={handleNavigateToRoadmap}
       />
     </React.Suspense>
   );

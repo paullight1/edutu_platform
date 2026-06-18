@@ -7,7 +7,6 @@ import React, {
   useState
 } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { useGoals } from './useGoals';
 import {
   recordChatSessionAggregate,
   recordOpportunityExploreAggregate,
@@ -62,7 +61,6 @@ const getTodayKey = () => {
 };
 
 export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { goals } = useGoals();
   const { isSignedIn, userId } = useAuth();
   const [analytics, setAnalytics] = useState<AnalyticsRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -244,11 +242,6 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [userId, recordActivity]);
 
-  const goalsAchieved = useMemo(
-    () => goals.filter((goal) => goal.status === 'completed').length,
-    [goals]
-  );
-
   const daysActive = useMemo(() => {
     return analytics ? new Set(analytics.active_dates).size : 0;
   }, [analytics]);
@@ -256,11 +249,11 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const stats = useMemo<AnalyticsStats>(
     () => ({
       opportunitiesExplored: analytics?.opportunities_explored || 0,
-      goalsAchieved,
+      goalsAchieved: analytics?.goals_completed || 0,
       daysActive,
       chatSessions: analytics?.chat_sessions || 0
     }),
-    [daysActive, goalsAchieved, analytics]
+    [daysActive, analytics]
   );
 
   const value = useMemo<AnalyticsContextValue>(

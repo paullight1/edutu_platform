@@ -98,7 +98,7 @@ const setupBackButtonHandler = (onBackButton?: () => boolean) => {
         }
 
         // Check if we're at the root/home page
-        const isRootPage = window.location.pathname === '/app/home' ||
+        const isRootPage = window.location.pathname === '/opportunities' ||
             window.location.pathname === '/app' ||
             window.location.pathname === '/';
 

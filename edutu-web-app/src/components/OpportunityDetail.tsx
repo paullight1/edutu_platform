@@ -1,14 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import {
   ArrowLeft,
-  Bookmark,
-  CheckCircle2,
   ExternalLink,
   Heart,
-  Loader2,
   Share2,
   Sparkles,
-  Trophy,
 } from 'lucide-react';
 import { useAuth } from '@clerk/clerk-react';
 import { useToast } from './ui/ToastProvider';
@@ -29,8 +25,6 @@ import PublicEditorialShell from './PublicEditorialShell';
 interface OpportunityDetailProps {
   opportunity: Opportunity;
   onBack: () => void;
-  onAddToGoals: (opportunity: Opportunity) => void;
-  onNavigateToRoadmap?: () => void;
 }
 
 function getCurrencySymbol(currency?: string | null): string {
@@ -77,14 +71,11 @@ function getDaysUntilDeadline(deadline?: string | null): number | null {
 const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   opportunity,
   onBack,
-  onAddToGoals,
-  onNavigateToRoadmap,
 }) => {
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
   const [isBookmarkedState, setIsBookmarkedState] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
-  const [isAddingToGoals, setIsAddingToGoals] = useState(false);
   const { success, error: showError } = useToast();
   const { userId, getToken } = useAuth();
 
@@ -266,33 +257,6 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
     window.open(applyUrl, '_blank', 'noopener,noreferrer');
   };
 
-  const handleAddToGoals = async () => {
-    setIsAddingToGoals(true);
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-    setIsAddingToGoals(false);
-    onAddToGoals(opportunity);
-  };
-
-  const handleWinThisOpportunity = () => {
-    if (onNavigateToRoadmap) {
-      onNavigateToRoadmap();
-      return;
-    }
-    window.location.hash = `/app/opportunity/${opportunity.id}/roadmap`;
-  };
-
-  const handleAskAI = (intent: string) => {
-    window.sessionStorage.setItem(
-      'edutu.aiPrompt',
-      `${intent}\n\nOpportunity: ${opportunity.title}\nOrganization: ${opportunity.organization || 'Unknown'}\nCategory: ${
-        opportunity.category || 'Opportunity'
-      }\nDeadline: ${opportunity.deadline || 'Rolling'}\nDescription: ${
-        opportunity.description || 'No description available'
-      }`,
-    );
-    window.location.hash = '/app/chat';
-  };
-
   return (
     <PublicEditorialShell>
       <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:py-10">
@@ -438,52 +402,25 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                 </div>
               </dl>
             </section>
-
-            <section className="border-y border-slate-200 py-5 dark:border-white/10">
+            <section className="space-y-4 border-y border-slate-200 py-5 dark:border-white/10">
               <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
                 Actions
               </p>
-              <div className="mt-4 space-y-3">
+              <div className="flex flex-col gap-3 sm:flex-row">
                 <button
                   type="button"
                   onClick={handleApply}
                   disabled={!applyUrl}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-brand-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <ExternalLink size={16} />
                   {applyUrl ? 'Apply now' : 'Application link unavailable'}
                 </button>
                 <button
                   type="button"
-                  onClick={handleWinThisOpportunity}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-950 dark:border-white/15 dark:text-slate-200 dark:hover:text-white"
-                >
-                  <Trophy size={16} />
-                  Win this opportunity
-                </button>
-                <button
-                  type="button"
-                  onClick={handleAddToGoals}
-                  disabled={isAddingToGoals}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-950 disabled:cursor-wait disabled:opacity-50 dark:border-white/15 dark:text-slate-200 dark:hover:text-white"
-                >
-                  {isAddingToGoals ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      Adding...
-                    </>
-                  ) : (
-                    <>
-                      <Bookmark size={16} />
-                      Track deadline only
-                    </>
-                  )}
-                </button>
-                <button
-                  type="button"
                   onClick={handleShare}
                   disabled={isSharing}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-950 disabled:cursor-wait disabled:opacity-50 dark:border-white/15 dark:text-slate-200 dark:hover:text-white"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-950 disabled:cursor-wait disabled:opacity-50 dark:border-white/15 dark:text-slate-200 dark:hover:text-white"
                 >
                   <Share2 size={16} />
                   {shareCopied ? 'Link copied' : 'Share preview'}
@@ -492,7 +429,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                   type="button"
                   onClick={handleBookmark}
                   disabled={bookmarkLoading}
-                  className={`inline-flex w-full items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-semibold transition-colors disabled:cursor-wait disabled:opacity-50 ${
+                  className={`inline-flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-semibold transition-colors disabled:cursor-wait disabled:opacity-50 ${
                     isBookmarkedState
                       ? 'bg-rose-500 text-white hover:bg-rose-600'
                       : 'border border-slate-300 text-slate-700 hover:border-slate-400 hover:text-slate-950 dark:border-white/15 dark:text-slate-200 dark:hover:text-white'
@@ -502,49 +439,6 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                   {isBookmarkedState ? 'Saved' : 'Save'}
                 </button>
               </div>
-            </section>
-
-            <section className="border-y border-slate-200 py-5 dark:border-white/10">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
-                Ask Edutu AI
-              </p>
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                {[
-                  ['Eligibility', 'Check my eligibility for this opportunity. Be specific about likely gaps and what I should verify.'],
-                  ['Fit', 'Explain why this opportunity fits me and what profile details would improve the match.'],
-                  ['CV', 'Suggest how to tailor my CV for this opportunity with concrete bullet improvements.'],
-                  ['Prep', 'Create a concise preparation plan for this application before the deadline.'],
-                ].map(([label, prompt]) => (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => handleAskAI(prompt)}
-                    className="rounded-2xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-600 dark:border-white/10 dark:text-slate-300 dark:hover:text-white"
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <section className="border-y border-slate-200 py-5 dark:border-white/10">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
-                Why sign up?
-              </p>
-              <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                <li className="flex gap-3">
-                  <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-brand-500" />
-                  Unlock the full opportunity description, requirements, and application steps.
-                </li>
-                <li className="flex gap-3">
-                  <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-brand-500" />
-                  Save opportunities and track deadlines from one place.
-                </li>
-                <li className="flex gap-3">
-                  <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-brand-500" />
-                  Continue straight into the private opportunity page after sign-up.
-                </li>
-              </ul>
             </section>
           </aside>
         </div>

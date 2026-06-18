@@ -130,7 +130,7 @@ describe('post auth redirects', () => {
         pathname: '/share/opportunity/opp-123',
         search: '?ref=whatsapp',
       }),
-    ).toBe('/app/opportunity/opp-123');
+    ).toBe('/opportunity/opp-123');
   });
 
   it('remembers and consumes a mapped redirect target', () => {
@@ -139,15 +139,15 @@ describe('post auth redirects', () => {
         pathname: '/share/opportunity/opp-123',
         search: '?ref=whatsapp',
       }),
-    ).toBe('/app/opportunity/opp-123');
+    ).toBe('/opportunity/opp-123');
 
-    expect(window.sessionStorage.getItem('edutu_post_auth_from')).toBe('/app/opportunity/opp-123');
-    expect(consumePostAuthRedirect()).toBe('/app/opportunity/opp-123');
+    expect(window.sessionStorage.getItem('edutu_post_auth_from')).toBe('/opportunity/opp-123');
+    expect(consumePostAuthRedirect()).toBe('/opportunity/opp-123');
     expect(window.sessionStorage.getItem('edutu_post_auth_from')).toBeNull();
   });
 
   it('clears stale redirect state when no source is provided', () => {
-    window.sessionStorage.setItem('edutu_post_auth_from', '/app/home');
+    window.sessionStorage.setItem('edutu_post_auth_from', '/opportunities');
 
     expect(rememberPostAuthRedirect(null)).toBeNull();
     expect(window.sessionStorage.getItem('edutu_post_auth_from')).toBeNull();

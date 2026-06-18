@@ -87,7 +87,7 @@ function splitFullName(fullName: string) {
   return { firstName, lastName };
 }
 
-function normalizeRelativePath(path: string | null | undefined, fallback = '/app/home'): string {
+function normalizeRelativePath(path: string | null | undefined, fallback = '/opportunities'): string {
   const trimmed = typeof path === 'string' ? path.trim() : '';
 
   if (!trimmed || !trimmed.startsWith('/')) {
@@ -103,7 +103,7 @@ function normalizeRelativePath(path: string | null | undefined, fallback = '/app
 
 export function resolvePostAuthRedirectPath(
   source?: AuthRedirectSource | null,
-  fallback = '/app/home',
+  fallback = '/opportunities',
 ): string {
   const pathname = typeof source?.pathname === 'string' ? source.pathname.trim() : '';
 
@@ -121,7 +121,7 @@ export function resolvePostAuthRedirectPath(
   const shareMatch = rawPath.match(/^\/share\/opportunity\/([^/?#]+)/);
 
   if (shareMatch?.[1]) {
-    return `/app/opportunity/${shareMatch[1]}`;
+    return `/opportunity/${shareMatch[1]}`;
   }
 
   return normalizeRelativePath(rawPath, fallback);
@@ -144,7 +144,7 @@ export function rememberPostAuthRedirect(source?: AuthRedirectSource | null): st
   return target;
 }
 
-export function consumePostAuthRedirect(fallback = '/app/home'): string {
+export function consumePostAuthRedirect(fallback = '/opportunities'): string {
   if (typeof window === 'undefined') {
     return fallback;
   }
