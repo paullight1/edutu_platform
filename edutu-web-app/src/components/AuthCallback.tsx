@@ -16,9 +16,9 @@ const AuthCallback: React.FC = () => {
 
     const redirectTarget = consumePostAuthRedirect();
     const signUpRedirect =
-      redirectTarget === '/app/home'
-        ? '/app/home?signup=true'
-        : redirectTarget.startsWith('/app/home?') && !redirectTarget.includes('signup=true')
+      redirectTarget === '/opportunities'
+        ? '/opportunities?signup=true'
+        : redirectTarget.startsWith('/opportunities?') && !redirectTarget.includes('signup=true')
           ? `${redirectTarget}&signup=true`
           : redirectTarget;
 

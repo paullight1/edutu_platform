@@ -5,9 +5,6 @@ import './index.css';
 // Initialize i18n before rendering
 import './i18n';
 
-import { GoalsProvider } from './hooks/useGoals';
-import { AnalyticsProvider } from './hooks/useAnalytics';
-import { NotificationsProvider } from './hooks/useNotifications';
 import { ThemeProvider } from './hooks/useTheme';
 import App from './App.tsx';
 import { ToastProvider } from './components/ui/ToastProvider';
@@ -27,7 +24,7 @@ const LoadingScreen = () => (
   <div className="min-h-screen bg-[#0c0f1a] flex items-center justify-center">
     <div className="text-center">
       <div className="w-12 h-12 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin mx-auto mb-4" />
-      <p className="text-white/60">Loading...</p>
+      <p className="text-white/60">Loading opportunities...</p>
     </div>
   </div>
 );
@@ -42,15 +39,9 @@ root.render(
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <ToastProvider>
               <ThemeProvider>
-                <NotificationsProvider>
-                  <AuthProvider>
-                    <GoalsProvider>
-                      <AnalyticsProvider>
-                        <App />
-                      </AnalyticsProvider>
-                    </GoalsProvider>
-                  </AuthProvider>
-                </NotificationsProvider>
+                <AuthProvider>
+                  <App />
+                </AuthProvider>
               </ThemeProvider>
             </ToastProvider>
           </BrowserRouter>

@@ -107,7 +107,7 @@ export default function OpportunitySharePage() {
   }
 
   if (isSignedIn) {
-    return <Navigate to={`/app/opportunity/${id}`} replace />;
+    return <Navigate to={`/opportunity/${id}`} replace />;
   }
 
   if (loadError || !opportunity) {

@@ -47,7 +47,7 @@ class ErrorBoundary extends Component<Props, State> {
     }
 
     handleGoHome = (): void => {
-        window.location.href = '/app/home';
+        window.location.href = '/opportunities';
     };
 
     handleRetry = (): void => {
@@ -80,8 +80,8 @@ class ErrorBoundary extends Component<Props, State> {
                         <h1 className="mb-3 text-2xl font-black text-[#0b1728] sm:text-3xl">
                             Something went wrong
                         </h1>
-                        <p className="mx-auto max-w-[340px] text-sm leading-6 text-slate-600">
-                            We hit a temporary issue. Your data is safe, and you can retry or go back home.
+                            <p className="mx-auto max-w-[340px] text-sm leading-6 text-slate-600">
+                            We hit a temporary issue. Your data is safe, and you can retry or go back to opportunities.
                         </p>
 
                         <div className="mt-7 grid gap-3 sm:grid-cols-2">
@@ -98,7 +98,7 @@ class ErrorBoundary extends Component<Props, State> {
                                 className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-[#102033] transition-colors hover:bg-slate-50"
                             >
                                 <Home className="h-4 w-4" />
-                                Home
+                                Opportunities
                             </button>
                         </div>
 

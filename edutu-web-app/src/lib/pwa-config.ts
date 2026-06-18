@@ -15,13 +15,13 @@ export const pwaConfig = VitePWA({
     manifest: {
         name: 'Edutu - AI Opportunity Coach',
         short_name: 'Edutu',
-        description: 'Your AI-powered life operating system for discovering opportunities and achieving goals',
+        description: 'Discover scholarships, internships, grants, and programs in one focused feed.',
         theme_color: '#6366f1',
         background_color: '#0c0f1a',
         display: 'standalone',
         orientation: 'portrait-primary',
         scope: '/',
-        start_url: '/',
+        start_url: '/opportunities',
         categories: ['education', 'productivity', 'lifestyle'],
         icons: [
             {
@@ -68,10 +68,10 @@ export const pwaConfig = VitePWA({
         ],
         shortcuts: [
             {
-                name: 'Dashboard',
-                short_name: 'Home',
-                description: 'View your dashboard',
-                url: '/app/home',
+                name: 'Opportunities',
+                short_name: 'Feed',
+                description: 'Open the opportunities feed',
+                url: '/opportunities',
             },
         ],
     },

@@ -1,441 +1,303 @@
-import React, { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
-    ArrowRight,
-    Sparkles,
-    MapPin,
-    Calendar,
-    Search,
-    X,
-    Globe,
-    Twitter,
-    Linkedin,
-    Github,
-    Trophy,
-    LockKeyhole,
-    Smartphone
+  ArrowRight,
+  Calendar,
+  MapPin,
+  RefreshCw,
+  Search,
+  X,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { useDarkMode } from '../hooks/useDarkMode';
 import { useOpportunities } from '../hooks/useOpportunities';
 import type { Opportunity } from '../types/opportunity';
-import PublicSiteMenu from './PublicSiteMenu';
+import ImageWithFallback from './ImageWithFallback';
 
-interface OpportunityCardProps {
-    opportunity: Opportunity;
-    matchScore?: number;
-    index: number;
+const categoryFallbackImages: Record<string, string> = {
+  scholarships: 'https://images.pexels.com/photos/267885/pexels-photo-267885.jpeg',
+  fellowships: 'https://images.pexels.com/photos/1438072/pexels-photo-1438072.jpeg',
+  internships: 'https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg',
+  grants: 'https://images.pexels.com/photos/2280571/pexels-photo-2280571.jpeg',
+  programs: 'https://images.pexels.com/photos/1181715/pexels-photo-1181715.jpeg',
+  general: 'https://images.pexels.com/photos/5212329/pexels-photo-5212329.jpeg',
+};
+
+function getOpportunityImage(opportunity: Opportunity): string {
+  if (opportunity.image) return opportunity.image;
+
+  const category = opportunity.category?.trim().toLowerCase() || 'general';
+  return categoryFallbackImages[category] || categoryFallbackImages.general;
 }
 
-const opportunityFallbackImages: Record<string, string> = {
-    business: 'https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg',
-    'computer science': 'https://images.pexels.com/photos/3861969/pexels-photo-3861969.jpeg',
-    science: 'https://images.pexels.com/photos/2280571/pexels-photo-2280571.jpeg',
-    arts: 'https://images.pexels.com/photos/3184292/pexels-photo-3184292.jpeg',
-    general: 'https://images.pexels.com/photos/5212329/pexels-photo-5212329.jpeg',
-};
+function formatDeadline(deadline?: string | null): string {
+  if (!deadline) return 'Rolling';
 
-const getOpportunityImage = (opportunity: Opportunity) => {
-    if (opportunity.image) return opportunity.image;
+  const parsed = new Date(deadline);
+  if (Number.isNaN(parsed.getTime())) return 'Rolling';
 
-    const category = opportunity.category?.toLowerCase() || 'general';
-    return opportunityFallbackImages[category] || opportunityFallbackImages.general;
-};
+  return parsed.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
 
-const OpportunityCard: React.FC<OpportunityCardProps & { onNavigate: (path: string) => void }> = ({ opportunity, matchScore, index, onNavigate }) => {
-    const { isDarkMode } = useDarkMode();
+function OpportunityCard({ opportunity }: { opportunity: Opportunity }) {
+  return (
+    <Link
+      to={`/opportunity/${opportunity.id}`}
+      className="group flex h-full flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 dark:border-white/10 dark:bg-slate-950"
+    >
+      <div className="relative aspect-[16/10] overflow-hidden bg-slate-100 dark:bg-slate-900">
+        <ImageWithFallback
+          src={getOpportunityImage(opportunity)}
+          alt={`${opportunity.title} cover image`}
+          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+          fallbackClassName="flex h-full w-full items-center justify-center"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" />
+        {opportunity.match > 0 ? (
+          <span className="absolute left-4 top-4 inline-flex items-center rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-slate-900 shadow-sm backdrop-blur dark:bg-slate-950/80 dark:text-white">
+            {Math.round(opportunity.match)}% match
+          </span>
+        ) : null}
+      </div>
 
-    const webflowShadow = isDarkMode
-        ? '0 1px 0 rgba(255,255,255,0.1), 0 13px 13px rgba(0,0,0,0.2), 0 3px 7px rgba(0,0,0,0.1)'
-        : '0 1px 0 #d8d8d8, 0 13px 13px rgba(0,0,0,0.04), 0 3px 7px rgba(0,0,0,0.08)';
-
-    const difficultyColor = opportunity.difficulty === 'Easy' ? '#00d722' :
-        opportunity.difficulty === 'Hard' ? '#ff3b30' : '#ffae13';
-
-    const deadlineText = opportunity.deadline ? new Date(opportunity.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Ongoing';
-    const imageUrl = getOpportunityImage(opportunity);
-
-    return (
-        <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.4, delay: index * 0.05 }}
-            className="cursor-pointer group transition-all duration-300"
-            style={{
-                backgroundColor: isDarkMode ? '#111' : '#ffffff',
-                border: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`,
-                borderRadius: '8px',
-                boxShadow: webflowShadow
-            }}
-            onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.borderColor = '#146ef5';
-                (e.currentTarget as HTMLElement).style.transform = 'translateY(-4px)';
-            }}
-            onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.borderColor = isDarkMode ? '#222' : '#d8d8d8';
-                (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
-            }}
-            onClick={() => onNavigate(`/share/opportunity/${encodeURIComponent(opportunity.id)}`)}
-        >
-            <div className="relative h-40 overflow-hidden" style={{ borderRadius: '8px 8px 0 0' }}>
-                <img
-                    src={imageUrl}
-                    alt=""
-                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    loading="lazy"
-                />
-                <div
-                    className="absolute inset-0"
-                    style={{
-                        background: isDarkMode
-                            ? 'linear-gradient(180deg, rgba(8,8,8,0.05), rgba(8,8,8,0.76))'
-                            : 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(8,25,48,0.44))',
-                    }}
-                />
-            </div>
-            {matchScore !== undefined && matchScore > 0 && (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 mx-6 mt-5 mb-4" style={{ backgroundColor: '#146ef515', borderRadius: '4px', width: 'fit-content' }}>
-                    <Sparkles size={12} style={{ color: '#146ef5' }} />
-                    <span className="text-[11px] font-bold tracking-[1.5px]" style={{ color: '#146ef5' }}>
-                        {Math.round(matchScore)}% Match
-                    </span>
-                </div>
-            )}
-
-            <div className="px-6 py-6">
-                <div className="flex items-center gap-2 mb-3 flex-wrap">
-                    <span className="px-2.5 py-1 text-[10px] font-bold tracking-[1.5px]" style={{ backgroundColor: '#146ef515', color: '#146ef5', borderRadius: '4px' }}>
-                        {opportunity.category}
-                    </span>
-                    {opportunity.difficulty && (
-                        <span className="px-2.5 py-1 text-[10px] font-bold tracking-[1.5px]" style={{ backgroundColor: `${difficultyColor}15`, color: difficultyColor, borderRadius: '4px' }}>
-                            {opportunity.difficulty}
-                        </span>
-                    )}
-                </div>
-
-                <h3 className="text-[18px] font-semibold leading-[1.3] mb-3 line-clamp-2 group-hover:text-[#146ef5] transition-colors" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
-                    {opportunity.title}
-                </h3>
-
-                <div className="flex items-center gap-4 text-[11px] font-semibold tracking-[1.5px]" style={{ color: isDarkMode ? '#6a6a6a' : '#8a8a8a' }}>
-                    <div className="flex items-center gap-1.5">
-                        <MapPin size={12} />
-                        <span>{opportunity.location || 'Remote'}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                        <Calendar size={12} />
-                        <span>{deadlineText}</span>
-                    </div>
-                </div>
-            </div>
-        </motion.div>
-    );
-};
-
-const SkeletonCard: React.FC = () => {
-    const { isDarkMode } = useDarkMode();
-    return (
-        <div className="animate-pulse" style={{ backgroundColor: isDarkMode ? '#111' : '#f0f0f0', borderRadius: '8px', height: '200px' }} />
-    );
-};
-
-const OpportunitiesPage: React.FC = () => {
-    const { isDarkMode, toggleDarkMode } = useDarkMode();
-    const navigate = useNavigate();
-    const [searchTerm, setSearchTerm] = useState('');
-    const [selectedCategory, setSelectedCategory] = useState('All');
-
-    const { data: opportunities, loading } = useOpportunities();
-
-    const categories = useMemo(() => {
-        const dynamic = new Set<string>();
-        opportunities.forEach((opportunity) => {
-            if (opportunity.category) {
-                dynamic.add(opportunity.category);
-            }
-        });
-        return ['All', ...Array.from(dynamic).sort()];
-    }, [opportunities]);
-
-    const filteredOpportunities = useMemo(() => {
-        const term = searchTerm.trim().toLowerCase();
-        return opportunities.filter((opportunity) => {
-            if (selectedCategory !== 'All' && opportunity.category !== selectedCategory) return false;
-            if (!term) return true;
-            const haystack = [opportunity.title, opportunity.organization, opportunity.description, opportunity.location]
-                .filter(Boolean).join(' ').toLowerCase();
-            return haystack.includes(term);
-        });
-    }, [opportunities, searchTerm, selectedCategory]);
-    const visibleOpportunities = filteredOpportunities.slice(0, 24);
-
-    const webflowShadow = isDarkMode
-        ? '0 84px 24px rgba(0,0,0,0.3), 0 54px 22px rgba(0,0,0,0.2), 0 30px 18px rgba(0,0,0,0.15), 0 13px 13px rgba(0,0,0,0.1), 0 3px 7px rgba(0,0,0,0.08)'
-        : '0 84px 24px rgba(0,0,0,0), 0 54px 22px rgba(0,0,0,0.01), 0 30px 18px rgba(0,0,0,0.04), 0 13px 13px rgba(0,0,0,0.08), 0 3px 7px rgba(0,0,0,0.09)';
-
-    const cardShadow = isDarkMode
-        ? '0 1px 0 rgba(255,255,255,0.1), 0 13px 13px rgba(0,0,0,0.2), 0 3px 7px rgba(0,0,0,0.1)'
-        : '0 1px 0 #d8d8d8, 0 13px 13px rgba(0,0,0,0.04), 0 3px 7px rgba(0,0,0,0.08)';
-
-    return (
-        <div style={{ backgroundColor: isDarkMode ? '#080808' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808', fontFamily: "'Inter', 'Arial', sans-serif", minHeight: '100dvh', overflowX: 'hidden' }}>
-            <motion.header
-                className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md transition-colors duration-300"
-                style={{ backgroundColor: isDarkMode ? 'rgba(8, 8, 8, 0.9)' : 'rgba(255, 255, 255, 0.95)' }}
-            >
-                <div className="max-w-[1200px] mx-auto px-4 sm:px-6 h-[64px] flex items-center justify-between" style={{ borderBottom: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}` }}>
-                    <Link to="/" className="flex items-center gap-2.4 cursor-pointer">
-                        <img src="/edutu-logo.png" alt="Edutu" className="h-8 w-8 object-contain" />
-                        <span className="font-bold text-xl tracking-tight" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
-                            edutu
-                        </span>
-                    </Link>
-
-                    <PublicSiteMenu />
-                </div>
-            </motion.header>
-
-            <main className="relative z-10">
-                <section className="pt-[160px] pb-[64px] px-4 sm:px-6">
-                    <div className="max-w-[1200px] mx-auto text-center">
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.6 }}
-                            className="inline-flex items-center gap-2.4 px-4 py-2 mb-8 rounded"
-                            style={{
-                                backgroundColor: '#146ef510',
-                                border: `1px solid #146ef530`,
-                                borderRadius: '4px'
-                            }}
-                        >
-                            <Globe size={14} style={{ color: '#146ef5' }} />
-                            <span className="text-[12.8px] font-semibold tracking-[1.5px]" style={{ color: '#146ef5' }}>
-                                DISCOVER & GROW
-                            </span>
-                        </motion.div>
-
-                        <motion.h1
-                            initial={{ opacity: 0, y: 30 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.6, delay: 0.1 }}
-                            className="text-[48px] sm:text-[64px] md:text-[72px] font-semibold leading-[1.04] tracking-[-0.8px] mb-8"
-                            style={{ color: isDarkMode ? '#ffffff' : '#080808' }}
-                        >
-                            Explore <span style={{ color: '#146ef5' }}>Opportunities</span>
-                        </motion.h1>
-
-                        <motion.p
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.6, delay: 0.2 }}
-                            className="max-w-[640px] text-[20px] leading-[1.5] font-normal mx-auto"
-                            style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}
-                        >
-                            Browse scholarships, fellowships, internships, and programs from 31+ countries. Sign in to unlock personalized matches.
-                        </motion.p>
-                    </div>
-                </section>
-
-                <section className="py-8 px-4 sm:px-6 sticky top-[64px] z-40" style={{ backgroundColor: isDarkMode ? '#080808' : '#ffffff' }}>
-                    <div className="max-w-[1200px] mx-auto space-y-4">
-                        <div className="flex gap-3">
-                            <div className="flex-1 relative">
-                                <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#8a8a8a' }} />
-                                <input
-                                    type="text"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    placeholder="Search opportunities..."
-                                    className="w-full pl-11 pr-4 py-3 text-[16px] font-medium outline-none transition-all duration-200"
-                                    style={{
-                                        backgroundColor: isDarkMode ? '#111' : '#f8f8f8',
-                                        border: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}`,
-                                        borderRadius: '4px',
-                                        color: isDarkMode ? '#f5f5f5' : '#080808'
-                                    }}
-                                />
-                                {searchTerm && (
-                                    <button
-                                        onClick={() => setSearchTerm('')}
-                                        style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#8a8a8a' }}
-                                    >
-                                        <X size={16} />
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-                            {categories.map(cat => (
-                                <button
-                                    key={cat}
-                                    onClick={() => setSelectedCategory(cat)}
-                                    className="px-4 py-2 text-[11px] font-bold tracking-[1.5px] rounded whitespace-nowrap transition-all duration-200"
-                                    style={{
-                                        backgroundColor: selectedCategory === cat ? '#146ef5' : isDarkMode ? '#111' : '#f8f8f8',
-                                        color: selectedCategory === cat ? '#ffffff' : isDarkMode ? '#ababab' : '#5a5a5a',
-                                        border: `1px solid ${selectedCategory === cat ? '#146ef5' : isDarkMode ? '#222' : '#d8d8d8'}`,
-                                        borderRadius: '4px'
-                                    }}
-                                >
-                                    {cat}
-                                </button>
-                            ))}
-                        </div>
-
-                        <div className="text-[12px] font-semibold tracking-[1.5px]" style={{ color: isDarkMode ? '#5a5a5a' : '#ababab' }}>
-                            {filteredOpportunities.length} {filteredOpportunities.length === 1 ? 'opportunity' : 'opportunities'} found
-                        </div>
-                    </div>
-                </section>
-
-                <section className="py-16 px-4 sm:px-6" style={{ borderTop: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}` }}>
-                    <div className="max-w-[1200px] mx-auto">
-                        {loading ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {Array.from({ length: 8 }).map((_, i) => (
-                                    <SkeletonCard key={i} />
-                                ))}
-                            </div>
-                        ) : filteredOpportunities.length > 0 ? (
-                            <div className="space-y-10">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {visibleOpportunities.map((opportunity, index) => (
-                                        <OpportunityCard
-                                            key={opportunity.id}
-                                            opportunity={opportunity}
-                                            index={index}
-                                            onNavigate={navigate}
-                                        />
-                                    ))}
-                                </div>
-                                <motion.div
-                                    initial={{ opacity: 0, y: 18 }}
-                                    whileInView={{ opacity: 1, y: 0 }}
-                                    viewport={{ once: true }}
-                                    className="relative overflow-hidden rounded-[28px] border p-8 md:p-12 text-center"
-                                    style={{
-                                        background: isDarkMode
-                                            ? 'linear-gradient(135deg, rgba(20,110,245,0.22), rgba(0,184,107,0.16)), #0f1720'
-                                            : 'linear-gradient(135deg, #eaf3ff, #e9fff5)',
-                                        borderColor: isDarkMode ? 'rgba(255,255,255,0.14)' : '#b9dafb',
-                                        boxShadow: webflowShadow,
-                                    }}
-                                >
-                                    <div className="absolute inset-x-0 top-0 h-24" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.14), transparent)' }} />
-                                    <div className="relative z-10 mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl" style={{ backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#ffffff', color: '#146ef5' }}>
-                                        <LockKeyhole size={30} />
-                                    </div>
-                                    <h2 className="relative z-10 text-[32px] md:text-[48px] font-semibold leading-tight mb-4" style={{ color: isDarkMode ? '#ffffff' : '#08243d' }}>
-                                        Unlock 1,000+ more global opportunities
-                                    </h2>
-                                    <p className="relative z-10 max-w-2xl mx-auto text-[17px] leading-relaxed mb-8" style={{ color: isDarkMode ? '#c7d2da' : '#466176' }}>
-                                        Sign up or download the app to view the full scholarship, internship, fellowship, and grant feed with personalized matches.
-                                    </p>
-                                    <div className="relative z-10 flex flex-col sm:flex-row items-center justify-center gap-3">
-                                        <button
-                                            onClick={() => navigate('/auth')}
-                                            className="inline-flex items-center justify-center gap-2 rounded-xl px-7 py-3.5 text-sm font-bold"
-                                            style={{ backgroundColor: '#146ef5', color: '#ffffff' }}
-                                        >
-                                            Sign up to unlock <ArrowRight size={16} />
-                                        </button>
-                                        <button
-                                            onClick={() => navigate('/download')}
-                                            className="inline-flex items-center justify-center gap-2 rounded-xl border px-7 py-3.5 text-sm font-bold"
-                                            style={{ borderColor: isDarkMode ? 'rgba(255,255,255,0.18)' : '#b9dafb', color: isDarkMode ? '#ffffff' : '#08243d' }}
-                                        >
-                                            <Smartphone size={16} /> Download app
-                                        </button>
-                                    </div>
-                                </motion.div>
-                            </div>
-                        ) : (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                className="text-center py-20"
-                            >
-                                <div className="h-20 w-20 flex items-center justify-center mx-auto mb-6 rounded" style={{ backgroundColor: '#146ef510', borderRadius: '8px' }}>
-                                    <Trophy size={32} style={{ color: '#146ef5' }} />
-                                </div>
-                                <h3 className="text-[24px] font-semibold mb-3" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
-                                    No opportunities found
-                                </h3>
-                                <p className="text-[16px]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                                    Try adjusting your search or filters to find what you're looking for.
-                                </p>
-                            </motion.div>
-                        )}
-                    </div>
-                </section>
-
-                <section className="py-32 px-4 sm:px-6" style={{ borderTop: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}` }}>
-                    <div className="max-w-[1000px] mx-auto text-center p-12 lg:p-20" style={{ backgroundColor: '#146ef5', borderRadius: '8px', boxShadow: webflowShadow }}>
-                        <h2 className="text-[40px] md:text-[56px] font-semibold leading-[1.04] mb-6 text-white">
-                            Ready to find your match?
-                        </h2>
-                        <p className="max-w-[500px] mx-auto text-[18px] leading-[1.5] mb-10" style={{ color: '#ffffffcc' }}>
-                            Sign in to get AI-powered personalized recommendations based on your profile and goals.
-                        </p>
-                        <button
-                            onClick={() => navigate('/auth')}
-                            className="inline-flex items-center gap-2 px-10 py-4 text-[16px] font-medium rounded cursor-pointer transition-all duration-200"
-                            style={{
-                                backgroundColor: '#ffffff',
-                                color: '#080808',
-                                borderRadius: '4px',
-                                boxShadow: '0 1px 0 rgba(0,0,0,0.1), 0 13px 13px rgba(0,0,0,0.2), 0 3px 7px rgba(0,0,0,0.15)'
-                            }}
-                            onMouseEnter={(e) => {
-                                (e.target as HTMLElement).style.transform = 'translateY(-2px)';
-                            }}
-                            onMouseLeave={(e) => {
-                                (e.target as HTMLElement).style.transform = 'translateY(0)';
-                            }}
-                        >
-                            Sign In <ArrowRight size={16} />
-                        </button>
-                    </div>
-                </section>
-            </main>
-
-            <footer className="py-16 px-4 sm:px-6" style={{ borderTop: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}` }}>
-                <div className="max-w-[1200px] mx-auto flex flex-col md:flex-row justify-between items-start gap-12">
-                    <div className="max-w-[300px]">
-                        <Link to="/" className="flex items-center gap-2 mb-4">
-                            <img src="/edutu-logo.png" alt="Edutu" className="h-8 w-8 object-contain" />
-                            <span className="font-bold text-xl tracking-tight" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
-                                edutu
-                            </span>
-                        </Link>
-                        <p className="text-[16px] leading-[1.6]" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                            Edutu helps you find the right opportunities and keep moving forward, one step at a time.
-                        </p>
-                    </div>
-
-                    <div className="flex items-center gap-6">
-                        <a href="https://twitter.com/edutu" target="_blank" rel="noopener noreferrer" className="p-2 transition-colors" style={{ color: isDarkMode ? '#5a5a5a' : '#5a5a5a' }} onMouseEnter={(e) => (e.currentTarget.style.color = '#146ef5')} onMouseLeave={(e) => (e.currentTarget.style.color = isDarkMode ? '#5a5a5a' : '#5a5a5a')}>
-                            <Twitter size={20} />
-                        </a>
-                        <a href="https://linkedin.com/company/edutu" target="_blank" rel="noopener noreferrer" className="p-2 transition-colors" style={{ color: isDarkMode ? '#5a5a5a' : '#5a5a5a' }} onMouseEnter={(e) => (e.currentTarget.style.color = '#146ef5')} onMouseLeave={(e) => (e.currentTarget.style.color = isDarkMode ? '#5a5a5a' : '#5a5a5a')}>
-                            <Linkedin size={20} />
-                        </a>
-                        <a href="https://github.com/edutu" target="_blank" rel="noopener noreferrer" className="p-2 transition-colors" style={{ color: isDarkMode ? '#5a5a5a' : '#5a5a5a' }} onMouseEnter={(e) => (e.currentTarget.style.color = '#146ef5')} onMouseLeave={(e) => (e.currentTarget.style.color = isDarkMode ? '#5a5a5a' : '#5a5a5a')}>
-                            <Github size={20} />
-                        </a>
-                    </div>
-                </div>
-                <div className="max-w-[1200px] mx-auto mt-12 pt-8 flex justify-between items-center" style={{ borderTop: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}` }}>
-                    <span className="text-[10px] font-semibold tracking-[1.5px]" style={{ color: isDarkMode ? '#5a5a5a' : '#ababab' }}>© {new Date().getFullYear()} Edutu Inc.</span>
-                    <span className="text-[10px] font-semibold tracking-[1.5px]" style={{ color: isDarkMode ? '#5a5a5a' : '#ababab' }}>v3.0.4-beta</span>
-                </div>
-            </footer>
+      <div className="flex flex-1 flex-col p-5">
+        <div className="mb-3 flex flex-wrap gap-2">
+          <span className="inline-flex items-center rounded-full border border-brand-500/20 bg-brand-500/10 px-2.5 py-1 text-[11px] font-semibold text-brand-700 dark:text-brand-300">
+            {opportunity.category || 'General'}
+          </span>
+          {opportunity.difficulty ? (
+            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+              {opportunity.difficulty}
+            </span>
+          ) : null}
         </div>
-    );
-};
 
-export default OpportunitiesPage;
+        <h2 className="text-lg font-semibold leading-tight text-slate-950 transition group-hover:text-brand-600 dark:text-white dark:group-hover:text-brand-300">
+          {opportunity.title}
+        </h2>
+
+        <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+          {opportunity.description}
+        </p>
+
+        <div className="mt-5 flex flex-wrap gap-4 text-sm text-slate-500 dark:text-slate-400">
+          <span className="inline-flex items-center gap-1.5">
+            <MapPin size={14} />
+            {opportunity.location || 'Remote'}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <Calendar size={14} />
+            {formatDeadline(opportunity.deadline)}
+          </span>
+        </div>
+
+        <div className="mt-6 flex items-center justify-between gap-4">
+          <p className="truncate text-xs font-semibold uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500">
+            {opportunity.organization || 'Edutu'}
+          </p>
+          <span className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 transition group-hover:gap-2 dark:text-brand-300">
+            Open
+            <ArrowRight size={14} />
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function LoadingCard() {
+  return <div className="h-[360px] animate-pulse rounded-[28px] bg-slate-200 dark:bg-white/5" />;
+}
+
+export default function OpportunitiesPage() {
+  const { data: opportunities, loading, error, refresh } = useOpportunities();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+
+  const categories = useMemo(() => {
+    const categorySet = new Set<string>();
+    for (const opportunity of opportunities) {
+      if (opportunity.category?.trim()) {
+        categorySet.add(opportunity.category.trim());
+      }
+    }
+
+    return ['All', ...Array.from(categorySet).sort((left, right) => left.localeCompare(right))];
+  }, [opportunities]);
+
+  const filteredOpportunities = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+
+    return opportunities.filter((opportunity) => {
+      if (selectedCategory !== 'All' && opportunity.category !== selectedCategory) {
+        return false;
+      }
+
+      if (!term) {
+        return true;
+      }
+
+      const haystack = [
+        opportunity.title,
+        opportunity.organization,
+        opportunity.description,
+        opportunity.location,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(term);
+    });
+  }, [opportunities, searchTerm, selectedCategory]);
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setSelectedCategory('All');
+  };
+
+  return (
+    <div className="min-h-[100dvh] bg-slate-50 text-slate-950 transition-colors dark:bg-slate-950 dark:text-white">
+      <main className="mx-auto max-w-7xl px-4 pb-16 pt-8 sm:px-6 lg:px-8">
+        <section className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-brand-600 dark:text-brand-300">
+              Browse
+            </p>
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
+              Opportunities
+            </h1>
+            <p className="mt-4 text-base leading-7 text-slate-600 dark:text-slate-300">
+              Scholarships, fellowships, internships, grants, and programs in one focused feed.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={refresh}
+            disabled={loading}
+            className="inline-flex items-center gap-2 self-start rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-brand-300 hover:text-brand-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:text-white"
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+        </section>
+
+        <section className="sticky top-4 z-20 mt-8 rounded-[28px] border border-slate-200 bg-white/90 p-4 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/90">
+          <div className="space-y-4">
+            <div className="relative">
+              <Search
+                size={18}
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search by title, organization, location, or keyword"
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-11 text-sm text-slate-950 placeholder:text-slate-400 focus:border-brand-500 focus:bg-white dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:bg-slate-950"
+              />
+              {searchTerm ? (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-xl p-2 text-slate-400 transition hover:text-slate-700 dark:hover:text-white"
+                  aria-label="Clear search"
+                >
+                  <X size={16} />
+                </button>
+              ) : null}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {categories.map((category) => {
+                const active = selectedCategory === category;
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => setSelectedCategory(category)}
+                    className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                      active
+                        ? 'border-brand-500 bg-brand-500 text-white'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:text-white'
+                    }`}
+                    aria-pressed={active}
+                  >
+                    {category}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500 dark:text-slate-400">
+              <span>
+                {loading
+                  ? 'Loading opportunities...'
+                  : `${filteredOpportunities.length} ${
+                    filteredOpportunities.length === 1 ? 'opportunity' : 'opportunities'
+                  }`}
+              </span>
+              {(searchTerm || selectedCategory !== 'All') && !loading ? (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="font-semibold text-brand-600 transition hover:text-brand-500 dark:text-brand-300"
+                >
+                  Clear filters
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </section>
+
+        {error ? (
+          <section className="mt-8 rounded-[28px] border border-rose-200 bg-rose-50 p-6 text-rose-900 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-100">
+            <h2 className="text-lg font-semibold">Unable to load opportunities</h2>
+            <p className="mt-2 text-sm leading-6 text-rose-800/80 dark:text-rose-100/80">
+              {error}
+            </p>
+            <button
+              type="button"
+              onClick={refresh}
+              className="mt-5 inline-flex items-center gap-2 rounded-full bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-700"
+            >
+              <RefreshCw size={16} />
+              Try again
+            </button>
+          </section>
+        ) : null}
+
+        {loading ? (
+          <section className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <LoadingCard key={index} />
+            ))}
+          </section>
+        ) : filteredOpportunities.length > 0 ? (
+          <section className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {filteredOpportunities.map((opportunity) => (
+              <OpportunityCard key={opportunity.id} opportunity={opportunity} />
+            ))}
+          </section>
+        ) : (
+          <section className="mt-8 rounded-[28px] border border-slate-200 bg-white p-10 text-center dark:border-white/10 dark:bg-slate-950">
+            <h2 className="text-2xl font-semibold tracking-tight">No opportunities found</h2>
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+              Try a broader search term or clear the current filter to see more listings.
+            </p>
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="mt-6 inline-flex items-center gap-2 rounded-full bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-600"
+            >
+              Reset filters
+            </button>
+          </section>
+        )}
+      </main>
+    </div>
+  );
+}

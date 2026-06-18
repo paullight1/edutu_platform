@@ -197,8 +197,7 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
     location: String(
       row.location ??
         row.target_region ??
-        (row.is_remote ? 'Remote' : '') ??
-        '',
+        (row.is_remote ? 'Remote' : ''),
     ),
     description: String(
       row.description ??

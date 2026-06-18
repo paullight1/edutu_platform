@@ -1,11 +1,9 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
-  Award,
   Bell,
   Bookmark,
   Briefcase,
   Calendar,
-  CheckCircle2,
   ChevronRight,
   Clock,
   Globe,
@@ -16,9 +14,7 @@ import {
   Send,
   Settings,
   Sun,
-  Target,
   Sparkles,
-  Trophy,
   Users,
   X,
   UserCheck
@@ -30,11 +26,10 @@ import NotificationInbox from './NotificationInbox';
 import CalendarStrip from './CalendarStrip';
 import type { CalendarEvent } from './CalendarStrip';
 import { useDarkMode } from '../hooks/useDarkMode';
+import { useAnalytics } from '../hooks/useAnalytics';
 import { useTheme } from '../hooks/useTheme';
-import { useGoals } from '../hooks/useGoals';
 import { useOpportunities } from '../hooks/useOpportunities';
 import { usePersonalizedOpportunities } from '../hooks/usePersonalizedOpportunities';
-import { useUserStats } from '../hooks/useUserStats';
 import { useNotifications } from '../hooks/useNotifications';
 import type { AppUser } from '../types/user';
 import type { OnboardingProfileData } from '../types/onboarding';
@@ -54,10 +49,7 @@ interface DashboardProps {
   user: AppUser | null;
   onOpportunityClick: (opportunity: any) => void;
   onViewAllOpportunities: () => void;
-  onGoalClick: (goalId: string) => void;
   onNavigate?: (screen: string) => void;
-  onAddGoal?: () => void;
-  onViewAllGoals?: () => void;
   onboardingProfile?: OnboardingProfileData | null;
   onRedoOnboarding?: () => void;
 }
@@ -70,7 +62,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
   user,
   onOpportunityClick,
   onViewAllOpportunities,
-  onGoalClick,
   onNavigate,
   onboardingProfile
 }, ref) {
@@ -83,7 +74,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
   const [homeFeedLimit, setHomeFeedLimit] = useState(HOME_FEED_BATCH_SIZE);
   const { isDarkMode } = useDarkMode();
   const { toggleDarkMode } = useTheme();
-  const { goals } = useGoals();
   const opportunitiesRefreshRef = useRef<() => void>();
   const homeFeedSentinelRef = useRef<HTMLDivElement | null>(null);
   const { t } = useTranslation();
@@ -91,8 +81,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
   const [applications, setApplications] = useState<any[]>([]);
   const [profileScore, setProfileScore] = useState<{ score: number; missingFields: string[]; isMatchEnabled: boolean } | null>(null);
 
-  // Real-time user statistics
-  const userStats = useUserStats(user?.id);
+  const { stats: analyticsStats } = useAnalytics();
   const { unreadCount } = useNotifications();
 
   const opportunities = useOpportunities();
@@ -164,10 +153,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
 
   const homePromos = useMemo(() => [
     {
-      title: 'Build a roadmap',
-      copy: 'Turn this opportunity search into a weekly action plan.',
-      action: 'Explore roadmaps',
-      screen: 'roadmap-templates',
+      title: 'Track deadlines',
+      copy: 'Keep upcoming application dates visible before they slip past.',
+      action: 'Open tracker',
+      screen: 'deadlines',
     },
     {
       title: 'Improve your matches',
@@ -176,9 +165,9 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
       screen: 'personalization',
     },
     {
-      title: 'Share a path',
-      copy: 'Create verified roadmaps other learners can follow.',
-      action: 'Creator tools',
+      title: 'Open community picks',
+      copy: 'Browse shared opportunity journeys and verified community submissions.',
+      action: 'Community',
       screen: 'community-marketplace',
     },
   ], []);
@@ -243,18 +232,46 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
     return new Date(updatedAt).toLocaleDateString();
   };
 
-  const completedGoals = useMemo(() => goals.filter((g) => g.status === 'completed'), [goals]);
+  const upcomingDeadline = useMemo(() => {
+    const upcoming = bookmarks
+      .map((bookmark) => ({
+        id: bookmark.id,
+        title: bookmark.opportunity_title,
+        deadline: bookmark.opportunity_deadline,
+      }))
+      .filter((item) => Boolean(item.deadline))
+      .filter((item) => !Number.isNaN(new Date(item.deadline as string).getTime()))
+      .sort((a, b) => new Date(a.deadline as string).getTime() - new Date(b.deadline as string).getTime());
+
+    if (upcoming.length === 0) {
+      return null;
+    }
+
+    const nextItem = upcoming[0];
+    const target = new Date(nextItem.deadline as string);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    target.setHours(0, 0, 0, 0);
+
+    return {
+      id: nextItem.id,
+      title: nextItem.title,
+      date: nextItem.deadline as string,
+      daysUntil: Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    };
+  }, [bookmarks]);
 
   const menuItems = [
-    { id: 'all-goals', label: 'All Goals', icon: <CheckCircle2 size={18} /> },
     { id: 'opportunities', label: 'Opportunities', icon: <Briefcase size={18} /> },
+    { id: 'saved', label: 'Saved', icon: <Bookmark size={18} /> },
+    { id: 'applied', label: 'Applications', icon: <Send size={18} /> },
     { id: 'settings', label: 'Settings', icon: <Settings size={18} /> }
   ];
 
   const desktopPrimaryItems = [
     { id: 'home', label: 'Home', icon: <LayoutGrid size={18} />, active: true },
     { id: 'opportunities', label: 'Opportunities', icon: <Briefcase size={18} /> },
-    { id: 'all-goals', label: 'All Goals', icon: <Target size={18} /> },
+    { id: 'saved', label: 'Saved', icon: <Bookmark size={18} /> },
     { id: 'community', label: 'Community', icon: <Users size={18} /> },
     { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
   ];
@@ -262,89 +279,79 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
   const desktopQuickItems = [
     { id: 'saved', label: 'Saved', icon: <Bookmark size={17} />, count: bookmarks.length },
     { id: 'applied', label: 'Applied', icon: <Send size={17} />, count: applications.length },
-    { id: 'roadmap-templates', label: 'Roadmaps', icon: <Target size={17} /> },
+    { id: 'community', label: 'Community', icon: <Users size={17} /> },
   ];
 
-  // Real-time stats using the hook data
   const stats = useMemo(() => {
-    const formatDeadline = () => {
-      if (!userStats.nextDeadline.date) return 'None';
-      return new Date(userStats.nextDeadline.date).toLocaleDateString(undefined, {
-        month: 'short',
-        day: 'numeric'
-      });
-    };
-
-    const getDeadlineHelper = () => {
-      if (!userStats.nextDeadline.daysUntil && userStats.nextDeadline.daysUntil !== 0) {
-        return 'Set a target';
-      }
-      const days = userStats.nextDeadline.daysUntil;
-      if (days < 0) return 'Overdue!';
-      if (days === 0) return 'Due today!';
-      if (days === 1) return 'Due tomorrow';
-      return `Due in ${days} days`;
-    };
-
-    const getConsistencyHelper = () => {
-      if (userStats.consistency >= 80) return 'Momentum looks strong';
-      if (userStats.consistency >= 50) return 'Keep it going!';
-      if (userStats.consistency > 0) return 'Room to improve';
-      return 'Start tracking today';
-    };
-
     return [
       {
-        label: t('dashboard.stats.goalsActive'),
-        value: userStats.activeGoals.toString(),
-        helper: `${userStats.completedGoals} ${t('dashboard.stats.completed').toLowerCase()}`,
-        icon: <Target size={18} />,
+        label: 'Opportunities explored',
+        value: analyticsStats.opportunitiesExplored.toString(),
+        helper: 'Across the feed and detail pages',
+        icon: <Briefcase size={18} />,
         tone: 'brand'
       },
       {
-        label: 'Consistency',
-        value: `${userStats.consistency}%`,
-        helper: getConsistencyHelper(),
-        icon: <Trophy size={18} />,
+        label: 'Saved opportunities',
+        value: bookmarks.length.toString(),
+        helper: bookmarks.length > 0 ? 'Your shortlist' : 'Save opportunities to revisit them',
+        icon: <Bookmark size={18} />,
+        tone: 'amber'
+      },
+      {
+        label: 'Applications tracked',
+        value: applications.length.toString(),
+        helper: applications.length > 0 ? 'Submitted and in progress' : 'Track applications as you submit them',
+        icon: <Send size={18} />,
         tone: 'emerald'
       },
       {
-        label: 'Avg progress',
-        value: `${userStats.avgProgress}%`,
-        helper: 'Across active goals',
-        icon: <CheckCircle2 size={18} />,
-        tone: 'indigo'
-      },
-      {
         label: 'Next deadline',
-        value: formatDeadline(),
-        helper: getDeadlineHelper(),
+        value: upcomingDeadline ? new Date(upcomingDeadline.date).toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric'
+        }) : 'None',
+        helper: upcomingDeadline
+          ? upcomingDeadline.daysUntil < 0
+            ? 'Deadline passed'
+            : upcomingDeadline.daysUntil === 0
+              ? 'Due today'
+              : `Due in ${upcomingDeadline.daysUntil} days`
+          : 'Save an opportunity to surface a date',
         icon: <Clock size={18} />,
-        tone: 'amber'
+        tone: 'indigo'
       }
     ];
-  }, [t, userStats]);
+  }, [analyticsStats.opportunitiesExplored, applications.length, bookmarks.length, upcomingDeadline]);
 
-  const recentWins = useMemo(() => {
-    const goalWins = completedGoals.map(g => ({
-      id: g.id,
-      title: `Completed ${g.title}`,
-      icon: <CheckCircle2 size={16} />,
-      date: formatUpdatedAt(g.updated_at)
+  const recentActivity = useMemo(() => {
+    const savedItems = bookmarks.slice(0, 3).map((bookmark) => ({
+      id: `bookmark-${bookmark.id}`,
+      title: `Saved ${bookmark.opportunity_title}`,
+      date: formatUpdatedAt(bookmark.created_at),
+      timestamp: new Date(bookmark.created_at).getTime(),
+      icon: <Bookmark size={16} />
     }));
-    return goalWins.slice(0, 5);
-  }, [completedGoals]);
+
+    const applicationItems = applications.slice(0, 3).map((application) => ({
+      id: `application-${application.id}`,
+      title: `Tracked ${application.opportunity_title}`,
+      date: formatUpdatedAt(application.applied_at),
+      timestamp: new Date(application.applied_at).getTime(),
+      icon: <Send size={16} />
+    }));
+
+    return [...savedItems, ...applicationItems]
+      .filter((item) => Number.isFinite(item.timestamp))
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 5);
+  }, [applications, bookmarks]);
 
   const handleMenuItemClick = (id: string) => {
     if (onNavigate) onNavigate(id);
   };
 
   const handleCalendarEventClick = (event: CalendarEvent) => {
-    if (event.type === 'goal') {
-      onGoalClick(event.id);
-      return;
-    }
-
     if (event.type === 'bookmark') {
       const bookmark = bookmarks.find((item) => item.id === event.id);
       if (bookmark?.opportunity_id) {
@@ -383,27 +390,27 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
       };
     }
 
-    if (userStats.nextDeadline.date) {
+    if (upcomingDeadline) {
       return {
         eyebrow: 'Deadline focus',
-        title: userStats.nextDeadline.daysUntil === 0 ? 'A deadline is due today' : 'Stay ahead of your next deadline',
-        copy: stats[3]?.helper === 'Set a target'
-          ? 'Review your goals and saved opportunities to keep your plan current.'
-          : `${stats[3]?.helper}. Open your calendar items and decide the next task now.`,
+        title: upcomingDeadline.daysUntil === 0 ? 'A deadline is due today' : 'Stay ahead of your next deadline',
+        copy: upcomingDeadline.daysUntil < 0
+          ? 'One of your saved opportunities is overdue. Review it and decide whether to apply or archive it.'
+          : `Open ${upcomingDeadline.title} and make the next move now.`,
         action: 'Review deadlines',
         onClick: () => onNavigate?.('deadlines'),
         icon: <Calendar size={20} />
       };
     }
 
-    if (userStats.activeGoals === 0) {
+    if (bookmarks.length === 0 && applications.length === 0) {
       return {
-        eyebrow: 'Planning',
-        title: 'Create your first active goal',
-        copy: 'Turn an opportunity or career target into a roadmap so the dashboard can track real progress.',
-        action: 'Add goal',
-        onClick: () => onNavigate?.('add-goal'),
-        icon: <Target size={20} />
+        eyebrow: 'Start here',
+        title: 'Save your first opportunity',
+        copy: 'Browse the feed, shortlist one opportunity, and come back to it when you are ready to apply.',
+        action: 'Browse opportunities',
+        onClick: onViewAllOpportunities,
+        icon: <Bookmark size={20} />
       };
     }
 
@@ -415,7 +422,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
       onClick: onViewAllOpportunities,
       icon: <Briefcase size={20} />
     };
-  }, [onNavigate, onViewAllOpportunities, profileScore, stats, userStats.activeGoals, userStats.nextDeadline.date, userStats.nextDeadline.daysUntil]);
+  }, [bookmarks.length, onNavigate, onViewAllOpportunities, upcomingDeadline, profileScore]);
 
   const getStatToneClasses = (tone: string) => {
     switch (tone) {
@@ -568,49 +575,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
                     {item.label}
                   </button>
                 ))}
-                {/* Additional mobile-only items */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    onNavigate?.('saved');
-                    setShowMobileMenu(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isDarkMode
-                    ? 'text-slate-300 hover:text-white hover:bg-white/5'
-                    : 'text-slate-600 hover:text-brand-600 hover:bg-brand-50'
-                    }`}
-                >
-                  <Bookmark size={18} />
-                  Saved Opportunities
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onNavigate?.('applied');
-                    setShowMobileMenu(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isDarkMode
-                    ? 'text-slate-300 hover:text-white hover:bg-white/5'
-                    : 'text-slate-600 hover:text-brand-600 hover:bg-brand-50'
-                    }`}
-                >
-                  <Send size={18} />
-                  Applied
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onNavigate?.('roadmap-templates');
-                    setShowMobileMenu(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isDarkMode
-                    ? 'text-slate-300 hover:text-white hover:bg-white/5'
-                    : 'text-slate-600 hover:text-brand-600 hover:bg-brand-50'
-                    }`}
-                >
-                  <Target size={18} />
-                  Roadmaps
-                </button>
               </div>
             </motion.div>
           )}
@@ -877,10 +841,9 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
           </div>
         </motion.section>
 
-        {(goals.length > 0 || bookmarks.length > 0 || applications.length > 0) && (
+        {(bookmarks.length > 0 || applications.length > 0) && (
           <section>
             <CalendarStrip
-              goals={goals}
               bookmarks={bookmarks}
               applications={applications}
               onDateClick={() => {}}
@@ -894,7 +857,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
             {[
               { id: 'saved', label: 'Saved', icon: <Bookmark size={24} strokeWidth={2.3} />, color: 'amber' },
               { id: 'applied', label: 'Applied', icon: <Send size={24} strokeWidth={2.3} />, color: 'emerald' },
-              { id: 'roadmap-templates', label: 'Roadmaps', icon: <Target size={24} strokeWidth={2.3} />, color: 'indigo' },
+              { id: 'community', label: 'Community', icon: <Users size={24} strokeWidth={2.3} />, color: 'indigo' },
             ].map((item) => (
               <motion.button
                 key={item.id}
@@ -920,7 +883,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
 
         {/* Content Layout */}
         <div className="grid lg:grid-cols-12 gap-8 pb-8">
-          <div className={`${recentWins.length > 0 ? 'lg:col-span-8' : 'lg:col-span-12'} space-y-10`}>
+          <div className={`${recentActivity.length > 0 ? 'lg:col-span-8' : 'lg:col-span-12'} space-y-10`}>
             {/* Recommended Opportunities */}
             <section>
               <div className="mb-5 space-y-3">
@@ -1147,21 +1110,21 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
 
           </div>
 
-          {recentWins.length > 0 && (
+          {recentActivity.length > 0 && (
             <aside className="lg:col-span-4 space-y-6">
               <section className={`rounded-[20px] border p-5 relative overflow-hidden ${isDarkMode ? 'bg-gray-900 border-white/10' : 'bg-white border-slate-200 shadow-sm'}`}>
                 <div className="flex items-center justify-between mb-6 relative">
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500">
-                      <Award size={18} />
+                      <Sparkles size={18} />
                     </div>
                     <div>
-                      <h2 className="text-base font-black">Recent wins</h2>
-                      <p className="text-xs text-slate-400">Latest completed goals</p>
+                      <h2 className="text-base font-black">Recent activity</h2>
+                      <p className="text-xs text-slate-400">Latest saved and tracked opportunities</p>
                     </div>
                   </div>
                   <button
-                    onClick={() => onNavigate && onNavigate('achievements')}
+                    onClick={() => onNavigate && onNavigate('saved')}
                     className="text-[10px] font-black text-brand-500 hover:text-brand-600 tracking-wider"
                   >
                     View All
@@ -1169,10 +1132,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
                 </div>
 
                 <div className="space-y-3 relative">
-                  {recentWins.map((win) => (
+                  {recentActivity.map((win) => (
                     <div key={win.id} className="flex gap-3 items-center group/win p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-white/5 transition-all">
                       <div className="h-9 w-9 shrink-0 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
-                        <Sparkles size={15} />
+                        {win.icon}
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold truncate group-hover/win:text-brand-500 transition-colors">
@@ -1186,17 +1149,9 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(function Dashbo
                   ))}
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-slate-100 dark:border-white/5">
-                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 tracking-widest">
-                    <span>Consistency</span>
-                    <span className="text-emerald-500">{userStats.consistency}%</span>
-                  </div>
-                  <div className="mt-2 h-1.5 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.4)]"
-                      style={{ width: `${Math.min(Math.max(userStats.consistency, 0), 100)}%` }}
-                    />
-                  </div>
+                <div className="mt-6 pt-4 border-t border-slate-100 dark:border-white/5 flex items-center justify-between text-[10px] font-bold text-slate-400 tracking-widest">
+                  <span>Saved {bookmarks.length}</span>
+                  <span>Applications {applications.length}</span>
                 </div>
               </section>
             </aside>
