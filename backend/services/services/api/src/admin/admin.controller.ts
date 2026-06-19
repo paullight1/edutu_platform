@@ -30,10 +30,11 @@ export class AdminController {
 
   @Get("users")
   async listUsers(
+    @CurrentUser() adminUser: { id?: string; email?: string; role?: string },
     @Query("search") search?: string,
     @Query("role") role?: string,
   ): Promise<AdminUsersResponse> {
-    return this.adminService.listUsers(search, role);
+    return this.adminService.listUsers(adminUser, search, role);
   }
 
   @Post("users/invite")

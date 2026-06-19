@@ -17,6 +17,7 @@ import {
   type AdminDashboardStats,
   type AdminInvitation,
   type AdminAssignableRole,
+  type AdminCurrentUser,
   type AdminInviteResponse,
   type AdminInviteUserDto,
   type AdminUpdateUserRoleDto,
@@ -41,6 +42,21 @@ type OpportunityApplicationRow = {
   created_at: string | Date | null;
 };
 
+type SupabaseProfileRow = {
+  user_id: string;
+  full_name: string | null;
+  email: string | null;
+  role: string | null;
+  country: string | null;
+  skills: string[] | null;
+  credits_balance: number | null;
+  creator_status: string | null;
+  creator_metadata: Record<string, unknown> | null;
+  creator_rejection_reason: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 const WEEK_IN_MS = 7 * 24 * 60 * 60 * 1000;
 const PROTECTED_ROLE = "super_admin";
 const ROLE_METADATA_KEY = "role";
@@ -55,8 +71,13 @@ export class AdminService {
     private readonly auditService: AuditService,
   ) {}
 
-  async listUsers(search?: string, role?: string): Promise<AdminUsersResponse> {
+  async listUsers(
+    adminUser: AdminActor,
+    search?: string,
+    role?: string,
+  ): Promise<AdminUsersResponse> {
     const generatedAt = new Date().toISOString();
+    const currentAdmin = this.toCurrentAdmin(adminUser);
 
     try {
       const rows = await db
@@ -73,16 +94,31 @@ export class AdminService {
         users,
         stats: this.buildUserStats(normalizedUsers),
         generatedAt,
+        currentAdmin,
       };
     } catch (error) {
       const message = this.errorMessage(error);
-      this.logger.warn(`Falling back to empty admin users payload: ${message}`);
+      this.logger.warn(`Drizzle admin users query failed: ${message}`);
+
+      const supabaseResponse = await this.listUsersFromSupabase(
+        currentAdmin,
+        generatedAt,
+        search,
+        role,
+      );
+
+      if (supabaseResponse) {
+        return supabaseResponse;
+      }
+
+      this.logger.warn("Falling back to empty admin users payload.");
       return {
         success: false,
         source: "fallback",
         users: [],
         stats: this.emptyUserStats(),
         generatedAt,
+        currentAdmin,
         error: "Unable to load users right now.",
       };
     }
@@ -94,10 +130,7 @@ export class AdminService {
   ): Promise<AdminInviteResponse> {
     const emailAddress = dto.email.trim().toLowerCase();
     const assignedRole = dto.role || "user";
-    const adminUserId =
-      assignedRole === "user"
-        ? this.requireAdminActorId(adminUser)
-        : this.assertCanManageRoles(adminUser);
+    const adminUserId = this.assertCanManageUsers(adminUser);
 
     try {
       const invitation = await this.clerkClient.invitations.createInvitation({
@@ -160,7 +193,7 @@ export class AdminService {
     targetUserId: string,
     dto: AdminUpdateUserRoleDto,
   ): Promise<AdminUpdateUserRoleResponse> {
-    const adminUserId = this.assertCanManageRoles(adminUser);
+    const adminUserId = this.assertCanManageUsers(adminUser);
 
     try {
       const user = await this.updateProfileRole(
@@ -191,20 +224,35 @@ export class AdminService {
     }
   }
 
-  private assertCanManageRoles(adminUser: AdminActor): string {
+  private assertCanManageUsers(adminUser: AdminActor): string {
     const adminUserId = this.requireAdminActorId(adminUser);
-    const role = adminUser.role?.trim();
-    const email = adminUser.email?.trim().toLowerCase();
 
-    if (
-      role === "admin" ||
-      role === "super_admin" ||
-      (email && this.adminEmails().includes(email))
-    ) {
+    if (this.canManageUsers(adminUser)) {
       return adminUserId;
     }
 
-    throw new ForbiddenException("Only admins can assign platform roles.");
+    throw new ForbiddenException(
+      "Only super admins can invite users or manage platform roles.",
+    );
+  }
+
+  private canManageUsers(adminUser: AdminActor): boolean {
+    const role = adminUser.role?.trim();
+    const email = adminUser.email?.trim().toLowerCase();
+
+    return (
+      role === PROTECTED_ROLE ||
+      Boolean(email && this.adminEmails().includes(email))
+    );
+  }
+
+  private toCurrentAdmin(adminUser: AdminActor): AdminCurrentUser {
+    return {
+      userId: adminUser.id?.trim() || null,
+      email: adminUser.email?.trim().toLowerCase() || null,
+      role: adminUser.role?.trim() || "user",
+      canManageUsers: this.canManageUsers(adminUser),
+    };
   }
 
   private requireAdminActorId(adminUser: AdminActor): string {
@@ -395,8 +443,16 @@ export class AdminService {
       };
     } catch (error) {
       const message = this.errorMessage(error);
+      this.logger.warn(`Drizzle admin dashboard query failed: ${message}`);
+
+      const supabaseResponse = await this.getDashboardFromSupabase(generatedAt);
+
+      if (supabaseResponse) {
+        return supabaseResponse;
+      }
+
       this.logger.warn(
-        `Falling back to empty admin dashboard payload: ${message}`,
+        "Falling back to empty admin dashboard payload.",
       );
       return {
         success: false,
@@ -406,6 +462,206 @@ export class AdminService {
         generatedAt,
         error: "Dashboard data is temporarily unavailable.",
       };
+    }
+  }
+
+  private async listUsersFromSupabase(
+    currentAdmin: AdminCurrentUser,
+    generatedAt: string,
+    search?: string,
+    role?: string,
+  ): Promise<AdminUsersResponse | null> {
+    const supabase = this.getSupabaseAdminClient();
+    if (!supabase) return null;
+
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const normalizedUsers = (data || []).map((row) =>
+        this.toUserRecordFromSupabase(row as SupabaseProfileRow),
+      );
+      const users = this.filterUsers(normalizedUsers, search, role);
+
+      return {
+        success: true,
+        source: "database",
+        users,
+        stats: this.buildUserStats(normalizedUsers),
+        generatedAt,
+        currentAdmin,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Supabase admin users query failed: ${this.errorMessage(error)}`,
+      );
+      return null;
+    }
+  }
+
+  private async getDashboardFromSupabase(
+    generatedAt: string,
+  ): Promise<AdminDashboardResponse | null> {
+    const supabase = this.getSupabaseAdminClient();
+    if (!supabase) return null;
+
+    try {
+      const weekAgo = new Date(Date.now() - WEEK_IN_MS);
+      const weekAgoIso = weekAgo.toISOString();
+
+      const [
+        profilesResult,
+        activeOpportunitiesResult,
+        opportunitiesThisWeekResult,
+        opportunityApplicationsResult,
+        creatorApplicationsResult,
+        recentOpportunitiesResult,
+        recentApplicationsResult,
+        recentCreatorApplicationsResult,
+      ] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("*")
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("opportunities")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "active"),
+        supabase
+          .from("opportunities")
+          .select("*", { count: "exact", head: true })
+          .gte("created_at", weekAgoIso),
+        supabase
+          .from("opportunity_applications")
+          .select("*", { count: "exact", head: true }),
+        supabase
+          .from("creator_applications")
+          .select("*")
+          .order("submitted_at", { ascending: false })
+          .limit(10),
+        supabase
+          .from("opportunities")
+          .select("id, title, created_at")
+          .order("created_at", { ascending: false })
+          .limit(5),
+        supabase
+          .from("opportunity_applications")
+          .select("id, user_id, opportunity_id, created_at")
+          .order("created_at", { ascending: false })
+          .limit(5),
+        supabase
+          .from("creator_applications")
+          .select("id, user_id, display_name, status, submitted_at, updated_at")
+          .order("updated_at", { ascending: false })
+          .limit(5),
+      ]);
+
+      const firstError = [
+        profilesResult.error,
+        activeOpportunitiesResult.error,
+        opportunitiesThisWeekResult.error,
+        opportunityApplicationsResult.error,
+        creatorApplicationsResult.error,
+        recentOpportunitiesResult.error,
+        recentApplicationsResult.error,
+        recentCreatorApplicationsResult.error,
+      ].find(Boolean);
+
+      if (firstError) throw firstError;
+
+      const users = (profilesResult.data || []).map((row) =>
+        this.toUserRecordFromSupabase(row as SupabaseProfileRow),
+      );
+      const creatorApplicationsData = creatorApplicationsResult.data || [];
+      const recentOpportunities = recentOpportunitiesResult.data || [];
+      const recentApplications = recentApplicationsResult.data || [];
+      const recentCreatorApplications =
+        recentCreatorApplicationsResult.data || [];
+
+      const opportunityMap = new Map(
+        recentOpportunities.map((opportunity) => [
+          String(opportunity.id),
+          String(opportunity.title || "Opportunity"),
+        ]),
+      );
+
+      const activity = [
+        ...users.slice(0, 5).map<AdminDashboardActivity>((user) => ({
+          id: `user-${user.userId}`,
+          type: "user",
+          action: "New user registered",
+          detail: user.email !== "No email" ? user.email : user.fullName,
+          timestamp: user.createdAt,
+        })),
+        ...recentOpportunities.map<AdminDashboardActivity>((opportunity) => ({
+          id: `opp-${opportunity.id}`,
+          type: "opportunity",
+          action: "New opportunity posted",
+          detail: String(opportunity.title || "Opportunity"),
+          timestamp: this.dateToIso(opportunity.created_at),
+        })),
+        ...recentApplications.map<AdminDashboardActivity>((application) => ({
+          id: `application-${application.id}`,
+          type: "application",
+          action: "New application submitted",
+          detail:
+            opportunityMap.get(String(application.opportunity_id)) ||
+            "Opportunity application",
+          timestamp: this.dateToIso(application.created_at),
+        })),
+        ...recentCreatorApplications.map<AdminDashboardActivity>(
+          (application) => ({
+            id: `creator-${application.id}`,
+            type: "creator",
+            action:
+              application.status === "approved"
+                ? "Creator approved"
+                : application.status === "rejected"
+                  ? "Creator rejected"
+                  : "Creator application submitted",
+            detail: String(application.display_name || "Creator application"),
+            timestamp: this.dateToIso(
+              application.updated_at || application.submitted_at,
+            ),
+          }),
+        ),
+      ]
+        .sort(
+          (a, b) =>
+            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+        )
+        .slice(0, 10);
+
+      return {
+        success: true,
+        source: "database",
+        stats: {
+          totalUsers: users.length,
+          activeOpportunities: activeOpportunitiesResult.count || 0,
+          applications: opportunityApplicationsResult.count || 0,
+          approvedCreators: users.filter(
+            (user) => user.creatorStatus === "approved",
+          ).length,
+          pendingCreators: creatorApplicationsData.filter(
+            (application) => application.status === "pending",
+          ).length,
+          newUsersThisWeek: users.filter(
+            (user) => new Date(user.createdAt).getTime() >= weekAgo.getTime(),
+          ).length,
+          newOpportunitiesThisWeek: opportunitiesThisWeekResult.count || 0,
+        },
+        recentActivity: activity,
+        generatedAt,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Supabase admin dashboard query failed: ${this.errorMessage(error)}`,
+      );
+      return null;
     }
   }
 
@@ -646,6 +902,27 @@ export class AdminService {
       creatorMetadata: this.toRecord(row.creatorMetadata),
       createdAt: this.dateToIso(row.createdAt),
       updatedAt: this.dateToIso(row.updatedAt),
+    };
+  }
+
+  private toUserRecordFromSupabase(row: SupabaseProfileRow): AdminUserRecord {
+    const skills = Array.isArray(row.skills)
+      ? row.skills.filter((skill): skill is string => Boolean(skill?.trim()))
+      : [];
+
+    return {
+      userId: row.user_id,
+      fullName: row.full_name?.trim() || "Anonymous User",
+      email: row.email?.trim() || "No email",
+      role: row.role?.trim() || "user",
+      country: row.country?.trim() || null,
+      skills,
+      creditsBalance: Number(row.credits_balance ?? 0),
+      creatorStatus: row.creator_status?.trim() || "none",
+      creatorRejectionReason: row.creator_rejection_reason || null,
+      creatorMetadata: this.toRecord(row.creator_metadata),
+      createdAt: this.dateToIso(row.created_at),
+      updatedAt: this.dateToIso(row.updated_at),
     };
   }
 

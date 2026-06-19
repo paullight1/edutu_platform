@@ -158,6 +158,17 @@ const NON_OPPORTUNITY_URL_RE =
   /\/(category|tag|author|page|search|privacy-policy|terms|about|contact)\/?$/i;
 const NON_APPLY_URL_RE =
   /(facebook|twitter|x\.com|linkedin|instagram|youtube|tiktok|whatsapp|telegram|mailto:|tel:|\/feed\/|\/comments?\/|#respond)/i;
+const SCRAPER_ARTIFACT_RE =
+  /\b(?:by\s+admin|posted\s+by|written\s+by|on\s+[a-z]+\s+\d{1,2},\s+20\d{2}|read\s+more|continue\s+reading|leave\s+a\s+comment|comments?|share\s+this|related\s+posts?)\b/i;
+const SOURCE_BRAND_RE =
+  /\b(?:dixcoverhubx|dixcover\s*hubx|opportunities\s*circle|oya\s*opportunities|scholars4dev|global\s*scholar\s*desk|scholarship\s*portal|jobs\.smartyacad\.com)\b/i;
+const PUBLIC_TAG_BLOCKLIST = new Set([
+  "scraped",
+  "scraper",
+  "imported",
+  "automation",
+  "source",
+]);
 
 // Category keyword map
 const CATEGORY_MAP: Record<string, string[]> = {
@@ -1412,7 +1423,10 @@ Return ONLY valid JSON matching this schema exactly:
 }
 Rules:
 - Do not invent amounts, deadlines, eligibility, or links.
-- Prefer concrete bullet-style requirements and benefits.
+- Rewrite scraped article text into clean opportunity information. Do not copy bylines, author names, dates, category labels, social/share text, navigation text, comments, or aggregator wording.
+- Never mention scraper/source/aggregator names or domains, including DixcoverHubX, Opportunities Circle, OYA Opportunities, Scholars4Dev, Global Scholar Desk, Scholarship Portal, jobs.smartyacad.com, "By Admin", or "scraped".
+- The public description should name the actual opportunity/program and, if stated, the real organizer. It must not say the opportunity is "through" or "from" an aggregator website.
+- Prefer concrete bullet-style requirements and benefits. If exact requirements or benefits are missing, leave the arrays empty instead of adding generic filler.
 - If a deadline is ambiguous, preserve the readable source wording.
 - If the source text is thin, still write the best factual summary from available facts and lower confidence.
 - Leave arrays empty and nullable strings null if not found. Do NOT add markdown or commentary.
@@ -1952,7 +1966,6 @@ ${text}`;
       item.description || "",
       item.title,
     );
-
     const detailUrl = item.apply_url || "";
     const directApplyUrl = item.direct_apply_url || null;
     const application_url = directApplyUrl
@@ -1967,11 +1980,13 @@ ${text}`;
     const classification = classifyOpportunity(
       item as unknown as Record<string, unknown>,
     );
+    const organization = this.inferOrganizerName(item);
+    const publicTags = this.buildPublicTags(item, classification.canonicalCategory);
 
     return {
       title: item.title || "Untitled Opportunity",
       summary,
-      organization: item.source,
+      organization,
       category: this.categorize(item.title, item.description ?? ""),
       canonical_category: classification.canonicalCategory,
       close_date: closeDate,
@@ -1992,7 +2007,7 @@ ${text}`;
       stipend,
       currency,
       source: "scraper",
-      tags: ["Scraped", "Scholarship"],
+      tags: publicTags,
       metadata: {
         source_url: item.source_url,
         aggregator_url: detailUrl,
@@ -2014,9 +2029,14 @@ ${text}`;
         extraction_missing_fields: quality.missingFields,
         description_length: item.description?.length ?? 0,
         needs_review: quality.score < MIN_PUBLISH_QUALITY_SCORE,
-        requirements: item.requirements ?? [],
-        benefits: item.benefits ?? [],
-        application_process: item.application_process ?? ["Online application"],
+        source_name: item.source,
+        public_organization: organization,
+        public_tags: publicTags,
+        requirements: this.normalizeStringList(item.requirements ?? []),
+        benefits: this.normalizeStringList(item.benefits ?? []),
+        application_process: this.normalizeStringList(
+          item.application_process ?? ["Online application"],
+        ),
         eligibility: item.eligibility ?? {},
         funding_type: item.funding_type ?? null,
         target_region: item.target_region ?? null,
@@ -2035,7 +2055,6 @@ ${text}`;
   private createFallbackSummary(item: RawItem): string {
     const parts = [
       item.title,
-      item.source ? `from ${item.source}` : null,
       item.location ? `for applicants in ${item.location}` : null,
       item.deadline ? `with deadline ${item.deadline}` : null,
     ].filter(Boolean);
@@ -2057,7 +2076,7 @@ ${text}`;
     value: unknown,
     maxChars = 500,
   ): string | undefined {
-    const cleaned = this.cleanText(String(value ?? ""), maxChars);
+    const cleaned = this.scrubPublicText(String(value ?? ""), maxChars);
     if (!cleaned) return undefined;
     if (
       /^(n\/a|na|none|null|unknown(?:\s+.*)?|not available|not provided|not stated|not specified|unspecified|tbd|tba)$/i.test(
@@ -2075,7 +2094,7 @@ ${text}`;
     title: string,
   ): string {
     const cleanedSummary = this.cleanOptionalText(summary, 420);
-    const cleanedDescription = this.cleanText(String(description || ""), 1200);
+    const cleanedDescription = this.scrubPublicText(String(description || ""), 1200);
     const fallback =
       this.firstSentence(cleanedDescription) ||
       this.cleanText(title, 220) ||
@@ -2106,10 +2125,106 @@ ${text}`;
     return Array.from(
       new Set(
         flattened
-          .map((entry) => this.cleanOptionalText(entry, 220))
+          .map((entry) => this.cleanPublicListItem(entry, 220))
           .filter((entry): entry is string => Boolean(entry)),
       ),
     ).slice(0, 12);
+  }
+
+  private cleanPublicListItem(
+    value: unknown,
+    maxChars = 220,
+  ): string | undefined {
+    if (this.isScraperArtifact(String(value ?? ""))) return undefined;
+    const cleaned = this.cleanOptionalText(value, maxChars);
+    if (!cleaned) return undefined;
+    if (this.isScraperArtifact(cleaned)) return undefined;
+    if (
+      /^(online application|apply online|application|not specified|not stated)$/i.test(
+        cleaned,
+      )
+    ) {
+      return undefined;
+    }
+    return cleaned;
+  }
+
+  private scrubPublicText(value: string, maxChars = 500): string {
+    if (!value) return "";
+
+    let cleaned = this.cleanText(value, Math.max(maxChars * 2, maxChars));
+    cleaned = cleaned
+      .replace(
+        new RegExp(
+          `\\bBy\\s+Admin\\s+On\\s+(?:${MONTH_PATTERN})\\s+\\d{1,2},\\s+20\\d{2}\\b`,
+          "gi",
+        ),
+        " ",
+      )
+      .replace(/\bBy\s+Admin\b/gi, " ")
+      .replace(/\b(?:posted|written)\s+by\s+[^.]{1,60}/gi, " ")
+      .replace(/\bApplications?\s+are\s+now\s+open\s+for\s+/gi, "Applications are open for ")
+      .replace(SOURCE_BRAND_RE, "the official organizer")
+      .replace(SCRAPER_ARTIFACT_RE, " ")
+      .replace(/\s+([,.;:])/g, "$1")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+
+    return this.cleanText(cleaned, maxChars);
+  }
+
+  private isScraperArtifact(value: string): boolean {
+    return SCRAPER_ARTIFACT_RE.test(value) || SOURCE_BRAND_RE.test(value);
+  }
+
+  private inferOrganizerName(item: RawItem): string {
+    const title = this.scrubPublicText(item.title || "", 220);
+    const titleLead = title.match(
+      /^(.{3,90}?)\s+(?:fully\s+funded|funded|leadership|scholarships?|fellowships?|grants?|bootcamps?|programs?|programmes?|internships?|accelerators?)\b/i,
+    )?.[1];
+    const candidates = [
+      item.eligibility && typeof item.eligibility === "object"
+        ? (item.eligibility as Record<string, unknown>).organization
+        : null,
+      titleLead,
+      item.source,
+    ];
+
+    for (const candidate of candidates) {
+      const cleaned = this.scrubPublicText(String(candidate ?? ""), 120);
+      if (!cleaned || cleaned.length < 3) continue;
+      if (/^(unknown|admin|edutu engine|scholarship|program|opportunity)$/i.test(cleaned)) {
+        continue;
+      }
+      if (SOURCE_BRAND_RE.test(cleaned)) continue;
+      return cleaned;
+    }
+
+    return "Program Organizer";
+  }
+
+  private buildPublicTags(item: RawItem, canonicalCategory: string): string[] {
+    const categoryTags: Record<string, string> = {
+      scholarships: "Scholarship",
+      careers: "Career",
+      leadership: "Leadership",
+      global_programs: "Global Program",
+      other: "Opportunity",
+    };
+    const rawTags = [
+      categoryTags[canonicalCategory] || "Opportunity",
+      item.funding_type,
+      item.target_region,
+      item.location && item.location !== "Worldwide" ? item.location : null,
+    ];
+
+    return Array.from(
+      new Set(
+        rawTags
+          .map((tag) => this.scrubPublicText(String(tag ?? ""), 40))
+          .filter((tag) => tag && !PUBLIC_TAG_BLOCKLIST.has(tag.toLowerCase())),
+      ),
+    ).slice(0, 5);
   }
 
   private firstSentence(text: string): string {

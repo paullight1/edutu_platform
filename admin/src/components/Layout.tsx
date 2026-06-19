@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { signOutAdmin } from "../lib/auth";
 import {
   LayoutDashboard,
   Target,
@@ -41,6 +42,7 @@ const Layout = () => {
   });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   useEffect(() => {
     // Get current user
@@ -98,7 +100,10 @@ const Layout = () => {
   };
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    if (isSigningOut) return;
+
+    setIsSigningOut(true);
+    await signOutAdmin();
   };
 
   const getUserInitials = () => {
@@ -217,10 +222,13 @@ const Layout = () => {
           <button
             className="nav-link sign-out-link"
             onClick={handleSignOut}
+            disabled={isSigningOut}
             title="Sign Out"
           >
             <LogOut size={18} strokeWidth={1.5} />
-            <span className="nav-label">Sign Out</span>
+            <span className="nav-label">
+              {isSigningOut ? "Signing out..." : "Sign Out"}
+            </span>
           </button>
         </div>
       </aside>

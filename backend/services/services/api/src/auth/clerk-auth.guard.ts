@@ -222,8 +222,46 @@ export class ClerkAuthGuard implements CanActivate {
     try {
       return await this.findProfile(userId);
     } catch {
+      return this.findProfileWithSupabase(userId);
+    }
+  }
+
+  private async findProfileWithSupabase(userId: string) {
+    const supabase = this.getSupabaseAdminClient();
+    if (!supabase) return null;
+
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_id, email, full_name, role")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (error || !data) return null;
+
+      return {
+        userId: data.user_id,
+        email: data.email,
+        fullName: data.full_name,
+        role: data.role,
+      };
+    } catch {
       return null;
     }
+  }
+
+  private getSupabaseAdminClient(): SupabaseClient | null {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!url || !key) return null;
+
+    return createClient(url, key, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
   }
 
   private async safeGetClerkUser(userId: string) {

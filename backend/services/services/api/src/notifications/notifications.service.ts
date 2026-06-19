@@ -370,6 +370,10 @@ export class NotificationsService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   async processDueQueue() {
+    if (process.env.NOTIFICATION_SCHEDULER_ENABLED === "false") {
+      return;
+    }
+
     const dueItems = await db
       .select()
       .from(notificationQueue)

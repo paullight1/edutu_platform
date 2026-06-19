@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { getLocalAdminEmail, getLocalAdminUserId, isLocalAdminBypassEnabled } from '../lib/localAdmin';
+import { signOutAdmin } from '../lib/auth';
 
 interface AdminAuthState {
     session: Session | null;
@@ -143,13 +144,8 @@ export function useAdminAuth() {
     }, [checkAdminRole, localBypassEnabled]);
 
     const signOut = useCallback(async () => {
-        if (localBypassEnabled) {
-            window.location.assign('/login');
-            return;
-        }
-
-        await supabase.auth.signOut();
-    }, [localBypassEnabled]);
+        await signOutAdmin();
+    }, []);
 
     return {
         ...state,

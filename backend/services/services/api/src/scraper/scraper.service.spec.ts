@@ -134,6 +134,56 @@ describe("ScraperService", () => {
     });
   });
 
+  describe("public opportunity cleanup", () => {
+    it("removes scraper source artifacts from transformed opportunities", () => {
+      const transformed = (service as any).transformToOpportunity(
+        {
+          title:
+            "The Bridge Fully funded Leadership Residential Bootcamp 2026 (Nationwide for Nigerian Students)",
+          apply_url:
+            "https://jobs.smartyacad.com/the-bridge-leadership-residential-bootcamp-2026/",
+          direct_apply_url: "https://thebridgeleadership.org/apply",
+          description:
+            "The Bridge Fully funded Leadership Residential Bootcamp 2026 By Admin On May 19, 2026 Applications are now open for The Bridge Program Fellowship 2026, a fully funded leadership accelerator programme designed for high potential young Nigerians interested in leadership, innovation, policy.",
+          requirements: [
+            "Review the official dixcoverhubx bootcamp page for final eligibility rules before applying.",
+            "Open to young Nigerians interested in leadership, innovation, and policy.",
+          ],
+          benefits: [
+            "Scholarships access through dixcoverhubx bootcamp.",
+            "Fully funded residential leadership bootcamp.",
+          ],
+          application_process: ["Online application"],
+          deadline: "2026-05-18",
+          location: "Nigeria",
+          source: "DixcoverHubX Bootcamp",
+          source_url: "https://jobs.smartyacad.com/category/bootcamp/",
+        },
+        "job-123",
+      );
+
+      const publicText = [
+        transformed.title,
+        transformed.summary,
+        transformed.organization,
+        transformed.description,
+        ...(transformed.tags as string[]),
+        ...((transformed.metadata as any).requirements as string[]),
+        ...((transformed.metadata as any).benefits as string[]),
+      ].join(" ");
+
+      expect(publicText).not.toMatch(/dixcoverhubx|smartyacad|by admin|scraped/i);
+      expect(transformed.organization).toBe("The Bridge");
+      expect(transformed.tags).not.toContain("Scraped");
+      expect((transformed.metadata as any).requirements).toContain(
+        "Open to young Nigerians interested in leadership, innovation, and policy.",
+      );
+      expect((transformed.metadata as any).requirements).not.toEqual(
+        expect.arrayContaining([expect.stringMatching(/dixcoverhubx/i)]),
+      );
+    });
+  });
+
   describe("resolveUrl", () => {
     it("should resolve relative paths against source URLs", () => {
       const result = (service as any).resolveUrl(
