@@ -103,6 +103,7 @@ create policy "Anyone can view published roadmaps"
 
 create policy "Service role full access to roadmaps"
     on public.roadmaps for all
+    to service_role
     using (true) with check (true);
 
 -- RLS Policies: enrollments
@@ -120,6 +121,7 @@ create policy "Users can update own enrollments"
 
 create policy "Service role full access to enrollments"
     on public.roadmap_enrollments for all
+    to service_role
     using (true) with check (true);
 
 -- RLS Policies: intents
@@ -134,6 +136,7 @@ create policy "Users can create/update own intent"
 
 create policy "Service role full access to intents"
     on public.user_roadmap_intents for all
+    to service_role
     using (true) with check (true);
 
 -- RLS Policies: feedback
@@ -151,6 +154,7 @@ create policy "Users can update own feedback"
 
 create policy "Service role full access to feedback"
     on public.roadmap_feedback for all
+    to service_role
     using (true) with check (true);
 
 -- Function: Update roadmap satisfaction score from feedback

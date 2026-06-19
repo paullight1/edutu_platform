@@ -1,5 +1,4 @@
-import { supabase } from '../lib/supabaseClient';
-import { isProductApiUnavailableError, productApiRequest } from './productApi';
+import { productApiRequest } from './productApi';
 
 export interface BookmarkOpportunity {
   id: string;
@@ -70,40 +69,20 @@ function mapApiBookmark(row: ApiBookmarkRecord, fallbackUserId: string, fallback
   };
 }
 
-async function tryProductApi<T>(operation: () => Promise<T>): Promise<T | null> {
-  try {
-    return await operation();
-  } catch (error) {
-    if (isProductApiUnavailableError(error)) return null;
-    throw error;
-  }
+function hasToken(token?: string | null): token is string {
+  return Boolean(token?.trim());
 }
 
 export async function getBookmarks(userId: string, token?: string | null): Promise<BookmarkRecord[]> {
-  if (token) {
-    const apiBookmarks = await tryProductApi(async () => {
-      const response = await productApiRequest<ApiBookmarkRecord[] | { data?: ApiBookmarkRecord[]; bookmarks?: ApiBookmarkRecord[]; items?: ApiBookmarkRecord[] }>(
-        '/me/opportunities/bookmarks',
-        token
-      );
-      return extractApiRows(response).map((row) => mapApiBookmark(row, userId));
-    });
-
-    if (apiBookmarks) return apiBookmarks;
-  }
-
-  const { data, error } = await supabase
-    .from('opportunity_bookmarks')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('Error fetching bookmarks:', error);
+  if (!hasToken(token)) {
     return [];
   }
 
-  return data || [];
+  const response = await productApiRequest<ApiBookmarkRecord[] | { data?: ApiBookmarkRecord[]; bookmarks?: ApiBookmarkRecord[]; items?: ApiBookmarkRecord[] }>(
+    '/me/opportunities/bookmarks',
+    token
+  );
+  return extractApiRows(response).map((row) => mapApiBookmark(row, userId));
 }
 
 export async function addBookmark(
@@ -111,45 +90,19 @@ export async function addBookmark(
   opportunity: BookmarkOpportunity,
   token?: string | null
 ): Promise<BookmarkRecord | null> {
-  if (token) {
-    const apiBookmark = await tryProductApi(async () => {
-      const response = await productApiRequest<ApiBookmarkRecord | null>(
-        `/me/opportunities/${encodeURIComponent(opportunity.id)}/bookmark`,
-        token,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            opportunityId: opportunity.id,
-            opportunity
-          })
-        }
-      );
-      return response ? mapApiBookmark(response, userId, opportunity) : mapApiBookmark({}, userId, opportunity);
-    });
-
-    if (apiBookmark) return apiBookmark;
-  }
-
-  const { data, error } = await supabase
-    .from('opportunity_bookmarks')
-    .insert({
-      user_id: userId,
-      opportunity_id: opportunity.id,
-      opportunity_title: opportunity.title,
-      opportunity_category: opportunity.category,
-      opportunity_deadline: opportunity.deadline || null,
-      opportunity_location: opportunity.location,
-      match_percentage: opportunity.match_percentage || 0
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error adding bookmark:', error);
+  if (!hasToken(token)) {
     return null;
   }
 
-  return data;
+  const response = await productApiRequest<ApiBookmarkRecord | null>(
+    `/me/opportunities/${encodeURIComponent(opportunity.id)}/bookmark`,
+    token,
+    {
+      method: 'POST',
+      body: JSON.stringify({})
+    }
+  );
+  return response ? mapApiBookmark(response, userId, opportunity) : mapApiBookmark({}, userId, opportunity);
 }
 
 export async function removeBookmark(
@@ -157,30 +110,15 @@ export async function removeBookmark(
   opportunityId: string,
   token?: string | null
 ): Promise<boolean> {
-  if (token) {
-    const apiRemoved = await tryProductApi(async () => {
-      await productApiRequest<void>(
-        `/me/opportunities/${encodeURIComponent(opportunityId)}/bookmark`,
-        token,
-        { method: 'DELETE' }
-      );
-      return true;
-    });
-
-    if (apiRemoved) return true;
-  }
-
-  const { error } = await supabase
-    .from('opportunity_bookmarks')
-    .delete()
-    .eq('user_id', userId)
-    .eq('opportunity_id', opportunityId);
-
-  if (error) {
-    console.error('Error removing bookmark:', error);
+  if (!hasToken(token)) {
     return false;
   }
 
+  await productApiRequest<void>(
+    `/me/opportunities/${encodeURIComponent(opportunityId)}/bookmark`,
+    token,
+    { method: 'DELETE' }
+  );
   return true;
 }
 
@@ -189,28 +127,15 @@ export async function isBookmarked(
   opportunityId: string,
   token?: string | null
 ): Promise<boolean> {
-  if (token) {
-    const apiBookmarked = await tryProductApi(async () => {
-      const bookmarks = await getBookmarks(userId, token);
-      return bookmarks.some((bookmark) => bookmark.opportunity_id === opportunityId);
-    });
-
-    if (apiBookmarked !== null) return apiBookmarked;
-  }
-
-  const { data, error } = await supabase
-    .from('opportunity_bookmarks')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('opportunity_id', opportunityId)
-    .maybeSingle();
-
-  if (error) {
-    console.error('Error checking bookmark:', error);
+  if (!hasToken(token)) {
     return false;
   }
 
-  return !!data;
+  const response = await productApiRequest<{ saved?: boolean } | null>(
+    `/me/opportunities/${encodeURIComponent(opportunityId)}/bookmark`,
+    token
+  );
+  return Boolean(response?.saved);
 }
 
 export function filterBookmarks(

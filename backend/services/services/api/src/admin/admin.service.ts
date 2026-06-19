@@ -1,5 +1,12 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from "@nestjs/common";
 import type { ClerkClient } from "@clerk/clerk-sdk-node";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { eq, desc, count, gte, sql } from "drizzle-orm";
 import { AuditService } from "../common/audit";
 import { db } from "../db";
@@ -9,14 +16,23 @@ import {
   type AdminDashboardResponse,
   type AdminDashboardStats,
   type AdminInvitation,
+  type AdminAssignableRole,
   type AdminInviteResponse,
   type AdminInviteUserDto,
+  type AdminUpdateUserRoleDto,
+  type AdminUpdateUserRoleResponse,
   type AdminUserRecord,
   type AdminUsersResponse,
   type AdminUsersStats,
 } from "./admin.dto";
 
 type ProfileRow = typeof profiles.$inferSelect;
+
+export type AdminActor = {
+  id?: string | null;
+  email?: string | null;
+  role?: string | null;
+};
 
 type OpportunityApplicationRow = {
   id: string;
@@ -26,10 +42,13 @@ type OpportunityApplicationRow = {
 };
 
 const WEEK_IN_MS = 7 * 24 * 60 * 60 * 1000;
+const PROTECTED_ROLE = "super_admin";
+const ROLE_METADATA_KEY = "role";
 
 @Injectable()
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
+  private supabaseAdminClient: SupabaseClient | null | undefined;
 
   constructor(
     @Inject("ClerkClient") private readonly clerkClient: ClerkClient,
@@ -70,10 +89,15 @@ export class AdminService {
   }
 
   async inviteUser(
-    adminUserId: string,
+    adminUser: AdminActor,
     dto: AdminInviteUserDto,
   ): Promise<AdminInviteResponse> {
     const emailAddress = dto.email.trim().toLowerCase();
+    const assignedRole = dto.role || "user";
+    const adminUserId =
+      assignedRole === "user"
+        ? this.requireAdminActorId(adminUser)
+        : this.assertCanManageRoles(adminUser);
 
     try {
       const invitation = await this.clerkClient.invitations.createInvitation({
@@ -81,18 +105,44 @@ export class AdminService {
         notify: dto.notify ?? true,
         redirectUrl: dto.redirectUrl,
         ignoreExisting: true,
+        ...(assignedRole !== "user"
+          ? {
+              publicMetadata: {
+                [ROLE_METADATA_KEY]: assignedRole,
+                invitedBy: adminUserId,
+              },
+            }
+          : {}),
       });
+
+      const updatedUser =
+        assignedRole === "user"
+          ? null
+          : await this.updateExistingProfileRoleByEmail(
+              adminUserId,
+              emailAddress,
+              assignedRole,
+            );
+
+      await Promise.all([
+        this.syncClerkRoleByEmail(emailAddress, assignedRole),
+        this.syncSupabaseRoleByEmail(emailAddress, assignedRole),
+      ]);
 
       await this.auditService.log("user.invite", adminUserId, "user", {
         emailAddress,
+        assignedRole,
         invitationId: invitation.id,
         status: invitation.status,
         url: invitation.url || null,
+        updatedUserId: updatedUser?.userId || null,
       });
 
       return {
         success: true,
         invitation: this.toInvitation(invitation),
+        assignedRole,
+        updatedUser,
       };
     } catch (error) {
       const message = this.errorMessage(error);
@@ -103,6 +153,77 @@ export class AdminService {
         error: "Unable to create the invitation right now.",
       };
     }
+  }
+
+  async updateUserRole(
+    adminUser: AdminActor,
+    targetUserId: string,
+    dto: AdminUpdateUserRoleDto,
+  ): Promise<AdminUpdateUserRoleResponse> {
+    const adminUserId = this.assertCanManageRoles(adminUser);
+
+    try {
+      const user = await this.updateProfileRole(
+        adminUserId,
+        targetUserId,
+        dto.role,
+      );
+
+      return {
+        success: true,
+        user,
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
+      }
+
+      const message = this.errorMessage(error);
+      this.logger.warn(`Failed to update user role: ${message}`);
+      return {
+        success: false,
+        user: null,
+        error: "Unable to update this user's role right now.",
+      };
+    }
+  }
+
+  private assertCanManageRoles(adminUser: AdminActor): string {
+    const adminUserId = this.requireAdminActorId(adminUser);
+    const role = adminUser.role?.trim();
+    const email = adminUser.email?.trim().toLowerCase();
+
+    if (
+      role === "admin" ||
+      role === "super_admin" ||
+      (email && this.adminEmails().includes(email))
+    ) {
+      return adminUserId;
+    }
+
+    throw new ForbiddenException("Only admins can assign platform roles.");
+  }
+
+  private requireAdminActorId(adminUser: AdminActor): string {
+    const adminUserId = adminUser.id?.trim();
+    if (!adminUserId) {
+      throw new ForbiddenException("Authenticated admin context required.");
+    }
+
+    return adminUserId;
+  }
+
+  private adminEmails(): string[] {
+    return (
+      process.env.ADMIN_EMAILS ||
+      "admin@edutu.ai,founder@edutu.ai,nwosupaul3@gmail.com,nwouspaul3@gmail.com"
+    )
+      .split(",")
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean);
   }
 
   async getDashboard(): Promise<AdminDashboardResponse> {
@@ -286,6 +407,194 @@ export class AdminService {
         error: "Dashboard data is temporarily unavailable.",
       };
     }
+  }
+
+  private async updateExistingProfileRoleByEmail(
+    adminUserId: string,
+    emailAddress: string,
+    nextRole: AdminAssignableRole,
+  ): Promise<AdminUserRecord | null> {
+    const [existing] = await db
+      .select()
+      .from(profiles)
+      .where(sql`lower(${profiles.email}) = ${emailAddress}`)
+      .limit(1);
+
+    if (!existing) {
+      return null;
+    }
+
+    const updated = await this.applyRoleToProfile(
+      adminUserId,
+      existing,
+      nextRole,
+    );
+
+    return this.toUserRecord(updated);
+  }
+
+  private async updateProfileRole(
+    adminUserId: string,
+    targetUserId: string,
+    nextRole: AdminAssignableRole,
+  ): Promise<AdminUserRecord> {
+    const [existing] = await db
+      .select()
+      .from(profiles)
+      .where(eq(profiles.userId, targetUserId))
+      .limit(1);
+
+    if (!existing) {
+      throw new NotFoundException("User profile not found");
+    }
+
+    const updated = await this.applyRoleToProfile(
+      adminUserId,
+      existing,
+      nextRole,
+    );
+
+    await Promise.all([
+      this.syncClerkRoleByEmail(updated.email, nextRole),
+      this.syncSupabaseRoleByEmail(updated.email, nextRole),
+    ]);
+
+    return this.toUserRecord(updated);
+  }
+
+  private async applyRoleToProfile(
+    adminUserId: string,
+    profile: ProfileRow,
+    nextRole: AdminAssignableRole,
+  ): Promise<ProfileRow> {
+    const previousRole = profile.role?.trim() || "user";
+
+    if (previousRole === PROTECTED_ROLE) {
+      throw new ForbiddenException(
+        "Super admin roles must be managed manually.",
+      );
+    }
+
+    if (previousRole === nextRole) {
+      return profile;
+    }
+
+    const [updated] = await db
+      .update(profiles)
+      .set({
+        role: nextRole,
+        updatedAt: new Date(),
+      })
+      .where(eq(profiles.userId, profile.userId))
+      .returning();
+
+    if (!updated) {
+      throw new NotFoundException("User profile not found");
+    }
+
+    await this.auditService.logUserRoleChange(
+      adminUserId,
+      profile.userId,
+      previousRole,
+      nextRole,
+    );
+
+    return updated;
+  }
+
+  private async syncClerkRoleByEmail(
+    emailAddress: string | null | undefined,
+    role: AdminAssignableRole,
+  ): Promise<void> {
+    const email = emailAddress?.trim().toLowerCase();
+    if (!email) return;
+
+    try {
+      const clerkUsers = await this.clerkClient.users.getUserList({
+        emailAddress: [email],
+        limit: 10,
+      });
+
+      await Promise.all(
+        clerkUsers.data.map((user) =>
+          this.clerkClient.users.updateUserMetadata(user.id, {
+            publicMetadata: {
+              ...this.toRecord(user.publicMetadata),
+              [ROLE_METADATA_KEY]: role,
+            },
+          }),
+        ),
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Unable to sync Clerk role metadata for ${email}: ${this.errorMessage(error)}`,
+      );
+    }
+  }
+
+  private async syncSupabaseRoleByEmail(
+    emailAddress: string | null | undefined,
+    role: AdminAssignableRole,
+  ): Promise<void> {
+    const email = emailAddress?.trim().toLowerCase();
+    const supabase = this.getSupabaseAdminClient();
+    if (!email || !supabase) return;
+
+    try {
+      const { data, error } = await supabase.auth.admin.listUsers({
+        page: 1,
+        perPage: 1000,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      const matchingUsers = data.users.filter(
+        (user) => user.email?.trim().toLowerCase() === email,
+      );
+
+      await Promise.all(
+        matchingUsers.map(async (user) => {
+          const { error: updateError } =
+            await supabase.auth.admin.updateUserById(user.id, {
+              app_metadata: {
+                ...this.toRecord(user.app_metadata),
+                [ROLE_METADATA_KEY]: role,
+              },
+            });
+
+          if (updateError) {
+            throw updateError;
+          }
+        }),
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Unable to sync Supabase app metadata for ${email}: ${this.errorMessage(error)}`,
+      );
+    }
+  }
+
+  private getSupabaseAdminClient(): SupabaseClient | null {
+    if (this.supabaseAdminClient !== undefined) {
+      return this.supabaseAdminClient;
+    }
+
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    this.supabaseAdminClient =
+      url && key
+        ? createClient(url, key, {
+            auth: {
+              persistSession: false,
+              autoRefreshToken: false,
+            },
+          })
+        : null;
+
+    return this.supabaseAdminClient;
   }
 
   private filterUsers(

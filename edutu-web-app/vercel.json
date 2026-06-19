@@ -4,6 +4,14 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/sitemap.xml",
+      "destination": "https://edutu-api.onrender.com/sitemap.xml"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "https://edutu-api.onrender.com/robots.txt"
+    },
+    {
       "source": "/((?!assets/|icons/|manifest.webmanifest|registerSW.js|sw.js|workbox-.*\\.js|favicon.ico|apple-touch-icon.png).*)",
       "destination": "/index.html"
     }

@@ -1,5 +1,28 @@
 import { authService, type Profile } from '../lib/auth';
 import type { OnboardingProfileData, OnboardingState } from '../types/onboarding';
+import { productApiRequest } from './productApi';
+
+export interface BackendProfileCompleteness {
+  percent: number;
+  completed: number;
+  total: number;
+  missing: Array<{ key: string; label: string }>;
+}
+
+export type BackendProfile = Profile & {
+  userId?: string;
+  fullName?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  completeness?: BackendProfileCompleteness;
+};
+
+export interface ProfileUpdateInput {
+  fullName?: string | null;
+  email?: string | null;
+  country?: string | null;
+  skills?: string[] | null;
+}
 
 function buildOnboardingState(data: OnboardingProfileData): OnboardingState {
   return {
@@ -69,6 +92,20 @@ export async function saveOnboardingProfile(userId: string, data: OnboardingProf
 
 export async function fetchUserProfile(userId: string): Promise<Profile | null> {
   return authService.getProfile(userId);
+}
+
+export async function fetchBackendProfile(token: string): Promise<BackendProfile> {
+  return productApiRequest<BackendProfile>('/profile', token);
+}
+
+export async function updateBackendProfile(
+  token: string,
+  updates: ProfileUpdateInput,
+): Promise<BackendProfile> {
+  return productApiRequest<BackendProfile>('/profile', token, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
 }
 
 export function extractOnboardingState(profile: Profile | null | undefined): OnboardingState | null {

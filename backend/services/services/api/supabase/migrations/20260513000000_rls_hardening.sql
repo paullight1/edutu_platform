@@ -110,18 +110,37 @@ create policy "opportunities_public_active_select" on public.opportunities for s
 create policy "opportunities_admin_all" on public.opportunities for all using (private.is_admin()) with check (private.is_admin());
 
 alter table if exists public.roadmaps enable row level security;
+drop policy if exists "Anyone can view published roadmaps" on public.roadmaps;
+drop policy if exists "Service role full access to roadmaps" on public.roadmaps;
 drop policy if exists "roadmaps_public_published_select" on public.roadmaps;
 drop policy if exists "roadmaps_admin_all" on public.roadmaps;
 create policy "roadmaps_public_published_select" on public.roadmaps for select using (status = 'published');
 create policy "roadmaps_admin_all" on public.roadmaps for all using (private.is_admin()) with check (private.is_admin());
 
 alter table if exists public.roadmap_enrollments enable row level security;
+drop policy if exists "Users can view own enrollments" on public.roadmap_enrollments;
+drop policy if exists "Users can create own enrollments" on public.roadmap_enrollments;
+drop policy if exists "Users can update own enrollments" on public.roadmap_enrollments;
+drop policy if exists "Service role full access to enrollments" on public.roadmap_enrollments;
 drop policy if exists "roadmap_enrollments_owner_all" on public.roadmap_enrollments;
 drop policy if exists "roadmap_enrollments_admin_all" on public.roadmap_enrollments;
 create policy "roadmap_enrollments_owner_all" on public.roadmap_enrollments for all using (user_id::text = private.current_user_id()) with check (user_id::text = private.current_user_id());
 create policy "roadmap_enrollments_admin_all" on public.roadmap_enrollments for all using (private.is_admin()) with check (private.is_admin());
 
+alter table if exists public.user_roadmap_intents enable row level security;
+drop policy if exists "Users can view own intent" on public.user_roadmap_intents;
+drop policy if exists "Users can create/update own intent" on public.user_roadmap_intents;
+drop policy if exists "Service role full access to intents" on public.user_roadmap_intents;
+drop policy if exists "user_roadmap_intents_owner_all" on public.user_roadmap_intents;
+drop policy if exists "user_roadmap_intents_admin_all" on public.user_roadmap_intents;
+create policy "user_roadmap_intents_owner_all" on public.user_roadmap_intents for all using (user_id::text = private.current_user_id()) with check (user_id::text = private.current_user_id());
+create policy "user_roadmap_intents_admin_all" on public.user_roadmap_intents for all using (private.is_admin()) with check (private.is_admin());
+
 alter table if exists public.roadmap_feedback enable row level security;
+drop policy if exists "Anyone can view feedback (for stats)" on public.roadmap_feedback;
+drop policy if exists "Users can create own feedback" on public.roadmap_feedback;
+drop policy if exists "Users can update own feedback" on public.roadmap_feedback;
+drop policy if exists "Service role full access to feedback" on public.roadmap_feedback;
 drop policy if exists "roadmap_feedback_owner_all" on public.roadmap_feedback;
 drop policy if exists "roadmap_feedback_admin_all" on public.roadmap_feedback;
 create policy "roadmap_feedback_owner_all" on public.roadmap_feedback for all using (user_id::text = private.current_user_id()) with check (user_id::text = private.current_user_id());

@@ -1,14 +1,99 @@
-import { Injectable, Logger } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+} from "@nestjs/common";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { AiService } from "../ai";
+import { toDatabaseUserId } from "../common/user-id";
 import {
   CVDataDto,
   CVGoalContextDto,
-  CVOpportunityContextDto,
   CVProfileContextDto,
   GenerateCVDraftDto,
   TailorCVDto,
 } from "./dto/cv-ai.dto";
+import type { SaveCVRecordDto } from "./dto/cv-record.dto";
+
+type CVRecordRow = {
+  id: string;
+  user_id: string;
+  title: string;
+  file_name: string;
+  file_size: number | null;
+  mime_type: string | null;
+  text_content: string | null;
+  stats: Record<string, unknown> | null;
+  job_target: string | null;
+  job_description: string | null;
+  analysis: Record<string, unknown> | null;
+  optimization: Record<string, unknown> | null;
+  generated: boolean | null;
+  storage_path: string | null;
+  uploaded_at: string | Date | null;
+  updated_at: string | Date | null;
+};
+
+type CVRecordInsert = {
+  user_id: string;
+  title: string;
+  file_name: string;
+  file_size: number;
+  mime_type: string;
+  text_content: string;
+  stats: Record<string, unknown>;
+  job_target: string | null;
+  job_description: string | null;
+  analysis: Record<string, unknown> | null;
+  optimization: Record<string, unknown> | null;
+  generated: boolean;
+  storage_path: string | null;
+};
+
+type PersistedCVRecordDto = {
+  id: string;
+  userId: string;
+  title: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  textContent: string;
+  content: CVDataDto | null;
+  stats: Record<string, unknown>;
+  jobTarget: string | null;
+  jobDescription: string | null;
+  analysis: Record<string, unknown> | null;
+  optimization: Record<string, unknown> | null;
+  generated: boolean;
+  storagePath: string | null;
+  uploadedAt: string;
+  updatedAt: string;
+};
+
+const CV_RECORD_SELECT = [
+  "id",
+  "user_id",
+  "title",
+  "file_name",
+  "file_size",
+  "mime_type",
+  "text_content",
+  "stats",
+  "job_target",
+  "job_description",
+  "analysis",
+  "optimization",
+  "generated",
+  "storage_path",
+  "uploaded_at",
+  "updated_at",
+].join(",");
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const CVDataSchema = z.object({
   header: z
@@ -95,8 +180,83 @@ const TailorResponseSchema = z.object({
 @Injectable()
 export class CvService {
   private readonly logger = new Logger(CvService.name);
+  private readonly supabase: SupabaseClient | null = null;
 
-  constructor(private readonly aiService: AiService) {}
+  constructor(private readonly aiService: AiService) {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (url && key) {
+      this.supabase = createClient(url, key, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+      });
+    }
+  }
+
+  async listRecords(userId: string): Promise<PersistedCVRecordDto[]> {
+    const dbUserId = this.requireUserId(userId);
+    const { data, error } = await this.client
+      .from("cv_records")
+      .select(CV_RECORD_SELECT)
+      .eq("user_id", dbUserId)
+      .order("uploaded_at", { ascending: false });
+
+    this.throwIfSupabaseError(error, "Could not load CV records");
+    return ((data ?? []) as unknown as CVRecordRow[]).map((row) =>
+      this.toRecordDto(row),
+    );
+  }
+
+  async getRecord(userId: string, id: string): Promise<PersistedCVRecordDto> {
+    this.assertUuid(id, "CV record id");
+    const dbUserId = this.requireUserId(userId);
+    const { data, error } = await this.client
+      .from("cv_records")
+      .select(CV_RECORD_SELECT)
+      .eq("id", id)
+      .eq("user_id", dbUserId)
+      .maybeSingle();
+
+    this.throwIfSupabaseError(error, "Could not load CV record");
+    if (!data) throw new NotFoundException("CV record not found");
+
+    return this.toRecordDto(data as unknown as CVRecordRow);
+  }
+
+  async createRecord(
+    userId: string,
+    dto: SaveCVRecordDto,
+  ): Promise<PersistedCVRecordDto> {
+    const dbUserId = this.requireUserId(userId);
+    const payload = this.toInsertPayload(dbUserId, dto);
+    const { data, error } = await this.client
+      .from("cv_records")
+      .insert(payload)
+      .select(CV_RECORD_SELECT)
+      .single();
+
+    this.throwIfSupabaseError(error, "Could not save CV record");
+    return this.toRecordDto(data as unknown as CVRecordRow);
+  }
+
+  async deleteRecord(userId: string, id: string) {
+    this.assertUuid(id, "CV record id");
+    const dbUserId = this.requireUserId(userId);
+    const { data, error } = await this.client
+      .from("cv_records")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", dbUserId)
+      .select("id")
+      .maybeSingle();
+
+    this.throwIfSupabaseError(error, "Could not delete CV record");
+    if (!data) throw new NotFoundException("CV record not found");
+    return { success: true };
+  }
 
   async generateDraft(userId: string, dto: GenerateCVDraftDto) {
     try {
@@ -390,6 +550,191 @@ ${dto.userNotes || ""}`;
       matched_keywords: matchedKeywords,
       missing_keywords: missingKeywords.slice(0, 10),
     };
+  }
+
+  private get client(): SupabaseClient {
+    if (!this.supabase) {
+      throw new ServiceUnavailableException(
+        "Supabase service role is not configured",
+      );
+    }
+
+    return this.supabase;
+  }
+
+  private requireUserId(userId: string) {
+    const dbUserId = toDatabaseUserId(userId);
+    if (!dbUserId) throw new BadRequestException("Missing user id");
+    return dbUserId;
+  }
+
+  private toInsertPayload(userId: string, dto: SaveCVRecordDto): CVRecordInsert {
+    const rawDto = dto as Record<string, unknown>;
+    const stats = this.asRecord(dto.stats) ?? {};
+    const content = this.parseCVContent(stats.cv);
+    const textContent =
+      this.trimmedString(dto.textContent) ||
+      this.trimmedString(dto.text_content) ||
+      (content ? this.renderCVText(content) : "");
+
+    if (!textContent) {
+      throw new BadRequestException(
+        "CV record requires textContent or structured content",
+      );
+    }
+
+    const title = this.trimmedString(dto.title) || "My CV";
+
+    return {
+      user_id: userId,
+      title,
+      file_name:
+        this.trimmedString(dto.fileName) ||
+        this.trimmedString(dto.file_name) ||
+        this.defaultFileName(title),
+      file_size: this.toFileSize(dto.fileSize ?? dto.file_size, textContent),
+      mime_type:
+        this.trimmedString(dto.mimeType) ||
+        this.trimmedString(dto.mime_type) ||
+        "text/plain",
+      text_content: textContent,
+      stats,
+      job_target:
+        this.nullableTrimmedString(dto.jobTarget) ||
+        this.nullableTrimmedString(dto.job_target),
+      job_description:
+        this.nullableTrimmedString(dto.jobDescription) ||
+        this.nullableTrimmedString(dto.job_description),
+      analysis: this.asNullableRecord(dto.analysis),
+      optimization: this.asNullableRecord(dto.optimization),
+      generated: Boolean(dto.generated),
+      storage_path:
+        this.nullableTrimmedString(rawDto.storagePath) ||
+        this.nullableTrimmedString(rawDto.storage_path),
+    };
+  }
+
+  private toRecordDto(row: CVRecordRow): PersistedCVRecordDto {
+    const stats = this.asRecord(row.stats) ?? {};
+
+    return {
+      id: row.id,
+      userId: row.user_id,
+      title: row.title,
+      fileName: row.file_name,
+      fileSize: Number(row.file_size ?? 0),
+      mimeType: row.mime_type || "application/octet-stream",
+      textContent: row.text_content || "",
+      content: this.parseCVContent(stats.cv),
+      stats,
+      jobTarget: row.job_target,
+      jobDescription: row.job_description,
+      analysis: this.asNullableRecord(row.analysis),
+      optimization: this.asNullableRecord(row.optimization),
+      generated: Boolean(row.generated),
+      storagePath: row.storage_path,
+      uploadedAt: this.toIsoString(row.uploaded_at),
+      updatedAt: this.toIsoString(row.updated_at),
+    };
+  }
+
+  private parseCVContent(value: unknown): CVDataDto | null {
+    if (!value) return null;
+    const parsed = CVDataSchema.safeParse(value);
+    if (!parsed.success) {
+      throw new BadRequestException("CV content is not valid");
+    }
+    return parsed.data;
+  }
+
+  private renderCVText(cv: CVDataDto) {
+    const sections = [
+      cv.header?.full_name,
+      cv.header?.email,
+      cv.header?.phone,
+      cv.header?.location,
+      cv.summary,
+      ...(cv.skills?.length ? [`Skills: ${cv.skills.join(", ")}`] : []),
+      ...(cv.experience || []).map((item) =>
+        [item.role, item.company, item.description, ...(item.highlights || [])]
+          .filter(Boolean)
+          .join("\n"),
+      ),
+      ...(cv.education || []).map((item) =>
+        [item.degree, item.field, item.institution, ...(item.highlights || [])]
+          .filter(Boolean)
+          .join("\n"),
+      ),
+      ...(cv.projects || []).map((item) =>
+        [item.name, item.description, ...(item.technologies || [])]
+          .filter(Boolean)
+          .join("\n"),
+      ),
+      ...(cv.achievements || []).map((item) =>
+        [item.title, item.description, item.issuer].filter(Boolean).join("\n"),
+      ),
+    ];
+
+    return sections
+      .map((section) => String(section || "").trim())
+      .filter(Boolean)
+      .join("\n\n");
+  }
+
+  private asRecord(value: unknown): Record<string, unknown> | null {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return null;
+    }
+    return value as Record<string, unknown>;
+  }
+
+  private asNullableRecord(value: unknown): Record<string, unknown> | null {
+    return this.asRecord(value);
+  }
+
+  private assertUuid(value: string, label: string) {
+    if (!UUID_PATTERN.test(value)) {
+      throw new BadRequestException(`${label} must be a UUID`);
+    }
+  }
+
+  private throwIfSupabaseError(
+    error: { message?: string } | null,
+    fallback: string,
+  ) {
+    if (!error) return;
+    throw new BadRequestException(error.message || fallback);
+  }
+
+  private defaultFileName(title: string) {
+    const base =
+      title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 60) || "cv";
+    return `${base}.txt`;
+  }
+
+  private toFileSize(fileSize: number | undefined, textContent: string) {
+    if (Number.isFinite(fileSize) && Number(fileSize) >= 0) {
+      return Math.round(Number(fileSize));
+    }
+    return Buffer.byteLength(textContent, "utf8");
+  }
+
+  private nullableTrimmedString(value: unknown): string | null {
+    return this.trimmedString(value) || null;
+  }
+
+  private trimmedString(value: unknown): string {
+    return typeof value === "string" ? value.trim() : "";
+  }
+
+  private toIsoString(value: string | Date | null) {
+    if (value instanceof Date) return value.toISOString();
+    if (typeof value === "string" && value) return value;
+    return new Date(0).toISOString();
   }
 
   private unique(values: Array<string | null | undefined>) {

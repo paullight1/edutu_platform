@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useClerk } from '@clerk/clerk-react';
-import { Loader2 } from 'lucide-react';
-import { consumePostAuthRedirect } from '../lib/auth';
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useClerk } from "@clerk/clerk-react";
+import { Loader2 } from "lucide-react";
+import { consumePostAuthRedirect } from "../lib/auth";
+import PublicEditorialShell from "./PublicEditorialShell";
 
 const AuthCallback: React.FC = () => {
   const { handleRedirectCallback } = useClerk();
@@ -14,11 +15,12 @@ const AuthCallback: React.FC = () => {
     if (attempted) return;
     setAttempted(true);
 
-    const redirectTarget = consumePostAuthRedirect();
+    const redirectTarget = consumePostAuthRedirect("/dashboard");
     const signUpRedirect =
-      redirectTarget === '/opportunities'
-        ? '/opportunities?signup=true'
-        : redirectTarget.startsWith('/opportunities?') && !redirectTarget.includes('signup=true')
+      redirectTarget === "/opportunities"
+        ? "/opportunities?signup=true"
+        : redirectTarget.startsWith("/opportunities?") &&
+            !redirectTarget.includes("signup=true")
           ? `${redirectTarget}&signup=true`
           : redirectTarget;
 
@@ -26,35 +28,43 @@ const AuthCallback: React.FC = () => {
       signInForceRedirectUrl: redirectTarget,
       signUpForceRedirectUrl: signUpRedirect,
     }).catch((err: unknown) => {
-      console.error('Auth callback error:', err);
-      setError('Authentication failed. Please try signing in again.');
+      console.error("Auth callback error:", err);
+      setError("Authentication failed. Please try signing in again.");
     });
   }, [handleRedirectCallback, attempted]);
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#080808', color: '#f5f5f5' }}>
-        <div className="text-center p-8">
-          <p className="text-red-400 mb-4">{error}</p>
-          <button
-            onClick={() => navigate('/auth')}
-            className="px-6 py-3 rounded-xl font-medium"
-            style={{ backgroundColor: '#146ef5', color: '#fff' }}
-          >
-            Back to Sign In
-          </button>
+      <PublicEditorialShell mainClassName="max-w-3xl py-8">
+        <div className="flex min-h-[calc(100dvh-220px)] items-center justify-center text-center">
+          <div className="p-8">
+            <p className="text-red-400 mb-4">{error}</p>
+            <button
+              onClick={() => navigate("/auth")}
+              className="rounded-md bg-slate-950 px-6 py-3 font-medium text-white dark:bg-white dark:text-slate-950"
+            >
+              Back to Sign In
+            </button>
+          </div>
         </div>
-      </div>
+      </PublicEditorialShell>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#080808', color: '#f5f5f5' }}>
-      <div className="text-center">
-        <Loader2 size={40} className="animate-spin mx-auto mb-4" style={{ color: '#146ef5' }} />
-        <p style={{ color: '#ababab' }}>Completing sign in...</p>
+    <PublicEditorialShell mainClassName="max-w-3xl py-8">
+      <div className="flex min-h-[calc(100dvh-220px)] items-center justify-center text-center">
+        <div>
+          <Loader2
+            size={40}
+            className="mx-auto mb-4 animate-spin text-brand-600"
+          />
+          <p className="text-slate-500 dark:text-slate-300">
+            Completing sign in...
+          </p>
+        </div>
       </div>
-    </div>
+    </PublicEditorialShell>
   );
 };
 

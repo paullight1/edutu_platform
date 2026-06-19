@@ -67,6 +67,14 @@ interface AdminInviteResponse {
         createdAt: string;
         updatedAt: string;
     } | null;
+    assignedRole?: AssignableRole;
+    updatedUser?: AdminUserRecord | null;
+    error?: string;
+}
+
+interface AdminUpdateUserRoleResponse {
+    success: boolean;
+    user: AdminUserRecord | null;
     error?: string;
 }
 
@@ -108,6 +116,19 @@ const roleOptions = [
     { value: 'user', label: 'Users' },
     { value: 'admin', label: 'Admins & Staff' },
 ];
+
+const assignableRoleOptions = [
+    { value: 'user', label: 'User' },
+    { value: 'admin', label: 'Admin' },
+    { value: 'moderator', label: 'Moderator' },
+    { value: 'support_agent', label: 'Support Agent' },
+] as const;
+
+type AssignableRole = typeof assignableRoleOptions[number]['value'];
+
+function isAssignableRole(role: string): role is AssignableRole {
+    return assignableRoleOptions.some((option) => option.value === role);
+}
 
 function formatDate(value: string): string {
     const date = new Date(value);
@@ -176,12 +197,14 @@ const Users = () => {
     const [selectedUser, setSelectedUser] = useState<AdminUserRecord | null>(null);
     const [showInviteModal, setShowInviteModal] = useState(false);
     const [inviteEmail, setInviteEmail] = useState('');
+    const [inviteRole, setInviteRole] = useState<AssignableRole>('user');
     const [inviteLoading, setInviteLoading] = useState(false);
+    const [roleUpdatingUserId, setRoleUpdatingUserId] = useState<string | null>(null);
     const [banner, setBanner] = useState<Banner>(null);
 
     const [stats, setStats] = useState<AdminUsersStats>(DEFAULT_STATS);
 
-    const fetchUsers = useCallback(async () => {
+    const fetchUsers = useCallback(async (options: { preserveBanner?: boolean } = {}) => {
         setLoading(true);
         try {
             const response = await backendFetchJson<AdminUsersResponse>('/admin/users?limit=500');
@@ -195,7 +218,7 @@ const Users = () => {
                         ? `Loaded with fallback data: ${response.error}`
                         : 'Loaded with fallback data.',
                 });
-            } else {
+            } else if (!options.preserveBanner) {
                 setBanner(null);
             }
         } catch (error) {
@@ -402,6 +425,18 @@ const Users = () => {
         setSelectedUsers(new Set());
     }, []);
 
+    const openInviteModal = useCallback(() => {
+        setInviteEmail('');
+        setInviteRole('user');
+        setShowInviteModal(true);
+    }, []);
+
+    const closeInviteModal = useCallback(() => {
+        setInviteEmail('');
+        setInviteRole('user');
+        setShowInviteModal(false);
+    }, []);
+
     const handleInviteUser = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
@@ -420,6 +455,7 @@ const Users = () => {
                 },
                 body: JSON.stringify({
                     email,
+                    role: inviteRole,
                     redirectUrl: `${window.location.origin}/login`,
                     notify: true,
                 }),
@@ -436,17 +472,26 @@ const Users = () => {
             if (response.invitation.url) {
                 await copyToClipboard(
                     response.invitation.url,
-                    'Invitation created and the invite link was copied to your clipboard.',
+                    `Invitation created for ${roleLabel(response.assignedRole || inviteRole)} and the invite link was copied to your clipboard.`,
                 );
             } else {
                 setBanner({
                     type: 'success',
-                    message: `Invitation sent to ${email}.`,
+                    message: `Invitation sent to ${email} as ${roleLabel(response.assignedRole || inviteRole)}.`,
                 });
             }
 
-            setShowInviteModal(false);
-            setInviteEmail('');
+            if (response.updatedUser) {
+                setUsers((current) => current.map((user) => (
+                    user.userId === response.updatedUser?.userId ? response.updatedUser : user
+                )));
+                setSelectedUser((current) => (
+                    current?.userId === response.updatedUser?.userId ? response.updatedUser || current : current
+                ));
+            }
+
+            void fetchUsers({ preserveBanner: true });
+            closeInviteModal();
         } catch (error) {
             setBanner({
                 type: 'error',
@@ -454,6 +499,53 @@ const Users = () => {
             });
         } finally {
             setInviteLoading(false);
+        }
+    };
+
+    const handleChangeUserRole = async (user: AdminUserRecord, role: AssignableRole) => {
+        if (user.role === role) {
+            return;
+        }
+
+        setRoleUpdatingUserId(user.userId);
+        try {
+            const response = await backendFetchJson<AdminUpdateUserRoleResponse>(
+                `/admin/users/${encodeURIComponent(user.userId)}/role`,
+                {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ role }),
+                },
+            );
+
+            if (!response.success || !response.user) {
+                setBanner({
+                    type: 'warning',
+                    message: response.error || 'The role could not be updated.',
+                });
+                return;
+            }
+
+            setUsers((current) => current.map((item) => (
+                item.userId === response.user?.userId ? response.user : item
+            )));
+            setSelectedUser((current) => (
+                current?.userId === response.user?.userId ? response.user || current : current
+            ));
+            setBanner({
+                type: 'success',
+                message: `${response.user.fullName} is now ${roleLabel(response.user.role)}.`,
+            });
+            void fetchUsers({ preserveBanner: true });
+        } catch (error) {
+            setBanner({
+                type: 'error',
+                message: error instanceof Error ? error.message : 'Unable to update role.',
+            });
+        } finally {
+            setRoleUpdatingUserId(null);
         }
     };
 
@@ -488,7 +580,7 @@ const Users = () => {
     );
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div className="users-page" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div className="page-header">
                 <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
@@ -508,13 +600,10 @@ const Users = () => {
                     </button>
                     <button
                         className="btn btn-primary"
-                        onClick={() => {
-                            setInviteEmail('');
-                            setShowInviteModal(true);
-                        }}
+                        onClick={openInviteModal}
                     >
                         <UserPlus size={18} />
-                        Invite User
+                        Invite User/Admin
                     </button>
                 </div>
             </div>
@@ -597,7 +686,7 @@ const Users = () => {
                 ))}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+            <div className="users-summary-grid">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
                     {detailedStats.map((stat, index) => (
                         <div key={index} className="card card-hover" style={{ padding: '16px' }}>
@@ -663,7 +752,7 @@ const Users = () => {
             </div>
 
             <div className="card" style={{ padding: '16px 20px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px 180px auto', gap: '12px', alignItems: 'center' }}>
+                <div className="users-toolbar-grid">
                     <div style={{ position: 'relative' }}>
                         <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
                         <input
@@ -740,7 +829,7 @@ const Users = () => {
                     </div>
                 ) : (
                     <div style={{ overflowX: 'auto' }}>
-                        <table className="table">
+                        <table className="table users-table">
                             <thead>
                                 <tr>
                                     <th style={{ width: '40px' }}>
@@ -764,6 +853,8 @@ const Users = () => {
                                 {filteredUsers.map((user) => {
                                     const initials = user.fullName?.trim().charAt(0) || user.email?.trim().charAt(0) || 'U';
                                     const isSelected = selectedUsers.has(user.userId);
+                                    const isRoleUpdating = roleUpdatingUserId === user.userId;
+                                    const canChangeRole = user.role !== 'super_admin';
 
                                     return (
                                         <tr key={user.userId} style={isSelected ? { background: 'rgba(0, 113, 227, 0.04)' } : undefined}>
@@ -839,7 +930,40 @@ const Users = () => {
                                                 </div>
                                             </td>
                                             <td style={{ textAlign: 'right' }}>
-                                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                                <div className="users-role-actions">
+                                                    {canChangeRole && (
+                                                        isPrivilegedRole(user.role) ? (
+                                                            <button
+                                                                className="btn btn-secondary"
+                                                                style={{ padding: '6px 10px' }}
+                                                                title="Remove staff access"
+                                                                disabled={isRoleUpdating}
+                                                                onClick={() => void handleChangeUserRole(user, 'user')}
+                                                            >
+                                                                {isRoleUpdating ? (
+                                                                    <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                                                                ) : (
+                                                                    <Shield size={16} />
+                                                                )}
+                                                                <span>Remove Staff</span>
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                className="btn btn-primary"
+                                                                style={{ padding: '6px 10px' }}
+                                                                title="Promote to admin"
+                                                                disabled={isRoleUpdating}
+                                                                onClick={() => void handleChangeUserRole(user, 'admin')}
+                                                            >
+                                                                {isRoleUpdating ? (
+                                                                    <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                                                                ) : (
+                                                                    <Shield size={16} />
+                                                                )}
+                                                                <span>Make Admin</span>
+                                                            </button>
+                                                        )
+                                                    )}
                                                     <button
                                                         className="btn btn-secondary"
                                                         style={{ padding: '6px 10px' }}
@@ -889,7 +1013,28 @@ const Users = () => {
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px', marginBottom: '20px' }}>
                             <div className="card" style={{ padding: '14px' }}>
                                 <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Role</div>
-                                <div style={{ fontWeight: 600 }}>{roleLabel(selectedUser.role)}</div>
+                                <div style={{ fontWeight: 600, marginBottom: selectedUser.role === 'super_admin' ? 0 : '10px' }}>
+                                    {roleLabel(selectedUser.role)}
+                                </div>
+                                {selectedUser.role !== 'super_admin' && (
+                                    <select
+                                        className="input-field users-role-select"
+                                        value={isAssignableRole(selectedUser.role) ? selectedUser.role : 'user'}
+                                        disabled={roleUpdatingUserId === selectedUser.userId}
+                                        onChange={(event) => {
+                                            void handleChangeUserRole(
+                                                selectedUser,
+                                                event.target.value as AssignableRole,
+                                            );
+                                        }}
+                                    >
+                                        {assignableRoleOptions.map((option) => (
+                                            <option key={option.value} value={option.value}>
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
                             </div>
                             <div className="card" style={{ padding: '14px' }}>
                                 <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Creator Status</div>
@@ -955,10 +1100,7 @@ const Users = () => {
             {showInviteModal && (
                 <div
                     className="modal-overlay"
-                    onClick={() => {
-                        setInviteEmail('');
-                        setShowInviteModal(false);
-                    }}
+                    onClick={closeInviteModal}
                 >
                     <div
                         className="modal-content"
@@ -967,18 +1109,15 @@ const Users = () => {
                     >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', marginBottom: '20px' }}>
                             <div>
-                                <h2 style={{ margin: 0, fontSize: '24px' }}>Invite User</h2>
+                                <h2 style={{ margin: 0, fontSize: '24px' }}>Invite User/Admin</h2>
                                 <p style={{ margin: '6px 0 0 0', color: 'var(--text-tertiary)' }}>
-                                    Send a Clerk invitation to add a new platform user.
+                                    Send a Clerk invitation and assign the platform role.
                                 </p>
                             </div>
                             <button
                                 className="btn btn-secondary"
                                 style={{ padding: '6px 10px' }}
-                                onClick={() => {
-                                    setInviteEmail('');
-                                    setShowInviteModal(false);
-                                }}
+                                onClick={closeInviteModal}
                             >
                                 <X size={16} />
                             </button>
@@ -998,9 +1137,24 @@ const Users = () => {
                                     />
                                 </label>
 
+                                <label style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <span style={{ fontSize: '14px', fontWeight: 600 }}>Platform role</span>
+                                    <select
+                                        className="input-field"
+                                        value={inviteRole}
+                                        onChange={(event) => setInviteRole(event.target.value as AssignableRole)}
+                                    >
+                                        {assignableRoleOptions.map((option) => (
+                                            <option key={option.value} value={option.value}>
+                                                {option.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+
                                 <div className="card" style={{ padding: '14px', background: 'var(--bg-tertiary)' }}>
                                     <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                                        This sends an invite-only Clerk invitation. The new user will appear in the directory after they accept and sign in.
+                                        Admin and staff roles receive dashboard access after accepting the invite.
                                     </div>
                                 </div>
 
@@ -1008,10 +1162,7 @@ const Users = () => {
                                     <button
                                         type="button"
                                         className="btn btn-secondary"
-                                        onClick={() => {
-                                            setInviteEmail('');
-                                            setShowInviteModal(false);
-                                        }}
+                                        onClick={closeInviteModal}
                                     >
                                         Cancel
                                     </button>

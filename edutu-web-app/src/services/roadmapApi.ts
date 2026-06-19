@@ -345,6 +345,10 @@ export async function fetchRoadmaps(options: RoadmapListOptions = {}): Promise<B
   return request<BackendRoadmap[]>(`/roadmaps${toQuery(options)}`);
 }
 
+export async function fetchRoadmapTemplates(options: RoadmapListOptions = {}): Promise<BackendRoadmap[]> {
+  return request<BackendRoadmap[]>(`/roadmaps/templates${toQuery(options)}`);
+}
+
 export async function fetchRoadmap(id: string): Promise<BackendRoadmap> {
   return request<BackendRoadmap>(`/roadmaps/${encodeURIComponent(id)}`);
 }

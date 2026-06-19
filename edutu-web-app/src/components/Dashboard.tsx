@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect, useRef } from "react";
 import {
   Bell,
   Bookmark,
+  BookOpen,
   Bot,
   Briefcase,
   Calendar,
@@ -36,9 +37,8 @@ import type { AppUser } from "../types/user";
 import type { OnboardingProfileData } from "../types/onboarding";
 import { getBookmarks } from "../services/bookmarks";
 import { getApplications } from "../services/applications";
-import { calculateProfileCompleteness } from "../services/profileCompleteness";
-import { getUserPersonalization } from "../services/personalizationService";
-import { fetchUserProfile } from "../services/profile";
+import { getDeadlines, type Deadline } from "../services/deadlines";
+import { fetchBackendProfile } from "../services/profile";
 import ImageWithFallback from "./ImageWithFallback";
 
 const HOME_FEED_BATCH_SIZE = 8;
@@ -72,7 +72,7 @@ const PANEL_COPY: Record<DashboardPanel, { title: string; subtitle: string }> =
     },
     deadlines: {
       title: "Deadlines",
-      subtitle: "Upcoming saved opportunity dates in one place.",
+      subtitle: "Upcoming opportunity, application, and goal dates in one place.",
     },
     profile: {
       title: "Profile match quality",
@@ -112,6 +112,9 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     const homeFeedSentinelRef = useRef<HTMLDivElement | null>(null);
     const [bookmarks, setBookmarks] = useState<any[]>([]);
     const [applications, setApplications] = useState<any[]>([]);
+    const [dashboardDeadlines, setDashboardDeadlines] = useState<Deadline[]>(
+      [],
+    );
     const [profileScore, setProfileScore] = useState<{
       score: number;
       missingFields: string[];
@@ -141,24 +144,23 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
       async function loadProfileData() {
         try {
-          const [profile, personalization] = await Promise.all([
-            fetchUserProfile(userId),
-            getUserPersonalization(userId),
-          ]);
-
-          const completeness = calculateProfileCompleteness(
-            profile,
-            onboardingProfile,
-            personalization,
-          );
-          setProfileScore(completeness);
+          const token = await getToken().catch(() => null);
+          if (!token) return;
+          const profile = await fetchBackendProfile(token);
+          const percent = profile.completeness?.percent ?? 0;
+          setProfileScore({
+            score: percent,
+            missingFields:
+              profile.completeness?.missing.map((field) => field.label) ?? [],
+            isMatchEnabled: percent >= 60,
+          });
         } catch (e) {
           console.error("Failed to load profile completeness:", e);
         }
       }
 
       loadProfileData();
-    }, [user?.id, onboardingProfile]);
+    }, [getToken, user?.id]);
 
     useEffect(() => {
       if (!user?.id) return;
@@ -172,9 +174,15 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
             getBookmarks(userId, token),
             getApplications(userId, token),
           ]);
+          const deadlinesData = token
+            ? await getDeadlines(userId, token)
+            : { groups: [], summary: { total: 0, overdue: 0, urgent: 0, soon: 0, thisWeek: 0, critical: 0 } };
           if (isMounted) {
             setBookmarks(bookmarksData);
             setApplications(appsData);
+            setDashboardDeadlines(
+              deadlinesData.groups.flatMap((group) => group.deadlines),
+            );
           }
         } catch (e) {
           console.error("Failed to load deadlines:", e);
@@ -222,6 +230,12 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           copy: "Use a published plan to turn an opportunity goal into weekly work.",
           action: "Open roadmaps",
           screen: "roadmaps",
+        },
+        {
+          title: "Start from a template",
+          copy: "Adopt a roadmap template into your own calendar and reminder plan.",
+          action: "Open templates",
+          screen: "roadmap-templates",
         },
         {
           title: "Review your shortlist",
@@ -302,41 +316,25 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     };
 
     const upcomingDeadline = useMemo(() => {
-      const upcoming = bookmarks
-        .map((bookmark) => ({
-          id: bookmark.id,
-          title: bookmark.opportunity_title,
-          deadline: bookmark.opportunity_deadline,
-        }))
-        .filter((item) => Boolean(item.deadline))
-        .filter(
-          (item) => !Number.isNaN(new Date(item.deadline as string).getTime()),
-        )
-        .sort(
-          (a, b) =>
-            new Date(a.deadline as string).getTime() -
-            new Date(b.deadline as string).getTime(),
-        );
+      const upcoming = dashboardDeadlines
+        .filter((item) => !Number.isNaN(new Date(item.deadline).getTime()))
+        .sort((a, b) => a.daysUntil - b.daysUntil);
 
       if (upcoming.length === 0) {
         return null;
       }
 
       const nextItem = upcoming[0];
-      const target = new Date(nextItem.deadline as string);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      target.setHours(0, 0, 0, 0);
 
       return {
         id: nextItem.id,
         title: nextItem.title,
-        date: nextItem.deadline as string,
-        daysUntil: Math.ceil(
-          (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
-        ),
+        date: nextItem.deadline,
+        daysUntil: nextItem.daysUntil,
+        type: nextItem.type,
+        sourceId: nextItem.sourceId,
       };
-    }, [bookmarks]);
+    }, [dashboardDeadlines]);
 
     const menuItems = [
       { id: "home", label: "Home", icon: <LayoutGrid size={18} /> },
@@ -348,6 +346,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       { id: "coach", label: "Coach", icon: <Bot size={18} /> },
       { id: "cv", label: "CV", icon: <FileText size={18} /> },
       { id: "roadmaps", label: "Roadmaps", icon: <Map size={18} /> },
+      { id: "roadmap-templates", label: "Templates", icon: <BookOpen size={18} /> },
       { id: "saved", label: "Saved", icon: <Bookmark size={18} /> },
       { id: "applied", label: "Applications", icon: <Send size={18} /> },
       { id: "goals", label: "Goals", icon: <Target size={18} /> },
@@ -366,6 +365,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       { id: "coach", label: "Coach", icon: <Bot size={18} /> },
       { id: "cv", label: "CV", icon: <FileText size={18} /> },
       { id: "roadmaps", label: "Roadmaps", icon: <Map size={18} /> },
+      { id: "roadmap-templates", label: "Templates", icon: <BookOpen size={18} /> },
       { id: "goals", label: "Goals", icon: <Target size={18} /> },
       { id: "deadlines", label: "Deadlines", icon: <Calendar size={18} /> },
     ];
@@ -443,7 +443,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
               : upcomingDeadline.daysUntil === 0
                 ? "Due today"
                 : `Due in ${upcomingDeadline.daysUntil} days`
-            : "Save an opportunity to surface a date",
+            : "Save, apply, or create a goal to surface a date",
           icon: <Clock size={18} />,
           tone: "indigo",
         },
@@ -503,7 +503,8 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         id === "cv-management" ||
         id === "deadlines" ||
         id === "goals" ||
-        id === "roadmaps"
+        id === "roadmaps" ||
+        id === "roadmap-templates"
       ) {
         setActivePanel(null);
         onNavigate?.(id === "cv-management" ? "cv" : id);
@@ -519,9 +520,14 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       if (
         id === "saved" ||
         id === "applied" ||
-        id === "profile" ||
-        id === "settings"
+        id === "profile"
       ) {
+        setActivePanel(null);
+        onNavigate?.(id);
+        return;
+      }
+
+      if (id === "settings") {
         setActivePanel(id);
         return;
       }
@@ -534,6 +540,16 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     };
 
     const handleCalendarEventClick = (event: CalendarEvent) => {
+      if (event.type === "goal") {
+        onNavigate?.("goals");
+        return;
+      }
+
+      if (event.sourceId) {
+        onOpportunityClick({ id: event.sourceId, title: event.title });
+        return;
+      }
+
       if (event.type === "bookmark") {
         const bookmark = bookmarks.find((item) => item.id === event.id);
         if (bookmark?.opportunity_id) {
@@ -567,7 +583,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           title: "Improve your opportunity matches",
           copy: `Your profile is ${profileScore.score}% complete. Add the missing details so recommendations can be ranked with more confidence.`,
           action: "Review profile",
-          onClick: () => setActivePanel("profile"),
+          onClick: () => onNavigate?.("profile"),
           icon: <UserCheck size={20} />,
         };
       }
@@ -581,10 +597,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
               : "Stay ahead of your next deadline",
           copy:
             upcomingDeadline.daysUntil < 0
-              ? "One of your saved opportunities is overdue. Review it and decide whether to apply or archive it."
+              ? "One tracked deadline is overdue. Review it and decide the next action."
               : `Open ${upcomingDeadline.title} and make the next move now.`,
           action: "Review deadlines",
-          onClick: () => setActivePanel("deadlines"),
+          onClick: () => onNavigate?.("deadlines"),
           icon: <Calendar size={20} />,
         };
       }
@@ -612,6 +628,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       applications.length,
       bookmarks.length,
       onViewAllOpportunities,
+      onNavigate,
       upcomingDeadline,
       profileScore,
     ]);
@@ -630,34 +647,19 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     };
 
     const deadlineItems = useMemo(() => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      return bookmarks
-        .map((bookmark) => {
-          const date = bookmark.opportunity_deadline
-            ? new Date(bookmark.opportunity_deadline)
-            : null;
-          if (!date || Number.isNaN(date.getTime())) return null;
-          const normalizedDate = new Date(date);
-          normalizedDate.setHours(0, 0, 0, 0);
-
-          return {
-            id: bookmark.id,
-            opportunityId: bookmark.opportunity_id,
-            title: bookmark.opportunity_title,
-            category: bookmark.opportunity_category,
-            date: bookmark.opportunity_deadline,
-            daysUntil: Math.ceil(
-              (normalizedDate.getTime() - today.getTime()) /
-                (1000 * 60 * 60 * 24),
-            ),
-          };
-        })
-        .filter(Boolean)
-        .sort((a, b) => (a?.daysUntil ?? 0) - (b?.daysUntil ?? 0))
+      return dashboardDeadlines
+        .map((deadline) => ({
+          id: deadline.id,
+          sourceId: deadline.sourceId,
+          type: deadline.type,
+          title: deadline.title,
+          category: deadline.category,
+          date: deadline.deadline,
+          daysUntil: deadline.daysUntil,
+        }))
+        .sort((a, b) => a.daysUntil - b.daysUntil)
         .slice(0, 8);
-    }, [bookmarks]);
+    }, [dashboardDeadlines]);
 
     const formatPanelDate = (date?: string | null) => {
       if (!date) return "No date";
@@ -828,13 +830,20 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() =>
-                      openPanelOpportunity({
-                        id: item.opportunityId,
-                        title: item.title,
-                        category: item.category,
-                      })
-                    }
+                    onClick={() => {
+                      if (item.type === "goal") {
+                        onNavigate?.("goals");
+                        return;
+                      }
+
+                      if (item.sourceId) {
+                        openPanelOpportunity({
+                          id: item.sourceId,
+                          title: item.title,
+                          category: item.category,
+                        });
+                      }
+                    }}
                     className={`w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 ${isDarkMode ? "border-white/10 bg-white/5 hover:bg-white/10" : "border-slate-200 bg-white hover:shadow-sm"}`}
                   >
                     <div className="flex items-start gap-3">
@@ -1426,11 +1435,14 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
               )}
             </AnimatePresence>
 
-            {(bookmarks.length > 0 || applications.length > 0) && (
+            {(bookmarks.length > 0 ||
+              applications.length > 0 ||
+              dashboardDeadlines.length > 0) && (
               <section>
                 <CalendarStrip
                   bookmarks={bookmarks}
                   applications={applications}
+                  deadlines={dashboardDeadlines}
                   onEventClick={handleCalendarEventClick}
                 />
               </section>

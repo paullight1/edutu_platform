@@ -1,5 +1,5 @@
-export type OpportunityDifficulty = 'Easy' | 'Medium' | 'Hard';
-export type OpportunitySource = 'admin' | 'n8n' | 'manual' | 'import';
+export type OpportunityDifficulty = "Easy" | "Medium" | "Hard";
+export type OpportunitySource = "admin" | "n8n" | "manual" | "import";
 
 export interface Opportunity {
   id: string;
@@ -8,6 +8,7 @@ export interface Opportunity {
   category: string;
   deadline?: string | null;
   location: string;
+  summary?: string | null;
   description: string;
   requirements: string[];
   benefits: string[];
@@ -48,8 +49,8 @@ export interface OpportunityFilters {
   minMatch?: number;
   tags?: string[];
   search?: string;
-  sortBy?: 'match' | 'deadline' | 'createdAt' | 'viewCount';
-  sortOrder?: 'asc' | 'desc';
+  sortBy?: "match" | "deadline" | "createdAt" | "viewCount";
+  sortOrder?: "asc" | "desc";
   limit?: number;
   offset?: number;
 }

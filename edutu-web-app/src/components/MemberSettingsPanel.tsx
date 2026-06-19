@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   Trash2,
 } from "lucide-react";
+import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { useNotifications } from "../hooks/useNotifications";
 import {
   exportUserData,
@@ -131,6 +132,7 @@ export default function MemberSettingsPanel({
   onOpenNotifications,
   onOpenWallet,
 }: MemberSettingsPanelProps) {
+  const { getToken } = useClerkAuth();
   const { unreadCount } = useNotifications();
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [draftPrivacy, setDraftPrivacy] =
@@ -150,7 +152,8 @@ export default function MemberSettingsPanel({
       setLoading(true);
       setError(null);
       try {
-        const loaded = await getUserSettings();
+        const token = await getToken().catch(() => null);
+        const loaded = await getUserSettings(token);
         if (!mounted) return;
         setSettings(loaded);
         setDraftPrivacy(loaded?.privacy ?? defaultPrivacy);
@@ -171,7 +174,7 @@ export default function MemberSettingsPanel({
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [getToken]);
 
   const isDirty = useMemo(() => {
     const current = settings?.privacy ?? defaultPrivacy;
@@ -189,11 +192,12 @@ export default function MemberSettingsPanel({
     setError(null);
     setStatus(null);
     try {
-      const result = await savePrivacySettings(draftPrivacy);
+      const token = await getToken().catch(() => null);
+      const result = await savePrivacySettings(draftPrivacy, token);
       if (!result.success) {
         throw new Error(result.error || "Unable to save privacy settings.");
       }
-      const nextSettings = await getUserSettings();
+      const nextSettings = await getUserSettings(token);
       setSettings(nextSettings);
       setDraftPrivacy(nextSettings?.privacy ?? draftPrivacy);
       setStatus("Privacy settings saved.");
@@ -228,12 +232,13 @@ export default function MemberSettingsPanel({
     setStatus(null);
     setError(null);
     try {
-      const result = await exportUserData();
+      const token = await getToken().catch(() => null);
+      const result = await exportUserData(token);
       if (!result.success || !result.data) {
         throw new Error(result.error || "Unable to export account data.");
       }
       downloadJson("edutu-account-export.json", result.data);
-      const nextSettings = await getUserSettings();
+      const nextSettings = await getUserSettings(token);
       setSettings(nextSettings);
       setStatus("Account export prepared.");
     } catch (exportError) {
@@ -252,7 +257,8 @@ export default function MemberSettingsPanel({
     setStatus(null);
     setError(null);
     try {
-      const result = await requestAccountDeletion();
+      const token = await getToken().catch(() => null);
+      const result = await requestAccountDeletion(token);
       if (!result.success) {
         throw new Error(result.error || "Unable to request account deletion.");
       }

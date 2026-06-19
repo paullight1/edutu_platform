@@ -22,13 +22,14 @@ $$ language plpgsql;
 -- Profiles & user metadata
 -- ------------------------------------------------------------------
 create table if not exists public.profiles (
-  user_id uuid primary key references auth.users on delete cascade,
+  user_id uuid primary key,
   email text,
   full_name text,
   age smallint,
   avatar_url text,
   bio text,
   preferences jsonb not null default '{}'::jsonb,
+  settings jsonb not null default '{}'::jsonb,
   last_seen_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -79,11 +80,12 @@ create policy "Users can update own profile"
 -- ------------------------------------------------------------------
 create table if not exists public.goals (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users on delete cascade,
+  user_id uuid not null,
   title text not null,
   description text,
   category text,
   deadline date,
+  target_date timestamptz,
   progress numeric(5,2) not null default 0 check (progress >= 0 and progress <= 100),
   status text not null default 'active' check (status in ('active','completed','archived')),
   priority text check (priority in ('low','medium','high')),
@@ -96,6 +98,7 @@ create table if not exists public.goals (
 
 create index if not exists goals_user_idx on public.goals (user_id);
 create index if not exists goals_status_idx on public.goals (status);
+create index if not exists goals_target_date_idx on public.goals (user_id, target_date);
 
 create trigger set_timestamp_goals
 before update on public.goals
@@ -109,10 +112,21 @@ create policy "Users manage own goals"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+create table if not exists public.milestones (
+  id uuid primary key default gen_random_uuid(),
+  goal_id uuid not null references public.goals on delete cascade,
+  title text not null,
+  completed boolean not null default false,
+  "order" integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists milestones_goal_idx on public.milestones (goal_id, "order");
+
 create table if not exists public.goal_progress_entries (
   id uuid primary key default gen_random_uuid(),
   goal_id uuid not null references public.goals on delete cascade,
-  user_id uuid not null references auth.users on delete cascade,
+  user_id uuid not null,
   progress numeric(5,2) not null check (progress >= 0 and progress <= 100),
   progress_delta numeric(5,2) not null default 0 check (progress_delta >= -100 and progress_delta <= 100),
   note text,
@@ -132,7 +146,7 @@ create index if not exists goal_progress_created_idx on public.goal_progress_ent
 
 create table if not exists public.goal_daily_metrics (
   id bigserial primary key,
-  user_id uuid not null references auth.users on delete cascade,
+  user_id uuid not null,
   metric_date date not null,
   goals_created integer not null default 0,
   goals_completed integer not null default 0,
@@ -461,7 +475,8 @@ begin
       'status', new.status,
       'priority', new.priority,
       'category', new.category,
-      'deadline', new.deadline
+      'deadline', coalesce(new.target_date, new.deadline::timestamptz),
+      'target_date', new.target_date
     )
   );
 
@@ -749,7 +764,7 @@ execute function public.handle_goal_delete();
 -- ------------------------------------------------------------------
 create table if not exists public.chat_threads (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users on delete cascade,
+  user_id uuid not null,
   title text,
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
@@ -774,7 +789,7 @@ create policy "Users manage own chat threads"
 create table if not exists public.chat_messages (
   id uuid primary key default gen_random_uuid(),
   thread_id uuid not null references public.chat_threads on delete cascade,
-  user_id uuid references auth.users on delete cascade,
+  user_id uuid,
   role text not null check (role in ('user','assistant','system')),
   content text not null,
   metadata jsonb not null default '{}'::jsonb,
@@ -797,7 +812,7 @@ create policy "Users access own chat messages"
 
 create table if not exists public.chat_usage (
   id bigserial primary key,
-  user_id uuid not null references auth.users on delete cascade,
+  user_id uuid not null,
   period_start date not null,
   period_end date not null,
   total_requests integer not null default 0,
@@ -830,7 +845,7 @@ create policy "Service role manages chat usage"
 -- ------------------------------------------------------------------
 create table if not exists public.cv_records (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users on delete cascade,
+  user_id uuid not null,
   title text not null,
   file_name text not null,
   file_size integer not null,
@@ -999,7 +1014,7 @@ create policy "Service role manages opportunities"
   with check (auth.role() = 'service_role');
 
 create table if not exists public.opportunity_bookmarks (
-  user_id uuid not null references auth.users on delete cascade,
+  user_id uuid not null,
   opportunity_id uuid not null references public.opportunities on delete cascade,
   saved_at timestamptz not null default now(),
   priority text check (priority in ('low','medium','high')),
@@ -1016,7 +1031,7 @@ create policy "Users manage own opportunity bookmarks"
 
 create table if not exists public.opportunity_applications (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users on delete cascade,
+  user_id uuid not null,
   opportunity_id uuid not null references public.opportunities on delete cascade,
   status text not null default 'draft' check (status in ('draft','submitted','interview','offer','rejected','withdrawn')),
   submitted_at timestamptz,
@@ -1330,7 +1345,7 @@ create policy "Service role manages feature flags"
 -- ------------------------------------------------------------------
 create table if not exists public.notifications (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users on delete cascade,
+  user_id uuid not null,
   kind text not null check (kind in ('goal-reminder','goal-weekly-digest','goal-progress','opportunity-highlight','admin-broadcast','system')),
   title text not null,
   body text not null,
@@ -1358,7 +1373,7 @@ create policy "Users update own notifications"
   with check (auth.uid() = user_id);
 
 create table if not exists public.notification_preferences (
-  user_id uuid primary key references auth.users on delete cascade,
+  user_id uuid primary key,
   push_notifications boolean not null default true,
   email_notifications boolean not null default false,
   opportunity_alerts boolean not null default true,
@@ -1384,7 +1399,7 @@ create policy "Users manage own notification preferences"
 
 create table if not exists public.notification_push_tokens (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users on delete cascade,
+  user_id uuid not null,
   provider text not null default 'fcm',
   token text not null,
   device jsonb not null default '{}'::jsonb,

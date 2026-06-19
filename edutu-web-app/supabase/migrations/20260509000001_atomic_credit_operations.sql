@@ -59,7 +59,7 @@ BEGIN
   RETURNING credits INTO v_new_balance;
 
   INSERT INTO credit_transactions (user_id, amount, type, description, related_id, related_type)
-  VALUES (p_user_id, p_amount, 'add', p_description, p_related_id, p_related_type);
+  VALUES (p_user_id, p_amount, 'admin_grant', p_description, p_related_id, p_related_type);
 
   RETURN QUERY SELECT TRUE, v_new_balance, ''::TEXT;
 END;

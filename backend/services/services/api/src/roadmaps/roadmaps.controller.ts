@@ -17,10 +17,21 @@ import type {
   RoadmapFeedbackDto,
   AIAssistDto,
   AdoptRoadmapDto,
+  UpdateRoadmapProgressDto,
+} from "./dto/roadmap.dto";
+import {
+  AIAssistDtoSchema,
+  AdoptRoadmapDtoSchema,
+  CreateRoadmapDtoSchema,
+  RoadmapFeedbackDtoSchema,
+  RoadmapIntentDtoSchema,
+  UpdateRoadmapDtoSchema,
+  UpdateRoadmapProgressSchema,
 } from "./dto/roadmap.dto";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { Public } from "../auth/public.decorator";
 import { AdminGuard } from "../auth/admin.guard";
+import { ZodValidationPipe } from "../common/zod-validation.pipe";
 
 @Controller("roadmaps")
 export class RoadmapsController {
@@ -54,6 +65,26 @@ export class RoadmapsController {
     return this.roadmapsService.findBySlug(slug);
   }
 
+  @Public()
+  @Get("templates")
+  findTemplates(
+    @Query("category") category?: string,
+    @Query("difficulty") difficulty?: string,
+    @Query("search") search?: string,
+    @Query("featured") featured?: string,
+    @Query("limit") limit?: number,
+    @Query("offset") offset?: number,
+  ) {
+    return this.roadmapsService.findTemplates({
+      category,
+      difficulty,
+      search,
+      featured: featured === "true",
+      limit,
+      offset,
+    });
+  }
+
   @Get("admin/list")
   @UseGuards(AdminGuard)
   findAllForAdmin(
@@ -79,7 +110,8 @@ export class RoadmapsController {
   @Post()
   @UseGuards(AdminGuard)
   create(
-    @Body() dto: CreateRoadmapDto,
+    @Body(new ZodValidationPipe(CreateRoadmapDtoSchema))
+    dto: CreateRoadmapDto,
     @CurrentUser("id") userId: string,
     @CurrentUser() user: any,
   ) {
@@ -88,7 +120,8 @@ export class RoadmapsController {
 
   @Post("creator")
   createByCreator(
-    @Body() dto: CreateRoadmapDto,
+    @Body(new ZodValidationPipe(CreateRoadmapDtoSchema))
+    dto: CreateRoadmapDto,
     @CurrentUser("id") userId: string,
     @CurrentUser() user: any,
   ) {
@@ -101,7 +134,11 @@ export class RoadmapsController {
 
   @Put(":id")
   @UseGuards(AdminGuard)
-  update(@Param("id") id: string, @Body() dto: UpdateRoadmapDto) {
+  update(
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(UpdateRoadmapDtoSchema))
+    dto: UpdateRoadmapDto,
+  ) {
     return this.roadmapsService.update(id, dto);
   }
 
@@ -115,7 +152,8 @@ export class RoadmapsController {
   adopt(
     @Param("roadmapId") roadmapId: string,
     @CurrentUser("id") userId: string,
-    @Body() dto: AdoptRoadmapDto,
+    @Body(new ZodValidationPipe(AdoptRoadmapDtoSchema))
+    dto: AdoptRoadmapDto,
   ) {
     return this.roadmapsService.adopt(userId, roadmapId, dto);
   }
@@ -145,7 +183,8 @@ export class RoadmapsController {
   updateProgress(
     @Param("roadmapId") roadmapId: string,
     @CurrentUser("id") userId: string,
-    @Body() body: { stepId: string; completed: boolean },
+    @Body(new ZodValidationPipe(UpdateRoadmapProgressSchema))
+    body: UpdateRoadmapProgressDto,
   ) {
     return this.roadmapsService.updateProgress(
       userId,
@@ -156,7 +195,11 @@ export class RoadmapsController {
   }
 
   @Post("intent")
-  saveIntent(@CurrentUser("id") userId: string, @Body() dto: RoadmapIntentDto) {
+  saveIntent(
+    @CurrentUser("id") userId: string,
+    @Body(new ZodValidationPipe(RoadmapIntentDtoSchema))
+    dto: RoadmapIntentDto,
+  ) {
     return this.roadmapsService.saveIntent(userId, dto);
   }
 
@@ -176,7 +219,8 @@ export class RoadmapsController {
   @Post("feedback")
   submitFeedback(
     @CurrentUser("id") userId: string,
-    @Body() dto: RoadmapFeedbackDto,
+    @Body(new ZodValidationPipe(RoadmapFeedbackDtoSchema))
+    dto: RoadmapFeedbackDto,
   ) {
     return this.roadmapsService.submitFeedback(userId, dto);
   }
@@ -189,7 +233,10 @@ export class RoadmapsController {
 
   @Public()
   @Post("ai/assist")
-  generateAIMatch(@Body() dto: AIAssistDto) {
+  generateAIMatch(
+    @Body(new ZodValidationPipe(AIAssistDtoSchema))
+    dto: AIAssistDto,
+  ) {
     return this.roadmapsService.generateAIMatchQuestions(
       dto.topic,
       dto.category,

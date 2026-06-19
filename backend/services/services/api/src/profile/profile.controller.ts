@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch } from "@nestjs/common";
+import { Body, Controller, Get, Patch, Post } from "@nestjs/common";
 import { CurrentUser } from "../auth";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -9,7 +9,9 @@ import {
 } from "../opportunities/dto/personalization.dto";
 import {
   ProfileNotificationPreferencesSchema,
+  UpdateMemberSettingsSchema,
   UpdateProfileSchema,
+  type UpdateMemberSettingsDto,
   type ProfileNotificationPreferencesDto,
   type UpdateProfileDto,
 } from "./dto/profile.dto";
@@ -42,6 +44,30 @@ export class ProfileController {
   @Get("completeness")
   getCompleteness(@CurrentUser() user: AuthenticatedProfileUser) {
     return this.profileService.getCompleteness(user);
+  }
+
+  @Get("settings")
+  getMemberSettings(@CurrentUser() user: AuthenticatedProfileUser) {
+    return this.profileService.getMemberSettings(user);
+  }
+
+  @Patch("settings")
+  updateMemberSettings(
+    @CurrentUser() user: AuthenticatedProfileUser,
+    @Body(new ZodValidationPipe(UpdateMemberSettingsSchema))
+    body: UpdateMemberSettingsDto,
+  ) {
+    return this.profileService.updateMemberSettings(user, body);
+  }
+
+  @Post("export")
+  exportAccountData(@CurrentUser() user: AuthenticatedProfileUser) {
+    return this.profileService.exportAccountData(user);
+  }
+
+  @Patch("deletion-request")
+  requestDeletion(@CurrentUser() user: AuthenticatedProfileUser) {
+    return this.profileService.requestDeletion(user);
   }
 
   @Get("preferences")

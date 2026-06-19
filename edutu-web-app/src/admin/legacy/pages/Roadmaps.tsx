@@ -302,7 +302,7 @@ const Roadmaps = () => {
                                     <>
                                         <tr key={item.id}>
                                             <td>
-                                                <button onClick={() => { const n = new Set(expandedRows); n.has(item.id) ? n.delete(item.id) : n.add(item.id); setExpandedRows(n); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)' }}>
+                                                <button onClick={() => { const n = new Set(expandedRows); if (n.has(item.id)) { n.delete(item.id); } else { n.add(item.id); } setExpandedRows(n); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)' }}>
                                                     {expandedRows.has(item.id) ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                                                 </button>
                                             </td>

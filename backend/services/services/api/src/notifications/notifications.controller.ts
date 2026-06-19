@@ -54,11 +54,6 @@ export class NotificationsController {
     return this.notificationsService.markAllRead(userId);
   }
 
-  @Delete(":id")
-  remove(@CurrentUser("id") userId: string, @Param("id") id: string) {
-    return this.notificationsService.deleteForUser(userId, id);
-  }
-
   @Get("preferences")
   getPreferences(@CurrentUser("id") userId: string) {
     return this.notificationsService.getPreferences(userId);
@@ -80,6 +75,19 @@ export class NotificationsController {
     body: RegisterPushTokenDto,
   ) {
     return this.notificationsService.registerPushToken(userId, body);
+  }
+
+  @Delete("push-token/:token")
+  unregisterPushToken(
+    @CurrentUser("id") userId: string,
+    @Param("token") token: string,
+  ) {
+    return this.notificationsService.unregisterPushToken(userId, token);
+  }
+
+  @Delete(":id")
+  remove(@CurrentUser("id") userId: string, @Param("id") id: string) {
+    return this.notificationsService.deleteForUser(userId, id);
   }
 
   @Post("admin/broadcast")

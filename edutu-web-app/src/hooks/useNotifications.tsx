@@ -4,30 +4,20 @@ import React, {
   useContext,
   useEffect,
   useMemo,
-  useRef,
-  useState
-} from 'react';
-import { supabase } from '../lib/supabaseClient';
-import { useAuth } from '@clerk/clerk-react';
-import type {
-  AppNotification,
-  NotificationDraft,
-  PushPermissionState
-} from '../types/notification';
+  useState,
+} from "react";
+import { useAuth } from "@clerk/clerk-react";
+import type { AppNotification } from "../types/notification";
 import {
   deleteNotification as deleteNotificationService,
   fetchNotifications,
   getNotificationPreferences,
   markAllNotificationsRead,
   markNotificationRead,
-  registerPushToken,
   saveNotificationPreferences,
-  sendNotification as sendNotificationService,
-  unregisterPushToken,
   type FetchNotificationsParams,
-  type NotificationPreferences
-} from '../services/notifications';
-import { toDatabaseUserId } from '../lib/userId';
+  type NotificationPreferences,
+} from "../services/notifications";
 
 interface NotificationsContextValue {
   notifications: AppNotification[];
@@ -35,57 +25,33 @@ interface NotificationsContextValue {
   loading: boolean;
   error: string | null;
   hasMore: boolean;
+  refresh: () => Promise<void>;
   fetchMore: () => Promise<void>;
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
   deleteNotification: (id: string) => Promise<void>;
-  sendNotification: (draft: NotificationDraft, options?: { userId?: string }) => Promise<AppNotification | null>;
   preferences: NotificationPreferences | null;
   savePreferences: (updates: Partial<NotificationPreferences>) => Promise<void>;
   refreshPreferences: () => Promise<void>;
-  pushPermission: PushPermissionState;
-  requestPushPermission: () => Promise<PushPermissionState>;
-  registerPushToken: (token: string, metadata?: Record<string, unknown>) => Promise<void>;
-  unregisterPushToken: (token: string) => Promise<void>;
 }
 
-const NotificationsContext = createContext<NotificationsContextValue | undefined>(undefined);
+const NotificationsContext = createContext<
+  NotificationsContextValue | undefined
+>(undefined);
 
-const mapRealtimeRow = (row: Record<string, unknown>): AppNotification | null => {
-  if (!row?.id || typeof row.id !== 'string') {
-    return null;
-  }
-
-  return {
-    id: row.id,
-    kind: (row.kind as AppNotification['kind']) ?? 'system',
-    title: typeof row.title === 'string' ? row.title : 'Notification',
-    body: typeof row.body === 'string' ? row.body : '',
-    severity: (row.severity as AppNotification['severity']) ?? 'info',
-    metadata: (row.metadata as Record<string, unknown>) ?? undefined,
-    dedupeKey: typeof row.dedupe_key === 'string' ? row.dedupe_key : undefined,
-    createdAt: typeof row.created_at === 'string' ? row.created_at : new Date().toISOString(),
-    readAt: typeof row.read_at === 'string' ? row.read_at : row.read_at === null ? null : null
-  };
-};
-
-export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isSignedIn, userId, getToken } = useAuth();
+export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const { userId, getToken } = useAuth();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState<boolean>(false);
-  const [preferences, setPreferences] = useState<NotificationPreferences | null>(null);
-  const [pushPermission, setPushPermission] = useState<PushPermissionState>(() => {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      return 'unsupported';
-    }
-    return Notification.permission;
-  });
+  const [preferences, setPreferences] =
+    useState<NotificationPreferences | null>(null);
 
-  const nextCursorRef = useRef<string | null>(null);
-  const fetchingRef = useRef(false);
-  const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const nextCursorRef = React.useRef<string | null>(null);
+  const fetchingRef = React.useRef(false);
 
   const resetState = useCallback(() => {
     setNotifications([]);
@@ -108,7 +74,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       try {
         const limit = options.limit ?? 20;
         const token = await getToken();
-        const data = await fetchNotifications(options, token);
+        const data = await fetchNotifications({ ...options, userId }, token);
 
         setNotifications((prev) => {
           if (!options.cursor) {
@@ -133,14 +99,18 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
           setHasMore(Boolean(last));
         }
       } catch (fetchError) {
-        console.error('Failed to load notifications', fetchError);
-        setError(fetchError instanceof Error ? fetchError.message : 'Unable to load notifications.');
+        console.error("Failed to load notifications", fetchError);
+        setError(
+          fetchError instanceof Error
+            ? fetchError.message
+            : "Unable to load notifications.",
+        );
       } finally {
         fetchingRef.current = false;
         setLoading(false);
       }
     },
-    [getToken, userId]
+    [getToken, userId],
   );
 
   const fetchMore = useCallback(async () => {
@@ -160,9 +130,13 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       const prefs = await getNotificationPreferences(userId, token);
       setPreferences(prefs);
     } catch (prefError) {
-      console.error('Failed to load notification preferences', prefError);
+      console.error("Failed to load notification preferences", prefError);
     }
   }, [getToken, userId]);
+
+  const refresh = useCallback(async () => {
+    await Promise.all([loadNotifications(), loadPreferences()]);
+  }, [loadNotifications, loadPreferences]);
 
   useEffect(() => {
     if (!userId) {
@@ -176,90 +150,36 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [userId, loadNotifications, loadPreferences, resetState]);
 
   useEffect(() => {
-    if (!userId) {
-      if (realtimeChannelRef.current) {
-        supabase.removeChannel(realtimeChannelRef.current);
-        realtimeChannelRef.current = null;
+    if (!userId || typeof window === "undefined") return;
+
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "visible") {
+        void loadNotifications();
       }
-      return;
-    }
+    };
 
-    if (realtimeChannelRef.current) {
-      supabase.removeChannel(realtimeChannelRef.current);
-      realtimeChannelRef.current = null;
-    }
-
-    const databaseUserId = toDatabaseUserId(userId);
-    const channel = supabase
-      .channel(`notifications:${databaseUserId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${databaseUserId}` },
-        (payload) => {
-          const mapped = mapRealtimeRow(payload.new);
-          if (mapped) {
-            setNotifications((prev) => {
-              const exists = prev.find((item) => item.id === mapped.id);
-              if (exists) {
-                return prev;
-              }
-              return [mapped, ...prev];
-            });
-            if (
-              typeof window !== 'undefined' &&
-              'Notification' in window &&
-              Notification.permission === 'granted'
-            ) {
-              new Notification(mapped.title, {
-                body: mapped.body,
-                tag: mapped.id,
-                data: mapped.metadata
-              });
-            }
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${databaseUserId}` },
-        (payload) => {
-          const mapped = mapRealtimeRow(payload.new);
-          if (mapped) {
-            setNotifications((prev) =>
-              prev.map((item) => (item.id === mapped.id ? { ...item, ...mapped } : item))
-            );
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'notifications', filter: `user_id=eq.${databaseUserId}` },
-        (payload) => {
-          const deletedId = typeof payload.old?.id === 'string' ? payload.old.id : null;
-          if (deletedId) {
-            setNotifications((prev) => prev.filter((item) => item.id !== deletedId));
-          }
-        }
-      )
-      .subscribe();
-
-  realtimeChannelRef.current = channel;
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", refreshOnFocus);
 
     return () => {
-      supabase.removeChannel(channel);
-      realtimeChannelRef.current = null;
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", refreshOnFocus);
     };
-  }, [userId]);
+  }, [loadNotifications, userId]);
 
   const markAsReadHandler = useCallback(
     async (notificationId: string) => {
       const token = await getToken();
       await markNotificationRead(notificationId, true, token);
       setNotifications((prev) =>
-        prev.map((item) => (item.id === notificationId ? { ...item, readAt: new Date().toISOString() } : item))
+        prev.map((item) =>
+          item.id === notificationId
+            ? { ...item, readAt: new Date().toISOString() }
+            : item,
+        ),
       );
     },
-    [getToken]
+    [getToken],
   );
 
   const markAllAsReadHandler = useCallback(async () => {
@@ -269,40 +189,28 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     const token = await getToken();
     await markAllNotificationsRead(userId, token);
     const timestamp = new Date().toISOString();
-    setNotifications((prev) => prev.map((item) => ({ ...item, readAt: item.readAt ?? timestamp })));
+    setNotifications((prev) =>
+      prev.map((item) => ({ ...item, readAt: item.readAt ?? timestamp })),
+    );
   }, [getToken, userId]);
 
-  const deleteNotificationHandler = useCallback(async (notificationId: string) => {
-    const token = await getToken();
-    await deleteNotificationService(notificationId, token);
-    setNotifications((prev) => prev.filter((item) => item.id !== notificationId));
-  }, [getToken]);
-
-  const sendNotificationHandler = useCallback(
-    async (draft: NotificationDraft, options?: { userId?: string }) => {
-      const targetUserId = options?.userId ?? userId;
-      if (!targetUserId) {
-        console.warn('Cannot send notification without a user id');
-        return null;
-      }
-
-      const entry = await sendNotificationService(targetUserId, draft);
-      setNotifications((prev) => {
-        const exists = prev.find((item) => item.id === entry.id);
-        if (exists) {
-          return prev;
-        }
-        return [entry, ...prev];
-      });
-      return entry;
+  const deleteNotificationHandler = useCallback(
+    async (notificationId: string) => {
+      const token = await getToken();
+      await deleteNotificationService(notificationId, token);
+      setNotifications((prev) =>
+        prev.filter((item) => item.id !== notificationId),
+      );
     },
-    [userId]
+    [getToken],
   );
 
   const savePreferencesHandler = useCallback(
     async (updates: Partial<NotificationPreferences>) => {
       if (!userId) {
-        throw new Error('User must be signed in to update notification preferences.');
+        throw new Error(
+          "User must be signed in to update notification preferences.",
+        );
       }
 
       const nextPreferences: NotificationPreferences = {
@@ -315,71 +223,31 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
           achievementCelebrations: true,
           weeklyDigest: false,
           marketingEmails: false,
-          quietHours: { start: '22:00', end: '08:00' },
-          updatedAt: new Date().toISOString()
+          quietHours: { start: "22:00", end: "08:00" },
+          updatedAt: new Date().toISOString(),
         }),
         ...updates,
         quietHours: {
-          ...(preferences?.quietHours ?? { start: '22:00', end: '08:00' }),
-          ...(updates.quietHours ?? {})
+          ...(preferences?.quietHours ?? { start: "22:00", end: "08:00" }),
+          ...(updates.quietHours ?? {}),
         },
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       };
 
       const token = await getToken();
       await saveNotificationPreferences(userId, nextPreferences, token);
       setPreferences(nextPreferences);
     },
-    [getToken, preferences, userId]
+    [getToken, preferences, userId],
   );
 
   const refreshPreferences = useCallback(async () => {
     await loadPreferences();
   }, [loadPreferences]);
 
-  const requestPushPermission = useCallback(async () => {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      setPushPermission('unsupported');
-      return 'unsupported';
-    }
-
-    if (Notification.permission === 'granted') {
-      setPushPermission('granted');
-      return 'granted';
-    }
-
-    const permission = await Notification.requestPermission();
-    setPushPermission(permission);
-    return permission;
-  }, []);
-
-  const registerPushTokenHandler = useCallback(
-    async (token: string, metadata?: Record<string, unknown>) => {
-      if (!userId) {
-        throw new Error('User must be signed in to register a push token.');
-      }
-      const authToken = await getToken();
-      await registerPushToken(userId, {
-        token,
-        device: metadata
-      }, authToken);
-    },
-    [getToken, userId]
-  );
-
-  const unregisterPushTokenHandler = useCallback(
-    async (token: string) => {
-      if (!userId) {
-        return;
-      }
-      await unregisterPushToken(userId, token);
-    },
-    [userId]
-  );
-
   const unreadCount = useMemo(
     () => notifications.filter((notification) => !notification.readAt).length,
-    [notifications]
+    [notifications],
   );
 
   const contextValue = useMemo<NotificationsContextValue>(
@@ -389,18 +257,14 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       loading,
       error,
       hasMore,
+      refresh,
       fetchMore,
       markAsRead: markAsReadHandler,
       markAllAsRead: markAllAsReadHandler,
       deleteNotification: deleteNotificationHandler,
-      sendNotification: sendNotificationHandler,
       preferences,
       savePreferences: savePreferencesHandler,
       refreshPreferences,
-      pushPermission,
-      requestPushPermission,
-      registerPushToken: registerPushTokenHandler,
-      unregisterPushToken: unregisterPushTokenHandler
     }),
     [
       notifications,
@@ -408,28 +272,30 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       loading,
       error,
       hasMore,
+      refresh,
       fetchMore,
       markAsReadHandler,
       markAllAsReadHandler,
       deleteNotificationHandler,
-      sendNotificationHandler,
       preferences,
       savePreferencesHandler,
       refreshPreferences,
-      pushPermission,
-      requestPushPermission,
-      registerPushTokenHandler,
-      unregisterPushTokenHandler
-    ]
+    ],
   );
 
-  return <NotificationsContext.Provider value={contextValue}>{children}</NotificationsContext.Provider>;
+  return (
+    <NotificationsContext.Provider value={contextValue}>
+      {children}
+    </NotificationsContext.Provider>
+  );
 };
 
 export function useNotifications() {
   const context = useContext(NotificationsContext);
   if (!context) {
-    throw new Error('useNotifications must be used within a NotificationsProvider');
+    throw new Error(
+      "useNotifications must be used within a NotificationsProvider",
+    );
   }
   return context;
 }

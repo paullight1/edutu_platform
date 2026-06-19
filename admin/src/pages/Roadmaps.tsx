@@ -100,7 +100,11 @@ const Roadmaps = () => {
     const fetchRoadmaps = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await fetch(`${API_URL}/roadmaps?status=${statusFilter === 'all' ? '' : statusFilter}&limit=100`);
+            const query = new URLSearchParams({ limit: '100' });
+            if (statusFilter !== 'all') query.set('status', statusFilter);
+            const res = await fetch(`${API_URL}/roadmaps/admin/list?${query.toString()}`, {
+                headers: await getAuthHeaders(),
+            });
             if (res.ok) {
                 const data = await res.json();
                 setRoadmaps(data);

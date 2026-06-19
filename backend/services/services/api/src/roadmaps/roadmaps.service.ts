@@ -45,6 +45,10 @@ type AdoptedPlanStep = RoadmapStep & {
   completed?: boolean;
 };
 
+const featuredFirstOrder = desc(
+  sql`case when ${roadmaps.isFeatured} = true then 1 else 0 end`,
+);
+
 @Injectable()
 export class RoadmapsService {
   private readonly logger = new Logger(RoadmapsService.name);
@@ -83,7 +87,7 @@ export class RoadmapsService {
       .from(roadmaps)
       .where(and(...conditions))
       .orderBy(
-        roadmaps.isFeatured,
+        featuredFirstOrder,
         desc(roadmaps.ratingAvg),
         desc(roadmaps.enrollmentCount),
         desc(roadmaps.createdAt),
@@ -92,6 +96,25 @@ export class RoadmapsService {
       .offset(offset);
 
     return items.map((item) => this.serializeRoadmap(item));
+  }
+
+  async findTemplates(params?: {
+    category?: string;
+    difficulty?: string;
+    search?: string;
+    featured?: boolean;
+    limit?: number;
+    offset?: number;
+  }) {
+    const templates = await this.findAll({
+      ...params,
+      status: "published",
+    });
+
+    return templates.filter(
+      (template) =>
+        Array.isArray(template.steps) && template.steps.length > 0,
+    );
   }
 
   async findOne(id: string) {
@@ -274,7 +297,7 @@ export class RoadmapsService {
   }
 
   async enroll(userId: string, roadmapId: string) {
-    await this.findOne(roadmapId);
+    await this.findPublishedById(roadmapId);
 
     const [existing] = await db
       .select()
@@ -317,7 +340,7 @@ export class RoadmapsService {
   }
 
   async adopt(userId: string, roadmapId: string, dto: AdoptRoadmapDto) {
-    const roadmap = await this.findOne(roadmapId);
+    const roadmap = await this.findPublishedById(roadmapId);
     const targetOpportunityId =
       dto.targetOpportunityId ||
       dto.opportunityId ||
@@ -433,6 +456,8 @@ export class RoadmapsService {
     stepId: string,
     completed: boolean,
   ) {
+    const roadmap = await this.findPublishedById(roadmapId);
+
     const [enrollment] = await db
       .select()
       .from(roadmapEnrollments)
@@ -445,7 +470,6 @@ export class RoadmapsService {
 
     if (!enrollment) throw new NotFoundException("Enrollment not found");
 
-    const roadmap = await this.findOne(roadmapId);
     const steps = roadmap.steps as Array<{ id: string }>;
     const stepIndex = steps.findIndex((s) => s.id === stepId);
 
@@ -523,7 +547,7 @@ export class RoadmapsService {
       .from(roadmaps)
       .where(and(...conditions))
       .orderBy(
-        roadmaps.isFeatured,
+        featuredFirstOrder,
         desc(roadmaps.ratingAvg),
         desc(roadmaps.enrollmentCount),
         desc(roadmaps.createdAt),

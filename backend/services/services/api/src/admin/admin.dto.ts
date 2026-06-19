@@ -76,15 +76,41 @@ export interface AdminInvitation {
 export interface AdminInviteResponse {
   success: boolean;
   invitation: AdminInvitation | null;
+  assignedRole?: AdminAssignableRole;
+  updatedUser?: AdminUserRecord | null;
   error?: string;
 }
+
+export const AdminAssignableRoleSchema = z.enum([
+  "user",
+  "moderator",
+  "support_agent",
+  "admin",
+]);
+
+export type AdminAssignableRole = z.infer<typeof AdminAssignableRoleSchema>;
 
 export const AdminInviteUserSchema = z
   .object({
     email: z.string().trim().email(),
+    role: AdminAssignableRoleSchema.default("user"),
     redirectUrl: z.string().trim().url().optional(),
     notify: z.boolean().optional(),
   })
   .strict();
 
 export type AdminInviteUserDto = z.infer<typeof AdminInviteUserSchema>;
+
+export const AdminUpdateUserRoleSchema = z
+  .object({
+    role: AdminAssignableRoleSchema,
+  })
+  .strict();
+
+export type AdminUpdateUserRoleDto = z.infer<typeof AdminUpdateUserRoleSchema>;
+
+export interface AdminUpdateUserRoleResponse {
+  success: boolean;
+  user: AdminUserRecord | null;
+  error?: string;
+}

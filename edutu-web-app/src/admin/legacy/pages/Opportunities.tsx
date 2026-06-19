@@ -914,26 +914,26 @@ export default function Opportunities() {
                             <ChevronDown size={14} />
                         </button>
                         
-	                        {showAddDropdown && (
-	                            <div style={{
-	                                position: 'absolute',
-	                                top: '100%',
-	                                right: 0,
-	                                marginTop: '8px',
-	                                background: 'rgba(20, 20, 22, 0.96)',
-	                                border: '1px solid var(--border-light)',
-	                                borderRadius: '16px',
-	                                boxShadow: '0 18px 50px rgba(0,0,0,0.35)',
-	                                zIndex: 1000,
-	                                minWidth: '300px',
-	                                overflow: 'hidden',
+                            {showAddDropdown && (
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '100%',
+                                    right: 0,
+                                    marginTop: '8px',
+                                    background: 'rgba(20, 20, 22, 0.96)',
+                                    border: '1px solid var(--border-light)',
+                                    borderRadius: '16px',
+                                    boxShadow: '0 18px 50px rgba(0,0,0,0.35)',
+                                    zIndex: 1000,
+                                    minWidth: '300px',
+                                    overflow: 'hidden',
                                     padding: '8px',
                                     backdropFilter: 'blur(18px)'
-	                            }}>
-	                                {addMethods.map((method) => {
+                                }}>
+                                    {addMethods.map((method) => {
                                         if (method.id === 'divider') {
                                             return (
-	                                        <div key={method.id} style={{
+                                            <div key={method.id} style={{
                                                 margin: '8px -8px 8px',
                                                 padding: '9px 16px',
                                                 fontSize: '11px',
@@ -943,69 +943,69 @@ export default function Opportunities() {
                                                 textTransform: 'uppercase',
                                                 letterSpacing: '0.7px'
                                             }}>
-	                                            {method.name.replace('─── ', '').replace(' ───', '')}
-	                                        </div>
+                                                {method.name.replace('─── ', '').replace(' ───', '')}
+                                            </div>
                                             );
                                         }
 
                                         const theme = getAddMethodTheme(method.id);
                                         return (
-	                                        <button
-	                                            key={method.id}
-	                                            onClick={method.action}
-	                                            style={{
-	                                                width: '100%',
-	                                                padding: '12px',
+                                            <button
+                                                key={method.id}
+                                                onClick={method.action}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '12px',
                                                     marginBottom: '8px',
-	                                                border: `1px solid ${theme.border}`,
-	                                                background: theme.bg,
-	                                                color: 'var(--text-primary)',
-	                                                textAlign: 'left',
-	                                                cursor: 'pointer',
-	                                                display: 'flex',
-	                                                alignItems: 'center',
-	                                                gap: '12px',
-	                                                fontSize: '14px',
-	                                                transition: 'background 0.15s, transform 0.15s, border-color 0.15s',
+                                                    border: `1px solid ${theme.border}`,
+                                                    background: theme.bg,
+                                                    color: 'var(--text-primary)',
+                                                    textAlign: 'left',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '12px',
+                                                    fontSize: '14px',
+                                                    transition: 'background 0.15s, transform 0.15s, border-color 0.15s',
                                                     borderRadius: '12px',
                                                     boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.08)'
-	                                            }}
-	                                            onMouseEnter={(e) => {
-	                                                e.currentTarget.style.background = theme.hover;
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.background = theme.hover;
                                                     e.currentTarget.style.transform = 'translateX(-2px)';
                                                     e.currentTarget.style.borderColor = theme.text;
-	                                            }}
-	                                            onMouseLeave={(e) => {
-	                                                e.currentTarget.style.background = theme.bg;
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.background = theme.bg;
                                                     e.currentTarget.style.transform = 'translateX(0)';
                                                     e.currentTarget.style.borderColor = theme.border;
-	                                            }}
-	                                        >
-	                                            <div style={{ 
-	                                                width: 36, 
-	                                                height: 36, 
-	                                                borderRadius: 10, 
-	                                                background: theme.icon,
-	                                                display: 'flex',
-	                                                alignItems: 'center',
-	                                                justifyContent: 'center',
-	                                                color: 'white',
+                                                }}
+                                            >
+                                                <div style={{ 
+                                                    width: 36, 
+                                                    height: 36, 
+                                                    borderRadius: 10, 
+                                                    background: theme.icon,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    color: 'white',
                                                     flexShrink: 0,
                                                     boxShadow: '0 8px 18px rgba(0,0,0,0.22)'
-	                                            }}>
-	                                                {method.icon}
-	                                            </div>
-	                                            <div style={{ flex: 1 }}>
-	                                                <div style={{ fontWeight: 700, marginBottom: 2, color: 'var(--text-primary)' }}>{method.name}</div>
-	                                                {method.desc && (
-	                                                    <div style={{ fontSize: '12px', color: theme.text }}>{method.desc}</div>
-	                                                )}
-	                                            </div>
-	                                        </button>
-	                                    );
+                                                }}>
+                                                    {method.icon}
+                                                </div>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontWeight: 700, marginBottom: 2, color: 'var(--text-primary)' }}>{method.name}</div>
+                                                    {method.desc && (
+                                                        <div style={{ fontSize: '12px', color: theme.text }}>{method.desc}</div>
+                                                    )}
+                                                </div>
+                                            </button>
+                                        );
                                     })}
-	                            </div>
-	                        )}
+                                </div>
+                            )}
                     </div>
                 </div>
             </div>

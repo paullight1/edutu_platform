@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "npm run seo:sitemap",
     "build": "vite build",
+    "seo:sitemap": "node scripts/generate-sitemap.mjs",
     "preview": "vite preview",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "test": "vitest run",
