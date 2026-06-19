@@ -109,6 +109,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
     .toUpperCase() || "E";
   const workspaceTitle = getWorkspaceTitle(pathname);
   const mobileMenuItems = [...primaryNavItems, ...secondaryNavItems];
+  const isHomeRoute = pathname === "/dashboard" || pathname === "/app/home";
 
   const goBack = () => {
     if (isMobileMoreOpen) {
@@ -323,23 +324,50 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
             isDarkMode ? "border-white/10 bg-gray-950/95" : "border-slate-200 bg-white/95",
           )}
         >
-          <div className="mx-auto flex h-16 max-w-7xl items-center gap-3">
-            <button
-              type="button"
-              onClick={goBack}
-              className={cn(
-                "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition",
-                isDarkMode
-                  ? "text-slate-200 hover:bg-white/10"
-                  : "text-slate-700 hover:bg-slate-100",
-              )}
-              aria-label="Go back"
+          <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              {!isHomeRoute ? (
+                <button
+                  type="button"
+                  onClick={goBack}
+                  className={cn(
+                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition",
+                    isDarkMode
+                      ? "text-slate-200 hover:bg-white/10"
+                      : "text-slate-700 hover:bg-slate-100",
+                  )}
+                  aria-label="Go back"
+                >
+                  <ChevronLeft size={22} />
+                </button>
+              ) : null}
+              <NavLink
+                to="/dashboard"
+                className="flex min-w-0 items-center gap-3 rounded-xl transition active:scale-[0.98]"
+                aria-label="Go to Edutu home"
+              >
+                <img
+                  src="/edutu-logo.png"
+                  alt="Edutu"
+                  className="h-10 w-10 shrink-0 object-contain"
+                />
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-bold leading-4 text-slate-500 dark:text-slate-400">
+                    Edutu
+                  </span>
+                  <span className="block truncate text-lg font-black leading-5 tracking-tight text-slate-900 dark:text-white">
+                    {workspaceTitle}
+                  </span>
+                </span>
+              </NavLink>
+            </div>
+            <NavLink
+              to="/app/profile"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-black text-white shadow-sm transition active:scale-[0.98]"
+              aria-label="Open profile"
             >
-              <ChevronLeft size={22} />
-            </button>
-            <h1 className="min-w-0 truncate text-lg font-black tracking-tight">
-              {workspaceTitle}
-            </h1>
+              {initials}
+            </NavLink>
           </div>
         </header>
         {children}
