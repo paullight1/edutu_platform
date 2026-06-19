@@ -1,9 +1,9 @@
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException, Optional } from "@nestjs/common";
 import { db } from "../db";
 import { goals, milestones } from "../db/schema";
 import { and, desc, eq } from "drizzle-orm";
 import { toDatabaseUserId } from "../common/user-id";
-import type { NotificationsService } from "../notifications/notifications.service";
+import { NotificationsService } from "../notifications/notifications.service";
 import type { BroadcastNotificationDto } from "../notifications/dto/notification.dto";
 import type { CreateGoalDto } from "./dto/create-goal.dto";
 import type { UpdateGoalDto } from "./dto/update-goal.dto";
@@ -16,7 +16,9 @@ type GoalMutation = Partial<GoalInsert>;
 export class GoalsService {
   private readonly logger = new Logger(GoalsService.name);
 
-  constructor(private readonly notificationsService?: NotificationsService) {}
+  constructor(
+    @Optional() private readonly notificationsService?: NotificationsService,
+  ) {}
 
   // Get all goals for a user
   // (userId string matches Supabase auth ID)
