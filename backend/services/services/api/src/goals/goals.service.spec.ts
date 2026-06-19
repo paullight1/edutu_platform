@@ -2,6 +2,7 @@ import { NotFoundException } from "@nestjs/common";
 import { db } from "../db";
 import { toDatabaseUserId } from "../common/user-id";
 import { GoalsService } from "./goals.service";
+import { NotificationsService } from "../notifications/notifications.service";
 
 jest.mock("../db", () => ({
   db: {
@@ -25,6 +26,12 @@ describe("GoalsService", () => {
   beforeEach(() => {
     jest.resetAllMocks();
     service = new GoalsService();
+  });
+
+  it("emits runtime metadata for the notifications dependency", () => {
+    expect(Reflect.getMetadata("design:paramtypes", GoalsService)).toEqual([
+      NotificationsService,
+    ]);
   });
 
   it("creates goals with normalized user ids and aligned deadline columns", async () => {
