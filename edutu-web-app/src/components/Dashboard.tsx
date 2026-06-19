@@ -1503,10 +1503,11 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             </p>
                           </div>
                           <div
-                            className="grid w-full gap-3"
+                            className="w-full"
                             style={{
-                              gridTemplateColumns:
-                                "minmax(0, 1fr) minmax(0, 1fr)",
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: "12px",
                             }}
                           >
                             {mobileExploreOpportunities
@@ -1524,6 +1525,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                       type="button"
                                       onClick={() => openDashboardDestination("profile")}
                                       className="flex h-[214px] w-full max-w-full min-w-0 flex-col overflow-hidden rounded-2xl bg-slate-950 p-3 text-left text-white transition active:scale-[0.98] dark:bg-brand-500"
+                                      style={{
+                                        flex: "0 0 calc((100% - 12px) / 2)",
+                                        maxWidth: "calc((100% - 12px) / 2)",
+                                      }}
                                     >
                                       <span className="text-[11px] font-semibold text-white/70">
                                         Sponsored
@@ -1543,6 +1548,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                     type="button"
                                     onClick={() => onOpportunityClick(opportunity)}
                                     className={`flex h-[214px] w-full max-w-full min-w-0 flex-col overflow-hidden rounded-2xl border text-left transition active:scale-[0.98] ${isDarkMode ? "border-white/10 bg-gray-900" : "border-slate-200 bg-white"}`}
+                                    style={{
+                                      flex: "0 0 calc((100% - 12px) / 2)",
+                                      maxWidth: "calc((100% - 12px) / 2)",
+                                    }}
                                   >
                                     <div className="h-[92px] w-full shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800">
                                       <ImageWithFallback

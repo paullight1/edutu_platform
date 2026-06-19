@@ -22,6 +22,12 @@ if (!clerkPubKey) {
   throw new Error('Missing Clerk Publishable Key. Set VITE_CLERK_PUBLISHABLE_KEY in your .env');
 }
 
+if (import.meta.env.DEV && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    registrations.forEach((registration) => registration.unregister());
+  });
+}
+
 // Loading fallback for Suspense
 const LoadingScreen = () => (
   <div className="min-h-screen bg-[#0c0f1a] flex items-center justify-center">
