@@ -7,6 +7,18 @@
   SECRETS_SCAN_OMIT_PATHS = '["dist/**"]'
 
 [[redirects]]
+  from = "/sitemap.xml"
+  to = "https://edutu-api.onrender.com/sitemap.xml"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/robots.txt"
+  to = "https://edutu-api.onrender.com/robots.txt"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200

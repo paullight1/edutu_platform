@@ -25,6 +25,7 @@ export const profiles = pgTable("profiles", {
   creatorMetadata: jsonb("creator_metadata")
     .$type<Record<string, unknown>>()
     .default({}),
+  settings: jsonb("settings").$type<Record<string, unknown>>().default({}),
   creatorRejectionReason: text("creator_rejection_reason"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -123,13 +124,19 @@ export const goals = pgTable(
     category: text("category"),
     progress: integer("progress").default(0),
     status: text("status").default("active"), // 'active', 'completed', 'archived'
+    deadline: date("deadline"),
     targetDate: timestamp("target_date"),
+    priority: text("priority"),
+    source: text("source").default("custom"),
+    templateId: text("template_id"),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
+    completedAt: timestamp("completed_at"),
   },
   (table) => [
     index("idx_goals_user_id").on(table.userId),
     index("idx_goals_status").on(table.status),
+    index("idx_goals_target_date").on(table.userId, table.targetDate),
   ],
 );
 
@@ -704,6 +711,66 @@ export const blogPosts = pgTable("blog_posts", {
 export type BlogPost = typeof blogPosts.$inferSelect;
 export type NewBlogPost = typeof blogPosts.$inferInsert;
 
+// Events announced by admins and shown publicly when published
+export const events = pgTable(
+  "events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    title: text("title").notNull(),
+    slug: text("slug").notNull().unique(),
+    summary: text("summary"),
+    description: text("description"),
+    startsAt: timestamp("starts_at").notNull(),
+    endsAt: timestamp("ends_at"),
+    timezone: text("timezone").default("UTC"),
+    location: text("location"),
+    isOnline: boolean("is_online").default(true),
+    ctaLabel: text("cta_label").default("Join event"),
+    ctaUrl: text("cta_url"),
+    imageUrl: text("image_url"),
+    status: text("status").default("draft"), // 'draft', 'published', 'cancelled', 'archived'
+    audience: text("audience").default("public"),
+    capacity: integer("capacity"),
+    createdBy: text("created_by"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("idx_events_status").on(table.status),
+    index("idx_events_starts_at").on(table.startsAt),
+    index("idx_events_updated_at").on(table.updatedAt),
+    uniqueIndex("idx_events_slug_unique").on(table.slug),
+  ],
+);
+
+export const eventRegistrations = pgTable(
+  "event_registrations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    userId: text("user_id"),
+    name: text("name"),
+    email: text("email"),
+    status: text("status").default("registered"),
+    source: text("source").default("web"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    index("idx_event_registrations_event_id").on(table.eventId),
+    index("idx_event_registrations_user_id").on(table.userId),
+    index("idx_event_registrations_email").on(table.email),
+  ],
+);
+
+export type Event = typeof events.$inferSelect;
+export type NewEvent = typeof events.$inferInsert;
+export type EventRegistration = typeof eventRegistrations.$inferSelect;
+export type NewEventRegistration = typeof eventRegistrations.$inferInsert;
+
 // Blog Comments
 export const blogComments = pgTable("blog_comments", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -748,7 +815,7 @@ export const roadmaps = pgTable(
     creatorName: text("creator_name").notNull().default("Edutu Admin"),
     isFeatured: boolean("is_featured").default(false),
     enrollmentCount: integer("enrollment_count").default(0),
-    ratingAvg: integer("rating_avg").default(0),
+    ratingAvg: numeric("rating_avg", { precision: 3, scale: 2 }).default("0"),
     ratingCount: integer("rating_count").default(0),
     steps: jsonb("steps")
       .$type<
@@ -771,7 +838,10 @@ export const roadmaps = pgTable(
     relatedOpportunities: text("related_opportunities").array().default([]),
     aiIntentTags: text("ai_intent_tags").array().default([]),
     aiGeneratedSummary: text("ai_generated_summary"),
-    satisfactionScore: integer("satisfaction_score").default(0),
+    satisfactionScore: numeric("satisfaction_score", {
+      precision: 3,
+      scale: 2,
+    }).default("0"),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
     publishedAt: timestamp("published_at"),
@@ -810,6 +880,10 @@ export const roadmapEnrollments = pgTable(
   (table) => [
     index("idx_enrollments_user_id").on(table.userId),
     index("idx_enrollments_roadmap_id").on(table.roadmapId),
+    uniqueIndex("idx_enrollments_user_roadmap_unique").on(
+      table.userId,
+      table.roadmapId,
+    ),
     index("idx_enrollments_target_opportunity_id").on(
       table.targetOpportunityId,
     ),
@@ -832,7 +906,10 @@ export const userRoadmapIntents = pgTable(
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
-  (table) => [index("idx_user_intents_user_id").on(table.userId)],
+  (table) => [
+    index("idx_user_intents_user_id").on(table.userId),
+    uniqueIndex("idx_user_intents_user_unique").on(table.userId),
+  ],
 );
 
 export const roadmapFeedback = pgTable(
@@ -948,7 +1025,10 @@ export const mobileCampaignEvents = pgTable(
 
 export const adminSettings = pgTable("admin_settings", {
   key: text("key").primaryKey().default("global"),
-  settings: jsonb("settings").$type<Record<string, unknown>>().notNull().default({}),
+  settings: jsonb("settings")
+    .$type<Record<string, unknown>>()
+    .notNull()
+    .default({}),
   updatedBy: text("updated_by"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

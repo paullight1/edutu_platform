@@ -143,6 +143,46 @@ function pickStringArray(...values: unknown[]): string[] {
   return [];
 }
 
+function pickStringValue(fallback: string, ...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value !== 'string') {
+      continue;
+    }
+
+    const trimmed = value.replace(/\s+/g, ' ').trim();
+    if (trimmed) {
+      return trimmed;
+    }
+  }
+
+  return fallback;
+}
+
+function formatCategoryLabel(value: string): string {
+  return value
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1).toLowerCase()}`)
+    .join(' ') || 'General';
+}
+
+function pickCategory(row: BackendOpportunityRow, metadata: Record<string, any>): string {
+  const rawCategory = pickStringValue(
+    'General',
+    row.category,
+    row.canonical_category,
+    metadata.canonical_category,
+  );
+
+  if (rawCategory.toLowerCase() === 'general') {
+    return formatCategoryLabel(
+      pickStringValue(rawCategory, row.canonical_category, metadata.canonical_category),
+    );
+  }
+
+  return formatCategoryLabel(rawCategory);
+}
+
 function normaliseDifficulty(value: unknown): OpportunityDifficulty {
   const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
   if (raw === 'easy' || raw === 'beginner') {
@@ -187,24 +227,40 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
     row.quality_score ??
     row.qualityScore ??
     0;
+  const title = pickStringValue('Untitled opportunity', row.title, row.name);
+  const organization = pickStringValue(
+    'Community Provider',
+    row.organization,
+    row.provider,
+    row.source_name,
+  );
+  const category = pickCategory(row, metadata);
+  const summary = pickStringValue('', row.refined_summary, row.summary, metadata.summary);
+  const description =
+    pickStringValue(
+      '',
+      row.description,
+      row.refined_summary,
+      row.summary,
+      metadata.summary,
+      metadata.description,
+    ) ||
+    `${title} from ${organization}. Review ${category.toLowerCase()} details, deadline, benefits, and the application link on Edutu.`;
 
   return {
     id: String(row.id ?? row.opportunity_id ?? row.external_id ?? crypto.randomUUID()),
-    title: String(row.title ?? row.name ?? 'Untitled opportunity'),
-    organization: String(row.organization ?? row.provider ?? row.source_name ?? 'Community Provider'),
-    category: String(row.category ?? row.canonical_category ?? 'General'),
+    title,
+    organization,
+    category,
     deadline: row.close_date ?? row.deadline ?? row.application_deadline ?? null,
-    location: String(
-      row.location ??
-        row.target_region ??
-        (row.is_remote ? 'Remote' : ''),
+    location: pickStringValue(
+      row.is_remote ? 'Remote' : 'Worldwide',
+      row.location,
+      row.target_region,
+      row.is_remote ? 'Remote' : '',
     ),
-    description: String(
-      row.description ??
-        row.summary ??
-        metadata.summary ??
-        'No description provided.',
-    ),
+    summary,
+    description,
     requirements: pickStringArray(row.requirements, metadata.requirements, metadata.eligibility),
     benefits: pickStringArray(row.benefits, metadata.benefits),
     applicationProcess: pickStringArray(

@@ -13,6 +13,8 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { BrowserRouter } from 'react-router-dom';
 import { ClerkProvider } from '@clerk/clerk-react';
 import { AuthProvider } from './hooks/useAuth';
+import { GoalsProvider } from './hooks/useGoals';
+import { NotificationsProvider } from './hooks/useNotifications';
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 if (!clerkPubKey) {
@@ -40,7 +42,11 @@ root.render(
             <ToastProvider>
               <ThemeProvider>
                 <AuthProvider>
-                  <App />
+                  <NotificationsProvider>
+                    <GoalsProvider>
+                      <App />
+                    </GoalsProvider>
+                  </NotificationsProvider>
                 </AuthProvider>
               </ThemeProvider>
             </ToastProvider>

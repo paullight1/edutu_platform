@@ -67,7 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await clerkSignIn.authenticateWithRedirect({
       strategy: 'oauth_google',
       redirectUrl: '/auth/callback',
-      redirectUrlComplete: '/opportunities',
+      redirectUrlComplete: '/dashboard',
     });
   }, [clerkSignIn]);
 
@@ -76,7 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await clerkSignIn.authenticateWithRedirect({
       strategy: 'oauth_apple',
       redirectUrl: '/auth/callback',
-      redirectUrlComplete: '/opportunities',
+      redirectUrlComplete: '/dashboard',
     });
   }, [clerkSignIn]);
 

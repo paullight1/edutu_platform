@@ -163,7 +163,7 @@ h5,
 h6 {
   font-family: var(--font-display);
   color: rgb(var(--text-primary));
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
 }
 
 p {

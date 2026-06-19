@@ -5,6 +5,7 @@ import { readFile } from "fs/promises";
 import { db } from "../db";
 import { opportunities } from "../db/schema";
 import axios from "axios";
+import * as cheerio from "cheerio";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { eq, or, and, sql, lt, isNull, desc } from "drizzle-orm";
 import * as path from "path";
@@ -18,6 +19,10 @@ import {
 } from "./dto/personalization.dto";
 import { AiService } from "../ai";
 import { OpportunityShareCardService } from "./opportunity-share-card.service";
+import {
+  buildOpportunityPublicShareUrl,
+  buildOpportunityShareText,
+} from "./opportunity-share-text";
 import {
   categorizeOpportunity,
   classifyOpportunity,
@@ -81,6 +86,65 @@ const ProcessedItemSchema = z.object({
 
 type ProcessedItem = z.infer<typeof ProcessedItemSchema>;
 
+const OpportunityEnhancementSchema = z.object({
+  summary: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  organization: z.string().optional().nullable(),
+  eligibilityCriteria: z.string().optional().nullable(),
+  fundingType: z.string().optional().nullable(),
+  targetRegion: z.string().optional().nullable(),
+  deadline: z.string().optional().nullable(),
+  requirements: z.array(z.string()).optional().default([]),
+  benefits: z.array(z.string()).optional().default([]),
+  applicationProcess: z.array(z.string()).optional().default([]),
+  application_process: z.array(z.string()).optional().default([]),
+  eligibility: z.record(z.string(), z.unknown()).optional().default({}),
+  tags: z.array(z.string()).optional().default([]),
+  confidence: z.number().min(0).max(1).optional().default(0),
+  notes: z.array(z.string()).optional().default([]),
+});
+
+type OpportunityEnhancement = z.infer<typeof OpportunityEnhancementSchema>;
+
+const AI_SOURCE_TEXT_MAX_CHARS = 8_000;
+const AI_SOURCE_FETCH_TIMEOUT_MS = 12_000;
+const AI_ENRICHMENT_SCHEMA = {
+  type: "object",
+  properties: {
+    summary: { type: ["string", "null"] },
+    description: { type: ["string", "null"] },
+    organization: { type: ["string", "null"] },
+    eligibilityCriteria: { type: ["string", "null"] },
+    fundingType: { type: ["string", "null"] },
+    targetRegion: { type: ["string", "null"] },
+    deadline: { type: ["string", "null"] },
+    requirements: { type: "array", items: { type: "string" } },
+    benefits: { type: "array", items: { type: "string" } },
+    applicationProcess: { type: "array", items: { type: "string" } },
+    eligibility: { type: "object" },
+    tags: { type: "array", items: { type: "string" } },
+    confidence: { type: "number" },
+    notes: { type: "array", items: { type: "string" } },
+  },
+  required: [
+    "summary",
+    "description",
+    "organization",
+    "eligibilityCriteria",
+    "fundingType",
+    "targetRegion",
+    "deadline",
+    "requirements",
+    "benefits",
+    "applicationProcess",
+    "eligibility",
+    "tags",
+    "confidence",
+    "notes",
+  ],
+  additionalProperties: false,
+};
+
 export type CreateOpportunityDto = z.infer<typeof OpportunityDtoSchema>;
 
 export interface AdminOpportunityListQuery {
@@ -91,6 +155,12 @@ export interface AdminOpportunityListQuery {
   status?: string;
   category?: string;
   sortBy?: string;
+}
+
+export interface SitemapOpportunityEntry {
+  id: string;
+  updatedAt: Date | string | null;
+  createdAt: Date | string | null;
 }
 
 const ADMIN_OPPORTUNITY_COLUMNS = [
@@ -150,7 +220,10 @@ function resolveStaticOpportunitySnapshotPath(): string | null {
     let current = root;
 
     while (true) {
-      const candidate = path.join(current, STATIC_OPPORTUNITY_SNAPSHOT_FILENAME);
+      const candidate = path.join(
+        current,
+        STATIC_OPPORTUNITY_SNAPSHOT_FILENAME,
+      );
       if (existsSync(candidate)) {
         return candidate;
       }
@@ -167,19 +240,14 @@ function resolveStaticOpportunitySnapshotPath(): string | null {
   return null;
 }
 
-function normaliseStaticOpportunityRow(row: Record<string, any>): StaticOpportunityRow {
+function normaliseStaticOpportunityRow(
+  row: Record<string, any>,
+): StaticOpportunityRow {
   const deadline =
-    row.deadline ??
-    row.close_date ??
-    row.application_deadline ??
-    null;
+    row.deadline ?? row.close_date ?? row.application_deadline ?? null;
   const imageUrl = row.image_url ?? row.imageUrl ?? row.image ?? null;
   const applicationUrl =
-    row.application_url ??
-    row.apply_url ??
-    row.applyUrl ??
-    row.url ??
-    null;
+    row.application_url ?? row.apply_url ?? row.applyUrl ?? row.url ?? null;
   const lastUpdated =
     row.updated_at ??
     row.updatedAt ??
@@ -192,7 +260,9 @@ function normaliseStaticOpportunityRow(row: Record<string, any>): StaticOpportun
       ? row.is_remote
       : typeof row.isRemote === "boolean"
         ? row.isRemote
-        : String(row.location ?? "").toLowerCase().includes("remote");
+        : String(row.location ?? "")
+            .toLowerCase()
+            .includes("remote");
 
   return {
     ...row,
@@ -223,8 +293,12 @@ function filterStaticOpportunityRows(
   }
 
   const filtered = rows.filter((row) => {
-    const rowCategory = String(row.category ?? row.canonical_category ?? "").trim().toLowerCase();
-    const rowStatus = String(row.status ?? "active").trim().toLowerCase();
+    const rowCategory = String(row.category ?? row.canonical_category ?? "")
+      .trim()
+      .toLowerCase();
+    const rowStatus = String(row.status ?? "active")
+      .trim()
+      .toLowerCase();
 
     if (normalizedStatus !== "all" && rowStatus !== normalizedStatus) {
       return false;
@@ -240,7 +314,9 @@ function filterStaticOpportunityRows(
   return filtered.slice(offset, offset + limit);
 }
 
-async function loadStaticOpportunitySnapshot(): Promise<StaticOpportunityRow[]> {
+async function loadStaticOpportunitySnapshot(): Promise<
+  StaticOpportunityRow[]
+> {
   if (cachedStaticOpportunityRows) {
     return cachedStaticOpportunityRows;
   }
@@ -259,7 +335,9 @@ async function loadStaticOpportunitySnapshot(): Promise<StaticOpportunityRow[]> 
         ? ((parsed as { data: unknown[] }).data as Record<string, unknown>[])
         : [];
 
-    cachedStaticOpportunityRows = rows.map((row) => normaliseStaticOpportunityRow(row as Record<string, any>));
+    cachedStaticOpportunityRows = rows.map((row) =>
+      normaliseStaticOpportunityRow(row as Record<string, any>),
+    );
     return cachedStaticOpportunityRows;
   } catch (error: any) {
     console.warn(
@@ -366,6 +444,92 @@ export class OpportunitiesService {
     );
   }
 
+  async listSitemapOpportunities(
+    max = 50000,
+  ): Promise<SitemapOpportunityEntry[]> {
+    const cappedMax = Math.min(Math.max(Number(max) || 50000, 1), 50000);
+    const rows: SitemapOpportunityEntry[] = [];
+
+    try {
+      if (this.supabase) {
+        const pageSize = 1000;
+        let offset = 0;
+
+        while (rows.length < cappedMax) {
+          const to = Math.min(offset + pageSize - 1, cappedMax - 1);
+          const { data, error } = await this.supabase
+            .from("opportunities")
+            .select("id,updated_at,created_at")
+            .eq("status", "active")
+            .order("updated_at", { ascending: false, nullsFirst: false })
+            .range(offset, to);
+
+          if (error) {
+            throw new Error(error.message);
+          }
+
+          const batch = data ?? [];
+          rows.push(
+            ...batch
+              .filter((row) => row.id)
+              .map((row) => ({
+                id: String(row.id),
+                updatedAt: row.updated_at ?? null,
+                createdAt: row.created_at ?? null,
+              })),
+          );
+
+          if (batch.length < pageSize) {
+            break;
+          }
+
+          offset += pageSize;
+        }
+
+        return rows.slice(0, cappedMax);
+      }
+
+      const drizzleRows = await db
+        .select({
+          id: opportunities.id,
+          updatedAt: opportunities.updatedAt,
+          createdAt: opportunities.createdAt,
+        })
+        .from(opportunities)
+        .where(eq(opportunities.status, "active"))
+        .orderBy(desc(opportunities.updatedAt))
+        .limit(cappedMax)
+        .execute();
+
+      if (drizzleRows.length > 0) {
+        return drizzleRows;
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Sitemap opportunity query unavailable, falling back to static snapshot: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+
+    const snapshotRows = await loadStaticOpportunitySnapshot();
+    return snapshotRows
+      .filter((row) => String(row.status ?? "active") === "active")
+      .map((row) => ({
+        id: String(row.id),
+        updatedAt:
+          (row.updated_at as string | undefined) ??
+          (row.updatedAt as string | undefined) ??
+          null,
+        createdAt:
+          (row.created_at as string | undefined) ??
+          (row.createdAt as string | undefined) ??
+          null,
+      }))
+      .filter((row) => row.id)
+      .slice(0, cappedMax);
+  }
+
   async findOne(id: string) {
     try {
       if (this.supabase) {
@@ -410,6 +574,11 @@ export class OpportunitiesService {
       return null;
     }
 
+    const shareUrl = buildOpportunityPublicShareUrl(
+      id,
+      this.getPublicAppBaseUrl(),
+    );
+    const shareText = buildOpportunityShareText(opportunity, shareUrl);
     const shareCard =
       await this.opportunityShareCardService.ensureShareCardForOpportunity(
         opportunity,
@@ -418,6 +587,8 @@ export class OpportunitiesService {
     return {
       opportunityId: id,
       shareCard,
+      shareUrl,
+      shareText,
     };
   }
 
@@ -822,40 +993,45 @@ export class OpportunitiesService {
     if (!opportunity) return null;
 
     const metadata = (opportunity.metadata || {}) as Record<string, any>;
-    const prompt = `You are Edutu's opportunity completion assistant. Improve this saved opportunity using only the facts provided. Do not invent deadlines, countries, funding amounts, eligibility, or application links.
+    const sourceUrl =
+      opportunity.source_url ||
+      opportunity.application_url ||
+      opportunity.apply_url ||
+      opportunity.canonical_url ||
+      "";
+    const sourceText = await this.resolveOpportunitySourceText({
+      ...opportunity,
+      sourceUrl,
+      source_url: sourceUrl,
+    });
+    const prompt = this.buildOpportunityEnhancementPrompt(
+      {
+        title: opportunity.title,
+        summary: opportunity.summary,
+        description: opportunity.description,
+        organization: opportunity.organization,
+        category: opportunity.category || opportunity.canonical_category,
+        location: opportunity.location,
+        deadline: opportunity.close_date || opportunity.deadline,
+        sourceUrl,
+        applyUrl: opportunity.application_url || opportunity.apply_url,
+        requirements: metadata.requirements,
+        benefits: metadata.benefits,
+        applicationProcess: metadata.application_process,
+        eligibilityCriteria: metadata.eligibility_criteria,
+        fundingType: opportunity.funding_type || metadata.funding_type,
+        targetRegion: opportunity.target_region || metadata.target_region,
+        tags: opportunity.tags || metadata.tags,
+        metadata,
+      },
+      sourceText,
+    );
 
-Return ONLY JSON:
-{
-  "summary": "25-45 word concise summary",
-  "description": "4-6 sentence complete description",
-  "organization": "hosting organization if clearly stated",
-  "requirements": ["requirement"],
-  "benefits": ["benefit"],
-  "application_process": ["step"],
-  "funding_type": "string or null",
-  "target_region": "string or null",
-  "deadline": "YYYY-MM-DD, readable deadline, or null",
-  "tags": ["tag"],
-  "confidence": 0.0
-}
-
-Input:
-  Title: ${opportunity.title || ""}
-  Summary: ${opportunity.summary || ""}
-  Description: ${opportunity.description || ""}
-  Organization: ${opportunity.organization || ""}
-  Category: ${opportunity.category || opportunity.canonical_category || ""}
-  Location: ${opportunity.location || ""}
-Deadline: ${opportunity.close_date || opportunity.deadline || ""}
-Application URL: ${opportunity.application_url || opportunity.apply_url || ""}
-Source URL: ${opportunity.source_url || opportunity.canonical_url || ""}
-Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
-
-    const aiData = await this.aiService.generateJson<Record<string, any>>({
-      feature: "opportunities.enhance",
-      prompt,
-      responseMimeType: "application/json",
-      metadata: { id, title: opportunity.title },
+    const aiData = await this.generateOpportunityEnhancement(prompt, {
+      id,
+      title: opportunity.title,
+      sourceUrl,
+      sourceTextLength: sourceText.length,
     });
 
     const requirements = Array.isArray(aiData?.requirements)
@@ -864,9 +1040,11 @@ Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
     const benefits = Array.isArray(aiData?.benefits)
       ? aiData.benefits.filter(Boolean)
       : metadata.benefits || [];
-    const applicationProcess = Array.isArray(aiData?.application_process)
-      ? aiData.application_process.filter(Boolean)
-      : metadata.application_process || [];
+    const applicationProcess = Array.isArray(aiData?.applicationProcess)
+      ? aiData.applicationProcess.filter(Boolean)
+      : Array.isArray(aiData?.application_process)
+        ? aiData.application_process.filter(Boolean)
+        : metadata.application_process || [];
     const organization = this.cleanOptionalText(
       aiData?.organization || opportunity.organization || "",
       200,
@@ -879,22 +1057,26 @@ Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
       description,
       opportunity.title || "",
     );
+    const closeDate =
+      aiData?.deadline || opportunity.close_date || opportunity.deadline;
     const qualityScore = this.scoreCanonicalOpportunity({
       ...opportunity,
       summary,
       description,
       requirements,
       benefits,
-      deadline: aiData?.deadline || opportunity.close_date || opportunity.deadline,
+      deadline: closeDate,
     });
 
     const updatePayload = {
       summary,
       description,
       organization: organization || undefined,
-      close_date: aiData?.deadline || opportunity.close_date || undefined,
-      funding_type: aiData?.funding_type || opportunity.funding_type || undefined,
-      target_region: aiData?.target_region || opportunity.target_region || undefined,
+      close_date: closeDate || undefined,
+      funding_type:
+        aiData?.fundingType || opportunity.funding_type || undefined,
+      target_region:
+        aiData?.targetRegion || opportunity.target_region || undefined,
       tags: Array.isArray(aiData?.tags) ? aiData.tags : opportunity.tags,
       validation_status: qualityScore.score >= 70 ? "complete" : "not_complete",
       quality_score: qualityScore.score,
@@ -904,10 +1086,12 @@ Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
         benefits,
         application_process: applicationProcess,
         organization: organization || metadata.organization || null,
-        funding_type: aiData?.funding_type || metadata.funding_type || null,
-        target_region: aiData?.target_region || metadata.target_region || null,
+        funding_type: aiData?.fundingType || metadata.funding_type || null,
+        target_region: aiData?.targetRegion || metadata.target_region || null,
         ai_improved_at: new Date().toISOString(),
         ai_improvement_confidence: Number(aiData?.confidence ?? 0),
+        ai_improvement_notes: aiData?.notes || [],
+        ai_source_text_used: sourceText.length > 0,
         extraction_quality_score: qualityScore.score,
         extraction_missing_fields: qualityScore.missingFields,
         needs_review: qualityScore.score < 70,
@@ -924,6 +1108,10 @@ Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
         .single();
 
       if (!error) {
+        await this.opportunityShareCardService.ensureShareCardForOpportunity(
+          data,
+          { force: true },
+        );
         return {
           success: true,
           opportunity: data,
@@ -949,6 +1137,40 @@ Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
         checkedAt: new Date().toISOString(),
       },
     };
+  }
+
+  private async generateOpportunityEnhancement(
+    prompt: string,
+    metadata: Record<string, unknown>,
+  ): Promise<OpportunityEnhancement | null> {
+    try {
+      const aiData = await this.aiService.generateJson<Record<string, any>>({
+        feature: "opportunities.enhance",
+        prompt,
+        responseMimeType: "application/json",
+        responseJsonSchema: AI_ENRICHMENT_SCHEMA,
+        temperature: 0.05,
+        maxOutputTokens: 2200,
+        metadata,
+      });
+
+      const parsed = OpportunityEnhancementSchema.safeParse(aiData || {});
+      if (!parsed.success) {
+        this.logger.warn(
+          `Opportunity enhancement response failed validation: ${parsed.error.message}`,
+        );
+        return null;
+      }
+
+      return parsed.data;
+    } catch (error) {
+      this.logger.warn(
+        `Opportunity enhancement failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return null;
+    }
   }
 
   async remove(id: string) {
@@ -1005,10 +1227,7 @@ Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
       record.description ?? "",
       String(input.title ?? ""),
     );
-    const organization = this.cleanOptionalText(
-      record.organization ?? "",
-      200,
-    );
+    const organization = this.cleanOptionalText(record.organization ?? "", 200);
     const eligibility =
       (record.eligibility as Record<string, unknown> | undefined) || undefined;
     const requirements = this.normalizeStringList(
@@ -1095,13 +1314,24 @@ Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
     if (String(input.description || "").trim().length >= 240) score += 25;
     else missingFields.push("description");
 
-    if (String(input.application_url || input.apply_url || "").startsWith("http")) {
+    if (
+      String(
+        input.application_url ||
+          input.apply_url ||
+          input.applicationUrl ||
+          input.applyUrl ||
+          input.sourceUrl ||
+          input.source_url ||
+          "",
+      ).startsWith("http")
+    ) {
       score += 15;
     } else {
       missingFields.push("application_url");
     }
 
-    if (Array.isArray(input.requirements) && input.requirements.length > 0) score += 10;
+    if (Array.isArray(input.requirements) && input.requirements.length > 0)
+      score += 10;
     else missingFields.push("requirements");
 
     if (Array.isArray(input.benefits) && input.benefits.length > 0) score += 10;
@@ -1110,7 +1340,7 @@ Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
     if (input.deadline || input.close_date) score += 10;
     else missingFields.push("deadline");
 
-    if (input.image_url) score += 5;
+    if (input.image_url || input.imageUrl) score += 5;
     else missingFields.push("image");
 
     return { score: Math.min(100, score), missingFields };
@@ -1147,6 +1377,7 @@ Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
   private normalizeProcessedItem(
     item: Record<string, any>,
     aiData?: Record<string, any> | null,
+    enrichment?: { aiAttempted?: boolean; sourceTextUsed?: boolean },
   ): ProcessedItem {
     const requirements = this.normalizeStringList(
       aiData?.requirements || item.requirements || item.metadata?.requirements,
@@ -1170,8 +1401,22 @@ Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
       aiData?.description || item.description || "",
     );
 
+    const metadata = {
+      ...(item.metadata || {}),
+      ai_enrichment: {
+        attempted: Boolean(enrichment?.aiAttempted),
+        source_text_used: Boolean(enrichment?.sourceTextUsed),
+        confidence: Number(aiData?.confidence ?? item.confidence ?? 0),
+        notes: this.normalizeStringList(aiData?.notes || item.notes),
+        improved_at: enrichment?.aiAttempted
+          ? new Date().toISOString()
+          : item.metadata?.ai_enrichment?.improved_at,
+      },
+    };
+
     return {
       ...item,
+      metadata,
       summary,
       description,
       organization:
@@ -1199,14 +1444,218 @@ Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
       benefits,
       applicationProcess,
       eligibility:
-        (aiData?.eligibility as Record<string, unknown>) || item.eligibility || {},
+        (aiData?.eligibility as Record<string, unknown>) ||
+        item.eligibility ||
+        {},
       confidence: Number(aiData?.confidence ?? item.confidence ?? 0),
       notes: this.normalizeStringList(aiData?.notes || item.notes),
       tags: this.normalizeStringList([
         ...(Array.isArray(item.tags) ? item.tags : []),
         ...(Array.isArray(aiData?.tags) ? aiData.tags : []),
       ]),
-    } as ProcessedItem;
+    } as unknown as ProcessedItem;
+  }
+
+  private buildOpportunityEnhancementPrompt(
+    item: Record<string, any>,
+    sourceText: string,
+  ): string {
+    const metadata = (item.metadata || {}) as Record<string, unknown>;
+    const requirements = this.normalizeStringList(
+      item.requirements || metadata.requirements,
+    );
+    const benefits = this.normalizeStringList(
+      item.benefits || metadata.benefits,
+    );
+    const applicationProcess = this.normalizeStringList(
+      item.applicationProcess ||
+        item.application_process ||
+        metadata.application_process,
+    );
+    const sourceUrl =
+      item.sourceUrl ||
+      item.source_url ||
+      item.detailUrl ||
+      item.url ||
+      item.applyUrl ||
+      item.apply_url ||
+      "";
+    const applyUrl =
+      item.applyUrl ||
+      item.apply_url ||
+      item.applicationUrl ||
+      item.application_url ||
+      "";
+
+    return `You are Edutu's opportunity content enrichment API. Improve incomplete scholarship, fellowship, internship, grant, or program records for consistent app cards and detail pages.
+
+Use only facts present in the structured input or source text. Do not invent deadlines, countries, funding amounts, eligibility, organizations, or application links. If a fact is missing, return null or an empty array for that field. Write in clear, consistent, student-facing language.
+
+Return ONLY valid JSON matching this schema:
+{
+  "summary": "25-45 word preview summary or null",
+  "description": "4-6 sentence factual overview or null",
+  "organization": "host/provider if clearly stated or null",
+  "eligibilityCriteria": "who can apply if clearly stated or null",
+  "fundingType": "funding amount/type if clearly stated or null",
+  "targetRegion": "eligible countries/regions if clearly stated or null",
+  "deadline": "YYYY-MM-DD, readable source deadline, or null",
+  "requirements": ["specific requirement or document"],
+  "benefits": ["specific award, funding, access, mentorship, or other benefit"],
+  "applicationProcess": ["specific application step"],
+  "eligibility": { "level": "if stated", "nationality": "if stated", "field": "if stated" },
+  "tags": ["3-6 concise tags"],
+  "confidence": 0.0,
+  "notes": ["short caveats for missing or unclear facts"]
+}
+
+Structured input:
+Title: ${this.cleanText(String(item.title || ""), 260)}
+Summary: ${this.cleanText(String(item.summary || ""), 600) || "N/A"}
+Description: ${this.cleanText(String(item.description || ""), 1600) || "N/A"}
+Organization: ${this.cleanText(String(item.organization || ""), 240) || "N/A"}
+Category: ${this.cleanText(String(item.category || item.canonical_category || ""), 160) || "N/A"}
+Location: ${this.cleanText(String(item.location || item.targetRegion || item.target_region || ""), 200) || "N/A"}
+Deadline: ${this.cleanText(String(item.deadline || item.close_date || ""), 120) || "N/A"}
+Source URL: ${sourceUrl || "N/A"}
+Application URL: ${applyUrl || "N/A"}
+Existing requirements: ${JSON.stringify(requirements)}
+Existing benefits: ${JSON.stringify(benefits)}
+Existing application process: ${JSON.stringify(applicationProcess)}
+Existing eligibility: ${JSON.stringify(item.eligibility || metadata.eligibility || {})}
+Existing metadata excerpt: ${JSON.stringify(metadata).slice(0, 2400)}
+
+Source text excerpt:
+${sourceText || "No source page text was available. Improve wording only from structured input and keep unknown facts empty."}`;
+  }
+
+  private async resolveOpportunitySourceText(
+    item: Record<string, any>,
+  ): Promise<string> {
+    const embeddedText = this.extractEmbeddedSourceText(item);
+    if (embeddedText) return embeddedText;
+    if (process.env.OPPORTUNITY_AI_FETCH_SOURCE === "false") return "";
+
+    const url =
+      item.sourceUrl ||
+      item.source_url ||
+      item.detailUrl ||
+      item.detail_url ||
+      item.applyUrl ||
+      item.apply_url ||
+      item.applicationUrl ||
+      item.application_url ||
+      "";
+    if (!this.isSafeOpportunitySourceUrl(url)) return "";
+
+    try {
+      const response = await axios.get(url, {
+        timeout: AI_SOURCE_FETCH_TIMEOUT_MS,
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (compatible; EdutuOpportunityBot/1.0; +https://edutu.ai)",
+          Accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.7",
+        },
+        maxContentLength: 1_500_000,
+        validateStatus: (status) => status >= 200 && status < 400,
+      });
+      return this.extractSourceTextFromHtml(String(response.data || ""));
+    } catch (error) {
+      this.logger.warn(
+        `Could not fetch source text for AI enrichment (${url}): ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return "";
+    }
+  }
+
+  private extractEmbeddedSourceText(item: Record<string, any>): string {
+    const metadata = (item.metadata || {}) as Record<string, any>;
+    const candidates = [
+      item.sourceText,
+      item.source_text,
+      item.rawText,
+      item.raw_text,
+      item.extractedText,
+      item.extracted_text,
+      item.contentText,
+      item.content_text,
+      item.pageText,
+      item.page_text,
+      metadata.source_text,
+      metadata.raw_text,
+      metadata.extracted_text,
+      metadata.content_text,
+      metadata.page_text,
+    ];
+
+    for (const candidate of candidates) {
+      const cleaned = this.cleanOptionalText(
+        candidate,
+        AI_SOURCE_TEXT_MAX_CHARS,
+      );
+      if (cleaned && cleaned.length >= 80) {
+        return cleaned;
+      }
+    }
+
+    return "";
+  }
+
+  private extractSourceTextFromHtml(html: string): string {
+    if (!html) return "";
+    const $ = cheerio.load(html);
+    $("script, style, noscript, nav, footer, header, aside, iframe").remove();
+    const selectors =
+      "article, main, .entry-content, .post-content, .content, [class*='content'], [class*='article']";
+    const candidates: string[] = [];
+
+    $(selectors).each((_, el) => {
+      const text = $(el).text().replace(/\s+/g, " ").trim();
+      if (text.length >= 120) {
+        candidates.push(text);
+      }
+    });
+
+    const text = candidates.length
+      ? candidates
+          .sort((a, b) => b.length - a.length)
+          .slice(0, 3)
+          .join("\n\n")
+      : $("body").text();
+
+    return text.replace(/\s+/g, " ").trim().slice(0, AI_SOURCE_TEXT_MAX_CHARS);
+  }
+
+  private isSafeOpportunitySourceUrl(value: unknown): value is string {
+    if (typeof value !== "string" || !value.trim()) return false;
+    try {
+      const parsed = new URL(value);
+      if (!["http:", "https:"].includes(parsed.protocol)) return false;
+      const host = parsed.hostname.toLowerCase();
+      if (
+        host === "localhost" ||
+        host.endsWith(".localhost") ||
+        host === "0.0.0.0" ||
+        host === "127.0.0.1" ||
+        host === "::1"
+      ) {
+        return false;
+      }
+      if (
+        /^(10|127)\./.test(host) ||
+        /^192\.168\./.test(host) ||
+        /^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
+        /^169\.254\./.test(host)
+      ) {
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private normalizeSummary(
@@ -1222,7 +1671,8 @@ Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
       "Scholarship opportunity details are being verified by Edutu.";
     const candidate = cleanedSummary || fallback;
     const words = candidate.split(/\s+/).filter(Boolean);
-    const limited = words.length > 45 ? words.slice(0, 45).join(" ") : candidate;
+    const limited =
+      words.length > 45 ? words.slice(0, 45).join(" ") : candidate;
     return /[.!?]$/.test(limited) ? limited : `${limited}.`;
   }
 
@@ -1391,65 +1841,40 @@ Existing metadata: ${JSON.stringify(metadata).slice(0, 4000)}`;
     for (const item of items) {
       try {
         if (!this.shouldEnhanceOpportunity(item)) {
-          processedItems.push(this.normalizeProcessedItem(item));
+          processedItems.push(
+            this.normalizeProcessedItem(item, null, {
+              aiAttempted: false,
+              sourceTextUsed: false,
+            }),
+          );
           continue;
         }
 
-        const prompt = `You are a scholarship data enhancement AI. Given the following scholarship data, fill in missing fields and generate relevant tags.
-
-Input Data:
-Title: ${item.title}
-Summary: ${item.summary || "N/A"}
-Description: ${item.description || "N/A"}
-Organization: ${item.organization || "N/A"}
-URL: ${item.sourceUrl}
-Category: ${item.category}
-
-Please provide:
-Use only facts supported by the input or source URL. Do not invent deadlines, countries, funding, eligibility, or application links.
-1. A short 25-45 word summary for preview cards
-2. A detailed description (if missing)
-3. Organization name if clearly stated
-4. Eligibility criteria (if missing)
-5. Requirements and documents if clearly stated
-6. Benefits or award details if clearly stated
-7. Application steps or process if clearly stated
-8. Funding type/amount (if missing)
-9. Target region/countries (if missing)
-10. 3-5 relevant tags (e.g., "STEM", "Women", "Africa", "Graduate", "Full-Ride")
-11. Deadline date in ISO format if mentioned (if missing)
-
-Output ONLY a JSON object with these fields:
-{
-  "summary": "short preview summary",
-  "description": "detailed description",
-  "organization": "host organization or provider",
-  "eligibilityCriteria": "who can apply",
-  "fundingType": "amount or type",
-  "targetRegion": "target countries/regions",
-  "deadline": "YYYY-MM-DD or null",
-  "requirements": ["requirement"],
-  "benefits": ["benefit"],
-  "applicationProcess": ["step"],
-  "tags": ["tag1", "tag2", "tag3"],
-  "confidence": 0.0,
-  "notes": ["short caveat"]
-}`;
-
-        const aiData = await this.aiService.generateJson<Record<string, any>>({
-          feature: "opportunities.enhance",
-          prompt,
-          responseMimeType: "application/json",
-          metadata: { title: item.title, sourceUrl: item.sourceUrl },
+        const sourceText = await this.resolveOpportunitySourceText(item);
+        const prompt = this.buildOpportunityEnhancementPrompt(item, sourceText);
+        const aiData = await this.generateOpportunityEnhancement(prompt, {
+          title: item.title,
+          sourceUrl: item.sourceUrl || item.source_url || item.applyUrl,
+          sourceTextLength: sourceText.length,
         });
 
-        processedItems.push(this.normalizeProcessedItem(item, aiData));
+        processedItems.push(
+          this.normalizeProcessedItem(item, aiData, {
+            aiAttempted: true,
+            sourceTextUsed: sourceText.length > 0,
+          }),
+        );
       } catch (err) {
         this.logger.warn(
           `AI processing failed for item: ${item.title}`,
           err.message,
         );
-        processedItems.push(this.normalizeProcessedItem(item)); // Keep original if AI fails
+        processedItems.push(
+          this.normalizeProcessedItem(item, null, {
+            aiAttempted: true,
+            sourceTextUsed: false,
+          }),
+        ); // Keep original if AI fails
       }
     }
 
@@ -1580,6 +2005,7 @@ Output ONLY a JSON object with these fields:
 
       inserted = saved.length;
       skipped += validItems.length - uniqueRecords.length;
+      await this.prewarmShareAssets(saved);
       return { inserted, skipped, opportunities: saved };
     }
 
@@ -1662,6 +2088,7 @@ Output ONLY a JSON object with these fields:
       this.logger.log(
         `Saved ${inserted} opportunities, skipped ${skipped} duplicates (batch insert)`,
       );
+      await this.prewarmShareAssets(result);
       return { inserted, skipped, opportunities: result };
     } catch (dbErr) {
       this.logger.error(
@@ -1710,7 +2137,22 @@ Output ONLY a JSON object with these fields:
       this.logger.log(
         `Saved ${inserted} opportunities, skipped ${skipped} duplicates (sequential fallback)`,
       );
+      await this.prewarmShareAssets(savedOpportunities);
       return { inserted, skipped, opportunities: savedOpportunities };
+    }
+  }
+
+  private async prewarmShareAssets(opportunityRows: Record<string, any>[]) {
+    if (!opportunityRows.length) return;
+
+    await this.opportunityShareCardService.ensureShareCardsForOpportunities(
+      opportunityRows,
+    );
+
+    if (process.env.OPPORTUNITY_SHARE_PDF_PREWARM === "true") {
+      await this.opportunityShareCardService.ensureSharePdfsForOpportunities(
+        opportunityRows,
+      );
     }
   }
 
@@ -1819,10 +2261,7 @@ Output ONLY a JSON object with these fields:
     }
   }
 
-  private buildSharePdfFileName(opportunity: {
-    id?: string;
-    title?: string;
-  }) {
+  private buildSharePdfFileName(opportunity: { id?: string; title?: string }) {
     const title = (opportunity.title || "edutu-opportunity")
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
@@ -1830,5 +2269,16 @@ Output ONLY a JSON object with these fields:
 
     const suffix = opportunity.id ? `-${opportunity.id}` : "";
     return `${title || "edutu-opportunity"}${suffix}.pdf`;
+  }
+
+  getPublicAppBaseUrl(): string {
+    return (
+      process.env.EDUTU_PUBLIC_APP_URL ||
+      process.env.PUBLIC_WEB_APP_URL ||
+      process.env.WEB_APP_URL ||
+      process.env.FRONTEND_URL ||
+      process.env.APP_URL ||
+      "https://edutu.ai"
+    ).replace(/\/$/, "");
   }
 }

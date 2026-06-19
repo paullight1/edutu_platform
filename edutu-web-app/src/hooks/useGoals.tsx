@@ -7,8 +7,8 @@ import React,
   useMemo,
   useReducer
 } from 'react';
-import { supabase } from '../lib/supabaseClient';
 import { syncUserGoalSummary } from '../services/analyticsAggregator';
+import { productApiRequest } from '../services/productApi';
 import { taskTrackingService } from '../services/taskTrackingService';
 import { useAuth } from '@clerk/clerk-react';
 
@@ -47,6 +47,7 @@ export type GoalUpdate = Partial<Omit<Goal, 'id' | 'user_id' | 'created_at'>>;
 interface GoalsContextValue {
   goals: Goal[];
   isLoading: boolean;
+  refreshGoals: () => Promise<void>;
   createGoal: (goal: GoalInput) => Promise<Goal>;
   updateGoal: (id: string, updates: GoalUpdate) => Promise<void>;
   deleteGoal: (id: string) => Promise<void>;
@@ -62,6 +63,91 @@ type GoalsAction =
   | { type: 'CLEAR_GOALS' };
 
 const GoalsContext = createContext<GoalsContextValue | undefined>(undefined);
+
+type ApiGoal = {
+  id: string;
+  userId?: string;
+  user_id?: string;
+  title: string;
+  description?: string | null;
+  category?: string | null;
+  deadline?: string | null;
+  targetDate?: string | null;
+  target_date?: string | null;
+  progress?: number | null;
+  status?: string | null;
+  createdAt?: string | null;
+  created_at?: string | null;
+  updatedAt?: string | null;
+  updated_at?: string | null;
+  completedAt?: string | null;
+  completed_at?: string | null;
+  priority?: 'low' | 'medium' | 'high' | null;
+  source?: 'template' | 'custom' | 'imported' | null;
+  templateId?: string | null;
+  template_id?: string | null;
+};
+
+function normalizeGoal(row: ApiGoal, fallbackUserId: string): Goal {
+  const status = row.status === 'completed' || row.status === 'archived' ? row.status : 'active';
+  const createdAt = row.createdAt ?? row.created_at ?? new Date().toISOString();
+  const updatedAt = row.updatedAt ?? row.updated_at ?? createdAt;
+  const targetDate = row.deadline ?? row.targetDate ?? row.target_date ?? undefined;
+
+  return {
+    id: row.id,
+    user_id: row.user_id ?? row.userId ?? fallbackUserId,
+    title: row.title,
+    description: row.description || undefined,
+    category: row.category || undefined,
+    deadline: targetDate || undefined,
+    progress: Math.min(Math.max(Number(row.progress ?? 0), 0), 100),
+    status,
+    created_at: createdAt,
+    updated_at: updatedAt,
+    completed_at: row.completed_at ?? row.completedAt ?? (status === 'completed' ? updatedAt : null),
+    priority: row.priority || undefined,
+    source: row.source || undefined,
+    template_id: row.template_id ?? row.templateId ?? undefined
+  };
+}
+
+function toApiGoalInput(input: GoalInput) {
+  return {
+    title: input.title.trim(),
+    description: input.description?.trim() || undefined,
+    category: input.category || undefined,
+    deadline: input.deadline || undefined,
+    targetDate: input.deadline || undefined,
+    progress: Math.min(Math.max(input.progress ?? 0, 0), 100),
+    status: input.progress && input.progress >= 100 ? 'completed' : 'active',
+    priority: input.priority,
+    source: input.source,
+    templateId: input.templateId
+  };
+}
+
+function toApiGoalUpdate(updates: GoalUpdate) {
+  return {
+    ...(updates.title !== undefined ? { title: updates.title } : {}),
+    ...(updates.description !== undefined ? { description: updates.description } : {}),
+    ...(updates.category !== undefined ? { category: updates.category } : {}),
+    ...(updates.deadline !== undefined ? { deadline: updates.deadline, targetDate: updates.deadline } : {}),
+    ...(updates.progress !== undefined ? { progress: Math.min(Math.max(updates.progress, 0), 100) } : {}),
+    ...(updates.status !== undefined ? { status: updates.status } : {}),
+    ...(updates.priority !== undefined ? { priority: updates.priority } : {}),
+    ...(updates.source !== undefined ? { source: updates.source } : {}),
+    ...(updates.template_id !== undefined ? { template_id: updates.template_id } : {})
+  };
+}
+
+async function requireProductApiToken(getToken: () => Promise<string | null>): Promise<string> {
+  const token = await getToken().catch(() => null);
+  if (!token) {
+    throw new Error('Sign in again to sync goals with Edutu.');
+  }
+  return token;
+}
 
 function goalsReducer(state: { goals: Goal[], isLoading: boolean }, action: GoalsAction): { goals: Goal[], isLoading: boolean } {
   switch (action.type) {
@@ -108,16 +194,9 @@ function goalsReducer(state: { goals: Goal[], isLoading: boolean }, action: Goal
   }
 }
 
-function createGoalId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `goal-${Math.random().toString(36).slice(2, 11)}`;
-}
-
 export const GoalsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(goalsReducer, { goals: [], isLoading: true });
-  const { isSignedIn, userId } = useAuth();
+  const { isSignedIn, userId, getToken } = useAuth();
 
   const syncGoalAggregate = useCallback(
     (goalsList: Goal[]) => {
@@ -142,30 +221,9 @@ export const GoalsProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     dispatch({ type: 'SET_LOADING', payload: true });
 
     try {
-      const { data, error } = await supabase
-        .from('goals')
-        .select('*')
-        .eq('user_id', uid)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      const goals = data.map(item => ({
-        id: item.id,
-        user_id: item.user_id,
-        title: item.title,
-        description: item.description || undefined,
-        category: item.category || undefined,
-        deadline: item.deadline || undefined,
-        progress: item.progress,
-        status: item.status as GoalStatus,
-        created_at: item.created_at,
-        updated_at: item.updated_at,
-        completed_at: item.completed_at || undefined,
-        priority: item.priority as 'low' | 'medium' | 'high' || undefined,
-        source: item.source as 'template' | 'custom' | 'imported' || undefined,
-        template_id: item.template_id || undefined
-      }));
+      const token = await requireProductApiToken(getToken);
+      const response = await productApiRequest<ApiGoal[]>('/goals', token);
+      const goals = response.map((goal) => normalizeGoal(goal, uid));
 
       dispatch({ type: 'SET_GOALS', payload: goals });
       syncGoalAggregate(goals);
@@ -174,7 +232,7 @@ export const GoalsProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
-  }, [syncGoalAggregate]);
+  }, [getToken, syncGoalAggregate]);
 
   useEffect(() => {
     if (!isSignedIn || !userId) {
@@ -190,100 +248,57 @@ export const GoalsProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       throw new Error('User not authenticated');
     }
 
-    const now = new Date().toISOString();
-    const newGoal: Goal = {
-      id: createGoalId(),
-      user_id: userId,
-      title: input.title.trim(),
-      description: input.description?.trim() || undefined,
-      category: input.category || undefined,
-      deadline: input.deadline || undefined,
-      progress: Math.min(Math.max(input.progress ?? 0, 0), 100),
-      status: input.progress && input.progress >= 100 ? 'completed' : 'active',
-      created_at: now,
-      updated_at: now,
-      completed_at: input.progress && input.progress >= 100 ? now : null,
-      priority: input.priority,
-      source: input.source,
-      template_id: input.templateId
-    };
-
-    const { data, error } = await supabase
-      .from('goals')
-      .insert([{
-        ...newGoal,
-        id: undefined
-      }])
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error creating goal:', error);
-      throw error;
-    }
-
-    const createdGoal: Goal = {
-      id: data.id,
-      user_id: data.user_id,
-      title: data.title,
-      description: data.description || undefined,
-      category: data.category || undefined,
-      deadline: data.deadline || undefined,
-      progress: data.progress,
-      status: data.status as GoalStatus,
-      created_at: data.created_at,
-      updated_at: data.updated_at,
-      completed_at: data.completed_at || undefined,
-      priority: data.priority as 'low' | 'medium' | 'high' || undefined,
-      source: data.source as 'template' | 'custom' | 'imported' || undefined,
-      template_id: data.template_id || undefined
-    };
+    const token = await requireProductApiToken(getToken);
+    const createdGoal = normalizeGoal(
+      await productApiRequest<ApiGoal>('/goals', token, {
+        method: 'POST',
+        body: JSON.stringify(toApiGoalInput(input))
+      }),
+      userId
+    );
 
     dispatch({ type: 'ADD_GOAL', payload: createdGoal });
     const nextGoals = [createdGoal, ...state.goals];
     syncGoalAggregate(nextGoals);
     return createdGoal;
-  }, [userId, state.goals, syncGoalAggregate]);
+  }, [getToken, userId, state.goals, syncGoalAggregate]);
 
   const updateGoal = useCallback(async (id: string, updates: GoalUpdate): Promise<void> => {
     if (!userId) {
       throw new Error('User not authenticated');
     }
 
-    const { error } = await supabase
-      .from('goals')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id)
-      .eq('user_id', userId);
-
-    if (error) {
-      console.error('Error updating goal:', error);
-      throw error;
-    }
+    const token = await requireProductApiToken(getToken);
+    const updatedGoal = normalizeGoal(
+      await productApiRequest<ApiGoal>(
+        `/goals/${encodeURIComponent(id)}`,
+        token,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(toApiGoalUpdate(updates))
+        }
+      ),
+      userId
+    );
 
     dispatch({
       type: 'UPDATE_GOAL',
       payload: {
         id,
-        updates: { ...updates, updated_at: new Date().toISOString() }
+        updates: updatedGoal
       }
     });
-    const updatedAt = new Date().toISOString();
+    const updatedAt = updatedGoal.updated_at;
     const nextGoals = state.goals.map((goal) => {
       if (goal.id !== id) {
         return goal;
       }
 
-      const nextStatus = (updates.status ?? goal.status) as GoalStatus;
+      const nextStatus = updatedGoal.status;
       let nextCompletedAt: string | null = goal.completed_at ?? null;
 
-      if (updates.completed_at !== undefined) {
-        nextCompletedAt = updates.completed_at as string | null;
-      } else if (nextStatus === 'completed' && !goal.completed_at) {
-        nextCompletedAt = updatedAt;
+      if (nextStatus === 'completed' && !goal.completed_at) {
+        nextCompletedAt = updatedGoal.completed_at ?? updatedAt;
         taskTrackingService.addCompletedTask({
           id: `goal-${id}`,
           title: `Completed goal: ${goal.title}`,
@@ -298,36 +313,36 @@ export const GoalsProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       return {
-        ...goal,
-        ...updates,
-        status: nextStatus,
-        updated_at: updatedAt,
-        completed_at: nextCompletedAt ?? undefined
+        ...updatedGoal,
+        completed_at: nextCompletedAt
       };
     });
     syncGoalAggregate(nextGoals);
-  }, [userId, state.goals, syncGoalAggregate]);
+  }, [getToken, userId, state.goals, syncGoalAggregate]);
 
   const deleteGoal = useCallback(async (id: string): Promise<void> => {
     if (!userId) {
       throw new Error('User not authenticated');
     }
 
-    const { error } = await supabase
-      .from('goals')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', userId);
-
-    if (error) {
-      console.error('Error deleting goal:', error);
-      throw error;
-    }
+    const token = await requireProductApiToken(getToken);
+    await productApiRequest<{ success: boolean }>(
+      `/goals/${encodeURIComponent(id)}`,
+      token,
+      { method: 'DELETE' }
+    );
 
     dispatch({ type: 'DELETE_GOAL', payload: { id } });
     const nextGoals = state.goals.filter((goal) => goal.id !== id);
     syncGoalAggregate(nextGoals);
-  }, [userId, state.goals, syncGoalAggregate]);
+  }, [getToken, userId, state.goals, syncGoalAggregate]);
+
+  const refreshGoals = useCallback(async () => {
+    if (!userId) {
+      return;
+    }
+    await loadGoals(userId);
+  }, [loadGoals, userId]);
 
   const clearGoals = useCallback(() => {
     // Only clear local state - don't delete from database as that would be destructive
@@ -339,12 +354,13 @@ export const GoalsProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     () => ({
       goals: state.goals,
       isLoading: state.isLoading,
+      refreshGoals,
       createGoal,
       updateGoal,
       deleteGoal,
       clearGoals
     }),
-    [state.goals, state.isLoading, createGoal, updateGoal, deleteGoal, clearGoals]
+    [state.goals, state.isLoading, refreshGoals, createGoal, updateGoal, deleteGoal, clearGoals]
   );
 
   return <GoalsContext.Provider value={contextValue}>{children}</GoalsContext.Provider>;

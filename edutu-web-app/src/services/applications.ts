@@ -1,6 +1,5 @@
-import { supabase } from '../lib/supabaseClient';
 import type { Opportunity } from '../types/opportunity';
-import { isProductApiUnavailableError, productApiRequest } from './productApi';
+import { productApiRequest } from './productApi';
 
 export type ApplicationStatus = 'draft' | 'submitted' | 'under_review' | 'accepted' | 'rejected';
 type DatabaseApplicationStatus = 'draft' | 'submitted' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
@@ -36,14 +35,7 @@ interface OpportunitySummary {
   category: string | null;
 }
 
-type ProductApplicationStatus =
-  | 'interested'
-  | 'preparing'
-  | 'applied'
-  | 'interviewing'
-  | 'accepted'
-  | 'rejected'
-  | 'archived';
+type ProductApplicationStatus = DatabaseApplicationStatus;
 
 type ApiApplicationRecord = Partial<ApplicationRecord> & {
   userId?: string;
@@ -97,24 +89,14 @@ function toAppStatus(status: string): ApplicationStatus {
 function toProductStatus(status: ApplicationStatus): ProductApplicationStatus {
   switch (status) {
     case 'draft':
-      return 'preparing';
+      return 'draft';
     case 'submitted':
-      return 'applied';
-    case 'under_review':
-      return 'interviewing';
-    case 'accepted':
-    case 'rejected':
-      return status;
-  }
-}
-
-function toDatabaseStatus(status: ApplicationStatus): DatabaseApplicationStatus {
-  switch (status) {
+      return 'submitted';
     case 'under_review':
       return 'interview';
     case 'accepted':
       return 'offer';
-    default:
+    case 'rejected':
       return status;
   }
 }
@@ -158,75 +140,20 @@ function mapApiApplication(
   };
 }
 
-async function tryProductApi<T>(operation: () => Promise<T>): Promise<T | null> {
-  try {
-    return await operation();
-  } catch (error) {
-    if (isProductApiUnavailableError(error)) return null;
-    throw error;
-  }
+function hasToken(token?: string | null): token is string {
+  return Boolean(token?.trim());
 }
 
 export async function getApplications(userId: string, token?: string | null): Promise<ApplicationRecord[]> {
-  if (token) {
-    const apiApplications = await tryProductApi(async () => {
-      const response = await productApiRequest<ApiApplicationRecord[] | { data?: ApiApplicationRecord[]; applications?: ApiApplicationRecord[]; items?: ApiApplicationRecord[] }>(
-        '/me/applications',
-        token
-      );
-      return extractApiRows(response).map((row) => mapApiApplication(row, userId));
-    });
-
-    if (apiApplications) return apiApplications;
-  }
-
-  const { data, error } = await supabase
-    .from('opportunity_applications')
-    .select('id, user_id, opportunity_id, status, submitted_at, created_at, notes, metadata')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('Error fetching applications:', error);
+  if (!hasToken(token)) {
     return [];
   }
 
-  const rows = (data ?? []) as ApplicationRow[];
-  if (rows.length === 0) return [];
-
-  const opportunityIds = rows.map((row) => row.opportunity_id);
-  const { data: opportunities, error: opportunityError } = await supabase
-    .from('opportunities')
-    .select('id, title, category')
-    .in('id', opportunityIds);
-
-  if (opportunityError) {
-    console.error('Error fetching application opportunities:', opportunityError);
-  }
-
-  const opportunityMap = new Map(
-    ((opportunities ?? []) as OpportunitySummary[]).map((opportunity) => [opportunity.id, opportunity])
+  const response = await productApiRequest<ApiApplicationRecord[] | { data?: ApiApplicationRecord[]; applications?: ApiApplicationRecord[]; items?: ApiApplicationRecord[] }>(
+    '/me/applications',
+    token
   );
-
-  return rows.map((row) => {
-    const opportunity = opportunityMap.get(row.opportunity_id);
-    return {
-      id: row.id,
-      user_id: row.user_id,
-      opportunity_id: row.opportunity_id,
-      opportunity_title:
-        opportunity?.title ||
-        row.metadata?.opportunity_title ||
-        'Opportunity',
-      opportunity_category:
-        opportunity?.category ||
-        row.metadata?.opportunity_category ||
-        'General',
-      status: toAppStatus(row.status),
-      applied_at: row.submitted_at || row.created_at,
-      notes: row.notes,
-    };
-  });
+  return extractApiRows(response).map((row) => mapApiApplication(row, userId));
 }
 
 export async function addApplication(
@@ -235,57 +162,23 @@ export async function addApplication(
   notes?: string,
   token?: string | null
 ): Promise<ApplicationRecord | null> {
-  if (token) {
-    const apiApplication = await tryProductApi(async () => {
-      const response = await productApiRequest<ApiApplicationRecord | null>('/me/applications', token, {
-        method: 'POST',
-        body: JSON.stringify({
-          opportunityId: opportunity.id,
-          status: 'applied',
-          notes: notes || null,
-          opportunity,
-        })
-      });
-      return response ? mapApiApplication(response, userId, opportunity) : mapApiApplication({}, userId, opportunity);
-    });
-
-    if (apiApplication) return apiApplication;
+  if (!hasToken(token)) {
+    return null;
   }
 
-  const { data, error } = await supabase
-    .from('opportunity_applications')
-    .upsert({
-      user_id: userId,
-      opportunity_id: opportunity.id,
+  const response = await productApiRequest<ApiApplicationRecord | null>('/me/applications', token, {
+    method: 'POST',
+    body: JSON.stringify({
+      opportunityId: opportunity.id,
       status: 'submitted',
-      submitted_at: new Date().toISOString(),
       notes: notes || null,
       metadata: {
         opportunity_title: opportunity.title,
         opportunity_category: opportunity.category,
       },
-    }, {
-      onConflict: 'user_id,opportunity_id',
     })
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error adding application:', error);
-    return null;
-  }
-
-  const row = data as ApplicationRow;
-  return {
-    id: row.id,
-    user_id: row.user_id,
-    opportunity_id: row.opportunity_id,
-    opportunity_title: opportunity.title,
-    opportunity_category: opportunity.category,
-    status: toAppStatus(row.status),
-    applied_at: row.submitted_at || row.created_at,
-    notes: row.notes,
-  };
+  });
+  return response ? mapApiApplication(response, userId, opportunity) : mapApiApplication({}, userId, opportunity);
 }
 
 export async function updateApplicationStatus(
@@ -293,66 +186,27 @@ export async function updateApplicationStatus(
   status: ApplicationStatus,
   token?: string | null
 ): Promise<ApplicationRecord> {
-  if (token) {
-    const apiApplication = await tryProductApi(async () => {
-      const response = await productApiRequest<ApiApplicationRecord>(
-        `/me/applications/${encodeURIComponent(id)}`,
-        token,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({ status: toProductStatus(status) })
-        }
-      );
-      return mapApiApplication(response, '');
-    });
-
-    if (apiApplication) return apiApplication;
+  if (!hasToken(token)) {
+    throw new Error('A signed-in session is required to update applications.');
   }
 
-  const { data, error } = await supabase
-    .from('opportunity_applications')
-    .update({ status: toDatabaseStatus(status) })
-    .eq('id', id)
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error updating application status:', error);
-    throw error;
-  }
-
-  const row = data as ApplicationRow;
-  return {
-    id: row.id,
-    user_id: row.user_id,
-    opportunity_id: row.opportunity_id,
-    opportunity_title: row.metadata?.opportunity_title || 'Opportunity',
-    opportunity_category: row.metadata?.opportunity_category || 'General',
-    status: toAppStatus(row.status),
-    applied_at: row.submitted_at || row.created_at,
-    notes: row.notes,
-  };
+  const response = await productApiRequest<ApiApplicationRecord>(
+    `/me/applications/${encodeURIComponent(id)}`,
+    token,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ status: toProductStatus(status) })
+    }
+  );
+  return mapApiApplication(response, '');
 }
 
 export async function removeApplication(id: string, token?: string | null): Promise<void> {
-  if (token) {
-    const apiRemoved = await tryProductApi(async () => {
-      await productApiRequest<void>(`/me/applications/${encodeURIComponent(id)}`, token, {
-        method: 'DELETE'
-      });
-      return true;
-    });
-
-    if (apiRemoved) return;
+  if (!hasToken(token)) {
+    throw new Error('A signed-in session is required to remove applications.');
   }
 
-  const { error } = await supabase
-    .from('opportunity_applications')
-    .delete()
-    .eq('id', id);
-
-  if (error) {
-    console.error('Error removing application:', error);
-    throw error;
-  }
+  await productApiRequest<void>(`/me/applications/${encodeURIComponent(id)}`, token, {
+    method: 'DELETE'
+  });
 }

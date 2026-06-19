@@ -544,6 +544,9 @@ export class MeService {
   }
 
   private toGoalDeadline(goal: TableRow) {
+    const status = this.asString(goal.status);
+    if (status === "completed" || status === "archived") return null;
+
     const deadline = goal.target_date ?? goal.deadline;
     if (!deadline) return null;
 
@@ -557,7 +560,7 @@ export class MeService {
       daysUntil,
       urgency: this.deadlineUrgency(daysUntil),
       sourceId: this.asString(goal.id),
-      status: goal.status,
+      status,
     };
   }
 

@@ -1,9 +1,18 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
-import { eq } from "drizzle-orm";
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { desc, eq } from "drizzle-orm";
 import { db } from "../db";
-import { profiles } from "../db/schema";
+import {
+  goals,
+  notificationPreferences,
+  notifications,
+  profiles,
+} from "../db/schema";
 import { toDatabaseUserId } from "../common/user-id";
-import type { UpdateProfileDto } from "./dto/profile.dto";
+import { MeService } from "../me/me.service";
+import type {
+  UpdateMemberSettingsDto,
+  UpdateProfileDto,
+} from "./dto/profile.dto";
 
 export interface AuthenticatedProfileUser {
   id: string;
@@ -17,6 +26,10 @@ export interface AuthenticatedProfileUser {
 
 @Injectable()
 export class ProfileService {
+  private readonly logger = new Logger(ProfileService.name);
+
+  constructor(private readonly meService: MeService) {}
+
   async getProfile(user: AuthenticatedProfileUser) {
     const dbUserId = toDatabaseUserId(user.id);
     const profile = await this.findOrCreateProfile(dbUserId, user);
@@ -44,6 +57,125 @@ export class ProfileService {
   async getCompleteness(user: AuthenticatedProfileUser) {
     const profile = await this.getProfile(user);
     return profile.completeness;
+  }
+
+  async getMemberSettings(user: AuthenticatedProfileUser) {
+    const dbUserId = toDatabaseUserId(user.id);
+    const profile = await this.findOrCreateProfile(dbUserId, user);
+    return this.normalizeSettings(profile.settings);
+  }
+
+  async updateMemberSettings(
+    user: AuthenticatedProfileUser,
+    dto: UpdateMemberSettingsDto,
+  ) {
+    const dbUserId = toDatabaseUserId(user.id);
+    const profile = await this.findOrCreateProfile(dbUserId, user);
+    const current = this.normalizeSettings(profile.settings);
+    const next = {
+      privacy: {
+        ...current.privacy,
+        ...(dto.privacy || {}),
+      },
+      security: {
+        ...current.security,
+        ...(dto.security || {}),
+      },
+      updatedAt: new Date().toISOString(),
+    };
+
+    const [updated] = await db
+      .update(profiles)
+      .set({
+        settings: next,
+        updatedAt: new Date(),
+      })
+      .where(eq(profiles.userId, dbUserId))
+      .returning();
+
+    if (!updated) throw new NotFoundException("Profile not found");
+    return this.normalizeSettings(updated.settings);
+  }
+
+  async requestDeletion(user: AuthenticatedProfileUser) {
+    const settings = await this.updateServerSecuritySettings(user, {
+      deletionRequested: true,
+      deletionRequestedAt: new Date().toISOString(),
+    });
+
+    return { success: true, settings };
+  }
+
+  async exportAccountData(user: AuthenticatedProfileUser) {
+    const dbUserId = toDatabaseUserId(user.id);
+    const profile = await this.findOrCreateProfile(dbUserId, user);
+    const now = new Date().toISOString();
+
+    const [
+      userGoals,
+      notificationPreferenceRows,
+      notificationRows,
+      bookmarks,
+      applications,
+    ] = await Promise.all([
+      db
+        .select()
+        .from(goals)
+        .where(eq(goals.userId, dbUserId))
+        .orderBy(desc(goals.createdAt)),
+      db
+        .select()
+        .from(notificationPreferences)
+        .where(eq(notificationPreferences.userId, dbUserId)),
+      db
+        .select()
+        .from(notifications)
+        .where(eq(notifications.userId, dbUserId))
+        .orderBy(desc(notifications.createdAt))
+        .limit(500),
+      this.safeListBookmarks(dbUserId),
+      this.safeListApplications(dbUserId),
+    ]);
+
+    const settings = await this.updateServerSecuritySettings(user, {
+      lastDataDownload: now,
+    });
+
+    return {
+      schemaVersion: 1,
+      exportedAt: now,
+      account: {
+        userId: dbUserId,
+        authId: user.authId || user.id,
+        email: user.email || profile.email || null,
+        displayName: profile.fullName || this.inferFullName(user),
+      },
+      profile: this.mapProfileForExport(profile),
+      settings,
+      data: {
+        goals: userGoals.map((goal) => this.mapGoalForExport(goal)),
+        savedOpportunities: bookmarks.map((bookmark) =>
+          this.mapBookmarkForExport(bookmark),
+        ),
+        applications: applications.map((application) =>
+          this.mapApplicationForExport(application),
+        ),
+        notifications: {
+          preferences: notificationPreferenceRows[0]
+            ? this.mapNotificationPreferencesForExport(
+                notificationPreferenceRows[0],
+              )
+            : null,
+          items: notificationRows.map((notification) =>
+            this.mapNotificationForExport(notification),
+          ),
+        },
+        analyticsSummary: null,
+      },
+      limits: {
+        notifications: 500,
+      },
+    };
   }
 
   private async findOrCreateProfile(
@@ -106,6 +238,226 @@ export class ProfileService {
     }
 
     return updateData;
+  }
+
+  private defaultSettings() {
+    return {
+      privacy: {
+        profileVisibility: "public" as const,
+        dataSharing: false,
+        analyticsTracking: true,
+        personalizedAds: false,
+        activityStatus: true,
+        searchVisibility: true,
+      },
+      security: {
+        twoFactorEnabled: false,
+        lastPasswordUpdate: null as string | null,
+        lastDataDownload: null as string | null,
+        deletionRequested: false,
+        deletionRequestedAt: null as string | null,
+      },
+      updatedAt: new Date(0).toISOString(),
+    };
+  }
+
+  private normalizeSettings(value: unknown) {
+    const defaults = this.defaultSettings();
+    const raw =
+      value && typeof value === "object"
+        ? (value as Record<string, unknown>)
+        : {};
+    const privacy =
+      raw.privacy && typeof raw.privacy === "object"
+        ? (raw.privacy as Record<string, unknown>)
+        : {};
+    const security =
+      raw.security && typeof raw.security === "object"
+        ? (raw.security as Record<string, unknown>)
+        : {};
+
+    return {
+      privacy: {
+        ...defaults.privacy,
+        ...privacy,
+      },
+      security: {
+        ...defaults.security,
+        ...security,
+      },
+      updatedAt:
+        typeof raw.updatedAt === "string" ? raw.updatedAt : defaults.updatedAt,
+    };
+  }
+
+  private async updateServerSecuritySettings(
+    user: AuthenticatedProfileUser,
+    securityUpdates: Partial<
+      ReturnType<ProfileService["defaultSettings"]>["security"]
+    >,
+  ) {
+    const dbUserId = toDatabaseUserId(user.id);
+    const profile = await this.findOrCreateProfile(dbUserId, user);
+    const current = this.normalizeSettings(profile.settings);
+    const next = {
+      ...current,
+      security: {
+        ...current.security,
+        ...securityUpdates,
+      },
+      updatedAt: new Date().toISOString(),
+    };
+
+    const [updated] = await db
+      .update(profiles)
+      .set({
+        settings: next,
+        updatedAt: new Date(),
+      })
+      .where(eq(profiles.userId, dbUserId))
+      .returning();
+
+    if (!updated) throw new NotFoundException("Profile not found");
+    return this.normalizeSettings(updated.settings);
+  }
+
+  private mapProfileForExport(profile: typeof profiles.$inferSelect) {
+    const completeness = this.withCompleteness(profile).completeness;
+
+    return {
+      fullName: profile.fullName,
+      country: profile.country,
+      skills: profile.skills ?? [],
+      createdAt: profile.createdAt,
+      updatedAt: profile.updatedAt,
+      completeness,
+    };
+  }
+
+  private mapGoalForExport(goal: typeof goals.$inferSelect) {
+    return {
+      id: goal.id,
+      title: goal.title,
+      description: goal.description,
+      category: goal.category,
+      progress: goal.progress,
+      status: goal.status,
+      deadline: goal.deadline,
+      targetDate: goal.targetDate,
+      priority: goal.priority,
+      source: goal.source,
+      templateId: goal.templateId,
+      createdAt: goal.createdAt,
+      updatedAt: goal.updatedAt,
+      completedAt: goal.completedAt,
+    };
+  }
+
+  private mapNotificationPreferencesForExport(
+    preferences: typeof notificationPreferences.$inferSelect,
+  ) {
+    return {
+      pushNotifications: preferences.pushNotifications,
+      emailNotifications: preferences.emailNotifications,
+      opportunityAlerts: preferences.opportunityAlerts,
+      deadlineReminders: preferences.deadlineReminders,
+      goalReminders: preferences.goalReminders,
+      achievementCelebrations: preferences.achievementCelebrations,
+      weeklyDigest: preferences.weeklyDigest,
+      marketingEmails: preferences.marketingEmails,
+      quietHours: preferences.quietHours,
+      updatedAt: preferences.updatedAt,
+    };
+  }
+
+  private mapNotificationForExport(
+    notification: typeof notifications.$inferSelect,
+  ) {
+    return {
+      id: notification.id,
+      kind: notification.kind,
+      title: notification.title,
+      body: notification.body,
+      severity: notification.severity,
+      metadata: notification.metadata ?? {},
+      createdAt: notification.createdAt,
+      readAt: notification.readAt,
+    };
+  }
+
+  private mapBookmarkForExport(bookmark: unknown) {
+    const row = this.asRecord(bookmark);
+    return {
+      opportunityId: this.asNullableString(row.opportunity_id),
+      savedAt: row.saved_at ?? row.created_at ?? null,
+      priority: row.priority ?? null,
+      notes: row.notes ?? null,
+      opportunity: this.mapOpportunityForExport(row.opportunity),
+    };
+  }
+
+  private mapApplicationForExport(application: unknown) {
+    const row = this.asRecord(application);
+    return {
+      id: this.asNullableString(row.id),
+      opportunityId: this.asNullableString(row.opportunity_id),
+      status: this.asNullableString(row.status),
+      notes: row.notes ?? null,
+      metadata: this.asRecord(row.metadata),
+      submittedAt: row.submitted_at ?? null,
+      createdAt: row.created_at ?? null,
+      updatedAt: row.updated_at ?? null,
+      opportunity: this.mapOpportunityForExport(row.opportunity),
+    };
+  }
+
+  private mapOpportunityForExport(opportunity: unknown) {
+    const row = this.asRecord(opportunity);
+    if (!Object.keys(row).length) return null;
+
+    return {
+      id: this.asNullableString(row.id),
+      title: this.asNullableString(row.title),
+      category: this.asNullableString(row.category),
+      organization: this.asNullableString(row.organization),
+      location: this.asNullableString(row.location),
+      deadline: row.deadline ?? row.close_date ?? null,
+      imageUrl: row.image_url ?? null,
+      matchScore: row.match_score ?? null,
+      qualityScore: row.quality_score ?? null,
+    };
+  }
+
+  private asRecord(value: unknown): Record<string, unknown> {
+    return value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : {};
+  }
+
+  private asNullableString(value: unknown) {
+    return typeof value === "string" && value.length > 0 ? value : null;
+  }
+
+  private async safeListBookmarks(userId: string) {
+    try {
+      return await this.meService.listBookmarks(userId);
+    } catch (error) {
+      this.logger.warn(
+        `Could not include bookmarks in account export: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return [];
+    }
+  }
+
+  private async safeListApplications(userId: string) {
+    try {
+      return await this.meService.listApplications(userId);
+    } catch (error) {
+      this.logger.warn(
+        `Could not include applications in account export: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return [];
+    }
   }
 
   private withCompleteness(profile: typeof profiles.$inferSelect) {

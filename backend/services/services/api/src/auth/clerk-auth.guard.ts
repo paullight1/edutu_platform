@@ -16,6 +16,12 @@ import { eq } from "drizzle-orm";
 import { toDatabaseUserId } from "../common/user-id";
 
 const BEARER_TOKEN_PATTERN = /^Bearer\s+(.+)$/i;
+const TRUSTED_ADMIN_ROLES = new Set([
+  "admin",
+  "super_admin",
+  "moderator",
+  "support_agent",
+]);
 
 @Injectable()
 export class ClerkAuthGuard implements CanActivate {
@@ -101,14 +107,26 @@ export class ClerkAuthGuard implements CanActivate {
 
       const dbUserId = toDatabaseUserId(payload.sub);
       const profile = await this.findProfile(dbUserId);
+      const clerkUser = profile
+        ? null
+        : await this.safeGetClerkUser(payload.sub);
 
       request.user = {
         id: dbUserId,
         authId: payload.sub,
-        email: payload.email || profile?.email,
-        firstName: payload.first_name || profile?.fullName?.split(" ")[0],
-        lastName: payload.last_name,
-        role: profile?.role || "user",
+        email:
+          this.toStringClaim(payload.email) ||
+          profile?.email ||
+          clerkUser?.primaryEmailAddress?.emailAddress,
+        firstName:
+          this.toStringClaim(payload.first_name) ||
+          profile?.fullName?.split(" ")[0] ||
+          clerkUser?.firstName,
+        lastName: this.toStringClaim(payload.last_name) || clerkUser?.lastName,
+        role:
+          profile?.role ||
+          this.getTrustedRoleFromMetadata(clerkUser?.publicMetadata) ||
+          "user",
         authProvider: "clerk",
       };
 
@@ -145,8 +163,7 @@ export class ClerkAuthGuard implements CanActivate {
           lastName: undefined,
           role:
             profile?.role ||
-            user.app_metadata?.role ||
-            user.user_metadata?.role ||
+            this.getTrustedRoleFromMetadata(user.app_metadata) ||
             "user",
           authProvider: "supabase",
         };
@@ -207,5 +224,30 @@ export class ClerkAuthGuard implements CanActivate {
     } catch {
       return null;
     }
+  }
+
+  private async safeGetClerkUser(userId: string) {
+    try {
+      return await this.clerkClient.users.getUser(userId);
+    } catch {
+      return null;
+    }
+  }
+
+  private getTrustedRoleFromMetadata(metadata: unknown): string | null {
+    if (!metadata || typeof metadata !== "object") {
+      return null;
+    }
+
+    const role = (metadata as Record<string, unknown>).role;
+    if (typeof role !== "string") {
+      return null;
+    }
+
+    return TRUSTED_ADMIN_ROLES.has(role) ? role : null;
+  }
+
+  private toStringClaim(value: unknown): string | undefined {
+    return typeof value === "string" && value.trim() ? value : undefined;
   }
 }

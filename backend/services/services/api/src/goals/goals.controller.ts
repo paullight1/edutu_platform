@@ -8,9 +8,10 @@ import {
   Delete,
 } from "@nestjs/common";
 import { GoalsService } from "./goals.service";
-import { CreateGoalDto } from "./dto/create-goal.dto";
-import { UpdateGoalDto } from "./dto/update-goal.dto";
+import { CreateGoalSchema, type CreateGoalDto } from "./dto/create-goal.dto";
+import { UpdateGoalSchema, type UpdateGoalDto } from "./dto/update-goal.dto";
 import { CurrentUser } from "../auth";
+import { ZodValidationPipe } from "../common/zod-validation.pipe";
 
 @Controller("goals")
 export class GoalsController {
@@ -19,7 +20,7 @@ export class GoalsController {
   @Post()
   create(
     @CurrentUser("id") userId: string,
-    @Body() createGoalDto: CreateGoalDto,
+    @Body(new ZodValidationPipe(CreateGoalSchema)) createGoalDto: CreateGoalDto,
   ) {
     return this.goalsService.create(userId, createGoalDto);
   }
@@ -38,7 +39,7 @@ export class GoalsController {
   update(
     @CurrentUser("id") userId: string,
     @Param("id") id: string,
-    @Body() updateGoalDto: UpdateGoalDto,
+    @Body(new ZodValidationPipe(UpdateGoalSchema)) updateGoalDto: UpdateGoalDto,
   ) {
     return this.goalsService.update(userId, id, updateGoalDto);
   }

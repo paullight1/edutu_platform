@@ -1,11 +1,47 @@
-import { supabase } from '../lib/supabaseClient';
+import { productApiRequest } from './productApi';
+
+export interface OpportunityCard {
+  id: string;
+  title: string;
+  organization: string | null;
+  category: string | null;
+  location: string | null;
+  deadline: string | null;
+  summary: string | null;
+  imageUrl: string | null;
+  applyUrl: string | null;
+  matchScore: number | null;
+  matchReason: string | null;
+}
+
+export interface SmartAction {
+  id: string;
+  type:
+    | 'view_opportunity'
+    | 'apply_opportunity'
+    | 'add_deadline'
+    | 'generate_roadmap'
+    | 'find_roadmap';
+  label: string;
+  opportunityId?: string;
+  title?: string;
+  deadline?: string | null;
+  route?: string;
+}
+
+export interface ChatMessageMetadata {
+  intent?: string;
+  opportunities?: OpportunityCard[];
+  smartActions?: SmartAction[];
+  [key: string]: unknown;
+}
 
 export interface ChatThread {
   id: string;
   title: string | null;
   updated_at: string;
-  last_message_at: string | null;
-  metadata: Record<string, unknown> | null;
+  last_message_at?: string | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface ChatMessage {
@@ -13,9 +49,10 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   created_at: string;
+  metadata?: ChatMessageMetadata | null;
 }
 
-interface SendChatMessageResult {
+export interface SendChatMessageResult {
   threadId: string;
   userMessage: ChatMessage;
   assistantMessage: ChatMessage;
@@ -26,131 +63,44 @@ interface SendChatMessageResult {
   } | null;
 }
 
-export async function fetchChatThreads(): Promise<ChatThread[]> {
-  const { data, error } = await supabase
-    .from('chat_threads')
-    .select('id, title, updated_at, last_message_at, metadata')
-    .order('updated_at', { ascending: false });
+export async function fetchChatThreads(token: string): Promise<ChatThread[]> {
+  const response = await productApiRequest<{ threads?: ChatThread[] }>(
+    '/chat/threads',
+    token,
+  );
 
-  if (error) {
-    throw error;
-  }
-
-  return (data ?? []) as ChatThread[];
+  return response.threads ?? [];
 }
 
-export async function fetchChatMessages(threadId: string): Promise<ChatMessage[]> {
-  const { data, error } = await supabase
-    .from('chat_messages')
-    .select('id, role, content, created_at')
-    .eq('thread_id', threadId)
-    .order('created_at', { ascending: true });
+export async function fetchChatMessages(
+  threadId: string,
+  token: string,
+): Promise<ChatMessage[]> {
+  const response = await productApiRequest<{ messages?: ChatMessage[] }>(
+    `/chat/threads/${encodeURIComponent(threadId)}/messages`,
+    token,
+  );
 
-  if (error) {
-    throw error;
-  }
-
-  return (data ?? []) as ChatMessage[];
+  return response.messages ?? [];
 }
 
-export async function archiveChatThread(threadId: string) {
-  const { error } = await supabase
-    .from('chat_threads')
-    .update({ metadata: { archived: true } })
-    .eq('id', threadId);
-
-  if (error) {
-    throw error;
-  }
+export async function deleteChatThread(threadId: string, token: string) {
+  await productApiRequest<{ success: true }>(
+    `/chat/threads/${encodeURIComponent(threadId)}`,
+    token,
+    { method: 'DELETE' },
+  );
 }
 
-export async function deleteChatThread(threadId: string) {
-  const { error } = await supabase
-    .from('chat_threads')
-    .delete()
-    .eq('id', threadId);
-
-  if (error) {
-    throw error;
-  }
-}
-
-export async function renameChatThread(threadId: string, title: string) {
-  const { error } = await supabase
-    .from('chat_threads')
-    .update({ title })
-    .eq('id', threadId);
-
-  if (error) {
-    throw error;
-  }
-}
-
-export async function sendChatMessage(options: { threadId?: string | null; message: string }): Promise<SendChatMessageResult> {
-  // First try to call the Supabase function
-  try {
-    const { data, error } = await supabase.functions.invoke<SendChatMessageResult>('chat-proxy', {
-      body: {
-        threadId: options.threadId,
-        message: options.message
-      }
-    });
-
-    if (error) {
-      throw error;
-    }
-
-    if (!data) {
-      throw new Error('No response from chat service.');
-    }
-
-    return data;
-  } catch (supabaseError) {
-    if (!import.meta.env.DEV) {
-      console.error('Chat service failed:', supabaseError);
-      throw new Error('Edutu AI is unavailable right now. Please try again shortly.');
-    }
-
-    console.warn('Supabase chat function failed; using a development-only response:', supabaseError);
-
-    const mockResponses = [
-      "That's a great question! Based on your interests, I'd recommend exploring more scholarship opportunities in that field.",
-      "I understand your concern. Many students face similar challenges. Here's what I recommend...",
-      "Great topic! Based on the latest opportunities, I can suggest several pathways for you.",
-      "That's an interesting perspective. From my knowledge base, I can tell you that...",
-      "I appreciate you sharing that. Let me help you think through your options...",
-      "Excellent question! Here's what I know about that subject...",
-      "This is a common challenge. One effective approach is to...",
-      "I see what you're looking for. Based on similar cases, I'd suggest..."
-    ];
-
-    const randomResponse =
-      mockResponses[Math.floor(Math.random() * mockResponses.length)];
-
-    // Add some context based on the user's message
-    const detailedResponse =
-      options.message.toLowerCase().includes('scholarship')
-        ? `Regarding scholarships, there are many opportunities available. ${randomResponse} Consider looking into merit-based and need-based scholarships that match your profile.`
-        : options.message.toLowerCase().includes('career') || options.message.toLowerCase().includes('job')
-          ? `For career advice, ${randomResponse} Focus on building relevant skills, networking with professionals, and gaining practical experience in your chosen field.`
-          : options.message.toLowerCase().includes('skill') || options.message.toLowerCase().includes('learn')
-            ? `To develop skills effectively, ${randomResponse} Consider taking online courses, joining communities, and practicing through projects.`
-            : randomResponse;
-
-    return {
-      threadId: options.threadId || Date.now().toString(),
-      userMessage: {
-        id: Date.now().toString(),
-        role: 'user',
-        content: options.message,
-        created_at: new Date().toISOString()
-      },
-      assistantMessage: {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: detailedResponse,
-        created_at: new Date().toISOString()
-      }
-    };
-  }
+export async function sendChatMessage(
+  options: { threadId?: string | null; message: string },
+  token: string,
+): Promise<SendChatMessageResult> {
+  return productApiRequest<SendChatMessageResult>('/chat/messages', token, {
+    method: 'POST',
+    body: JSON.stringify({
+      threadId: options.threadId,
+      message: options.message,
+    }),
+  });
 }

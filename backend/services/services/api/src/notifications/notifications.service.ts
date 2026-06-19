@@ -16,6 +16,7 @@ import {
   isNull,
   lte,
   ne,
+  sql,
 } from "drizzle-orm";
 import { db } from "../db";
 import {
@@ -255,6 +256,84 @@ export class NotificationsService {
       .returning();
 
     return created;
+  }
+
+  async unregisterPushToken(userId: string, token: string) {
+    const dbUserId = toDatabaseUserId(userId);
+    await db
+      .delete(notificationPushTokens)
+      .where(
+        and(
+          eq(notificationPushTokens.userId, dbUserId),
+          eq(notificationPushTokens.token, token),
+        ),
+      );
+
+    return { success: true };
+  }
+
+  async replaceScheduledUserNotifications(
+    userId: string,
+    dedupePrefix: string,
+    notificationsToSchedule: BroadcastNotificationDto[],
+  ) {
+    const dbUserId = toDatabaseUserId(userId);
+
+    await db
+      .delete(notificationQueue)
+      .where(
+        and(
+          eq(notificationQueue.status, "pending"),
+          sql`${notificationQueue.payload}->'metadata'->>'userId' = ${dbUserId}`,
+          sql`${notificationQueue.payload}->'metadata'->>'dedupePrefix' = ${dedupePrefix}`,
+        ),
+      );
+
+    const now = Date.now();
+    const rows = notificationsToSchedule
+      .map((item) => ({
+        item,
+        scheduledFor: item.scheduledFor ? new Date(item.scheduledFor) : null,
+      }))
+      .filter(
+        (
+          entry,
+        ): entry is { item: BroadcastNotificationDto; scheduledFor: Date } =>
+          Boolean(
+            entry.scheduledFor &&
+            !Number.isNaN(entry.scheduledFor.getTime()) &&
+            entry.scheduledFor.getTime() > now + 30_000,
+          ),
+      );
+
+    if (!rows.length) {
+      return { scheduled: 0 };
+    }
+
+    await db.insert(notificationQueue).values(
+      rows.map(({ item, scheduledFor }) => ({
+        payload: {
+          ...item,
+          audience: "specific",
+          targetUserIds: [dbUserId],
+          channels: {
+            inApp: true,
+            push: true,
+            email: false,
+            ...(item.channels || {}),
+          },
+          metadata: {
+            ...(item.metadata || {}),
+            userId: dbUserId,
+            dedupePrefix,
+          },
+        },
+        scheduledFor,
+        createdBy: dbUserId,
+      })),
+    );
+
+    return { scheduled: rows.length };
   }
 
   async broadcast(adminUserId: string, dto: BroadcastNotificationDto) {

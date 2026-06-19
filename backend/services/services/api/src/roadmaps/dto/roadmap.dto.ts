@@ -104,6 +104,11 @@ export const AdoptRoadmapDtoSchema = z.object({
   calendarSyncEnabled: z.boolean().optional(),
 });
 
+export const UpdateRoadmapProgressSchema = z.object({
+  stepId: z.string().min(1),
+  completed: z.boolean(),
+});
+
 export type RoadmapStepDto = z.infer<typeof RoadmapStepDtoSchema>;
 export type CreateRoadmapDto = z.infer<typeof CreateRoadmapDtoSchema>;
 export type UpdateRoadmapDto = z.infer<typeof UpdateRoadmapDtoSchema>;
@@ -111,3 +116,6 @@ export type RoadmapIntentDto = z.infer<typeof RoadmapIntentDtoSchema>;
 export type RoadmapFeedbackDto = z.infer<typeof RoadmapFeedbackDtoSchema>;
 export type AIAssistDto = z.infer<typeof AIAssistDtoSchema>;
 export type AdoptRoadmapDto = z.infer<typeof AdoptRoadmapDtoSchema>;
+export type UpdateRoadmapProgressDto = z.infer<
+  typeof UpdateRoadmapProgressSchema
+>;

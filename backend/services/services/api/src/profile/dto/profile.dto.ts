@@ -41,3 +41,35 @@ export const ProfileNotificationPreferencesSchema = z
 export type ProfileNotificationPreferencesDto = z.infer<
   typeof ProfileNotificationPreferencesSchema
 >;
+
+export const PrivacySettingsSchema = z
+  .object({
+    profileVisibility: z.enum(["public", "friends", "private"]).optional(),
+    dataSharing: z.boolean().optional(),
+    analyticsTracking: z.boolean().optional(),
+    personalizedAds: z.boolean().optional(),
+    activityStatus: z.boolean().optional(),
+    searchVisibility: z.boolean().optional(),
+  })
+  .strict();
+
+export const SecuritySettingsSchema = z
+  .object({
+    twoFactorEnabled: z.boolean().optional(),
+    lastPasswordUpdate: z.string().datetime().nullable().optional(),
+  })
+  .strict();
+
+export const UpdateMemberSettingsSchema = z
+  .object({
+    privacy: PrivacySettingsSchema.optional(),
+    security: SecuritySettingsSchema.optional(),
+  })
+  .strict()
+  .refine((value) => Boolean(value.privacy || value.security), {
+    message: "At least one settings group is required",
+  });
+
+export type UpdateMemberSettingsDto = z.infer<
+  typeof UpdateMemberSettingsSchema
+>;

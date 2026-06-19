@@ -1,11 +1,25 @@
-import { useState, useEffect } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { useState, useEffect } from "react";
+import { NavLink, Outlet } from "react-router-dom";
+import { supabase } from "../lib/supabase";
 import {
-  LayoutDashboard, Target, Users, Settings, LogOut, ShieldCheck,
-  BookOpen, Sun, Moon, Menu, X, ChevronLeft, ChevronRight, User,
-  FileText, Smartphone
-} from 'lucide-react';
+  LayoutDashboard,
+  Target,
+  Users,
+  Settings,
+  LogOut,
+  ShieldCheck,
+  BookOpen,
+  Sun,
+  Moon,
+  Menu,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  User,
+  FileText,
+  Smartphone,
+  CalendarDays,
+} from "lucide-react";
 
 interface User {
   id: string;
@@ -18,12 +32,12 @@ interface User {
 
 const Layout = () => {
   const [isDark, setIsDark] = useState(() => {
-    const saved = localStorage.getItem('theme');
-    return saved ? saved === 'dark' : true;
+    const saved = localStorage.getItem("theme");
+    return saved ? saved === "dark" : true;
   });
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    const saved = localStorage.getItem('sidebar');
-    return saved ? saved === 'collapsed' : false;
+    const saved = localStorage.getItem("sidebar");
+    return saved ? saved === "collapsed" : false;
   });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -35,18 +49,20 @@ const Layout = () => {
         setUser({
           id: user.id,
           email: user.email,
-          user_metadata: user.user_metadata
+          user_metadata: user.user_metadata,
         });
       }
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser({
           id: session.user.id,
           email: session.user.email,
-          user_metadata: session.user.user_metadata
+          user_metadata: session.user.user_metadata,
         });
       } else {
         setUser(null);
@@ -58,16 +74,19 @@ const Layout = () => {
 
   useEffect(() => {
     if (isDark) {
-      document.documentElement.setAttribute('data-theme', 'dark');
-      localStorage.setItem('theme', 'dark');
+      document.documentElement.setAttribute("data-theme", "dark");
+      localStorage.setItem("theme", "dark");
     } else {
-      document.documentElement.removeAttribute('data-theme');
-      localStorage.setItem('theme', 'light');
+      document.documentElement.removeAttribute("data-theme");
+      localStorage.setItem("theme", "light");
     }
   }, [isDark]);
 
   useEffect(() => {
-    localStorage.setItem('sidebar', isSidebarCollapsed ? 'collapsed' : 'expanded');
+    localStorage.setItem(
+      "sidebar",
+      isSidebarCollapsed ? "collapsed" : "expanded",
+    );
   }, [isSidebarCollapsed]);
 
   const toggleTheme = () => {
@@ -83,25 +102,28 @@ const Layout = () => {
   };
 
   const getUserInitials = () => {
-    const name = user?.user_metadata?.full_name || user?.email || 'A';
+    const name = user?.user_metadata?.full_name || user?.email || "A";
     return name.charAt(0).toUpperCase();
   };
 
   const navItems = [
-    { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/opportunities', icon: Target, label: 'Opportunities' },
-    { to: '/users', icon: Users, label: 'Users' },
-    { to: '/creators', icon: ShieldCheck, label: 'Creators' },
-    { to: '/roadmaps', icon: BookOpen, label: 'Roadmaps' },
-    { to: '/blog', icon: FileText, label: 'Blog' },
-    { to: '/mobile-control', icon: Smartphone, label: 'Mobile Control' },
-    { to: '/edutu-engine', icon: Settings, label: 'Edutu Engine' },
+    { to: "/", icon: LayoutDashboard, label: "Dashboard" },
+    { to: "/opportunities", icon: Target, label: "Opportunities" },
+    { to: "/events", icon: CalendarDays, label: "Events" },
+    { to: "/users", icon: Users, label: "Users" },
+    { to: "/creators", icon: ShieldCheck, label: "Creators" },
+    { to: "/roadmaps", icon: BookOpen, label: "Roadmaps" },
+    { to: "/blog", icon: FileText, label: "Blog" },
+    { to: "/mobile-control", icon: Smartphone, label: "Mobile Control" },
+    { to: "/edutu-engine", icon: Settings, label: "Edutu Engine" },
   ];
 
   return (
     <div className="app-container">
       {/* Sidebar */}
-      <aside className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''} ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
+      <aside
+        className={`sidebar ${isSidebarCollapsed ? "collapsed" : ""} ${isMobileMenuOpen ? "mobile-open" : ""}`}
+      >
         {/* Sidebar Header with Logo and Collapse Toggle */}
         <div className="sidebar-header">
           <div className="logo-container">
@@ -111,9 +133,13 @@ const Layout = () => {
           <button
             className="collapse-toggle"
             onClick={toggleSidebar}
-            title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
-            {isSidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            {isSidebarCollapsed ? (
+              <ChevronRight size={18} />
+            ) : (
+              <ChevronLeft size={18} />
+            )}
           </button>
         </div>
 
@@ -123,7 +149,9 @@ const Layout = () => {
             <NavLink
               key={item.to}
               to={item.to}
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+              className={({ isActive }) =>
+                `nav-link ${isActive ? "active" : ""}`
+              }
               onClick={() => {
                 setIsMobileMenuOpen(false);
                 if (window.innerWidth <= 768) setIsSidebarCollapsed(true);
@@ -148,12 +176,12 @@ const Layout = () => {
             {user?.user_metadata?.avatar_url ? (
               <img
                 src={user.user_metadata.avatar_url}
-                alt={user.user_metadata.full_name || 'User'}
+                alt={user.user_metadata.full_name || "User"}
                 style={{
                   width: 28,
                   height: 28,
-                  borderRadius: '50%',
-                  objectFit: 'cover'
+                  borderRadius: "50%",
+                  objectFit: "cover",
                 }}
               />
             ) : (
@@ -161,23 +189,27 @@ const Layout = () => {
                 style={{
                   width: 28,
                   height: 28,
-                  borderRadius: '50%',
-                  background: 'var(--apple-blue)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  borderRadius: "50%",
+                  background: "var(--apple-blue)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                   fontWeight: 600,
-                  fontSize: '13px',
-                  color: 'white',
-                  flexShrink: 0
+                  fontSize: "13px",
+                  color: "white",
+                  flexShrink: 0,
                 }}
               >
                 {getUserInitials()}
               </div>
             )}
             <div className="profile-info">
-              <span className="profile-name">{user?.user_metadata?.full_name || 'Admin'}</span>
-              <span className="profile-email">{user?.email?.split('@')[0] || 'Admin'}</span>
+              <span className="profile-name">
+                {user?.user_metadata?.full_name || "Admin"}
+              </span>
+              <span className="profile-email">
+                {user?.email?.split("@")[0] || "Admin"}
+              </span>
             </div>
           </NavLink>
 
@@ -213,11 +245,11 @@ const Layout = () => {
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <button
               className="theme-toggle"
               onClick={toggleTheme}
-              title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
             >
               {isDark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
