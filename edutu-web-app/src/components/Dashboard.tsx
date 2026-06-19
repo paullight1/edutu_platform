@@ -239,6 +239,29 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       [homeFeedLimit, visibleHomeOpportunities],
     );
 
+    const mobileMoreOpportunityItems = useMemo(() => {
+      const items: Array<
+        | { type: "opportunity"; key: string; opportunity: any }
+        | { type: "promo"; key: string }
+      > = [];
+
+      mobileExploreOpportunities.slice(0, 10).forEach((opportunity: any, index: number) => {
+        if (index === 2) {
+          items.push({ type: "promo", key: "mobile-more-profile-promo" });
+        }
+
+        items.push({
+          type: "opportunity",
+          key: opportunity?.id
+            ? `mobile-feed-${opportunity.id}`
+            : `mobile-feed-${index}`,
+          opportunity,
+        });
+      });
+
+      return items;
+    }, [mobileExploreOpportunities]);
+
     const homePromos = useMemo(
       () => [
         {
@@ -1503,57 +1526,43 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             </p>
                           </div>
                           <div
-                            className="w-full"
-                            style={{
-                              display: "flex",
-                              flexWrap: "wrap",
-                              gap: "12px",
-                            }}
+                            className="mobile-more-opportunities-grid"
                           >
-                            {mobileExploreOpportunities
-                              .slice(0, 10)
-                              .map((opportunity: any, index: number) => (
-                                <React.Fragment
-                                  key={
-                                    opportunity?.id
-                                      ? `mobile-feed-${opportunity.id}`
-                                      : `mobile-feed-${index}`
-                                  }
-                                >
-                                  {index === 2 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => openDashboardDestination("profile")}
-                                      className="flex h-[214px] w-full max-w-full min-w-0 flex-col overflow-hidden rounded-2xl bg-slate-950 p-3 text-left text-white transition active:scale-[0.98] dark:bg-brand-500"
-                                      style={{
-                                        flex: "0 0 calc((100% - 12px) / 2)",
-                                        maxWidth: "calc((100% - 12px) / 2)",
-                                      }}
-                                    >
-                                      <span className="text-[11px] font-semibold text-white/70">
-                                        Sponsored
-                                      </span>
-                                      <span className="mt-2 block text-[13px] font-black leading-tight text-white">
-                                        Improve your matches
-                                      </span>
-                                      <span className="mt-2 line-clamp-4 text-[11px] leading-4 text-white/75">
-                                        Complete your profile so Edutu can show stronger matches first.
-                                      </span>
-                                      <span className="mt-auto inline-flex items-center gap-1 pt-3 text-xs font-black text-white">
-                                        Review profile <ChevronRight size={14} />
-                                      </span>
-                                    </button>
-                                  )}
+                            {mobileMoreOpportunityItems.map((item) => {
+                              if (item.type === "promo") {
+                                return (
                                   <button
+                                    key={item.key}
+                                    type="button"
+                                    onClick={() => openDashboardDestination("profile")}
+                                    className="mobile-more-opportunity-card flex flex-col overflow-hidden rounded-2xl bg-slate-950 p-3 text-left text-white transition active:scale-[0.98] dark:bg-brand-500"
+                                  >
+                                    <span className="text-[10px] font-semibold text-white/70">
+                                      Sponsored
+                                    </span>
+                                    <span className="mt-2 block text-[13px] font-black leading-tight text-white">
+                                      Improve your matches
+                                    </span>
+                                    <span className="mt-2 line-clamp-4 text-[11px] leading-4 text-white/75">
+                                      Complete your profile so Edutu can show stronger matches first.
+                                    </span>
+                                    <span className="mt-auto inline-flex items-center gap-1 pt-3 text-[11px] font-black text-white">
+                                      Review <ChevronRight size={13} />
+                                    </span>
+                                  </button>
+                                );
+                              }
+
+                              const { opportunity } = item;
+
+                              return (
+                                  <button
+                                    key={item.key}
                                     type="button"
                                     onClick={() => onOpportunityClick(opportunity)}
-                                    className={`flex h-[214px] w-full max-w-full min-w-0 flex-col overflow-hidden rounded-2xl border text-left transition active:scale-[0.98] ${isDarkMode ? "border-white/10 bg-gray-900" : "border-slate-200 bg-white"}`}
-                                    style={{
-                                      flex: "0 0 calc((100% - 12px) / 2)",
-                                      maxWidth: "calc((100% - 12px) / 2)",
-                                    }}
+                                    className={`mobile-more-opportunity-card flex flex-col overflow-hidden rounded-2xl border text-left transition active:scale-[0.98] ${isDarkMode ? "border-white/10 bg-gray-900" : "border-slate-200 bg-white"}`}
                                   >
-                                    <div className="h-[92px] w-full shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800">
+                                    <div className="mobile-more-opportunity-media w-full shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800">
                                       <ImageWithFallback
                                         src={opportunity.image}
                                         alt={
@@ -1565,14 +1574,14 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                         fallbackClassName="h-full w-full"
                                       />
                                     </div>
-                                    <div className="flex min-h-0 flex-1 flex-col p-3">
-                                      <span className="mb-1 block truncate text-[11px] font-bold leading-4 text-brand-600 dark:text-brand-300">
+                                    <div className="flex min-h-0 flex-1 flex-col p-2.5">
+                                      <span className="mb-1 block truncate text-[10px] font-bold leading-4 text-brand-600 dark:text-brand-300">
                                         {opportunity.category || "General"}
                                       </span>
-                                      <span className="line-clamp-3 block text-[14px] font-black leading-[1.15] text-slate-950 dark:text-white">
+                                      <span className="line-clamp-3 block text-[13px] font-black leading-[1.16] text-slate-950 dark:text-white">
                                         {opportunity.title}
                                       </span>
-                                      <div className="mt-auto flex min-w-0 flex-col gap-0.5 pt-2 text-[11px] font-semibold leading-4 text-slate-500 dark:text-slate-400">
+                                      <div className="mt-auto flex min-w-0 flex-col gap-0.5 pt-2 text-[10px] font-semibold leading-4 text-slate-500 dark:text-slate-400">
                                         <span className="truncate">
                                           {opportunity.location || "Remote"}
                                         </span>
@@ -1589,8 +1598,8 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                       </div>
                                     </div>
                                   </button>
-                                </React.Fragment>
-                              ))}
+                              );
+                            })}
                           </div>
                         </div>
                       </>
