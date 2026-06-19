@@ -1502,7 +1502,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                               Scroll down to keep reviewing cards
                             </p>
                           </div>
-                          <div className="grid grid-cols-2 items-stretch gap-3">
+                          <div className="grid w-full grid-cols-[repeat(2,minmax(0,1fr))] items-stretch gap-3">
                             {mobileExploreOpportunities
                               .slice(0, 10)
                               .map((opportunity: any, index: number) => (
@@ -1517,15 +1517,15 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                     <button
                                       type="button"
                                       onClick={() => openDashboardDestination("profile")}
-                                      className="flex h-[196px] min-w-0 flex-col overflow-hidden rounded-2xl bg-slate-950 p-3 text-left text-white transition active:scale-[0.98] dark:bg-brand-500"
+                                      className="flex min-h-[188px] min-w-0 flex-col overflow-hidden rounded-2xl bg-slate-950 p-3 text-left text-white transition active:scale-[0.98] dark:bg-brand-500"
                                     >
                                       <span className="text-[11px] font-semibold text-white/70">
                                         Sponsored
                                       </span>
-                                      <span className="mt-2 block text-sm font-black leading-tight text-white">
+                                      <span className="mt-2 block text-[13px] font-black leading-tight text-white">
                                         Improve your matches
                                       </span>
-                                      <span className="mt-2 line-clamp-4 text-xs leading-5 text-white/75">
+                                      <span className="mt-2 line-clamp-4 text-[11px] leading-4 text-white/75">
                                         Complete your profile so Edutu can show stronger matches first.
                                       </span>
                                       <span className="mt-auto inline-flex items-center gap-1 pt-3 text-xs font-black text-white">
@@ -1536,9 +1536,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                   <button
                                     type="button"
                                     onClick={() => onOpportunityClick(opportunity)}
-                                    className={`flex h-[196px] min-w-0 flex-col overflow-hidden rounded-2xl border text-left transition active:scale-[0.98] ${isDarkMode ? "border-white/10 bg-gray-900" : "border-slate-200 bg-white"}`}
+                                    className={`flex min-h-[188px] min-w-0 overflow-hidden rounded-2xl border text-left transition active:scale-[0.98] ${isDarkMode ? "border-white/10 bg-gray-900" : "border-slate-200 bg-white"}`}
                                   >
-                                    <div className="h-20 shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800">
+                                    <div className="flex w-full min-w-0 flex-col">
+                                    <div className="aspect-[5/4] w-full shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800">
                                       <ImageWithFallback
                                         src={opportunity.image}
                                         alt={
@@ -1550,11 +1551,11 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                         fallbackClassName="h-full w-full"
                                       />
                                     </div>
-                                    <div className="flex min-h-0 flex-1 flex-col p-2.5">
-                                      <span className="mb-1 block truncate text-[11px] font-bold text-brand-600 dark:text-brand-300">
+                                    <div className="flex min-h-0 flex-1 flex-col p-3">
+                                      <span className="mb-1 block truncate text-[11px] font-bold leading-4 text-brand-600 dark:text-brand-300">
                                         {opportunity.category || "General"}
                                       </span>
-                                      <span className="line-clamp-2 block text-[13px] font-black leading-tight text-slate-950 dark:text-white">
+                                      <span className="line-clamp-3 block text-[14px] font-black leading-[1.15] text-slate-950 dark:text-white">
                                         {opportunity.title}
                                       </span>
                                       <div className="mt-auto flex min-w-0 flex-col gap-0.5 pt-2 text-[11px] font-semibold leading-4 text-slate-500 dark:text-slate-400">
@@ -1572,6 +1573,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                             : "Ongoing"}
                                         </span>
                                       </div>
+                                    </div>
                                     </div>
                                   </button>
                                 </React.Fragment>
