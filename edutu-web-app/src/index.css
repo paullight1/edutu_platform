@@ -852,6 +852,38 @@ body {
   overscroll-behavior-y: auto;
 }
 
+.landing-mesh-stage {
+  background: #061120;
+}
+
+.landing-mesh-bg {
+  background:
+    radial-gradient(circle at 16% 16%, rgba(70, 163, 255, 0.58), transparent 30%),
+    radial-gradient(circle at 78% 18%, rgba(90, 81, 224, 0.5), transparent 32%),
+    radial-gradient(circle at 60% 74%, rgba(40, 177, 205, 0.46), transparent 34%),
+    linear-gradient(135deg, #061120 0%, #0b2a58 46%, #1d3f8f 100%);
+  transform: scale(1.08);
+  animation: landing-mesh-drift 14s ease-in-out infinite alternate;
+}
+
+.landing-grain {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.28) 1px, transparent 1px);
+  background-size: 12px 12px;
+  mix-blend-mode: soft-light;
+}
+
+@keyframes landing-mesh-drift {
+  from {
+    filter: hue-rotate(0deg) saturate(1.02);
+    transform: scale(1.08) translate3d(0, 0, 0);
+  }
+
+  to {
+    filter: hue-rotate(8deg) saturate(1.08);
+    transform: scale(1.12) translate3d(-1.5%, 1%, 0);
+  }
+}
+
 @media (max-width: 640px) {
   .landing-page {
     min-height: 100dvh;

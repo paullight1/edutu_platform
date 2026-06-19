@@ -15,6 +15,7 @@ import { ClerkProvider } from '@clerk/clerk-react';
 import { AuthProvider } from './hooks/useAuth';
 import { GoalsProvider } from './hooks/useGoals';
 import { NotificationsProvider } from './hooks/useNotifications';
+import { AnalyticsProvider } from './hooks/useAnalytics';
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 if (!clerkPubKey) {
@@ -42,11 +43,13 @@ root.render(
             <ToastProvider>
               <ThemeProvider>
                 <AuthProvider>
-                  <NotificationsProvider>
-                    <GoalsProvider>
-                      <App />
-                    </GoalsProvider>
-                  </NotificationsProvider>
+                  <AnalyticsProvider>
+                    <NotificationsProvider>
+                      <GoalsProvider>
+                        <App />
+                      </GoalsProvider>
+                    </NotificationsProvider>
+                  </AnalyticsProvider>
                 </AuthProvider>
               </ThemeProvider>
             </ToastProvider>

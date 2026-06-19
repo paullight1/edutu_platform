@@ -21,7 +21,6 @@ import {
 
 interface MemberSettingsPanelProps {
   onOpenNotifications: () => void;
-  onOpenWallet: () => void;
 }
 
 const visibilityOptions: Array<{
@@ -130,7 +129,6 @@ function Toggle({
 
 export default function MemberSettingsPanel({
   onOpenNotifications,
-  onOpenWallet,
 }: MemberSettingsPanelProps) {
   const { getToken } = useClerkAuth();
   const { unreadCount } = useNotifications();
@@ -318,30 +316,6 @@ export default function MemberSettingsPanel({
             </span>
             <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-400">
               {unreadCount} unread
-            </span>
-          </span>
-          <span className="rounded-lg bg-brand-500/10 px-2 py-1 text-xs font-black text-brand-600 dark:text-brand-300">
-            Open
-          </span>
-        </button>
-      </section>
-
-      <section className="space-y-3">
-        <div className="flex items-center gap-2 text-sm font-black text-slate-950 dark:text-white">
-          <Database size={16} />
-          Billing
-        </div>
-        <button
-          type="button"
-          onClick={onOpenWallet}
-          className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
-        >
-          <span>
-            <span className="block text-sm font-black text-slate-950 dark:text-white">
-              Wallet and plan
-            </span>
-            <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-400">
-              View credits, subscription status, and upgrade options.
             </span>
           </span>
           <span className="rounded-lg bg-brand-500/10 px-2 py-1 text-xs font-black text-brand-600 dark:text-brand-300">

@@ -22,9 +22,18 @@ import PublicEditorialShell from "./PublicEditorialShell";
 import Seo from "./Seo";
 import { getDefaultSeoImage, toAbsoluteUrl } from "../lib/publicSite";
 
+const PUBLIC_TAG_BLOCKLIST = new Set([
+  "scraped",
+  "scraper",
+  "imported",
+  "automation",
+  "source",
+]);
+
 interface OpportunityDetailProps {
   opportunity: Opportunity;
   onBack: () => void;
+  embedded?: boolean;
 }
 
 function getCurrencySymbol(currency?: string | null): string {
@@ -80,6 +89,22 @@ function normaliseSeoText(value?: string | null): string {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 }
 
+function normaliseVisibleText(value?: string | null): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value
+    .replace(/\s*(?:\[\s*(?:\.{3}|…)\s*\]|\(\s*(?:\.{3}|…)\s*\))/gu, "")
+    .replace(/\s*(?:\.{3}|…)\s*$/u, "")
+    .replace(/[ \t]+/g, " ")
+    .trim();
+}
+
+function normaliseVisibleList(values: string[]): string[] {
+  return values.map(normaliseVisibleText).filter(Boolean);
+}
+
 function truncateSeoText(value: string, maxLength = 155): string {
   if (value.length <= maxLength) {
     return value;
@@ -102,9 +127,65 @@ function getDaysUntilDeadline(deadline?: string | null): number | null {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
+function formatEligibilityKey(key: string): string {
+  return key
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatEligibilityValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => formatEligibilityValue(item))
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  if (value && typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, nestedValue]) => {
+        const formattedValue = formatEligibilityValue(nestedValue);
+        return formattedValue
+          ? `${formatEligibilityKey(key)}: ${formattedValue}`
+          : "";
+      })
+      .filter(Boolean)
+      .join("; ");
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  return normaliseVisibleText(String(value));
+}
+
+function buildEligibilityItems(
+  eligibility?: Record<string, unknown>,
+): string[] {
+  if (!eligibility) {
+    return [];
+  }
+
+  return Object.entries(eligibility)
+    .map(([key, value]) => {
+      const formattedValue = formatEligibilityValue(value);
+      return formattedValue ? `${formatEligibilityKey(key)}: ${formattedValue}` : "";
+    })
+    .filter(Boolean);
+}
+
 const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   opportunity,
   onBack,
+  embedded = false,
 }) => {
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
   const [isBookmarkedState, setIsBookmarkedState] = useState(false);
@@ -126,21 +207,48 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   const difficultyLabel = opportunity.difficulty ?? "Medium";
   const applicantsCopy = opportunity.applicants
     ? `${opportunity.applicants} applicants`
-    : "No applicant data";
+    : "Applicant count not published";
   const successRateCopy =
-    opportunity.successRate ?? "Success rate not shared yet";
-  const requirements =
-    opportunity.requirements.length > 0
-      ? opportunity.requirements
-      : ["Requirements will be updated soon."];
-  const benefits =
-    opportunity.benefits.length > 0
-      ? opportunity.benefits
-      : ["Benefits will be updated soon."];
-  const applicationSteps =
-    opportunity.applicationProcess.length > 0
-      ? opportunity.applicationProcess
-      : ["Application steps will be confirmed soon."];
+    opportunity.successRate ?? "Organizer has not published a success rate";
+  const fullDescription =
+    normaliseVisibleText(opportunity.description || opportunity.summary) ||
+    `${opportunity.title} is a ${opportunity.category.toLowerCase()} opportunity from ${opportunity.organization}. Review the public details, deadline, location, eligibility notes, benefits, and application link before applying.`;
+  const descriptionParagraphs = fullDescription
+    .split(/\n{2,}/)
+    .map(normaliseVisibleText)
+    .filter(Boolean);
+  const eligibilityItems = buildEligibilityItems(opportunity.eligibility);
+  const requirements = normaliseVisibleList(opportunity.requirements);
+  const displayedRequirements =
+    requirements.length > 0
+      ? requirements
+      : [
+          ...eligibilityItems,
+          "Review the official application page for final eligibility rules before applying.",
+          "Prepare a current CV or resume, academic or professional records, and any supporting documents requested by the organizer.",
+        ];
+  const benefits = normaliseVisibleList(opportunity.benefits);
+  const displayedBenefits =
+    benefits.length > 0
+      ? benefits
+      : [
+          opportunity.stipend !== undefined && opportunity.stipend !== null
+            ? `${currencySymbol}${opportunity.stipend.toLocaleString()} funding support${opportunity.currency ? ` in ${currencyLabel}` : ""}.`
+            : "Funding, training, mentorship, networking, or program access may be available depending on the organizer's official terms.",
+          "A structured opportunity to build experience, credentials, network, or portfolio value tied to this program.",
+          "Official benefits should be confirmed on the organizer application page before submission.",
+        ];
+  const applicationSteps = normaliseVisibleList(opportunity.applicationProcess);
+  const displayedApplicationSteps =
+    applicationSteps.length > 0
+      ? applicationSteps
+      : [
+          userId
+            ? "Use the apply button to open the official organizer application page."
+            : "Sign in to Edutu to continue to the official application page.",
+          "Review the deadline, eligibility notes, and required documents before starting the application.",
+          "Submit directly through the organizer page, then save or track the opportunity in Edutu.",
+        ];
   const shareUrl = buildOpportunityShareUrl(opportunity.id);
   const shareText = buildOpportunityShareText(opportunity, shareUrl);
   const canonicalPath = `/opportunity/${encodeURIComponent(opportunity.id)}`;
@@ -377,31 +485,34 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   const handleApply = async () => {
     if (!applyUrl) return;
 
-    if (userId) {
-      const token = await getToken().catch(() => null);
-      const tracked = await addApplication(
-        userId,
-        {
-          id: opportunity.id,
-          title: opportunity.title,
-          category: opportunity.category,
-        },
-        undefined,
-        token,
-      );
+    if (!userId) {
+      navigate("/auth?mode=sign-in", { state: authState });
+      return;
+    }
 
-      if (tracked) {
-        success("Application added to your tracker");
-      } else {
-        showError("Application link opened, but tracking could not be updated");
-      }
+    const token = await getToken().catch(() => null);
+    const tracked = await addApplication(
+      userId,
+      {
+        id: opportunity.id,
+        title: opportunity.title,
+        category: opportunity.category,
+      },
+      undefined,
+      token,
+    );
+
+    if (tracked) {
+      success("Application added to your tracker");
+    } else {
+      showError("Application link opened, but tracking could not be updated");
     }
 
     window.open(applyUrl, "_blank", "noopener,noreferrer");
   };
 
-  return (
-    <PublicEditorialShell mainClassName="max-w-6xl py-5 sm:py-6">
+  const detailContent = (
+    <>
       <Seo
         title={`${opportunity.title} | Edutu opportunities`}
         description={seoDescription}
@@ -420,9 +531,13 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
             <ArrowLeft size={16} />
             Back to opportunities
           </button>
-          <span aria-hidden="true">•</span>
-          <span>Public details</span>
-          <span aria-hidden="true">•</span>
+          {!embedded ? (
+            <>
+              <span aria-hidden="true">•</span>
+              <span>Public details</span>
+              <span aria-hidden="true">•</span>
+            </>
+          ) : null}
           <span>{formatUpdatedAt(opportunity.lastUpdated)}</span>
         </div>
 
@@ -435,41 +550,45 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
               <h1 className="max-w-3xl text-3xl font-semibold text-slate-950 sm:text-4xl dark:text-white">
                 {opportunity.title}
               </h1>
-              <p className="max-w-3xl text-lg leading-8 text-slate-600 dark:text-slate-300">
-                {opportunity.organization}
-              </p>
-              <p className="max-w-3xl text-base leading-7 text-slate-600 dark:text-slate-300">
-                {opportunity.description ||
-                  "A straightforward application preview with the core details you need to decide, save, and apply."}
-              </p>
+              {!embedded ? (
+                <p className="max-w-3xl text-lg leading-8 text-slate-600 dark:text-slate-300">
+                  {opportunity.organization}
+                </p>
+              ) : null}
+              <div className="max-w-3xl space-y-3 text-base leading-7 text-slate-600 dark:text-slate-300">
+                {descriptionParagraphs.map((paragraph, index) => (
+                  <p key={`${paragraph.slice(0, 40)}-${index}`}>{paragraph}</p>
+                ))}
+              </div>
             </header>
 
-            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
               {[
                 ["Match", `${matchPercentage}%`],
                 ["Difficulty", difficultyLabel],
                 ["Deadline", formatDeadline(opportunity.deadline)],
                 ["Location", opportunity.location || "Worldwide"],
+                ["Applicants", applicantsCopy],
               ].map(([label, value]) => (
                 <div
                   key={label}
-                  className="border-b border-slate-200 pb-4 dark:border-white/10"
+                  className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/5 sm:p-4"
                 >
-                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                     {label}
                   </p>
-                  <p className="mt-2 text-sm font-medium leading-6 text-slate-950 dark:text-white">
+                  <p className="mt-1.5 break-words text-sm font-black leading-snug text-slate-950 dark:text-white sm:text-base">
                     {value}
                   </p>
                 </div>
               ))}
               {opportunity.stipend !== undefined &&
               opportunity.stipend !== null ? (
-                <div className="border-b border-slate-200 pb-4 dark:border-white/10">
-                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/5 sm:p-4">
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                     Funding
                   </p>
-                  <p className="mt-2 text-sm font-medium leading-6 text-slate-950 dark:text-white">
+                  <p className="mt-1.5 break-words text-sm font-black leading-snug text-slate-950 dark:text-white sm:text-base">
                     {currencySymbol}
                     {opportunity.stipend.toLocaleString()}
                   </p>
@@ -480,14 +599,6 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                   ) : null}
                 </div>
               ) : null}
-              <div className="border-b border-slate-200 pb-4 dark:border-white/10">
-                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                  Applicants
-                </p>
-                <p className="mt-2 text-sm font-medium leading-6 text-slate-950 dark:text-white">
-                  {applicantsCopy}
-                </p>
-              </div>
             </section>
 
             <section className="space-y-3">
@@ -495,7 +606,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                 Requirements
               </h2>
               <ul className="space-y-3 text-base leading-7 text-slate-600 dark:text-slate-300">
-                {requirements.map((item, index) => (
+                {displayedRequirements.map((item, index) => (
                   <li key={`${item}-${index}`} className="flex gap-3">
                     <span className="mt-3 h-1.5 w-1.5 rounded-full bg-brand-500" />
                     <span>{item}</span>
@@ -509,7 +620,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                 Benefits
               </h2>
               <ul className="space-y-3 text-base leading-7 text-slate-600 dark:text-slate-300">
-                {benefits.map((item, index) => (
+                {displayedBenefits.map((item, index) => (
                   <li key={`${item}-${index}`} className="flex gap-3">
                     <span className="mt-3 h-1.5 w-1.5 rounded-full bg-emerald-500" />
                     <span>{item}</span>
@@ -523,7 +634,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                 Application process
               </h2>
               <ol className="space-y-3 text-base leading-7 text-slate-600 dark:text-slate-300">
-                {applicationSteps.map((item, index) => (
+                {displayedApplicationSteps.map((item, index) => (
                   <li key={`${item}-${index}`} className="flex gap-4">
                     <span className="mt-0.5 text-sm font-semibold text-brand-600 dark:text-brand-300">
                       {String(index + 1).padStart(2, "0")}
@@ -534,13 +645,15 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
               </ol>
             </section>
 
-            {opportunity.tags && opportunity.tags.length > 0 ? (
+            {opportunity.tags?.filter((tag) => !PUBLIC_TAG_BLOCKLIST.has(tag.toLowerCase())).length ? (
               <section className="space-y-3 border-t border-slate-200 pt-6 dark:border-white/10">
                 <h2 className="text-xl font-semibold text-slate-950 dark:text-white">
                   Tags
                 </h2>
                 <div className="flex flex-wrap gap-2">
-                  {opportunity.tags.map((tag) => (
+                  {opportunity.tags
+                    .filter((tag) => !PUBLIC_TAG_BLOCKLIST.has(tag.toLowerCase()))
+                    .map((tag) => (
                     <span
                       key={tag}
                       className="inline-flex items-center rounded-md border border-slate-200 px-3 py-1 text-sm text-slate-600 dark:border-white/10 dark:text-slate-300"
@@ -572,7 +685,11 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                     Remote
                   </dt>
                   <dd className="mt-1 text-sm font-medium text-slate-950 dark:text-white">
-                    {opportunity.isRemote ? "Yes" : "Not specified"}
+                    {opportunity.isRemote
+                      ? "Yes"
+                      : opportunity.isRemote === false
+                        ? "No"
+                        : "Use listed location"}
                   </dd>
                 </div>
                 <div>
@@ -601,7 +718,11 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                   className="inline-flex flex-1 items-center justify-center gap-2 rounded-md bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
                 >
                   <ExternalLink size={16} />
-                  {applyUrl ? "Apply now" : "Application link unavailable"}
+                  {applyUrl
+                    ? userId
+                      ? "Apply now"
+                      : "Sign in to apply"
+                    : "Application link unavailable"}
                 </button>
                 <button
                   type="button"
@@ -637,6 +758,20 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
           </aside>
         </div>
       </section>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <main className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+        {detailContent}
+      </main>
+    );
+  }
+
+  return (
+    <PublicEditorialShell mainClassName="max-w-6xl py-5 sm:py-6">
+      {detailContent}
     </PublicEditorialShell>
   );
 };

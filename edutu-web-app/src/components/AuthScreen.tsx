@@ -688,19 +688,16 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
             : "Your information is secure and will not be shared.";
 
   return (
-    <PublicEditorialShell mainClassName="max-w-7xl py-4 sm:py-5">
-      <section className="relative overflow-hidden rounded-lg bg-[#081225] px-4 py-6 text-slate-950 sm:px-6 lg:px-8">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_10%_20%,rgba(78,131,255,0.34),transparent_24%),radial-gradient(circle_at_88%_78%,rgba(43,100,255,0.3),transparent_22%)]" />
-        <div className="absolute inset-0 opacity-35 [background-image:radial-gradient(rgba(255,255,255,0.55)_1px,transparent_1px)] [background-size:12px_12px]" />
-
-        <section className="relative mx-auto flex min-h-[620px] max-w-6xl items-center justify-center">
+    <PublicEditorialShell mainClassName="max-w-md py-10 sm:py-14">
+      <section className="text-slate-950">
+        <section className="mx-auto flex items-center justify-center">
           <motion.div
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, ease: "easeOut" }}
-            className="grid w-full overflow-hidden rounded-[28px] bg-white p-3 shadow-2xl shadow-black/30 lg:grid-cols-[1.08fr_1fr]"
+            className="w-full"
           >
-            <aside className="relative hidden min-h-[650px] overflow-hidden rounded-[22px] bg-[#236fff] text-white lg:block">
+            <aside className="hidden">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(206,238,255,0.8),rgba(94,158,255,0.68)_27%,rgba(35,111,255,0)_50%)]" />
               <div className="absolute inset-0 opacity-25 [background-image:radial-gradient(rgba(255,255,255,0.9)_1px,transparent_1px)] [background-size:9px_9px]" />
 
@@ -771,10 +768,10 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
               </div>
             </aside>
 
-            <div className="flex min-h-[650px] items-center justify-center bg-white px-5 py-8 sm:px-8 lg:px-12">
-              <div className="w-full max-w-[360px]">
+            <div className="flex items-center justify-center">
+              <div className="w-full">
                 <div className="mb-8 text-center">
-                  <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-slate-50 shadow-inner">
+                  <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-blue-50">
                     {mode === "verify" ||
                     mode === "verify-sign-in" ||
                     mode === "verify-second-factor" ||
@@ -784,10 +781,10 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                       <User className="text-slate-700" size={26} />
                     )}
                   </div>
-                  <h1 className="text-2xl font-semibold text-slate-950">
+                  <h1 className="text-2xl font-semibold text-slate-950 dark:text-white">
                     {title}
                   </h1>
-                  <p className="mt-2 text-sm leading-5 text-slate-500">
+                  <p className="mt-2 text-sm leading-5 text-slate-500 dark:text-slate-300">
                     {subtitle}
                   </p>
                 </div>
