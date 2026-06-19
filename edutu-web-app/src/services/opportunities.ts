@@ -5,6 +5,17 @@ import { updateOpportunitiesInN8n } from './n8nIntegration';
 
 let cachedOpportunities: Opportunity[] | null = null;
 const fallbackUpdatedAt = new Date().toISOString();
+const SOURCE_BRAND_RE =
+  /\b(?:dixcoverhubx|dixcover\s*hubx|opportunities\s*circle|oya\s*opportunities|scholars4dev|global\s*scholar\s*desk|scholarship\s*portal|jobs\.smartyacad\.com)\b/i;
+const SCRAPER_ARTIFACT_RE =
+  /\b(?:by\s+admin|posted\s+by|written\s+by|read\s+more|continue\s+reading|leave\s+a\s+comment|comments?|share\s+this|related\s+posts?)\b/i;
+const PUBLIC_TAG_BLOCKLIST = new Set([
+  'scraped',
+  'scraper',
+  'imported',
+  'automation',
+  'source',
+]);
 
 const fallbackOpportunities: Opportunity[] = [
   {
@@ -132,17 +143,6 @@ function normaliseStringArray(value: unknown): string[] {
     .filter(Boolean);
 }
 
-function pickStringArray(...values: unknown[]): string[] {
-  for (const value of values) {
-    const normalised = normaliseStringArray(value);
-    if (normalised.length > 0) {
-      return normalised;
-    }
-  }
-
-  return [];
-}
-
 function pickStringValue(fallback: string, ...values: unknown[]): string {
   for (const value of values) {
     if (typeof value !== 'string') {
@@ -156,6 +156,76 @@ function pickStringValue(fallback: string, ...values: unknown[]): string {
   }
 
   return fallback;
+}
+
+function cleanOpportunityText(value: unknown): string {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  return value
+    .replace(/\s+/g, ' ')
+    .replace(/\bBy\s+Admin\s+On\s+[A-Z][a-z]+\s+\d{1,2},\s+20\d{2}\b/g, ' ')
+    .replace(/\bBy\s+Admin\b/gi, ' ')
+    .replace(/\b(?:posted|written)\s+by\s+[^.]{1,60}/gi, ' ')
+    .replace(SOURCE_BRAND_RE, 'the official organizer')
+    .replace(SCRAPER_ARTIFACT_RE, ' ')
+    .replace(/\s*(?:\[\s*(?:\.{3}|…)\s*\]|\(\s*(?:\.{3}|…)\s*\))/gu, '')
+    .replace(/\s*(?:\.{3}|…)\s*$/u, '')
+    .replace(/\s+([,.;:])/g, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function isSourceArtifact(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  return SOURCE_BRAND_RE.test(value) || SCRAPER_ARTIFACT_RE.test(value);
+}
+
+function pickPublicStringValue(fallback: string, ...values: unknown[]): string {
+  for (const value of values) {
+    const cleaned = cleanOpportunityText(value);
+    if (cleaned && !isSourceArtifact(value)) {
+      return cleaned;
+    }
+  }
+
+  return fallback;
+}
+
+function cleanPublicTags(...values: unknown[]): string[] {
+  return Array.from(
+    new Set(
+      values
+        .flatMap((value) => normaliseStringArray(value))
+        .filter((tag) => !isSourceArtifact(tag))
+        .map(cleanOpportunityText)
+        .filter((tag) => tag && !PUBLIC_TAG_BLOCKLIST.has(tag.toLowerCase())),
+    ),
+  ).slice(0, 8);
+}
+
+function cleanPublicStringArray(...values: unknown[]): string[] {
+  for (const value of values) {
+    const normalised = normaliseStringArray(value)
+      .filter((item) => !isSourceArtifact(item))
+      .map(cleanOpportunityText)
+      .filter(Boolean);
+    if (normalised.length > 0) {
+      return Array.from(new Set(normalised));
+    }
+  }
+
+  return [];
+}
+
+function pickLongestStringValue(fallback: string, ...values: unknown[]): string {
+  const candidates = values
+    .map(cleanOpportunityText)
+    .filter(Boolean)
+    .sort((left, right) => right.length - left.length);
+
+  return candidates[0] || fallback;
 }
 
 function formatCategoryLabel(value: string): string {
@@ -228,24 +298,29 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
     row.qualityScore ??
     0;
   const title = pickStringValue('Untitled opportunity', row.title, row.name);
-  const organization = pickStringValue(
-    'Community Provider',
+  const organization = pickPublicStringValue(
+    'Program Organizer',
+    metadata.public_organization,
     row.organization,
     row.provider,
-    row.source_name,
   );
   const category = pickCategory(row, metadata);
   const summary = pickStringValue('', row.refined_summary, row.summary, metadata.summary);
+  const fallbackDescription = `${title} from ${organization}. Review ${category.toLowerCase()} details, deadline, benefits, and the application link on Edutu.`;
   const description =
-    pickStringValue(
+    pickLongestStringValue(
+      fallbackDescription,
+      metadata.full_description,
+      metadata.fullDescription,
+      metadata.long_description,
+      metadata.longDescription,
+      metadata.description,
       '',
       row.description,
       row.refined_summary,
       row.summary,
       metadata.summary,
-      metadata.description,
-    ) ||
-    `${title} from ${organization}. Review ${category.toLowerCase()} details, deadline, benefits, and the application link on Edutu.`;
+    );
 
   return {
     id: String(row.id ?? row.opportunity_id ?? row.external_id ?? crypto.randomUUID()),
@@ -261,9 +336,9 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
     ),
     summary,
     description,
-    requirements: pickStringArray(row.requirements, metadata.requirements, metadata.eligibility),
-    benefits: pickStringArray(row.benefits, metadata.benefits),
-    applicationProcess: pickStringArray(
+    requirements: cleanPublicStringArray(row.requirements, metadata.requirements, metadata.eligibility),
+    benefits: cleanPublicStringArray(row.benefits, metadata.benefits),
+    applicationProcess: cleanPublicStringArray(
       row.application_process,
       metadata.application_process,
       metadata.applicationProcess,
@@ -284,7 +359,7 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
     lastUpdated: row.updated_at ?? row.updatedAt ?? row.updated ?? new Date().toISOString(),
     source: row.source,
     externalId: row.external_id,
-    tags: normaliseStringArray(row.tags ?? metadata.tags),
+    tags: cleanPublicTags(row.tags, metadata.public_tags, metadata.tags, metadata.aiTags),
     isRemote: row.is_remote ?? row.isRemote,
     featured: row.is_featured ?? row.featured,
     stipend: row.stipend,

@@ -276,8 +276,7 @@ export default function NotificationInbox({
                 No notifications yet
               </h3>
               <p className="mt-2 max-w-xs text-sm leading-6 text-slate-500 dark:text-slate-400">
-                Deadline reminders, goal nudges, and opportunity alerts will
-                appear here when they are available.
+                Deadline reminders and opportunity alerts will appear here.
               </p>
             </div>
           ) : (

@@ -9,24 +9,26 @@ import {
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import AuthScreen from "./components/AuthScreen";
 import AuthCallback from "./components/AuthCallback";
+import AppWorkspaceShell from "./components/AppWorkspaceShell";
 import ApplicationsPage from "./components/ApplicationsPage";
 import Dashboard from "./components/Dashboard";
+import LandingPageV3 from "./components/LandingPageV3";
 import OpportunitiesPage from "./components/OpportunitiesPage";
 import OpportunityDetailFetcher from "./components/OpportunityDetailFetcher";
 import OpportunitySharePage from "./components/OpportunitySharePage";
 import EventsPage from "./components/EventsPage";
 import EventDetailPage from "./components/EventDetailPage";
+import AboutPage from "./components/AboutPage";
+import BlogPage from "./components/BlogPage";
+import MentorPage from "./components/MentorPage";
+import DownloadPage from "./components/DownloadPage";
+import DeveloperDocsPage from "./components/DeveloperDocsPage";
+import ScholarshipApiPage from "./components/ScholarshipApiPage";
 import PublicEditorialShell from "./components/PublicEditorialShell";
-import CoachPage from "./components/CoachPage";
-import CvPage from "./components/CvPage";
 import DeadlinesPage from "./components/DeadlinesPage";
-import GoalsPage from "./components/GoalsPage";
 import ProfilePage from "./components/ProfilePage";
-import RoadmapDetailPage from "./components/RoadmapDetailPage";
-import RoadmapsPage from "./components/RoadmapsPage";
-import RoadmapTemplatesPage from "./components/RoadmapTemplatesPage";
 import SavedPage from "./components/SavedPage";
-import WalletPage from "./components/WalletPage";
+import SettingsPage from "./components/SettingsPage";
 import { consumePostAuthRedirect } from "./lib/auth";
 import { useAuth as useAppAuth } from "./hooks/useAuth";
 
@@ -38,19 +40,13 @@ export type Screen =
   | "auth"
   | "dashboard"
   | "opportunities"
-  | "coach"
-  | "cv"
-  | "roadmaps"
-  | "roadmap-templates"
   | "saved"
   | "applied"
   | "profile"
   | "settings"
   | "notifications"
-  | "wallet"
   | "privacy"
   | "help"
-  | "cv-management"
   | "personalization"
   | "community-marketplace"
   | "achievements"
@@ -58,7 +54,6 @@ export type Screen =
   | "creator-dashboard"
   | "creator-create"
   | "deadlines"
-  | "goals"
   | "about"
   | "blog";
 
@@ -124,7 +119,7 @@ function UserDashboardPage() {
   const openOpportunity = useCallback(
     (opportunity: { id?: string }) => {
       if (!opportunity?.id) return;
-      navigate(`/opportunity/${opportunity.id}`);
+      navigate(`/app/opportunity/${opportunity.id}`);
     },
     [navigate],
   );
@@ -132,41 +127,21 @@ function UserDashboardPage() {
   const openAppRoute = useCallback(
     (screen: string) => {
       if (screen === "opportunities") {
-        navigate("/opportunities");
-        return;
-      }
-
-      if (screen === "wallet" || screen === "premium") {
-        navigate("/wallet");
+        navigate("/app/opportunities");
         return;
       }
 
       if (
-        screen === "coach" ||
         screen === "deadlines" ||
-        screen === "goals" ||
-        screen === "cv" ||
-        screen === "cv-management" ||
-        screen === "roadmaps" ||
-        screen === "roadmap-templates" ||
-        screen === "templates" ||
         screen === "saved" ||
         screen === "applied" ||
         screen === "profile"
       ) {
-        if (screen === "cv-management") {
-          navigate("/cv");
-          return;
-        }
         if (screen === "applied") {
-          navigate("/applications");
+          navigate("/app/applications");
           return;
         }
-        if (screen === "templates") {
-          navigate("/roadmap-templates");
-          return;
-        }
-        navigate(`/${screen}`);
+        navigate(`/app/${screen}`);
         return;
       }
 
@@ -181,14 +156,24 @@ function UserDashboardPage() {
     <Dashboard
       user={user}
       onOpportunityClick={openOpportunity}
-      onViewAllOpportunities={() => navigate("/opportunities")}
+      onViewAllOpportunities={() => navigate("/app/opportunities")}
       onNavigate={openAppRoute}
+      embeddedDesktopShell
     />
+  );
+}
+
+function AppWorkspaceRoute({ children }: { children: ReactNode }) {
+  return (
+    <ProtectedRoute>
+      <AppWorkspaceShell>{children}</AppWorkspaceShell>
+    </ProtectedRoute>
   );
 }
 
 function App() {
   const navigate = useNavigate();
+  const { isSignedIn } = useClerkAuth();
 
   const handleAuthSuccess = useCallback(
     (_userData: unknown) => {
@@ -197,126 +182,81 @@ function App() {
     [navigate],
   );
 
+  const handleGetStarted = useCallback(() => {
+    navigate(isSignedIn ? "/dashboard" : "/auth?mode=sign-in");
+  }, [isSignedIn, navigate]);
+
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route
+        path="/"
+        element={<LandingPageV3 onGetStarted={handleGetStarted} />}
+      />
       <Route
         path="/dashboard"
         element={
-          <ProtectedRoute>
+          <AppWorkspaceRoute>
             <UserDashboardPage />
-          </ProtectedRoute>
+          </AppWorkspaceRoute>
         }
       />
       <Route
         path="/app/home"
         element={
-          <ProtectedRoute>
+          <AppWorkspaceRoute>
             <UserDashboardPage />
-          </ProtectedRoute>
+          </AppWorkspaceRoute>
         }
       />
       <Route path="/opportunities" element={<OpportunitiesPage />} />
+      <Route
+        path="/app/opportunities"
+        element={
+          <AppWorkspaceRoute>
+            <OpportunitiesPage embedded />
+          </AppWorkspaceRoute>
+        }
+      />
       <Route path="/events" element={<EventsPage />} />
       <Route path="/events/:slugOrId" element={<EventDetailPage />} />
-      <Route
-        path="/coach"
-        element={
-          <ProtectedRoute>
-            <CoachPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/app/coach"
-        element={
-          <ProtectedRoute>
-            <CoachPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/cv"
-        element={
-          <ProtectedRoute>
-            <CvPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/app/cv"
-        element={
-          <ProtectedRoute>
-            <CvPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/roadmaps"
-        element={
-          <ProtectedRoute>
-            <RoadmapsPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/roadmaps/:id"
-        element={
-          <ProtectedRoute>
-            <RoadmapDetailPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/app/roadmaps"
-        element={
-          <ProtectedRoute>
-            <RoadmapsPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/roadmap-templates"
-        element={
-          <ProtectedRoute>
-            <RoadmapTemplatesPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/templates"
-        element={<Navigate to="/roadmap-templates" replace />}
-      />
-      <Route
-        path="/app/roadmap-templates"
-        element={
-          <ProtectedRoute>
-            <RoadmapTemplatesPage />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/mentor" element={<MentorPage />} />
+      <Route path="/about" element={<AboutPage />} />
+      <Route path="/blog" element={<BlogPage />} />
+      <Route path="/download" element={<DownloadPage />} />
+      <Route path="/docs" element={<DeveloperDocsPage />} />
+      <Route path="/scholarship-api" element={<ScholarshipApiPage />} />
+      <Route path="/coach" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/app/coach" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/cv" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/app/cv" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/roadmaps" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/roadmaps/:id" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/app/roadmaps" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/roadmap-templates" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/templates" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/app/roadmap-templates" element={<Navigate to="/dashboard" replace />} />
       <Route
         path="/saved"
         element={
-          <ProtectedRoute>
+          <AppWorkspaceRoute>
             <SavedPage />
-          </ProtectedRoute>
+          </AppWorkspaceRoute>
         }
       />
       <Route
         path="/app/saved"
         element={
-          <ProtectedRoute>
+          <AppWorkspaceRoute>
             <SavedPage />
-          </ProtectedRoute>
+          </AppWorkspaceRoute>
         }
       />
       <Route
         path="/applications"
         element={
-          <ProtectedRoute>
+          <AppWorkspaceRoute>
             <ApplicationsPage />
-          </ProtectedRoute>
+          </AppWorkspaceRoute>
         }
       />
       <Route
@@ -326,91 +266,83 @@ function App() {
       <Route
         path="/app/applications"
         element={
-          <ProtectedRoute>
+          <AppWorkspaceRoute>
             <ApplicationsPage />
-          </ProtectedRoute>
+          </AppWorkspaceRoute>
         }
       />
       <Route
         path="/app/applied"
-        element={<Navigate to="/applications" replace />}
+        element={<Navigate to="/app/applications" replace />}
       />
       <Route
         path="/profile"
         element={
-          <ProtectedRoute>
+          <AppWorkspaceRoute>
             <ProfilePage />
-          </ProtectedRoute>
+          </AppWorkspaceRoute>
         }
       />
       <Route
         path="/app/profile"
         element={
-          <ProtectedRoute>
+          <AppWorkspaceRoute>
             <ProfilePage />
-          </ProtectedRoute>
+          </AppWorkspaceRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <AppWorkspaceRoute>
+            <SettingsPage />
+          </AppWorkspaceRoute>
+        }
+      />
+      <Route
+        path="/app/settings"
+        element={
+          <AppWorkspaceRoute>
+            <SettingsPage />
+          </AppWorkspaceRoute>
         }
       />
       <Route
         path="/deadlines"
         element={
-          <ProtectedRoute>
+          <AppWorkspaceRoute>
             <DeadlinesPage />
-          </ProtectedRoute>
+          </AppWorkspaceRoute>
         }
       />
       <Route
         path="/app/deadlines"
         element={
-          <ProtectedRoute>
+          <AppWorkspaceRoute>
             <DeadlinesPage />
-          </ProtectedRoute>
+          </AppWorkspaceRoute>
         }
       />
-      <Route
-        path="/goals"
-        element={
-          <ProtectedRoute>
-            <GoalsPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/app/goals"
-        element={
-          <ProtectedRoute>
-            <GoalsPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/wallet"
-        element={
-          <ProtectedRoute>
-            <WalletPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/premium"
-        element={
-          <ProtectedRoute>
-            <WalletPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/app/wallet"
-        element={
-          <ProtectedRoute>
-            <WalletPage />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/goals" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/app/goals" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/wallet" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/premium" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/app/wallet" element={<Navigate to="/dashboard" replace />} />
       <Route
         path="/opportunity/:id"
         element={
           <OpportunityDetailFetcher onBack={() => navigate("/opportunities")} />
+        }
+      />
+      <Route
+        path="/app/opportunity/:id"
+        element={
+          <AppWorkspaceRoute>
+            <OpportunityDetailFetcher
+              onBack={() => navigate("/app/opportunities")}
+              embedded
+            />
+          </AppWorkspaceRoute>
         }
       />
       <Route path="/share/opportunity/:id" element={<OpportunitySharePage />} />

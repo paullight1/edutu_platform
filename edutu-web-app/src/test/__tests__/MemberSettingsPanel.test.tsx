@@ -65,12 +65,7 @@ describe("MemberSettingsPanel", () => {
   });
 
   it("loads privacy settings and saves profile visibility changes", async () => {
-    render(
-      <MemberSettingsPanel
-        onOpenNotifications={vi.fn()}
-        onOpenWallet={vi.fn()}
-      />,
-    );
+    render(<MemberSettingsPanel onOpenNotifications={vi.fn()} />);
 
     const visibility = await screen.findByLabelText(/profile visibility/i);
     fireEvent.change(visibility, { target: { value: "private" } });
@@ -89,12 +84,7 @@ describe("MemberSettingsPanel", () => {
   it("opens the notification panel from settings", async () => {
     const openNotifications = vi.fn();
 
-    render(
-      <MemberSettingsPanel
-        onOpenNotifications={openNotifications}
-        onOpenWallet={vi.fn()}
-      />,
-    );
+    render(<MemberSettingsPanel onOpenNotifications={openNotifications} />);
 
     await screen.findByText("Inbox and reminders");
     fireEvent.click(

@@ -8,7 +8,6 @@ import {
   Clock,
   Loader2,
   RefreshCcw,
-  Target,
 } from "lucide-react";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
@@ -40,7 +39,7 @@ function deadlineStatus(deadline: Deadline) {
 function typeLabel(type: Deadline["type"]) {
   if (type === "application") return "Application";
   if (type === "bookmark") return "Saved";
-  return "Goal";
+  return "Deadline";
 }
 
 export default function DeadlinesPage() {
@@ -100,10 +99,6 @@ export default function DeadlinesPage() {
   };
 
   const openDeadline = (deadline: Deadline) => {
-    if (deadline.type === "goal") {
-      navigate("/goals");
-      return;
-    }
     if (deadline.sourceId) {
       navigate(`/opportunity/${deadline.sourceId}`);
     }
@@ -125,14 +120,6 @@ export default function DeadlinesPage() {
             <ChevronLeft size={17} />
             Dashboard
           </button>
-          <button
-            type="button"
-            onClick={() => navigate("/goals")}
-            className="inline-flex h-10 items-center gap-2 rounded-xl bg-brand-500 px-3 text-sm font-bold text-white transition hover:bg-brand-600"
-          >
-            <Target size={17} />
-            Goals
-          </button>
         </div>
       </header>
 
@@ -149,7 +136,7 @@ export default function DeadlinesPage() {
                 Deadline tracker
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
-                View saved opportunity, application, and goal deadlines in one
+                View saved opportunity and application deadlines in one
                 operational list.
               </p>
               <div className="mt-5 grid gap-3 sm:grid-cols-4">
@@ -186,7 +173,6 @@ export default function DeadlinesPage() {
                 {(
                   [
                     ["deadlineReminders", "Deadline reminders"],
-                    ["goalReminders", "Goal reminders"],
                   ] as const
                 ).map(([key, label]) => (
                   <label
@@ -269,8 +255,8 @@ export default function DeadlinesPage() {
               </div>
               <h2 className="mt-4 text-base font-black">No deadlines yet</h2>
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">
-                Save opportunities, track applications, or create goals with
-                deadlines to fill this tracker.
+                Save opportunities or track applications with deadlines to fill
+                this tracker.
               </p>
             </div>
           ) : (

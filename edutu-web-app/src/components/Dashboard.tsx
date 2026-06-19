@@ -2,27 +2,21 @@ import React, { useMemo, useState, useEffect, useRef } from "react";
 import {
   Bell,
   Bookmark,
-  BookOpen,
-  Bot,
   Briefcase,
   Calendar,
   ChevronRight,
   Clock,
-  FileText,
   LayoutGrid,
   List,
-  Map,
   Menu,
   Send,
   Settings,
   Sparkles,
-  Target,
   X,
   UserCheck,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
-import Button from "./ui/Button";
 import { EmptyState } from "./ui/EmptyState";
 import NotificationInbox from "./NotificationInbox";
 import CalendarStrip from "./CalendarStrip";
@@ -51,6 +45,7 @@ interface DashboardProps {
   onNavigate?: (screen: string) => void;
   onboardingProfile?: OnboardingProfileData | null;
   onRedoOnboarding?: () => void;
+  embeddedDesktopShell?: boolean;
 }
 
 type DashboardPanel =
@@ -96,12 +91,16 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       onViewAllOpportunities,
       onNavigate,
       onboardingProfile,
+      embeddedDesktopShell = false,
     },
     ref,
   ) {
     const [showNotifications, setShowNotifications] = useState(false);
     const [showMobileMenu, setShowMobileMenu] = useState(false);
-    const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
+    const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(() => {
+      if (typeof window === "undefined") return true;
+      return window.innerWidth >= 1280;
+    });
     const [activePanel, setActivePanel] = useState<DashboardPanel | null>(null);
     const [dismissBanner, setDismissBanner] = useState(false);
     const [viewMode, setViewMode] = useState<"list" | "grid">("grid");
@@ -110,6 +109,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     const { getToken } = useClerkAuth();
     const opportunitiesRefreshRef = useRef<() => void>();
     const homeFeedSentinelRef = useRef<HTMLDivElement | null>(null);
+    const sidebarPreferenceRef = useRef(false);
     const [bookmarks, setBookmarks] = useState<any[]>([]);
     const [applications, setApplications] = useState<any[]>([]);
     const [dashboardDeadlines, setDashboardDeadlines] = useState<Deadline[]>(
@@ -135,6 +135,24 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     useEffect(() => {
       opportunitiesRefreshRef.current = hookRefreshOpportunities;
     }, [hookRefreshOpportunities]);
+
+    useEffect(() => {
+      if (embeddedDesktopShell) {
+        return;
+      }
+
+      const mediaQuery = window.matchMedia("(min-width: 1280px)");
+      const syncSidebarToViewport = () => {
+        if (!sidebarPreferenceRef.current) {
+          setIsDesktopSidebarOpen(mediaQuery.matches);
+        }
+      };
+
+      syncSidebarToViewport();
+      mediaQuery.addEventListener("change", syncSidebarToViewport);
+      return () =>
+        mediaQuery.removeEventListener("change", syncSidebarToViewport);
+    }, [embeddedDesktopShell]);
 
     useEffect(() => {
       if (!user?.id) {
@@ -211,6 +229,16 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       [normalizedOpportunityFeed, homeFeedLimit],
     );
 
+    const mobilePersonalizedOpportunities = useMemo(
+      () => visibleHomeOpportunities.slice(0, 6),
+      [visibleHomeOpportunities],
+    );
+
+    const mobileExploreOpportunities = useMemo(
+      () => visibleHomeOpportunities.slice(2, Math.max(homeFeedLimit, 10)),
+      [homeFeedLimit, visibleHomeOpportunities],
+    );
+
     const homePromos = useMemo(
       () => [
         {
@@ -224,18 +252,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           copy: "Complete your profile so Edutu can rank opportunities better.",
           action: "Review profile",
           screen: "profile",
-        },
-        {
-          title: "Follow a roadmap",
-          copy: "Use a published plan to turn an opportunity goal into weekly work.",
-          action: "Open roadmaps",
-          screen: "roadmaps",
-        },
-        {
-          title: "Start from a template",
-          copy: "Adopt a roadmap template into your own calendar and reminder plan.",
-          action: "Open templates",
-          screen: "roadmap-templates",
         },
         {
           title: "Review your shortlist",
@@ -343,13 +359,8 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         label: "Opportunities",
         icon: <Briefcase size={18} />,
       },
-      { id: "coach", label: "Coach", icon: <Bot size={18} /> },
-      { id: "cv", label: "CV", icon: <FileText size={18} /> },
-      { id: "roadmaps", label: "Roadmaps", icon: <Map size={18} /> },
-      { id: "roadmap-templates", label: "Templates", icon: <BookOpen size={18} /> },
       { id: "saved", label: "Saved", icon: <Bookmark size={18} /> },
       { id: "applied", label: "Applications", icon: <Send size={18} /> },
-      { id: "goals", label: "Goals", icon: <Target size={18} /> },
       { id: "deadlines", label: "Deadlines", icon: <Calendar size={18} /> },
       { id: "profile", label: "Profile", icon: <UserCheck size={18} /> },
       { id: "settings", label: "Settings", icon: <Settings size={18} /> },
@@ -362,11 +373,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         label: "Opportunities",
         icon: <Briefcase size={18} />,
       },
-      { id: "coach", label: "Coach", icon: <Bot size={18} /> },
-      { id: "cv", label: "CV", icon: <FileText size={18} /> },
-      { id: "roadmaps", label: "Roadmaps", icon: <Map size={18} /> },
-      { id: "roadmap-templates", label: "Templates", icon: <BookOpen size={18} /> },
-      { id: "goals", label: "Goals", icon: <Target size={18} /> },
       { id: "deadlines", label: "Deadlines", icon: <Calendar size={18} /> },
     ];
 
@@ -395,8 +401,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     const mobileNavItems = [
       { id: "home", label: "Home", icon: <LayoutGrid size={20} /> },
       { id: "opportunities", label: "Explore", icon: <Briefcase size={20} /> },
-      { id: "coach", label: "Coach", icon: <Bot size={20} /> },
-      { id: "goals", label: "Goals", icon: <Target size={20} /> },
+      { id: "deadlines", label: "Dates", icon: <Calendar size={20} /> },
       { id: "more", label: "More", icon: <Menu size={20} /> },
     ];
 
@@ -405,29 +410,14 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         {
           label: "Opportunities explored",
           value: analyticsStats.opportunitiesExplored.toString(),
-          helper: "Across the feed and detail pages",
-          icon: <Briefcase size={18} />,
-          tone: "brand",
         },
         {
           label: "Saved opportunities",
           value: bookmarks.length.toString(),
-          helper:
-            bookmarks.length > 0
-              ? "Your shortlist"
-              : "Save opportunities to revisit them",
-          icon: <Bookmark size={18} />,
-          tone: "amber",
         },
         {
           label: "Applications tracked",
           value: applications.length.toString(),
-          helper:
-            applications.length > 0
-              ? "Submitted and in progress"
-              : "Track applications as you submit them",
-          icon: <Send size={18} />,
-          tone: "emerald",
         },
         {
           label: "Next deadline",
@@ -437,15 +427,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                 day: "numeric",
               })
             : "None",
-          helper: upcomingDeadline
-            ? upcomingDeadline.daysUntil < 0
-              ? "Deadline passed"
-              : upcomingDeadline.daysUntil === 0
-                ? "Due today"
-                : `Due in ${upcomingDeadline.daysUntil} days`
-            : "Save, apply, or create a goal to surface a date",
-          icon: <Clock size={18} />,
-          tone: "indigo",
         },
       ];
     }, [
@@ -498,22 +479,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       }
 
       if (
-        id === "coach" ||
-        id === "cv" ||
-        id === "cv-management" ||
-        id === "deadlines" ||
-        id === "goals" ||
-        id === "roadmaps" ||
-        id === "roadmap-templates"
+        id === "deadlines"
       ) {
         setActivePanel(null);
-        onNavigate?.(id === "cv-management" ? "cv" : id);
-        return;
-      }
-
-      if (id === "wallet" || id === "premium") {
-        setActivePanel(null);
-        onNavigate?.("wallet");
+        onNavigate?.(id);
         return;
       }
 
@@ -541,7 +510,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
     const handleCalendarEventClick = (event: CalendarEvent) => {
       if (event.type === "goal") {
-        onNavigate?.("goals");
+        setActivePanel("deadlines");
         return;
       }
 
@@ -574,76 +543,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         return;
       }
       setActivePanel("applied");
-    };
-
-    const nextAction = useMemo(() => {
-      if (profileScore && profileScore.score < 60) {
-        return {
-          eyebrow: "Profile setup",
-          title: "Improve your opportunity matches",
-          copy: `Your profile is ${profileScore.score}% complete. Add the missing details so recommendations can be ranked with more confidence.`,
-          action: "Review profile",
-          onClick: () => onNavigate?.("profile"),
-          icon: <UserCheck size={20} />,
-        };
-      }
-
-      if (upcomingDeadline) {
-        return {
-          eyebrow: "Deadline focus",
-          title:
-            upcomingDeadline.daysUntil === 0
-              ? "A deadline is due today"
-              : "Stay ahead of your next deadline",
-          copy:
-            upcomingDeadline.daysUntil < 0
-              ? "One tracked deadline is overdue. Review it and decide the next action."
-              : `Open ${upcomingDeadline.title} and make the next move now.`,
-          action: "Review deadlines",
-          onClick: () => onNavigate?.("deadlines"),
-          icon: <Calendar size={20} />,
-        };
-      }
-
-      if (bookmarks.length === 0 && applications.length === 0) {
-        return {
-          eyebrow: "Start here",
-          title: "Save your first opportunity",
-          copy: "Browse the feed, shortlist one opportunity, and come back to it when you are ready to apply.",
-          action: "Browse opportunities",
-          onClick: onViewAllOpportunities,
-          icon: <Bookmark size={20} />,
-        };
-      }
-
-      return {
-        eyebrow: "Opportunities",
-        title: "Explore matched opportunities",
-        copy: "Review fresh recommendations and save the ones worth preparing for.",
-        action: "Browse matches",
-        onClick: onViewAllOpportunities,
-        icon: <Briefcase size={20} />,
-      };
-    }, [
-      applications.length,
-      bookmarks.length,
-      onViewAllOpportunities,
-      onNavigate,
-      upcomingDeadline,
-      profileScore,
-    ]);
-
-    const getStatToneClasses = (tone: string) => {
-      switch (tone) {
-        case "emerald":
-          return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
-        case "indigo":
-          return "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400";
-        case "amber":
-          return "bg-amber-500/10 text-amber-600 dark:text-amber-400";
-        default:
-          return "bg-brand-500/10 text-brand-600 dark:text-brand-400";
-      }
     };
 
     const deadlineItems = useMemo(() => {
@@ -832,7 +731,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     type="button"
                     onClick={() => {
                       if (item.type === "goal") {
-                        onNavigate?.("goals");
+                        setActivePanel("deadlines");
                         return;
                       }
 
@@ -961,24 +860,23 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       return (
         <MemberSettingsPanel
           onOpenNotifications={() => openDashboardDestination("notifications")}
-          onOpenWallet={() => onNavigate?.("wallet")}
         />
       );
     };
 
     return (
       <div
-        className={`min-h-screen ${isDarkMode ? "bg-gray-950 text-white" : "bg-slate-50 text-slate-900"} font-body transition-colors duration-500 overflow-x-hidden pb-28 lg:pb-12`}
+        className={`min-h-screen ${isDarkMode ? "bg-gray-950 text-white" : "bg-slate-50 text-slate-900"} font-body transition-colors duration-500 overflow-x-hidden ${embeddedDesktopShell ? "pb-0 pt-0 lg:pb-12" : "pb-[calc(5rem+env(safe-area-inset-bottom))] pt-14 md:pt-16 lg:pb-12"}`}
       >
         {/* Background Mesh Gradient */}
         <div className="fixed inset-0 pointer-events-none opacity-30 dark:opacity-20 mesh-gradient" />
 
         {/* Header */}
         <header
-          className={`sticky top-0 z-40 backdrop-blur-xl border-b transition-all duration-300 ${
+          className={`fixed inset-x-0 top-0 z-50 backdrop-blur-xl border-b transition-all duration-300 ${embeddedDesktopShell ? "hidden" : ""} ${
             isDarkMode
-              ? "bg-gray-950/80 border-white/5"
-              : "bg-white/80 border-slate-200"
+              ? "bg-gray-950/95 border-white/5"
+              : "bg-white border-slate-200"
           }`}
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1095,126 +993,141 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           )}
         </AnimatePresence>
 
-        <button
-          type="button"
-          onClick={() => setIsDesktopSidebarOpen((value) => !value)}
-          className={`hidden lg:flex fixed top-24 z-50 h-11 w-11 items-center justify-center rounded-2xl border shadow-lg transition-all duration-300 ${isDesktopSidebarOpen ? "left-[292px]" : "left-4"} ${
-            isDarkMode
-              ? "border-white/10 bg-gray-900 text-white shadow-black/30 hover:bg-gray-800"
-              : "border-slate-200 bg-white text-slate-700 shadow-slate-200/80 hover:bg-slate-50"
-          }`}
-          aria-label={
-            isDesktopSidebarOpen ? "Collapse sidebar" : "Open sidebar"
-          }
-          aria-expanded={isDesktopSidebarOpen}
-        >
-          {isDesktopSidebarOpen ? <X size={18} /> : <Menu size={18} />}
-        </button>
-
-        <aside
-          className={`hidden lg:block fixed left-0 top-16 bottom-0 z-40 w-[280px] border-r transition-transform duration-300 ${isDesktopSidebarOpen ? "translate-x-0" : "-translate-x-full"} ${
-            isDarkMode
-              ? "border-white/10 bg-gray-950/95"
-              : "border-slate-200 bg-white/95"
-          } backdrop-blur-xl`}
-        >
-          <div className="h-full overflow-y-auto px-4 py-6">
-            <div
-              className={`rounded-[20px] border p-4 shadow-sm ${isDarkMode ? "border-white/10 bg-gray-900/70" : "border-slate-200 bg-white"}`}
+        {!embeddedDesktopShell ? (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                sidebarPreferenceRef.current = true;
+                setIsDesktopSidebarOpen((value) => !value);
+              }}
+              className={`hidden lg:flex fixed top-20 z-[55] h-11 w-11 items-center justify-center rounded-full border transition-all duration-300 ${isDesktopSidebarOpen ? "left-[258px]" : "left-[50px]"} ${
+                isDarkMode
+                  ? "border-white/10 bg-gray-900 text-white hover:bg-gray-800"
+                  : "border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50"
+              }`}
+              aria-label={
+                isDesktopSidebarOpen ? "Collapse sidebar" : "Open sidebar"
+              }
+              aria-expanded={isDesktopSidebarOpen}
             >
-              <div
-                className="flex items-center gap-3 rounded-2xl p-3"
-                style={{
-                  backgroundColor: isDarkMode
-                    ? "rgba(255,255,255,0.04)"
-                    : "#f8fafc",
-                }}
-              >
-                <div className="h-11 w-11 rounded-2xl bg-brand-500 text-white flex items-center justify-center font-black">
-                  {(user?.name || user?.email || "E").charAt(0).toUpperCase()}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-black truncate">
-                    {user?.name || "Edutu learner"}
-                  </p>
-                  <p
-                    className={`text-xs truncate ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
-                  >
-                    {user?.email || "Welcome back"}
-                  </p>
-                </div>
-              </div>
+              {isDesktopSidebarOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
 
-              <nav className="mt-5 space-y-1" aria-label="Dashboard sidebar">
-                {desktopPrimaryItems.map((item) => {
-                  const active = item.id === "home" && activePanel === null;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => openDashboardDestination(item.id)}
-                      className={`w-full flex items-center justify-between rounded-2xl px-3 py-3 text-sm font-bold transition-all ${
-                        active
-                          ? "bg-brand-500 text-white shadow-lg shadow-brand-500/20"
-                          : isDarkMode
-                            ? "text-slate-300 hover:bg-white/10 hover:text-white"
-                            : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-                      }`}
-                    >
-                      <span className="flex items-center gap-3">
-                        {item.icon}
-                        {item.label}
-                      </span>
-                      {active && (
-                        <span className="h-2 w-2 rounded-full bg-white" />
-                      )}
-                    </button>
-                  );
-                })}
-              </nav>
-
-              <div
-                className={`my-5 h-px ${isDarkMode ? "bg-white/10" : "bg-slate-100"}`}
-              />
-
-              <div>
-                <p
-                  className={`px-3 text-[10px] font-black uppercase tracking-[0.18em] ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}
+            <aside
+              className={`hidden lg:block fixed left-0 top-16 bottom-0 z-40 border-r transition-[width] duration-300 ${isDesktopSidebarOpen ? "w-[280px]" : "w-[72px]"} ${
+                isDarkMode
+                  ? "border-white/10 bg-gray-950"
+                  : "border-slate-200 bg-white"
+              }`}
+            >
+              <div className={`flex h-full flex-col overflow-y-auto overflow-x-hidden ${isDesktopSidebarOpen ? "px-4" : "px-2"} py-4`}>
+                <div
+                  className={`flex items-center gap-3 border-b pb-4 ${isDesktopSidebarOpen ? "px-1" : "justify-center px-0"} ${isDarkMode ? "border-white/10" : "border-slate-100"}`}
                 >
-                  Panels
-                </p>
-                <div className="mt-3 space-y-2">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500 text-sm font-black text-white">
+                    {(user?.name || user?.email || "E").charAt(0).toUpperCase()}
+                  </div>
+                  {isDesktopSidebarOpen && (
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-950 dark:text-white">
+                        {user?.name || "Edutu learner"}
+                      </p>
+                      <p
+                        className={`truncate text-xs ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
+                      >
+                        {user?.email || "Welcome back"}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <nav
+                  className="mt-4 space-y-1"
+                  aria-label="Dashboard sidebar"
+                >
+                  {desktopPrimaryItems.map((item) => {
+                    const active = item.id === "home" && activePanel === null;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        title={!isDesktopSidebarOpen ? item.label : undefined}
+                        onClick={() => openDashboardDestination(item.id)}
+                        className={`flex h-11 w-full items-center rounded-xl text-sm font-semibold transition-colors active:scale-[0.98] ${
+                          isDesktopSidebarOpen ? "justify-start gap-3 px-3" : "justify-center px-0"
+                        } ${
+                          active
+                            ? "bg-brand-500 text-white"
+                            : isDarkMode
+                              ? "text-slate-300 hover:bg-white/10 hover:text-white"
+                              : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                        }`}
+                        aria-label={item.label}
+                      >
+                        <span className="shrink-0">{item.icon}</span>
+                        {isDesktopSidebarOpen && (
+                          <span className="truncate">{item.label}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </nav>
+
+                <div
+                  className={`my-4 h-px ${isDarkMode ? "bg-white/10" : "bg-slate-100"}`}
+                />
+
+                <div className="space-y-1">
+                  {isDesktopSidebarOpen && (
+                    <p
+                      className={`px-3 pb-1 text-xs font-semibold ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}
+                    >
+                      Workspace
+                    </p>
+                  )}
                   {desktopPanelItems.map((item) => (
                     <button
                       key={item.id}
                       type="button"
+                      title={!isDesktopSidebarOpen ? item.label : undefined}
                       onClick={() => openDashboardDestination(item.id)}
-                      className={`flex w-full items-center justify-between rounded-2xl border p-3 text-left transition-all ${
+                      className={`flex h-11 w-full items-center rounded-xl text-left transition-colors active:scale-[0.98] ${
+                        isDesktopSidebarOpen ? "justify-between gap-3 px-3" : "justify-center px-0"
+                      } ${
                         activePanel === item.id
-                          ? "border-brand-500/30 bg-brand-500/10 text-brand-700 dark:text-brand-200"
+                          ? "bg-brand-500/10 text-brand-700 dark:text-brand-200"
                           : isDarkMode
-                            ? "border-white/10 bg-white/5 hover:bg-white/10"
-                            : "border-slate-200 bg-slate-50 hover:bg-white hover:shadow-sm"
+                            ? "text-slate-300 hover:bg-white/10 hover:text-white"
+                            : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
                       }`}
+                      aria-label={item.label}
                     >
-                      <span className="flex items-center gap-3 text-xs font-bold">
-                        <span className="text-brand-500">{item.icon}</span>
-                        {item.label}
-                      </span>
-                      {typeof item.count === "number" && (
-                        <span
-                          className={`text-[10px] font-black ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
-                        >
-                          {item.count}
+                      <span
+                        className={`flex min-w-0 items-center ${isDesktopSidebarOpen ? "gap-3" : "justify-center"} text-sm font-semibold`}
+                      >
+                        <span className="shrink-0 text-brand-500">
+                          {item.icon}
                         </span>
-                      )}
+                        {isDesktopSidebarOpen && (
+                          <span className="truncate">{item.label}</span>
+                        )}
+                      </span>
+                      {isDesktopSidebarOpen &&
+                        typeof item.count === "number" && (
+                          <span
+                            className={`text-xs font-semibold ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
+                          >
+                            {item.count}
+                          </span>
+                        )}
                     </button>
                   ))}
                 </div>
               </div>
-            </div>
-          </div>
-        </aside>
+            </aside>
+          </>
+        ) : null}
 
         <AnimatePresence>
           {activePanel && (
@@ -1272,83 +1185,29 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         </AnimatePresence>
 
         <div
-          className={`mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-8 transition-[padding] duration-300 ${isDesktopSidebarOpen ? "lg:pl-[320px]" : "lg:pl-8"} ${activePanel ? "xl:pr-[420px]" : "xl:pr-8"}`}
+          className={`mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-8 transition-[padding] duration-300 ${embeddedDesktopShell ? "lg:pl-8" : isDesktopSidebarOpen ? "lg:pl-[312px]" : "lg:pl-[104px]"} ${activePanel ? "xl:pr-[420px]" : "xl:pr-8"}`}
         >
-          <main className="min-w-0 px-0 py-6 space-y-8">
+          <main className="min-w-0 px-0 py-5 space-y-6">
             <motion.section
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`overflow-hidden rounded-[20px] border p-5 sm:p-6 ${isDarkMode ? "border-white/10 bg-gray-900/70" : "border-slate-200 bg-white shadow-sm"}`}
+              className="grid grid-cols-2 gap-3 sm:gap-4"
             >
-              <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(520px,1fr)]">
-                <div className="flex min-w-0 flex-col justify-between gap-5">
-                  <div>
-                    <div
-                      className={`mb-3 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${isDarkMode ? "bg-white/5 text-slate-300" : "bg-slate-100 text-slate-600"}`}
-                    >
-                      {nextAction.icon}
-                      {nextAction.eyebrow}
-                    </div>
-                    <h1 className="max-w-2xl text-2xl font-black tracking-tight text-slate-950 dark:text-white sm:text-3xl">
-                      {nextAction.title}
-                    </h1>
-                    <p
-                      className={`mt-2 max-w-2xl text-sm leading-6 ${isDarkMode ? "text-slate-400" : "text-slate-600"}`}
-                    >
-                      {nextAction.copy}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={nextAction.onClick}
-                    >
-                      {nextAction.action}
-                      <ChevronRight size={15} />
-                    </Button>
-                    <button
-                      type="button"
-                      onClick={onViewAllOpportunities}
-                      className={`inline-flex h-10 items-center gap-2 rounded-xl border px-4 text-sm font-bold transition-colors ${isDarkMode ? "border-white/10 text-slate-300 hover:bg-white/10 hover:text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-950"}`}
-                    >
-                      Browse all
-                    </button>
-                  </div>
+              {stats.map((stat) => (
+                <div
+                  key={stat.label}
+                  className={`min-h-[104px] rounded-lg border p-4 ${isDarkMode ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}`}
+                >
+                  <p
+                    className={`text-xs font-semibold leading-5 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
+                  >
+                    {stat.label}
+                  </p>
+                  <p className="mt-3 text-2xl font-black tracking-tight text-slate-950 dark:text-white sm:text-3xl">
+                    {stat.value}
+                  </p>
                 </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {stats.map((stat) => (
-                    <div
-                      key={stat.label}
-                      className={`rounded-2xl border p-4 ${isDarkMode ? "border-white/10 bg-white/5" : "border-slate-100 bg-slate-50"}`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p
-                            className={`text-[10px] font-black uppercase tracking-[0.16em] ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}
-                          >
-                            {stat.label}
-                          </p>
-                          <p className="mt-2 text-2xl font-black tracking-tight text-slate-950 dark:text-white">
-                            {stat.value}
-                          </p>
-                        </div>
-                        <span
-                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${getStatToneClasses(stat.tone)}`}
-                        >
-                          {stat.icon}
-                        </span>
-                      </div>
-                      <p
-                        className={`mt-3 text-xs font-semibold ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
-                      >
-                        {stat.helper}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              ))}
             </motion.section>
 
             <AnimatePresence>
@@ -1358,7 +1217,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: 100 }}
                   transition={{ duration: 0.3 }}
-                  className={`premium-card rounded-[20px] p-5 border-l-4 ${isDarkMode ? "bg-amber-500/5 border-amber-500/50" : "bg-amber-50 border-amber-400"}`}
+                  className={`profile-completion-card rounded-[20px] p-5 border-l-4 ${isDarkMode ? "bg-amber-500/5 border-amber-500/50" : "bg-amber-50 border-amber-400"}`}
                 >
                   <div className="flex items-start gap-4">
                     <div
@@ -1521,30 +1380,232 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     </div>
                   </div>
 
-                  {viewMode === "grid" ? (
-                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                      {opportunitiesLoading ? (
-                        Array.from({ length: 4 }).map((_, i) => (
+                  <div className="space-y-6 sm:hidden">
+                    {opportunitiesLoading ? (
+                      <div className="-mx-4 flex gap-3 overflow-x-auto overscroll-x-contain px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        {Array.from({ length: 3 }).map((_, i) => (
                           <div
                             key={i}
-                            className="rounded-xl overflow-hidden animate-pulse"
+                            className={`h-44 w-[62vw] max-w-[250px] shrink-0 animate-pulse rounded-2xl ${isDarkMode ? "bg-white/5" : "bg-slate-200"}`}
+                          />
+                        ))}
+                      </div>
+                    ) : mobilePersonalizedOpportunities.length === 0 ? (
+                      <div
+                        className={`rounded-2xl border ${isDarkMode ? "border-white/10 bg-gray-900/60" : "border-slate-200 bg-white"}`}
+                      >
+                        <EmptyState
+                          icon={<Briefcase size={28} />}
+                          title="No recommendations yet"
+                          description="Browse opportunities while Edutu prepares better matches."
+                          action={{
+                            label: "Browse opportunities",
+                            onClick: onViewAllOpportunities,
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        <div>
+                          <div className="mb-3 flex items-center justify-between">
+                            <div>
+                              <h3 className="text-lg font-black tracking-tight text-slate-950 dark:text-white">
+                                Personalized opportunities
+                              </h3>
+                              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                                Swipe across your closest matches
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={onViewAllOpportunities}
+                              className="text-xs font-bold text-brand-600 dark:text-brand-300"
+                            >
+                              View all
+                            </button>
+                          </div>
+                          <div
+                            className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                            aria-label="Personalized opportunities carousel"
+                          >
+                            {mobilePersonalizedOpportunities.map(
+                              (opportunity: any, index: number) => (
+                                <button
+                                  key={
+                                    opportunity?.id
+                                      ? `mobile-personalized-${opportunity.id}`
+                                      : `mobile-personalized-${index}`
+                                  }
+                                  type="button"
+                                  onClick={() => onOpportunityClick(opportunity)}
+                                  className={`flex h-44 w-[62vw] max-w-[250px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border text-left transition active:scale-[0.98] ${isDarkMode ? "border-white/10 bg-gray-900" : "border-slate-200 bg-white"}`}
+                                >
+                                  <div className="relative h-20 shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800">
+                                    <ImageWithFallback
+                                      src={opportunity.image}
+                                      alt={
+                                        opportunity.title
+                                          ? `${opportunity.title} opportunity image`
+                                          : "Opportunity image"
+                                      }
+                                      className="h-full w-full object-cover"
+                                      fallbackClassName="h-full w-full"
+                                    />
+                                    <span className="absolute left-2 top-2 max-w-[calc(100%-1rem)] truncate rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-brand-600 backdrop-blur">
+                                      {opportunity.category || "General"}
+                                    </span>
+                                  </div>
+                                  <div className="flex min-h-0 flex-1 flex-col p-3">
+                                    <h4 className="text-sm font-black leading-snug text-slate-950 line-clamp-2 dark:text-white">
+                                      {opportunity.title}
+                                    </h4>
+                                    <div className="mt-auto flex items-center justify-between gap-2 pt-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                                      <span className="truncate">
+                                        {opportunity.location || "Remote"}
+                                      </span>
+                                      <span className="shrink-0">
+                                        {opportunity.deadline
+                                          ? new Date(
+                                              opportunity.deadline,
+                                            ).toLocaleDateString("en-US", {
+                                              month: "short",
+                                              day: "numeric",
+                                            })
+                                          : "Ongoing"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </button>
+                              ),
+                            )}
+                            <button
+                              type="button"
+                              onClick={onViewAllOpportunities}
+                              className={`flex h-44 w-28 shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-2xl border px-3 text-center text-xs font-black transition active:scale-[0.98] ${
+                                isDarkMode
+                                  ? "border-white/10 bg-white/5 text-slate-300"
+                                  : "border-slate-200 bg-slate-50 text-slate-600"
+                              }`}
+                            >
+                              View all
+                              <ChevronRight size={16} />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="mb-3">
+                            <h3 className="text-lg font-black tracking-tight text-slate-950 dark:text-white">
+                              More opportunities
+                            </h3>
+                            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                              Scroll down to keep reviewing cards
+                            </p>
+                          </div>
+                          <div className="grid grid-cols-2 items-stretch gap-3">
+                            {mobileExploreOpportunities
+                              .slice(0, 10)
+                              .map((opportunity: any, index: number) => (
+                                <React.Fragment
+                                  key={
+                                    opportunity?.id
+                                      ? `mobile-feed-${opportunity.id}`
+                                      : `mobile-feed-${index}`
+                                  }
+                                >
+                                  {index === 2 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => openDashboardDestination("profile")}
+                                      className="flex h-[196px] min-w-0 flex-col overflow-hidden rounded-2xl bg-slate-950 p-3 text-left text-white transition active:scale-[0.98] dark:bg-brand-500"
+                                    >
+                                      <span className="text-[11px] font-semibold text-white/70">
+                                        Sponsored
+                                      </span>
+                                      <span className="mt-2 block text-sm font-black leading-tight text-white">
+                                        Improve your matches
+                                      </span>
+                                      <span className="mt-2 line-clamp-4 text-xs leading-5 text-white/75">
+                                        Complete your profile so Edutu can show stronger matches first.
+                                      </span>
+                                      <span className="mt-auto inline-flex items-center gap-1 pt-3 text-xs font-black text-white">
+                                        Review profile <ChevronRight size={14} />
+                                      </span>
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => onOpportunityClick(opportunity)}
+                                    className={`flex h-[196px] min-w-0 flex-col overflow-hidden rounded-2xl border text-left transition active:scale-[0.98] ${isDarkMode ? "border-white/10 bg-gray-900" : "border-slate-200 bg-white"}`}
+                                  >
+                                    <div className="h-20 shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800">
+                                      <ImageWithFallback
+                                        src={opportunity.image}
+                                        alt={
+                                          opportunity.title
+                                            ? `${opportunity.title} opportunity image`
+                                            : "Opportunity image"
+                                        }
+                                        className="h-full w-full object-cover"
+                                        fallbackClassName="h-full w-full"
+                                      />
+                                    </div>
+                                    <div className="flex min-h-0 flex-1 flex-col p-2.5">
+                                      <span className="mb-1 block truncate text-[11px] font-bold text-brand-600 dark:text-brand-300">
+                                        {opportunity.category || "General"}
+                                      </span>
+                                      <span className="line-clamp-2 block text-[13px] font-black leading-tight text-slate-950 dark:text-white">
+                                        {opportunity.title}
+                                      </span>
+                                      <div className="mt-auto flex min-w-0 flex-col gap-0.5 pt-2 text-[11px] font-semibold leading-4 text-slate-500 dark:text-slate-400">
+                                        <span className="truncate">
+                                          {opportunity.location || "Remote"}
+                                        </span>
+                                        <span className="truncate">
+                                          {opportunity.deadline
+                                            ? new Date(
+                                                opportunity.deadline,
+                                              ).toLocaleDateString("en-US", {
+                                                month: "short",
+                                                day: "numeric",
+                                              })
+                                            : "Ongoing"}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </button>
+                                </React.Fragment>
+                              ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {viewMode === "grid" ? (
+                    <div className="hidden grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-4 sm:grid">
+                      {opportunitiesLoading ? (
+                        Array.from({ length: 6 }).map((_, i) => (
+                          <div
+                            key={i}
+                            className="min-h-[244px] overflow-hidden rounded-[20px] animate-pulse"
                           >
                             <div
-                              className={`h-24 sm:h-28 ${isDarkMode ? "bg-white/5" : "bg-slate-200"}`}
+                              className={`h-32 ${isDarkMode ? "bg-white/5" : "bg-slate-200"}`}
                             />
-                            <div className="p-2 space-y-1.5">
+                            <div className="p-4 space-y-3">
                               <div
-                                className={`h-2 rounded ${isDarkMode ? "bg-white/5" : "bg-slate-200"} w-1/2`}
+                                className={`h-3 rounded ${isDarkMode ? "bg-white/5" : "bg-slate-200"} w-1/2`}
                               />
                               <div
-                                className={`h-2.5 rounded ${isDarkMode ? "bg-white/5" : "bg-slate-200"} w-3/4`}
+                                className={`h-4 rounded ${isDarkMode ? "bg-white/5" : "bg-slate-200"} w-4/5`}
                               />
                             </div>
                           </div>
                         ))
                       ) : homeFeedItems.length === 0 ? (
                         <div
-                          className={`col-span-2 rounded-[20px] border ${isDarkMode ? "border-white/10 bg-gray-900/60" : "border-slate-200 bg-white"}`}
+                          className={`col-span-full rounded-[20px] border ${isDarkMode ? "border-white/10 bg-gray-900/60" : "border-slate-200 bg-white"}`}
                         >
                           <EmptyState
                             icon={<Briefcase size={32} />}
@@ -1570,7 +1631,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                 onClick={() =>
                                   openDashboardDestination(item.promo.screen)
                                 }
-                                className="col-span-2 overflow-hidden rounded-[20px] border border-brand-500/20 bg-gradient-to-br from-brand-500 to-indigo-600 p-4 text-left text-white shadow-lg shadow-brand-500/15 transition hover:-translate-y-0.5"
+                                className="flex min-h-[244px] flex-col justify-between overflow-hidden rounded-[20px] border border-brand-500/20 bg-gradient-to-br from-brand-500 to-indigo-600 p-4 text-left text-white shadow-lg shadow-brand-500/15 transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50"
                               >
                                 <div className="flex items-center justify-between gap-4">
                                   <div className="min-w-0">
@@ -1601,9 +1662,9 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                               type="button"
                               key={item.key}
                               onClick={() => onOpportunityClick(opportunity)}
-                              className={`rounded-[20px] overflow-hidden border cursor-pointer group text-left transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 ${isDarkMode ? "bg-gray-900 border-white/5 hover:border-white/10 focus-visible:ring-offset-gray-950" : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-xl hover:shadow-slate-200/70 focus-visible:ring-offset-slate-50"}`}
+                              className={`flex min-h-[244px] flex-col rounded-[20px] overflow-hidden border cursor-pointer group text-left transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 ${isDarkMode ? "bg-gray-900 border-white/5 hover:border-white/10 focus-visible:ring-offset-gray-950" : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-xl hover:shadow-slate-200/70 focus-visible:ring-offset-slate-50"}`}
                             >
-                              <div className="relative h-28 sm:h-32 overflow-hidden bg-slate-100 dark:bg-slate-800">
+                              <div className="relative h-32 shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800">
                                 <ImageWithFallback
                                   src={opportunity.image}
                                   alt={
@@ -1619,11 +1680,11 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                   {opportunity.category || "General"}
                                 </span>
                               </div>
-                              <div className="p-3 sm:p-4">
+                              <div className="flex flex-1 flex-col p-3 sm:p-4">
                                 <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-2 leading-snug">
                                   {opportunity.title}
                                 </h3>
-                                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mt-3 text-[10px] font-bold text-slate-400">
+                                <div className="mt-auto flex flex-col gap-1 pt-4 text-[10px] font-bold text-slate-400 sm:flex-row sm:items-center sm:justify-between">
                                   <span className="truncate">
                                     {opportunity.location || "Remote"}
                                   </span>
@@ -1645,7 +1706,9 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       )}
                     </div>
                   ) : (
-                    <div className="space-y-2">
+                    <div
+                      className={`hidden overflow-hidden rounded-2xl border sm:block ${isDarkMode ? "border-white/10 bg-gray-900/40" : "border-slate-200 bg-white"}`}
+                    >
                       {opportunitiesLoading ? (
                         Array.from({ length: 3 }).map((_, i) => (
                           <div
@@ -1686,11 +1749,11 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                 onClick={() =>
                                   openDashboardDestination(item.promo.screen)
                                 }
-                                className="w-full rounded-[20px] bg-gradient-to-br from-brand-500 to-indigo-600 p-4 text-left text-white shadow-lg shadow-brand-500/15"
+                                className="w-full border-b border-white/10 bg-brand-500 p-4 text-left text-white transition hover:bg-brand-600"
                               >
                                 <div className="flex items-center justify-between gap-3">
                                   <div>
-                                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/70">
+                                    <p className="text-xs font-semibold text-white/75">
                                       Edutu
                                     </p>
                                     <h3 className="mt-1 text-base font-black">
@@ -1715,9 +1778,9 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                               type="button"
                               key={item.key}
                               onClick={() => onOpportunityClick(opportunity)}
-                              className="flex w-full items-center gap-3 p-3 rounded-xl text-left hover:bg-white dark:hover:bg-white/5 border border-transparent hover:border-slate-200 dark:hover:border-white/10 transition-all cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 dark:focus-visible:ring-offset-gray-950"
+                              className={`grid w-full grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 border-b p-3 text-left transition-colors last:border-b-0 hover:bg-slate-50 dark:hover:bg-white/5 ${isDarkMode ? "border-white/10" : "border-slate-100"} cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 dark:focus-visible:ring-offset-gray-950`}
                             >
-                              <div className="w-14 h-14 shrink-0 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800">
+                              <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
                                 <ImageWithFallback
                                   src={opportunity.image}
                                   alt={
@@ -1730,20 +1793,27 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                 />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5 mb-0.5">
-                                  <span className="text-[9px] font-bold text-primary tracking-wider">
+                                <div className="mb-1 flex items-center gap-2">
+                                  <span className="rounded-md bg-brand-500/10 px-2 py-0.5 text-xs font-semibold text-brand-600 dark:text-brand-300">
                                     {opportunity.category || "Direct"}
                                   </span>
-                                  <span className="text-slate-300 dark:text-slate-700">
-                                    •
-                                  </span>
-                                  <span className="text-[9px] font-bold text-slate-400 tracking-wider truncate">
-                                    {opportunity.organization || "Global"}
-                                  </span>
                                 </div>
-                                <h3 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-2 leading-tight">
+                                <h3 className="text-sm font-bold text-slate-900 transition-colors line-clamp-1 group-hover:text-primary dark:text-white">
                                   {opportunity.title}
                                 </h3>
+                                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                                  <span>{opportunity.location || "Remote"}</span>
+                                  <span>
+                                    {opportunity.deadline
+                                      ? new Date(
+                                          opportunity.deadline,
+                                        ).toLocaleDateString("en-US", {
+                                          month: "short",
+                                          day: "numeric",
+                                        })
+                                      : "Ongoing"}
+                                  </span>
+                                </div>
                               </div>
                               <div className="shrink-0">
                                 <ChevronRight
@@ -1840,7 +1910,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
         {/* Footer with Dark Mode Toggle */}
         <footer
-          className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 border-t ${isDarkMode ? "border-white/5" : "border-slate-200"}`}
+          className={`mx-auto hidden max-w-7xl px-4 py-6 sm:px-6 lg:block lg:px-8 border-t ${isDarkMode ? "border-white/5" : "border-slate-200"}`}
         >
           <div className="flex items-center justify-between">
             <p
@@ -1851,44 +1921,46 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           </div>
         </footer>
 
-        <nav
-          className={`fixed inset-x-3 bottom-3 z-40 rounded-[22px] border p-1.5 shadow-2xl backdrop-blur-xl lg:hidden ${isDarkMode ? "border-white/10 bg-gray-950/88 shadow-black/40" : "border-slate-200 bg-white/92 shadow-slate-300/70"}`}
-          aria-label="Mobile dashboard navigation"
-        >
-          <div className="grid grid-cols-5 gap-1">
-            {mobileNavItems.map((item) => {
-              const active =
-                item.id === activePanel ||
-                (item.id === "home" && activePanel === null) ||
-                (item.id === "more" && showMobileMenu);
+        {!embeddedDesktopShell && (
+          <nav
+            className={`fixed inset-x-0 bottom-0 z-40 border-t px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 backdrop-blur-xl lg:hidden ${isDarkMode ? "border-white/10 bg-gray-950/95" : "border-slate-200 bg-white/95"}`}
+            aria-label="Mobile dashboard navigation"
+          >
+            <div className="grid grid-cols-4 gap-1">
+              {mobileNavItems.map((item) => {
+                const active =
+                  item.id === activePanel ||
+                  (item.id === "home" && activePanel === null) ||
+                  (item.id === "more" && showMobileMenu);
 
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => {
-                    if (item.id === "more") {
-                      setShowMobileMenu(true);
-                      return;
-                    }
-                    openDashboardDestination(item.id);
-                  }}
-                  className={`flex min-h-[58px] flex-col items-center justify-center gap-1 rounded-[18px] text-[11px] font-black transition ${
-                    active
-                      ? "bg-brand-500 text-white"
-                      : isDarkMode
-                        ? "text-slate-400 hover:bg-white/10 hover:text-white"
-                        : "text-slate-500 hover:bg-slate-100 hover:text-slate-950"
-                  }`}
-                  aria-current={active ? "page" : undefined}
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </nav>
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      if (item.id === "more") {
+                        setShowMobileMenu(true);
+                        return;
+                      }
+                      openDashboardDestination(item.id);
+                    }}
+                    className={`flex min-h-[56px] flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-semibold transition active:scale-[0.98] ${
+                      active
+                        ? "bg-brand-500 text-white"
+                        : isDarkMode
+                          ? "text-slate-400 hover:bg-white/10 hover:text-white"
+                          : "text-slate-500 hover:bg-slate-100 hover:text-slate-950"
+                    }`}
+                    aria-current={active ? "page" : undefined}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
+        )}
 
         <NotificationInbox
           isOpen={showNotifications}
