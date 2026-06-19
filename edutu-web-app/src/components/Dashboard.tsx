@@ -1502,7 +1502,13 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                               Scroll down to keep reviewing cards
                             </p>
                           </div>
-                          <div className="grid w-full grid-cols-2 gap-3 overflow-hidden">
+                          <div
+                            className="grid w-full gap-3"
+                            style={{
+                              gridTemplateColumns:
+                                "minmax(0, 1fr) minmax(0, 1fr)",
+                            }}
+                          >
                             {mobileExploreOpportunities
                               .slice(0, 10)
                               .map((opportunity: any, index: number) => (
@@ -1517,7 +1523,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                     <button
                                       type="button"
                                       onClick={() => openDashboardDestination("profile")}
-                                      className="flex h-[220px] min-w-0 flex-col overflow-hidden rounded-2xl bg-slate-950 p-3 text-left text-white transition active:scale-[0.98] dark:bg-brand-500"
+                                      className="flex h-[214px] w-full max-w-full min-w-0 flex-col overflow-hidden rounded-2xl bg-slate-950 p-3 text-left text-white transition active:scale-[0.98] dark:bg-brand-500"
                                     >
                                       <span className="text-[11px] font-semibold text-white/70">
                                         Sponsored
@@ -1536,7 +1542,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                   <button
                                     type="button"
                                     onClick={() => onOpportunityClick(opportunity)}
-                                    className={`flex h-[220px] min-w-0 flex-col overflow-hidden rounded-2xl border text-left transition active:scale-[0.98] ${isDarkMode ? "border-white/10 bg-gray-900" : "border-slate-200 bg-white"}`}
+                                    className={`flex h-[214px] w-full max-w-full min-w-0 flex-col overflow-hidden rounded-2xl border text-left transition active:scale-[0.98] ${isDarkMode ? "border-white/10 bg-gray-900" : "border-slate-200 bg-white"}`}
                                   >
                                     <div className="h-[92px] w-full shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800">
                                       <ImageWithFallback
