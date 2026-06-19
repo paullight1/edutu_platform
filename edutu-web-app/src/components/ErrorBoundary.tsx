@@ -1,5 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { Home, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Briefcase, RefreshCw } from 'lucide-react';
 
 interface Props {
     children: ReactNode;
@@ -65,30 +65,25 @@ class ErrorBoundary extends Component<Props, State> {
                 return this.props.fallback;
             }
 
-            const isDev = import.meta.env.DEV;
-
             return (
                 <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50 px-5 py-10 text-slate-950">
-                    <section className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                        <div className="flex items-start gap-3">
-                            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#eaf3ff] text-[#146ef5]">
-                                <RefreshCw className="h-4 w-4" />
-                            </span>
-                            <div>
-                                <h1 className="text-base font-black text-slate-950">
-                                    Something went wrong
-                                </h1>
-                                <p className="mt-1 text-sm leading-6 text-slate-500">
-                                    Refresh this view or return to opportunities.
-                                </p>
-                            </div>
+                    <section className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+                        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">
+                            <Briefcase className="h-8 w-8" />
                         </div>
 
-                        <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                        <h1 className="mt-5 text-xl font-black tracking-tight text-slate-950">
+                            This view is empty right now
+                        </h1>
+                        <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-slate-500">
+                            We could not load this page. Try again, or go back to the opportunities feed.
+                        </p>
+
+                        <div className="mt-6 flex flex-col gap-2">
                             <button
                                 type="button"
                                 onClick={this.handleRetry}
-                                className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-[#146ef5] px-4 text-sm font-bold text-white transition-colors hover:bg-[#0055d4]"
+                                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 text-sm font-black text-white transition-colors hover:bg-brand-600"
                             >
                                 <RefreshCw className="h-4 w-4" />
                                 Try again
@@ -97,28 +92,12 @@ class ErrorBoundary extends Component<Props, State> {
                             <button
                                 type="button"
                                 onClick={this.handleGoHome}
-                                className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50"
+                                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 transition-colors hover:bg-slate-50"
                             >
-                                <Home className="h-4 w-4" />
-                                Opportunities
+                                <ArrowLeft className="h-4 w-4" />
+                                Back to opportunities
                             </button>
                         </div>
-
-                        {isDev && this.state.error && (
-                            <details className="mt-4 border-t border-slate-200 pt-3 text-left">
-                                <summary className="cursor-pointer text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
-                                    Developer details
-                                </summary>
-                                <p className="mt-3 break-words font-mono text-xs leading-5 text-rose-600">
-                                    {this.state.error.toString()}
-                                </p>
-                                {this.state.errorInfo && (
-                                    <pre className="mt-3 max-h-32 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-5 text-slate-500">
-                                        {this.state.errorInfo.componentStack}
-                                    </pre>
-                                )}
-                            </details>
-                        )}
                     </section>
                 </div>
             );
