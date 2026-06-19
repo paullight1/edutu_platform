@@ -2,6 +2,15 @@ import re
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
+SOURCE_BRAND_RE = re.compile(
+    r'\b(?:dixcoverhubx|dixcover\s*hubx|opportunities\s*circle|oya\s*opportunities|scholars4dev|global\s*scholar\s*desk|scholarship\s*portal|jobs\.smartyacad\.com)\b',
+    re.I,
+)
+SCRAPER_ARTIFACT_RE = re.compile(
+    r'\b(?:by\s+admin|posted\s+by|written\s+by|read\s+more|continue\s+reading|leave\s+a\s+comment|comments?|share\s+this|related\s+posts?)\b',
+    re.I,
+)
+
 
 class DataCleaner:
     def __init__(self):
@@ -53,7 +62,9 @@ class DataCleaner:
         if not org:
             return "Unknown Organization"
         org = re.sub(r'^\s*by\s+', '', org, flags=re.I)
-        org = org.strip()
+        org = self._scrub_scraper_artifacts(org)
+        if not org or SOURCE_BRAND_RE.search(org):
+            return "Program Organizer"
         return org[:100]
 
     def _clean_category(self, category: str) -> str:
@@ -96,7 +107,7 @@ class DataCleaner:
         desc = re.sub(r'\s+', ' ', desc)
         desc = desc.strip()
         desc = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', desc)
-        return desc[:5000]
+        return self._scrub_scraper_artifacts(desc)[:5000]
 
     def _clean_list(self, items: list) -> list[str]:
         if not isinstance(items, list):
@@ -105,8 +116,8 @@ class DataCleaner:
         cleaned = []
         for item in items:
             if isinstance(item, str):
-                item = item.strip()
-                if item and len(item) > 2:
+                item = self._scrub_scraper_artifacts(item.strip())
+                if item and len(item) > 2 and not self._is_scraper_artifact(item):
                     cleaned.append(item[:500])
 
         return cleaned[:20]
@@ -127,6 +138,21 @@ class DataCleaner:
         if not clean:
             return ""
         return clean.split('?')[0].split('#')[0].rstrip('/').lower()
+
+    def _scrub_scraper_artifacts(self, text: str) -> str:
+        if not text:
+            return ""
+        text = re.sub(r'\bBy\s+Admin\s+On\s+[A-Z][a-z]+\s+\d{1,2},\s+20\d{2}\b', ' ', text)
+        text = re.sub(r'\bBy\s+Admin\b', ' ', text, flags=re.I)
+        text = re.sub(r'\b(?:posted|written)\s+by\s+[^.]{1,60}', ' ', text, flags=re.I)
+        text = SOURCE_BRAND_RE.sub('the official organizer', text)
+        text = SCRAPER_ARTIFACT_RE.sub(' ', text)
+        text = re.sub(r'\s+([,.;:])', r'\1', text)
+        text = re.sub(r'\s{2,}', ' ', text)
+        return text.strip()
+
+    def _is_scraper_artifact(self, text: str) -> bool:
+        return bool(SOURCE_BRAND_RE.search(text) or SCRAPER_ARTIFACT_RE.search(text))
 
     def _clean_amount(self, amount: Optional[str]) -> Optional[int]:
         if not amount:

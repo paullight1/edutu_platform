@@ -1,6 +1,7 @@
 import { useState, type FC, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { signOutAdmin } from '../lib/auth';
 import { Eye, EyeOff, Lock, Loader2 } from 'lucide-react';
 
 const ResetPassword: FC = () => {
@@ -42,8 +43,7 @@ const ResetPassword: FC = () => {
       }
 
       setMessage('Password updated. Redirecting to sign in...');
-      await supabase.auth.signOut();
-      setTimeout(goToSignIn, 900);
+      setTimeout(() => void signOutAdmin(), 900);
     } catch {
       setError('Unable to update password right now.');
     } finally {

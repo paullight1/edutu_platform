@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { Suspense, lazy, useEffect, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
+import { signOutAdmin } from "./lib/auth";
 import {
   getLocalAdminEmail,
   getLocalAdminUserId,
@@ -234,7 +235,12 @@ async function checkAdminRole(userId: string): Promise<boolean> {
       return false;
     }
 
-    return profile?.role === "admin";
+    return [
+      "admin",
+      "super_admin",
+      "moderator",
+      "support_agent",
+    ].includes(profile?.role || "");
   } catch (error: unknown) {
     console.error("[Auth] checkAdminRole error:", error);
     return false;
@@ -311,7 +317,7 @@ const UnauthorizedScreen: FC<{ error?: string }> = ({ error }) => (
       {error || "You do not have admin privileges to access this area."}
     </p>
     <button
-      onClick={() => supabase.auth.signOut()}
+      onClick={() => void signOutAdmin()}
       style={{
         padding: "12px 24px",
         background: "#007aff",

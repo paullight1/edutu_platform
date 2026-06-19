@@ -48,12 +48,20 @@ interface AdminUsersStats {
     profilesWithSkills: number;
 }
 
+interface AdminCurrentUser {
+    userId: string | null;
+    email: string | null;
+    role: string;
+    canManageUsers: boolean;
+}
+
 interface AdminUsersResponse {
     success: boolean;
     source: 'database' | 'fallback';
     users: AdminUserRecord[];
     stats: AdminUsersStats;
     generatedAt: string;
+    currentAdmin?: AdminCurrentUser;
     error?: string;
 }
 
@@ -201,6 +209,7 @@ const Users = () => {
     const [inviteLoading, setInviteLoading] = useState(false);
     const [roleUpdatingUserId, setRoleUpdatingUserId] = useState<string | null>(null);
     const [banner, setBanner] = useState<Banner>(null);
+    const [canManageUsers, setCanManageUsers] = useState(false);
 
     const [stats, setStats] = useState<AdminUsersStats>(DEFAULT_STATS);
 
@@ -210,6 +219,7 @@ const Users = () => {
             const response = await backendFetchJson<AdminUsersResponse>('/admin/users?limit=500');
             setUsers(response.users);
             setStats(response.stats);
+            setCanManageUsers(Boolean(response.currentAdmin?.canManageUsers));
 
             if (!response.success) {
                 setBanner({
@@ -224,6 +234,7 @@ const Users = () => {
         } catch (error) {
             setUsers([]);
             setStats(DEFAULT_STATS);
+            setCanManageUsers(false);
             setBanner({
                 type: 'error',
                 message: error instanceof Error ? error.message : 'Unable to load users.',
@@ -426,10 +437,18 @@ const Users = () => {
     }, []);
 
     const openInviteModal = useCallback(() => {
+        if (!canManageUsers) {
+            setBanner({
+                type: 'warning',
+                message: 'Only super admins can invite users or assign staff roles.',
+            });
+            return;
+        }
+
         setInviteEmail('');
         setInviteRole('user');
         setShowInviteModal(true);
-    }, []);
+    }, [canManageUsers]);
 
     const closeInviteModal = useCallback(() => {
         setInviteEmail('');
@@ -439,6 +458,14 @@ const Users = () => {
 
     const handleInviteUser = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+
+        if (!canManageUsers) {
+            setBanner({
+                type: 'warning',
+                message: 'Only super admins can invite users or assign staff roles.',
+            });
+            return;
+        }
 
         const email = inviteEmail.trim();
         if (!email) {
@@ -503,6 +530,14 @@ const Users = () => {
     };
 
     const handleChangeUserRole = async (user: AdminUserRecord, role: AssignableRole) => {
+        if (!canManageUsers) {
+            setBanner({
+                type: 'warning',
+                message: 'Only super admins can change user roles.',
+            });
+            return;
+        }
+
         if (user.role === role) {
             return;
         }
@@ -600,7 +635,9 @@ const Users = () => {
                     </button>
                     <button
                         className="btn btn-primary"
+                        disabled={!canManageUsers}
                         onClick={openInviteModal}
+                        title={canManageUsers ? 'Invite a user or staff member' : 'Only super admins can invite users'}
                     >
                         <UserPlus size={18} />
                         Invite User/Admin
@@ -649,6 +686,22 @@ const Users = () => {
                             <X size={16} />
                         </button>
                     </div>
+                </div>
+            )}
+
+            {!canManageUsers && (
+                <div
+                    className="card"
+                    style={{
+                        padding: '14px 18px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        color: 'var(--text-secondary)',
+                    }}
+                >
+                    <Shield size={18} />
+                    <span>Viewing mode: only super admins can invite users or change platform roles.</span>
                 </div>
             )}
 
@@ -854,7 +907,7 @@ const Users = () => {
                                     const initials = user.fullName?.trim().charAt(0) || user.email?.trim().charAt(0) || 'U';
                                     const isSelected = selectedUsers.has(user.userId);
                                     const isRoleUpdating = roleUpdatingUserId === user.userId;
-                                    const canChangeRole = user.role !== 'super_admin';
+                                    const canChangeRole = canManageUsers && user.role !== 'super_admin';
 
                                     return (
                                         <tr key={user.userId} style={isSelected ? { background: 'rgba(0, 113, 227, 0.04)' } : undefined}>
@@ -1020,7 +1073,7 @@ const Users = () => {
                                     <select
                                         className="input-field users-role-select"
                                         value={isAssignableRole(selectedUser.role) ? selectedUser.role : 'user'}
-                                        disabled={roleUpdatingUserId === selectedUser.userId}
+                                        disabled={!canManageUsers || roleUpdatingUserId === selectedUser.userId}
                                         onChange={(event) => {
                                             void handleChangeUserRole(
                                                 selectedUser,

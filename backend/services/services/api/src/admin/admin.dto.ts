@@ -28,12 +28,20 @@ export interface AdminUsersStats {
   profilesWithSkills: number;
 }
 
+export interface AdminCurrentUser {
+  userId: string | null;
+  email: string | null;
+  role: string;
+  canManageUsers: boolean;
+}
+
 export interface AdminUsersResponse {
   success: boolean;
   source: "database" | "fallback";
   users: AdminUserRecord[];
   stats: AdminUsersStats;
   generatedAt: string;
+  currentAdmin?: AdminCurrentUser;
   error?: string;
 }
 

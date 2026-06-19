@@ -1,15 +1,21 @@
 const DEFAULT_LOCAL_ADMIN_EMAIL = 'admin@edutu.org';
+const LOCAL_ADMIN_BYPASS_DISABLED_KEY = 'edutu:local-admin-bypass-disabled';
 
 export function isLocalAdminBypassEnabled(): boolean {
-  if (import.meta.env.VITE_LOCAL_ADMIN_BYPASS === 'true') {
-    return true;
+  if (
+    typeof window !== 'undefined' &&
+    window.sessionStorage.getItem(LOCAL_ADMIN_BYPASS_DISABLED_KEY) === 'true'
+  ) {
+    return false;
   }
 
-  return (
-    import.meta.env.DEV &&
-    typeof window !== 'undefined' &&
-    ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)
-  );
+  return import.meta.env.VITE_LOCAL_ADMIN_BYPASS === 'true';
+}
+
+export function disableLocalAdminBypassForSession(): void {
+  if (typeof window === 'undefined') return;
+
+  window.sessionStorage.setItem(LOCAL_ADMIN_BYPASS_DISABLED_KEY, 'true');
 }
 
 export function getLocalAdminEmail(): string {

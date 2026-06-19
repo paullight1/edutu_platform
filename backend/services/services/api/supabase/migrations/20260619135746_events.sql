@@ -26,6 +26,8 @@ create index if not exists idx_events_starts_at on public.events(starts_at);
 create index if not exists idx_events_updated_at on public.events(updated_at);
 create unique index if not exists idx_events_slug_unique on public.events(slug);
 
+alter table public.events enable row level security;
+
 create table if not exists public.event_registrations (
   id uuid primary key default gen_random_uuid(),
   event_id uuid not null references public.events(id) on delete cascade,
@@ -41,3 +43,5 @@ create table if not exists public.event_registrations (
 create index if not exists idx_event_registrations_event_id on public.event_registrations(event_id);
 create index if not exists idx_event_registrations_user_id on public.event_registrations(user_id);
 create index if not exists idx_event_registrations_email on public.event_registrations(email);
+
+alter table public.event_registrations enable row level security;
