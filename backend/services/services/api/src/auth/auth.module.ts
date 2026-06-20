@@ -1,6 +1,8 @@
 import { Module, Global, Provider } from "@nestjs/common";
 import { ClerkClient, createClerkClient } from "@clerk/clerk-sdk-node";
 import { APP_GUARD } from "@nestjs/core";
+import { AdminGuard } from "./admin.guard";
+import { AuthController } from "./auth.controller";
 import { ClerkAuthGuard } from "./clerk-auth.guard";
 
 const ClerkClientProvider: Provider = {
@@ -14,8 +16,10 @@ const ClerkClientProvider: Provider = {
 
 @Global()
 @Module({
+  controllers: [AuthController],
   providers: [
     ClerkClientProvider,
+    AdminGuard,
     {
       provide: APP_GUARD,
       useClass: ClerkAuthGuard,

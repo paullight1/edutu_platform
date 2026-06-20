@@ -7,14 +7,15 @@ import {
   CheckCircle2,
   ChevronLeft,
   Clock,
+  Filter,
   Loader2,
   RefreshCcw,
   Search,
-  Send,
   Trash2,
 } from 'lucide-react';
 import { useAuth as useAppAuth } from '../hooks/useAuth';
 import { useDarkMode } from '../hooks/useDarkMode';
+import PullToRefresh from './ui/PullToRefresh';
 import {
   getApplications,
   removeApplication,
@@ -77,6 +78,7 @@ export default function ApplicationsPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [filter, setFilter] = useState<ApplicationFilter>('all');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -117,16 +119,6 @@ export default function ApplicationsPage() {
     });
   }, [applications, filter, query]);
 
-  const stats = useMemo(
-    () => [
-      ['Tracked', applications.length],
-      ['Submitted', applications.filter((item) => item.status === 'submitted').length],
-      ['In review', applications.filter((item) => item.status === 'under_review').length],
-      ['Accepted', applications.filter((item) => item.status === 'accepted').length],
-    ],
-    [applications],
-  );
-
   const changeStatus = async (application: ApplicationRecord, status: ApplicationStatus) => {
     if (status === application.status) return;
     setUpdatingId(application.id);
@@ -166,15 +158,15 @@ export default function ApplicationsPage() {
 
   return (
     <div className={`min-h-[100dvh] ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-slate-50 text-slate-950'}`}>
-      <header className={`sticky top-0 z-30 border-b backdrop-blur-xl ${isDarkMode ? 'border-white/10 bg-gray-950/90' : 'border-slate-200 bg-white/90'}`}>
+      <header className={`sticky top-0 z-30 hidden border-b backdrop-blur-xl lg:block ${isDarkMode ? 'border-white/10 bg-gray-950/90' : 'border-slate-200 bg-white/90'}`}>
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <button
             type="button"
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate(-1)}
             className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10"
           >
             <ChevronLeft size={17} />
-            Dashboard
+            Back
           </button>
           <button
             type="button"
@@ -188,61 +180,69 @@ export default function ApplicationsPage() {
         </div>
       </header>
 
+      <PullToRefresh
+        onRefresh={loadApplications}
+        disabled={loading}
+        className="min-h-[calc(100dvh-4rem)]"
+      >
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <section className={`rounded-[20px] border p-5 sm:p-6 ${isDarkMode ? 'border-white/10 bg-gray-900/70' : 'border-slate-200 bg-white shadow-sm'}`}>
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
-            <div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
-                <Send size={22} />
-              </div>
-              <h1 className="mt-4 text-2xl font-black tracking-tight sm:text-3xl">Application tracker</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
-                Track every opportunity you apply for and keep each status current from draft through outcome.
-              </p>
-            </div>
-            <div className={`grid grid-cols-2 gap-3 rounded-2xl border p-4 sm:grid-cols-4 ${isDarkMode ? 'border-white/10 bg-white/5' : 'border-slate-200 bg-slate-50'}`}>
-              {stats.map(([label, value]) => (
-                <div key={label} className="min-w-0">
-                  <p className="text-xs font-bold text-slate-500 dark:text-slate-400">{label}</p>
-                  <p className="mt-2 text-2xl font-black">{value}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
         {error ? (
-          <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">
             {error}
           </div>
         ) : null}
 
-        <section className="mt-5">
+        <section className={error ? 'mt-5' : ''}>
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="relative max-w-xl flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+              <button
+                type="button"
+                onClick={() => setIsFilterOpen((value) => !value)}
+                className={`absolute left-9 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full transition ${
+                  filter === 'all'
+                    ? 'text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white'
+                    : 'bg-brand-500/10 text-brand-600 dark:text-brand-300'
+                }`}
+                aria-label="Filter applications"
+                aria-expanded={isFilterOpen}
+              >
+                <Filter size={15} />
+              </button>
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search applications"
-                className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-gray-900 dark:text-white"
+                className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-20 pr-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-gray-900 dark:text-white"
               />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {(['all', ...STATUS_OPTIONS] as ApplicationFilter[]).map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => setFilter(item)}
-                  className={`h-10 rounded-xl px-3 text-sm font-black transition ${
-                    filter === item
-                      ? 'bg-brand-500 text-white'
-                      : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:bg-gray-900 dark:text-slate-300 dark:hover:bg-white/10'
+              {isFilterOpen ? (
+                <div
+                  className={`absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-2xl border p-1.5 shadow-xl ${
+                    isDarkMode ? 'border-white/10 bg-gray-950' : 'border-slate-200 bg-white'
                   }`}
                 >
-                  {item === 'all' ? 'All' : STATUS_LABELS[item]}
-                </button>
-              ))}
+                  {(['all', ...STATUS_OPTIONS] as ApplicationFilter[]).map((item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => {
+                        setFilter(item);
+                        setIsFilterOpen(false);
+                      }}
+                      className={`flex h-10 w-full items-center justify-between rounded-xl px-3 text-left text-sm font-black transition ${
+                        filter === item
+                          ? 'bg-brand-500 text-white'
+                          : isDarkMode
+                            ? 'text-slate-200 hover:bg-white/10'
+                            : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>{item === 'all' ? 'All statuses' : STATUS_LABELS[item]}</span>
+                      {filter === item ? <CheckCircle2 size={15} /> : null}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -350,6 +350,7 @@ export default function ApplicationsPage() {
           </div>
         ) : null}
       </main>
+      </PullToRefresh>
     </div>
   );
 }

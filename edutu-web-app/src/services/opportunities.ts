@@ -2,6 +2,7 @@ import type { Opportunity, OpportunityDifficulty } from '../types/opportunity';
 import { getApiBaseUrl } from '../lib/apiBaseUrl';
 import { syncOpportunityInventorySnapshot } from './analyticsAggregator';
 import { updateOpportunitiesInN8n } from './n8nIntegration';
+import { productApiRequest } from './productApi';
 
 let cachedOpportunities: Opportunity[] | null = null;
 const fallbackUpdatedAt = new Date().toISOString();
@@ -128,6 +129,22 @@ interface FetchOptions {
   offset?: number;
   status?: string;
   category?: string;
+}
+
+export interface FetchOpportunityRecommendationsOptions {
+  limit?: number;
+  minMatchScore?: number;
+  excludeOpportunityIds?: string[];
+  message?: string;
+}
+
+export interface PersonalizedOpportunity {
+  opportunity: Opportunity;
+  matchScore: number;
+  matchReasons: string[];
+  matchRisks: string[];
+  aiSummary: string | null;
+  aiTags: string[];
 }
 
 type BackendOpportunityRow = Record<string, any>;

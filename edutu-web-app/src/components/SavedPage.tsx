@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useAuth as useAppAuth } from '../hooks/useAuth';
 import { useDarkMode } from '../hooks/useDarkMode';
+import PullToRefresh from './ui/PullToRefresh';
 import {
   filterBookmarks,
   getBookmarks,
@@ -135,15 +136,15 @@ export default function SavedPage() {
 
   return (
     <div className={`min-h-[100dvh] ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-slate-50 text-slate-950'}`}>
-      <header className={`sticky top-0 z-30 border-b backdrop-blur-xl ${isDarkMode ? 'border-white/10 bg-gray-950/90' : 'border-slate-200 bg-white/90'}`}>
+      <header className={`sticky top-0 z-30 hidden border-b backdrop-blur-xl lg:block ${isDarkMode ? 'border-white/10 bg-gray-950/90' : 'border-slate-200 bg-white/90'}`}>
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <button
             type="button"
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate(-1)}
             className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10"
           >
             <ChevronLeft size={17} />
-            Dashboard
+            Back
           </button>
           <button
             type="button"
@@ -157,6 +158,11 @@ export default function SavedPage() {
         </div>
       </header>
 
+      <PullToRefresh
+        onRefresh={loadBookmarks}
+        disabled={loading}
+        className="min-h-[calc(100dvh-4rem)]"
+      >
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <section className={`rounded-[20px] border p-5 sm:p-6 ${isDarkMode ? 'border-white/10 bg-gray-900/70' : 'border-slate-200 bg-white shadow-sm'}`}>
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -304,6 +310,7 @@ export default function SavedPage() {
           )}
         </section>
       </main>
+      </PullToRefresh>
     </div>
   );
 }

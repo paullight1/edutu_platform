@@ -3,18 +3,15 @@ import { useAuth as useClerkAuth } from '@clerk/clerk-react';
 import { useNavigate } from 'react-router-dom';
 import {
   Briefcase,
-  ChevronLeft,
-  Globe2,
   Loader2,
-  Mail,
-  RefreshCcw,
+  PencilLine,
   Save,
-  ShieldCheck,
   Sparkles,
   UserCheck,
 } from 'lucide-react';
 import { useAuth as useAppAuth } from '../hooks/useAuth';
 import { useDarkMode } from '../hooks/useDarkMode';
+import PullToRefresh from './ui/PullToRefresh';
 import {
   fetchBackendProfile,
   updateBackendProfile,
@@ -121,28 +118,11 @@ export default function ProfilePage() {
 
   return (
     <div className={`min-h-[100dvh] ${isDarkMode ? 'bg-gray-950 text-white' : 'bg-slate-50 text-slate-950'}`}>
-      <header className={`sticky top-0 z-30 border-b backdrop-blur-xl ${isDarkMode ? 'border-white/10 bg-gray-950/90' : 'border-slate-200 bg-white/90'}`}>
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <button
-            type="button"
-            onClick={() => navigate('/dashboard')}
-            className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10"
-          >
-            <ChevronLeft size={17} />
-            Dashboard
-          </button>
-          <button
-            type="button"
-            onClick={loadProfile}
-            disabled={loading || saving}
-            className="inline-flex h-10 items-center gap-2 rounded-xl bg-brand-500 px-3 text-sm font-bold text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loading ? <Loader2 size={17} className="animate-spin" /> : <RefreshCcw size={17} />}
-            Refresh
-          </button>
-        </div>
-      </header>
-
+      <PullToRefresh
+        onRefresh={loadProfile}
+        disabled={loading || saving}
+        className="min-h-[calc(100dvh-4rem)]"
+      >
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <section className={`rounded-[20px] border p-5 sm:p-6 ${isDarkMode ? 'border-white/10 bg-gray-900/70' : 'border-slate-200 bg-white shadow-sm'}`}>
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -150,9 +130,9 @@ export default function ProfilePage() {
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
                 <UserCheck size={22} />
               </div>
-              <h1 className="mt-4 text-2xl font-black tracking-tight sm:text-3xl">Profile management</h1>
+              <h1 className="mt-4 text-2xl font-black tracking-tight sm:text-3xl">Your profile</h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
-                Keep the backend profile Edutu uses for recommendations, creator checks, and account identity up to date.
+                Keep your details current so Edutu can tune recommendations, deadlines, and application support around you.
               </p>
             </div>
             <div className={`rounded-2xl border p-4 ${isDarkMode ? 'border-white/10 bg-white/5' : 'border-slate-200 bg-slate-50'}`}>
@@ -179,7 +159,7 @@ export default function ProfilePage() {
                   />
                 </div>
                 <p className="mt-3 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                  Updated {formatDate(profile?.updatedAt || profile?.updated_at)}
+                  Last updated {formatDate(profile?.updatedAt || profile?.updated_at)}
                 </p>
               </div>
             </div>
@@ -203,47 +183,70 @@ export default function ProfilePage() {
             onSubmit={saveProfile}
             className={`rounded-[20px] border p-5 sm:p-6 ${isDarkMode ? 'border-white/10 bg-gray-900/70' : 'border-slate-200 bg-white shadow-sm'}`}
           >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-black tracking-tight">Profile details</h2>
+                <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
+                  Tap any field to edit what Edutu should know about you.
+                </p>
+              </div>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
+                <PencilLine size={18} />
+              </span>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
                 <span className="text-sm font-black">Full name</span>
-                <input
-                  value={fullName}
-                  onChange={(event) => setFullName(event.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-gray-950 dark:text-white"
-                  placeholder="Your name"
-                />
+                <div className="relative mt-2">
+                  <input
+                    value={fullName}
+                    onChange={(event) => setFullName(event.target.value)}
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-gray-950 dark:text-white"
+                    placeholder="Your name"
+                  />
+                  <PencilLine size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
               </label>
 
               <label className="block">
                 <span className="text-sm font-black">Email</span>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-gray-950 dark:text-white"
-                  placeholder="you@example.com"
-                />
+                <div className="relative mt-2">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-gray-950 dark:text-white"
+                    placeholder="you@example.com"
+                  />
+                  <PencilLine size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
               </label>
 
               <label className="block sm:col-span-2">
                 <span className="text-sm font-black">Country</span>
-                <input
-                  value={country}
-                  onChange={(event) => setCountry(event.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-gray-950 dark:text-white"
-                  placeholder="Country or primary market"
-                />
+                <div className="relative mt-2">
+                  <input
+                    value={country}
+                    onChange={(event) => setCountry(event.target.value)}
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-gray-950 dark:text-white"
+                    placeholder="Country or primary market"
+                  />
+                  <PencilLine size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
               </label>
 
               <label className="block sm:col-span-2">
                 <span className="text-sm font-black">Skills</span>
-                <textarea
-                  value={skillsText}
-                  onChange={(event) => setSkillsText(event.target.value)}
-                  rows={5}
-                  className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold leading-6 text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-gray-950 dark:text-white"
-                  placeholder="Scholarship essays, data analysis, community leadership"
-                />
+                <div className="relative mt-2">
+                  <textarea
+                    value={skillsText}
+                    onChange={(event) => setSkillsText(event.target.value)}
+                    rows={5}
+                    className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-3 pr-10 text-sm font-semibold leading-6 text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-gray-950 dark:text-white"
+                    placeholder="Scholarship essays, data analysis, community leadership"
+                  />
+                  <PencilLine size={16} className="pointer-events-none absolute right-3 top-4 text-slate-400" />
+                </div>
               </label>
             </div>
 
@@ -286,26 +289,9 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <p className="mt-3 text-sm font-semibold leading-6 text-slate-500 dark:text-slate-400">
-                  Your backend profile has the core fields needed for account matching.
+                  Your profile has the core details needed for better matching.
                 </p>
               )}
-            </div>
-
-            <div className={`rounded-[20px] border p-5 ${isDarkMode ? 'border-white/10 bg-gray-900/70' : 'border-slate-200 bg-white shadow-sm'}`}>
-              <div className="flex items-center gap-2 text-sm font-black">
-                <ShieldCheck size={17} />
-                Backend account
-              </div>
-              <div className="mt-4 space-y-3 text-sm font-semibold text-slate-600 dark:text-slate-300">
-                <div className="flex items-center gap-2">
-                  <Mail size={16} className="text-slate-400" />
-                  <span className="truncate">{profile?.email || user?.email || 'No email saved'}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Globe2 size={16} className="text-slate-400" />
-                  <span className="truncate">{country.trim() || 'No country saved'}</span>
-                </div>
-              </div>
             </div>
 
             {skills.length > 0 ? (
@@ -326,6 +312,7 @@ export default function ProfilePage() {
           </aside>
         </div>
       </main>
+      </PullToRefresh>
     </div>
   );
 }

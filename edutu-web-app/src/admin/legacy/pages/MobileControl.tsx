@@ -23,12 +23,17 @@ const campaignTemplate: MobileCampaign = {
   key: '',
   title: '',
   body: '',
-  campaign_type: 'popup',
-  placement: 'global',
+  campaign_type: 'banner',
+  placement: 'home',
   status: 'draft',
   priority: 0,
   audience: {},
-  creative: { ctaLabel: 'Open', ctaRoute: '/opportunities' },
+  creative: {
+    eyebrow: 'Sponsored',
+    image: '/discovery/internships.png',
+    ctaLabel: 'Review',
+    screen: 'profile',
+  },
   frequency: { mode: 'once' },
 };
 
@@ -260,6 +265,7 @@ function CampaignForm({ value, onChange, onSave, saving }: { value: MobileCampai
         <SelectField label="Status" value={value.status} options={['draft', 'scheduled', 'active', 'paused', 'archived']} onChange={(status) => onChange({ ...value, status: status as MobileCampaign['status'] })} />
         <NumberField label="Priority" value={value.priority} onChange={(priority) => onChange({ ...value, priority })} />
         <JsonField label="Creative JSON" value={value.creative} onChange={(creative) => onChange({ ...value, creative: creative as Record<string, unknown> })} />
+        <p className="mc-help">Home promo cards read eyebrow, image, ctaLabel, and screen/route/url from Creative JSON.</p>
         <JsonField label="Audience JSON" value={value.audience} onChange={(audience) => onChange({ ...value, audience: audience as Record<string, unknown> })} />
         <JsonField label="Frequency JSON" value={value.frequency} onChange={(frequency) => onChange({ ...value, frequency: frequency as Record<string, unknown> })} />
       </div>
@@ -371,7 +377,7 @@ const styles = `
 .mc-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px}.mc-metric{display:flex;align-items:center;gap:12px;background:#1c1c1e;border:1px solid #2c2c2e;border-radius:8px;padding:16px}.mc-metric span{color:#a1a1a6}.mc-metric strong{margin-left:auto;font-size:24px}
 .mc-tabs{display:flex;gap:8px;margin-bottom:18px}.mc-tabs button{display:flex;align-items:center;gap:8px;border:1px solid #2c2c2e;background:#1c1c1e;color:#f5f5f7;border-radius:8px;padding:10px 12px;cursor:pointer}.mc-tabs button.active{background:#0a84ff;border-color:#0a84ff}
 .mc-grid{display:grid;grid-template-columns:minmax(320px,480px) 1fr;gap:16px}.mc-panel{background:#1c1c1e;border:1px solid #2c2c2e;border-radius:8px;padding:18px}.mc-panel h2{margin:0 0 14px;font-size:18px}
-.mc-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:14px}.mc-field{display:flex;flex-direction:column;gap:6px}.mc-field span{color:#a1a1a6;font-size:12px;font-weight:700}.mc-field-wide{grid-column:1/-1}.mc-field input,.mc-field select,.mc-field textarea{background:#111113;border:1px solid #3a3a3c;border-radius:8px;color:#f5f5f7;padding:10px;min-width:0}.mc-field textarea{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;resize:vertical}.mc-check{display:flex;align-items:center;gap:8px;color:#f5f5f7}
+.mc-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:14px}.mc-field{display:flex;flex-direction:column;gap:6px}.mc-field span{color:#a1a1a6;font-size:12px;font-weight:700}.mc-field-wide{grid-column:1/-1}.mc-field input,.mc-field select,.mc-field textarea{background:#111113;border:1px solid #3a3a3c;border-radius:8px;color:#f5f5f7;padding:10px;min-width:0}.mc-field textarea{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;resize:vertical}.mc-help{grid-column:1/-1;margin:-4px 0 2px;color:#8e8e93;font-size:12px;line-height:1.45}.mc-check{display:flex;align-items:center;gap:8px;color:#f5f5f7}
 .mc-list{display:flex;flex-direction:column;gap:10px}.mc-row{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;border:1px solid #2c2c2e;border-radius:8px;padding:10px}.mc-row-main{text-align:left;background:transparent;border:0;color:#f5f5f7;cursor:pointer}.mc-row-main strong{display:block}.mc-row-main span{display:block;color:#8e8e93;font-size:13px;margin-top:3px}.mc-icon{background:#2c2c2e;border:0;color:#ff453a;border-radius:8px;padding:8px;cursor:pointer}
 .mc-status{border-radius:999px;padding:5px 9px;background:#2c2c2e;color:#d1d1d6;font-size:12px}.status-active{background:rgba(48,209,88,.16);color:#30d158}.status-paused,.status-draft{background:rgba(255,159,10,.16);color:#ff9f0a}.mc-empty,.mc-loading,.mc-alert{display:flex;align-items:center;gap:8px;color:#a1a1a6;padding:18px}.mc-alert{background:rgba(255,69,58,.12);border:1px solid rgba(255,69,58,.35);border-radius:8px;color:#ff6961;margin-bottom:14px}.spin{animation:mc-spin 1s linear infinite}@keyframes mc-spin{to{transform:rotate(360deg)}}@media(max-width:960px){.mc-grid,.mc-stats{grid-template-columns:1fr}.mc-header{flex-direction:column}.mc-form{grid-template-columns:1fr}}
 `;

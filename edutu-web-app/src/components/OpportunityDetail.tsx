@@ -119,14 +119,6 @@ function getIsoDate(value?: string | null): string | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
-function getDaysUntilDeadline(deadline?: string | null): number | null {
-  if (!deadline) return null;
-  const parsed = new Date(deadline);
-  if (Number.isNaN(parsed.getTime())) return null;
-  const diffTime = parsed.getTime() - Date.now();
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-}
-
 function formatEligibilityKey(key: string): string {
   return key
     .replace(/[_-]+/g, " ")
@@ -198,7 +190,6 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
 
   const currencySymbol = getCurrencySymbol(opportunity.currency);
   const currencyLabel = getCurrencyLabel(opportunity.currency);
-  const daysUntilDeadline = getDaysUntilDeadline(opportunity.deadline);
   const applyUrl =
     opportunity.applyUrl && opportunity.applyUrl.length > 0
       ? opportunity.applyUrl
@@ -208,8 +199,6 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   const applicantsCopy = opportunity.applicants
     ? `${opportunity.applicants} applicants`
     : "Applicant count not published";
-  const successRateCopy =
-    opportunity.successRate ?? "Organizer has not published a success rate";
   const fullDescription =
     normaliseVisibleText(opportunity.description || opportunity.summary) ||
     `${opportunity.title} is a ${opportunity.category.toLowerCase()} opportunity from ${opportunity.organization}. Review the public details, deadline, location, eligibility notes, benefits, and application link before applying.`;
@@ -667,46 +656,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
           </article>
 
           <aside className="space-y-5">
-            <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-950">
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                Quick facts
-              </p>
-              <dl className="mt-4 space-y-4">
-                <div>
-                  <dt className="text-sm text-slate-500 dark:text-slate-400">
-                    Success rate
-                  </dt>
-                  <dd className="mt-1 text-sm font-medium text-slate-950 dark:text-white">
-                    {successRateCopy}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-sm text-slate-500 dark:text-slate-400">
-                    Remote
-                  </dt>
-                  <dd className="mt-1 text-sm font-medium text-slate-950 dark:text-white">
-                    {opportunity.isRemote
-                      ? "Yes"
-                      : opportunity.isRemote === false
-                        ? "No"
-                        : "Use listed location"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-sm text-slate-500 dark:text-slate-400">
-                    Deadline urgency
-                  </dt>
-                  <dd className="mt-1 text-sm font-medium text-slate-950 dark:text-white">
-                    {daysUntilDeadline === null
-                      ? "No deadline set"
-                      : daysUntilDeadline <= 0
-                        ? "Deadline has passed"
-                        : `${daysUntilDeadline} days remaining`}
-                  </dd>
-                </div>
-              </dl>
-            </section>
-            <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-950">
+            <section className={`${embedded ? "hidden lg:block" : ""} space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-950`}>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                 Actions
               </p>
@@ -758,12 +708,55 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
           </aside>
         </div>
       </section>
+      {embedded ? (
+        <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-slate-200 bg-white/95 px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 shadow-[0_-18px_40px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/95 lg:hidden">
+          <div className="mx-auto flex max-w-3xl items-center gap-3">
+            <button
+              type="button"
+              onClick={handleApply}
+              disabled={!applyUrl}
+              className="inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-950"
+            >
+              <ExternalLink size={17} />
+              <span className="truncate">
+                {applyUrl
+                  ? userId
+                    ? "Apply now"
+                    : "Sign in to apply"
+                  : "Application unavailable"}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={handleBookmark}
+              disabled={bookmarkLoading}
+              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border transition active:scale-[0.96] disabled:cursor-wait disabled:opacity-60 ${
+                isBookmarkedState
+                  ? "border-rose-500 bg-rose-500 text-white"
+                  : "border-slate-200 bg-white text-slate-700 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+              }`}
+              aria-label={
+                !userId
+                  ? "Sign in to save opportunity"
+                  : isBookmarkedState
+                    ? "Remove saved opportunity"
+                    : "Save opportunity"
+              }
+            >
+              <Heart
+                size={20}
+                fill={isBookmarkedState ? "currentColor" : "none"}
+              />
+            </button>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 
   if (embedded) {
     return (
-      <main className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+      <main className="mx-auto w-full max-w-6xl px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:py-6 lg:px-8">
         {detailContent}
       </main>
     );

@@ -1,11 +1,13 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import {
   Bell,
+  BadgeDollarSign,
   Bookmark,
   Briefcase,
   Calendar,
   ChevronRight,
   Clock,
+  GraduationCap,
   LayoutGrid,
   List,
   Menu,
@@ -14,6 +16,7 @@ import {
   Sparkles,
   X,
   UserCheck,
+  Users,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
@@ -23,7 +26,6 @@ import CalendarStrip from "./CalendarStrip";
 import MemberSettingsPanel from "./MemberSettingsPanel";
 import type { CalendarEvent } from "./CalendarStrip";
 import { useDarkMode } from "../hooks/useDarkMode";
-import { useAnalytics } from "../hooks/useAnalytics";
 import { useOpportunities } from "../hooks/useOpportunities";
 import { usePersonalizedOpportunities } from "../hooks/usePersonalizedOpportunities";
 import { useNotifications } from "../hooks/useNotifications";
@@ -33,10 +35,186 @@ import { getBookmarks } from "../services/bookmarks";
 import { getApplications } from "../services/applications";
 import { getDeadlines, type Deadline } from "../services/deadlines";
 import { fetchBackendProfile } from "../services/profile";
+import {
+  fetchMobileControlConfig,
+  recordMobileCampaignEvent,
+  type MobileCampaign,
+} from "../services/mobileControl";
 import ImageWithFallback from "./ImageWithFallback";
 
 const HOME_FEED_BATCH_SIZE = 8;
 const HOME_FEED_PROMO_INTERVAL = 6;
+
+type HomePromoCard = {
+  campaignId?: string;
+  eyebrow: string;
+  title: string;
+  body: string;
+  actionLabel: string;
+  image: string;
+  actionScreen?: string;
+  actionRoute?: string;
+  actionUrl?: string;
+};
+
+const DEFAULT_HOME_PROMO: HomePromoCard = {
+  eyebrow: "Sponsored",
+  title: "Improve your matches",
+  body: "Complete your profile so Edutu can show stronger matches first.",
+  actionLabel: "Review",
+  image: "/discovery/internships.png",
+  actionScreen: "profile",
+};
+
+const HOME_PROMO_CAMPAIGN_TYPES = new Set([
+  "banner",
+  "announcement",
+  "notification",
+]);
+
+type DiscoveryCategoryId =
+  | "scholarships"
+  | "internships"
+  | "programs"
+  | "fellowships";
+
+type DiscoveryCategory = {
+  id: DiscoveryCategoryId;
+  title: string;
+  image: string;
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
+  keywords: string[];
+};
+
+const DISCOVERY_CATEGORIES: DiscoveryCategory[] = [
+  {
+    id: "scholarships",
+    title: "Scholarships",
+    image: "/discovery/scholarships.png",
+    icon: GraduationCap,
+    keywords: ["scholarship", "scholarships", "scholar", "scholars"],
+  },
+  {
+    id: "internships",
+    title: "Internships",
+    image: "/discovery/internships.png",
+    icon: Briefcase,
+    keywords: ["internship", "internships", "intern", "trainee"],
+  },
+  {
+    id: "programs",
+    title: "Programs",
+    image: "/discovery/grants.png",
+    icon: BadgeDollarSign,
+    keywords: [
+      "program",
+      "programs",
+      "programme",
+      "programmes",
+      "course",
+      "courses",
+      "bootcamp",
+      "training",
+      "academy",
+      "summit",
+      "school",
+    ],
+  },
+  {
+    id: "fellowships",
+    title: "Fellowships",
+    image: "/discovery/fellowships.png",
+    icon: Users,
+    keywords: ["fellowship", "fellowships", "fellow", "residency"],
+  },
+];
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function opportunitySearchText(opportunity: any) {
+  const values = [
+    opportunity?.category,
+    opportunity?.title,
+    opportunity?.organization,
+    ...(Array.isArray(opportunity?.tags) ? opportunity.tags : []),
+  ];
+
+  return values
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function opportunityMatchesDiscoveryCategory(
+  opportunity: any,
+  category: DiscoveryCategory,
+) {
+  const text = opportunitySearchText(opportunity);
+
+  return category.keywords.some((keyword) =>
+    new RegExp(`\\b${escapeRegExp(keyword.toLowerCase())}\\b`, "i").test(text),
+  );
+}
+
+function readCreativeString(
+  creative: Record<string, unknown> | undefined,
+  keys: string[],
+) {
+  for (const key of keys) {
+    const value = creative?.[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return undefined;
+}
+
+function isHomePromoCampaign(campaign: MobileCampaign) {
+  const placement = campaign.placement?.toLowerCase();
+  const type = campaign.campaign_type?.toLowerCase();
+
+  return (
+    (placement === "home" || placement === "global") &&
+    HOME_PROMO_CAMPAIGN_TYPES.has(type)
+  );
+}
+
+function mapCampaignToHomePromo(campaign: MobileCampaign): HomePromoCard {
+  const creative = campaign.creative ?? {};
+
+  return {
+    campaignId: campaign.id,
+    eyebrow:
+      readCreativeString(creative, ["eyebrow", "label", "sponsorLabel"]) ??
+      DEFAULT_HOME_PROMO.eyebrow,
+    title: campaign.title || DEFAULT_HOME_PROMO.title,
+    body: campaign.body || DEFAULT_HOME_PROMO.body,
+    actionLabel:
+      readCreativeString(creative, ["ctaLabel", "actionLabel", "buttonLabel"]) ??
+      DEFAULT_HOME_PROMO.actionLabel,
+    image:
+      readCreativeString(creative, [
+        "image",
+        "imageUrl",
+        "backgroundImage",
+        "backgroundUrl",
+      ]) ?? DEFAULT_HOME_PROMO.image,
+    actionScreen: readCreativeString(creative, [
+      "screen",
+      "targetScreen",
+      "actionScreen",
+    ]),
+    actionRoute: readCreativeString(creative, [
+      "route",
+      "href",
+      "path",
+      "ctaRoute",
+    ]),
+    actionUrl: readCreativeString(creative, ["url", "externalUrl", "ctaUrl"]),
+  };
+}
 
 interface DashboardProps {
   user: AppUser | null;
@@ -105,6 +283,11 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     const [dismissBanner, setDismissBanner] = useState(false);
     const [viewMode, setViewMode] = useState<"list" | "grid">("grid");
     const [homeFeedLimit, setHomeFeedLimit] = useState(HOME_FEED_BATCH_SIZE);
+    const [activeDiscoveryCategory, setActiveDiscoveryCategory] =
+      useState<DiscoveryCategoryId | null>(null);
+    const [adminHomePromo, setAdminHomePromo] = useState<HomePromoCard | null>(
+      null,
+    );
     const { isDarkMode } = useDarkMode();
     const { getToken } = useClerkAuth();
     const opportunitiesRefreshRef = useRef<() => void>();
@@ -121,7 +304,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       isMatchEnabled: boolean;
     } | null>(null);
 
-    const { stats: analyticsStats } = useAnalytics();
     const { unreadCount } = useNotifications();
 
     const opportunities = useOpportunities();
@@ -181,6 +363,30 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     }, [getToken, user?.id]);
 
     useEffect(() => {
+      let isMounted = true;
+
+      async function loadAdminHomePromo() {
+        try {
+          const config = await fetchMobileControlConfig();
+          const campaign = config.campaigns.find(isHomePromoCampaign);
+          if (isMounted) {
+            setAdminHomePromo(
+              campaign ? mapCampaignToHomePromo(campaign) : null,
+            );
+          }
+        } catch (error) {
+          console.error("Failed to load admin home promo:", error);
+          if (isMounted) setAdminHomePromo(null);
+        }
+      }
+
+      void loadAdminHomePromo();
+      return () => {
+        isMounted = false;
+      };
+    }, []);
+
+    useEffect(() => {
       if (!user?.id) return;
       const userId = user.id;
       let isMounted = true;
@@ -224,10 +430,42 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         .filter(Boolean);
     }, [opportunityFeed]);
 
+    const selectedDiscoveryCategory =
+      DISCOVERY_CATEGORIES.find(
+        (category) => category.id === activeDiscoveryCategory,
+      ) ?? null;
+
+    const filteredOpportunityFeed = useMemo(() => {
+      if (!selectedDiscoveryCategory) return normalizedOpportunityFeed;
+
+      return normalizedOpportunityFeed.filter((opportunity: any) =>
+        opportunityMatchesDiscoveryCategory(
+          opportunity,
+          selectedDiscoveryCategory,
+        ),
+      );
+    }, [normalizedOpportunityFeed, selectedDiscoveryCategory]);
+
     const visibleHomeOpportunities = useMemo(
-      () => normalizedOpportunityFeed.slice(0, homeFeedLimit),
-      [normalizedOpportunityFeed, homeFeedLimit],
+      () => filteredOpportunityFeed.slice(0, homeFeedLimit),
+      [filteredOpportunityFeed, homeFeedLimit],
     );
+
+    const opportunityEmptyTitle = selectedDiscoveryCategory
+      ? `No ${selectedDiscoveryCategory.title.toLowerCase()} found`
+      : "No recommendations yet";
+    const opportunityEmptyDescription = selectedDiscoveryCategory
+      ? "Try another category or clear the filter to return to the full feed."
+      : "Complete your profile or browse the full opportunity feed while Edutu prepares better matches.";
+    const opportunityEmptyAction = selectedDiscoveryCategory
+      ? {
+          label: "Show all",
+          onClick: () => setActiveDiscoveryCategory(null),
+        }
+      : {
+          label: "Browse opportunities",
+          onClick: onViewAllOpportunities,
+        };
 
     const mobilePersonalizedOpportunities = useMemo(
       () => visibleHomeOpportunities.slice(0, 6),
@@ -240,18 +478,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     );
 
     const mobileMoreOpportunityItems = useMemo(() => {
-      const items: Array<
-        | { type: "opportunity"; key: string; opportunity: any }
-        | { type: "promo"; key: string }
-      > = [];
+      const items: Array<{ key: string; opportunity: any }> = [];
 
       mobileExploreOpportunities.slice(0, 10).forEach((opportunity: any, index: number) => {
-        if (index === 2) {
-          items.push({ type: "promo", key: "mobile-more-profile-promo" });
-        }
-
         items.push({
-          type: "opportunity",
           key: opportunity?.id
             ? `mobile-feed-${opportunity.id}`
             : `mobile-feed-${index}`,
@@ -261,6 +491,8 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
       return items;
     }, [mobileExploreOpportunities]);
+
+    const mobileHomePromo = adminHomePromo ?? DEFAULT_HOME_PROMO;
 
     const homePromos = useMemo(
       () => [
@@ -301,7 +533,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           opportunity,
         });
 
-        if ((index + 1) % HOME_FEED_PROMO_INTERVAL === 0) {
+        if (
+          !activeDiscoveryCategory &&
+          (index + 1) % HOME_FEED_PROMO_INTERVAL === 0
+        ) {
           items.push({
             type: "promo",
             key: `promo-${index}`,
@@ -314,11 +549,11 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       });
 
       return items;
-    }, [homePromos, visibleHomeOpportunities]);
+    }, [activeDiscoveryCategory, homePromos, visibleHomeOpportunities]);
 
     useEffect(() => {
       setHomeFeedLimit(HOME_FEED_BATCH_SIZE);
-    }, [normalizedOpportunityFeed.length]);
+    }, [activeDiscoveryCategory, filteredOpportunityFeed.length]);
 
     useEffect(() => {
       const sentinel = homeFeedSentinelRef.current;
@@ -330,10 +565,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           if (!entry.isIntersecting) return;
 
           setHomeFeedLimit((current) => {
-            if (current >= normalizedOpportunityFeed.length) return current;
+            if (current >= filteredOpportunityFeed.length) return current;
             return Math.min(
               current + HOME_FEED_BATCH_SIZE,
-              normalizedOpportunityFeed.length,
+              filteredOpportunityFeed.length,
             );
           });
         },
@@ -343,7 +578,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       observer.observe(sentinel);
 
       return () => observer.disconnect();
-    }, [normalizedOpportunityFeed.length, opportunitiesLoading]);
+    }, [filteredOpportunityFeed.length, opportunitiesLoading]);
 
     const formatUpdatedAt = (updatedAt: string) => {
       const diff = Date.now() - new Date(updatedAt).getTime();
@@ -353,27 +588,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       if (hours < 24) return `${hours}h ago`;
       return new Date(updatedAt).toLocaleDateString();
     };
-
-    const upcomingDeadline = useMemo(() => {
-      const upcoming = dashboardDeadlines
-        .filter((item) => !Number.isNaN(new Date(item.deadline).getTime()))
-        .sort((a, b) => a.daysUntil - b.daysUntil);
-
-      if (upcoming.length === 0) {
-        return null;
-      }
-
-      const nextItem = upcoming[0];
-
-      return {
-        id: nextItem.id,
-        title: nextItem.title,
-        date: nextItem.deadline,
-        daysUntil: nextItem.daysUntil,
-        type: nextItem.type,
-        sourceId: nextItem.sourceId,
-      };
-    }, [dashboardDeadlines]);
 
     const menuItems = [
       { id: "home", label: "Home", icon: <LayoutGrid size={18} /> },
@@ -427,37 +641,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       { id: "deadlines", label: "Dates", icon: <Calendar size={20} /> },
       { id: "more", label: "More", icon: <Menu size={20} /> },
     ];
-
-    const stats = useMemo(() => {
-      return [
-        {
-          label: "Opportunities explored",
-          value: analyticsStats.opportunitiesExplored.toString(),
-        },
-        {
-          label: "Saved opportunities",
-          value: bookmarks.length.toString(),
-        },
-        {
-          label: "Applications tracked",
-          value: applications.length.toString(),
-        },
-        {
-          label: "Next deadline",
-          value: upcomingDeadline
-            ? new Date(upcomingDeadline.date).toLocaleDateString(undefined, {
-                month: "short",
-                day: "numeric",
-              })
-            : "None",
-        },
-      ];
-    }, [
-      analyticsStats.opportunitiesExplored,
-      applications.length,
-      bookmarks.length,
-      upcomingDeadline,
-    ]);
 
     const recentActivity = useMemo(() => {
       const savedItems = bookmarks.slice(0, 3).map((bookmark) => ({
@@ -525,6 +708,36 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       }
 
       onNavigate?.(id);
+    }
+
+    function handleMobileHomePromoClick() {
+      if (mobileHomePromo.campaignId) {
+        void getToken()
+          .catch(() => null)
+          .then((token) =>
+            recordMobileCampaignEvent(
+              mobileHomePromo.campaignId!,
+              "click",
+              token,
+              { placement: "dashboard-home-promo" },
+            ),
+          )
+          .catch((error) =>
+            console.error("Failed to record promo click:", error),
+          );
+      }
+
+      if (mobileHomePromo.actionUrl) {
+        window.open(mobileHomePromo.actionUrl, "_blank", "noopener,noreferrer");
+        return;
+      }
+
+      if (mobileHomePromo.actionRoute) {
+        window.location.assign(mobileHomePromo.actionRoute);
+        return;
+      }
+
+      openDashboardDestination(mobileHomePromo.actionScreen || "profile");
     }
 
     const handleMenuItemClick = (id: string) => {
@@ -1214,23 +1427,75 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
             <motion.section
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="grid grid-cols-2 gap-3 sm:gap-4"
+              className="space-y-3"
             >
-              {stats.map((stat) => (
-                <div
-                  key={stat.label}
-                  className={`min-h-[104px] rounded-lg border p-4 ${isDarkMode ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}`}
-                >
-                  <p
-                    className={`text-xs font-semibold leading-5 ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-base font-semibold tracking-tight text-slate-950 dark:text-white">
+                  Explore opportunities
+                </h2>
+                {selectedDiscoveryCategory ? (
+                  <button
+                    type="button"
+                    onClick={() => setActiveDiscoveryCategory(null)}
+                    className={`h-8 shrink-0 rounded-full border px-3 text-xs font-black transition active:scale-[0.98] ${
+                      isDarkMode
+                        ? "border-white/10 bg-white/5 text-slate-200 hover:bg-white/10"
+                        : "border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
+                    }`}
                   >
-                    {stat.label}
-                  </p>
-                  <p className="mt-3 text-2xl font-black tracking-tight text-slate-950 dark:text-white sm:text-3xl">
-                    {stat.value}
-                  </p>
-                </div>
-              ))}
+                    All
+                  </button>
+                ) : null}
+              </div>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                {DISCOVERY_CATEGORIES.map((category) => {
+                  const Icon = category.icon;
+                  const active = activeDiscoveryCategory === category.id;
+
+                  return (
+                    <button
+                      key={category.id}
+                      type="button"
+                      onClick={() =>
+                        setActiveDiscoveryCategory((current) =>
+                          current === category.id ? null : category.id,
+                        )
+                      }
+                      className={`group relative min-h-[88px] overflow-hidden rounded-[20px] border border-white/20 bg-slate-950 text-left text-white shadow-sm transition active:scale-[0.98] md:min-h-[112px] ${
+                        active
+                          ? "ring-2 ring-brand-500 ring-offset-2 ring-offset-slate-50 dark:ring-offset-gray-950"
+                          : "hover:-translate-y-0.5"
+                      }`}
+                      aria-pressed={active}
+                      aria-label={`Explore ${category.title}`}
+                    >
+                      <img
+                        src={category.image}
+                        alt=""
+                        className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                        aria-hidden="true"
+                      />
+                      <div
+                        className={`absolute inset-0 transition ${
+                          active ? "bg-slate-950/0" : "bg-slate-950/10"
+                        }`}
+                      />
+                      <div className="relative flex min-h-[88px] items-center gap-1.5 px-3.5 py-3 md:min-h-[112px] md:flex-col md:items-start md:justify-end md:gap-3 md:p-4">
+                        <span
+                          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white backdrop-blur-sm md:h-12 md:w-12 ${
+                            active ? "bg-white/24" : "bg-white/14"
+                          }`}
+                        >
+                          <Icon size={25} strokeWidth={1.7} />
+                        </span>
+                        <span className="min-w-0 flex-1 text-[13px] font-black leading-4 text-white md:flex-none md:text-sm">
+                          {category.title}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </motion.section>
 
             <AnimatePresence>
@@ -1350,7 +1615,9 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                           <p
                             className={`mt-0.5 text-xs font-normal ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
                           >
-                            Matched to your profile
+                            {selectedDiscoveryCategory
+                              ? `${selectedDiscoveryCategory.title} only`
+                              : "Matched to your profile"}
                           </p>
                         </div>
                       </div>
@@ -1419,36 +1686,16 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       >
                         <EmptyState
                           icon={<Briefcase size={28} />}
-                          title="No recommendations yet"
-                          description="Browse opportunities while Edutu prepares better matches."
-                          action={{
-                            label: "Browse opportunities",
-                            onClick: onViewAllOpportunities,
-                          }}
+                          title={opportunityEmptyTitle}
+                          description={opportunityEmptyDescription}
+                          action={opportunityEmptyAction}
                         />
                       </div>
                     ) : (
                       <>
                         <div>
-                          <div className="mb-3 flex items-center justify-between">
-                            <div>
-                              <h3 className="text-lg font-black tracking-tight text-slate-950 dark:text-white">
-                                Personalized opportunities
-                              </h3>
-                              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                                Swipe across your closest matches
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={onViewAllOpportunities}
-                              className="text-xs font-bold text-brand-600 dark:text-brand-300"
-                            >
-                              View all
-                            </button>
-                          </div>
                           <div
-                            className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                            className="mobile-personalized-carousel -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-scroll overscroll-x-contain px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                             aria-label="Personalized opportunities carousel"
                           >
                             {mobilePersonalizedOpportunities.map(
@@ -1461,7 +1708,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                   }
                                   type="button"
                                   onClick={() => onOpportunityClick(opportunity)}
-                                  className={`flex h-44 w-[62vw] max-w-[250px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border text-left transition active:scale-[0.98] ${isDarkMode ? "border-white/10 bg-gray-900" : "border-slate-200 bg-white"}`}
+                                  className={`mobile-personalized-card flex h-44 w-[62vw] max-w-[250px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border text-left transition active:scale-[0.98] ${isDarkMode ? "border-white/10 bg-gray-900" : "border-slate-200 bg-white"}`}
                                 >
                                   <div className="relative h-20 shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800">
                                     <ImageWithFallback
@@ -1503,88 +1750,116 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             )}
                             <button
                               type="button"
-                              onClick={onViewAllOpportunities}
-                              className={`flex h-44 w-28 shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-2xl border px-3 text-center text-xs font-black transition active:scale-[0.98] ${
+                              onClick={
+                                selectedDiscoveryCategory
+                                  ? () => setActiveDiscoveryCategory(null)
+                                  : onViewAllOpportunities
+                              }
+                              className={`mobile-personalized-card flex h-44 w-28 shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-2xl border px-3 text-center text-xs font-black transition active:scale-[0.98] ${
                                 isDarkMode
                                   ? "border-white/10 bg-white/5 text-slate-300"
                                   : "border-slate-200 bg-slate-50 text-slate-600"
                               }`}
                             >
-                              View all
+                              {selectedDiscoveryCategory ? "Show all" : "View all"}
                               <ChevronRight size={16} />
                             </button>
                           </div>
                         </div>
 
                         <div>
-                          <div className="mb-3">
-                            <h3 className="text-lg font-black tracking-tight text-slate-950 dark:text-white">
-                              More opportunities
-                            </h3>
-                            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                              Scroll down to keep reviewing cards
-                            </p>
+                          <button
+                            type="button"
+                            onClick={handleMobileHomePromoClick}
+                            className="group relative mb-6 flex min-h-[148px] w-full flex-col overflow-hidden rounded-2xl bg-slate-950 p-4 text-left text-white shadow-sm transition active:scale-[0.98]"
+                            aria-label={mobileHomePromo.title}
+                          >
+                            <img
+                              src={mobileHomePromo.image}
+                              alt=""
+                              aria-hidden="true"
+                              className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                            />
+                            <div className="absolute inset-0 bg-slate-950/76" />
+                            <div className="absolute inset-0 bg-gradient-to-br from-slate-950/30 via-transparent to-brand-500/20" />
+                            <div className="relative flex min-h-[116px] flex-col pr-14">
+                              <span className="text-[10px] font-semibold text-white/70">
+                                {mobileHomePromo.eyebrow}
+                              </span>
+                              <span className="mt-2 block text-base font-black leading-tight text-white">
+                                {mobileHomePromo.title}
+                              </span>
+                              <span className="mt-2 max-w-[18rem] text-sm leading-5 text-white/78">
+                                {mobileHomePromo.body}
+                              </span>
+                              <span className="mt-auto inline-flex pt-3 text-sm font-black text-white">
+                                {mobileHomePromo.actionLabel}
+                              </span>
+                              <span
+                                className="absolute bottom-0 right-0 flex h-10 w-10 items-center justify-center rounded-full bg-white/14 text-white backdrop-blur-sm transition group-hover:bg-white/22 group-hover:translate-x-0.5"
+                                aria-hidden="true"
+                              >
+                                <ChevronRight size={19} strokeWidth={2.3} />
+                              </span>
+                            </div>
+                          </button>
+
+                          <div className="mb-3 flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <h3 className="text-lg font-black tracking-tight text-slate-950 dark:text-white">
+                                {selectedDiscoveryCategory
+                                  ? `${selectedDiscoveryCategory.title} opportunities`
+                                  : "More opportunities"}
+                              </h3>
+                              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                                {selectedDiscoveryCategory
+                                  ? "Filtered by your selection"
+                                  : "Scroll down to keep reviewing cards"}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={onViewAllOpportunities}
+                              className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition active:scale-95 ${
+                                isDarkMode
+                                  ? "border-white/10 bg-white/5 text-white hover:bg-white/10"
+                                  : "border-slate-200 bg-white text-slate-700 shadow-sm hover:border-slate-300 hover:text-slate-950"
+                              }`}
+                              aria-label="View more opportunities"
+                            >
+                              <ChevronRight size={18} strokeWidth={2.4} />
+                            </button>
                           </div>
                           <div
                             className="mobile-more-opportunities-grid"
                             style={{
                               display: "grid",
-                              gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
-                              gap: 12,
-                              width: "100%",
-                              maxWidth: "100%",
+                              gridTemplateColumns:
+                                "repeat(2, minmax(0, calc((100vw - 2.75rem) / 2)))",
+                              gap: "0.75rem",
+                              width: "calc(100vw - 2rem)",
+                              maxWidth: "calc(100vw - 2rem)",
                               alignItems: "stretch",
+                              overflow: "hidden",
                             }}
                           >
                             {mobileMoreOpportunityItems.map((item) => {
-                              if (item.type === "promo") {
-                                return (
-                                  <button
-                                    key={item.key}
-                                    type="button"
-                                    onClick={() => openDashboardDestination("profile")}
-                                    className="mobile-more-opportunity-card flex flex-col overflow-hidden rounded-2xl bg-slate-950 p-3 text-left text-white transition active:scale-[0.98] dark:bg-brand-500"
-                                    style={{
-                                      width: "100%",
-                                      minWidth: 0,
-                                      maxWidth: "100%",
-                                      height: 196,
-                                    }}
-                                  >
-                                    <span className="text-[10px] font-semibold text-white/70">
-                                      Sponsored
-                                    </span>
-                                    <span className="mt-2 block text-[13px] font-black leading-tight text-white">
-                                      Improve your matches
-                                    </span>
-                                    <span className="mt-2 line-clamp-4 text-[11px] leading-4 text-white/75">
-                                      Complete your profile so Edutu can show stronger matches first.
-                                    </span>
-                                    <span className="mt-auto inline-flex items-center gap-1 pt-3 text-[11px] font-black text-white">
-                                      Review <ChevronRight size={13} />
-                                    </span>
-                                  </button>
-                                );
-                              }
-
                               const { opportunity } = item;
 
                               return (
-                                  <button
-                                    key={item.key}
-                                    type="button"
-                                    onClick={() => onOpportunityClick(opportunity)}
-                                    className={`mobile-more-opportunity-card flex flex-col overflow-hidden rounded-2xl border text-left transition active:scale-[0.98] ${isDarkMode ? "border-white/10 bg-gray-900" : "border-slate-200 bg-white"}`}
-                                    style={{
-                                      width: "100%",
-                                      minWidth: 0,
-                                      maxWidth: "100%",
-                                      height: 196,
-                                    }}
-                                  >
+                                <button
+                                  key={item.key}
+                                  type="button"
+                                  onClick={() => onOpportunityClick(opportunity)}
+                                  className={`mobile-more-opportunity-card flex min-h-[188px] min-w-0 flex-col overflow-hidden rounded-2xl border text-left transition active:scale-[0.98] ${isDarkMode ? "border-white/10 bg-gray-900" : "border-slate-200 bg-white"}`}
+                                  style={{
+                                    width: "100%",
+                                    minWidth: 0,
+                                    maxWidth: "100%",
+                                  }}
+                                >
                                     <div
-                                      className="mobile-more-opportunity-media w-full shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800"
-                                      style={{ height: 78 }}
+                                      className="mobile-more-opportunity-media h-[76px] w-full shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800"
                                     >
                                       <ImageWithFallback
                                         src={opportunity.image}
@@ -1597,11 +1872,11 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                         fallbackClassName="h-full w-full"
                                       />
                                     </div>
-                                    <div className="flex min-h-0 flex-1 flex-col p-2.5">
+                                    <div className="flex min-h-0 min-w-0 flex-1 flex-col p-2.5">
                                       <span className="mb-1 block truncate text-[10px] font-bold leading-4 text-brand-600 dark:text-brand-300">
                                         {opportunity.category || "General"}
                                       </span>
-                                      <span className="line-clamp-3 block text-[13px] font-black leading-[1.16] text-slate-950 dark:text-white">
+                                      <span className="line-clamp-3 block min-w-0 break-words text-[13px] font-black leading-[1.16] text-slate-950 dark:text-white">
                                         {opportunity.title}
                                       </span>
                                       <div className="mt-auto flex min-w-0 flex-col gap-0.5 pt-2 text-[10px] font-semibold leading-4 text-slate-500 dark:text-slate-400">
@@ -1624,6 +1899,18 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                               );
                             })}
                           </div>
+                          <button
+                            type="button"
+                            onClick={onViewAllOpportunities}
+                            className={`mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl border text-sm font-black transition active:scale-[0.99] ${
+                              isDarkMode
+                                ? "border-white/10 bg-white/5 text-white hover:bg-white/10"
+                                : "border-slate-200 bg-white text-slate-800 shadow-sm hover:border-slate-300 hover:bg-slate-50"
+                            }`}
+                          >
+                            View more
+                            <ChevronRight size={17} strokeWidth={2.4} />
+                          </button>
                         </div>
                       </>
                     )}
@@ -1656,16 +1943,20 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         >
                           <EmptyState
                             icon={<Briefcase size={32} />}
-                            title="No recommendations yet"
-                            description="Complete your profile or browse the full opportunity feed while Edutu prepares better matches."
-                            action={{
-                              label: "Browse opportunities",
-                              onClick: onViewAllOpportunities,
-                            }}
-                            secondaryAction={{
-                              label: "Improve profile",
-                              onClick: () => setActivePanel("profile"),
-                            }}
+                            title={opportunityEmptyTitle}
+                            description={opportunityEmptyDescription}
+                            action={opportunityEmptyAction}
+                            secondaryAction={
+                              selectedDiscoveryCategory
+                                ? {
+                                    label: "Browse all",
+                                    onClick: onViewAllOpportunities,
+                                  }
+                                : {
+                                    label: "Improve profile",
+                                    onClick: () => setActivePanel("profile"),
+                                  }
+                            }
                           />
                         </div>
                       ) : (
@@ -1774,16 +2065,20 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         >
                           <EmptyState
                             icon={<Briefcase size={32} />}
-                            title="No recommendations yet"
-                            description="Complete your profile or browse the full opportunity feed while Edutu prepares better matches."
-                            action={{
-                              label: "Browse opportunities",
-                              onClick: onViewAllOpportunities,
-                            }}
-                            secondaryAction={{
-                              label: "Improve profile",
-                              onClick: () => setActivePanel("profile"),
-                            }}
+                            title={opportunityEmptyTitle}
+                            description={opportunityEmptyDescription}
+                            action={opportunityEmptyAction}
+                            secondaryAction={
+                              selectedDiscoveryCategory
+                                ? {
+                                    label: "Browse all",
+                                    onClick: onViewAllOpportunities,
+                                  }
+                                : {
+                                    label: "Improve profile",
+                                    onClick: () => setActivePanel("profile"),
+                                  }
+                            }
                           />
                         </div>
                       ) : (

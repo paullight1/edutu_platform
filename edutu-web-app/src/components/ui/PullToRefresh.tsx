@@ -35,8 +35,12 @@ const PullToRefresh: React.FC<PullToRefreshProps> = ({
     const handleTouchStart = useCallback((e: React.TouchEvent) => {
         if (disabled || isRefreshing) return;
 
-        // Only enable pull-to-refresh if at top of scroll
-        const scrollTop = containerRef.current?.scrollTop ?? 0;
+        // Only enable pull-to-refresh if the page or wrapped area is at top.
+        const scrollTop = Math.max(
+            containerRef.current?.scrollTop ?? 0,
+            typeof window !== 'undefined' ? window.scrollY : 0,
+            typeof document !== 'undefined' ? document.documentElement.scrollTop : 0,
+        );
         if (scrollTop > 0) return;
 
         startY.current = e.touches[0].clientY;
