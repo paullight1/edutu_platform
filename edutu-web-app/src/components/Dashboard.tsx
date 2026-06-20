@@ -1527,6 +1527,14 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                           </div>
                           <div
                             className="mobile-more-opportunities-grid"
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+                              gap: 12,
+                              width: "100%",
+                              maxWidth: "100%",
+                              alignItems: "stretch",
+                            }}
                           >
                             {mobileMoreOpportunityItems.map((item) => {
                               if (item.type === "promo") {
@@ -1536,6 +1544,12 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                     type="button"
                                     onClick={() => openDashboardDestination("profile")}
                                     className="mobile-more-opportunity-card flex flex-col overflow-hidden rounded-2xl bg-slate-950 p-3 text-left text-white transition active:scale-[0.98] dark:bg-brand-500"
+                                    style={{
+                                      width: "100%",
+                                      minWidth: 0,
+                                      maxWidth: "100%",
+                                      height: 196,
+                                    }}
                                   >
                                     <span className="text-[10px] font-semibold text-white/70">
                                       Sponsored
@@ -1561,8 +1575,17 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                     type="button"
                                     onClick={() => onOpportunityClick(opportunity)}
                                     className={`mobile-more-opportunity-card flex flex-col overflow-hidden rounded-2xl border text-left transition active:scale-[0.98] ${isDarkMode ? "border-white/10 bg-gray-900" : "border-slate-200 bg-white"}`}
+                                    style={{
+                                      width: "100%",
+                                      minWidth: 0,
+                                      maxWidth: "100%",
+                                      height: 196,
+                                    }}
                                   >
-                                    <div className="mobile-more-opportunity-media w-full shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800">
+                                    <div
+                                      className="mobile-more-opportunity-media w-full shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800"
+                                      style={{ height: 78 }}
+                                    >
                                       <ImageWithFallback
                                         src={opportunity.image}
                                         alt={
