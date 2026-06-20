@@ -885,25 +885,57 @@ body {
 }
 
 @media (max-width: 640px) {
+  .mobile-personalized-carousel {
+    display: flex !important;
+    overflow-x: scroll !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    touch-action: pan-x;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    box-sizing: border-box;
+    scrollbar-width: none;
+  }
+
+  .mobile-personalized-carousel::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-personalized-card {
+    flex: 0 0 62vw !important;
+    min-width: 62vw !important;
+    max-width: 250px !important;
+    scroll-snap-align: start;
+  }
+
+  .mobile-personalized-card:last-child {
+    flex-basis: 7rem !important;
+    min-width: 7rem !important;
+  }
+
   .mobile-more-opportunities-grid {
     display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-columns: repeat(2, minmax(0, calc((100vw - 2.75rem) / 2))) !important;
     align-items: stretch !important;
     gap: 0.75rem !important;
-    width: 100% !important;
-    max-width: 100% !important;
+    width: calc(100vw - 2rem) !important;
+    max-width: calc(100vw - 2rem) !important;
     overflow: hidden !important;
+    box-sizing: border-box;
   }
 
   .mobile-more-opportunity-card {
     width: 100% !important;
     min-width: 0 !important;
     max-width: 100% !important;
-    height: 196px !important;
+    min-height: 188px !important;
+    height: auto !important;
   }
 
   .mobile-more-opportunity-media {
-    height: 78px !important;
+    height: 76px !important;
   }
 
   .landing-page {

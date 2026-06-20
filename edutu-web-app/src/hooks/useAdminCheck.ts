@@ -1,20 +1,22 @@
 import { useEffect, useState } from 'react';
-import { useUser } from '@clerk/clerk-react';
-import { authService } from '../lib/auth';
-import { isAdminAccessAllowed } from '../lib/adminAccess';
+import { useAuth, useUser } from '@clerk/clerk-react';
+import { verifyAdminAccess } from '../lib/adminAccess';
 
 interface AdminCheckState {
   isAdmin: boolean;
   loading: boolean;
   userEmail: string | null;
+  error: string | null;
 }
 
 export function useAdminCheck(): AdminCheckState {
   const { user, isLoaded } = useUser();
+  const { getToken, isSignedIn } = useAuth();
   const [state, setState] = useState<AdminCheckState>({
     isAdmin: false,
     loading: true,
-    userEmail: null
+    userEmail: null,
+    error: null
   });
 
   useEffect(() => {
@@ -24,25 +26,45 @@ export function useAdminCheck(): AdminCheckState {
 
     async function evaluateAdminAccess() {
       const email = user?.primaryEmailAddress?.emailAddress ?? null;
-      const publicRole = typeof user?.publicMetadata?.role === 'string' ? user.publicMetadata.role : null;
-      let profileRole: string | null = null;
 
-      if (user?.id) {
-        try {
-          const profile = await authService.getProfile(user.id);
-          profileRole = typeof profile?.role === 'string' ? profile.role : null;
-        } catch (error) {
-          console.error('Failed to load admin profile role', error);
-        }
+      if (!isSignedIn) {
+        if (!isActive) return;
+        setState({
+          isAdmin: false,
+          loading: false,
+          userEmail: email,
+          error: null,
+        });
+        return;
       }
 
-      if (!isActive) return;
+      try {
+        const token = await getToken();
 
-      setState({
-        userEmail: email,
-        loading: false,
-        isAdmin: isAdminAccessAllowed({ email, publicRole, profileRole })
-      });
+        if (!token) {
+          throw new Error('Missing authenticated session token');
+        }
+
+        const result = await verifyAdminAccess(token);
+
+        if (!isActive) return;
+
+        setState({
+          userEmail: result.email ?? email,
+          loading: false,
+          isAdmin: result.allowed === true,
+          error: null,
+        });
+      } catch (error) {
+        if (!isActive) return;
+
+        setState({
+          isAdmin: false,
+          loading: false,
+          userEmail: email,
+          error: error instanceof Error ? error.message : 'Unable to verify admin access',
+        });
+      }
     }
 
     void evaluateAdminAccess();
@@ -50,7 +72,7 @@ export function useAdminCheck(): AdminCheckState {
     return () => {
       isActive = false;
     };
-  }, [isLoaded, user]);
+  }, [getToken, isLoaded, isSignedIn, user]);
 
   return state;
 }

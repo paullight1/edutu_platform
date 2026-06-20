@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LayoutGrid,
+  LogOut,
   Menu,
   Send,
   Settings,
@@ -35,6 +36,10 @@ const secondaryNavItems = [
   { to: "/app/profile", label: "Profile", icon: UserCheck },
   { to: "/app/settings", label: "Settings", icon: Settings },
 ];
+
+const mobileSecondaryNavItems = secondaryNavItems.filter(
+  (item) => item.to !== "/app/profile",
+);
 
 const mobileNavItems = [
   { to: "/dashboard", label: "Home", icon: LayoutGrid, exact: true },
@@ -87,7 +92,7 @@ function getWorkspaceTitle(pathname: string): string {
 }
 
 export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { isDarkMode } = useDarkMode();
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -99,6 +104,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
     return window.innerWidth >= 1280;
   });
   const [isMobileMoreOpen, setIsMobileMoreOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const displayName = user?.name || "Edutu learner";
   const displayEmail = user?.email || "Welcome back";
   const initials = displayName
@@ -108,21 +114,23 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
     .slice(0, 2)
     .toUpperCase() || "E";
   const workspaceTitle = getWorkspaceTitle(pathname);
-  const mobileMenuItems = [...primaryNavItems, ...secondaryNavItems];
   const isHomeRoute = pathname === "/dashboard" || pathname === "/app/home";
+  const isOpportunityDetailRoute = pathname.startsWith("/app/opportunity/");
 
   const goBack = () => {
-    if (isMobileMoreOpen) {
+    navigate(-1);
+  };
+
+  const handleSignOut = async () => {
+    if (isSigningOut) return;
+    setIsSigningOut(true);
+    try {
+      await signOut();
       setIsMobileMoreOpen(false);
-      return;
+      navigate("/");
+    } finally {
+      setIsSigningOut(false);
     }
-
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      navigate(-1);
-      return;
-    }
-
-    navigate("/dashboard");
   };
 
   const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
@@ -314,7 +322,10 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
 
       <div
         className={cn(
-          "min-w-0 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-16 transition-[padding] duration-300 lg:pb-0 lg:pt-0",
+          "min-w-0 pt-16 transition-[padding] duration-300 lg:pb-0 lg:pt-0",
+          isOpportunityDetailRoute
+            ? "pb-[calc(6.75rem+env(safe-area-inset-bottom))]"
+            : "pb-[calc(5rem+env(safe-area-inset-bottom))]",
           isSidebarOpen ? "lg:pl-[272px]" : "lg:pl-[76px]",
         )}
       >
@@ -414,109 +425,204 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
             </div>
           </div>
 
-          <div className="flex-1 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-5">
+          <div className="flex flex-1 flex-col px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4">
             <NavLink
               to="/app/profile"
               onClick={() => setIsMobileMoreOpen(false)}
               className={cn(
-                "mb-5 flex items-center gap-3 rounded-2xl border p-4",
+                "group mb-5 flex items-center gap-3 rounded-[24px] border p-4 shadow-sm transition active:scale-[0.98]",
                 isDarkMode ? "border-white/10 bg-white/5" : "border-slate-200 bg-white",
               )}
             >
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-500 text-base font-black text-white">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-500 text-lg font-black text-white">
                 {initials}
               </span>
-              <span className="min-w-0">
+              <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-black">
                   {displayName}
                 </span>
                 <span className="mt-1 block truncate text-xs font-semibold text-slate-500 dark:text-slate-400">
                   {displayEmail}
                 </span>
+                <span className="mt-2 block text-[11px] font-black text-brand-600 dark:text-brand-300">
+                  Manage profile
+                </span>
+              </span>
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-brand-600 transition group-hover:bg-brand-500 group-hover:text-white dark:text-brand-200">
+                <ChevronRight size={17} />
               </span>
             </NavLink>
 
-            <div className="grid gap-2">
-              {mobileMenuItems.map((item) => {
-                const Icon = item.icon;
-                const active = isRouteActive(pathname, item.to, item.exact);
-                return (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    onClick={() => setIsMobileMoreOpen(false)}
-                    className={cn(
-                      "flex min-h-[56px] items-center justify-between rounded-2xl border px-4 text-sm font-black transition active:scale-[0.98]",
-                      active
-                        ? "border-brand-500 bg-brand-500 text-white"
-                        : isDarkMode
-                          ? "border-white/10 bg-white/5 text-slate-200 hover:bg-white/10"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100",
-                    )}
-                    aria-current={active ? "page" : undefined}
-                  >
-                    <span className="flex items-center gap-3">
-                      <Icon size={19} className={active ? "text-white" : "text-brand-500"} />
-                      {item.label}
-                    </span>
-                    <ChevronRight size={16} className={active ? "text-white/80" : "text-slate-400"} />
-                  </NavLink>
-                );
-              })}
+            <section>
+              <p className="mb-2 px-1 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+                Explore
+              </p>
+              <div className="grid gap-2.5">
+                {primaryNavItems.map((item) => {
+                  const Icon = item.icon;
+                  const active = isRouteActive(pathname, item.to, item.exact);
+                  return (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      onClick={() => setIsMobileMoreOpen(false)}
+                      className={cn(
+                        "flex min-h-[64px] items-center justify-between rounded-[24px] border p-3.5 text-left shadow-sm transition active:scale-[0.98]",
+                        isDarkMode
+                          ? "border-white/10 bg-white/5 text-slate-100 hover:bg-white/10"
+                          : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
+                      )}
+                      aria-current={active ? "page" : undefined}
+                    >
+                      <span className="flex min-w-0 items-center gap-3">
+                        <span
+                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] bg-brand-500/10 text-brand-600 dark:text-brand-200"
+                        >
+                          <Icon size={19} />
+                        </span>
+                        <span className="truncate text-[15px] font-black">
+                          {item.label}
+                        </span>
+                      </span>
+                      <ChevronRight size={16} className="text-slate-400" />
+                    </NavLink>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="mt-5">
+              <p className="mb-2 px-1 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+                Workspace
+              </p>
+              <div className="grid gap-2.5">
+                {mobileSecondaryNavItems.map((item) => {
+                  const Icon = item.icon;
+                  const active = isRouteActive(pathname, item.to, item.exact);
+                  return (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      onClick={() => setIsMobileMoreOpen(false)}
+                      className={cn(
+                        "flex min-h-[64px] items-center justify-between rounded-[24px] border p-3.5 text-left shadow-sm transition active:scale-[0.98]",
+                        isDarkMode
+                          ? "border-white/10 bg-white/5 text-slate-100 hover:bg-white/10"
+                          : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
+                      )}
+                      aria-current={active ? "page" : undefined}
+                    >
+                      <span className="flex min-w-0 items-center gap-3">
+                        <span
+                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] bg-brand-500/10 text-brand-600 dark:text-brand-200"
+                        >
+                          <Icon size={19} />
+                        </span>
+                        <span className="truncate text-[15px] font-black">
+                          {item.label}
+                        </span>
+                      </span>
+                      <ChevronRight size={16} className="text-slate-400" />
+                    </NavLink>
+                  );
+                })}
+              </div>
+            </section>
+
+            <div className="pt-2.5">
+              <button
+                type="button"
+                onClick={() => void handleSignOut()}
+                disabled={isSigningOut}
+                className={cn(
+                  "flex min-h-[64px] w-full items-center justify-between rounded-[24px] border p-3.5 text-[15px] font-black shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60",
+                  isDarkMode
+                    ? "border-rose-400/20 bg-rose-500/10 text-rose-200 hover:bg-rose-500/15"
+                    : "border-rose-100 bg-rose-50 text-rose-700 hover:bg-rose-100",
+                )}
+              >
+                <span className="flex items-center gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-rose-500/10">
+                    <LogOut size={19} />
+                  </span>
+                  {isSigningOut ? "Signing out..." : "Log out"}
+                </span>
+                <ChevronRight size={16} className="text-rose-400" />
+              </button>
             </div>
           </div>
         </div>
       ) : null}
 
-      <nav
-        className={cn(
-          "fixed inset-x-0 bottom-0 z-50 border-t px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 backdrop-blur-xl lg:hidden",
-          isDarkMode ? "border-white/10 bg-gray-950/95" : "border-slate-200 bg-white/95",
-        )}
-        aria-label="Mobile app navigation"
-      >
-        <div className="grid grid-cols-4 gap-1">
-          {mobileNavItems.map((item) => {
-            const Icon = item.icon;
-            const active = isRouteActive(pathname, item.to, item.exact);
-            return (
+      {!isOpportunityDetailRoute ? (
+        <nav
+          className={cn(
+            "fixed inset-x-0 bottom-0 z-50 border-t px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 backdrop-blur-xl lg:hidden",
+            isDarkMode ? "border-white/10 bg-gray-950/95" : "border-slate-200 bg-white/95",
+          )}
+          aria-label="Mobile app navigation"
+        >
+          <div className="grid grid-cols-4">
+            {mobileNavItems.map((item) => {
+              const Icon = item.icon;
+              const active = isRouteActive(pathname, item.to, item.exact);
+              return (
                 <NavLink
                   key={item.to}
                   to={item.to}
                   className={cn(
-                    "flex min-h-[56px] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl text-[11px] font-semibold transition active:scale-[0.98]",
+                    "relative flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden px-1 text-[11px] font-semibold transition active:scale-[0.98]",
                     active
-                      ? "bg-brand-500/10 text-brand-700 dark:bg-brand-500/15 dark:text-brand-200"
+                      ? "text-brand-600 dark:text-brand-300"
                       : isDarkMode
-                        ? "text-slate-400 hover:bg-white/10 hover:text-white"
-                        : "text-slate-500 hover:bg-slate-100 hover:text-slate-950",
+                        ? "text-slate-400 hover:text-white"
+                        : "text-slate-500 hover:text-slate-950",
                   )}
                   aria-current={active ? "page" : undefined}
                 >
-                  <Icon size={20} className="shrink-0" />
+                  <span
+                    className={cn(
+                      "absolute top-0 h-0.5 w-7 rounded-full transition-opacity",
+                      active ? "bg-brand-500 opacity-100" : "opacity-0",
+                    )}
+                    aria-hidden="true"
+                  />
+                  <Icon size={21} className="shrink-0" strokeWidth={active ? 2.5 : 2} />
                   <span className="truncate">{item.label}</span>
                 </NavLink>
               );
-          })}
-          <button
-            type="button"
-            onClick={() => setIsMobileMoreOpen((value) => !value)}
-            className={cn(
-              "flex min-h-[56px] flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-semibold transition active:scale-[0.98]",
-              isMobileMoreOpen
-                ? "bg-brand-500/10 text-brand-700 dark:bg-brand-500/15 dark:text-brand-200"
-                : isDarkMode
-                  ? "text-slate-400 hover:bg-white/10 hover:text-white"
-                  : "text-slate-500 hover:bg-slate-100 hover:text-slate-950",
-            )}
-            aria-expanded={isMobileMoreOpen}
-            aria-label="Open more workspace pages"
-          >
-            {isMobileMoreOpen ? <X size={20} className="shrink-0" /> : <Menu size={20} className="shrink-0" />}
-            <span className="truncate">More</span>
-          </button>
-        </div>
-      </nav>
+            })}
+            <button
+              type="button"
+              onClick={() => setIsMobileMoreOpen((value) => !value)}
+              className={cn(
+                "relative flex min-h-[58px] flex-col items-center justify-center gap-1 px-1 text-[11px] font-semibold transition active:scale-[0.98]",
+                isMobileMoreOpen
+                  ? "text-brand-600 dark:text-brand-300"
+                  : isDarkMode
+                    ? "text-slate-400 hover:text-white"
+                    : "text-slate-500 hover:text-slate-950",
+              )}
+              aria-expanded={isMobileMoreOpen}
+              aria-label="Open more workspace pages"
+            >
+              <span
+                className={cn(
+                  "absolute top-0 h-0.5 w-7 rounded-full transition-opacity",
+                  isMobileMoreOpen ? "bg-brand-500 opacity-100" : "opacity-0",
+                )}
+                aria-hidden="true"
+              />
+              {isMobileMoreOpen ? (
+                <X size={21} className="shrink-0" strokeWidth={2.5} />
+              ) : (
+                <Menu size={21} className="shrink-0" />
+              )}
+              <span className="truncate">More</span>
+            </button>
+          </div>
+        </nav>
+      ) : null}
     </div>
   );
 }

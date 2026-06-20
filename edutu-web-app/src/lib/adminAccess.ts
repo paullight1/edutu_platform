@@ -1,3 +1,5 @@
+import { productApiRequest } from '../services/productApi';
+
 export const ADMIN_ROLES = ['super_admin', 'admin', 'moderator', 'support_agent'] as const;
 
 export type AdminRole = (typeof ADMIN_ROLES)[number];
@@ -15,6 +17,13 @@ type AdminAccessInput = {
   profileRole?: string | null;
   allowedEmails?: string[];
 };
+
+export interface AdminAccessVerification {
+  allowed: boolean;
+  userId: string | null;
+  email: string | null;
+  role: string | null;
+}
 
 const normalize = (value: string) => value.trim().toLowerCase();
 
@@ -47,4 +56,8 @@ export function isAdminAccessAllowed({
 
   const normalizedEmail = normalize(email);
   return allowedEmails.map(normalize).includes(normalizedEmail);
+}
+
+export async function verifyAdminAccess(token: string): Promise<AdminAccessVerification> {
+  return productApiRequest<AdminAccessVerification>('/auth/admin-access', token);
 }

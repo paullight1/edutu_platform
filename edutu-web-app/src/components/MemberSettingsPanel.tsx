@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Bell,
-  CheckCircle2,
+  ChevronRight,
   Database,
   Download,
   Loader2,
@@ -101,7 +101,7 @@ function Toggle({
       type="button"
       onClick={onChange}
       disabled={disabled}
-      className="flex w-full items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+      className="flex w-full items-center justify-between gap-4 border-b border-slate-100 px-4 py-4 text-left transition last:border-b-0 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:hover:bg-white/10"
       aria-pressed={checked}
     >
       <span className="min-w-0">
@@ -275,11 +275,11 @@ export default function MemberSettingsPanel({
 
   if (loading) {
     return (
-      <div className="space-y-3">
+      <div className="space-y-4">
         {Array.from({ length: 5 }).map((_, index) => (
           <div
             key={index}
-            className="h-20 animate-pulse rounded-2xl border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/5"
+            className="h-16 animate-pulse rounded-2xl border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/5"
           />
         ))}
       </div>
@@ -300,120 +300,135 @@ export default function MemberSettingsPanel({
         </div>
       )}
 
-      <section className="space-y-3">
-        <div className="flex items-center gap-2 text-sm font-black text-slate-950 dark:text-white">
-          <Bell size={16} />
-          Notifications
-        </div>
+      <section>
         <button
           type="button"
           onClick={onOpenNotifications}
-          className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+          className="flex w-full items-center justify-between rounded-[22px] border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
         >
-          <span>
-            <span className="block text-sm font-black text-slate-950 dark:text-white">
-              Inbox and reminders
+          <span className="flex min-w-0 items-center gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
+              <Bell size={19} />
             </span>
-            <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-400">
-              {unreadCount} unread
+            <span className="min-w-0">
+              <span className="block text-sm font-black text-slate-950 dark:text-white">
+                Notifications
+              </span>
+              <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Inbox and reminders
+              </span>
             </span>
           </span>
-          <span className="rounded-lg bg-brand-500/10 px-2 py-1 text-xs font-black text-brand-600 dark:text-brand-300">
-            Open
+          <span className="flex shrink-0 items-center gap-2">
+            {unreadCount > 0 ? (
+              <span className="rounded-full bg-brand-500/10 px-2 py-1 text-[11px] font-black text-brand-600 dark:text-brand-300">
+                {unreadCount}
+              </span>
+            ) : null}
+            <ChevronRight size={18} className="text-slate-400" />
           </span>
         </button>
       </section>
 
-      <section className="space-y-3">
-        <div className="flex items-center gap-2 text-sm font-black text-slate-950 dark:text-white">
-          <ShieldCheck size={16} />
+      <section className="space-y-2">
+        <div className="flex items-center gap-2 px-1 text-xs font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+          <ShieldCheck size={14} />
           Privacy
         </div>
-        <label className="block rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/5">
-          <span className="block text-sm font-black text-slate-950 dark:text-white">
-            Profile visibility
-          </span>
-          <select
-            value={draftPrivacy.profileVisibility}
-            onChange={(event) =>
-              updatePrivacy({
-                profileVisibility: event.target
-                  .value as PrivacySettings["profileVisibility"],
-              })
-            }
-            className="mt-3 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/10 dark:text-white"
+        <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/5">
+          <label className="block border-b border-slate-100 px-4 py-4 dark:border-white/10">
+            <span className="block text-sm font-black text-slate-950 dark:text-white">
+              Profile visibility
+            </span>
+            <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-400">
+              Control who can view your member profile.
+            </span>
+            <select
+              value={draftPrivacy.profileVisibility}
+              onChange={(event) =>
+                updatePrivacy({
+                  profileVisibility: event.target
+                    .value as PrivacySettings["profileVisibility"],
+                })
+              }
+              className="mt-3 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/10 dark:text-white"
+            >
+              {visibilityOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {privacyToggles.map((item) => (
+            <Toggle
+              key={item.key}
+              checked={Boolean(draftPrivacy[item.key])}
+              label={item.label}
+              description={item.description}
+              onChange={() =>
+                updatePrivacy({ [item.key]: !draftPrivacy[item.key] })
+              }
+            />
+          ))}
+        </div>
+        {isDirty ? (
+          <button
+            type="button"
+            onClick={savePrivacy}
+            disabled={saving}
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 text-sm font-black text-white shadow-sm transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {visibilityOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        {privacyToggles.map((item) => (
-          <Toggle
-            key={item.key}
-            checked={Boolean(draftPrivacy[item.key])}
-            label={item.label}
-            description={item.description}
-            onChange={() =>
-              updatePrivacy({ [item.key]: !draftPrivacy[item.key] })
-            }
-          />
-        ))}
-        <button
-          type="button"
-          onClick={savePrivacy}
-          disabled={!isDirty || saving}
-          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 text-sm font-black text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {saving ? <Loader2 size={16} className="animate-spin" /> : null}
-          Save privacy
-        </button>
+            {saving ? <Loader2 size={16} className="animate-spin" /> : null}
+            Save privacy changes
+          </button>
+        ) : null}
       </section>
 
-      <section className="space-y-3">
-        <div className="flex items-center gap-2 text-sm font-black text-slate-950 dark:text-white">
-          <Database size={16} />
+      <section className="space-y-2">
+        <div className="flex items-center gap-2 px-1 text-xs font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+          <Database size={14} />
           Account
         </div>
-        <button
-          type="button"
-          onClick={openAccountSecurity}
-          className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
-        >
-          <span>
-            <span className="block text-sm font-black text-slate-950 dark:text-white">
-              Sign-in security
+        <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/5">
+          <button
+            type="button"
+            onClick={openAccountSecurity}
+            className="flex w-full items-center justify-between border-b border-slate-100 px-4 py-4 text-left transition hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/10"
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-black text-slate-950 dark:text-white">
+                Sign-in security
+              </span>
+              <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Password, sessions, and authentication methods
+              </span>
             </span>
-            <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-400">
-              Password, sessions, and authentication methods
+            <ShieldCheck size={18} className="shrink-0 text-slate-400" />
+          </button>
+          <button
+            type="button"
+            onClick={exportData}
+            disabled={exporting}
+            className="flex w-full items-center justify-between px-4 py-4 text-left transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-white/10"
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-black text-slate-950 dark:text-white">
+                Export account data
+              </span>
+              <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-400">
+                {settings?.security.lastDataDownload
+                  ? `Last exported ${new Date(settings.security.lastDataDownload).toLocaleDateString()}`
+                  : "No export recorded"}
+              </span>
             </span>
-          </span>
-          <ShieldCheck size={18} />
-        </button>
-        <button
-          type="button"
-          onClick={exportData}
-          disabled={exporting}
-          className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
-        >
-          <span>
-            <span className="block text-sm font-black text-slate-950 dark:text-white">
-              Export account data
-            </span>
-            <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-400">
-              {settings?.security.lastDataDownload
-                ? `Last exported ${new Date(settings.security.lastDataDownload).toLocaleDateString()}`
-                : "No export recorded"}
-            </span>
-          </span>
-          {exporting ? (
-            <Loader2 size={18} className="animate-spin" />
-          ) : (
-            <Download size={18} />
-          )}
-        </button>
+            {exporting ? (
+              <Loader2 size={18} className="animate-spin" />
+            ) : (
+              <Download size={18} className="shrink-0 text-slate-400" />
+            )}
+          </button>
+        </div>
         {confirmDeletion ? (
           <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-500/20 dark:bg-rose-500/10">
             <p className="text-sm font-black text-rose-700 dark:text-rose-300">
@@ -452,13 +467,6 @@ export default function MemberSettingsPanel({
           </button>
         )}
       </section>
-
-      {status ? (
-        <div className="flex items-center gap-2 text-xs font-bold text-emerald-600 dark:text-emerald-300">
-          <CheckCircle2 size={14} />
-          {status}
-        </div>
-      ) : null}
     </div>
   );
 }
