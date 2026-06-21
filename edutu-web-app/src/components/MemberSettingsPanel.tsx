@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Bell,
+  Check,
+  ChevronDown,
   ChevronRight,
   Database,
   Download,
   Loader2,
   ShieldCheck,
   Trash2,
+  X,
 } from "lucide-react";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { useNotifications } from "../hooks/useNotifications";
@@ -26,10 +29,23 @@ interface MemberSettingsPanelProps {
 const visibilityOptions: Array<{
   value: PrivacySettings["profileVisibility"];
   label: string;
+  description: string;
 }> = [
-  { value: "public", label: "Public" },
-  { value: "friends", label: "Connections only" },
-  { value: "private", label: "Private" },
+  {
+    value: "public",
+    label: "Public",
+    description: "Anyone can view your member profile.",
+  },
+  {
+    value: "friends",
+    label: "Connections only",
+    description: "Only approved connections can view it.",
+  },
+  {
+    value: "private",
+    label: "Private",
+    description: "Hide your profile from other members.",
+  },
 ];
 
 const privacyToggles: Array<{
@@ -140,6 +156,7 @@ export default function MemberSettingsPanel({
   const [exporting, setExporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDeletion, setConfirmDeletion] = useState(false);
+  const [visibilityPickerOpen, setVisibilityPickerOpen] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -178,6 +195,11 @@ export default function MemberSettingsPanel({
     const current = settings?.privacy ?? defaultPrivacy;
     return JSON.stringify(current) !== JSON.stringify(draftPrivacy);
   }, [draftPrivacy, settings?.privacy]);
+
+  const selectedVisibility =
+    visibilityOptions.find(
+      (option) => option.value === draftPrivacy.profileVisibility,
+    ) ?? visibilityOptions[0];
 
   const updatePrivacy = (updates: Partial<PrivacySettings>) => {
     setStatus(null);
@@ -336,30 +358,27 @@ export default function MemberSettingsPanel({
           Privacy
         </div>
         <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/5">
-          <label className="block border-b border-slate-100 px-4 py-4 dark:border-white/10">
-            <span className="block text-sm font-black text-slate-950 dark:text-white">
-              Profile visibility
-            </span>
-            <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-400">
-              Control who can view your member profile.
-            </span>
-            <select
-              value={draftPrivacy.profileVisibility}
-              onChange={(event) =>
-                updatePrivacy({
-                  profileVisibility: event.target
-                    .value as PrivacySettings["profileVisibility"],
-                })
-              }
-              className="mt-3 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/10 dark:text-white"
+          <div className="border-b border-slate-100 dark:border-white/10">
+            <button
+              type="button"
+              onClick={() => setVisibilityPickerOpen(true)}
+              className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500 dark:hover:bg-white/10"
+              aria-haspopup="dialog"
+              aria-expanded={visibilityPickerOpen}
             >
-              {visibilityOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+              <span className="min-w-0">
+                <span className="block text-sm font-black text-slate-950 dark:text-white">
+                  Profile visibility
+                </span>
+                <span className="mt-1 block text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
+                  {selectedVisibility.label} · {selectedVisibility.description}
+                </span>
+              </span>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300">
+                <ChevronDown size={18} />
+              </span>
+            </button>
+          </div>
           {privacyToggles.map((item) => (
             <Toggle
               key={item.key}
@@ -467,6 +486,88 @@ export default function MemberSettingsPanel({
           </button>
         )}
       </section>
+
+      {visibilityPickerOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="profile-visibility-title"
+          className="fixed inset-0 z-[80] flex items-end bg-slate-950/35 px-3 pb-3 backdrop-blur-sm sm:items-center sm:justify-center"
+          onClick={() => setVisibilityPickerOpen(false)}
+        >
+          <div
+            className="w-full rounded-[28px] border border-slate-200 bg-white p-4 shadow-2xl dark:border-white/10 dark:bg-gray-950 sm:max-w-md"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2
+                  id="profile-visibility-title"
+                  className="text-base font-black text-slate-950 dark:text-white"
+                >
+                  Profile visibility
+                </h2>
+                <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
+                  Choose who can see your Edutu member profile.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setVisibilityPickerOpen(false)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/15"
+                aria-label="Close profile visibility picker"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div
+              className="mt-4 grid gap-2"
+              role="radiogroup"
+              aria-label="Profile visibility"
+            >
+              {visibilityOptions.map((option) => {
+                const selected = draftPrivacy.profileVisibility === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => {
+                      updatePrivacy({ profileVisibility: option.value });
+                      setVisibilityPickerOpen(false);
+                    }}
+                    className={`flex min-h-[72px] w-full items-center justify-between gap-3 rounded-2xl border px-3.5 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+                      selected
+                        ? "border-brand-500 bg-brand-500/10 text-slate-950 dark:text-white"
+                        : "border-slate-200 bg-slate-50 text-slate-700 hover:border-brand-200 hover:bg-brand-500/5 dark:border-white/10 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/15"
+                    }`}
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-sm font-black">
+                        {option.label}
+                      </span>
+                      <span className="mt-0.5 block text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
+                        {option.description}
+                      </span>
+                    </span>
+                    <span
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition ${
+                        selected
+                          ? "border-brand-500 bg-brand-500 text-white"
+                          : "border-slate-300 bg-white dark:border-white/20 dark:bg-transparent"
+                      }`}
+                    >
+                      {selected ? <Check size={15} strokeWidth={3} /> : null}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 import { signOutAdmin } from "./lib/auth";
+import { isAdminRole, isConfiguredAdminEmail } from "./lib/adminAccess";
 import {
   getLocalAdminEmail,
   getLocalAdminUserId,

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Calendar,
   MapPin,
@@ -20,6 +20,62 @@ import {
   buildWhatsAppShareUrl,
 } from "../services/opportunityShare";
 import { getDefaultSeoImage, toAbsoluteUrl } from "../lib/publicSite";
+
+const categoryFilters: Record<string, { label: string; keywords: string[] }> = {
+  scholarships: {
+    label: "Scholarships",
+    keywords: ["scholarship", "scholarships", "scholar", "scholars"],
+  },
+  internships: {
+    label: "Internships",
+    keywords: ["internship", "internships", "intern", "trainee"],
+  },
+  programs: {
+    label: "Programs",
+    keywords: [
+      "program",
+      "programs",
+      "programme",
+      "programmes",
+      "course",
+      "courses",
+      "bootcamp",
+      "training",
+      "academy",
+      "summit",
+      "school",
+    ],
+  },
+  fellowships: {
+    label: "Fellowships",
+    keywords: ["fellowship", "fellowships", "fellow", "residency"],
+  },
+};
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function opportunityMatchesCategory(opportunity: Opportunity, category: string) {
+  const filter = categoryFilters[category];
+  if (!filter) return true;
+
+  const haystack = [
+    opportunity.category,
+    opportunity.title,
+    opportunity.organization,
+    ...(Array.isArray(opportunity.tags) ? opportunity.tags : []),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return filter.keywords.some((keyword) =>
+    new RegExp(`\\b${escapeRegExp(keyword.toLowerCase())}\\b`, "i").test(
+      haystack,
+    ),
+  );
+}
 
 const categoryFallbackImages: Record<string, string> = {
   scholarships:
@@ -169,13 +225,23 @@ interface OpportunitiesPageProps {
 export default function OpportunitiesPage({ embedded = false }: OpportunitiesPageProps) {
   const { data: opportunities, loading, error, refresh } = useOpportunities();
   const { success, error: showError } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
   const [sharingId, setSharingId] = useState<string | null>(null);
+  const selectedCategoryId = searchParams.get("category")?.toLowerCase() ?? "";
+  const selectedCategory = categoryFilters[selectedCategoryId] ?? null;
 
   const filteredOpportunities = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
 
     return opportunities.filter((opportunity) => {
+      if (
+        selectedCategoryId &&
+        !opportunityMatchesCategory(opportunity, selectedCategoryId)
+      ) {
+        return false;
+      }
+
       if (!term) {
         return true;
       }
@@ -192,7 +258,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
 
       return haystack.includes(term);
     });
-  }, [opportunities, searchTerm]);
+  }, [opportunities, searchTerm, selectedCategoryId]);
 
   const latestUpdatedAt = useMemo(
     () => getLatestUpdatedAt(opportunities),
@@ -259,6 +325,17 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
     setSearchTerm("");
   };
 
+  const clearCategory = () => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("category");
+    setSearchParams(nextParams, { replace: true });
+  };
+
+  const clearAllFilters = () => {
+    setSearchTerm("");
+    setSearchParams(new URLSearchParams(), { replace: true });
+  };
+
   const handleShareOpportunity = async (opportunity: Opportunity) => {
     const shareUrl = buildOpportunityShareUrl(opportunity.id);
     const shareText = buildOpportunityShareText(opportunity, shareUrl);
@@ -303,6 +380,32 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
 
   const content = (
     <>
+        {selectedCategory ? (
+          <section className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-brand-600 dark:text-brand-300">
+                  Explore
+                </p>
+                <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 dark:text-white">
+                  {selectedCategory.label}
+                </h1>
+                <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
+                  Browse {selectedCategory.label.toLowerCase()} from the Edutu opportunity feed.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={clearCategory}
+                className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+              >
+                All
+                <X size={14} />
+              </button>
+            </div>
+          </section>
+        ) : null}
+
         <section className={`sticky ${embedded ? "top-[72px]" : "top-[76px]"} z-20 rounded-lg border border-slate-200 bg-white/92 p-3 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/92`}>
           <div className="space-y-3">
             <div className="flex flex-col gap-3 sm:flex-row">
@@ -375,15 +478,15 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
           <section className="mt-5 rounded-lg border border-slate-200 bg-white p-8 text-center dark:border-white/10 dark:bg-slate-950">
             <h2 className="text-2xl font-semibold">No opportunities found</h2>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-600 dark:text-slate-300">
-              Try a broader search term or clear the current filter to see more
+              Try a broader search term or clear the current filters to see more
               listings.
             </p>
             <button
               type="button"
-              onClick={clearSearch}
+              onClick={clearAllFilters}
               className="mt-5 inline-flex items-center gap-2 rounded-md bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
             >
-              Clear search
+              Clear filters
             </button>
           </section>
         )}
@@ -393,9 +496,17 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   return (
     <>
       <Seo
-        title="Updated scholarships, internships and grants | Edutu"
+        title={
+          selectedCategory
+            ? `${selectedCategory.label} opportunities | Edutu`
+            : "Updated scholarships, internships and grants | Edutu"
+        }
         description={seoDescription}
-        path="/opportunities"
+        path={
+          selectedCategoryId
+            ? `/opportunities?category=${encodeURIComponent(selectedCategoryId)}`
+            : "/opportunities"
+        }
         image={getDefaultSeoImage()}
         jsonLd={seoJsonLd}
       />

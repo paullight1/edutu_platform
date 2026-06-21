@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+    ArrowLeft,
     ArrowRight,
     Sparkles,
     Sun,

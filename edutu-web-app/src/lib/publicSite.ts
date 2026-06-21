@@ -1,4 +1,4 @@
-const DEFAULT_PUBLIC_SITE_URL = "https://edutu.ai";
+const DEFAULT_PUBLIC_SITE_URL = "https://www.edutu.org";
 
 function normaliseSiteUrl(value: string): string {
   return value.trim().replace(/\/+$/, "");
@@ -11,10 +11,6 @@ export function getPublicSiteUrl(): string {
 
   if (configuredUrl) {
     return normaliseSiteUrl(configuredUrl);
-  }
-
-  if (import.meta.env.DEV && typeof window !== "undefined") {
-    return normaliseSiteUrl(window.location.origin);
   }
 
   return DEFAULT_PUBLIC_SITE_URL;

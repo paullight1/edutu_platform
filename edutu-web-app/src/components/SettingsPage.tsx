@@ -7,7 +7,7 @@ export default function SettingsPage() {
 
   return (
     <>
-      <main className="mx-auto w-full max-w-3xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+      <main className="mx-auto w-full max-w-3xl px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:py-6 lg:px-8">
         <MemberSettingsPanel
           onOpenNotifications={() => setNotificationsOpen(true)}
         />

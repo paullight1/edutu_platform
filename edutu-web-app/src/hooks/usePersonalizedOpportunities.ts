@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchOpportunities } from '../services/opportunities';
+import { useAuth as useClerkAuth } from '@clerk/clerk-react';
+import {
+  fetchOpportunities,
+  fetchOpportunityRecommendations,
+  type PersonalizedOpportunity,
+} from '../services/opportunities';
 import { 
   formatUserProfileForRecommendations, 
   getPersonalizedOpportunities,
   type UserProfileForRecommendations 
 } from '../services/personalizedRecommendations';
 import type { AppUser } from '../types/user';
-import type { Opportunity } from '../types/opportunity';
 
 interface UsePersonalizedOpportunitiesState {
-  data: { opportunity: Opportunity, matchScore: number }[];
+  data: PersonalizedOpportunity[];
   loading: boolean;
   error: string | null;
   userPreferences: UserProfileForRecommendations | null;
@@ -28,8 +32,9 @@ export function usePersonalizedOpportunities(): UsePersonalizedOpportunitiesResu
     error: null,
     userPreferences: null
   });
-  
+
   const [refreshIndex, setRefreshIndex] = useState(0);
+  const { getToken, isSignedIn } = useClerkAuth();
 
   useEffect(() => {
     let isActive = true;
@@ -43,6 +48,7 @@ export function usePersonalizedOpportunities(): UsePersonalizedOpportunitiesResu
       }));
       return;
     }
+    const activePreferences = userPreferences;
 
     setState(prev => ({
       ...prev,
@@ -50,28 +56,71 @@ export function usePersonalizedOpportunities(): UsePersonalizedOpportunitiesResu
       error: refreshIndex === 0 ? null : prev.error
     }));
 
-    fetchOpportunities({ userId: userPreferences.id, force: refreshIndex > 0 })
-      .then(opportunities => {
+    async function loadPersonalizedOpportunities() {
+      let backendError: unknown = null;
+
+      if (isSignedIn) {
+        const token = await getToken().catch(() => null);
+
+        if (token) {
+          try {
+            const recommendations = await fetchOpportunityRecommendations(token, {
+              limit: 48,
+              minMatchScore: 0,
+            });
+
+            if (!isActive) {
+              return;
+            }
+
+            if (recommendations.length > 0) {
+              setState({
+                data: recommendations,
+                loading: false,
+                error: null,
+                userPreferences: activePreferences
+              });
+              return;
+            }
+          } catch (err) {
+            backendError = err;
+            console.warn('AI opportunity recommendations unavailable, using local personalization fallback:', err);
+          }
+        }
+      }
+
+      try {
+        const opportunities = await fetchOpportunities({ userId: activePreferences.id, force: refreshIndex > 0 });
+
         if (!isActive) {
           return;
         }
 
-        // Apply personalized filtering
-        const personalizedOpportunities = getPersonalizedOpportunities(userPreferences, opportunities);
+        const personalizedOpportunities = getPersonalizedOpportunities(activePreferences, opportunities).map((item) => ({
+          ...item,
+          matchReasons: [],
+          matchRisks: [],
+          aiSummary: null,
+          aiTags: [],
+        }));
 
         setState({
           data: personalizedOpportunities,
           loading: false,
           error: null,
-          userPreferences
+          userPreferences: activePreferences
         });
-      })
-      .catch(err => {
+      } catch (err) {
         if (!isActive) {
           return;
         }
 
-        const message = err instanceof Error ? err.message : 'Unable to load opportunities';
+        const message =
+          err instanceof Error
+            ? err.message
+            : backendError instanceof Error
+              ? backendError.message
+              : 'Unable to load opportunities';
 
         setState(prev => ({
           ...prev,
@@ -80,12 +129,15 @@ export function usePersonalizedOpportunities(): UsePersonalizedOpportunitiesResu
           userPreferences: prev.userPreferences,
           data: []
         }));
-      });
+      }
+    }
+
+    void loadPersonalizedOpportunities();
 
     return () => {
       isActive = false;
     };
-  }, [refreshIndex, userPreferences]);
+  }, [getToken, isSignedIn, refreshIndex, userPreferences]);
 
   const setUserProfile = useCallback((user: AppUser, additionalData?: Partial<UserProfileForRecommendations>, onboardingData?: Partial<UserProfileForRecommendations>) => {
     const profile = formatUserProfileForRecommendations(user, additionalData, onboardingData);

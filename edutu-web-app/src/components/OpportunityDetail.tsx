@@ -1,6 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, ExternalLink, Heart, Share2 } from "lucide-react";
+import {
+  CalendarDays,
+  ExternalLink,
+  Gauge,
+  Heart,
+  MapPin,
+  Share2,
+  Target,
+  UsersRound,
+  Wallet,
+} from "lucide-react";
 import { useAuth } from "@clerk/clerk-react";
 import { useToast } from "./ui/ToastProvider";
 import type { Opportunity } from "../types/opportunity";
@@ -20,6 +30,7 @@ import {
 } from "../services/opportunityShare";
 import PublicEditorialShell from "./PublicEditorialShell";
 import Seo from "./Seo";
+import ImageWithFallback from "./ImageWithFallback";
 import { getDefaultSeoImage, toAbsoluteUrl } from "../lib/publicSite";
 
 const PUBLIC_TAG_BLOCKLIST = new Set([
@@ -70,6 +81,16 @@ function formatDeadline(deadline?: string | null): string {
     month: "long",
     day: "numeric",
     year: "numeric",
+  });
+}
+
+function formatCompactDeadline(deadline?: string | null): string {
+  if (!deadline) return "No deadline";
+  const date = new Date(deadline);
+  if (Number.isNaN(date.getTime())) return "No deadline";
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
   });
 }
 
@@ -198,7 +219,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   const difficultyLabel = opportunity.difficulty ?? "Medium";
   const applicantsCopy = opportunity.applicants
     ? `${opportunity.applicants} applicants`
-    : "Applicant count not published";
+    : "Not published";
   const fullDescription =
     normaliseVisibleText(opportunity.description || opportunity.summary) ||
     `${opportunity.title} is a ${opportunity.category.toLowerCase()} opportunity from ${opportunity.organization}. Review the public details, deadline, location, eligibility notes, benefits, and application link before applying.`;
@@ -500,6 +521,43 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
     window.open(applyUrl, "_blank", "noopener,noreferrer");
   };
 
+  const factItems = [
+    {
+      label: "Match",
+      value: `${matchPercentage}%`,
+      icon: Target,
+    },
+    {
+      label: "Difficulty",
+      value: difficultyLabel,
+      icon: Gauge,
+    },
+    {
+      label: "Deadline",
+      value: formatCompactDeadline(opportunity.deadline),
+      icon: CalendarDays,
+    },
+    {
+      label: "Location",
+      value: opportunity.location || "Worldwide",
+      icon: MapPin,
+    },
+    {
+      label: "Applicants",
+      value: applicantsCopy,
+      icon: UsersRound,
+    },
+    ...(opportunity.stipend !== undefined && opportunity.stipend !== null
+      ? [
+          {
+            label: "Funding",
+            value: `${currencySymbol}${opportunity.stipend.toLocaleString()}`,
+            icon: Wallet,
+          },
+        ]
+      : []),
+  ];
+
   const detailContent = (
     <>
       <Seo
@@ -512,14 +570,15 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
       />
       <section>
         <div className="mb-5 flex flex-wrap items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
-          <button
-            type="button"
-            onClick={handleBack}
-            className="inline-flex items-center gap-2 border-b border-transparent pb-1 font-medium text-slate-700 transition-colors hover:border-slate-300 hover:text-brand-600 dark:text-slate-200 dark:hover:border-white/20"
-          >
-            <ArrowLeft size={16} />
-            Back to opportunities
-          </button>
+          {!embedded ? (
+            <button
+              type="button"
+              onClick={handleBack}
+              className="inline-flex items-center gap-2 border-b border-transparent pb-1 font-medium text-slate-700 transition-colors hover:border-slate-300 hover:text-brand-600 dark:text-slate-200 dark:hover:border-white/20"
+            >
+              Back to opportunities
+            </button>
+          ) : null}
           {!embedded ? (
             <>
               <span aria-hidden="true">•</span>
@@ -533,6 +592,18 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
           <article className="space-y-7">
             <header className="space-y-4 border-b border-slate-200 pb-6 dark:border-white/10">
+              <div className="relative overflow-hidden rounded-[28px] border border-slate-200 bg-slate-100 shadow-sm dark:border-white/10 dark:bg-slate-900">
+                <ImageWithFallback
+                  src={opportunity.image || seoImage}
+                  alt={
+                    opportunity.title
+                      ? `${opportunity.title} opportunity image`
+                      : "Opportunity image"
+                  }
+                  className="h-52 w-full object-cover sm:h-72"
+                  fallbackClassName="h-52 w-full sm:h-72"
+                />
+              </div>
               <p className="text-sm font-semibold text-brand-600 dark:text-brand-300">
                 Opportunity detail
               </p>
@@ -551,43 +622,25 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
               </div>
             </header>
 
-            <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-              {[
-                ["Match", `${matchPercentage}%`],
-                ["Difficulty", difficultyLabel],
-                ["Deadline", formatDeadline(opportunity.deadline)],
-                ["Location", opportunity.location || "Worldwide"],
-                ["Applicants", applicantsCopy],
-              ].map(([label, value]) => (
+            <section className="grid grid-cols-2 gap-x-5 gap-y-4 border-b border-slate-200 pb-6 dark:border-white/10 sm:grid-cols-3">
+              {factItems.map(({ label, value, icon: Icon }) => (
                 <div
                   key={label}
-                  className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/5 sm:p-4"
+                  title={`${label}: ${value}`}
+                  aria-label={`${label}: ${value}`}
+                  className="flex min-w-0 items-center gap-2.5"
                 >
-                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
+                    <Icon size={17} />
+                  </span>
+                  <span className="sr-only">
                     {label}
-                  </p>
-                  <p className="mt-1.5 break-words text-sm font-black leading-snug text-slate-950 dark:text-white sm:text-base">
+                  </span>
+                  <span className="min-w-0 truncate text-sm font-semibold leading-snug text-slate-700 dark:text-slate-200">
                     {value}
-                  </p>
+                  </span>
                 </div>
               ))}
-              {opportunity.stipend !== undefined &&
-              opportunity.stipend !== null ? (
-                <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/5 sm:p-4">
-                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
-                    Funding
-                  </p>
-                  <p className="mt-1.5 break-words text-sm font-black leading-snug text-slate-950 dark:text-white sm:text-base">
-                    {currencySymbol}
-                    {opportunity.stipend.toLocaleString()}
-                  </p>
-                  {opportunity.currency ? (
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      {currencyLabel}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
             </section>
 
             <section className="space-y-3">

@@ -279,8 +279,8 @@ function UserDashboardPage() {
 
   const openAppRoute = useCallback(
     (screen: string) => {
-      if (screen === "opportunities") {
-        navigate("/app/opportunities");
+      if (screen === "opportunities" || screen.startsWith("opportunities?")) {
+        navigate(`/app/${screen}`);
         return;
       }
 

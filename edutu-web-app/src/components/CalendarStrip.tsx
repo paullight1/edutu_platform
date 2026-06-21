@@ -1,4 +1,4 @@
-import { Calendar, Clock } from "lucide-react";
+import { Calendar, Clock, X } from "lucide-react";
 
 export interface CalendarEvent {
   id: string;
@@ -38,6 +38,8 @@ interface CalendarStripProps {
   bookmarks: BookmarkLike[];
   applications: ApplicationLike[];
   deadlines?: DeadlineLike[];
+  compact?: boolean;
+  onClose?: () => void;
   onDateClick?: (date: Date) => void;
   onEventClick?: (event: CalendarEvent) => void;
 }
@@ -58,6 +60,8 @@ export default function CalendarStrip({
   bookmarks,
   applications,
   deadlines = [],
+  compact = false,
+  onClose,
   onDateClick,
   onEventClick,
 }: CalendarStripProps) {
@@ -98,12 +102,28 @@ export default function CalendarStrip({
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950">
-      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-white">
-        <Calendar size={17} />
-        Upcoming activity
+    <div
+      className={`rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950 ${
+        compact ? "p-3" : "p-4"
+      }`}
+    >
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-800 dark:text-white">
+          <Calendar size={compact ? 15 : 17} />
+          <span className="truncate">Upcoming activity</span>
+        </div>
+        {onClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
+            aria-label="Close upcoming activity"
+          >
+            <X size={15} />
+          </button>
+        ) : null}
       </div>
-      <div className="flex gap-3 overflow-x-auto pb-1">
+      <div className={`flex gap-2 overflow-x-auto ${compact ? "pb-0" : "pb-1"}`}>
         {events.map((event) => (
           <button
             key={`${event.type}-${event.id}`}
@@ -117,13 +137,15 @@ export default function CalendarStrip({
               }
               onEventClick?.(event);
             }}
-            className="min-w-[170px] rounded-md border border-slate-200 bg-slate-50 p-3 text-left transition hover:border-brand-300 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+            className={`min-w-[138px] rounded-xl border border-slate-200 bg-slate-50 text-left transition hover:border-brand-300 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 ${
+              compact ? "p-2.5" : "p-3"
+            }`}
           >
-            <span className="mb-2 inline-flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
+            <span className="mb-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
               <Clock size={13} />
               {formatEventDate(event.date)}
             </span>
-            <span className="line-clamp-2 block text-sm font-semibold leading-5 text-slate-950 dark:text-white">
+            <span className="line-clamp-1 block text-xs font-semibold leading-5 text-slate-950 dark:text-white">
               {event.title}
             </span>
           </button>
