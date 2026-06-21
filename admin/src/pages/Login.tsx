@@ -16,6 +16,8 @@ const Login: FC = () => {
     setError(null);
 
     try {
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+
       const login = supabase.auth.signInWithPassword({
         email: email.trim(),
         password,

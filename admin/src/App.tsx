@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Suspense, lazy, useEffect, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
@@ -116,7 +116,7 @@ const useAuth = () => {
         }
 
         console.log("[Auth] Session active for:", session.user.email);
-        const isAdmin = await checkAdminRole(session.user.id);
+        const isAdmin = await checkAdminRole(session.user);
 
         if (mounted) {
           setAuth({
@@ -198,7 +198,7 @@ const useAuth = () => {
           }));
 
           setTimeout(async () => {
-            const isAdmin = await checkAdminRole(session.user.id);
+            const isAdmin = await checkAdminRole(session.user);
             if (mounted) {
               setAuth({
                 session,
@@ -223,12 +223,16 @@ const useAuth = () => {
   return auth;
 };
 
-async function checkAdminRole(userId: string): Promise<boolean> {
+async function checkAdminRole(user: User): Promise<boolean> {
   try {
+    if (isConfiguredAdminEmail(user.email)) {
+      return true;
+    }
+
     const { data: profile, error } = await supabase
       .from("profiles")
       .select("role")
-      .eq("user_id", userId)
+      .eq("user_id", user.id)
       .maybeSingle();
 
     if (error) {
@@ -236,12 +240,7 @@ async function checkAdminRole(userId: string): Promise<boolean> {
       return false;
     }
 
-    return [
-      "admin",
-      "super_admin",
-      "moderator",
-      "support_agent",
-    ].includes(profile?.role || "");
+    return isAdminRole(profile?.role);
   } catch (error: unknown) {
     console.error("[Auth] checkAdminRole error:", error);
     return false;
@@ -334,10 +333,13 @@ const UnauthorizedScreen: FC<{ error?: string }> = ({ error }) => (
 );
 
 const AppRoutes: FC = () => {
+  const location = useLocation();
   const { session, isAdmin, loading, error } = useAuth();
   const isPasswordRecovery =
-    window.location.pathname === "/reset-password" ||
-    window.location.hash.includes("type=recovery");
+    location.pathname === "/reset-password" ||
+    location.hash.includes("type=recovery");
+  const isAuthRoute =
+    location.pathname === "/login" || location.pathname === "/signup";
 
   if (isPasswordRecovery) {
     return (
@@ -350,7 +352,7 @@ const AppRoutes: FC = () => {
 
   if (loading) return <LoadingScreen />;
 
-  if (!session) {
+  if (!session || (!isAdmin && isAuthRoute)) {
     return (
       <Routes>
         <Route path="/login" element={<Login />} />
