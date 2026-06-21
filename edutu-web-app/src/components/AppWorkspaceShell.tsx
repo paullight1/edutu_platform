@@ -15,6 +15,7 @@ import {
   Settings,
   UserCheck,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useDarkMode } from "../hooks/useDarkMode";
@@ -24,13 +25,20 @@ interface AppWorkspaceShellProps {
   children: ReactNode;
 }
 
-const primaryNavItems = [
+type WorkspaceNavItem = {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  exact?: boolean;
+};
+
+const primaryNavItems: WorkspaceNavItem[] = [
   { to: "/dashboard", label: "Home", icon: LayoutGrid, exact: true },
   { to: "/app/opportunities", label: "Opportunities", icon: Briefcase },
   { to: "/app/deadlines", label: "Deadlines", icon: Calendar },
 ];
 
-const secondaryNavItems = [
+const secondaryNavItems: WorkspaceNavItem[] = [
   { to: "/app/saved", label: "Saved", icon: Bookmark },
   { to: "/app/applications", label: "Applications", icon: Send },
   { to: "/app/profile", label: "Profile", icon: UserCheck },
@@ -363,10 +371,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                   className="h-10 w-10 shrink-0 object-contain"
                 />
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-bold leading-4 text-slate-500 dark:text-slate-400">
-                    Edutu
-                  </span>
-                  <span className="block truncate text-lg font-black leading-5 tracking-tight text-slate-900 dark:text-white">
+                  <span className="block truncate text-xl font-black leading-6 tracking-tight text-slate-900 dark:text-white">
                     {workspaceTitle}
                   </span>
                 </span>
@@ -443,9 +448,6 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                 </span>
                 <span className="mt-1 block truncate text-xs font-semibold text-slate-500 dark:text-slate-400">
                   {displayEmail}
-                </span>
-                <span className="mt-2 block text-[11px] font-black text-brand-600 dark:text-brand-300">
-                  Manage profile
                 </span>
               </span>
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-brand-600 transition group-hover:bg-brand-500 group-hover:text-white dark:text-brand-200">

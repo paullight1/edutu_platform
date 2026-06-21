@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Database, Globe, RefreshCw, Server, ShieldCheck, Smartphone } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Database, Globe, RefreshCw, Server, ShieldCheck, Smartphone, type LucideIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useDarkMode } from '../hooks/useDarkMode';
 import PublicEditorialShell from './PublicEditorialShell';
@@ -19,7 +19,7 @@ type ContractGroup = {
 };
 
 type SurfaceCard = {
-  icon: React.ComponentType<{ size?: number }>;
+  icon: LucideIcon;
   title: string;
   subtitle: string;
   accent: string;

@@ -1,6 +1,7 @@
 import type { Opportunity } from "../types/opportunity";
 import { getApiBaseUrl } from "../lib/apiBaseUrl";
 import { getLocalDevAuthHeaders } from "../lib/localDevAuthHeaders";
+import { toAbsoluteUrl } from "../lib/publicSite";
 
 export interface OpportunityShareCard {
   url: string;
@@ -207,11 +208,25 @@ async function canvasToBlob(
 export function buildOpportunityShareUrl(opportunityId: string): string {
   const path = `/share/opportunity/${encodeURIComponent(opportunityId)}`;
 
-  if (typeof window === "undefined" || !window.location?.origin) {
-    return path;
-  }
+  return toAbsoluteUrl(path);
+}
 
-  return new URL(path, window.location.origin).toString();
+function normalizeShareUrl(
+  value: string | null | undefined,
+  opportunityId: string,
+): string {
+  const fallback = buildOpportunityShareUrl(opportunityId);
+  if (!value) return fallback;
+
+  try {
+    const url = new URL(value);
+    if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
+      return toAbsoluteUrl(`${url.pathname}${url.search}${url.hash}`);
+    }
+    return url.toString();
+  } catch {
+    return toAbsoluteUrl(value);
+  }
 }
 
 export function buildOpportunityShareText(
@@ -293,7 +308,7 @@ export async function fetchOpportunityShareCard(
     return {
       ...payload.shareCard,
       shareText: payload.shareText,
-      shareUrl: payload.shareUrl,
+      shareUrl: normalizeShareUrl(payload.shareUrl, opportunityId),
     };
   } catch {
     return null;
@@ -339,7 +354,7 @@ export async function fetchOpportunityShareImageBlob(
       blob: await response.blob(),
       card,
       shareText: payload.shareText,
-      shareUrl: payload.shareUrl,
+      shareUrl: normalizeShareUrl(payload.shareUrl, opportunityId),
     };
   } catch {
     return null;

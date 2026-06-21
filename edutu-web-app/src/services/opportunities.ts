@@ -494,6 +494,59 @@ export async function fetchOpportunities(options: FetchOptions = {}): Promise<Op
   }
 }
 
+export async function fetchOpportunityRecommendations(
+  token: string,
+  options: FetchOpportunityRecommendationsOptions = {},
+): Promise<PersonalizedOpportunity[]> {
+  const body: Record<string, unknown> = {
+    limit: Math.min(Math.max(Number(options.limit) || 24, 1), 50),
+    minMatchScore: Math.min(Math.max(Number(options.minMatchScore) || 0, 0), 100),
+  };
+
+  if (options.message) {
+    body.message = options.message;
+  }
+
+  if (options.excludeOpportunityIds?.length) {
+    body.excludeOpportunityIds = options.excludeOpportunityIds;
+  }
+
+  const payload = await productApiRequest<unknown>('/opportunities/recommendations', token, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  const rows = extractOpportunityRows(payload);
+
+  return rows.map((row) => {
+    const rawMatch =
+      row.match ??
+      row.match_score ??
+      row.matchScore ??
+      row.metadata?.match_score ??
+      row.metadata?.matchScore ??
+      0;
+    const matchScore = Number.isFinite(Number(rawMatch)) ? Number(rawMatch) : 0;
+    const opportunity = normaliseOpportunity({
+      ...row,
+      match: matchScore,
+    });
+
+    return {
+      opportunity,
+      matchScore: opportunity.match,
+      matchReasons: normaliseStringArray(row.match_reasons ?? row.matchReasons),
+      matchRisks: normaliseStringArray(row.match_risks ?? row.matchRisks),
+      aiSummary:
+        typeof row.ai_summary === 'string'
+          ? row.ai_summary
+          : typeof row.aiSummary === 'string'
+            ? row.aiSummary
+            : null,
+      aiTags: cleanPublicTags(row.ai_tags, row.aiTags),
+    };
+  });
+}
+
 export async function getOpportunity(id: string): Promise<Opportunity | null> {
   if (cachedOpportunities) {
     const cached = cachedOpportunities.find((opportunity) => opportunity.id === id);

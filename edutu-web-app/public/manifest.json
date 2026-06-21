@@ -2,7 +2,7 @@
   "name": "Edutu | Member Opportunities",
   "short_name": "Edutu",
   "description": "A members-only feed for scholarships, internships, fellowships, grants, deadlines, and application links.",
-  "start_url": "/",
+  "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#0c0f1a",
   "theme_color": "#146ef5",
@@ -30,7 +30,7 @@
       "name": "Dashboard",
       "short_name": "Home",
       "description": "View your dashboard",
-      "url": "/app/home"
+      "url": "/dashboard"
     }
   ],
   "prefer_related_applications": false

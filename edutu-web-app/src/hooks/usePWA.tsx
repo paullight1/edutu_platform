@@ -15,6 +15,7 @@ interface BeforeInstallPromptEvent extends Event {
 
 interface PWAState {
     isInstallable: boolean;
+    isManualInstallAvailable: boolean;
     isInstalled: boolean;
     isUpdateAvailable: boolean;
     isOffline: boolean;
@@ -23,6 +24,7 @@ interface PWAState {
 export function usePWA() {
     const [state, setState] = useState<PWAState>({
         isInstallable: false,
+        isManualInstallAvailable: false,
         isInstalled: false,
         isUpdateAvailable: false,
         isOffline: !navigator.onLine,
@@ -37,8 +39,17 @@ export function usePWA() {
             const isStandalone =
                 window.matchMedia('(display-mode: standalone)').matches ||
                 (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+            const userAgent = window.navigator.userAgent.toLowerCase();
+            const isIos = /iphone|ipad|ipod/.test(userAgent);
+            const isSafari = /^((?!chrome|android|crios|fxios).)*safari/i.test(
+                window.navigator.userAgent,
+            );
 
-            setState((prev) => ({ ...prev, isInstalled: isStandalone }));
+            setState((prev) => ({
+                ...prev,
+                isInstalled: isStandalone,
+                isManualInstallAvailable: isIos && isSafari && !isStandalone,
+            }));
         };
 
         checkInstalled();

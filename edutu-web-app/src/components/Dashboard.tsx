@@ -7,16 +7,20 @@ import {
   Calendar,
   ChevronRight,
   Clock,
+  Download,
   GraduationCap,
   LayoutGrid,
   List,
   Menu,
   Send,
   Settings,
+  Share2,
+  Shuffle,
   Sparkles,
   X,
   UserCheck,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
@@ -29,12 +33,14 @@ import { useDarkMode } from "../hooks/useDarkMode";
 import { useOpportunities } from "../hooks/useOpportunities";
 import { usePersonalizedOpportunities } from "../hooks/usePersonalizedOpportunities";
 import { useNotifications } from "../hooks/useNotifications";
+import { usePWA } from "../hooks/usePWA";
 import type { AppUser } from "../types/user";
 import type { OnboardingProfileData } from "../types/onboarding";
 import { getBookmarks } from "../services/bookmarks";
 import { getApplications } from "../services/applications";
 import { getDeadlines, type Deadline } from "../services/deadlines";
-import { fetchBackendProfile } from "../services/profile";
+import { fetchBackendProfile, type BackendProfile } from "../services/profile";
+import type { UserProfileForRecommendations } from "../services/personalizedRecommendations";
 import {
   fetchMobileControlConfig,
   recordMobileCampaignEvent,
@@ -44,6 +50,7 @@ import ImageWithFallback from "./ImageWithFallback";
 
 const HOME_FEED_BATCH_SIZE = 8;
 const HOME_FEED_PROMO_INTERVAL = 6;
+const HOME_SCREEN_PROMPT_DISMISSED_KEY = "edutu_home_screen_prompt_dismissed";
 
 type HomePromoCard = {
   campaignId?: string;
@@ -82,7 +89,7 @@ type DiscoveryCategory = {
   id: DiscoveryCategoryId;
   title: string;
   image: string;
-  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
+  icon: LucideIcon;
   keywords: string[];
 };
 
@@ -216,6 +223,43 @@ function mapCampaignToHomePromo(campaign: MobileCampaign): HomePromoCard {
   };
 }
 
+function createOpportunityShuffleSeed() {
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    return crypto.getRandomValues(new Uint32Array(1))[0] || Date.now();
+  }
+
+  return Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+}
+
+function seededRandom(seed: number) {
+  let value = seed % 2147483647;
+  if (value <= 0) value += 2147483646;
+
+  return () => {
+    value = (value * 16807) % 2147483647;
+    return (value - 1) / 2147483646;
+  };
+}
+
+function shuffleOpportunityFeed<T>(items: T[], seed: number): T[] {
+  const nextItems = [...items];
+  const random = seededRandom(seed);
+
+  for (let index = nextItems.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [nextItems[index], nextItems[swapIndex]] = [
+      nextItems[swapIndex],
+      nextItems[index],
+    ];
+  }
+
+  return nextItems;
+}
+
+function getDiscoveryCategoryRoute(category: DiscoveryCategory) {
+  return `opportunities?category=${encodeURIComponent(category.id)}`;
+}
+
 interface DashboardProps {
   user: AppUser | null;
   onOpportunityClick: (opportunity: any) => void;
@@ -281,8 +325,18 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     });
     const [activePanel, setActivePanel] = useState<DashboardPanel | null>(null);
     const [dismissBanner, setDismissBanner] = useState(false);
+    const [dismissActivityStrip, setDismissActivityStrip] = useState(false);
     const [viewMode, setViewMode] = useState<"list" | "grid">("grid");
     const [homeFeedLimit, setHomeFeedLimit] = useState(HOME_FEED_BATCH_SIZE);
+    const [homeShuffleSeed, setHomeShuffleSeed] = useState(() =>
+      createOpportunityShuffleSeed(),
+    );
+    const [dismissHomeScreenPrompt, setDismissHomeScreenPrompt] = useState(() => {
+      if (typeof window === "undefined") return false;
+      return (
+        window.localStorage.getItem(HOME_SCREEN_PROMPT_DISMISSED_KEY) === "1"
+      );
+    });
     const [activeDiscoveryCategory, setActiveDiscoveryCategory] =
       useState<DiscoveryCategoryId | null>(null);
     const [adminHomePromo, setAdminHomePromo] = useState<HomePromoCard | null>(
@@ -303,20 +357,33 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       missingFields: string[];
       isMatchEnabled: boolean;
     } | null>(null);
+    const [backendProfile, setBackendProfile] = useState<BackendProfile | null>(null);
 
     const { unreadCount } = useNotifications();
+    const {
+      isInstallable,
+      isInstalled,
+      isManualInstallAvailable,
+      promptInstall,
+    } = usePWA();
 
     const opportunities = useOpportunities();
     const personalized = usePersonalizedOpportunities();
+    const { setUserProfile: setPersonalizedUserProfile } = personalized;
     const {
       data: opportunityFeed,
       loading: opportunitiesLoading,
       refresh: hookRefreshOpportunities,
-    } = onboardingProfile ? personalized : opportunities;
+    } = user?.id ? personalized : opportunities;
 
     useEffect(() => {
       opportunitiesRefreshRef.current = hookRefreshOpportunities;
     }, [hookRefreshOpportunities]);
+
+    useEffect(() => {
+      setHomeShuffleSeed(createOpportunityShuffleSeed());
+      setHomeFeedLimit(HOME_FEED_BATCH_SIZE);
+    }, [user?.id]);
 
     useEffect(() => {
       if (embeddedDesktopShell) {
@@ -338,16 +405,20 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
     useEffect(() => {
       if (!user?.id) {
+        setBackendProfile(null);
+        setProfileScore(null);
         return;
       }
-      const userId = user.id;
+      let isMounted = true;
 
       async function loadProfileData() {
         try {
           const token = await getToken().catch(() => null);
           if (!token) return;
           const profile = await fetchBackendProfile(token);
+          if (!isMounted) return;
           const percent = profile.completeness?.percent ?? 0;
+          setBackendProfile(profile);
           setProfileScore({
             score: percent,
             missingFields:
@@ -360,7 +431,76 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       }
 
       loadProfileData();
+
+      return () => {
+        isMounted = false;
+      };
     }, [getToken, user?.id]);
+
+    useEffect(() => {
+      if (!user?.id) return;
+
+      const profileRecord = (backendProfile ?? {}) as Record<string, unknown>;
+      const backendSkills = Array.isArray(profileRecord.skills)
+        ? profileRecord.skills.filter(
+            (value): value is string =>
+              typeof value === "string" && value.trim().length > 0,
+          )
+        : [];
+      const backendInterests = Array.isArray(profileRecord.interests)
+        ? profileRecord.interests.filter(
+            (value): value is string =>
+              typeof value === "string" && value.trim().length > 0,
+          )
+        : [];
+      const backendField =
+        typeof profileRecord.fieldOfStudy === "string"
+          ? profileRecord.fieldOfStudy
+          : typeof profileRecord.field_of_study === "string"
+            ? profileRecord.field_of_study
+            : typeof profileRecord.course_of_study === "string"
+              ? profileRecord.course_of_study
+              : user.courseOfStudy;
+      const backendCountry =
+        typeof profileRecord.country === "string"
+          ? profileRecord.country
+          : undefined;
+
+      const backendRecommendationData: Partial<UserProfileForRecommendations> = {
+        ...(backendField ? { courseOfStudy: backendField } : {}),
+        ...(backendCountry ? { location: backendCountry } : {}),
+        ...(backendSkills.length || backendInterests.length
+          ? {
+              interests: Array.from(new Set([...backendSkills, ...backendInterests])),
+              preferredCategories: Array.from(new Set([...backendSkills, ...backendInterests])),
+            }
+          : {}),
+      };
+
+      const onboardingRecommendationData: Partial<UserProfileForRecommendations> | undefined =
+        onboardingProfile
+          ? {
+              courseOfStudy: onboardingProfile.courseOfStudy,
+              interests: onboardingProfile.interests,
+              preferredCategories: onboardingProfile.interests,
+              careerGoals: onboardingProfile.goals,
+              educationLevel: onboardingProfile.educationLevel,
+              location: onboardingProfile.location,
+              experienceLevel: onboardingProfile.experience,
+            }
+          : undefined;
+
+      setPersonalizedUserProfile(
+        user,
+        backendRecommendationData,
+        onboardingRecommendationData,
+      );
+    }, [
+      backendProfile,
+      onboardingProfile,
+      setPersonalizedUserProfile,
+      user,
+    ]);
 
     useEffect(() => {
       let isMounted = true;
@@ -446,9 +586,14 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       );
     }, [normalizedOpportunityFeed, selectedDiscoveryCategory]);
 
+    const shuffledOpportunityFeed = useMemo(
+      () => shuffleOpportunityFeed(filteredOpportunityFeed, homeShuffleSeed),
+      [filteredOpportunityFeed, homeShuffleSeed],
+    );
+
     const visibleHomeOpportunities = useMemo(
-      () => filteredOpportunityFeed.slice(0, homeFeedLimit),
-      [filteredOpportunityFeed, homeFeedLimit],
+      () => shuffledOpportunityFeed.slice(0, homeFeedLimit),
+      [homeFeedLimit, shuffledOpportunityFeed],
     );
 
     const opportunityEmptyTitle = selectedDiscoveryCategory
@@ -553,7 +698,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
     useEffect(() => {
       setHomeFeedLimit(HOME_FEED_BATCH_SIZE);
-    }, [activeDiscoveryCategory, filteredOpportunityFeed.length]);
+    }, [activeDiscoveryCategory, shuffledOpportunityFeed.length]);
 
     useEffect(() => {
       const sentinel = homeFeedSentinelRef.current;
@@ -565,10 +710,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           if (!entry.isIntersecting) return;
 
           setHomeFeedLimit((current) => {
-            if (current >= filteredOpportunityFeed.length) return current;
+            if (current >= shuffledOpportunityFeed.length) return current;
             return Math.min(
               current + HOME_FEED_BATCH_SIZE,
-              filteredOpportunityFeed.length,
+              shuffledOpportunityFeed.length,
             );
           });
         },
@@ -578,7 +723,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       observer.observe(sentinel);
 
       return () => observer.disconnect();
-    }, [filteredOpportunityFeed.length, opportunitiesLoading]);
+    }, [opportunitiesLoading, shuffledOpportunityFeed.length]);
 
     const formatUpdatedAt = (updatedAt: string) => {
       const diff = Date.now() - new Date(updatedAt).getTime();
@@ -708,6 +853,34 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       }
 
       onNavigate?.(id);
+    }
+
+    function handleShuffleOpportunities() {
+      setHomeShuffleSeed(createOpportunityShuffleSeed());
+      setHomeFeedLimit(HOME_FEED_BATCH_SIZE);
+    }
+
+    const showHomeScreenPrompt =
+      !dismissHomeScreenPrompt &&
+      !isInstalled &&
+      (isInstallable || isManualInstallAvailable);
+
+    const closeHomeScreenPrompt = () => {
+      setDismissHomeScreenPrompt(true);
+      window.localStorage.setItem(HOME_SCREEN_PROMPT_DISMISSED_KEY, "1");
+    };
+
+    const handleInstallPrompt = async () => {
+      if (!isInstallable) return;
+      const accepted = await promptInstall();
+      if (accepted) {
+        closeHomeScreenPrompt();
+      }
+    };
+
+    function handleDiscoveryCategoryClick(category: DiscoveryCategory) {
+      setActiveDiscoveryCategory(category.id);
+      onNavigate?.(getDiscoveryCategoryRoute(category));
     }
 
     function handleMobileHomePromoClick() {
@@ -1456,11 +1629,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     <button
                       key={category.id}
                       type="button"
-                      onClick={() =>
-                        setActiveDiscoveryCategory((current) =>
-                          current === category.id ? null : category.id,
-                        )
-                      }
+                      onClick={() => handleDiscoveryCategoryClick(category)}
                       className={`group relative min-h-[88px] overflow-hidden rounded-[20px] border border-white/20 bg-slate-950 text-left text-white shadow-sm transition active:scale-[0.98] md:min-h-[112px] ${
                         active
                           ? "ring-2 ring-brand-500 ring-offset-2 ring-offset-slate-50 dark:ring-offset-gray-950"
@@ -1584,16 +1753,85 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
             {(bookmarks.length > 0 ||
               applications.length > 0 ||
-              dashboardDeadlines.length > 0) && (
+              dashboardDeadlines.length > 0) &&
+              !dismissActivityStrip && (
               <section>
                 <CalendarStrip
                   bookmarks={bookmarks}
                   applications={applications}
                   deadlines={dashboardDeadlines}
+                  compact
+                  onClose={() => setDismissActivityStrip(true)}
                   onEventClick={handleCalendarEventClick}
                 />
               </section>
             )}
+
+            {showHomeScreenPrompt ? (
+              <section className="sm:hidden">
+                <div
+                  className={`relative overflow-hidden rounded-[24px] border p-4 shadow-sm ${
+                    isDarkMode
+                      ? "border-white/10 bg-white/5"
+                      : "border-slate-200 bg-white"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={closeHomeScreenPrompt}
+                    className={`absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full transition ${
+                      isDarkMode
+                        ? "text-slate-400 hover:bg-white/10 hover:text-white"
+                        : "text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                    }`}
+                    aria-label="Dismiss add to home screen prompt"
+                  >
+                    <X size={16} />
+                  </button>
+                  <div className="flex items-start gap-3 pr-8">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
+                      {isInstallable ? <Download size={19} /> : <Share2 size={19} />}
+                    </span>
+                    <div className="min-w-0">
+                      <h2 className="text-sm font-black text-slate-950 dark:text-white">
+                        Add Edutu to Home Screen
+                      </h2>
+                      <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
+                        Keep opportunities, saved picks, and deadlines one tap
+                        away.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex items-center gap-2">
+                    {isInstallable ? (
+                      <button
+                        type="button"
+                        onClick={handleInstallPrompt}
+                        className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-2xl bg-brand-500 px-4 text-sm font-black text-white shadow-sm transition hover:bg-brand-600 active:scale-[0.98]"
+                      >
+                        <Download size={16} />
+                        Add app
+                      </button>
+                    ) : (
+                      <div className="flex-1 rounded-2xl bg-brand-500/10 px-3 py-2 text-xs font-bold leading-5 text-brand-700 dark:text-brand-200">
+                        Tap Share, then Add to Home Screen.
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={closeHomeScreenPrompt}
+                      className={`h-10 rounded-2xl px-4 text-sm font-black transition ${
+                        isDarkMode
+                          ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      Later
+                    </button>
+                  </div>
+                </div>
+              </section>
+            ) : null}
 
             {/* Content Layout */}
             <div className="grid lg:grid-cols-12 gap-8 pb-8">
@@ -1602,26 +1840,26 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
               >
                 {/* Recommended Opportunities */}
                 <section>
-                  <div className="mb-5 space-y-3">
-                    <div className="flex items-center justify-between gap-3">
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-3">
-                        <div className="p-2.5 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                           <Briefcase size={19} />
                         </div>
                         <div className="min-w-0">
-                          <h2 className="text-lg font-semibold tracking-tight text-slate-950 dark:text-white">
-                            Recommended
+                          <h2 className="truncate text-lg font-semibold tracking-tight text-slate-950 dark:text-white">
+                            Recommended picks
                           </h2>
                           <p
-                            className={`mt-0.5 text-xs font-normal ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
+                            className={`truncate text-xs font-normal ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
                           >
                             {selectedDiscoveryCategory
-                              ? `${selectedDiscoveryCategory.title} only`
-                              : "Matched to your profile"}
+                              ? selectedDiscoveryCategory.title
+                              : "For you"}
                           </p>
                         </div>
                       </div>
-                      <div className="flex shrink-0 items-center gap-3">
+                      <div className="flex shrink-0 items-center gap-1.5">
                         <div
                           className={`hidden sm:flex items-center gap-1 rounded-2xl border p-1 ${isDarkMode ? "border-white/10 bg-white/5" : "border-slate-200 bg-white shadow-sm"}`}
                         >
@@ -1656,15 +1894,31 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         </div>
                         <button
                           type="button"
+                          onClick={handleShuffleOpportunities}
+                          className={`inline-flex h-10 w-10 items-center justify-center rounded-full border text-xs font-semibold transition-all active:scale-[0.98] sm:w-auto sm:rounded-2xl sm:px-3 ${
+                            isDarkMode
+                              ? "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
+                              : "border-slate-200 bg-white text-slate-600 shadow-sm hover:border-slate-300 hover:text-slate-950"
+                          }`}
+                          aria-label="Shuffle recommended opportunities"
+                          title="Shuffle"
+                        >
+                          <Shuffle size={14} />
+                          <span className="hidden sm:inline">Shuffle</span>
+                        </button>
+                        <button
+                          type="button"
                           onClick={onViewAllOpportunities}
-                          className={`h-10 inline-flex items-center justify-center gap-1.5 rounded-2xl border px-3 text-xs font-semibold transition-all ${
+                          className={`inline-flex h-10 w-10 items-center justify-center rounded-full border text-xs font-semibold transition-all sm:w-auto sm:rounded-2xl sm:px-3 ${
                             isDarkMode
                               ? "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
                               : "border-slate-200 bg-white text-slate-600 shadow-sm hover:border-slate-300 hover:text-slate-950"
                           }`}
                           aria-label="View all opportunities"
+                          title="View more"
                         >
-                          View more <ChevronRight size={16} />
+                          <span className="hidden sm:inline">View more</span>
+                          <ChevronRight size={16} />
                         </button>
                       </div>
                     </div>

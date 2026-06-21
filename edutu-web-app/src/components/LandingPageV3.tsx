@@ -12,7 +12,8 @@ import {
     Github,
     Users,
     BarChart3,
-    ChevronDown
+    ChevronDown,
+    type LucideIcon
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -155,7 +156,7 @@ interface HeroStat {
 interface AboutFeature {
     title: string;
     desc: string;
-    icon: React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>;
+    icon: LucideIcon;
     color: string;
     bg: string;
     surface: string;

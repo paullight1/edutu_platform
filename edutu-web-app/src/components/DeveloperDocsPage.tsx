@@ -13,6 +13,7 @@ import {
     Smartphone,
     Terminal,
     Workflow,
+    type LucideIcon,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useDarkMode } from '../hooks/useDarkMode';
@@ -31,7 +32,7 @@ type Endpoint = {
 };
 
 type PlatformCard = {
-    icon: React.ComponentType<{ size?: number }>;
+    icon: LucideIcon;
     title: string;
     subtitle: string;
     accent: string;
