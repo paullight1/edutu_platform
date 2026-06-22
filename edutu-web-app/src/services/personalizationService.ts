@@ -4,6 +4,7 @@
  */
 
 import { supabase } from "../lib/supabaseClient";
+import { normalizeExternalUrl } from "../lib/externalUrl";
 import type { Opportunity } from "../types/opportunity";
 import type {
   UserPersonalization,
@@ -345,24 +346,27 @@ function normalizeOpportunityForDisplay(row: any): Opportunity {
     applicationProcess: row.metadata?.application_process || [],
     applicants: row.metadata?.applicants,
     successRate: row.metadata?.success_rate,
-    applyUrl:
-      row.application_url ??
-      row.applicationUrl ??
-      row.applyUrl ??
-      row.apply_url ??
-      row.link ??
-      row.canonical_url ??
-      row.canonicalUrl ??
-      row.url ??
-      row.metadata?.application_url ??
-      row.metadata?.applicationUrl ??
-      row.metadata?.applyUrl ??
-      row.metadata?.apply_url ??
-      row.metadata?.link ??
-      row.metadata?.canonical_url ??
-      row.metadata?.canonicalUrl ??
-      row.metadata?.url ??
-      null,
+    applyUrl: [
+      row.application_url,
+      row.applicationUrl,
+      row.applyUrl,
+      row.apply_url,
+      row.link,
+      row.canonical_url,
+      row.canonicalUrl,
+      row.url,
+      row.metadata?.application_url,
+      row.metadata?.applicationUrl,
+      row.metadata?.applyUrl,
+      row.metadata?.apply_url,
+      row.metadata?.link,
+      row.metadata?.canonical_url,
+      row.metadata?.canonicalUrl,
+      row.metadata?.url,
+    ].reduce<string | undefined>(
+      (url, value) => url ?? normalizeExternalUrl(value),
+      undefined,
+    ),
     lastUpdated: row.updated_at,
     match: row.match_score || 0,
     difficulty: row.metadata?.difficulty,
