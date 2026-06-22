@@ -461,27 +461,6 @@ export class OpportunityRankingService {
     const risks: string[] = [];
     let score = 20;
 
-    const searchText = [
-      opportunity.title,
-      opportunity.description,
-      opportunity.eligibilityCriteria,
-      opportunity.fundingType,
-      opportunity.targetRegion,
-      opportunity.category,
-      opportunity.type,
-      message,
-      preferences?.notes,
-      profile?.fieldOfStudy,
-      profile?.field_of_study,
-      ...(profile?.skills || []),
-      ...(profile?.interests || []),
-      ...(preferences?.preferredSkills || []),
-      ...(userGoals || []).map((goal) => goal.title || goal.description || ""),
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-
     const opportunityText = [
       opportunity.title,
       opportunity.description,
@@ -588,10 +567,36 @@ export class OpportunityRankingService {
       );
     }
 
-    const fieldOfStudy = profile?.fieldOfStudy || profile?.field_of_study;
+    const fieldOfStudy =
+      profile?.fieldOfStudy ||
+      profile?.field_of_study ||
+      profile?.courseOfStudy ||
+      profile?.major;
     if (fieldOfStudy && opportunityText.includes(fieldOfStudy.toLowerCase())) {
       score += 12;
       reasons.push(`Relevant to field of study: ${fieldOfStudy}.`);
+    }
+
+    const interestedCountries = [
+      ...(profile?.interestedCountries || []),
+      ...(profile?.interested_countries || []),
+    ].map((country) => country.toLowerCase());
+    const countryHits = interestedCountries.filter((country) =>
+      opportunityText.includes(country),
+    );
+    if (countryHits.length) {
+      score += Math.min(14, countryHits.length * 7);
+      reasons.push(
+        `Matches interested countries: ${countryHits.slice(0, 3).join(", ")}.`,
+      );
+    }
+
+    if (
+      profile?.country &&
+      opportunityText.includes(profile.country.toLowerCase())
+    ) {
+      score += 6;
+      reasons.push(`Relevant to current country: ${profile.country}.`);
     }
 
     if (message) {

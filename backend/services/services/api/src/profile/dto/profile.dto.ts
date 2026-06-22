@@ -1,13 +1,32 @@
 import { z } from "zod";
 
 const nullableTrimmedString = z.string().trim().min(1).nullable().optional();
+const nullableStringArray = z
+  .array(z.string().trim().min(1))
+  .max(100)
+  .nullable()
+  .optional();
 
 export const UpdateProfileSchema = z
   .object({
     fullName: nullableTrimmedString,
     email: z.string().trim().email().nullable().optional(),
     country: nullableTrimmedString,
-    skills: z.array(z.string().trim().min(1)).max(100).nullable().optional(),
+    school: nullableTrimmedString,
+    courseOfStudy: nullableTrimmedString,
+    major: nullableTrimmedString,
+    degree: nullableTrimmedString,
+    cgpa: z.number().min(0).max(10).nullable().optional(),
+    gradYear: z.number().int().min(1900).max(2200).nullable().optional(),
+    dateOfBirth: z
+      .string()
+      .trim()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .nullable()
+      .optional(),
+    interestedCountries: nullableStringArray,
+    interests: nullableStringArray,
+    skills: nullableStringArray,
   })
   .strict()
   .refine((value) => Object.keys(value).length > 0, {

@@ -1131,14 +1131,17 @@ export class OpportunitiesService {
       aiData?.organization || opportunity.organization || "",
       200,
     );
-    const description = this.normalizeDescription(
-      aiData?.description || opportunity.description || "",
-    );
-    const summary = this.normalizeSummary(
-      aiData?.summary || opportunity.summary || "",
-      description,
-      opportunity.title || "",
-    );
+    const descriptionText =
+      this.cleanOptionalText(aiData?.description) ||
+      this.cleanOptionalText(opportunity.description) ||
+      "";
+    const summaryText =
+      this.cleanOptionalText(aiData?.summary) ||
+      this.cleanOptionalText(opportunity.summary) ||
+      "";
+    const description = this.normalizeDescription(descriptionText);
+    const titleText = this.cleanOptionalText(opportunity.title, 220) || "";
+    const summary = this.normalizeSummary(summaryText, description, titleText);
     const closeDate =
       aiData?.deadline || opportunity.close_date || opportunity.deadline;
     const qualityScore = this.scoreCanonicalOpportunity({

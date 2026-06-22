@@ -1,6 +1,9 @@
-import { authService, type Profile } from '../lib/auth';
-import type { OnboardingProfileData, OnboardingState } from '../types/onboarding';
-import { productApiRequest } from './productApi';
+import { authService, type Profile } from "../lib/auth";
+import type {
+  OnboardingProfileData,
+  OnboardingState,
+} from "../types/onboarding";
+import { productApiRequest } from "./productApi";
 
 export interface BackendProfileCompleteness {
   percent: number;
@@ -12,6 +15,16 @@ export interface BackendProfileCompleteness {
 export type BackendProfile = Profile & {
   userId?: string;
   fullName?: string | null;
+  school?: string | null;
+  courseOfStudy?: string | null;
+  major?: string | null;
+  degree?: string | null;
+  cgpa?: number | string | null;
+  gradYear?: number | null;
+  dateOfBirth?: string | null;
+  interestedCountries?: string[] | null;
+  interests?: string[] | null;
+  skills?: string[] | null;
   createdAt?: string | null;
   updatedAt?: string | null;
   completeness?: BackendProfileCompleteness;
@@ -21,6 +34,14 @@ export interface ProfileUpdateInput {
   fullName?: string | null;
   email?: string | null;
   country?: string | null;
+  school?: string | null;
+  courseOfStudy?: string | null;
+  degree?: string | null;
+  cgpa?: number | null;
+  gradYear?: number | null;
+  dateOfBirth?: string | null;
+  interestedCountries?: string[] | null;
+  interests?: string[] | null;
   skills?: string[] | null;
 }
 
@@ -32,12 +53,19 @@ function buildOnboardingState(data: OnboardingProfileData): OnboardingState {
   };
 }
 
-export function hasCompletedOnboarding(profile: Profile | null | undefined): boolean {
-  const onboarding = profile?.preferences?.onboarding as OnboardingState | undefined;
+export function hasCompletedOnboarding(
+  profile: Profile | null | undefined,
+): boolean {
+  const onboarding = profile?.preferences?.onboarding as
+    | OnboardingState
+    | undefined;
   return Boolean(onboarding?.completed);
 }
 
-export async function saveOnboardingProfile(userId: string, data: OnboardingProfileData): Promise<OnboardingState> {
+export async function saveOnboardingProfile(
+  userId: string,
+  data: OnboardingProfileData,
+): Promise<OnboardingState> {
   const onboardingState = buildOnboardingState(data);
   const sanitizedName = data.fullName.trim();
   const sanitizedCourse = data.courseOfStudy.trim();
@@ -45,7 +73,9 @@ export async function saveOnboardingProfile(userId: string, data: OnboardingProf
   await authService.updateUserProfile({
     name: sanitizedName,
     full_name: sanitizedName,
-    ...(typeof data.age === 'number' && Number.isFinite(data.age) ? { age: data.age } : {}),
+    ...(typeof data.age === "number" && Number.isFinite(data.age)
+      ? { age: data.age }
+      : {}),
     ...(sanitizedCourse ? { course_of_study: sanitizedCourse } : {}),
   });
 
@@ -65,7 +95,7 @@ export async function saveOnboardingProfile(userId: string, data: OnboardingProf
       updated_at: timestamp,
     };
 
-    if (typeof data.age === 'number' && Number.isFinite(data.age)) {
+    if (typeof data.age === "number" && Number.isFinite(data.age)) {
       updates.age = data.age;
     }
 
@@ -82,7 +112,7 @@ export async function saveOnboardingProfile(userId: string, data: OnboardingProf
     updated_at: timestamp,
   };
 
-  if (typeof data.age === 'number' && Number.isFinite(data.age)) {
+  if (typeof data.age === "number" && Number.isFinite(data.age)) {
     profileToCreate.age = data.age;
   }
 
@@ -90,26 +120,33 @@ export async function saveOnboardingProfile(userId: string, data: OnboardingProf
   return onboardingState;
 }
 
-export async function fetchUserProfile(userId: string): Promise<Profile | null> {
+export async function fetchUserProfile(
+  userId: string,
+): Promise<Profile | null> {
   return authService.getProfile(userId);
 }
 
-export async function fetchBackendProfile(token: string): Promise<BackendProfile> {
-  return productApiRequest<BackendProfile>('/profile', token);
+export async function fetchBackendProfile(
+  token: string,
+): Promise<BackendProfile> {
+  return productApiRequest<BackendProfile>("/profile", token);
 }
 
 export async function updateBackendProfile(
   token: string,
   updates: ProfileUpdateInput,
 ): Promise<BackendProfile> {
-  return productApiRequest<BackendProfile>('/profile', token, {
-    method: 'PATCH',
+  return productApiRequest<BackendProfile>("/profile", token, {
+    method: "PATCH",
     body: JSON.stringify(updates),
   });
 }
 
-export function extractOnboardingState(profile: Profile | null | undefined): OnboardingState | null {
-  const onboarding = profile?.preferences?.onboarding as OnboardingState | undefined;
+export function extractOnboardingState(
+  profile: Profile | null | undefined,
+): OnboardingState | null {
+  const onboarding = profile?.preferences?.onboarding as
+    | OnboardingState
+    | undefined;
   return onboarding ?? null;
 }
-

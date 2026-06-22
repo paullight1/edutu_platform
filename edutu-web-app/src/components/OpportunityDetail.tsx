@@ -14,6 +14,10 @@ import {
 import { useAuth } from "@clerk/clerk-react";
 import { useToast } from "./ui/ToastProvider";
 import type { Opportunity } from "../types/opportunity";
+import {
+  getProductApiToken,
+  isInvalidOrExpiredTokenError,
+} from "../lib/clerkToken";
 import { normalizeExternalUrl } from "../lib/externalUrl";
 import {
   addBookmark,
@@ -341,10 +345,23 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
 
     const checkBookmark = async () => {
       if (!userId) return;
-      const token = await getToken().catch(() => null);
-      const bookmarked = await isBookmarked(userId, opportunity.id, token);
-      if (isActive) {
-        setIsBookmarkedState(bookmarked);
+
+      try {
+        let token = await getProductApiToken(getToken);
+        let bookmarked = await isBookmarked(userId, opportunity.id, token);
+
+        if (!bookmarked) {
+          token = await getProductApiToken(getToken, { forceRefresh: true });
+          bookmarked = await isBookmarked(userId, opportunity.id, token);
+        }
+
+        if (isActive) {
+          setIsBookmarkedState(bookmarked);
+        }
+      } catch (bookmarkError) {
+        if (!isInvalidOrExpiredTokenError(bookmarkError)) {
+          console.warn("Could not load bookmark status:", bookmarkError);
+        }
       }
     };
 
@@ -367,16 +384,15 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
     }
 
     setBookmarkLoading(true);
-    const token = await getToken().catch(() => null);
 
-    if (isBookmarkedState) {
-      const removed = await removeBookmark(userId, opportunity.id, token);
-      if (removed) {
-        setIsBookmarkedState(false);
-        success("Bookmark removed");
+    const runBookmarkRequest = async (forceRefresh = false) => {
+      const token = await getProductApiToken(getToken, { forceRefresh });
+
+      if (isBookmarkedState) {
+        return removeBookmark(userId, opportunity.id, token);
       }
-    } else {
-      const added = await addBookmark(
+
+      return addBookmark(
         userId,
         {
           id: opportunity.id,
@@ -388,14 +404,53 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
         },
         token,
       );
+    };
 
-      if (added) {
+    try {
+      let result = await runBookmarkRequest();
+
+      if (!result) {
+        result = await runBookmarkRequest(true);
+      }
+
+      if (isBookmarkedState && result) {
+        setIsBookmarkedState(false);
+        success("Bookmark removed");
+      } else if (!isBookmarkedState && result) {
         setIsBookmarkedState(true);
         success("Opportunity saved");
+      } else {
+        showError("Sign in again to save this opportunity");
       }
-    }
+    } catch (bookmarkError) {
+      if (isInvalidOrExpiredTokenError(bookmarkError)) {
+        try {
+          const result = await runBookmarkRequest(true);
 
-    setBookmarkLoading(false);
+          if (isBookmarkedState && result) {
+            setIsBookmarkedState(false);
+            success("Bookmark removed");
+            return;
+          }
+
+          if (!isBookmarkedState && result) {
+            setIsBookmarkedState(true);
+            success("Opportunity saved");
+            return;
+          }
+        } catch {
+          // Fall through to the user-facing error below.
+        }
+      }
+
+      showError(
+        bookmarkError instanceof Error
+          ? bookmarkError.message
+          : "Could not update bookmark",
+      );
+    } finally {
+      setBookmarkLoading(false);
+    }
   };
 
   const handleShare = async () => {
@@ -496,7 +551,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
     if (!userId) return;
 
     void (async () => {
-      const token = await getToken().catch(() => null);
+      const token = await getProductApiToken(getToken, { forceRefresh: true });
       const tracked = await addApplication(
         userId,
         {

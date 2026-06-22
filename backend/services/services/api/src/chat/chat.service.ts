@@ -188,7 +188,9 @@ export class ChatService {
       await Promise.all([
         supabase
           .from("profiles")
-          .select("country, field_of_study, education_level, interests, skills")
+          .select(
+            "country, major, school, degree, interests, skills, interested_countries, age",
+          )
           .eq("user_id", userId)
           .maybeSingle(),
         supabase
@@ -480,8 +482,11 @@ ${input.message}`;
     const profileLines = profile
       ? [
           `- Country: ${this.toSafeText(profile.country, "Not specified")}`,
-          `- Field of study: ${this.toSafeText(profile.field_of_study, "Not specified")}`,
-          `- Education level: ${this.toSafeText(profile.education_level, "Not specified")}`,
+          `- School: ${this.toSafeText(profile.school, "Not specified")}`,
+          `- Course of study: ${this.toSafeText(profile.major, "Not specified")}`,
+          `- Degree level: ${this.toSafeText(profile.degree, "Not specified")}`,
+          `- Age: ${this.toSafeText(profile.age, "Not specified")}`,
+          `- Interested countries: ${Array.isArray(profile.interested_countries) ? profile.interested_countries.join(", ") : "Not specified"}`,
           `- Interests: ${Array.isArray(profile.interests) ? profile.interests.join(", ") : "Not specified"}`,
           `- Skills: ${Array.isArray(profile.skills) ? profile.skills.join(", ") : "Not specified"}`,
         ]
@@ -533,7 +538,13 @@ ${input.message}`;
       ...(Array.isArray(profile?.skills)
         ? profile.skills.map((value) => String(value).toLowerCase())
         : []),
-      this.toSafeText(profile?.field_of_study, "").toLowerCase(),
+      this.toSafeText(profile?.major, "").toLowerCase(),
+      this.toSafeText(profile?.school, "").toLowerCase(),
+      ...(Array.isArray(profile?.interested_countries)
+        ? profile.interested_countries.map((value) =>
+            String(value).toLowerCase(),
+          )
+        : []),
     ].filter(Boolean);
 
     return [...opportunities]

@@ -1,16 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useAuth as useClerkAuth } from '@clerk/clerk-react';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import {
   fetchOpportunities,
   fetchOpportunityRecommendations,
   type PersonalizedOpportunity,
-} from '../services/opportunities';
-import { 
-  formatUserProfileForRecommendations, 
+} from "../services/opportunities";
+import { getProductApiToken } from "../lib/clerkToken";
+import {
+  formatUserProfileForRecommendations,
   getPersonalizedOpportunities,
-  type UserProfileForRecommendations 
-} from '../services/personalizedRecommendations';
-import type { AppUser } from '../types/user';
+  type UserProfileForRecommendations,
+} from "../services/personalizedRecommendations";
+import type { AppUser } from "../types/user";
 
 interface UsePersonalizedOpportunitiesState {
   data: PersonalizedOpportunity[];
@@ -21,17 +22,24 @@ interface UsePersonalizedOpportunitiesState {
 
 export interface UsePersonalizedOpportunitiesResult extends UsePersonalizedOpportunitiesState {
   refresh: () => void;
-  updateUserPreferences: (preferences: Partial<UserProfileForRecommendations>) => void;
-  setUserProfile: (user: AppUser, additionalData?: Partial<UserProfileForRecommendations>, onboardingData?: Partial<UserProfileForRecommendations>) => void;
+  updateUserPreferences: (
+    preferences: Partial<UserProfileForRecommendations>,
+  ) => void;
+  setUserProfile: (
+    user: AppUser,
+    additionalData?: Partial<UserProfileForRecommendations>,
+    onboardingData?: Partial<UserProfileForRecommendations>,
+  ) => void;
 }
 
 export function usePersonalizedOpportunities(): UsePersonalizedOpportunitiesResult {
-  const [{ data, loading, error, userPreferences }, setState] = useState<UsePersonalizedOpportunitiesState>({
-    data: [],
-    loading: true,
-    error: null,
-    userPreferences: null
-  });
+  const [{ data, loading, error, userPreferences }, setState] =
+    useState<UsePersonalizedOpportunitiesState>({
+      data: [],
+      loading: true,
+      error: null,
+      userPreferences: null,
+    });
 
   const [refreshIndex, setRefreshIndex] = useState(0);
   const { getToken, isSignedIn } = useClerkAuth();
@@ -41,33 +49,38 @@ export function usePersonalizedOpportunities(): UsePersonalizedOpportunitiesResu
 
     if (!userPreferences) {
       // If no user preferences, we can't personalize opportunities
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         loading: false,
-        data: []
+        data: [],
       }));
       return;
     }
     const activePreferences = userPreferences;
 
-    setState(prev => ({
+    setState((prev) => ({
       ...prev,
       loading: true,
-      error: refreshIndex === 0 ? null : prev.error
+      error: refreshIndex === 0 ? null : prev.error,
     }));
 
     async function loadPersonalizedOpportunities() {
       let backendError: unknown = null;
 
       if (isSignedIn) {
-        const token = await getToken().catch(() => null);
+        const token = await getProductApiToken(getToken, {
+          forceRefresh: true,
+        });
 
         if (token) {
           try {
-            const recommendations = await fetchOpportunityRecommendations(token, {
-              limit: 48,
-              minMatchScore: 0,
-            });
+            const recommendations = await fetchOpportunityRecommendations(
+              token,
+              {
+                limit: 48,
+                minMatchScore: 0,
+              },
+            );
 
             if (!isActive) {
               return;
@@ -78,25 +91,34 @@ export function usePersonalizedOpportunities(): UsePersonalizedOpportunitiesResu
                 data: recommendations,
                 loading: false,
                 error: null,
-                userPreferences: activePreferences
+                userPreferences: activePreferences,
               });
               return;
             }
           } catch (err) {
             backendError = err;
-            console.warn('AI opportunity recommendations unavailable, using local personalization fallback:', err);
+            console.warn(
+              "AI opportunity recommendations unavailable, using local personalization fallback:",
+              err,
+            );
           }
         }
       }
 
       try {
-        const opportunities = await fetchOpportunities({ userId: activePreferences.id, force: refreshIndex > 0 });
+        const opportunities = await fetchOpportunities({
+          userId: activePreferences.id,
+          force: refreshIndex > 0,
+        });
 
         if (!isActive) {
           return;
         }
 
-        const personalizedOpportunities = getPersonalizedOpportunities(activePreferences, opportunities).map((item) => ({
+        const personalizedOpportunities = getPersonalizedOpportunities(
+          activePreferences,
+          opportunities,
+        ).map((item) => ({
           ...item,
           matchReasons: [],
           matchRisks: [],
@@ -108,7 +130,7 @@ export function usePersonalizedOpportunities(): UsePersonalizedOpportunitiesResu
           data: personalizedOpportunities,
           loading: false,
           error: null,
-          userPreferences: activePreferences
+          userPreferences: activePreferences,
         });
       } catch (err) {
         if (!isActive) {
@@ -120,14 +142,14 @@ export function usePersonalizedOpportunities(): UsePersonalizedOpportunitiesResu
             ? err.message
             : backendError instanceof Error
               ? backendError.message
-              : 'Unable to load opportunities';
+              : "Unable to load opportunities";
 
-        setState(prev => ({
+        setState((prev) => ({
           ...prev,
           loading: false,
           error: message,
           userPreferences: prev.userPreferences,
-          data: []
+          data: [],
         }));
       }
     }
@@ -139,37 +161,51 @@ export function usePersonalizedOpportunities(): UsePersonalizedOpportunitiesResu
     };
   }, [getToken, isSignedIn, refreshIndex, userPreferences]);
 
-  const setUserProfile = useCallback((user: AppUser, additionalData?: Partial<UserProfileForRecommendations>, onboardingData?: Partial<UserProfileForRecommendations>) => {
-    const profile = formatUserProfileForRecommendations(user, additionalData, onboardingData);
-    setState(prev => ({
-      ...prev,
-      userPreferences: profile,
-      data: [], // Reset data until opportunities are loaded with new preferences
-      loading: true
-    }));
-  }, []);
-
-  const updateUserPreferences = useCallback((preferences: Partial<UserProfileForRecommendations>) => {
-    setState(prev => {
-      if (!prev.userPreferences) {
-        return prev;
-      }
-
-      const updatedPreferences = {
-        ...prev.userPreferences,
-        ...preferences
-      };
-
-      return {
+  const setUserProfile = useCallback(
+    (
+      user: AppUser,
+      additionalData?: Partial<UserProfileForRecommendations>,
+      onboardingData?: Partial<UserProfileForRecommendations>,
+    ) => {
+      const profile = formatUserProfileForRecommendations(
+        user,
+        additionalData,
+        onboardingData,
+      );
+      setState((prev) => ({
         ...prev,
-        userPreferences: updatedPreferences,
-        data: [] // Reset data until opportunities are reloaded with updated preferences
-      };
-    });
-  }, []);
+        userPreferences: profile,
+        data: [], // Reset data until opportunities are loaded with new preferences
+        loading: true,
+      }));
+    },
+    [],
+  );
+
+  const updateUserPreferences = useCallback(
+    (preferences: Partial<UserProfileForRecommendations>) => {
+      setState((prev) => {
+        if (!prev.userPreferences) {
+          return prev;
+        }
+
+        const updatedPreferences = {
+          ...prev.userPreferences,
+          ...preferences,
+        };
+
+        return {
+          ...prev,
+          userPreferences: updatedPreferences,
+          data: [], // Reset data until opportunities are reloaded with updated preferences
+        };
+      });
+    },
+    [],
+  );
 
   const refresh = useCallback(() => {
-    setRefreshIndex(value => value + 1);
+    setRefreshIndex((value) => value + 1);
   }, []);
 
   return useMemo(
@@ -180,8 +216,16 @@ export function usePersonalizedOpportunities(): UsePersonalizedOpportunitiesResu
       userPreferences,
       refresh,
       updateUserPreferences,
-      setUserProfile
+      setUserProfile,
     }),
-    [data, error, loading, userPreferences, refresh, updateUserPreferences, setUserProfile]
+    [
+      data,
+      error,
+      loading,
+      userPreferences,
+      refresh,
+      updateUserPreferences,
+      setUserProfile,
+    ],
   );
 }
