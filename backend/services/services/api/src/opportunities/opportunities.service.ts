@@ -51,6 +51,10 @@ const OpportunityDtoSchema = z.object({
   deadline: z.string().optional().nullable(),
   sourceUrl: z.string().optional().nullable(),
   applyUrl: z.string().optional().nullable(),
+  applicationUrl: z.string().optional().nullable(),
+  application_url: z.string().optional().nullable(),
+  apply_url: z.string().optional().nullable(),
+  link: z.string().optional().nullable(),
   imageUrl: z.string().optional().nullable(),
   eligibility: z.record(z.string(), z.unknown()).optional(),
   isFeatured: z.boolean().optional().default(false),
@@ -246,8 +250,16 @@ function normaliseStaticOpportunityRow(
   const deadline =
     row.deadline ?? row.close_date ?? row.application_deadline ?? null;
   const imageUrl = row.image_url ?? row.imageUrl ?? row.image ?? null;
-  const applicationUrl =
-    row.application_url ?? row.apply_url ?? row.applyUrl ?? row.url ?? null;
+  const applicationUrl = pickOpportunityUrl(
+    row.application_url,
+    row.applicationUrl,
+    row.apply_url,
+    row.applyUrl,
+    row.link,
+    row.canonical_url,
+    row.canonicalUrl,
+    row.url,
+  );
   const lastUpdated =
     row.updated_at ??
     row.updatedAt ??
@@ -269,12 +281,63 @@ function normaliseStaticOpportunityRow(
     deadline,
     close_date: row.close_date ?? deadline,
     image_url: imageUrl,
-    application_url: applicationUrl,
+    application_url: applicationUrl ?? null,
+    applicationUrl: applicationUrl ?? null,
+    apply_url: row.apply_url ?? applicationUrl ?? null,
+    applyUrl: row.applyUrl ?? applicationUrl ?? null,
+    link: row.link ?? applicationUrl ?? null,
     updated_at: lastUpdated,
     created_at: createdAt,
     is_remote: isRemote,
     status: row.status ?? "active",
     source: row.source ?? "static-snapshot",
+  };
+}
+
+function pickOpportunityUrl(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value !== "string") {
+      continue;
+    }
+
+    const trimmed = value.trim();
+    if (trimmed) {
+      return trimmed;
+    }
+  }
+
+  return undefined;
+}
+
+function withOpportunityUrlAliases(
+  row: Record<string, any>,
+): Record<string, unknown> {
+  const applicationUrl = pickOpportunityUrl(
+    row.application_url,
+    row.applicationUrl,
+    row.apply_url,
+    row.applyUrl,
+    row.link,
+    row.canonical_url,
+    row.canonicalUrl,
+    row.url,
+    row.metadata?.application_url,
+    row.metadata?.applicationUrl,
+    row.metadata?.applyUrl,
+    row.metadata?.apply_url,
+    row.metadata?.link,
+    row.metadata?.canonical_url,
+    row.metadata?.canonicalUrl,
+    row.metadata?.url,
+  );
+
+  return {
+    ...row,
+    application_url: row.application_url ?? applicationUrl ?? null,
+    apply_url: row.apply_url ?? applicationUrl ?? null,
+    applicationUrl: row.applicationUrl ?? applicationUrl ?? null,
+    applyUrl: row.applyUrl ?? applicationUrl ?? null,
+    link: row.link ?? applicationUrl ?? null,
   };
 }
 
@@ -394,7 +457,9 @@ export class OpportunitiesService {
         if (!error) {
           const rows = data ?? [];
           if (rows.length > 0) {
-            return rows;
+            return rows.map((row) =>
+              withOpportunityUrlAliases(row as Record<string, any>),
+            );
           }
         } else {
           this.logger.warn(
@@ -426,7 +491,9 @@ export class OpportunitiesService {
 
       const rows = await query.execute();
       if (rows.length > 0) {
-        return rows;
+        return rows.map((row) =>
+          withOpportunityUrlAliases(row as Record<string, any>),
+        );
       }
     } catch (error: any) {
       this.logger.warn(
@@ -441,7 +508,7 @@ export class OpportunitiesService {
       normalizedOffset,
       statusFilter,
       category,
-    );
+    ).map((row) => withOpportunityUrlAliases(row as Record<string, any>));
   }
 
   async listSitemapOpportunities(
@@ -541,7 +608,7 @@ export class OpportunitiesService {
 
         if (!error) {
           if (data) {
-            return data;
+            return withOpportunityUrlAliases(data as Record<string, any>);
           }
         } else {
           this.logger.warn(
@@ -556,7 +623,7 @@ export class OpportunitiesService {
         .where(eq(opportunities.id, id))
         .execute();
       if (res[0]) {
-        return res[0];
+        return withOpportunityUrlAliases(res[0] as Record<string, any>);
       }
     } catch (error: any) {
       this.logger.warn(
@@ -565,7 +632,8 @@ export class OpportunitiesService {
     }
 
     const snapshotRows = await loadStaticOpportunitySnapshot();
-    return snapshotRows.find((row) => String(row.id) === String(id)) ?? null;
+    const row = snapshotRows.find((item) => String(item.id) === String(id));
+    return row ? withOpportunityUrlAliases(row as Record<string, any>) : null;
   }
 
   async ensureShareCard(id: string) {
@@ -678,7 +746,9 @@ export class OpportunitiesService {
           : null;
 
       return {
-        data: rows,
+        data: rows.map((row) =>
+          withOpportunityUrlAliases(row as Record<string, any>),
+        ),
         page,
         limit,
         total: count ?? 0,
@@ -890,7 +960,7 @@ export class OpportunitiesService {
         .single();
 
       if (!error) {
-        return data;
+        return withOpportunityUrlAliases(data as Record<string, any>);
       }
 
       this.logger.warn(
@@ -924,7 +994,9 @@ export class OpportunitiesService {
       .returning()
       .execute();
 
-    return result[0];
+    return result[0]
+      ? withOpportunityUrlAliases(result[0] as Record<string, any>)
+      : result[0];
   }
 
   async update(id: string, data: Partial<CreateOpportunityDto>) {
@@ -940,7 +1012,7 @@ export class OpportunitiesService {
         .single();
 
       if (!error) {
-        return updated;
+        return withOpportunityUrlAliases(updated as Record<string, any>);
       }
 
       this.logger.warn(
@@ -961,7 +1033,9 @@ export class OpportunitiesService {
       .returning()
       .execute();
 
-    return result[0];
+    return result[0]
+      ? withOpportunityUrlAliases(result[0] as Record<string, any>)
+      : result[0];
   }
 
   async updateStatus(id: string, status: string) {
@@ -997,6 +1071,9 @@ export class OpportunitiesService {
       opportunity.source_url ||
       opportunity.application_url ||
       opportunity.apply_url ||
+      opportunity.applicationUrl ||
+      opportunity.applyUrl ||
+      opportunity.link ||
       opportunity.canonical_url ||
       "";
     const sourceText = await this.resolveOpportunitySourceText({
@@ -1014,7 +1091,12 @@ export class OpportunitiesService {
         location: opportunity.location,
         deadline: opportunity.close_date || opportunity.deadline,
         sourceUrl,
-        applyUrl: opportunity.application_url || opportunity.apply_url,
+        applyUrl:
+          opportunity.application_url ||
+          opportunity.apply_url ||
+          opportunity.applicationUrl ||
+          opportunity.applyUrl ||
+          opportunity.link,
         requirements: metadata.requirements,
         benefits: metadata.benefits,
         applicationProcess: metadata.application_process,
@@ -1242,7 +1324,15 @@ export class OpportunitiesService {
         metadata.application_process,
     );
 
-    const applicationUrl = input.applyUrl || input.sourceUrl || undefined;
+    const applicationUrl = pickOpportunityUrl(
+      input.applyUrl,
+      input.applicationUrl,
+      input.application_url,
+      input.apply_url,
+      input.link,
+      input.sourceUrl,
+      input.source_url,
+    );
     const now = new Date().toISOString();
     const payload: Record<string, unknown> = {
       title: input.title,
@@ -1320,6 +1410,7 @@ export class OpportunitiesService {
           input.apply_url ||
           input.applicationUrl ||
           input.applyUrl ||
+          input.link ||
           input.sourceUrl ||
           input.source_url ||
           "",
@@ -1479,12 +1570,16 @@ export class OpportunitiesService {
       item.url ||
       item.applyUrl ||
       item.apply_url ||
+      item.applicationUrl ||
+      item.application_url ||
+      item.link ||
       "";
     const applyUrl =
       item.applyUrl ||
       item.apply_url ||
       item.applicationUrl ||
       item.application_url ||
+      item.link ||
       "";
 
     return `You are Edutu's opportunity content enrichment API. Improve incomplete scholarship, fellowship, internship, grant, or program records for consistent app cards and detail pages.
@@ -1545,6 +1640,7 @@ ${sourceText || "No source page text was available. Improve wording only from st
       item.apply_url ||
       item.applicationUrl ||
       item.application_url ||
+      item.link ||
       "";
     if (!this.isSafeOpportunitySourceUrl(url)) return "";
 
@@ -1854,7 +1950,14 @@ ${sourceText || "No source page text was available. Improve wording only from st
         const prompt = this.buildOpportunityEnhancementPrompt(item, sourceText);
         const aiData = await this.generateOpportunityEnhancement(prompt, {
           title: item.title,
-          sourceUrl: item.sourceUrl || item.source_url || item.applyUrl,
+          sourceUrl:
+            item.sourceUrl ||
+            item.source_url ||
+            item.applyUrl ||
+            item.apply_url ||
+            item.applicationUrl ||
+            item.application_url ||
+            item.link,
           sourceTextLength: sourceText.length,
         });
 
@@ -1886,7 +1989,17 @@ ${sourceText || "No source page text was available. Improve wording only from st
     let inserted = 0;
     let skipped = 0;
 
-    const validItems = items.filter((item) => item.title && item.sourceUrl);
+    const validItems = items.filter(
+      (item) =>
+        item.title &&
+        (item.sourceUrl ||
+          item.source_url ||
+          item.applyUrl ||
+          item.apply_url ||
+          item.applicationUrl ||
+          item.application_url ||
+          item.link),
+    );
     skipped = items.length - validItems.length;
 
     if (validItems.length === 0) {
@@ -1933,8 +2046,21 @@ ${sourceText || "No source page text was available. Improve wording only from st
             targetRegion: item.targetRegion || null,
             eligibility,
             deadline: item.deadline || null,
-            sourceUrl: item.sourceUrl,
-            applyUrl: item.applyUrl || item.sourceUrl,
+            sourceUrl:
+              item.sourceUrl ||
+              item.source_url ||
+              item.applyUrl ||
+              item.apply_url ||
+              item.applicationUrl ||
+              item.application_url ||
+              item.link,
+            applyUrl:
+              item.applyUrl ||
+              item.applicationUrl ||
+              item.application_url ||
+              item.apply_url ||
+              item.link ||
+              item.sourceUrl,
             imageUrl: item.imageUrl || null,
             isRemote: item.isRemote ?? true,
             status: "pending",
@@ -1986,7 +2112,7 @@ ${sourceText || "No source page text was available. Improve wording only from st
           .single();
 
         if (!error && data) {
-          saved.push(data);
+          saved.push(withOpportunityUrlAliases(data as Record<string, any>));
           continue;
         }
 
@@ -2048,8 +2174,21 @@ ${sourceText || "No source page text was available. Improve wording only from st
         targetRegion: item.targetRegion || null,
         eligibility,
         deadline: item.deadline ? new Date(item.deadline) : null,
-        sourceUrl: item.sourceUrl,
-        applyUrl: item.applyUrl || item.sourceUrl,
+        sourceUrl:
+          item.sourceUrl ||
+          item.source_url ||
+          item.applyUrl ||
+          item.apply_url ||
+          item.applicationUrl ||
+          item.application_url ||
+          item.link,
+        applyUrl:
+          item.applyUrl ||
+          item.applicationUrl ||
+          item.application_url ||
+          item.apply_url ||
+          item.link ||
+          item.sourceUrl,
         imageUrl: item.imageUrl || null,
         tags: item.tags || [],
         isRemote: true,
@@ -2111,8 +2250,21 @@ ${sourceText || "No source page text was available. Improve wording only from st
               fundingType: item.fundingType || null,
               targetRegion: item.targetRegion || null,
               deadline: item.deadline ? new Date(item.deadline) : null,
-              sourceUrl: item.sourceUrl,
-              applyUrl: item.applyUrl || item.sourceUrl,
+              sourceUrl:
+                item.sourceUrl ||
+                item.source_url ||
+                item.applyUrl ||
+                item.apply_url ||
+                item.applicationUrl ||
+                item.application_url ||
+                item.link,
+              applyUrl:
+                item.applyUrl ||
+                item.applicationUrl ||
+                item.application_url ||
+                item.apply_url ||
+                item.link ||
+                item.sourceUrl,
               imageUrl: item.imageUrl || null,
               isRemote: true,
               status: "pending",
@@ -2124,7 +2276,9 @@ ${sourceText || "No source page text was available. Improve wording only from st
 
           if (result[0]) {
             inserted++;
-            savedOpportunities.push(result[0]);
+            savedOpportunities.push(
+              withOpportunityUrlAliases(result[0] as Record<string, any>),
+            );
           } else {
             skipped++;
           }

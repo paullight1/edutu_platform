@@ -128,13 +128,18 @@ export class OpportunityShareCardService {
   ): Promise<{ sharePdf: SharePdfResult | null; buffer: Buffer } | null> {
     if (!opportunity?.id) return null;
 
-    const prepared = await this.ensureSharePdfForOpportunity(opportunity, options);
+    const prepared = await this.ensureSharePdfForOpportunity(
+      opportunity,
+      options,
+    );
     if (prepared?.buffer) {
       return { sharePdf: prepared.sharePdf, buffer: prepared.buffer };
     }
 
     if (prepared?.sharePdf?.url) {
-      const cachedBuffer = await this.downloadBufferFromUrl(prepared.sharePdf.url);
+      const cachedBuffer = await this.downloadBufferFromUrl(
+        prepared.sharePdf.url,
+      );
       if (cachedBuffer) {
         return { sharePdf: prepared.sharePdf, buffer: cachedBuffer };
       }
@@ -228,7 +233,9 @@ export class OpportunityShareCardService {
     try {
       // Optional dependency: production installs sharp for PDF share cards.
       const sharp = require("sharp");
-      const jpeg = await sharp(Buffer.from(svg)).jpeg({ quality: 92 }).toBuffer();
+      const jpeg = await sharp(Buffer.from(svg))
+        .jpeg({ quality: 92 })
+        .toBuffer();
       return this.buildSingleImagePdf(jpeg, CARD_WIDTH, CARD_HEIGHT);
     } catch {
       return null;
@@ -316,7 +323,7 @@ export class OpportunityShareCardService {
   ${this.factGrid(facts)}
   ${this.section("Scholarship Reward / Benefits", benefits.length ? benefits : [this.funding(opportunity, benefits)], 78, 950)}
   ${this.section("Requirements", requirements.length ? requirements : ["Review the official eligibility criteria before applying."], 78, 1160)}
-  ${this.applySection(application.length ? application : [opportunity.application_url || opportunity.apply_url || "Open this opportunity in Edutu and follow the application link."], 78, 1390)}
+  ${this.applySection(application.length ? application : [opportunity.application_url || opportunity.apply_url || opportunity.link || "Open this opportunity in Edutu and follow the application link."], 78, 1390)}
 </svg>`;
   }
 
@@ -412,7 +419,10 @@ export class OpportunityShareCardService {
     addText("%PDF-1.4\n");
 
     addObject(1, Buffer.from("<< /Type /Catalog /Pages 2 0 R >>", "utf8"));
-    addObject(2, Buffer.from("<< /Type /Pages /Kids [3 0 R] /Count 1 >>", "utf8"));
+    addObject(
+      2,
+      Buffer.from("<< /Type /Pages /Kids [3 0 R] /Count 1 >>", "utf8"),
+    );
     addObject(
       3,
       Buffer.from(
@@ -428,8 +438,14 @@ export class OpportunityShareCardService {
     const imageFooter = Buffer.from("\nendstream", "utf8");
     addObject(4, Buffer.concat([imageHeader, imageBytes, imageFooter]));
 
-    const contentStream = Buffer.from(`q\n${width} 0 0 ${height} 0 0 cm\n/Im0 Do\nQ`, "utf8");
-    const contentHeader = Buffer.from(`<< /Length ${contentStream.length} >>\nstream\n`, "utf8");
+    const contentStream = Buffer.from(
+      `q\n${width} 0 0 ${height} 0 0 cm\n/Im0 Do\nQ`,
+      "utf8",
+    );
+    const contentHeader = Buffer.from(
+      `<< /Length ${contentStream.length} >>\nstream\n`,
+      "utf8",
+    );
     const contentFooter = Buffer.from("\nendstream", "utf8");
     addObject(5, Buffer.concat([contentHeader, contentStream, contentFooter]));
 

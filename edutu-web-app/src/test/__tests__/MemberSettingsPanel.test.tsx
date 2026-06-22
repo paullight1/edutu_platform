@@ -60,6 +60,7 @@ describe("MemberSettingsPanel", () => {
     serviceMocks.savePrivacySettings.mockReset();
     clerkMocks.getToken.mockClear();
     clerkMocks.getToken.mockResolvedValue("token-123");
+    window.Clerk = undefined;
     serviceMocks.getUserSettings.mockResolvedValue(settingsFixture);
     serviceMocks.savePrivacySettings.mockResolvedValue({ success: true });
   });
@@ -67,9 +68,11 @@ describe("MemberSettingsPanel", () => {
   it("loads privacy settings and saves profile visibility changes", async () => {
     render(<MemberSettingsPanel onOpenNotifications={vi.fn()} />);
 
-    const visibility = await screen.findByLabelText(/profile visibility/i);
-    fireEvent.change(visibility, { target: { value: "private" } });
-    fireEvent.click(screen.getByRole("button", { name: /save privacy/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /profile visibility/i }));
+    fireEvent.click(await screen.findByRole("radio", { name: /private/i }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /save privacy changes/i }),
+    );
 
     await waitFor(() => {
       expect(serviceMocks.savePrivacySettings).toHaveBeenCalledWith(
@@ -92,5 +95,19 @@ describe("MemberSettingsPanel", () => {
     );
 
     expect(openNotifications).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens sign-in security from settings", async () => {
+    const openUserProfile = vi.fn();
+    window.Clerk = { openUserProfile };
+
+    render(<MemberSettingsPanel onOpenNotifications={vi.fn()} />);
+
+    await screen.findByText("Inbox and reminders");
+    fireEvent.click(
+      screen.getByRole("button", { name: /sign-in security/i }),
+    );
+
+    expect(openUserProfile).toHaveBeenCalledTimes(1);
   });
 });

@@ -36,6 +36,7 @@ type OpportunityRow = {
   external_url?: string | null;
   application_url?: string | null;
   apply_url?: string | null;
+  link?: string | null;
   image_url?: string | null;
   requirements?: string[] | null;
   skills?: string[] | null;
@@ -236,8 +237,8 @@ export class ChatService {
           systemInstruction:
             "You are Edutu Coach. Never mention model providers. Return concise JSON only.",
           responseMimeType: "application/json",
-      temperature: 0.1,
-      maxOutputTokens: 220,
+          temperature: 0.1,
+          maxOutputTokens: 220,
           metadata: { source: "mobile-chat", userId },
         });
         finalAnswer = this.parseCoachResponse(aiResult.text || "").message;
@@ -709,6 +710,7 @@ ${input.message}`;
       opportunity.external_url ||
       opportunity.application_url ||
       opportunity.apply_url ||
+      opportunity.link ||
       null
     );
   }

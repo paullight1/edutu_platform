@@ -1,63 +1,132 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  fetchNotifications,
+  getNotificationPreferences,
+} from "../../services/notifications";
 
-const query = vi.hoisted(() => {
-  const state = {
-    eq: vi.fn(),
-    lt: vi.fn(),
-    limit: vi.fn(),
-    order: vi.fn(),
-    select: vi.fn(),
-  };
-
-  state.select.mockReturnValue(state);
-  state.eq.mockReturnValue(state);
-  state.order.mockReturnValue(state);
-  state.limit.mockResolvedValue({ data: [], error: null });
-  state.lt.mockReturnValue(state);
-
-  return state;
-});
-
-const supabaseFrom = vi.hoisted(() => vi.fn(() => query));
-
-vi.mock("../../lib/supabaseClient", () => ({
-  supabase: {
-    from: supabaseFrom,
-  },
+vi.mock("../../lib/apiBaseUrl", () => ({
+  getApiBaseUrl: vi.fn(() => "https://api.edutu.test"),
 }));
 
-import { fetchNotifications } from "../../services/notifications";
-import { toDatabaseUserId } from "../../lib/userId";
+vi.mock("../../lib/localDevAuthHeaders", () => ({
+  getLocalDevAuthHeaders: vi.fn(() => ({
+    "X-Edutu-Admin-Email": "tester@edutu.ai",
+  })),
+}));
+
+function jsonResponse(body: unknown, status = 200) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: vi.fn().mockResolvedValue(body),
+    text: vi.fn().mockResolvedValue(JSON.stringify(body)),
+  };
+}
 
 describe("notification service", () => {
   beforeEach(() => {
-    supabaseFrom.mockClear();
-    query.select.mockClear();
-    query.eq.mockClear();
-    query.order.mockClear();
-    query.limit.mockClear();
-    query.lt.mockClear();
-    query.select.mockReturnValue(query);
-    query.eq.mockReturnValue(query);
-    query.order.mockReturnValue(query);
-    query.limit.mockResolvedValue({ data: [], error: null });
-    query.lt.mockReturnValue(query);
+    vi.unstubAllGlobals();
   });
 
-  it("requires a user id when using the Supabase fallback", async () => {
+  it("requires an auth token before loading notifications", async () => {
     await expect(fetchNotifications()).rejects.toThrow(
-      "User must be signed in to load notifications.",
+      "Sign in again to load notifications.",
+    );
+  });
+
+  it("loads and maps notifications from the API", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse([
+        {
+          id: "notice-1",
+          user_id: "user_123",
+          kind: "opportunity-highlight",
+          title: "New scholarship match",
+          body: "A saved search has a fresh opportunity.",
+          severity: "info",
+          metadata: { source: "saved-search" },
+          dedupe_key: "dedupe-1",
+          channel_status: null,
+          created_at: "2026-06-18T10:00:00.000Z",
+          read_at: null,
+        },
+      ]),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const notifications = await fetchNotifications(
+      { limit: 10, cursor: "cursor-1" },
+      "token-123",
     );
 
-    expect(supabaseFrom).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.edutu.test/notifications?limit=10&cursor=cursor-1",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer token-123",
+          "X-Edutu-Admin-Email": "tester@edutu.ai",
+        }),
+      }),
+    );
+    expect(notifications).toEqual([
+      {
+        id: "notice-1",
+        kind: "opportunity-highlight",
+        title: "New scholarship match",
+        body: "A saved search has a fresh opportunity.",
+        severity: "info",
+        metadata: { source: "saved-search" },
+        dedupeKey: "dedupe-1",
+        createdAt: "2026-06-18T10:00:00.000Z",
+        readAt: null,
+      },
+    ]);
   });
 
-  it("filters Supabase fallback notifications to the current member", async () => {
-    const userId = "user_123";
+  it("returns default preferences when no user id is supplied", async () => {
+    await expect(getNotificationPreferences("")).resolves.toMatchObject({
+      pushNotifications: true,
+      emailNotifications: false,
+      opportunityAlerts: true,
+      deadlineReminders: true,
+      goalReminders: true,
+      achievementCelebrations: true,
+      weeklyDigest: false,
+      marketingEmails: false,
+      quietHours: { start: "22:00", end: "08:00" },
+    });
+  });
 
-    await fetchNotifications({ userId });
+  it("normalizes notification preferences from the API", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        push_notifications: 0,
+        emailNotifications: 1,
+        opportunity_alerts: false,
+        deadlineReminders: 1,
+        goal_reminders: 0,
+        achievementCelebrations: true,
+        weekly_digest: 1,
+        marketing_emails: false,
+        quiet_hours: { start: "21:00", end: "07:00" },
+        updated_at: "2026-06-18T10:00:00.000Z",
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
 
-    expect(supabaseFrom).toHaveBeenCalledWith("notifications");
-    expect(query.eq).toHaveBeenCalledWith("user_id", toDatabaseUserId(userId));
+    await expect(
+      getNotificationPreferences("user_123", "token-123"),
+    ).resolves.toEqual({
+      pushNotifications: false,
+      emailNotifications: true,
+      opportunityAlerts: false,
+      deadlineReminders: true,
+      goalReminders: false,
+      achievementCelebrations: true,
+      weeklyDigest: true,
+      marketingEmails: false,
+      quietHours: { start: "21:00", end: "07:00" },
+      updatedAt: "2026-06-18T10:00:00.000Z",
+    });
   });
 });
