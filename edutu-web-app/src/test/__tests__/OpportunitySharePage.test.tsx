@@ -14,6 +14,11 @@ vi.mock("@clerk/clerk-react", () => ({
     isSignedIn: false,
     getToken: vi.fn().mockResolvedValue("token-123"),
   }),
+  useUser: () => ({
+    isLoaded: true,
+    isSignedIn: false,
+    user: null,
+  }),
   useClerk: () => ({
     signOut: vi.fn(),
   }),
@@ -78,14 +83,12 @@ describe("OpportunitySharePage", () => {
       await screen.findByText("Global Leadership Fellowship"),
     ).toBeInTheDocument();
 
-    await waitFor(() => {
-      expect(
-        screen.getByRole("link", { name: /sign in to continue/i }),
-      ).toHaveAttribute("href", "/auth?mode=sign-in");
-    });
-
+    expect(screen.getByRole("link", { name: /sign in/i })).toHaveAttribute(
+      "href",
+      "/auth?mode=sign-in",
+    );
     expect(
-      screen.getByRole("link", { name: /open member view/i }),
-    ).toHaveAttribute("href", "/opportunity/opp-123");
+      screen.getByRole("link", { name: /browse opportunities/i }),
+    ).toHaveAttribute("href", "/opportunities");
   });
 });

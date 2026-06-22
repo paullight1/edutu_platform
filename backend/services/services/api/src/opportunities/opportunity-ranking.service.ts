@@ -299,7 +299,12 @@ export class OpportunityRankingService {
     const targetRegion =
       row.target_region || row.targetRegion || row.location || null;
     const deadline = row.deadline || row.close_date || null;
-    const applyUrl = row.apply_url || row.application_url || null;
+    const applyUrl =
+      row.link ||
+      row.apply_url ||
+      row.application_url ||
+      row.metadata?.link ||
+      null;
     const isRemote =
       row.is_remote ??
       row.isRemote ??

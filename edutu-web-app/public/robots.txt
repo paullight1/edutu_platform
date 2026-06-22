@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://www.edutu.org/sitemap.xml
+Sitemap: https://edutu.ai/sitemap.xml

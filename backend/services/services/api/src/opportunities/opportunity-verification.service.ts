@@ -19,6 +19,7 @@ type CandidateRow = {
   status: string | null;
   apply_url: string | null;
   application_url: string | null;
+  link: string | null;
   source_url: string | null;
   deadline: string | Date | null;
   close_date: string | Date | null;
@@ -384,7 +385,10 @@ export class OpportunityVerificationService {
 
   private preferredUrl(candidate: CandidateRow) {
     const raw =
-      candidate.apply_url || candidate.application_url || candidate.source_url;
+      candidate.apply_url ||
+      candidate.application_url ||
+      candidate.link ||
+      candidate.source_url;
     if (!raw) return null;
 
     try {

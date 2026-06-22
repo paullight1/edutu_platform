@@ -99,6 +99,10 @@ Object.defineProperty(URL, 'revokeObjectURL', {
 // Mock import.meta.env
 vi.stubEnv('VITE_SUPABASE_URL', 'https://test.supabase.co');
 vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'test-anon-key');
+vi.stubEnv('VITE_BACKEND_URL', 'https://api.edutu.test');
+vi.stubEnv('VITE_API_URL', 'https://api.edutu.test');
+vi.stubEnv('VITE_PUBLIC_SITE_URL', 'https://www.edutu.test');
+vi.stubEnv('VITE_WEB_APP_URL', 'https://app.edutu.test');
 vi.stubEnv('MODE', 'test');
 
 // Console mocking to reduce test output noise

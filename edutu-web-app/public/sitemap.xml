@@ -1,368 +1,80 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://www.edutu.org/</loc>
-    <lastmod>2026-06-20</lastmod>
+    <loc>https://edutu.ai/</loc>
+    <lastmod>2026-06-22</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://www.edutu.org/opportunities</loc>
-    <lastmod>2026-06-20</lastmod>
+    <loc>https://edutu.ai/opportunities</loc>
+    <lastmod>2026-06-22</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://www.edutu.org/events</loc>
-    <lastmod>2026-06-20</lastmod>
+    <loc>https://edutu.ai/events</loc>
+    <lastmod>2026-06-22</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://www.edutu.org/opportunity/01729002-7b77-4f5d-97b7-2adb33c0b2ac</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/01d24a10-393c-40b4-8ac3-be848bb9b9fd</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/091fdb43-b1e4-47b4-b3c4-6aba9bb93506</loc>
-    <lastmod>2026-05-30</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/1</loc>
+    <loc>https://edutu.ai/opportunity/1</loc>
     <lastmod>2025-10-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://www.edutu.org/opportunity/10</loc>
-    <lastmod>2026-06-20</lastmod>
+    <loc>https://edutu.ai/opportunity/10</loc>
+    <lastmod>2026-06-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://www.edutu.org/opportunity/14658976-99b7-44f9-af72-a08ba081f565</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/14911055-09ad-440d-802b-15c07857737c</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/14fc39fb-ff11-4ba7-aafd-f7059a517cf3</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/18f8e5ed-cf62-4b1f-877b-50db13ec8fe1</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/1d8a7c54-f255-4c62-a30b-e61f83c239a8</loc>
-    <lastmod>2026-05-30</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/2</loc>
+    <loc>https://edutu.ai/opportunity/2</loc>
     <lastmod>2025-09-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://www.edutu.org/opportunity/2854a052-7993-4ad0-aa40-001c928564eb</loc>
-    <lastmod>2026-05-30</lastmod>
+    <loc>https://edutu.ai/opportunity/3</loc>
+    <lastmod>2026-06-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://www.edutu.org/opportunity/2ed3a2e1-cf88-44ae-8f90-8b3f9ad230cf</loc>
-    <lastmod>2026-06-04</lastmod>
+    <loc>https://edutu.ai/opportunity/4</loc>
+    <lastmod>2026-06-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://www.edutu.org/opportunity/3</loc>
-    <lastmod>2026-06-20</lastmod>
+    <loc>https://edutu.ai/opportunity/5</loc>
+    <lastmod>2026-06-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://www.edutu.org/opportunity/32a20eb0-87fe-4945-b642-f1fed27a4ad9</loc>
-    <lastmod>2026-06-04</lastmod>
+    <loc>https://edutu.ai/opportunity/6</loc>
+    <lastmod>2026-06-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://www.edutu.org/opportunity/394ec9ae-3e0b-4d10-82ac-5458ca228e9b</loc>
-    <lastmod>2026-05-30</lastmod>
+    <loc>https://edutu.ai/opportunity/7</loc>
+    <lastmod>2026-06-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://www.edutu.org/opportunity/3cbe6346-9c96-4fec-885e-8d920ab509d7</loc>
-    <lastmod>2026-06-04</lastmod>
+    <loc>https://edutu.ai/opportunity/8</loc>
+    <lastmod>2026-06-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://www.edutu.org/opportunity/4</loc>
-    <lastmod>2026-06-20</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/5</loc>
-    <lastmod>2026-06-20</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/5479d1b0-6b77-41ee-ac54-922ab7827330</loc>
-    <lastmod>2026-06-19</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/57bfd2d0-1bb3-4ab1-84c7-81f93b74fb27</loc>
-    <lastmod>2026-05-30</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/5d0840bd-1b00-4788-bf15-f7caf5af5ab8</loc>
-    <lastmod>2026-05-30</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/6</loc>
-    <lastmod>2026-06-20</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/6349fd7b-d5db-4064-ac60-67ad4b462c5f</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/68e1f870-fd10-4105-a4b9-f9a42314de7a</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/7</loc>
-    <lastmod>2026-06-20</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/70388aed-88d8-4642-8d04-b24f0ac11e83</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/72e91e4b-eafb-45a1-b8be-6ddf0e6df3d9</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/77fc02f3-17eb-4854-a076-c2f74c713721</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/7a8708ea-88d5-4fbf-8fc7-f0c7d2374ce5</loc>
-    <lastmod>2026-05-30</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/7d9e5779-b24c-4a11-b67a-9b5d85414ce5</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/8</loc>
-    <lastmod>2026-06-20</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/8441f773-e541-4f56-9cc7-4a29abb51b42</loc>
-    <lastmod>2026-06-19</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/84f51681-27b7-4132-976a-a454ec2f6514</loc>
-    <lastmod>2026-05-30</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/8b44c2fb-8039-445a-9594-189834225623</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/8c1147e3-2df7-41fb-aae5-051343477642</loc>
-    <lastmod>2026-05-30</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/8e38ea95-7617-489e-bd6b-42b478606fc0</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/8ee2a157-b2af-4bc0-a7ac-fe1273b8094c</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/9</loc>
-    <lastmod>2026-06-20</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/92d7df4c-d7da-4957-801d-3aaaa36c88b7</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/9c9d72b5-e4a3-4ac2-ad41-63f3626c14a3</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/9d44405b-efa9-4e0a-88dd-86d3a52af854</loc>
-    <lastmod>2026-05-30</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/a0435619-3f2e-4370-b70f-572678b8cf1f</loc>
-    <lastmod>2026-05-30</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/aa2ce304-8f97-46e9-adc2-d7e3a1c00a4c</loc>
-    <lastmod>2026-05-30</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/af37906d-9351-4630-9992-c20604820cf4</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/b510acc5-b762-4a9b-b365-6d305382583e</loc>
-    <lastmod>2026-05-30</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/b672ceed-c656-4b6c-85f5-cc6e40bf4bf6</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/b7981bb5-03c7-48a5-ab6e-03f6bb9237ca</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/b7fbf8f9-7cad-45c6-bcf9-bb9682ac7910</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/c49cc46c-8318-4e10-8de8-c5caf81e2cb8</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/cba0c440-3960-4984-9132-52c7bb52b059</loc>
-    <lastmod>2026-05-30</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/d37380f8-1acc-4684-bcdb-fd30020f46f4</loc>
-    <lastmod>2026-05-30</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/da76bc8f-ecfc-491c-86df-886de459af6d</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/e0239a07-0938-407a-8fb1-ee3899663b7b</loc>
-    <lastmod>2026-05-30</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/e050846c-4cb0-4c9e-b79b-d6b4a9b60ea4</loc>
-    <lastmod>2026-06-04</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/e6e2479f-62a2-42ba-bb24-e2fe72385b48</loc>
-    <lastmod>2026-05-30</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/e87cdebe-1ddb-4e55-b392-ff0db3dc6094</loc>
-    <lastmod>2026-06-19</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://www.edutu.org/opportunity/ede6f2e4-dfa5-44d0-ad44-971dd5b65aaf</loc>
-    <lastmod>2026-05-31</lastmod>
+    <loc>https://edutu.ai/opportunity/9</loc>
+    <lastmod>2026-06-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
