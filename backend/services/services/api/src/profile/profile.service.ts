@@ -233,11 +233,67 @@ export class ProfileService {
       updateData.country = dto.country ?? null;
     }
 
+    if (Object.prototype.hasOwnProperty.call(dto, "school")) {
+      updateData.school = dto.school ?? null;
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(dto, "courseOfStudy") ||
+      Object.prototype.hasOwnProperty.call(dto, "major")
+    ) {
+      updateData.major = dto.courseOfStudy ?? dto.major ?? null;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(dto, "degree")) {
+      updateData.degree = dto.degree ?? null;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(dto, "cgpa")) {
+      updateData.cgpa = dto.cgpa == null ? null : String(dto.cgpa);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(dto, "gradYear")) {
+      updateData.gradYear = dto.gradYear ?? null;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(dto, "dateOfBirth")) {
+      updateData.dateOfBirth = dto.dateOfBirth ?? null;
+      updateData.age = this.calculateAge(dto.dateOfBirth);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(dto, "interestedCountries")) {
+      updateData.interestedCountries = dto.interestedCountries ?? null;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(dto, "interests")) {
+      updateData.interests = dto.interests ?? null;
+    }
+
     if (Object.prototype.hasOwnProperty.call(dto, "skills")) {
       updateData.skills = dto.skills ?? null;
     }
 
     return updateData;
+  }
+
+  private calculateAge(dateOfBirth?: string | null) {
+    if (!dateOfBirth) return null;
+
+    const birthDate = new Date(`${dateOfBirth}T00:00:00.000Z`);
+    if (Number.isNaN(birthDate.getTime())) return null;
+
+    const today = new Date();
+    let age = today.getUTCFullYear() - birthDate.getUTCFullYear();
+    const monthDelta = today.getUTCMonth() - birthDate.getUTCMonth();
+    const hasBirthdayPassed =
+      monthDelta > 0 ||
+      (monthDelta === 0 && today.getUTCDate() >= birthDate.getUTCDate());
+
+    if (!hasBirthdayPassed) {
+      age -= 1;
+    }
+
+    return age >= 0 && age <= 130 ? age : null;
   }
 
   private defaultSettings() {
@@ -327,6 +383,15 @@ export class ProfileService {
     return {
       fullName: profile.fullName,
       country: profile.country,
+      school: profile.school,
+      courseOfStudy: profile.major,
+      degree: profile.degree,
+      cgpa: profile.cgpa,
+      gradYear: profile.gradYear,
+      dateOfBirth: profile.dateOfBirth,
+      age: profile.age,
+      interestedCountries: profile.interestedCountries ?? [],
+      interests: profile.interests ?? [],
       skills: profile.skills ?? [],
       createdAt: profile.createdAt,
       updatedAt: profile.updatedAt,
@@ -476,6 +541,36 @@ export class ProfileService {
         key: "country",
         label: "Country",
         complete: Boolean(profile.country?.trim()),
+      },
+      {
+        key: "school",
+        label: "School",
+        complete: Boolean(profile.school?.trim()),
+      },
+      {
+        key: "courseOfStudy",
+        label: "Course of study",
+        complete: Boolean(profile.major?.trim()),
+      },
+      {
+        key: "cgpa",
+        label: "CGPA",
+        complete: Boolean(profile.cgpa),
+      },
+      {
+        key: "dateOfBirth",
+        label: "Date of birth",
+        complete: Boolean(profile.dateOfBirth),
+      },
+      {
+        key: "interestedCountries",
+        label: "Interested countries",
+        complete: Boolean(profile.interestedCountries?.length),
+      },
+      {
+        key: "interests",
+        label: "Interest tags",
+        complete: Boolean(profile.interests?.length),
       },
       {
         key: "skills",

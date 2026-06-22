@@ -18,8 +18,20 @@ export const profiles = pgTable("profiles", {
   fullName: text("full_name"),
   email: text("email"),
   role: text("role").default("user"), // 'user', 'admin', 'moderator'
+  age: integer("age"),
   country: text("country"),
+  school: text("school"),
+  major: text("major"),
+  degree: text("degree"),
+  cgpa: numeric("cgpa"),
+  gradYear: integer("grad_year"),
+  dateOfBirth: date("date_of_birth"),
+  interestedCountries: text("interested_countries").array(),
+  interests: text("interests").array(),
   skills: text("skills").array(), // PostgreSQL array of text
+  preferences: jsonb("preferences")
+    .$type<Record<string, unknown>>()
+    .default({}),
   creditsBalance: integer("credits_balance").default(0), // In-app credits currency
   creatorStatus: text("creator_status").default("none"), // 'none', 'pending', 'approved', 'rejected'
   creatorMetadata: jsonb("creator_metadata")

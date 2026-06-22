@@ -45,6 +45,16 @@ export const RecommendationQuerySchema = z.object({
       interests: z.array(z.string()).nullable().optional(),
       fieldOfStudy: z.string().nullable().optional(),
       field_of_study: z.string().nullable().optional(),
+      courseOfStudy: z.string().nullable().optional(),
+      major: z.string().nullable().optional(),
+      school: z.string().nullable().optional(),
+      degree: z.string().nullable().optional(),
+      cgpa: z.union([z.number(), z.string()]).nullable().optional(),
+      age: z.number().int().nullable().optional(),
+      dateOfBirth: z.string().nullable().optional(),
+      date_of_birth: z.string().nullable().optional(),
+      interestedCountries: z.array(z.string()).nullable().optional(),
+      interested_countries: z.array(z.string()).nullable().optional(),
     })
     .nullable()
     .optional(),

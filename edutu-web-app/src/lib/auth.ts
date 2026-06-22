@@ -1,8 +1,8 @@
-import { supabase } from './supabaseClient';
-import type { AppUser } from '../types/user';
-import type { OnboardingState } from '../types/onboarding';
+import { supabase } from "./supabaseClient";
+import type { AppUser } from "../types/user";
+import type { OnboardingState } from "../types/onboarding";
 
-const POST_AUTH_REDIRECT_KEY = 'edutu_post_auth_from';
+const POST_AUTH_REDIRECT_KEY = "edutu_post_auth_from";
 
 export interface AuthRedirectSource {
   pathname?: string | null;
@@ -26,18 +26,34 @@ type ClerkLikeUser = {
 type ClerkLike = {
   user?: ClerkLikeUser | null;
   signOut?: () => Promise<void>;
+  openUserProfile?: () => void;
   setActive?: (params: { session: string }) => Promise<void>;
   signIn?: {
-    create: (params: { strategy: 'reset_password_email_code'; identifier: string }) => Promise<unknown>;
+    create: (params: {
+      strategy: "reset_password_email_code";
+      identifier: string;
+    }) => Promise<unknown>;
     attemptFirstFactor: (params: {
-      strategy: 'reset_password_email_code';
+      strategy: "reset_password_email_code";
       code: string;
       password: string;
-    }) => Promise<{ status?: string; createdUserId?: string | null; createdSessionId?: string | null }>;
+    }) => Promise<{
+      status?: string;
+      createdUserId?: string | null;
+      createdSessionId?: string | null;
+    }>;
   };
   signUp?: {
-    attemptEmailAddressVerification: (params: { code: string }) => Promise<{ status?: string; createdUserId?: string | null; createdSessionId?: string | null }>;
-    prepareEmailAddressVerification: (params: { strategy: 'email_code' }) => Promise<unknown>;
+    attemptEmailAddressVerification: (params: {
+      code: string;
+    }) => Promise<{
+      status?: string;
+      createdUserId?: string | null;
+      createdSessionId?: string | null;
+    }>;
+    prepareEmailAddressVerification: (params: {
+      strategy: "email_code";
+    }) => Promise<unknown>;
   };
 };
 
@@ -83,18 +99,21 @@ export type UserProfileUpdate = {
 function splitFullName(fullName: string) {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   const firstName = parts.shift();
-  const lastName = parts.length > 0 ? parts.join(' ') : undefined;
+  const lastName = parts.length > 0 ? parts.join(" ") : undefined;
   return { firstName, lastName };
 }
 
-function normalizeRelativePath(path: string | null | undefined, fallback = '/opportunities'): string {
-  const trimmed = typeof path === 'string' ? path.trim() : '';
+function normalizeRelativePath(
+  path: string | null | undefined,
+  fallback = "/opportunities",
+): string {
+  const trimmed = typeof path === "string" ? path.trim() : "";
 
-  if (!trimmed || !trimmed.startsWith('/')) {
+  if (!trimmed || !trimmed.startsWith("/")) {
     return fallback;
   }
 
-  if (trimmed.startsWith('/auth')) {
+  if (trimmed.startsWith("/auth")) {
     return fallback;
   }
 
@@ -103,20 +122,21 @@ function normalizeRelativePath(path: string | null | undefined, fallback = '/opp
 
 export function resolvePostAuthRedirectPath(
   source?: AuthRedirectSource | null,
-  fallback = '/opportunities',
+  fallback = "/opportunities",
 ): string {
-  const pathname = typeof source?.pathname === 'string' ? source.pathname.trim() : '';
+  const pathname =
+    typeof source?.pathname === "string" ? source.pathname.trim() : "";
 
-  if (!pathname || !pathname.startsWith('/')) {
+  if (!pathname || !pathname.startsWith("/")) {
     return fallback;
   }
 
-  if (pathname.startsWith('/auth')) {
+  if (pathname.startsWith("/auth")) {
     return fallback;
   }
 
-  const search = typeof source?.search === 'string' ? source.search : '';
-  const hash = typeof source?.hash === 'string' ? source.hash : '';
+  const search = typeof source?.search === "string" ? source.search : "";
+  const hash = typeof source?.hash === "string" ? source.hash : "";
   const rawPath = `${pathname}${search}${hash}`;
   const shareMatch = rawPath.match(/^\/share\/opportunity\/([^/?#]+)/);
 
@@ -127,25 +147,27 @@ export function resolvePostAuthRedirectPath(
   return normalizeRelativePath(rawPath, fallback);
 }
 
-export function rememberPostAuthRedirect(source?: AuthRedirectSource | null): string | null {
-  const target = resolvePostAuthRedirectPath(source, '');
+export function rememberPostAuthRedirect(
+  source?: AuthRedirectSource | null,
+): string | null {
+  const target = resolvePostAuthRedirectPath(source, "");
 
   if (!target) {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       window.sessionStorage.removeItem(POST_AUTH_REDIRECT_KEY);
     }
     return null;
   }
 
-  if (typeof window !== 'undefined') {
+  if (typeof window !== "undefined") {
     window.sessionStorage.setItem(POST_AUTH_REDIRECT_KEY, target);
   }
 
   return target;
 }
 
-export function consumePostAuthRedirect(fallback = '/opportunities'): string {
-  if (typeof window === 'undefined') {
+export function consumePostAuthRedirect(fallback = "/opportunities"): string {
+  if (typeof window === "undefined") {
     return fallback;
   }
 
@@ -160,22 +182,28 @@ function appUserFromClerkUser(user: ClerkLikeUser): AppUser {
   const metadata = user.unsafeMetadata ?? {};
   const rawAge = metadata.age;
   const parsedAge =
-    typeof rawAge === 'number' && Number.isFinite(rawAge)
+    typeof rawAge === "number" && Number.isFinite(rawAge)
       ? rawAge
-      : typeof rawAge === 'string' && rawAge.trim()
+      : typeof rawAge === "string" && rawAge.trim()
         ? Number.parseInt(rawAge, 10)
         : null;
 
   const courseOfStudy =
-    typeof metadata.course_of_study === 'string' && metadata.course_of_study.trim()
+    typeof metadata.course_of_study === "string" &&
+    metadata.course_of_study.trim()
       ? metadata.course_of_study.trim()
       : undefined;
 
   return {
     id: user.id,
-    name: user.fullName || user.username || (email ? email.split('@')[0] : 'New Edutu member'),
+    name:
+      user.fullName ||
+      user.username ||
+      (email ? email.split("@")[0] : "New Edutu member"),
     email,
-    ...(Number.isFinite(parsedAge) && parsedAge !== null ? { age: parsedAge as number } : {}),
+    ...(Number.isFinite(parsedAge) && parsedAge !== null
+      ? { age: parsedAge as number }
+      : {}),
     ...(courseOfStudy ? { courseOfStudy } : {}),
   };
 }
@@ -189,7 +217,7 @@ export const authService = {
   async updateUserProfile(updates: UserProfileUpdate): Promise<void> {
     const clerkUser = window.Clerk?.user;
     if (!clerkUser?.update) {
-      throw new Error('Clerk user profile is not available.');
+      throw new Error("Clerk user profile is not available.");
     }
 
     const nextMetadata = {
@@ -198,7 +226,8 @@ export const authService = {
     };
 
     const displayName = updates.full_name ?? updates.name;
-    const nameParts = typeof displayName === 'string' ? splitFullName(displayName) : {};
+    const nameParts =
+      typeof displayName === "string" ? splitFullName(displayName) : {};
 
     await clerkUser.update({
       ...nameParts,
@@ -212,12 +241,12 @@ export const authService = {
 
   async getProfile(userId: string): Promise<Profile | null> {
     const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('user_id', userId)
+      .from("profiles")
+      .select("*")
+      .eq("user_id", userId)
       .single();
     if (error) {
-      if ('code' in error && error.code === 'PGRST116') return null;
+      if ("code" in error && error.code === "PGRST116") return null;
       throw error;
     }
     return data as Profile | null;
@@ -230,8 +259,8 @@ export const authService = {
     };
 
     const { data, error } = await supabase
-      .from('profiles')
-      .upsert([payload], { onConflict: 'user_id' })
+      .from("profiles")
+      .upsert([payload], { onConflict: "user_id" })
       .select()
       .single();
     if (error) throw error;
@@ -244,9 +273,9 @@ export const authService = {
     delete rest.created_at;
     delete rest.updated_at;
     const { data, error } = await supabase
-      .from('profiles')
+      .from("profiles")
       .update({ ...rest, updated_at: new Date().toISOString() })
-      .eq('user_id', userId)
+      .eq("user_id", userId)
       .select()
       .single();
     if (error) throw error;
@@ -258,34 +287,39 @@ export function getProfileFromUser(user: any): AppUser | null {
   if (!user) return null;
   const metadata = user.user_metadata ?? {};
   const resolvedName =
-    (typeof metadata.full_name === 'string' && metadata.full_name.trim()) ||
-    (typeof metadata.name === 'string' && metadata.name.trim()) ||
-    (user.email ? user.email.split('@')[0] : null) ||
-    'New Edutu member';
+    (typeof metadata.full_name === "string" && metadata.full_name.trim()) ||
+    (typeof metadata.name === "string" && metadata.name.trim()) ||
+    (user.email ? user.email.split("@")[0] : null) ||
+    "New Edutu member";
   const rawAge = metadata.age;
   const parsedAge =
-    typeof rawAge === 'number' && Number.isFinite(rawAge)
+    typeof rawAge === "number" && Number.isFinite(rawAge)
       ? rawAge
-      : typeof rawAge === 'string' && rawAge.trim()
+      : typeof rawAge === "string" && rawAge.trim()
         ? Number.parseInt(rawAge, 10)
         : null;
   const rawCourse =
-    typeof metadata.course_of_study === 'string' && metadata.course_of_study.trim()
+    typeof metadata.course_of_study === "string" &&
+    metadata.course_of_study.trim()
       ? metadata.course_of_study.trim()
       : undefined;
   return {
     id: user.id,
     name: resolvedName,
     email: user.email ?? undefined,
-    ...(Number.isFinite(parsedAge) && parsedAge !== null ? { age: parsedAge as number } : {}),
-    ...(rawCourse ? { courseOfStudy: rawCourse } : {})
+    ...(Number.isFinite(parsedAge) && parsedAge !== null
+      ? { age: parsedAge as number }
+      : {}),
+    ...(rawCourse ? { courseOfStudy: rawCourse } : {}),
   };
 }
 
 export function isNewUser(profile: Profile | null, user: any): boolean {
   if (!user || !profile) return true;
   const userCreatedAt = new Date(user.created_at).getTime();
-  const profileCreatedAt = profile.created_at ? new Date(profile.created_at).getTime() : null;
+  const profileCreatedAt = profile.created_at
+    ? new Date(profile.created_at).getTime()
+    : null;
   if (!profileCreatedAt) return true;
   const timeDiff = Math.abs(userCreatedAt - profileCreatedAt);
   return timeDiff < 10000;
