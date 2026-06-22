@@ -1,5 +1,6 @@
 import type { Opportunity, OpportunityDifficulty } from "../types/opportunity";
 import { getApiBaseUrl } from "../lib/apiBaseUrl";
+import { normalizeExternalUrl } from "../lib/externalUrl";
 import { syncOpportunityInventorySnapshot } from "./analyticsAggregator";
 import { updateOpportunitiesInN8n } from "./n8nIntegration";
 import { productApiRequest } from "./productApi";
@@ -226,8 +227,14 @@ function pickStringValue(fallback: string, ...values: unknown[]): string {
 }
 
 function pickOpportunityUrl(...values: unknown[]): string | undefined {
-  const url = pickStringValue("", ...values);
-  return url || undefined;
+  for (const value of values) {
+    const url = normalizeExternalUrl(value);
+    if (url) {
+      return url;
+    }
+  }
+
+  return undefined;
 }
 
 function cleanOpportunityText(value: unknown): string {

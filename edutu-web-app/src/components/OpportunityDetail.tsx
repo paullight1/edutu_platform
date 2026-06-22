@@ -14,6 +14,7 @@ import {
 import { useAuth } from "@clerk/clerk-react";
 import { useToast } from "./ui/ToastProvider";
 import type { Opportunity } from "../types/opportunity";
+import { normalizeExternalUrl } from "../lib/externalUrl";
 import {
   addBookmark,
   removeBookmark,
@@ -190,7 +191,9 @@ function buildEligibilityItems(
   return Object.entries(eligibility)
     .map(([key, value]) => {
       const formattedValue = formatEligibilityValue(value);
-      return formattedValue ? `${formatEligibilityKey(key)}: ${formattedValue}` : "";
+      return formattedValue
+        ? `${formatEligibilityKey(key)}: ${formattedValue}`
+        : "";
     })
     .filter(Boolean);
 }
@@ -211,10 +214,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
 
   const currencySymbol = getCurrencySymbol(opportunity.currency);
   const currencyLabel = getCurrencyLabel(opportunity.currency);
-  const applyUrl =
-    opportunity.applyUrl && opportunity.applyUrl.length > 0
-      ? opportunity.applyUrl
-      : null;
+  const applyUrl = normalizeExternalUrl(opportunity.applyUrl) ?? null;
   const matchPercentage = Math.round(opportunity.match ?? 0);
   const difficultyLabel = opportunity.difficulty ?? "Medium";
   const applicantsCopy = opportunity.applicants
@@ -492,33 +492,26 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
     }
   };
 
-  const handleApply = async () => {
-    if (!applyUrl) return;
+  const handleApply = () => {
+    if (!userId) return;
 
-    if (!userId) {
-      navigate("/auth?mode=sign-in", { state: authState });
-      return;
-    }
+    void (async () => {
+      const token = await getToken().catch(() => null);
+      const tracked = await addApplication(
+        userId,
+        {
+          id: opportunity.id,
+          title: opportunity.title,
+          category: opportunity.category,
+        },
+        undefined,
+        token,
+      );
 
-    const token = await getToken().catch(() => null);
-    const tracked = await addApplication(
-      userId,
-      {
-        id: opportunity.id,
-        title: opportunity.title,
-        category: opportunity.category,
-      },
-      undefined,
-      token,
-    );
-
-    if (tracked) {
-      success("Application added to your tracker");
-    } else {
-      showError("Application link opened, but tracking could not be updated");
-    }
-
-    window.open(applyUrl, "_blank", "noopener,noreferrer");
+      if (tracked) {
+        success("Application added to your tracker");
+      }
+    })();
   };
 
   const factItems = [
@@ -633,9 +626,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
                     <Icon size={17} />
                   </span>
-                  <span className="sr-only">
-                    {label}
-                  </span>
+                  <span className="sr-only">{label}</span>
                   <span className="min-w-0 truncate text-sm font-semibold leading-snug text-slate-700 dark:text-slate-200">
                     {value}
                   </span>
@@ -687,46 +678,60 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
               </ol>
             </section>
 
-            {opportunity.tags?.filter((tag) => !PUBLIC_TAG_BLOCKLIST.has(tag.toLowerCase())).length ? (
+            {opportunity.tags?.filter(
+              (tag) => !PUBLIC_TAG_BLOCKLIST.has(tag.toLowerCase()),
+            ).length ? (
               <section className="space-y-3 border-t border-slate-200 pt-6 dark:border-white/10">
                 <h2 className="text-xl font-semibold text-slate-950 dark:text-white">
                   Tags
                 </h2>
                 <div className="flex flex-wrap gap-2">
                   {opportunity.tags
-                    .filter((tag) => !PUBLIC_TAG_BLOCKLIST.has(tag.toLowerCase()))
+                    .filter(
+                      (tag) => !PUBLIC_TAG_BLOCKLIST.has(tag.toLowerCase()),
+                    )
                     .map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center rounded-md border border-slate-200 px-3 py-1 text-sm text-slate-600 dark:border-white/10 dark:text-slate-300"
-                    >
-                      {tag}
-                    </span>
-                  ))}
+                      <span
+                        key={tag}
+                        className="inline-flex items-center rounded-md border border-slate-200 px-3 py-1 text-sm text-slate-600 dark:border-white/10 dark:text-slate-300"
+                      >
+                        {tag}
+                      </span>
+                    ))}
                 </div>
               </section>
             ) : null}
           </article>
 
           <aside className="space-y-5">
-            <section className={`${embedded ? "hidden lg:block" : ""} space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-950`}>
+            <section
+              className={`${embedded ? "hidden lg:block" : ""} space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-950`}
+            >
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                 Actions
               </p>
               <div className="flex flex-col gap-3">
-                <button
-                  type="button"
-                  onClick={handleApply}
-                  disabled={!applyUrl}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-md bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
-                >
-                  <ExternalLink size={16} />
-                  {applyUrl
-                    ? userId
-                      ? "Apply now"
-                      : "Sign in to apply"
-                    : "Application link unavailable"}
-                </button>
+                {applyUrl ? (
+                  <a
+                    href={applyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={handleApply}
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-md bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+                  >
+                    <ExternalLink size={16} />
+                    Apply now
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    className="inline-flex flex-1 cursor-not-allowed items-center justify-center gap-2 rounded-md bg-slate-950 px-4 py-3 text-sm font-semibold text-white opacity-50 dark:bg-white dark:text-slate-950"
+                  >
+                    <ExternalLink size={16} />
+                    Application link unavailable
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleShare}
@@ -764,21 +769,27 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
       {embedded ? (
         <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-slate-200 bg-white/95 px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 shadow-[0_-18px_40px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/95 lg:hidden">
           <div className="mx-auto flex max-w-3xl items-center gap-3">
-            <button
-              type="button"
-              onClick={handleApply}
-              disabled={!applyUrl}
-              className="inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-950"
-            >
-              <ExternalLink size={17} />
-              <span className="truncate">
-                {applyUrl
-                  ? userId
-                    ? "Apply now"
-                    : "Sign in to apply"
-                  : "Application unavailable"}
-              </span>
-            </button>
+            {applyUrl ? (
+              <a
+                href={applyUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={handleApply}
+                className="inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white transition active:scale-[0.98] dark:bg-white dark:text-slate-950"
+              >
+                <ExternalLink size={17} />
+                <span className="truncate">Apply now</span>
+              </a>
+            ) : (
+              <button
+                type="button"
+                disabled
+                className="inline-flex h-12 min-w-0 flex-1 cursor-not-allowed items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white opacity-50 dark:bg-white dark:text-slate-950"
+              >
+                <ExternalLink size={17} />
+                <span className="truncate">Application unavailable</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={handleBookmark}
