@@ -112,8 +112,7 @@ export class RoadmapsService {
     });
 
     return templates.filter(
-      (template) =>
-        Array.isArray(template.steps) && template.steps.length > 0,
+      (template) => Array.isArray(template.steps) && template.steps.length > 0,
     );
   }
 

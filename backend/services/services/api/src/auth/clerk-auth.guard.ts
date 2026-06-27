@@ -198,12 +198,14 @@ export class ClerkAuthGuard implements CanActivate {
 
     const uniqueKeys = Array.from(new Set(keys));
 
-    this.supabaseClients = uniqueKeys.map((key) => createClient(url, key, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    }));
+    this.supabaseClients = uniqueKeys.map((key) =>
+      createClient(url, key, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+      }),
+    );
 
     return this.supabaseClients;
   }

@@ -50,8 +50,13 @@ export class EdutuApiExceptionFilter implements ExceptionFilter {
               ? source.message
               : defaultMessage,
           status,
+          code: typeof source.code === "string" ? source.code : undefined,
           details: source.errors ?? source.error ?? undefined,
           quota: source.quota ?? undefined,
+          retryAfter:
+            typeof source.retryAfter === "number"
+              ? source.retryAfter
+              : undefined,
         },
         requestId: source.requestId ?? requestId,
       };

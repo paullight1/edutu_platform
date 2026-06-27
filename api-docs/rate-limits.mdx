@@ -1,0 +1,67 @@
+---
+title: Rate Limits & Quotas
+description: Per-minute throttling, monthly quotas, and credit metering.
+---
+
+# Rate Limits & Quotas
+
+Every authenticated request is subject to two independent controls:
+
+1. **Per-minute rate limit** — protects the service from bursts. Returns `429`.
+2. **Monthly quota** — the requests included in your plan each month. Returns `402`.
+3. **API credits** — metered per billable call; top up anytime. Returns `402`
+   when exhausted.
+
+## Default plan limits
+
+| | Requests / minute | Requests / month |
+|---|---|---|
+| Test (sandbox) | 30 | 250 |
+| Live — default | 60 | 1,000 |
+| Growth | higher | higher |
+
+Limits are configurable per project from the dashboard.
+
+## Response headers
+
+Every authenticated response includes headers describing the current window:
+
+| Header | Meaning |
+|---|---|
+| `X-RateLimit-Limit` | Max requests allowed in the current minute. |
+| `X-RateLimit-Remaining` | Requests remaining in the window. |
+| `X-RateLimit-Reset` | ISO timestamp when the window resets. |
+| `Retry-After` | Seconds to wait (only on `429`). |
+| `X-Edutu-Quota-Limit` | Monthly quota (or `unlimited`). |
+| `X-Edutu-Quota-Remaining` | Requests remaining this month. |
+| `X-Edutu-Quota-Reset` | ISO timestamp when the monthly quota resets. |
+| `X-Edutu-Credits-Remaining` | API credits remaining. |
+
+## Handling `429`
+
+Back off using `Retry-After` and add jitter. These endpoints are **free** (do not
+consume credits or count toward limits): `GET /v1/health` and `GET /v1/usage`.
+
+```json
+{
+  "error": {
+    "message": "Rate limit exceeded.",
+    "status": 429,
+    "code": "rate_limit_exceeded",
+    "retryAfter": 12
+  },
+  "requestId": "req_4f2a..."
+}
+```
+
+## Handling `402`
+
+A `402` means you have hit your monthly quota **or** run out of credits. Top up
+credits or upgrade from the dashboard. The response includes a `quota` object so
+you can tell which.
+
+<Note>
+The rate limit is enforced per-instance behind a load balancer, so effective
+limits may be slightly higher across replicas. For guaranteed-global limits,
+contact us about a dedicated tier.
+</Note>

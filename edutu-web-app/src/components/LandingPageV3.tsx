@@ -22,6 +22,8 @@ import { useOpportunities } from '../hooks/useOpportunities';
 import BentoBenefits from './BentoBenefits';
 import PublicHeader from './PublicHeader';
 
+const docsUrl = import.meta.env.VITE_DOCS_URL || 'https://docs.edutu.org';
+
 interface LandingPageProps {
     onGetStarted: () => void;
 }
@@ -345,44 +347,16 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         >
                             <button
                                 onClick={onGetStarted}
-                                className="inline-flex items-center gap-2 px-10 py-4 text-[16px] font-medium rounded cursor-pointer transition-all duration-200"
+                                className="inline-flex items-center gap-2 px-10 py-4 text-[16px] font-medium rounded-xl cursor-pointer transition-all duration-200 bg-brand-600 text-white hover:bg-brand-700 hover:-translate-y-0.5"
                                 style={{
-                                    backgroundColor: '#146ef5',
-                                    color: '#ffffff',
-                                    borderRadius: '4px',
                                     boxShadow: webflowShadow
-                                }}
-                                onMouseEnter={(e) => {
-                                    (e.target as HTMLElement).style.transform = 'translateY(-2px)';
-                                    (e.target as HTMLElement).style.backgroundColor = '#0055d4';
-                                }}
-                                onMouseLeave={(e) => {
-                                    (e.target as HTMLElement).style.transform = 'translateY(0)';
-                                    (e.target as HTMLElement).style.backgroundColor = '#146ef5';
                                 }}
                             >
                                 Join Edutu <ArrowRight size={16} />
                             </button>
                             <Link
                                 to="/download"
-                                className="inline-flex items-center gap-2 px-10 py-4 text-[16px] font-medium rounded cursor-pointer transition-all duration-200"
-                                style={{
-                                    backgroundColor: 'rgba(255,255,255,0.04)',
-                                    color: '#ffffff',
-                                    border: '1px solid rgba(255,255,255,0.34)',
-                                    borderRadius: '4px',
-                                    textDecoration: 'none'
-                                }}
-                                onMouseEnter={(e) => {
-                                    (e.target as HTMLElement).style.borderColor = 'rgba(255,255,255,0.6)';
-                                    (e.target as HTMLElement).style.backgroundColor = 'rgba(255,255,255,0.08)';
-                                    (e.target as HTMLElement).style.transform = 'translateX(6px)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    (e.target as HTMLElement).style.borderColor = 'rgba(255,255,255,0.34)';
-                                    (e.target as HTMLElement).style.backgroundColor = 'rgba(255,255,255,0.04)';
-                                    (e.target as HTMLElement).style.transform = 'translateX(0)';
-                                }}
+                                className="inline-flex items-center gap-2 px-10 py-4 text-[16px] font-medium rounded-xl cursor-pointer no-underline transition-all duration-200 border border-white/30 bg-white/[0.04] text-white hover:border-white/60 hover:bg-white/[0.08] hover:translate-x-1.5"
                             >
                                 Download app <ArrowRight size={16} />
                             </Link>
@@ -461,21 +435,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         <div className="mt-10 flex justify-center">
                             <Link
                                 to="/opportunities"
-                                className="inline-flex items-center gap-2 rounded px-5 py-3 text-[16px] font-medium no-underline transition-all duration-200"
-                                style={{
-                                    backgroundColor: 'transparent',
-                                    color: isDarkMode ? '#f5f5f5' : '#080808',
-                                    border: `1px solid ${isDarkMode ? '#363636' : '#d8d8d8'}`,
-                                    borderRadius: '4px',
-                                }}
-                                onMouseEnter={(e) => {
-                                    (e.currentTarget as HTMLElement).style.borderColor = '#898989';
-                                    (e.currentTarget as HTMLElement).style.transform = 'translateX(6px)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    (e.currentTarget as HTMLElement).style.borderColor = isDarkMode ? '#363636' : '#d8d8d8';
-                                    (e.currentTarget as HTMLElement).style.transform = 'translateX(0)';
-                                }}
+                                className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-[16px] font-medium no-underline transition-all duration-200 text-[#080808] dark:text-[#f5f5f5] border border-[#d8d8d8] dark:border-[#363636] hover:border-[#898989] hover:translate-x-1.5"
                             >
                                 Explore all opportunities <ArrowRight size={16} />
                             </Link>
@@ -713,13 +673,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
 
                             <Link
                                 to="/blog"
-                                className="inline-flex items-center gap-2 self-start rounded px-5 py-3 text-[16px] font-medium no-underline transition-all duration-200"
-                                style={{
-                                    backgroundColor: 'transparent',
-                                    color: isDarkMode ? '#f5f5f5' : '#080808',
-                                    border: `1px solid ${isDarkMode ? '#363636' : '#d8d8d8'}`,
-                                    borderRadius: '4px',
-                                }}
+                                className="inline-flex items-center gap-2 self-start rounded-xl px-5 py-3 text-[16px] font-medium no-underline transition-all duration-200 text-[#080808] dark:text-[#f5f5f5] border border-[#d8d8d8] dark:border-[#363636]"
                             >
                                 Read the blog <ArrowRight size={16} />
                             </Link>
@@ -946,9 +900,9 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                 muted
                                 loop
                                 playsInline
-                                preload="metadata"
+                                preload="auto"
                                 className="absolute inset-0 h-full w-full object-cover"
-                                style={{ filter: 'saturate(0.78) contrast(0.95) brightness(0.48)' }}
+                                style={{ filter: 'saturate(0.78) contrast(0.95) brightness(0.48)', backgroundColor: 'transparent' }}
                             />
                             <div
                                 className="absolute inset-0"
@@ -989,11 +943,9 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                         onClick={onGetStarted}
                                         whileHover={{ scale: 1.02 }}
                                         whileTap={{ scale: 0.98 }}
-                                        className="inline-flex items-center justify-center gap-2 rounded-xl px-8 py-3.5 text-sm font-bold"
+                                        className="inline-flex items-center justify-center gap-2 rounded-xl px-8 py-3.5 text-sm font-bold bg-brand-600 text-white hover:bg-brand-700"
                                         style={{
-                                            backgroundColor: '#146ef5',
-                                            color: '#ffffff',
-                                            boxShadow: '0 2px 8px rgba(20,110,245,0.25)',
+                                            boxShadow: '0 2px 8px rgba(79,70,229,0.25)',
                                         }}
                                     >
                                         Get Scholarship Matches
@@ -1064,8 +1016,8 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             </h4>
                             <div className="space-y-2 md:space-y-3">
                                 <Link to="/app/help" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Help Center</Link>
-                                <Link to="/docs" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Developer Docs</Link>
-                                <Link to="/scholarship-api" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Scholarship API</Link>
+                                <a href={docsUrl} className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Developer Docs</a>
+                                <Link to="/scholarship-engine" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Scholarship Engine</Link>
                                 <Link to="/admin" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Admin</Link>
                                 <Link to="/about" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Privacy Policy</Link>
                                 <Link to="/about" className="block text-[13px] md:text-[14px] transition-colors" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>Terms of Service</Link>

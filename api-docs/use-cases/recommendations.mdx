@@ -1,0 +1,48 @@
+---
+title: Recommendations
+description: Rank opportunities for a learner profile.
+---
+
+# Recommendations
+
+Send a learner profile to `POST /v1/recommendations` and receive ranked
+opportunities. This requires the `recommendations:read` scope and consumes API
+credits.
+
+## Example
+
+```json
+{
+  "preferences": {
+    "categories": ["scholarships", "fellowships"],
+    "regions": ["Africa", "Global"],
+    "level": "graduate",
+    "fundingTypes": ["fully_funded"]
+  },
+  "limit": 10
+}
+```
+
+Each returned opportunity includes a `match` score (0–1) plus `matchReasons`
+(why it fit) and `matchRisks` (caveats). Surface these to build trust with users.
+
+```json
+{
+  "object": "recommendation.list",
+  "data": [
+    {
+      "id": "opp_01H...",
+      "match": 0.92,
+      "matchReasons": ["Fully funded", "Matches target region"],
+      "matchRisks": ["Deadline in 9 days"]
+    }
+  ],
+  "meta": { "count": 1 }
+}
+```
+
+## Closing the loop
+
+Send `POST /v1/events` with `eventType` (`impression`, `view`, `click`, `save`,
+`apply`, `dismiss`) to measure conversion. Pair `opportunityId` with your
+`externalUserId` or `sessionId`. Requires the `events:write` scope and is free.

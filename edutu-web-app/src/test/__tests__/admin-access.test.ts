@@ -10,8 +10,8 @@ describe('isAdminAccessAllowed', () => {
   it('allows configured admin emails case-insensitively', () => {
     expect(
       isAdminAccessAllowed({
-        email: 'Founder@Edutu.ai',
-        allowedEmails: ['founder@edutu.ai'],
+        email: 'Founder@Edutu.org',
+        allowedEmails: ['founder@edutu.org'],
       })
     ).toBe(true);
   });
@@ -22,7 +22,7 @@ describe('isAdminAccessAllowed', () => {
         email: 'student@example.com',
         profileRole: 'user',
         publicRole: 'user',
-        allowedEmails: ['admin@edutu.ai'],
+        allowedEmails: ['admin@edutu.org'],
       })
     ).toBe(false);
   });

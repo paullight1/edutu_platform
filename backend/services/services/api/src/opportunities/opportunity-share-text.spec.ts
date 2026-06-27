@@ -8,7 +8,7 @@ describe("opportunity share text", () => {
   it("builds the compact social caption style for active opportunities", () => {
     const shareUrl = buildOpportunityPublicShareUrl(
       "opp-123",
-      "https://edutu.ai",
+      "https://www.edutu.org",
     );
     const text = buildOpportunityShareText(
       {
@@ -36,7 +36,7 @@ describe("opportunity share text", () => {
     expect(text).toContain("Eligible Country: All Countries");
     expect(text).toContain("Deadline: Not Specified");
     expect(text).toContain("Click the link below to apply📌");
-    expect(text).toContain("https://edutu.ai/opportunity/opp-123");
+    expect(text).toContain("https://www.edutu.org/opportunity/opp-123");
     expect(text).toContain("Kindly share with your friends");
   });
 

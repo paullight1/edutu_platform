@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Menu, UserRound, X } from "lucide-react";
+import { ChevronDown, Menu, UserRound, X } from "lucide-react";
 import { useAuth as useClerkAuth, useUser } from "@clerk/clerk-react";
 
 interface PublicHeaderProps {
@@ -8,11 +8,25 @@ interface PublicHeaderProps {
   onPrimaryAction?: () => void;
 }
 
-const publicNavItems = [
+type NavItem = {
+  label: string;
+  to: string;
+  external?: boolean;
+};
+
+const docsUrl = import.meta.env.VITE_DOCS_URL || "https://docs.edutu.org";
+
+const coreNavItems: NavItem[] = [
   { label: "Opportunities", to: "/opportunities" },
-  { label: "Mentor", to: "/mentor" },
-  { label: "About", to: "/about" },
+  { label: "Developers", to: "/developers" },
+  { label: "Mentors", to: "/mentor" },
   { label: "Blog", to: "/blog" },
+];
+
+const moreNavItems: NavItem[] = [
+  { label: "Scholarship Engine", to: "/scholarship-engine" },
+  { label: "Docs", to: docsUrl, external: true },
+  { label: "About", to: "/about" },
   { label: "Events", to: "/events" },
 ];
 
@@ -78,6 +92,9 @@ export default function PublicHeader({
     </Link>
   ) : null;
 
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+
   return (
     <header
       className={`${positionClass} inset-x-0 top-0 z-50 border-b border-slate-200 bg-white text-slate-950`}
@@ -96,15 +113,73 @@ export default function PublicHeader({
           className="hidden items-center gap-8 text-sm font-semibold text-slate-600 md:flex"
           aria-label="Primary navigation"
         >
-          {publicNavItems.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              className="transition hover:text-[#146ef5]"
+          {coreNavItems.map((item) =>
+            item.external ? (
+              <a
+                key={item.to}
+                href={item.to}
+                target="_blank"
+                rel="noreferrer"
+                className="transition hover:text-[#146ef5]"
+              >
+                {item.label}
+              </a>
+            ) : (
+              <Link
+                key={item.to}
+                to={item.to}
+                className="transition hover:text-[#146ef5]"
+              >
+                {item.label}
+              </Link>
+            ),
+          )}
+
+          <div className="relative" ref={moreRef}>
+            <button
+              type="button"
+              onClick={() => setMoreOpen((o) => !o)}
+              className="flex items-center gap-1 transition hover:text-[#146ef5]"
+              aria-expanded={moreOpen}
+              aria-haspopup="true"
             >
-              {item.label}
-            </Link>
-          ))}
+              More <ChevronDown size={14} className={`transition duration-200 ${moreOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {moreOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setMoreOpen(false)}
+                />
+                <div className="absolute right-0 top-full z-20 mt-2 w-48 rounded-xl border border-slate-200 bg-white py-2 shadow-xl">
+                  {moreNavItems.map((item) =>
+                    item.external ? (
+                      <a
+                        key={item.to}
+                        href={item.to}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => setMoreOpen(false)}
+                        className="block px-4 py-2 text-sm font-semibold text-slate-700 transition hover:text-[#146ef5]"
+                      >
+                        {item.label}
+                      </a>
+                    ) : (
+                      <Link
+                        key={item.to}
+                        to={item.to}
+                        onClick={() => setMoreOpen(false)}
+                        className="block px-4 py-2 text-sm font-semibold text-slate-700 transition hover:text-[#146ef5]"
+                      >
+                        {item.label}
+                      </Link>
+                    ),
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
@@ -129,16 +204,29 @@ export default function PublicHeader({
           aria-label="Mobile navigation"
         >
           <div className="mx-auto flex max-w-[1200px] flex-col gap-1">
-            {publicNavItems.map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
-                onClick={() => setMenuOpen(false)}
-                className="rounded-lg px-3 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-              >
-                {item.label}
-              </Link>
-            ))}
+            {[...coreNavItems, ...moreNavItems].map((item) =>
+              item.external ? (
+                <a
+                  key={item.to}
+                  href={item.to}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => setMenuOpen(false)}
+                  className="rounded-lg px-3 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                >
+                  {item.label}
+                </a>
+              ) : (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  onClick={() => setMenuOpen(false)}
+                  className="rounded-lg px-3 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                >
+                  {item.label}
+                </Link>
+              ),
+            )}
             <div className="flex items-center gap-2 px-3 py-2" onClick={() => setMenuOpen(false)}>
               {renderPrimaryAction("flex-1")}
               {profileLink}

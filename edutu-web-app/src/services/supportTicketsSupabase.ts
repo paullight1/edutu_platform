@@ -1,5 +1,6 @@
 // Service to handle support tickets with Supabase
 import { supabase } from '../lib/supabaseClient';
+import logger from '../lib/logger';
 
 export interface SupportTicketInput {
   userId: string;
@@ -35,7 +36,7 @@ export async function createSupportTicket(payload: SupportTicketInput) {
     .single();
 
   if (error) {
-    console.error('Error creating support ticket:', error);
+    logger.error('Error creating support ticket:', error);
     throw error;
   }
 
@@ -50,7 +51,7 @@ export async function createSupportTicket(payload: SupportTicketInput) {
     });
 
   if (messageError) {
-    console.error('Error creating initial ticket message:', messageError);
+    logger.error('Error creating initial ticket message:', messageError);
   }
 
   return data.id;
@@ -69,7 +70,7 @@ export async function appendSupportTicketMessage(userId: string, payload: Suppor
     });
 
   if (error) {
-    console.error('Error appending message to ticket:', error);
+    logger.error('Error appending message to ticket:', error);
     throw error;
   }
 
@@ -86,7 +87,7 @@ export async function fetchUserTickets(userId: string) {
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Error fetching tickets:', error);
+    logger.error('Error fetching tickets:', error);
     throw error;
   }
 

@@ -9,6 +9,8 @@ import { ThemeProvider } from './hooks/useTheme';
 import App from './App.tsx';
 import { ToastProvider } from './components/ui/ToastProvider';
 import ErrorBoundary from './components/ErrorBoundary';
+import { initSentry } from './lib/sentry';
+import { SkipLink } from './lib/accessibility';
 
 import { BrowserRouter } from 'react-router-dom';
 import { ClerkProvider } from '@clerk/clerk-react';
@@ -28,6 +30,8 @@ if (import.meta.env.DEV && 'serviceWorker' in navigator) {
   });
 }
 
+initSentry();
+
 // Loading fallback for Suspense
 const LoadingScreen = () => (
   <div className="min-h-screen bg-[#0c0f1a] flex items-center justify-center">
@@ -42,6 +46,7 @@ const root = createRoot(document.getElementById('root')!);
 
 root.render(
   <StrictMode>
+    <SkipLink />
     <ErrorBoundary>
       <Suspense fallback={<LoadingScreen />}>
         <ClerkProvider publishableKey={clerkPubKey}>

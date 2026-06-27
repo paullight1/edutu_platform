@@ -301,23 +301,32 @@ export const apiConsumers = pgTable(
   "api_consumers",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    ownerUserId: uuid("owner_user_id"),
     name: text("name").notNull(),
     contactEmail: text("contact_email"),
+    keyPrefix: text("key_prefix"),
     apiKeyHash: text("api_key_hash").notNull().unique(),
     status: text("status").notNull().default("active"),
     plan: text("plan").notNull().default("starter"),
+    environment: text("environment").notNull().default("live"),
     allowedScopes: text("allowed_scopes")
       .array()
       .notNull()
       .default(["opportunities:read", "recommendations:read", "events:write"]),
     monthlyQuota: integer("monthly_quota").default(1000),
+    rateLimitPerMinute: integer("rate_limit_per_minute").default(60),
+    lastUsedAt: timestamp("last_used_at"),
+    revokedAt: timestamp("revoked_at"),
+    expiresAt: timestamp("expires_at"),
     metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
   (table) => [
+    index("idx_api_consumers_owner").on(table.ownerUserId),
     index("idx_api_consumers_status").on(table.status),
     index("idx_api_consumers_key_hash").on(table.apiKeyHash),
+    uniqueIndex("idx_api_consumers_key_prefix_unique").on(table.keyPrefix),
   ],
 );
 

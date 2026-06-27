@@ -78,11 +78,13 @@ describe("RoadmapsService", () => {
   });
 
   it("lists only published roadmap templates with steps", async () => {
-    const findAll = jest.spyOn(service, "findAll").mockResolvedValue([
-      { id: "template-1", steps: [{ id: "step-1" }] },
-      { id: "empty-roadmap", steps: [] },
-      { id: "missing-steps" },
-    ] as any);
+    const findAll = jest
+      .spyOn(service, "findAll")
+      .mockResolvedValue([
+        { id: "template-1", steps: [{ id: "step-1" }] },
+        { id: "empty-roadmap", steps: [] },
+        { id: "missing-steps" },
+      ] as any);
 
     const result = await service.findTemplates({
       category: "career",

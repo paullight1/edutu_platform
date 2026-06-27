@@ -177,8 +177,33 @@ export default function EventDetailPage() {
     return (
       <PublicEditorialShell mainClassName="max-w-5xl py-6">
         <div className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
-          <div className="h-[420px] animate-pulse rounded-lg bg-slate-200 dark:bg-white/5" />
-          <div className="h-[320px] animate-pulse rounded-lg bg-slate-200 dark:bg-white/5" />
+          <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface-layer animate-pulse">
+            <div className="aspect-[16/9] bg-surface-elevated" />
+            <div className="space-y-3 p-5 sm:p-6">
+              <div className="h-5 w-20 rounded-md bg-surface-elevated" />
+              <div className="h-8 w-3/4 rounded bg-surface-elevated" />
+              <div className="space-y-2">
+                <div className="h-4 w-full rounded bg-surface-elevated" />
+                <div className="h-4 w-2/3 rounded bg-surface-elevated" />
+              </div>
+            </div>
+          </div>
+          <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface-layer animate-pulse">
+            <div className="space-y-3 p-5">
+              <div className="h-6 w-1/2 rounded bg-surface-elevated" />
+              <div className="space-y-3">
+                <div className="h-12 w-full rounded bg-surface-elevated" />
+                <div className="h-12 w-full rounded bg-surface-elevated" />
+                <div className="h-12 w-full rounded bg-surface-elevated" />
+              </div>
+              <div className="h-px w-full bg-surface-elevated" />
+              <div className="space-y-2">
+                <div className="h-10 w-full rounded bg-surface-elevated" />
+                <div className="h-10 w-full rounded bg-surface-elevated" />
+              </div>
+              <div className="h-11 w-full rounded-full bg-surface-elevated" />
+            </div>
+          </div>
         </div>
       </PublicEditorialShell>
     );
@@ -193,15 +218,15 @@ export default function EventDetailPage() {
           path="/events"
           noindex
         />
-        <section className="rounded-lg border border-slate-200 bg-white p-8 text-center dark:border-white/10 dark:bg-slate-950">
+        <section className="rounded-2xl border border-border-subtle bg-surface-layer p-10 text-center">
           <h1 className="text-2xl font-semibold">Event not found</h1>
-          <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+          <p className="mt-3 text-sm leading-6 text-soft">
             This event may have been archived or unpublished.
           </p>
           <button
             type="button"
             onClick={() => navigate("/events")}
-            className="mt-5 inline-flex items-center gap-2 rounded-md bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+            className="mt-5 inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold bg-surface-layer border border-border-subtle hover:border-brand-500/30 transition-all duration-300"
           >
             Back to events
           </button>
@@ -222,14 +247,14 @@ export default function EventDetailPage() {
       <PublicEditorialShell mainClassName="max-w-6xl py-5 sm:py-6">
         <Link
           to="/events"
-          className="inline-flex items-center gap-2 rounded-md px-2 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
+          className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-soft hover:bg-surface-elevated hover:text-strong transition-all duration-300"
         >
           <ArrowLeft size={16} />
           Events
         </Link>
 
         <div className="mt-4 grid gap-5 lg:grid-cols-[1.35fr_0.65fr] lg:items-start">
-          <article className="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950">
+          <article className="overflow-hidden rounded-2xl border border-border-subtle bg-surface-layer">
             <div className="aspect-[16/9] overflow-hidden bg-slate-100 dark:bg-slate-900">
               <ImageWithFallback
                 src={event.imageUrl || eventFallbackImage}
@@ -243,32 +268,32 @@ export default function EventDetailPage() {
                 <span className="rounded-md border border-brand-500/20 bg-brand-500/10 px-2 py-1 text-brand-700 dark:text-brand-300">
                   {event.isOnline ? "Online" : "In person"}
                 </span>
-                <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                <span className="rounded-md border border-border-subtle bg-surface-elevated px-2 py-1 text-soft">
                   {event.audience || "Public"}
                 </span>
               </div>
               <h1 className="mt-4 text-3xl font-semibold leading-tight sm:text-4xl">
                 {event.title}
               </h1>
-              <p className="mt-4 text-base leading-8 text-slate-600 dark:text-slate-300">
+              <p className="mt-4 text-base leading-8 text-soft">
                 {event.description || event.summary || seoDescription}
               </p>
             </div>
           </article>
 
-          <aside className="rounded-lg border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-slate-950">
+          <aside className="rounded-2xl border border-border-subtle bg-surface-layer p-6">
             <h2 className="text-lg font-semibold">Event details</h2>
-            <dl className="mt-4 grid gap-4 text-sm">
+            <dl className="mt-5 grid gap-5 text-sm">
               <div className="flex gap-3">
                 <Calendar
                   size={18}
                   className="mt-0.5 shrink-0 text-brand-600 dark:text-brand-300"
                 />
                 <div>
-                  <dt className="font-semibold text-slate-500 dark:text-slate-400">
-                    Date
-                  </dt>
-                  <dd className="mt-1 text-slate-950 dark:text-white">
+                    <dt className="font-semibold text-muted">
+                      Date
+                    </dt>
+                    <dd className="mt-1 text-strong">
                     {formatDate(event.startsAt)}
                   </dd>
                 </div>
@@ -279,10 +304,10 @@ export default function EventDetailPage() {
                   className="mt-0.5 shrink-0 text-brand-600 dark:text-brand-300"
                 />
                 <div>
-                  <dt className="font-semibold text-slate-500 dark:text-slate-400">
+                  <dt className="font-semibold text-muted">
                     Time
                   </dt>
-                  <dd className="mt-1 text-slate-950 dark:text-white">
+                  <dd className="mt-1 text-strong">
                     {formatTime(event.startsAt)}
                     {event.timezone ? ` ${event.timezone}` : ""}
                   </dd>
@@ -294,10 +319,10 @@ export default function EventDetailPage() {
                   className="mt-0.5 shrink-0 text-brand-600 dark:text-brand-300"
                 />
                 <div>
-                  <dt className="font-semibold text-slate-500 dark:text-slate-400">
+                  <dt className="font-semibold text-muted">
                     Location
                   </dt>
-                  <dd className="mt-1 text-slate-950 dark:text-white">
+                  <dd className="mt-1 text-strong">
                     {event.location ||
                       (event.isOnline ? "Online" : "Location TBA")}
                   </dd>
@@ -307,26 +332,26 @@ export default function EventDetailPage() {
 
             <form
               onSubmit={handleJoin}
-              className="mt-5 border-t border-slate-200 pt-5 dark:border-white/10"
+              className="mt-5 border-t border-border-subtle pt-5"
             >
-              <div className="grid gap-3">
-                <label className="grid gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+              <div className="grid gap-4">
+                <label className="grid gap-2 text-sm font-semibold text-soft">
                   Name
                   <input
                     value={name}
                     onChange={(inputEvent) => setName(inputEvent.target.value)}
                     placeholder="Optional"
-                    className="h-11 rounded-md border border-slate-200 bg-white px-3 text-sm font-normal text-slate-950 placeholder:text-slate-400 focus:border-brand-500 dark:border-white/10 dark:bg-slate-950 dark:text-white"
+                    className="h-11 rounded-xl border border-border-subtle bg-surface-elevated/60 px-4 text-sm font-normal text-strong placeholder:text-muted focus:border-brand-500 focus:bg-surface-layer"
                   />
                 </label>
-                <label className="grid gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                <label className="grid gap-2 text-sm font-semibold text-soft">
                   Email
                   <input
                     value={email}
                     onChange={(inputEvent) => setEmail(inputEvent.target.value)}
                     type="email"
                     placeholder="Optional"
-                    className="h-11 rounded-md border border-slate-200 bg-white px-3 text-sm font-normal text-slate-950 placeholder:text-slate-400 focus:border-brand-500 dark:border-white/10 dark:bg-slate-950 dark:text-white"
+                    className="h-11 rounded-xl border border-border-subtle bg-surface-elevated/60 px-4 text-sm font-normal text-strong placeholder:text-muted focus:border-brand-500 focus:bg-surface-layer"
                   />
                 </label>
               </div>
@@ -334,7 +359,7 @@ export default function EventDetailPage() {
               <button
                 type="submit"
                 disabled={joining}
-                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-wait disabled:opacity-70 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold bg-surface-layer border border-border-subtle hover:border-brand-500/30 disabled:cursor-wait disabled:opacity-70 transition-all duration-300"
               >
                 {joining ? (
                   "Joining"

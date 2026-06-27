@@ -172,12 +172,21 @@ export function usePersonalizedOpportunities(): UsePersonalizedOpportunitiesResu
         additionalData,
         onboardingData,
       );
-      setState((prev) => ({
-        ...prev,
-        userPreferences: profile,
-        data: [], // Reset data until opportunities are loaded with new preferences
-        loading: true,
-      }));
+      setState((prev) => {
+        const previousProfile = prev.userPreferences;
+        if (
+          previousProfile &&
+          JSON.stringify(previousProfile) === JSON.stringify(profile)
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          userPreferences: profile,
+          data: [],
+          loading: true,
+        };
+      });
     },
     [],
   );

@@ -11,6 +11,7 @@ import type {
   PackageProgress 
 } from './packageService';
 import { buildPackageTemplateZip } from './packageDownloads';
+import logger from '../lib/logger';
 
 /**
  * Maps a marketplace listing database row to a CommunityPackage
@@ -72,7 +73,7 @@ export async function updatePackageTaskProgress(
 ): Promise<void> {
   // In a real implementation with multi-user support, this would be in a separate table
   // For now, we'll use a placeholder as the user table might not be ready for progress tracking
-  console.log(`Updating task ${taskId} in package ${packageId} to ${done ? 'done' : 'not done'}`);
+  logger.log(`Updating task ${taskId} in package ${packageId} to ${done ? 'done' : 'not done'}`);
   
   // Example of how we'd update a progress table:
   /*

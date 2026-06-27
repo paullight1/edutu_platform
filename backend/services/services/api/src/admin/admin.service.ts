@@ -267,7 +267,7 @@ export class AdminService {
   private adminEmails(): string[] {
     return (
       process.env.ADMIN_EMAILS ||
-      "admin@edutu.ai,founder@edutu.ai,nwosupaul3@gmail.com,nwouspaul3@gmail.com"
+      "admin@edutu.org,founder@edutu.org,nwosupaul3@gmail.com,nwouspaul3@gmail.com"
     )
       .split(",")
       .map((email) => email.trim().toLowerCase())
@@ -451,9 +451,7 @@ export class AdminService {
         return supabaseResponse;
       }
 
-      this.logger.warn(
-        "Falling back to empty admin dashboard payload.",
-      );
+      this.logger.warn("Falling back to empty admin dashboard payload.");
       return {
         success: false,
         source: "fallback",

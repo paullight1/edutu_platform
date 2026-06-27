@@ -35,6 +35,7 @@ export const ListOpportunitiesQuerySchema = z.object({
   includeTotal: optionalBooleanString,
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).optional(),
+  cursor: optionalString,
   sort: z
     .enum([
       "updated_desc",
@@ -62,6 +63,7 @@ export interface ListOpportunitiesQuery {
   includeTotal?: string;
   limit?: string | number;
   offset?: string | number;
+  cursor?: string;
   sort?: string;
 }
 

@@ -1,6 +1,6 @@
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
-import { Request } from 'express';
-import { AppException } from '../errors';
+import { Injectable, CanActivate, ExecutionContext } from "@nestjs/common";
+import { Request } from "express";
+import { AppException } from "../errors";
 
 interface ThrottleEntry {
   count: number;
@@ -24,14 +24,14 @@ export class AuthThrottleGuard implements CanActivate {
     const path = request.path;
 
     // Only throttle auth routes
-    if (!path.startsWith('/auth')) {
+    if (!path.startsWith("/auth")) {
       return true;
     }
 
     const ip =
-      (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      (request.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
       request.ip ||
-      'unknown';
+      "unknown";
 
     const now = Date.now();
     const entry = this.store.get(ip);
@@ -48,7 +48,7 @@ export class AuthThrottleGuard implements CanActivate {
     if (entry.count > this.MAX_REQUESTS) {
       const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
       throw AppException.rateLimited(
-        'Too many authentication attempts. Please try again later.',
+        "Too many authentication attempts. Please try again later.",
         retryAfter,
       );
     }

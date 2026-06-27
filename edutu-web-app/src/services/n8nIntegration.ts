@@ -1,4 +1,5 @@
 import type { Opportunity } from '../types/opportunity';
+import logger from '../lib/logger';
 
 const N8N_WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL as string;
 
@@ -18,7 +19,7 @@ export async function sendOpportunitiesToN8n(
   userId?: string
 ): Promise<boolean> {
   if (!N8N_WEBHOOK_URL) {
-    console.warn('N8N_WEBHOOK_URL is not defined in environment variables');
+    logger.warn('N8N_WEBHOOK_URL is not defined in environment variables');
     return false;
   }
 
@@ -43,10 +44,10 @@ export async function sendOpportunitiesToN8n(
     }
 
     const result = await response.json();
-    console.log('Successfully sent data to n8n:', result);
+    logger.log('Successfully sent data to n8n:', result);
     return true;
   } catch (error) {
-    console.error('Error sending data to n8n:', error);
+    logger.error('Error sending data to n8n:', error);
     return false;
   }
 }

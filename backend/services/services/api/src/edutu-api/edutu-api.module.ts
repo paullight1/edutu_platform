@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { OpportunitiesModule } from "../opportunities/opportunities.module";
+import { EdutuApiDocsController } from "./edutu-api-docs.controller";
 import { EdutuApiController } from "./edutu-api.controller";
 import { EdutuApiKeyGuard } from "./edutu-api-key.guard";
 import { EdutuApiService } from "./edutu-api.service";
@@ -8,7 +9,7 @@ import { EdutuApiUsageService } from "./edutu-api-usage.service";
 
 @Module({
   imports: [OpportunitiesModule],
-  controllers: [EdutuApiController],
+  controllers: [EdutuApiController, EdutuApiDocsController],
   providers: [
     EdutuApiService,
     EdutuApiKeyGuard,

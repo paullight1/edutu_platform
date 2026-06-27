@@ -5,10 +5,8 @@ export const ADMIN_ROLES = ['super_admin', 'admin', 'moderator', 'support_agent'
 export type AdminRole = (typeof ADMIN_ROLES)[number];
 
 const DEFAULT_ADMIN_EMAILS = [
-  'admin@edutu.ai',
-  'founder@edutu.ai',
-  'nwosupaul3@gmail.com',
-  'nwouspaul3@gmail.com',
+  'admin@edutu.org',
+  'founder@edutu.org',
 ];
 
 type AdminAccessInput = {

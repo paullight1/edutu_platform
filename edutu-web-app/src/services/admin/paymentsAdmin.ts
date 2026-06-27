@@ -3,6 +3,7 @@
  * Handles credit transactions, user balances, pro status, and admin grants
  */
 import { supabase } from '../../lib/supabaseClient';
+import logger from '../../lib/logger';
 
 export interface CreditTransaction {
   id: string;
@@ -126,7 +127,7 @@ export async function adminGrantCredits(
   });
 
   if (error) {
-    console.error('adminGrantCredits RPC error:', error);
+    logger.error('adminGrantCredits RPC error:', error);
     return { success: false, balance: 0, error: error.message };
   }
 
@@ -150,7 +151,7 @@ export async function adminSetProStatus(
   });
 
   if (error) {
-    console.error('adminSetProStatus RPC error:', error);
+    logger.error('adminSetProStatus RPC error:', error);
     return { success: false, error: error.message };
   }
 

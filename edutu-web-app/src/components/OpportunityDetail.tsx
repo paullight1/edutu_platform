@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   CalendarDays,
   ExternalLink,
@@ -11,6 +11,7 @@ import {
   UsersRound,
   Wallet,
 } from "lucide-react";
+import { format } from "date-fns";
 import { useAuth } from "@clerk/clerk-react";
 import { useToast } from "./ui/ToastProvider";
 import type { Opportunity } from "../types/opportunity";
@@ -25,6 +26,12 @@ import {
   isBookmarked,
 } from "../services/bookmarks";
 import { addApplication } from "../services/applications";
+import {
+  fetchOpportunities,
+  getOpportunityDaysLeft,
+  isOpportunityExpired,
+  parseOpportunityDeadline,
+} from "../services/opportunities";
 import {
   buildOpportunityShareFileName,
   buildOpportunityShareText,
@@ -65,50 +72,23 @@ function getCurrencySymbol(currency?: string | null): string {
   }
 }
 
-function getCurrencyLabel(currency?: string | null): string {
-  switch (currency?.toUpperCase()) {
-    case "NGN":
-      return "Nigerian Naira";
-    case "GBP":
-      return "British Pound";
-    case "EUR":
-      return "Euro";
-    default:
-      return "US Dollar";
-  }
-}
-
 function formatDeadline(deadline?: string | null): string {
-  if (!deadline) return "No deadline listed";
-  const date = new Date(deadline);
-  if (Number.isNaN(date.getTime())) return "No deadline listed";
-  return date.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
+  const parsed = parseOpportunityDeadline(deadline);
+  if (!parsed) return "No deadline listed";
+  return format(parsed, "d MMMM yyyy");
 }
 
 function formatCompactDeadline(deadline?: string | null): string {
-  if (!deadline) return "No deadline";
-  const date = new Date(deadline);
-  if (Number.isNaN(date.getTime())) return "No deadline";
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
+  const parsed = parseOpportunityDeadline(deadline);
+  if (!parsed) return "No deadline";
+  return format(parsed, "d MMM yyyy");
 }
 
 function formatUpdatedAt(value?: string | null): string {
   if (!value) return "Updated recently";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Updated recently";
-
-  return `Updated ${date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })}`;
+  const parsed = parseOpportunityDeadline(value);
+  if (!parsed) return "Updated recently";
+  return `Updated ${format(parsed, "d MMM yyyy")}`;
 }
 
 function normaliseSeoText(value?: string | null): string {
@@ -143,6 +123,11 @@ function getIsoDate(value?: string | null): string | undefined {
   if (!value) return undefined;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function deadlineToIso(deadline?: string | null): string | undefined {
+  const parsed = parseOpportunityDeadline(deadline);
+  return parsed ? parsed.toISOString() : undefined;
 }
 
 function formatEligibilityKey(key: string): string {
@@ -202,6 +187,50 @@ function buildEligibilityItems(
     .filter(Boolean);
 }
 
+function RelatedOpportunityCard({
+  opportunity,
+  detailPath,
+}: {
+  opportunity: Opportunity;
+  detailPath: string;
+}) {
+  const expired = isOpportunityExpired(opportunity);
+  const daysLeft = expired ? null : getOpportunityDaysLeft(opportunity.deadline);
+  const deadlineClass =
+    daysLeft !== null && daysLeft <= 7
+      ? "font-semibold text-amber-600 dark:text-amber-400"
+      : "";
+
+  return (
+    <Link
+      to={detailPath}
+      className="group relative flex h-full flex-col rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft dark:border-white/10 dark:bg-slate-950"
+    >
+      <span className="inline-flex w-fit items-center rounded-md border border-brand-500/20 bg-brand-500/10 px-2 py-0.5 text-xs font-semibold text-brand-700 dark:text-brand-300">
+        {opportunity.category || "General"}
+      </span>
+      <h3 className="mt-2 line-clamp-2 text-sm font-semibold leading-snug text-slate-950 transition group-hover:text-brand-600 dark:text-white dark:group-hover:text-brand-300">
+        {opportunity.title}
+      </h3>
+      {opportunity.organization ? (
+        <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
+          {opportunity.organization}
+        </p>
+      ) : null}
+      <div className="mt-auto flex flex-wrap gap-3 pt-3 text-xs text-slate-500 dark:text-slate-400">
+        <span className="inline-flex items-center gap-1">
+          <MapPin size={12} />
+          {opportunity.location || "Remote"}
+        </span>
+        <span className={`inline-flex items-center gap-1 ${deadlineClass}`}>
+          <CalendarDays size={12} />
+          {formatCompactDeadline(opportunity.deadline)}
+        </span>
+      </div>
+    </Link>
+  );
+}
+
 const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   opportunity,
   onBack,
@@ -217,7 +246,6 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   const location = useLocation();
 
   const currencySymbol = getCurrencySymbol(opportunity.currency);
-  const currencyLabel = getCurrencyLabel(opportunity.currency);
   const applyUrl = normalizeExternalUrl(opportunity.applyUrl) ?? null;
   const matchPercentage = Math.round(opportunity.match ?? 0);
   const difficultyLabel = opportunity.difficulty ?? "Medium";
@@ -233,36 +261,9 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
     .filter(Boolean);
   const eligibilityItems = buildEligibilityItems(opportunity.eligibility);
   const requirements = normaliseVisibleList(opportunity.requirements);
-  const displayedRequirements =
-    requirements.length > 0
-      ? requirements
-      : [
-          ...eligibilityItems,
-          "Review the official application page for final eligibility rules before applying.",
-          "Prepare a current CV or resume, academic or professional records, and any supporting documents requested by the organizer.",
-        ];
   const benefits = normaliseVisibleList(opportunity.benefits);
-  const displayedBenefits =
-    benefits.length > 0
-      ? benefits
-      : [
-          opportunity.stipend !== undefined && opportunity.stipend !== null
-            ? `${currencySymbol}${opportunity.stipend.toLocaleString()} funding support${opportunity.currency ? ` in ${currencyLabel}` : ""}.`
-            : "Funding, training, mentorship, networking, or program access may be available depending on the organizer's official terms.",
-          "A structured opportunity to build experience, credentials, network, or portfolio value tied to this program.",
-          "Official benefits should be confirmed on the organizer application page before submission.",
-        ];
   const applicationSteps = normaliseVisibleList(opportunity.applicationProcess);
-  const displayedApplicationSteps =
-    applicationSteps.length > 0
-      ? applicationSteps
-      : [
-          userId
-            ? "Use the apply button to open the official organizer application page."
-            : "Sign in to Edutu to continue to the official application page.",
-          "Review the deadline, eligibility notes, and required documents before starting the application.",
-          "Submit directly through the organizer page, then save or track the opportunity in Edutu.",
-        ];
+  const expired = isOpportunityExpired(opportunity);
   const shareUrl = buildOpportunityShareUrl(opportunity.id);
   const shareText = buildOpportunityShareText(opportunity, shareUrl);
   const canonicalPath = `/opportunity/${encodeURIComponent(opportunity.id)}`;
@@ -272,27 +273,40 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
       `${opportunity.title} from ${opportunity.organization}. See eligibility, benefits, deadline, and application link on Edutu.`,
   );
   const seoImage = opportunity.image || getDefaultSeoImage();
-  const seoJsonLd = useMemo(
-    () => [
+  const seoJsonLd = useMemo(() => {
+    const deadlineIso = deadlineToIso(opportunity.deadline);
+    const stipendValue =
+      typeof opportunity.stipend === "number" &&
+      Number.isFinite(opportunity.stipend)
+        ? opportunity.stipend
+        : null;
+
+    return [
       {
         "@context": "https://schema.org",
-        "@type": "WebPage",
+        "@type": "EducationalOccupationalProgram",
         name: `${opportunity.title} | Edutu`,
-        url: canonicalUrl,
         description: seoDescription,
-        dateModified: getIsoDate(opportunity.lastUpdated),
-        mainEntity: {
-          "@type": "Thing",
-          name: opportunity.title,
-          description: seoDescription,
-          category: opportunity.category || "Opportunity",
-          url: canonicalUrl,
-          image: toAbsoluteUrl(seoImage),
-          provider: {
-            "@type": "Organization",
-            name: opportunity.organization || "Edutu",
-          },
+        url: canonicalUrl,
+        image: toAbsoluteUrl(seoImage),
+        category: opportunity.category || "Opportunity",
+        provider: {
+          "@type": "Organization",
+          name: opportunity.organization || "Edutu",
         },
+        ...(deadlineIso
+          ? { applicationDeadline: deadlineIso, validThrough: deadlineIso }
+          : {}),
+        ...(stipendValue !== null
+          ? {
+              offers: {
+                "@type": "Offer",
+                price: String(stipendValue),
+                priceCurrency: opportunity.currency?.toUpperCase() || "USD",
+              },
+            }
+          : {}),
+        dateModified: getIsoDate(opportunity.lastUpdated),
         publisher: {
           "@type": "Organization",
           name: "Edutu",
@@ -321,17 +335,19 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
           },
         ],
       },
-    ],
-    [
-      canonicalUrl,
-      opportunity.category,
-      opportunity.lastUpdated,
-      opportunity.organization,
-      opportunity.title,
-      seoDescription,
-      seoImage,
-    ],
-  );
+    ];
+  }, [
+    canonicalUrl,
+    opportunity.category,
+    opportunity.currency,
+    opportunity.deadline,
+    opportunity.lastUpdated,
+    opportunity.organization,
+    opportunity.stipend,
+    opportunity.title,
+    seoDescription,
+    seoImage,
+  ]);
   const authState = {
     from: {
       pathname: location.pathname,
@@ -339,6 +355,53 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
       hash: location.hash,
     },
   };
+
+  const [relatedSource, setRelatedSource] = useState<Opportunity[]>([]);
+
+  useEffect(() => {
+    let isActive = true;
+    fetchOpportunities()
+      .then((opportunities) => {
+        if (isActive) {
+          setRelatedSource(opportunities);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  const relatedOpportunities = useMemo(() => {
+    if (relatedSource.length === 0) return [];
+
+    const currentCategory = opportunity.category?.trim().toLowerCase() ?? "";
+    const currentTags = new Set(
+      (opportunity.tags ?? []).map((tag) => tag.toLowerCase()),
+    );
+
+    return relatedSource
+      .filter((item) => item.id !== opportunity.id)
+      .filter((item) => !isOpportunityExpired(item))
+      .map((item) => {
+        let score = 0;
+        const itemCategory = item.category?.trim().toLowerCase() ?? "";
+        if (currentCategory && itemCategory === currentCategory) {
+          score += 2;
+        }
+        const itemTags = (item.tags ?? []).map((tag) => tag.toLowerCase());
+        for (const tag of itemTags) {
+          if (currentTags.has(tag)) {
+            score += 1;
+          }
+        }
+        return { item, score };
+      })
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 4)
+      .map((entry) => entry.item);
+  }, [relatedSource, opportunity.id, opportunity.category, opportunity.tags]);
 
   useEffect(() => {
     let isActive = true;
@@ -547,8 +610,12 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
     }
   };
 
-  const handleApply = () => {
-    if (!userId) return;
+  const handleApply = (event?: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!userId) {
+      event?.preventDefault();
+      navigate("/auth?mode=sign-in", { state: authState });
+      return;
+    }
 
     void (async () => {
       const token = await getProductApiToken(getToken, { forceRefresh: true });
@@ -559,12 +626,12 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
           title: opportunity.title,
           category: opportunity.category,
         },
-        undefined,
+        { status: "draft" },
         token,
       );
 
       if (tracked) {
-        success("Application added to your tracker");
+        success("Application started — added to your tracker");
       }
     })();
   };
@@ -616,6 +683,17 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
         type="article"
         jsonLd={seoJsonLd}
       />
+      {expired ? (
+        <div className="mb-5 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-100">
+          <p className="font-semibold">This opportunity has closed</p>
+          <p className="mt-1 text-rose-800/80 dark:text-rose-100/80">
+            {opportunity.deadline
+              ? `The deadline (${formatDeadline(opportunity.deadline)}) has passed.`
+              : "The application deadline has passed."}{" "}
+            The details below are kept for reference.
+          </p>
+        </div>
+      ) : null}
       <section>
         <div className="mb-5 flex flex-wrap items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
           {!embedded ? (
@@ -693,44 +771,129 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
               <h2 className="text-xl font-semibold text-slate-950 dark:text-white">
                 Requirements
               </h2>
-              <ul className="space-y-3 text-base leading-7 text-slate-600 dark:text-slate-300">
-                {displayedRequirements.map((item, index) => (
-                  <li key={`${item}-${index}`} className="flex gap-3">
-                    <span className="mt-3 h-1.5 w-1.5 rounded-full bg-brand-500" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
+              {requirements.length > 0 ? (
+                <ul className="space-y-3 text-base leading-7 text-slate-600 dark:text-slate-300">
+                  {requirements.map((item, index) => (
+                    <li key={`${item}-${index}`} className="flex gap-3">
+                      <span className="mt-3 h-1.5 w-1.5 rounded-full bg-brand-500" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+                  <p className="font-medium text-slate-600 dark:text-slate-300">
+                    Requirements not provided
+                  </p>
+                  <p className="mt-1">
+                    Eligibility details aren’t published for this opportunity.{" "}
+                    {applyUrl ? (
+                      <a
+                        href={applyUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-brand-600 underline-offset-2 hover:underline dark:text-brand-300"
+                      >
+                        Check the official application page
+                      </a>
+                    ) : (
+                      "Check the official organizer page when available."
+                    )}
+                  </p>
+                </div>
+              )}
             </section>
+
+            {eligibilityItems.length > 0 ? (
+              <section className="space-y-3">
+                <h2 className="text-xl font-semibold text-slate-950 dark:text-white">
+                  Eligibility
+                </h2>
+                <ul className="space-y-3 text-base leading-7 text-slate-600 dark:text-slate-300">
+                  {eligibilityItems.map((item, index) => (
+                    <li key={`${item}-${index}`} className="flex gap-3">
+                      <span className="mt-3 h-1.5 w-1.5 rounded-full bg-slate-400" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
 
             <section className="space-y-3">
               <h2 className="text-xl font-semibold text-slate-950 dark:text-white">
                 Benefits
               </h2>
-              <ul className="space-y-3 text-base leading-7 text-slate-600 dark:text-slate-300">
-                {displayedBenefits.map((item, index) => (
-                  <li key={`${item}-${index}`} className="flex gap-3">
-                    <span className="mt-3 h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
+              {benefits.length > 0 ? (
+                <ul className="space-y-3 text-base leading-7 text-slate-600 dark:text-slate-300">
+                  {benefits.map((item, index) => (
+                    <li key={`${item}-${index}`} className="flex gap-3">
+                      <span className="mt-3 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+                  <p className="font-medium text-slate-600 dark:text-slate-300">
+                    Benefits not listed
+                  </p>
+                  <p className="mt-1">
+                    Benefits aren’t published for this opportunity.{" "}
+                    {applyUrl ? (
+                      <a
+                        href={applyUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-brand-600 underline-offset-2 hover:underline dark:text-brand-300"
+                      >
+                        Confirm what’s offered on the official application page
+                      </a>
+                    ) : (
+                      "Confirm what’s offered on the official organizer page when available."
+                    )}
+                  </p>
+                </div>
+              )}
             </section>
 
             <section className="space-y-3">
               <h2 className="text-xl font-semibold text-slate-950 dark:text-white">
                 Application process
               </h2>
-              <ol className="space-y-3 text-base leading-7 text-slate-600 dark:text-slate-300">
-                {displayedApplicationSteps.map((item, index) => (
-                  <li key={`${item}-${index}`} className="flex gap-4">
-                    <span className="mt-0.5 text-sm font-semibold text-brand-600 dark:text-brand-300">
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ol>
+              {applicationSteps.length > 0 ? (
+                <ol className="space-y-3 text-base leading-7 text-slate-600 dark:text-slate-300">
+                  {applicationSteps.map((item, index) => (
+                    <li key={`${item}-${index}`} className="flex gap-4">
+                      <span className="mt-0.5 text-sm font-semibold text-brand-600 dark:text-brand-300">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+                  <p className="font-medium text-slate-600 dark:text-slate-300">
+                    Application steps not published
+                  </p>
+                  <p className="mt-1">
+                    {applyUrl ? (
+                      <a
+                        href={applyUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-brand-600 underline-offset-2 hover:underline dark:text-brand-300"
+                      >
+                        Open the official application page
+                      </a>
+                    ) : (
+                      "Open the official application page when available"
+                    )}{" "}
+                    to follow the organizer’s steps.
+                  </p>
+                </div>
+              )}
             </section>
 
             {opportunity.tags?.filter(
@@ -821,6 +984,22 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
           </aside>
         </div>
       </section>
+      {relatedOpportunities.length > 0 ? (
+        <section className="mt-10 border-t border-slate-200 pt-8 dark:border-white/10">
+          <h2 className="text-xl font-semibold text-slate-950 dark:text-white">
+            Related opportunities
+          </h2>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {relatedOpportunities.map((related) => (
+              <RelatedOpportunityCard
+                key={related.id}
+                opportunity={related}
+                detailPath={`${embedded ? "/app" : ""}/opportunity/${related.id}`}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
       {embedded ? (
         <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-slate-200 bg-white/95 px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 shadow-[0_-18px_40px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/95 lg:hidden">
           <div className="mx-auto flex max-w-3xl items-center gap-3">
@@ -845,6 +1024,15 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                 <span className="truncate">Application unavailable</span>
               </button>
             )}
+            <button
+              type="button"
+              onClick={handleShare}
+              disabled={isSharing}
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition active:scale-[0.96] disabled:cursor-wait disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+              aria-label="Share opportunity"
+            >
+              <Share2 size={18} />
+            </button>
             <button
               type="button"
               onClick={handleBookmark}

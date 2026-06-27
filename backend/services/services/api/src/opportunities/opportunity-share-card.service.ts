@@ -314,7 +314,7 @@ export class OpportunityShareCardService {
     <text x="48" y="24" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="900" fill="#0B2F6B">Edutu</text>
     <text x="48" y="47" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="800" letter-spacing="3" fill="#5B7CFA">OPPORTUNITY BRIEF</text>
   </g>
-  <text x="870" y="86" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="21" font-weight="800" fill="#2563EB">Visit edutu.ai</text>
+  <text x="870" y="86" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="21" font-weight="800" fill="#2563EB">Visit Scholarship Engine</text>
 
   ${this.textBlock(titleLines, 78, 225, 63, 75, "#0A1020", 900)}
   ${this.providerBlock(opportunity)}

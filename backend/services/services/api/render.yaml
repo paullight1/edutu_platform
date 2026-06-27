@@ -9,8 +9,14 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Keep the catalog fresh for paying API customers. The scheduler runs the
+      # daily scrape (cron configured in scraper_config); verification re-checks
+      # opportunity links and marks broken ones. Both were off — stale data is a
+      # refund risk for the paid API.
       - key: SCRAPER_SCHEDULER_ENABLED
-        value: "false"
+        value: "true"
+      - key: OPPORTUNITY_VERIFICATION_ENABLED
+        value: "true"
       - key: DATABASE_URL
         sync: false
       - key: SUPABASE_URL
@@ -28,10 +34,10 @@ services:
       - key: AI_KEY_ENCRYPTION_SECRET
         sync: false
       - key: EDUTU_PUBLIC_APP_URL
-        value: https://edutu.ai
+        value: https://www.edutu.org
       - key: FRONTEND_URL
         value: https://www.edutu.org
       - key: ADMIN_URL
-        value: https://www.edutu.org
+        value: https://admin.edutu.org
       - key: MOBILE_APP_URL
         sync: false

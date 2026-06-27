@@ -73,7 +73,7 @@ describe("opportunityShare helpers", () => {
         json: vi.fn().mockResolvedValue({
           success: true,
           shareText: "Still Active!\n\nShared backend caption",
-          shareUrl: "https://edutu.ai/share/opportunity/opp-123",
+          shareUrl: "https://www.edutu.org/share/opportunity/opp-123",
           shareCard: {
             url: "https://cdn.example.com/share.png",
             path: "active/opp-123.png",
@@ -95,7 +95,7 @@ describe("opportunityShare helpers", () => {
     expect(result?.blob).toBe(imageBlob);
     expect(result?.card.url).toBe("https://cdn.example.com/share.png");
     expect(result?.shareText).toContain("Shared backend caption");
-    expect(result?.shareUrl).toBe("https://edutu.ai/share/opportunity/opp-123");
+    expect(result?.shareUrl).toBe("https://www.edutu.org/share/opportunity/opp-123");
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 

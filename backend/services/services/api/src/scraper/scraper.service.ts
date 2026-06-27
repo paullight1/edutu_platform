@@ -8,6 +8,8 @@ import * as cheerio from "cheerio";
 import { AiService } from "../ai";
 import { OpportunityShareCardService } from "../opportunities/opportunity-share-card.service";
 import { classifyOpportunity } from "../opportunities/opportunity-categorization";
+import { ScraperAlertsService } from "./scraper-alerts.service";
+import { RobotsChecker } from "./robots-checker";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -208,6 +210,8 @@ export class ScraperService implements OnModuleInit {
     private schedulerRegistry: SchedulerRegistry,
     private readonly aiService: AiService,
     private readonly opportunityShareCardService: OpportunityShareCardService,
+    private readonly scraperAlertsService: ScraperAlertsService,
+    private readonly robotsChecker: RobotsChecker,
   ) {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -419,7 +423,11 @@ export class ScraperService implements OnModuleInit {
 
   async enhancePreviewOpportunity(input: Record<string, any>) {
     const sourceUrl =
-      input.source_url || input.sourceUrl || input.source || input.apply_url || "";
+      input.source_url ||
+      input.sourceUrl ||
+      input.source ||
+      input.apply_url ||
+      "";
     const applyUrl =
       input.apply_url ||
       input.applyUrl ||
@@ -538,6 +546,16 @@ export class ScraperService implements OnModuleInit {
         sourceResults,
       });
 
+      // Fire-and-forget alerting. Read-only and wrapped so it can never break a
+      // successful scrape. Flags sources with >= 3 consecutive failures.
+      void this.runPostScrapeAlerts(sources).catch((alertError) => {
+        this.logger.warn(
+          `Post-scrape alerting failed: ${
+            alertError instanceof Error ? alertError.message : "unknown error"
+          }`,
+        );
+      });
+
       return {
         success: true,
         sourcesScraped: sources.length,
@@ -561,6 +579,41 @@ export class ScraperService implements OnModuleInit {
   }
 
   // ─── Job Logging ──────────────────────────────────────────────────────────
+
+  /**
+   * After a scrape, surface any source that has crossed the consecutive-failure
+   * threshold so it can be alerted on. Read-only against scraping_sources.
+   */
+  private async runPostScrapeAlerts(
+    sources: Array<{ id?: number | null; name?: string | null }>,
+  ): Promise<void> {
+    if (!this.supabase) return;
+    const sourceIds = sources
+      .map((s) => Number(s.id))
+      .filter((id) => Number.isFinite(id) && id > 0);
+    if (sourceIds.length === 0) return;
+
+    const { data, error } = await this.supabase
+      .from("scraping_sources")
+      .select("id, name, consecutive_failures, last_success")
+      .in("id", sourceIds);
+
+    if (error || !data) return;
+
+    const sourcesStatus = (data as Array<{
+      id: number;
+      name: string | null;
+      consecutive_failures: number | null;
+      last_success: string | null;
+    }>).map((row) => ({
+      sourceId: row.id,
+      sourceName: row.name ?? "unknown",
+      lastSuccessAt: row.last_success ?? null,
+      consecutiveFailures: Number(row.consecutive_failures ?? 0),
+    }));
+
+    await this.scraperAlertsService.checkAlertConditions(sourcesStatus);
+  }
 
   private async startJobLog(options: ScrapeOptions): Promise<string | null> {
     const { data, error } = await this.supabase
@@ -835,6 +888,24 @@ export class ScraperService implements OnModuleInit {
       try {
         this.logger.log(`Crawling: ${source.name} (${source.url})`);
 
+        // Respect robots.txt. For a product that resells scraped data, skipping
+        // disallowed sources is a legal/ToS necessity.
+        const robotsAllowed = await this.robotsChecker.isAllowed(source.url);
+        if (!robotsAllowed) {
+          this.logger.warn(
+            `  → Skipping ${source.name}: blocked by robots.txt`,
+          );
+          sourceResults.push({
+            name: source.name,
+            url: source.url,
+            status: "skipped",
+            itemsFound: 0,
+            itemsSaved: 0,
+            error: "blocked by robots.txt",
+          });
+          continue;
+        }
+
         for (let page = 1; page <= pagesToCrawl; page++) {
           const pageUrl = this.buildPageUrl(source.url, page);
           this.logger.log(`  → Fetching page ${page}: ${pageUrl}`);
@@ -1076,7 +1147,11 @@ export class ScraperService implements OnModuleInit {
   ): Promise<RawItem[]> {
     const enriched: RawItem[] = [];
     const candidates = items.filter((item) =>
-      this.isValidOpportunityCandidate(item.title, item.apply_url, item.source_url),
+      this.isValidOpportunityCandidate(
+        item.title,
+        item.apply_url,
+        item.source_url,
+      ),
     );
 
     // Process in batches defined by ENRICH_CONCURRENCY
@@ -1120,7 +1195,8 @@ export class ScraperService implements OnModuleInit {
       const cached = existing?.metadata as Record<string, any> | null;
       const cachedDescription =
         typeof existing?.description === "string" ? existing.description : "";
-      const cachedSummary = typeof existing?.summary === "string" ? existing.summary : "";
+      const cachedSummary =
+        typeof existing?.summary === "string" ? existing.summary : "";
       const cachedRequirements = this.normalizeStringList(cached?.requirements);
       const cachedBenefits = this.normalizeStringList(cached?.benefits);
       const cachedApplicationProcess = this.normalizeStringList(
@@ -1177,7 +1253,8 @@ export class ScraperService implements OnModuleInit {
       // Extract structured data from HTML (all done on same fetched HTML, zero extra requests)
       const sourceHost = new URL(item.apply_url).hostname;
       const directApplyUrl =
-        item.direct_apply_url || this.extractApplyLink(html, sourceHost, item.apply_url);
+        item.direct_apply_url ||
+        this.extractApplyLink(html, sourceHost, item.apply_url);
       let imageUrl = this.extractBestImageFromHTML(html, item.apply_url);
       if (imageUrl) {
         const proxiedUrl = await this.proxyImageToStorage(imageUrl);
@@ -1314,7 +1391,9 @@ export class ScraperService implements OnModuleInit {
       const feedUrl = this.toWordPressFeedUrl(url);
       if (!feedUrl) throw error;
 
-      this.logger.warn(`  ↳ HTML blocked (403), using feed fallback: ${feedUrl}`);
+      this.logger.warn(
+        `  ↳ HTML blocked (403), using feed fallback: ${feedUrl}`,
+      );
       return this.fetchHTML(feedUrl);
     }
   }
@@ -1487,7 +1566,10 @@ ${text}`;
 
   private isDixcoverHubSource(source: ScrapeSource): boolean {
     try {
-      return new URL(source.url).hostname.replace(/^www\./, "") === "jobs.smartyacad.com";
+      return (
+        new URL(source.url).hostname.replace(/^www\./, "") ===
+        "jobs.smartyacad.com"
+      );
     } catch {
       return /jobs\.smartyacad\.com/i.test(source.url);
     }
@@ -1591,7 +1673,8 @@ ${text}`;
           "";
         const imageUrl =
           post?._embedded?.["wp:featuredmedia"]?.[0]?.source_url ||
-          post?._embedded?.["wp:featuredmedia"]?.[0]?.media_details?.sizes?.medium?.source_url ||
+          post?._embedded?.["wp:featuredmedia"]?.[0]?.media_details?.sizes
+            ?.medium?.source_url ||
           this.extractBestImageFromHTML(contentHtml, applyUrl || source.url) ||
           null;
         const contentText = this.cleanHtmlText(contentHtml, 3000);
@@ -1617,7 +1700,11 @@ ${text}`;
         } satisfies RawItem;
       })
       .filter((item: RawItem) =>
-        this.isValidOpportunityCandidate(item.title, item.apply_url, source.url),
+        this.isValidOpportunityCandidate(
+          item.title,
+          item.apply_url,
+          source.url,
+        ),
       );
   }
 
@@ -1659,11 +1746,15 @@ ${text}`;
         const title = this.cleanText($item.find("title").first().text());
         const href = $item.find("link").first().text().trim();
         const applyUrl = this.resolveUrl(href, source.url);
-        if (!this.isValidOpportunityCandidate(title, applyUrl, source.url)) return;
+        if (!this.isValidOpportunityCandidate(title, applyUrl, source.url))
+          return;
 
         const description =
           this.cleanHtmlText($item.find("description").first().text(), 1200) ||
-          this.cleanHtmlText($item.find("content\\:encoded").first().text(), 1200);
+          this.cleanHtmlText(
+            $item.find("content\\:encoded").first().text(),
+            1200,
+          );
         const contentHtml = $item.find("content\\:encoded").first().text();
         const itemText = $item.text();
         const sourceHost = new URL(source.url).hostname;
@@ -1676,7 +1767,10 @@ ${text}`;
             sourceHost,
             applyUrl || source.url,
           ),
-          image_url: this.extractBestImageFromHTML(contentHtml, applyUrl || source.url),
+          image_url: this.extractBestImageFromHTML(
+            contentHtml,
+            applyUrl || source.url,
+          ),
           description,
           amount: this.extractAmount(itemText),
           deadline: this.extractDeadline(itemText),
@@ -1713,7 +1807,8 @@ ${text}`;
           "a.elementor-post__thumbnail__link, .elementor-post__title a, a[href]";
         const href = $card.find(linkSelector).first().attr("href") ?? "";
         const applyUrl = this.resolveUrl(href, source.url);
-        if (!this.isValidOpportunityCandidate(title, applyUrl, source.url)) return;
+        if (!this.isValidOpportunityCandidate(title, applyUrl, source.url))
+          return;
         const cardText = $card.text();
 
         items.push({
@@ -1738,7 +1833,8 @@ ${text}`;
         const title = $el.text().trim();
         const href = $el.attr("href") ?? "";
         const applyUrl = this.resolveUrl(href, source.url);
-        if (!this.isValidOpportunityCandidate(title, applyUrl, source.url)) return;
+        if (!this.isValidOpportunityCandidate(title, applyUrl, source.url))
+          return;
         items.push({
           title: this.cleanText(title),
           apply_url: applyUrl,
@@ -1770,14 +1866,20 @@ ${text}`;
     const isExternal = (href: string): boolean => {
       try {
         const parsed = new URL(href);
-        return parsed.hostname.replace(/^www\./, "") !== sourceHost.replace(/^www\./, "");
+        return (
+          parsed.hostname.replace(/^www\./, "") !==
+          sourceHost.replace(/^www\./, "")
+        );
       } catch {
         return false;
       }
     };
 
     const cleanHref = (rawHref: string): string => {
-      const resolved = this.resolveUrl(rawHref, baseUrl || `https://${sourceHost}`);
+      const resolved = this.resolveUrl(
+        rawHref,
+        baseUrl || `https://${sourceHost}`,
+      );
       if (!resolved || NON_APPLY_URL_RE.test(resolved)) return "";
 
       try {
@@ -1808,7 +1910,11 @@ ${text}`;
 
       let score = 0;
       if (APPLY_TEXT_RE.test(context)) score += 80;
-      if (/forms\.|form\.|application|apply|career|recruit|jobs|portal|smartsheet|typeform|google\.com\/forms|forms\.office|forms\.cloud\.microsoft/i.test(href)) {
+      if (
+        /forms\.|form\.|application|apply|career|recruit|jobs|portal|smartsheet|typeform|google\.com\/forms|forms\.office|forms\.cloud\.microsoft/i.test(
+          href,
+        )
+      ) {
         score += 40;
       }
       if (/btn|button|apply|elementor-button/i.test(className)) score += 20;
@@ -1820,12 +1926,17 @@ ${text}`;
     return candidates[0]?.href ?? null;
   }
 
-  private extractImageCandidate(rawValue: string | undefined, baseUrl: string): string | null {
+  private extractImageCandidate(
+    rawValue: string | undefined,
+    baseUrl: string,
+  ): string | null {
     if (!rawValue) return null;
     const firstSrc = rawValue.split(",")[0]?.trim().split(/\s+/)[0];
     const resolved = this.resolveUrl(firstSrc || rawValue, baseUrl);
     if (!resolved || !resolved.startsWith("http")) return null;
-    if (/logo|icon|avatar|profile|placeholder|spinner|loading/i.test(resolved)) {
+    if (
+      /logo|icon|avatar|profile|placeholder|spinner|loading/i.test(resolved)
+    ) {
       return null;
     }
     return resolved;
@@ -1879,7 +1990,10 @@ ${text}`;
    * Extracts the best available image URL from open-graph or twitter card meta tags,
    * falling back to the first content image in the article body.
    */
-  private extractBestImageFromHTML(html: string, baseUrl: string): string | null {
+  private extractBestImageFromHTML(
+    html: string,
+    baseUrl: string,
+  ): string | null {
     const $ = cheerio.load(html);
     const og =
       $('meta[property="og:image"]').attr("content") ||
@@ -1914,7 +2028,8 @@ ${text}`;
     let score = 0;
     const missingFields: string[] = [];
     const summary = this.normalizeSummary(
-      this.cleanOptionalText(item.summary, 360) || this.createFallbackSummary(item),
+      this.cleanOptionalText(item.summary, 360) ||
+        this.createFallbackSummary(item),
       item.description || "",
       item.title,
     );
@@ -1931,8 +2046,7 @@ ${text}`;
     else if (description.length >= 100) score += 12;
     else missingFields.push("description");
 
-    if (item.direct_apply_url?.startsWith("http"))
-      score += 15;
+    if (item.direct_apply_url?.startsWith("http")) score += 15;
     else missingFields.push("application_url");
 
     if (item.requirements?.length) score += 15;
@@ -1981,7 +2095,10 @@ ${text}`;
       item as unknown as Record<string, unknown>,
     );
     const organization = this.inferOrganizerName(item);
-    const publicTags = this.buildPublicTags(item, classification.canonicalCategory);
+    const publicTags = this.buildPublicTags(
+      item,
+      classification.canonicalCategory,
+    );
 
     return {
       title: item.title || "Untitled Opportunity",
@@ -2094,14 +2211,18 @@ ${text}`;
     title: string,
   ): string {
     const cleanedSummary = this.cleanOptionalText(summary, 420);
-    const cleanedDescription = this.scrubPublicText(String(description || ""), 1200);
+    const cleanedDescription = this.scrubPublicText(
+      String(description || ""),
+      1200,
+    );
     const fallback =
       this.firstSentence(cleanedDescription) ||
       this.cleanText(title, 220) ||
       "Scholarship opportunity details are being verified by Edutu.";
     const candidate = cleanedSummary || fallback;
     const words = candidate.split(/\s+/).filter(Boolean);
-    const limited = words.length > 45 ? words.slice(0, 45).join(" ") : candidate;
+    const limited =
+      words.length > 45 ? words.slice(0, 45).join(" ") : candidate;
     return /[.!?]$/.test(limited) ? limited : `${limited}.`;
   }
 
@@ -2163,7 +2284,10 @@ ${text}`;
       )
       .replace(/\bBy\s+Admin\b/gi, " ")
       .replace(/\b(?:posted|written)\s+by\s+[^.]{1,60}/gi, " ")
-      .replace(/\bApplications?\s+are\s+now\s+open\s+for\s+/gi, "Applications are open for ")
+      .replace(
+        /\bApplications?\s+are\s+now\s+open\s+for\s+/gi,
+        "Applications are open for ",
+      )
       .replace(SOURCE_BRAND_RE, "the official organizer")
       .replace(SCRAPER_ARTIFACT_RE, " ")
       .replace(/\s+([,.;:])/g, "$1")
@@ -2184,7 +2308,7 @@ ${text}`;
     )?.[1];
     const candidates = [
       item.eligibility && typeof item.eligibility === "object"
-        ? (item.eligibility as Record<string, unknown>).organization
+        ? item.eligibility.organization
         : null,
       titleLead,
       item.source,
@@ -2193,7 +2317,11 @@ ${text}`;
     for (const candidate of candidates) {
       const cleaned = this.scrubPublicText(String(candidate ?? ""), 120);
       if (!cleaned || cleaned.length < 3) continue;
-      if (/^(unknown|admin|edutu engine|scholarship|program|opportunity)$/i.test(cleaned)) {
+      if (
+        /^(unknown|admin|edutu engine|scholarship|program|opportunity)$/i.test(
+          cleaned,
+        )
+      ) {
         continue;
       }
       if (SOURCE_BRAND_RE.test(cleaned)) continue;
@@ -2301,7 +2429,10 @@ ${text}`;
       const normalizedPath = parsedUrl.pathname.replace(/\/+$/, "");
       const sourcePath = parsedSource.pathname.replace(/\/+$/, "");
 
-      if (parsedUrl.hostname === parsedSource.hostname && normalizedPath === sourcePath) {
+      if (
+        parsedUrl.hostname === parsedSource.hostname &&
+        normalizedPath === sourcePath
+      ) {
         return false;
       }
 
@@ -2314,10 +2445,12 @@ ${text}`;
   }
 
   private extractCardDescription(card: any, title: string): string {
-    const directDescription =
-      card.find("p, .entry-summary, .excerpt, .post-excerpt, .elementor-post__excerpt")
-        .first()
-        .text();
+    const directDescription = card
+      .find(
+        "p, .entry-summary, .excerpt, .post-excerpt, .elementor-post__excerpt",
+      )
+      .first()
+      .text();
     if (directDescription) return this.cleanText(directDescription, 1200);
 
     const cleanedTitle = this.cleanText(title, 220);
@@ -2335,7 +2468,7 @@ ${text}`;
     let imageUrl: string | null = null;
     card.find("img").each((_, el) => {
       if (imageUrl) return;
-      const attrs = (el as any).attribs || {};
+      const attrs = el.attribs || {};
       imageUrl =
         this.extractImageCandidate(attrs.src, baseUrl) ||
         this.extractImageCandidate(attrs["data-src"], baseUrl) ||

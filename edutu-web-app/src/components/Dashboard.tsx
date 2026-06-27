@@ -1,6 +1,5 @@
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import {
-  Bell,
   BadgeDollarSign,
   Bookmark,
   Briefcase,
@@ -9,11 +8,10 @@ import {
   Clock,
   Download,
   GraduationCap,
+  Heart,
   LayoutGrid,
   List,
-  Menu,
   Send,
-  Settings,
   Share2,
   Shuffle,
   Sparkles,
@@ -23,8 +21,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslation } from "react-i18next";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
-import { EmptyState } from "./ui/EmptyState";
+import { EmptyState, ErrorState } from "./ui/EmptyState";
 import NotificationInbox from "./NotificationInbox";
 import CalendarStrip from "./CalendarStrip";
 import MemberSettingsPanel from "./MemberSettingsPanel";
@@ -32,11 +31,12 @@ import type { CalendarEvent } from "./CalendarStrip";
 import { useDarkMode } from "../hooks/useDarkMode";
 import { useOpportunities } from "../hooks/useOpportunities";
 import { usePersonalizedOpportunities } from "../hooks/usePersonalizedOpportunities";
-import { useNotifications } from "../hooks/useNotifications";
+import { usePersistentState } from "../hooks/usePersistentState";
 import { usePWA } from "../hooks/usePWA";
+import { useToast } from "./ui/ToastProvider";
 import type { AppUser } from "../types/user";
 import type { OnboardingProfileData } from "../types/onboarding";
-import { getBookmarks } from "../services/bookmarks";
+import { addBookmark, getBookmarks, removeBookmark } from "../services/bookmarks";
 import { getApplications } from "../services/applications";
 import { getDeadlines, type Deadline } from "../services/deadlines";
 import { fetchBackendProfile, type BackendProfile } from "../services/profile";
@@ -260,6 +260,296 @@ function getDiscoveryCategoryRoute(category: DiscoveryCategory) {
   return `opportunities?category=${encodeURIComponent(category.id)}`;
 }
 
+type DashboardOpportunityCardVariant =
+  | "carousel"
+  | "mobileGrid"
+  | "grid"
+  | "list";
+
+interface DashboardOpportunityCardProps {
+  opportunity: any;
+  variant: DashboardOpportunityCardVariant;
+  isBookmarked: boolean;
+  isDarkMode: boolean;
+  onOpen: (opportunity: any) => void;
+  onToggleBookmark: (opportunity: any, event: React.MouseEvent) => void;
+  onShare: (opportunity: any, event: React.MouseEvent) => void;
+}
+
+function formatOpportunityDeadline(deadline?: string) {
+  return deadline
+    ? new Date(deadline).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      })
+    : "Ongoing";
+}
+
+const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
+  opportunity,
+  variant,
+  isBookmarked,
+  isDarkMode,
+  onOpen,
+  onToggleBookmark,
+  onShare,
+}: DashboardOpportunityCardProps) {
+  const openLabel = `Open ${opportunity?.title ?? "opportunity"}`;
+  const bookmarkLabel = isBookmarked ? "Remove bookmark" : "Save opportunity";
+
+  const renderBookmark = (iconSize: number, wrapperClass: string) => (
+    <button
+      type="button"
+      onClick={(event) => onToggleBookmark(opportunity, event)}
+      className={wrapperClass}
+      aria-label={bookmarkLabel}
+    >
+      <Heart size={iconSize} fill={isBookmarked ? "currentColor" : "none"} />
+    </button>
+  );
+
+  const renderShare = (iconSize: number, wrapperClass: string) => (
+    <button
+      type="button"
+      onClick={(event) => onShare(opportunity, event)}
+      className={wrapperClass}
+      aria-label="Share opportunity"
+    >
+      <Share2 size={iconSize} />
+    </button>
+  );
+
+  const smallMediaButton = `flex h-6 w-6 items-center justify-center rounded-full backdrop-blur-sm transition-all ${
+    isBookmarked
+      ? "bg-rose-500/90 text-white"
+      : "bg-black/30 text-white/80 hover:bg-black/50"
+  }`;
+  const smallMediaShareButton =
+    "flex h-6 w-6 items-center justify-center rounded-full bg-black/30 text-white/80 backdrop-blur-sm";
+  const largeMediaButton = `flex h-7 w-7 items-center justify-center rounded-full backdrop-blur-sm transition-all ${
+    isBookmarked
+      ? "bg-rose-500/90 text-white"
+      : "bg-black/30 text-white/80 hover:bg-black/50"
+  }`;
+  const largeMediaShareButton =
+    "flex h-7 w-7 items-center justify-center rounded-full bg-black/30 text-white/80 backdrop-blur-sm";
+
+  const renderSmallMediaActions = (position: string, gap: string) => (
+    <div className={`pointer-events-auto absolute ${position} flex ${gap}`}>
+      {renderBookmark(11, smallMediaButton)}
+      {renderShare(11, smallMediaShareButton)}
+    </div>
+  );
+
+  const renderLargeMediaActions = (position: string, gap: string) => (
+    <div className={`pointer-events-auto absolute ${position} flex ${gap}`}>
+      {renderBookmark(13, largeMediaButton)}
+      {renderShare(12, largeMediaShareButton)}
+    </div>
+  );
+
+  if (variant === "list") {
+    return (
+      <article
+        className={`group relative grid w-full grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 border-b p-3 text-left transition-colors last:border-b-0 hover:bg-slate-50 dark:hover:bg-white/5 ${
+          isDarkMode ? "border-white/10" : "border-slate-100"
+        }`}
+      >
+        <button
+          type="button"
+          onClick={() => onOpen(opportunity)}
+          className="absolute inset-0 z-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 dark:focus-visible:ring-offset-gray-950"
+          aria-label={openLabel}
+        >
+          <span className="sr-only">{openLabel}</span>
+        </button>
+        <div className="pointer-events-none relative z-10 h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
+          <ImageWithFallback
+            src={opportunity.image}
+            alt={
+              opportunity.title
+                ? `${opportunity.title} opportunity image`
+                : "Opportunity image"
+            }
+            className="w-full h-full object-cover"
+            fallbackClassName="w-full h-full"
+          />
+        </div>
+        <div className="pointer-events-none relative z-10 flex-1 min-w-0">
+          <div className="mb-1 flex items-center gap-2">
+            <span className="rounded-md bg-brand-500/10 px-2 py-0.5 text-xs font-semibold text-brand-600 dark:text-brand-300">
+              {opportunity.category || "Direct"}
+            </span>
+          </div>
+          <h3 className="text-sm font-bold text-slate-900 transition-colors line-clamp-1 group-hover:text-primary dark:text-white">
+            {opportunity.title}
+          </h3>
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+            <span>{opportunity.location || "Remote"}</span>
+            <span>{formatOpportunityDeadline(opportunity.deadline)}</span>
+          </div>
+        </div>
+        <div className="pointer-events-auto relative z-10 flex shrink-0 items-center gap-1">
+          {renderBookmark(
+            15,
+            `flex h-8 w-8 items-center justify-center rounded-lg transition-all hover:scale-110 ${
+              isBookmarked
+                ? "text-rose-500"
+                : "text-slate-300 hover:text-rose-400"
+            }`,
+          )}
+          {renderShare(
+            14,
+            "flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition-all hover:text-primary hover:scale-110",
+          )}
+          <ChevronRight
+            className="pointer-events-none text-slate-300 group-hover:text-primary transition-colors"
+            size={18}
+          />
+        </div>
+      </article>
+    );
+  }
+
+  if (variant === "carousel") {
+    return (
+      <article
+        className={`mobile-personalized-card relative flex h-44 w-[62vw] max-w-[250px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border text-left transition active:scale-[0.98] ${
+          isDarkMode ? "border-white/10 bg-gray-900" : "border-slate-200 bg-white"
+        }`}
+      >
+        <button
+          type="button"
+          onClick={() => onOpen(opportunity)}
+          className="absolute inset-0 z-0 cursor-pointer"
+          aria-label={openLabel}
+        >
+          <span className="sr-only">{openLabel}</span>
+        </button>
+        <div className="pointer-events-none relative z-10 h-20 shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800">
+          <ImageWithFallback
+            src={opportunity.image}
+            alt={
+              opportunity.title
+                ? `${opportunity.title} opportunity image`
+                : "Opportunity image"
+            }
+            className="h-full w-full object-cover"
+            fallbackClassName="h-full w-full"
+          />
+          <span className="absolute left-2 top-2 max-w-[calc(100%-1rem)] truncate rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-brand-600 backdrop-blur">
+            {opportunity.category || "General"}
+          </span>
+          {renderSmallMediaActions("right-1.5 top-1.5", "gap-1")}
+        </div>
+        <div className="pointer-events-none relative z-10 flex min-h-0 flex-1 flex-col p-3">
+          <h4 className="text-sm font-black leading-snug text-slate-950 line-clamp-2 dark:text-white">
+            {opportunity.title}
+          </h4>
+          <div className="mt-auto flex items-center justify-between gap-2 pt-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+            <span className="truncate">{opportunity.location || "Remote"}</span>
+            <span className="shrink-0">
+              {formatOpportunityDeadline(opportunity.deadline)}
+            </span>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  if (variant === "mobileGrid") {
+    return (
+      <article
+        className={`mobile-more-opportunity-card relative flex min-h-[188px] min-w-0 flex-col overflow-hidden rounded-2xl border text-left transition active:scale-[0.98] ${
+          isDarkMode ? "border-white/10 bg-gray-900" : "border-slate-200 bg-white"
+        }`}
+        style={{ width: "100%", minWidth: 0, maxWidth: "100%" }}
+      >
+        <button
+          type="button"
+          onClick={() => onOpen(opportunity)}
+          className="absolute inset-0 z-0 cursor-pointer"
+          aria-label={openLabel}
+        >
+          <span className="sr-only">{openLabel}</span>
+        </button>
+        <div className="mobile-more-opportunity-media pointer-events-none relative z-10 h-[76px] w-full shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800">
+          <ImageWithFallback
+            src={opportunity.image}
+            alt={
+              opportunity.title
+                ? `${opportunity.title} opportunity image`
+                : "Opportunity image"
+            }
+            className="h-full w-full object-cover"
+            fallbackClassName="h-full w-full"
+          />
+          {renderSmallMediaActions("right-1.5 top-1.5", "gap-1")}
+        </div>
+        <div className="pointer-events-none relative z-10 flex min-h-0 min-w-0 flex-1 flex-col p-2.5">
+          <span className="mb-1 block truncate text-[10px] font-bold leading-4 text-brand-600 dark:text-brand-300">
+            {opportunity.category || "General"}
+          </span>
+          <span className="line-clamp-3 block min-w-0 break-words text-[13px] font-black leading-[1.16] text-slate-950 dark:text-white">
+            {opportunity.title}
+          </span>
+          <div className="mt-auto flex min-w-0 flex-col gap-0.5 pt-2 text-[10px] font-semibold leading-4 text-slate-500 dark:text-slate-400">
+            <span className="truncate">{opportunity.location || "Remote"}</span>
+            <span className="truncate">
+              {formatOpportunityDeadline(opportunity.deadline)}
+            </span>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  return (
+    <article
+      className={`group relative flex min-h-[244px] flex-col overflow-hidden rounded-[20px] border text-left transition-all hover:-translate-y-0.5 ${
+        isDarkMode
+          ? "border-white/5 bg-gray-900 hover:border-white/10"
+          : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-xl hover:shadow-slate-200/70"
+      }`}
+    >
+      <button
+        type="button"
+        onClick={() => onOpen(opportunity)}
+        className="absolute inset-0 z-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950"
+        aria-label={openLabel}
+      >
+        <span className="sr-only">{openLabel}</span>
+      </button>
+      <div className="pointer-events-none relative z-10 h-32 shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800">
+        <ImageWithFallback
+          src={opportunity.image}
+          alt={
+            opportunity.title
+              ? `${opportunity.title} opportunity image`
+              : "Opportunity image"
+          }
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+          fallbackClassName="w-full h-full"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/35 via-transparent to-transparent" />
+        <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-black text-brand-600 backdrop-blur">
+          {opportunity.category || "General"}
+        </span>
+        {renderLargeMediaActions("right-2 top-2", "gap-1.5")}
+      </div>
+      <div className="pointer-events-none relative z-10 flex flex-1 flex-col p-3 sm:p-4">
+        <h3 className="text-xs sm:text-sm font-black text-slate-900 transition-colors line-clamp-2 leading-snug group-hover:text-primary dark:text-white">
+          {opportunity.title}
+        </h3>
+        <div className="mt-auto flex flex-col gap-1 pt-4 text-[10px] font-bold text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+          <span className="truncate">{opportunity.location || "Remote"}</span>
+          <span>{formatOpportunityDeadline(opportunity.deadline)}</span>
+        </div>
+      </div>
+    </article>
+  );
+});
+
 interface DashboardProps {
   user: AppUser | null;
   onOpportunityClick: (opportunity: any) => void;
@@ -318,14 +608,16 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     ref,
   ) {
     const [showNotifications, setShowNotifications] = useState(false);
-    const [showMobileMenu, setShowMobileMenu] = useState(false);
-    const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(() => {
-      if (typeof window === "undefined") return true;
-      return window.innerWidth >= 1280;
-    });
     const [activePanel, setActivePanel] = useState<DashboardPanel | null>(null);
-    const [dismissBanner, setDismissBanner] = useState(false);
-    const [dismissActivityStrip, setDismissActivityStrip] = useState(false);
+    const [dismissBanner, setDismissBanner] = usePersistentState<boolean>(
+      "edutu_dashboard_banner_dismissed",
+      false,
+    );
+    const [dismissActivityStrip, setDismissActivityStrip] =
+      usePersistentState<boolean>(
+        "edutu_dashboard_activity_strip_dismissed",
+        false,
+      );
     const [viewMode, setViewMode] = useState<"list" | "grid">("grid");
     const [homeFeedLimit, setHomeFeedLimit] = useState(HOME_FEED_BATCH_SIZE);
     const [homeShuffleSeed, setHomeShuffleSeed] = useState(() =>
@@ -343,11 +635,95 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       null,
     );
     const { isDarkMode } = useDarkMode();
+    const { t } = useTranslation();
     const { getToken } = useClerkAuth();
+    const toast = useToast();
     const opportunitiesRefreshRef = useRef<() => void>();
     const homeFeedSentinelRef = useRef<HTMLDivElement | null>(null);
-    const sidebarPreferenceRef = useRef(false);
     const [bookmarks, setBookmarks] = useState<any[]>([]);
+
+    const isOppBookmarked = useCallback(
+      (opportunityId: string) =>
+        bookmarks.some(
+          (b: any) => b.opportunity_id === opportunityId,
+        ),
+      [bookmarks],
+    );
+
+    const handleToggleBookmark = useCallback(
+      async (opportunity: any, e: React.MouseEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (!user?.id) {
+          toast.warning("Sign in required", "Please sign in to save opportunities.");
+          return;
+        }
+        const token = await getToken().catch(() => null);
+        if (!token) {
+          toast.warning("Sign in required", "Please sign in to save opportunities.");
+          return;
+        }
+        const saved = bookmarks.find(
+          (b: any) => b.opportunity_id === opportunity.id,
+        );
+        try {
+          if (saved) {
+            await removeBookmark(user.id, opportunity.id, token);
+            setBookmarks((prev: any[]) =>
+              prev.filter((b: any) => b.id !== saved.id),
+            );
+            toast.success("Removed from saved");
+          } else {
+            await addBookmark(
+              user.id,
+              {
+                id: opportunity.id,
+                title: opportunity.title,
+                category: opportunity.category,
+                deadline: opportunity.deadline,
+                location: opportunity.location,
+              },
+              token,
+            );
+            const fresh = await getBookmarks(user.id, token);
+            setBookmarks(fresh);
+            toast.success("Saved", "Added to your shortlist.");
+          }
+        } catch (err) {
+          console.error("Failed to toggle bookmark:", err);
+          toast.error("Could not save", "Please try again in a moment.");
+        }
+      },
+      [bookmarks, getToken, toast, user?.id],
+    );
+
+    const handleShareOpportunity = useCallback(
+      async (opportunity: any, e: React.MouseEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+        const shareUrl = `${window.location.origin}/share/opportunity/${opportunity.id}`;
+        const text = `Check out this opportunity on Edutu: ${opportunity.title}`;
+        try {
+          if (navigator.share) {
+            await navigator.share({
+              title: opportunity.title,
+              text,
+              url: shareUrl,
+            });
+          } else {
+            await navigator.clipboard.writeText(`${text}\n\n${shareUrl}`);
+            toast.success("Link copied", "Share it with anyone you like.");
+          }
+        } catch (err) {
+          if (err instanceof DOMException && err.name === "AbortError") {
+            return;
+          }
+          console.error("Failed to share opportunity:", err);
+          toast.error("Could not share", "Please try again in a moment.");
+        }
+      },
+      [toast],
+    );
     const [applications, setApplications] = useState<any[]>([]);
     const [dashboardDeadlines, setDashboardDeadlines] = useState<Deadline[]>(
       [],
@@ -359,7 +735,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     } | null>(null);
     const [backendProfile, setBackendProfile] = useState<BackendProfile | null>(null);
 
-    const { unreadCount } = useNotifications();
     const {
       isInstallable,
       isInstalled,
@@ -369,12 +744,20 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
     const opportunities = useOpportunities();
     const personalized = usePersonalizedOpportunities();
-    const { setUserProfile: setPersonalizedUserProfile } = personalized;
+    const {
+      setUserProfile: setPersonalizedUserProfile,
+      error: personalizedError,
+    } = personalized;
+    const { error: fallbackFeedError } = opportunities;
     const {
       data: opportunityFeed,
       loading: opportunitiesLoading,
+      error: opportunityFeedError,
       refresh: hookRefreshOpportunities,
     } = user?.id ? personalized : opportunities;
+    const feedErrorMessage = user?.id
+      ? personalizedError
+      : fallbackFeedError ?? opportunityFeedError;
 
     useEffect(() => {
       opportunitiesRefreshRef.current = hookRefreshOpportunities;
@@ -384,24 +767,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       setHomeShuffleSeed(createOpportunityShuffleSeed());
       setHomeFeedLimit(HOME_FEED_BATCH_SIZE);
     }, [user?.id]);
-
-    useEffect(() => {
-      if (embeddedDesktopShell) {
-        return;
-      }
-
-      const mediaQuery = window.matchMedia("(min-width: 1280px)");
-      const syncSidebarToViewport = () => {
-        if (!sidebarPreferenceRef.current) {
-          setIsDesktopSidebarOpen(mediaQuery.matches);
-        }
-      };
-
-      syncSidebarToViewport();
-      mediaQuery.addEventListener("change", syncSidebarToViewport);
-      return () =>
-        mediaQuery.removeEventListener("change", syncSidebarToViewport);
-    }, [embeddedDesktopShell]);
 
     useEffect(() => {
       if (!user?.id) {
@@ -437,69 +802,84 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       };
     }, [getToken, user?.id]);
 
-    useEffect(() => {
-      if (!user?.id) return;
+    const personalizedUserId = user?.id;
+    const userCourseOfStudy = user?.courseOfStudy;
+    const userRef = useRef(user);
+    userRef.current = user;
 
-      const profileRecord = (backendProfile ?? {}) as Record<string, unknown>;
-      const backendSkills = Array.isArray(profileRecord.skills)
-        ? profileRecord.skills.filter(
-            (value): value is string =>
-              typeof value === "string" && value.trim().length > 0,
-          )
-        : [];
-      const backendInterests = Array.isArray(profileRecord.interests)
-        ? profileRecord.interests.filter(
-            (value): value is string =>
-              typeof value === "string" && value.trim().length > 0,
-          )
-        : [];
-      const backendField =
-        typeof profileRecord.fieldOfStudy === "string"
-          ? profileRecord.fieldOfStudy
-          : typeof profileRecord.field_of_study === "string"
-            ? profileRecord.field_of_study
-            : typeof profileRecord.course_of_study === "string"
-              ? profileRecord.course_of_study
-              : user.courseOfStudy;
-      const backendCountry =
-        typeof profileRecord.country === "string"
-          ? profileRecord.country
-          : undefined;
+    const backendRecommendationData = useMemo<Partial<UserProfileForRecommendations>>(
+      () => {
+        if (!personalizedUserId) return {};
 
-      const backendRecommendationData: Partial<UserProfileForRecommendations> = {
-        ...(backendField ? { courseOfStudy: backendField } : {}),
-        ...(backendCountry ? { location: backendCountry } : {}),
-        ...(backendSkills.length || backendInterests.length
-          ? {
-              interests: Array.from(new Set([...backendSkills, ...backendInterests])),
-              preferredCategories: Array.from(new Set([...backendSkills, ...backendInterests])),
-            }
-          : {}),
+        const profileRecord = (backendProfile ?? {}) as Record<string, unknown>;
+        const backendSkills = Array.isArray(profileRecord.skills)
+          ? profileRecord.skills.filter(
+              (value): value is string =>
+                typeof value === "string" && value.trim().length > 0,
+            )
+          : [];
+        const backendInterests = Array.isArray(profileRecord.interests)
+          ? profileRecord.interests.filter(
+              (value): value is string =>
+                typeof value === "string" && value.trim().length > 0,
+            )
+          : [];
+        const backendField =
+          typeof profileRecord.fieldOfStudy === "string"
+            ? profileRecord.fieldOfStudy
+            : typeof profileRecord.field_of_study === "string"
+              ? profileRecord.field_of_study
+              : typeof profileRecord.course_of_study === "string"
+                ? profileRecord.course_of_study
+                : userCourseOfStudy;
+        const backendCountry =
+          typeof profileRecord.country === "string"
+            ? profileRecord.country
+            : undefined;
+
+        return {
+          ...(backendField ? { courseOfStudy: backendField } : {}),
+          ...(backendCountry ? { location: backendCountry } : {}),
+          ...(backendSkills.length || backendInterests.length
+            ? {
+                interests: Array.from(new Set([...backendSkills, ...backendInterests])),
+                preferredCategories: Array.from(new Set([...backendSkills, ...backendInterests])),
+              }
+            : {}),
+        };
+      },
+      [backendProfile, personalizedUserId, userCourseOfStudy],
+    );
+
+    const onboardingRecommendationData = useMemo<
+      Partial<UserProfileForRecommendations> | undefined
+    >(() => {
+      if (!onboardingProfile) return undefined;
+      return {
+        courseOfStudy: onboardingProfile.courseOfStudy,
+        interests: onboardingProfile.interests,
+        preferredCategories: onboardingProfile.interests,
+        careerGoals: onboardingProfile.goals,
+        educationLevel: onboardingProfile.educationLevel,
+        location: onboardingProfile.location,
+        experienceLevel: onboardingProfile.experience,
       };
+    }, [onboardingProfile]);
 
-      const onboardingRecommendationData: Partial<UserProfileForRecommendations> | undefined =
-        onboardingProfile
-          ? {
-              courseOfStudy: onboardingProfile.courseOfStudy,
-              interests: onboardingProfile.interests,
-              preferredCategories: onboardingProfile.interests,
-              careerGoals: onboardingProfile.goals,
-              educationLevel: onboardingProfile.educationLevel,
-              location: onboardingProfile.location,
-              experienceLevel: onboardingProfile.experience,
-            }
-          : undefined;
-
+    useEffect(() => {
+      if (!personalizedUserId) return;
+      const currentUser = userRef.current;
+      if (!currentUser) return;
       setPersonalizedUserProfile(
-        user,
+        currentUser,
         backendRecommendationData,
         onboardingRecommendationData,
       );
     }, [
-      backendProfile,
-      onboardingProfile,
+      personalizedUserId,
+      backendRecommendationData,
+      onboardingRecommendationData,
       setPersonalizedUserProfile,
-      user,
     ]);
 
     useEffect(() => {
@@ -597,18 +977,18 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     );
 
     const opportunityEmptyTitle = selectedDiscoveryCategory
-      ? `No ${selectedDiscoveryCategory.title.toLowerCase()} found`
-      : "No recommendations yet";
+      ? t("dashboard.empty.noCategoryFound", { category: selectedDiscoveryCategory.title.toLowerCase() })
+      : t("dashboard.empty.noRecommendations");
     const opportunityEmptyDescription = selectedDiscoveryCategory
-      ? "Try another category or clear the filter to return to the full feed."
-      : "Complete your profile or browse the full opportunity feed while Edutu prepares better matches.";
+      ? t("dashboard.empty.tryAnotherCategory")
+      : t("dashboard.empty.noRecommendationsDescription");
     const opportunityEmptyAction = selectedDiscoveryCategory
       ? {
-          label: "Show all",
+          label: t("dashboard.empty.showAll"),
           onClick: () => setActiveDiscoveryCategory(null),
         }
       : {
-          label: "Browse opportunities",
+          label: t("dashboard.empty.browseOpportunities"),
           onClick: onViewAllOpportunities,
         };
 
@@ -734,59 +1114,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       return new Date(updatedAt).toLocaleDateString();
     };
 
-    const menuItems = [
-      { id: "home", label: "Home", icon: <LayoutGrid size={18} /> },
-      {
-        id: "opportunities",
-        label: "Opportunities",
-        icon: <Briefcase size={18} />,
-      },
-      { id: "saved", label: "Saved", icon: <Bookmark size={18} /> },
-      { id: "applied", label: "Applications", icon: <Send size={18} /> },
-      { id: "deadlines", label: "Deadlines", icon: <Calendar size={18} /> },
-      { id: "profile", label: "Profile", icon: <UserCheck size={18} /> },
-      { id: "settings", label: "Settings", icon: <Settings size={18} /> },
-    ];
-
-    const desktopPrimaryItems = [
-      { id: "home", label: "Home", icon: <LayoutGrid size={18} /> },
-      {
-        id: "opportunities",
-        label: "Opportunities",
-        icon: <Briefcase size={18} />,
-      },
-      { id: "deadlines", label: "Deadlines", icon: <Calendar size={18} /> },
-    ];
-
-    const desktopPanelItems = [
-      {
-        id: "saved",
-        label: "Saved",
-        icon: <Bookmark size={17} />,
-        count: bookmarks.length,
-      },
-      {
-        id: "applied",
-        label: "Applied",
-        icon: <Send size={17} />,
-        count: applications.length,
-      },
-      {
-        id: "profile",
-        label: "Profile",
-        icon: <UserCheck size={17} />,
-        count: profileScore?.score,
-      },
-      { id: "settings", label: "Settings", icon: <Settings size={17} /> },
-    ];
-
-    const mobileNavItems = [
-      { id: "home", label: "Home", icon: <LayoutGrid size={20} /> },
-      { id: "opportunities", label: "Explore", icon: <Briefcase size={20} /> },
-      { id: "deadlines", label: "Dates", icon: <Calendar size={20} /> },
-      { id: "more", label: "More", icon: <Menu size={20} /> },
-    ];
-
     const recentActivity = useMemo(() => {
       const savedItems = bookmarks.slice(0, 3).map((bookmark) => ({
         id: `bookmark-${bookmark.id}`,
@@ -811,8 +1138,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     }, [applications, bookmarks]);
 
     function openDashboardDestination(id: string) {
-      setShowMobileMenu(false);
-
       if (id === "home") {
         setActivePanel(null);
         return;
@@ -879,7 +1204,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     };
 
     function handleDiscoveryCategoryClick(category: DiscoveryCategory) {
-      setActiveDiscoveryCategory(category.id);
       onNavigate?.(getDiscoveryCategoryRoute(category));
     }
 
@@ -913,13 +1237,9 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       openDashboardDestination(mobileHomePromo.actionScreen || "profile");
     }
 
-    const handleMenuItemClick = (id: string) => {
-      openDashboardDestination(id);
-    };
-
     const handleCalendarEventClick = (event: CalendarEvent) => {
       if (event.type === "goal") {
-        setActivePanel("deadlines");
+        onNavigate?.("deadlines");
         return;
       }
 
@@ -1140,7 +1460,8 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     type="button"
                     onClick={() => {
                       if (item.type === "goal") {
-                        setActivePanel("deadlines");
+                        setActivePanel(null);
+                        onNavigate?.("deadlines");
                         return;
                       }
 
@@ -1280,264 +1601,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         {/* Background Mesh Gradient */}
         <div className="fixed inset-0 pointer-events-none opacity-30 dark:opacity-20 mesh-gradient" />
 
-        {/* Header */}
-        <header
-          className={`fixed inset-x-0 top-0 z-50 backdrop-blur-xl border-b transition-all duration-300 ${embeddedDesktopShell ? "hidden" : ""} ${
-            isDarkMode
-              ? "bg-gray-950/95 border-white/5"
-              : "bg-white border-slate-200"
-          }`}
-        >
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between h-14 md:h-16">
-              {/* Logo - No background color */}
-              <div className="flex items-center gap-2 md:gap-3">
-                <img
-                  src="/edutu-logo.png"
-                  alt="Edutu Logo"
-                  className="h-8 w-8 md:h-10 md:w-10 object-contain"
-                />
-                <span
-                  className={`text-xl md:text-2xl font-display font-bold tracking-tight ${isDarkMode ? "text-white" : "text-slate-900"}`}
-                >
-                  Edutu
-                </span>
-              </div>
-
-              <div className="flex items-center gap-3">
-                {/* Notification Button */}
-                <button
-                  type="button"
-                  onClick={() => setShowNotifications(true)}
-                  className={`relative p-2.5 rounded-xl border transition-all ${
-                    isDarkMode
-                      ? "border-white/5 bg-white/5 hover:bg-white/10 text-slate-300"
-                      : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
-                  }`}
-                  aria-label="Notifications"
-                >
-                  <Bell size={20} />
-                  {unreadCount > 0 && (
-                    <span className="absolute top-2 right-2 h-2.5 w-2.5 bg-rose-500 rounded-full border-2 border-white dark:border-gray-950" />
-                  )}
-                </button>
-
-                {/* Mobile Menu Button */}
-                <button
-                  type="button"
-                  onClick={() => setShowMobileMenu(!showMobileMenu)}
-                  className="lg:hidden p-2 rounded-xl transition-all"
-                  style={{
-                    backgroundColor: isDarkMode
-                      ? "rgba(255,255,255,0.05)"
-                      : "rgba(0,0,0,0.03)",
-                  }}
-                  aria-label={showMobileMenu ? "Close menu" : "Open menu"}
-                >
-                  {showMobileMenu ? (
-                    <X
-                      size={20}
-                      className={isDarkMode ? "text-white" : "text-slate-700"}
-                    />
-                  ) : (
-                    <Menu
-                      size={20}
-                      className={isDarkMode ? "text-white" : "text-slate-700"}
-                    />
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <AnimatePresence>
-          {showMobileMenu && (
-            <>
-              <motion.button
-                type="button"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setShowMobileMenu(false)}
-                className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-[2px] lg:hidden"
-                aria-label="Close menu"
-              />
-              <motion.div
-                initial={{ y: 32, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: 32, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className={`fixed inset-x-0 bottom-0 z-50 rounded-t-[24px] border-t p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-2xl lg:hidden ${isDarkMode ? "border-white/10 bg-gray-950 text-white" : "border-slate-200 bg-white text-slate-950"}`}
-              >
-                <div
-                  className={`mx-auto mb-4 h-1 w-11 rounded-full ${isDarkMode ? "bg-white/15" : "bg-slate-200"}`}
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  {menuItems.map((item) => {
-                    const active =
-                      item.id === activePanel ||
-                      (item.id === "home" && activePanel === null);
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => handleMenuItemClick(item.id)}
-                        className={`flex items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-bold transition ${
-                          active
-                            ? "bg-brand-500 text-white"
-                            : isDarkMode
-                              ? "bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
-                              : "bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-950"
-                        }`}
-                      >
-                        {item.icon}
-                        {item.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
-
-        {!embeddedDesktopShell ? (
-          <>
-            <button
-              type="button"
-              onClick={() => {
-                sidebarPreferenceRef.current = true;
-                setIsDesktopSidebarOpen((value) => !value);
-              }}
-              className={`hidden lg:flex fixed top-20 z-[55] h-11 w-11 items-center justify-center rounded-full border transition-all duration-300 ${isDesktopSidebarOpen ? "left-[258px]" : "left-[50px]"} ${
-                isDarkMode
-                  ? "border-white/10 bg-gray-900 text-white hover:bg-gray-800"
-                  : "border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50"
-              }`}
-              aria-label={
-                isDesktopSidebarOpen ? "Collapse sidebar" : "Open sidebar"
-              }
-              aria-expanded={isDesktopSidebarOpen}
-            >
-              {isDesktopSidebarOpen ? <X size={18} /> : <Menu size={18} />}
-            </button>
-
-            <aside
-              className={`hidden lg:block fixed left-0 top-16 bottom-0 z-40 border-r transition-[width] duration-300 ${isDesktopSidebarOpen ? "w-[280px]" : "w-[72px]"} ${
-                isDarkMode
-                  ? "border-white/10 bg-gray-950"
-                  : "border-slate-200 bg-white"
-              }`}
-            >
-              <div className={`flex h-full flex-col overflow-y-auto overflow-x-hidden ${isDesktopSidebarOpen ? "px-4" : "px-2"} py-4`}>
-                <div
-                  className={`flex items-center gap-3 border-b pb-4 ${isDesktopSidebarOpen ? "px-1" : "justify-center px-0"} ${isDarkMode ? "border-white/10" : "border-slate-100"}`}
-                >
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500 text-sm font-black text-white">
-                    {(user?.name || user?.email || "E").charAt(0).toUpperCase()}
-                  </div>
-                  {isDesktopSidebarOpen && (
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-950 dark:text-white">
-                        {user?.name || "Edutu learner"}
-                      </p>
-                      <p
-                        className={`truncate text-xs ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
-                      >
-                        {user?.email || "Welcome back"}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                <nav
-                  className="mt-4 space-y-1"
-                  aria-label="Dashboard sidebar"
-                >
-                  {desktopPrimaryItems.map((item) => {
-                    const active = item.id === "home" && activePanel === null;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        title={!isDesktopSidebarOpen ? item.label : undefined}
-                        onClick={() => openDashboardDestination(item.id)}
-                        className={`flex h-11 w-full items-center rounded-xl text-sm font-semibold transition-colors active:scale-[0.98] ${
-                          isDesktopSidebarOpen ? "justify-start gap-3 px-3" : "justify-center px-0"
-                        } ${
-                          active
-                            ? "bg-brand-500 text-white"
-                            : isDarkMode
-                              ? "text-slate-300 hover:bg-white/10 hover:text-white"
-                              : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-                        }`}
-                        aria-label={item.label}
-                      >
-                        <span className="shrink-0">{item.icon}</span>
-                        {isDesktopSidebarOpen && (
-                          <span className="truncate">{item.label}</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </nav>
-
-                <div
-                  className={`my-4 h-px ${isDarkMode ? "bg-white/10" : "bg-slate-100"}`}
-                />
-
-                <div className="space-y-1">
-                  {isDesktopSidebarOpen && (
-                    <p
-                      className={`px-3 pb-1 text-xs font-semibold ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}
-                    >
-                      Workspace
-                    </p>
-                  )}
-                  {desktopPanelItems.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      title={!isDesktopSidebarOpen ? item.label : undefined}
-                      onClick={() => openDashboardDestination(item.id)}
-                      className={`flex h-11 w-full items-center rounded-xl text-left transition-colors active:scale-[0.98] ${
-                        isDesktopSidebarOpen ? "justify-between gap-3 px-3" : "justify-center px-0"
-                      } ${
-                        activePanel === item.id
-                          ? "bg-brand-500/10 text-brand-700 dark:text-brand-200"
-                          : isDarkMode
-                            ? "text-slate-300 hover:bg-white/10 hover:text-white"
-                            : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-                      }`}
-                      aria-label={item.label}
-                    >
-                      <span
-                        className={`flex min-w-0 items-center ${isDesktopSidebarOpen ? "gap-3" : "justify-center"} text-sm font-semibold`}
-                      >
-                        <span className="shrink-0 text-brand-500">
-                          {item.icon}
-                        </span>
-                        {isDesktopSidebarOpen && (
-                          <span className="truncate">{item.label}</span>
-                        )}
-                      </span>
-                      {isDesktopSidebarOpen &&
-                        typeof item.count === "number" && (
-                          <span
-                            className={`text-xs font-semibold ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
-                          >
-                            {item.count}
-                          </span>
-                        )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </aside>
-          </>
-        ) : null}
-
         <AnimatePresence>
           {activePanel && (
             <>
@@ -1594,7 +1657,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         </AnimatePresence>
 
         <div
-          className={`mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-8 transition-[padding] duration-300 ${embeddedDesktopShell ? "lg:pl-8" : isDesktopSidebarOpen ? "lg:pl-[312px]" : "lg:pl-[104px]"} ${activePanel ? "xl:pr-[420px]" : "xl:pr-8"}`}
+          className={`mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-8 transition-[padding] duration-300 ${embeddedDesktopShell ? "lg:pl-8" : ""} ${activePanel ? "xl:pr-[420px]" : "xl:pr-8"}`}
         >
           <main className="min-w-0 px-0 py-5 space-y-6">
             <motion.section
@@ -1604,7 +1667,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
             >
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-base font-semibold tracking-tight text-slate-950 dark:text-white">
-                  Explore opportunities
+                  {t("dashboard.sections.exploreOpportunities")}
                 </h2>
                 {selectedDiscoveryCategory ? (
                   <button
@@ -1616,7 +1679,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         : "border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
                     }`}
                   >
-                    All
+                    {t("common.all")}
                   </button>
                 ) : null}
               </div>
@@ -1674,7 +1737,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: 100 }}
                   transition={{ duration: 0.3 }}
-                  className={`profile-completion-card rounded-[20px] p-5 border-l-4 ${isDarkMode ? "bg-amber-500/5 border-amber-500/50" : "bg-amber-50 border-amber-400"}`}
+                  className={`profile-completion-card rounded-[20px] p-5 border ${isDarkMode ? "bg-amber-500/5 border-amber-500/20" : "bg-amber-50 border-amber-200"}`}
                 >
                   <div className="flex items-start gap-4">
                     <div
@@ -1686,10 +1749,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <h3 className="text-sm font-black tracking-wider text-slate-900 dark:text-white mb-1">
-                            Complete your profile
+                            {t("dashboard.completeProfile")}
                           </h3>
                           <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                            Unlock personalized matches at {profileScore.score}%
+                            {t("dashboard.profileBanner.unlock", { score: profileScore.score })}
                           </p>
                           {profileScore.missingFields.length > 0 && (
                             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -1705,7 +1768,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                 ))}
                               {profileScore.missingFields.length > 3 && (
                                 <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-300">
-                                  +{profileScore.missingFields.length - 3} more
+                                  {t("dashboard.moreCount", { count: profileScore.missingFields.length - 3 })}
                                 </span>
                               )}
                             </div>
@@ -1736,11 +1799,11 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             onClick={() => setActivePanel("profile")}
                             className="text-xs font-black tracking-widest text-brand-500 hover:text-brand-600 transition-colors"
                           >
-                            Review profile
+                            {t("dashboard.reviewProfile")}
                           </button>
                           {!profileScore.isMatchEnabled && (
                             <span className="text-[10px] font-bold text-amber-500 tracking-wider">
-                              Need 60% for matches
+                              {t("dashboard.needForMatches")}
                             </span>
                           )}
                         </div>
@@ -1848,14 +1911,14 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         </div>
                         <div className="min-w-0">
                           <h2 className="truncate text-lg font-semibold tracking-tight text-slate-950 dark:text-white">
-                            Recommended picks
+                            {t("dashboard.sections.recommendedPicks")}
                           </h2>
                           <p
                             className={`truncate text-xs font-normal ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
                           >
                             {selectedDiscoveryCategory
                               ? selectedDiscoveryCategory.title
-                              : "For you"}
+                              : t("dashboard.forYou")}
                           </p>
                         </div>
                       </div>
@@ -1901,10 +1964,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                               : "border-slate-200 bg-white text-slate-600 shadow-sm hover:border-slate-300 hover:text-slate-950"
                           }`}
                           aria-label="Shuffle recommended opportunities"
-                          title="Shuffle"
+                          title={t("dashboard.shuffle")}
                         >
                           <Shuffle size={14} />
-                          <span className="hidden sm:inline">Shuffle</span>
+                          <span className="hidden sm:inline">{t("dashboard.shuffle")}</span>
                         </button>
                         <button
                           type="button"
@@ -1915,9 +1978,9 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                               : "border-slate-200 bg-white text-slate-600 shadow-sm hover:border-slate-300 hover:text-slate-950"
                           }`}
                           aria-label="View all opportunities"
-                          title="View more"
+                          title={t("dashboard.viewMore")}
                         >
-                          <span className="hidden sm:inline">View more</span>
+                          <span className="hidden sm:inline">{t("dashboard.viewMore")}</span>
                           <ChevronRight size={16} />
                         </button>
                       </div>
@@ -1933,6 +1996,15 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             className={`h-44 w-[62vw] max-w-[250px] shrink-0 animate-pulse rounded-2xl ${isDarkMode ? "bg-white/5" : "bg-slate-200"}`}
                           />
                         ))}
+                      </div>
+                    ) : feedErrorMessage && normalizedOpportunityFeed.length === 0 ? (
+                      <div
+                        className={`rounded-2xl border ${isDarkMode ? "border-white/10 bg-gray-900/60" : "border-slate-200 bg-white"}`}
+                      >
+                        <ErrorState
+                          message={feedErrorMessage}
+                          onRetry={hookRefreshOpportunities}
+                        />
                       </div>
                     ) : mobilePersonalizedOpportunities.length === 0 ? (
                       <div
@@ -1954,52 +2026,20 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                           >
                             {mobilePersonalizedOpportunities.map(
                               (opportunity: any, index: number) => (
-                                <button
+                                <DashboardOpportunityCard
                                   key={
                                     opportunity?.id
                                       ? `mobile-personalized-${opportunity.id}`
                                       : `mobile-personalized-${index}`
                                   }
-                                  type="button"
-                                  onClick={() => onOpportunityClick(opportunity)}
-                                  className={`mobile-personalized-card flex h-44 w-[62vw] max-w-[250px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border text-left transition active:scale-[0.98] ${isDarkMode ? "border-white/10 bg-gray-900" : "border-slate-200 bg-white"}`}
-                                >
-                                  <div className="relative h-20 shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800">
-                                    <ImageWithFallback
-                                      src={opportunity.image}
-                                      alt={
-                                        opportunity.title
-                                          ? `${opportunity.title} opportunity image`
-                                          : "Opportunity image"
-                                      }
-                                      className="h-full w-full object-cover"
-                                      fallbackClassName="h-full w-full"
-                                    />
-                                    <span className="absolute left-2 top-2 max-w-[calc(100%-1rem)] truncate rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-brand-600 backdrop-blur">
-                                      {opportunity.category || "General"}
-                                    </span>
-                                  </div>
-                                  <div className="flex min-h-0 flex-1 flex-col p-3">
-                                    <h4 className="text-sm font-black leading-snug text-slate-950 line-clamp-2 dark:text-white">
-                                      {opportunity.title}
-                                    </h4>
-                                    <div className="mt-auto flex items-center justify-between gap-2 pt-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                                      <span className="truncate">
-                                        {opportunity.location || "Remote"}
-                                      </span>
-                                      <span className="shrink-0">
-                                        {opportunity.deadline
-                                          ? new Date(
-                                              opportunity.deadline,
-                                            ).toLocaleDateString("en-US", {
-                                              month: "short",
-                                              day: "numeric",
-                                            })
-                                          : "Ongoing"}
-                                      </span>
-                                    </div>
-                                  </div>
-                                </button>
+                                  opportunity={opportunity}
+                                  variant="carousel"
+                                  isBookmarked={isOppBookmarked(opportunity.id)}
+                                  isDarkMode={isDarkMode}
+                                  onOpen={onOpportunityClick}
+                                  onToggleBookmark={handleToggleBookmark}
+                                  onShare={handleShareOpportunity}
+                                />
                               ),
                             )}
                             <button
@@ -2015,7 +2055,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                   : "border-slate-200 bg-slate-50 text-slate-600"
                               }`}
                             >
-                              {selectedDiscoveryCategory ? "Show all" : "View all"}
+                              {selectedDiscoveryCategory ? t("dashboard.empty.showAll") : t("dashboard.viewAll")}
                               <ChevronRight size={16} />
                             </button>
                           </div>
@@ -2062,13 +2102,13 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             <div className="min-w-0">
                               <h3 className="text-lg font-black tracking-tight text-slate-950 dark:text-white">
                                 {selectedDiscoveryCategory
-                                  ? `${selectedDiscoveryCategory.title} opportunities`
-                                  : "More opportunities"}
+                                  ? t("dashboard.categoryOpportunities", { category: selectedDiscoveryCategory.title })
+                                  : t("dashboard.moreOpportunities")}
                               </h3>
                               <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                                 {selectedDiscoveryCategory
-                                  ? "Filtered by your selection"
-                                  : "Scroll down to keep reviewing cards"}
+                                  ? t("dashboard.filteredBySelection")
+                                  : t("dashboard.scrollDown")}
                               </p>
                             </div>
                             <button
@@ -2101,55 +2141,16 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                               const { opportunity } = item;
 
                               return (
-                                <button
+                                <DashboardOpportunityCard
                                   key={item.key}
-                                  type="button"
-                                  onClick={() => onOpportunityClick(opportunity)}
-                                  className={`mobile-more-opportunity-card flex min-h-[188px] min-w-0 flex-col overflow-hidden rounded-2xl border text-left transition active:scale-[0.98] ${isDarkMode ? "border-white/10 bg-gray-900" : "border-slate-200 bg-white"}`}
-                                  style={{
-                                    width: "100%",
-                                    minWidth: 0,
-                                    maxWidth: "100%",
-                                  }}
-                                >
-                                    <div
-                                      className="mobile-more-opportunity-media h-[76px] w-full shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800"
-                                    >
-                                      <ImageWithFallback
-                                        src={opportunity.image}
-                                        alt={
-                                          opportunity.title
-                                            ? `${opportunity.title} opportunity image`
-                                            : "Opportunity image"
-                                        }
-                                        className="h-full w-full object-cover"
-                                        fallbackClassName="h-full w-full"
-                                      />
-                                    </div>
-                                    <div className="flex min-h-0 min-w-0 flex-1 flex-col p-2.5">
-                                      <span className="mb-1 block truncate text-[10px] font-bold leading-4 text-brand-600 dark:text-brand-300">
-                                        {opportunity.category || "General"}
-                                      </span>
-                                      <span className="line-clamp-3 block min-w-0 break-words text-[13px] font-black leading-[1.16] text-slate-950 dark:text-white">
-                                        {opportunity.title}
-                                      </span>
-                                      <div className="mt-auto flex min-w-0 flex-col gap-0.5 pt-2 text-[10px] font-semibold leading-4 text-slate-500 dark:text-slate-400">
-                                        <span className="truncate">
-                                          {opportunity.location || "Remote"}
-                                        </span>
-                                        <span className="truncate">
-                                          {opportunity.deadline
-                                            ? new Date(
-                                                opportunity.deadline,
-                                              ).toLocaleDateString("en-US", {
-                                                month: "short",
-                                                day: "numeric",
-                                              })
-                                            : "Ongoing"}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </button>
+                                  opportunity={opportunity}
+                                  variant="mobileGrid"
+                                  isBookmarked={isOppBookmarked(opportunity.id)}
+                                  isDarkMode={isDarkMode}
+                                  onOpen={onOpportunityClick}
+                                  onToggleBookmark={handleToggleBookmark}
+                                  onShare={handleShareOpportunity}
+                                />
                               );
                             })}
                           </div>
@@ -2162,7 +2163,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                 : "border-slate-200 bg-white text-slate-800 shadow-sm hover:border-slate-300 hover:bg-slate-50"
                             }`}
                           >
-                            View more
+                            {t("dashboard.viewMore")}
                             <ChevronRight size={17} strokeWidth={2.4} />
                           </button>
                         </div>
@@ -2191,6 +2192,15 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             </div>
                           </div>
                         ))
+                      ) : feedErrorMessage && normalizedOpportunityFeed.length === 0 ? (
+                        <div
+                          className={`col-span-full rounded-[20px] border ${isDarkMode ? "border-white/10 bg-gray-900/60" : "border-slate-200 bg-white"}`}
+                        >
+                          <ErrorState
+                            message={feedErrorMessage}
+                            onRetry={hookRefreshOpportunities}
+                          />
+                        </div>
                       ) : homeFeedItems.length === 0 ? (
                         <div
                           className={`col-span-full rounded-[20px] border ${isDarkMode ? "border-white/10 bg-gray-900/60" : "border-slate-200 bg-white"}`}
@@ -2203,11 +2213,11 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             secondaryAction={
                               selectedDiscoveryCategory
                                 ? {
-                                    label: "Browse all",
+                                    label: t("dashboard.browseAll"),
                                     onClick: onViewAllOpportunities,
                                   }
                                 : {
-                                    label: "Improve profile",
+                                    label: t("dashboard.improveProfile"),
                                     onClick: () => setActivePanel("profile"),
                                   }
                             }
@@ -2250,49 +2260,16 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
                           const { opportunity } = item;
                           return (
-                            <button
-                              type="button"
+                            <DashboardOpportunityCard
                               key={item.key}
-                              onClick={() => onOpportunityClick(opportunity)}
-                              className={`flex min-h-[244px] flex-col rounded-[20px] overflow-hidden border cursor-pointer group text-left transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 ${isDarkMode ? "bg-gray-900 border-white/5 hover:border-white/10 focus-visible:ring-offset-gray-950" : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-xl hover:shadow-slate-200/70 focus-visible:ring-offset-slate-50"}`}
-                            >
-                              <div className="relative h-32 shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800">
-                                <ImageWithFallback
-                                  src={opportunity.image}
-                                  alt={
-                                    opportunity.title
-                                      ? `${opportunity.title} opportunity image`
-                                      : "Opportunity image"
-                                  }
-                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                                  fallbackClassName="w-full h-full"
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/35 via-transparent to-transparent" />
-                                <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-black text-brand-600 backdrop-blur">
-                                  {opportunity.category || "General"}
-                                </span>
-                              </div>
-                              <div className="flex flex-1 flex-col p-3 sm:p-4">
-                                <h3 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-2 leading-snug">
-                                  {opportunity.title}
-                                </h3>
-                                <div className="mt-auto flex flex-col gap-1 pt-4 text-[10px] font-bold text-slate-400 sm:flex-row sm:items-center sm:justify-between">
-                                  <span className="truncate">
-                                    {opportunity.location || "Remote"}
-                                  </span>
-                                  <span>
-                                    {opportunity.deadline
-                                      ? new Date(
-                                          opportunity.deadline,
-                                        ).toLocaleDateString("en-US", {
-                                          month: "short",
-                                          day: "numeric",
-                                        })
-                                      : "Ongoing"}
-                                  </span>
-                                </div>
-                              </div>
-                            </button>
+                              opportunity={opportunity}
+                              variant="grid"
+                              isBookmarked={isOppBookmarked(opportunity.id)}
+                              isDarkMode={isDarkMode}
+                              onOpen={onOpportunityClick}
+                              onToggleBookmark={handleToggleBookmark}
+                              onShare={handleShareOpportunity}
+                            />
                           );
                         })
                       )}
@@ -2313,6 +2290,15 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             }}
                           />
                         ))
+                      ) : feedErrorMessage && normalizedOpportunityFeed.length === 0 ? (
+                        <div
+                          className={`rounded-[20px] border ${isDarkMode ? "border-white/10 bg-gray-900/60" : "border-slate-200 bg-white"}`}
+                        >
+                          <ErrorState
+                            message={feedErrorMessage}
+                            onRetry={hookRefreshOpportunities}
+                          />
+                        </div>
                       ) : homeFeedItems.length === 0 ? (
                         <div
                           className={`rounded-[20px] border ${isDarkMode ? "border-white/10 bg-gray-900/60" : "border-slate-200 bg-white"}`}
@@ -2325,11 +2311,11 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             secondaryAction={
                               selectedDiscoveryCategory
                                 ? {
-                                    label: "Browse all",
+                                    label: t("dashboard.browseAll"),
                                     onClick: onViewAllOpportunities,
                                   }
                                 : {
-                                    label: "Improve profile",
+                                    label: t("dashboard.improveProfile"),
                                     onClick: () => setActivePanel("profile"),
                                   }
                             }
@@ -2370,54 +2356,16 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
                           const { opportunity } = item;
                           return (
-                            <button
-                              type="button"
+                            <DashboardOpportunityCard
                               key={item.key}
-                              onClick={() => onOpportunityClick(opportunity)}
-                              className={`grid w-full grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 border-b p-3 text-left transition-colors last:border-b-0 hover:bg-slate-50 dark:hover:bg-white/5 ${isDarkMode ? "border-white/10" : "border-slate-100"} cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 dark:focus-visible:ring-offset-gray-950`}
-                            >
-                              <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
-                                <ImageWithFallback
-                                  src={opportunity.image}
-                                  alt={
-                                    opportunity.title
-                                      ? `${opportunity.title} opportunity image`
-                                      : "Opportunity image"
-                                  }
-                                  className="w-full h-full object-cover"
-                                  fallbackClassName="w-full h-full"
-                                />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="mb-1 flex items-center gap-2">
-                                  <span className="rounded-md bg-brand-500/10 px-2 py-0.5 text-xs font-semibold text-brand-600 dark:text-brand-300">
-                                    {opportunity.category || "Direct"}
-                                  </span>
-                                </div>
-                                <h3 className="text-sm font-bold text-slate-900 transition-colors line-clamp-1 group-hover:text-primary dark:text-white">
-                                  {opportunity.title}
-                                </h3>
-                                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                                  <span>{opportunity.location || "Remote"}</span>
-                                  <span>
-                                    {opportunity.deadline
-                                      ? new Date(
-                                          opportunity.deadline,
-                                        ).toLocaleDateString("en-US", {
-                                          month: "short",
-                                          day: "numeric",
-                                        })
-                                      : "Ongoing"}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="shrink-0">
-                                <ChevronRight
-                                  className="text-slate-300 group-hover:text-primary transition-colors"
-                                  size={18}
-                                />
-                              </div>
-                            </button>
+                              opportunity={opportunity}
+                              variant="list"
+                              isBookmarked={isOppBookmarked(opportunity.id)}
+                              isDarkMode={isDarkMode}
+                              onOpen={onOpportunityClick}
+                              onToggleBookmark={handleToggleBookmark}
+                              onShare={handleShareOpportunity}
+                            />
                           );
                         })
                       )}
@@ -2443,10 +2391,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         </div>
                         <div>
                           <h2 className="text-base font-black">
-                            Recent activity
+                            {t("dashboard.sections.recentActivity")}
                           </h2>
                           <p className="text-xs text-slate-400">
-                            Latest saved and tracked opportunities
+                            {t("dashboard.latestActivity")}
                           </p>
                         </div>
                       </div>
@@ -2457,7 +2405,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             onClick={() => setActivePanel("saved")}
                             className="text-[10px] font-black uppercase tracking-[0.12em] text-brand-500 transition hover:text-brand-600"
                           >
-                            Saved
+                            {t("navigation.saved")}
                           </button>
                         )}
                         {applications.length > 0 && (
@@ -2466,7 +2414,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             onClick={() => setActivePanel("applied")}
                             className="text-[10px] font-black uppercase tracking-[0.12em] text-brand-500 transition hover:text-brand-600"
                           >
-                            Applied
+                            {t("navigation.applied")}
                           </button>
                         )}
                       </div>
@@ -2494,8 +2442,8 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     </div>
 
                     <div className="mt-6 pt-4 border-t border-slate-100 dark:border-white/5 flex items-center justify-between text-[10px] font-bold text-slate-400 tracking-widest">
-                      <span>Saved {bookmarks.length}</span>
-                      <span>Applications {applications.length}</span>
+                      <span>{t("dashboard.savedCount", { count: bookmarks.length })}</span>
+                      <span>{t("dashboard.applicationsCount", { count: applications.length })}</span>
                     </div>
                   </section>
                 </aside>
@@ -2516,47 +2464,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
             </p>
           </div>
         </footer>
-
-        {!embeddedDesktopShell && (
-          <nav
-            className={`fixed inset-x-0 bottom-0 z-40 border-t px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 backdrop-blur-xl lg:hidden ${isDarkMode ? "border-white/10 bg-gray-950/95" : "border-slate-200 bg-white/95"}`}
-            aria-label="Mobile dashboard navigation"
-          >
-            <div className="grid grid-cols-4 gap-1">
-              {mobileNavItems.map((item) => {
-                const active =
-                  item.id === activePanel ||
-                  (item.id === "home" && activePanel === null) ||
-                  (item.id === "more" && showMobileMenu);
-
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => {
-                      if (item.id === "more") {
-                        setShowMobileMenu(true);
-                        return;
-                      }
-                      openDashboardDestination(item.id);
-                    }}
-                    className={`flex min-h-[56px] flex-col items-center justify-center gap-1 rounded-2xl text-[11px] font-semibold transition active:scale-[0.98] ${
-                      active
-                        ? "bg-brand-500 text-white"
-                        : isDarkMode
-                          ? "text-slate-400 hover:bg-white/10 hover:text-white"
-                          : "text-slate-500 hover:bg-slate-100 hover:text-slate-950"
-                    }`}
-                    aria-current={active ? "page" : undefined}
-                  >
-                    {item.icon}
-                    <span>{item.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </nav>
-        )}
 
         <NotificationInbox
           isOpen={showNotifications}

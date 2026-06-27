@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '../../lib/cn';
+import { useFocusTrap, useReducedMotion } from '../../lib/accessibility';
 
 interface DialogContextValue {
   open: boolean;
@@ -28,9 +29,35 @@ export const Dialog: React.FC<DialogProps> = ({ open, onOpenChange, children }) 
 );
 
 export const DialogContent: React.FC<
-  React.HTMLAttributes<HTMLDivElement> & { preventCloseOnBackdropClick?: boolean }
-> = ({ className, children, preventCloseOnBackdropClick = false, ...props }) => {
+  React.HTMLAttributes<HTMLDivElement> & { preventCloseOnBackdropClick?: boolean; ariaLabel?: string }
+> = ({ className, children, preventCloseOnBackdropClick = false, ariaLabel, ...props }) => {
   const { open, onOpenChange } = useDialogContext();
+  const reducedMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    return () => {
+      previouslyFocused?.focus();
+    };
+  }, [open]);
+
+  const containerRef = useFocusTrap(open);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onOpenChange?.(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [open, onOpenChange]);
 
   useEffect(() => {
     if (!open) {
@@ -57,12 +84,15 @@ export const DialogContent: React.FC<
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={handleBackdrop} />
       <div
+        ref={containerRef}
         className={cn(
           'relative z-10 w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl focus:outline-none',
+          !reducedMotion && 'animate-fade-in',
           className
         )}
         role="dialog"
         aria-modal="true"
+        aria-label={ariaLabel}
         {...props}
       >
         {children}

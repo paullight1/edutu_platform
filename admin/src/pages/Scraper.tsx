@@ -1212,7 +1212,7 @@ export default function ScraperDashboard() {
                             width: 40,
                             height: 40,
                             borderRadius: 12,
-                            background: 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)',
+                            background: 'linear-gradient(135deg, #146ef5 0%, #60a5fa 100%)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -2504,7 +2504,7 @@ export default function ScraperDashboard() {
                                     borderRadius: 16,
                                     background: modalError
                                         ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
-                                        : 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)',
+                                        : 'linear-gradient(135deg, #146ef5 0%, #60a5fa 100%)',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
@@ -2559,15 +2559,15 @@ export default function ScraperDashboard() {
                                             style={{
                                                 padding: '12px 10px',
                                                 borderRadius: 12,
-                                                background: 'rgba(139, 92, 246, 0.08)',
-                                                border: '1px solid rgba(139, 92, 246, 0.18)',
+                                                background: 'rgba(20, 110, 245, 0.08)',
+                                                border: '1px solid rgba(20, 110, 245, 0.18)',
                                                 textAlign: 'center',
                                             }}
                                         >
                                             <div style={{
                                                 fontSize: 18,
                                                 fontWeight: 700,
-                                                color: item.label === 'Progress' ? '#a78bfa' : 'var(--text-primary)',
+                                                color: item.label === 'Progress' ? '#60a5fa' : 'var(--text-primary)',
                                                 lineHeight: 1.1,
                                             }}>
                                                 {item.value}
@@ -2627,8 +2627,8 @@ export default function ScraperDashboard() {
                                                     padding: '16px',
                                                     borderRadius: 12,
                                                     marginBottom: 8,
-                                                    background: isActive ? 'rgba(139, 92, 246, 0.1)' : 'transparent',
-                                                    border: `1px solid ${isActive ? 'rgba(139, 92, 246, 0.3)' : 'transparent'}`,
+                                                    background: isActive ? 'rgba(20, 110, 245, 0.1)' : 'transparent',
+                                                    border: `1px solid ${isActive ? 'rgba(20, 110, 245, 0.3)' : 'transparent'}`,
                                                     transition: 'all 0.3s ease',
                                                     opacity: isPending ? 0.5 : 1,
                                                 }}
@@ -2637,7 +2637,7 @@ export default function ScraperDashboard() {
                                                     width: 40,
                                                     height: 40,
                                                     borderRadius: 10,
-                                                    background: isComplete ? '#34c759' : isActive ? '#8b5cf6' : 'var(--bg-tertiary)',
+                                                    background: isComplete ? '#34c759' : isActive ? '#146ef5' : 'var(--bg-tertiary)',
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
@@ -2652,7 +2652,7 @@ export default function ScraperDashboard() {
                                                 <div style={{ flex: 1 }}>
                                                     <div style={{
                                                         fontWeight: 500,
-                                                        color: isActive ? '#8b5cf6' : 'var(--text-primary)',
+                                                        color: isActive ? '#146ef5' : 'var(--text-primary)',
                                                         fontSize: 15,
                                                     }}>
                                                         {label}
@@ -2695,7 +2695,7 @@ export default function ScraperDashboard() {
                                                     )}
                                                 </div>
                                                 {isActive && step < 4 && (
-                                                    <Loader2 size={20} color="#8b5cf6" className="animate-spin" />
+                                                    <Loader2 size={20} color="#146ef5" className="animate-spin" />
                                                 )}
                                             </div>
                                         );
@@ -2715,7 +2715,7 @@ export default function ScraperDashboard() {
                                     <div style={{
                                         height: '100%',
                                         width: `${estimatedProgress}%`,
-                                        background: 'linear-gradient(90deg, #8b5cf6 0%, #a78bfa 100%)',
+                                        background: 'linear-gradient(90deg, #146ef5 0%, #60a5fa 100%)',
                                         borderRadius: 2,
                                         transition: 'width 0.5s ease',
                                     }} />
@@ -2926,8 +2926,8 @@ export default function ScraperDashboard() {
                                                 style={{
                                                     padding: 16,
                                                     borderRadius: 12,
-                                                    border: `2px solid ${selectedOpportunities.has(idx) ? '#8b5cf6' : 'var(--border-light)'}`,
-                                                    background: selectedOpportunities.has(idx) ? 'rgba(139, 92, 246, 0.05)' : 'var(--bg-secondary)',
+                                                    border: `2px solid ${selectedOpportunities.has(idx) ? '#146ef5' : 'var(--border-light)'}`,
+                                                    background: selectedOpportunities.has(idx) ? 'rgba(20, 110, 245, 0.05)' : 'var(--bg-secondary)',
                                                     cursor: 'pointer',
                                                     transition: 'all 0.2s',
                                                 }}
@@ -2935,8 +2935,8 @@ export default function ScraperDashboard() {
                                                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                                                     <div style={{
                                                         width: 20, height: 20, borderRadius: 4,
-                                                        border: `2px solid ${selectedOpportunities.has(idx) ? '#8b5cf6' : 'var(--border-medium)'}`,
-                                                        background: selectedOpportunities.has(idx) ? '#8b5cf6' : 'transparent',
+                                                        border: `2px solid ${selectedOpportunities.has(idx) ? '#146ef5' : 'var(--border-medium)'}`,
+                                                        background: selectedOpportunities.has(idx) ? '#146ef5' : 'transparent',
                                                         display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 2,
                                                     }}>
                                                         {selectedOpportunities.has(idx) && <CheckCircle2 size={14} color="white" />}
@@ -2994,9 +2994,9 @@ export default function ScraperDashboard() {
                                                                     gap: 6,
                                                                     padding: '7px 10px',
                                                                     borderRadius: 8,
-                                                                    border: '1px solid rgba(139, 92, 246, 0.35)',
-                                                                    background: 'rgba(139, 92, 246, 0.12)',
-                                                                    color: '#a78bfa',
+                                                                    border: '1px solid rgba(20, 110, 245, 0.35)',
+                                                                    background: 'rgba(20, 110, 245, 0.12)',
+                                                                    color: '#60a5fa',
                                                                     cursor: isEnhancing ? 'wait' : 'pointer',
                                                                     fontSize: 12,
                                                                     fontWeight: 700,
@@ -3029,7 +3029,7 @@ export default function ScraperDashboard() {
                                                             {(opp.sourceUrl || opp.source_url || opp.applyUrl || opp.apply_url) && (
                                                                 <a href={opp.sourceUrl || opp.source_url || opp.applyUrl || opp.apply_url} target="_blank" rel="noopener noreferrer"
                                                                     onClick={(e) => e.stopPropagation()}
-                                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#8b5cf6', textDecoration: 'none' }}>
+                                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#146ef5', textDecoration: 'none' }}>
                                                                     <ExternalLink size={12} /> Source
                                                                 </a>
                                                             )}
@@ -3240,9 +3240,9 @@ export default function ScraperDashboard() {
                                                     gap: 8,
                                                     padding: '10px 14px',
                                                     borderRadius: 10,
-                                                    border: '1px solid rgba(139, 92, 246, 0.35)',
-                                                    background: 'rgba(139, 92, 246, 0.12)',
-                                                    color: '#a78bfa',
+                                                    border: '1px solid rgba(20, 110, 245, 0.35)',
+                                                    background: 'rgba(20, 110, 245, 0.12)',
+                                                    color: '#60a5fa',
                                                     cursor: 'pointer',
                                                     fontWeight: 800,
                                                 }}

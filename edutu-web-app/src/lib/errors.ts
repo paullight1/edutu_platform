@@ -1,3 +1,5 @@
+import { captureException } from './sentry';
+
 export class EdutuError extends Error {
   constructor(
     message: string,
@@ -16,6 +18,7 @@ export async function safeQuery<T>(
   const { data, error } = await query;
   if (error) {
     console.error('Query failed:', error);
+    captureException(error, { source: 'safeQuery' });
     return fallback;
   }
   return data ?? fallback;

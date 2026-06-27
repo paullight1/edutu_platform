@@ -1,4 +1,5 @@
 import type { AdminOpportunity } from '../../types/adminOpportunity';
+import logger from '../../lib/logger';
 
 type CreatePayload = Omit<AdminOpportunity, 'id' | 'createdAt' | 'updatedAt'>;
 
@@ -8,7 +9,7 @@ const unavailable = () => {
 
 export async function listOpportunities(): Promise<AdminOpportunity[]> {
   if (import.meta.env.DEV) {
-    console.debug('Admin opportunity management is unconfigured; returning an empty development list.');
+    logger.debug('Admin opportunity management is unconfigured; returning an empty development list.');
     return [];
   }
   unavailable();

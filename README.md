@@ -9,7 +9,7 @@ This repository boundary contains the Edutu platform services and web surfaces. 
 - NestJS backend API
 - Standalone admin dashboard
 - Main React/Vite web app and Capacitor Android shell
-- Next.js waitlist site
+- Next.js Scholarship Engine docs site
 - Crawl4AI scraper
 - Shared Supabase migrations/functions for platform features
 - Platform documentation
@@ -34,7 +34,7 @@ edutu-platform/
 ├── backend/services/services/api/  # NestJS API server
 ├── crawl4ai-scraper/               # Python scholarship/opportunity scraper
 ├── docs/                           # Platform architecture and operating docs
-├── edutu-web/                      # Next.js waitlist landing page
+├── edutu-web/                      # Next.js Scholarship Engine docs site
 ├── edutu-web-app/                  # Main React/Vite web app + Capacitor/PWA
 ├── supabase/                       # Shared Supabase migrations/functions
 └── other-files/                    # Archived or experimental material
@@ -88,7 +88,7 @@ npm run test
 npm run build
 ```
 
-### Waitlist Site
+### Scholarship Engine Docs Site
 
 ```bash
 cd edutu-web

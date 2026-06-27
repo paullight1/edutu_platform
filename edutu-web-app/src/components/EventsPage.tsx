@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
 import {
   ArrowRight,
   Calendar,
@@ -62,10 +63,10 @@ function EventCard({ event }: { event: EdutuEvent }) {
     "Join an Edutu event for application support, career guidance, and student opportunities.";
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-soft dark:border-white/10 dark:bg-slate-950">
+    <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border-subtle bg-surface-layer shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-elevated hover:border-brand-500/30">
       <Link
         to={`/events/${event.slug}`}
-        className="block text-slate-950 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 dark:text-white dark:hover:text-white"
+        className="block text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
       >
         <div className="relative aspect-[16/9] overflow-hidden bg-slate-100 dark:bg-slate-900">
           <ImageWithFallback
@@ -83,23 +84,23 @@ function EventCard({ event }: { event: EdutuEvent }) {
           <span className="rounded-md border border-brand-500/20 bg-brand-500/10 px-2 py-1 text-brand-700 dark:text-brand-300">
             {event.isOnline ? "Online" : "In person"}
           </span>
-          <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+          <span className="rounded-md border border-border-subtle bg-surface-elevated px-2 py-1 text-soft">
             {event.audience || "Public"}
           </span>
         </div>
 
         <Link
           to={`/events/${event.slug}`}
-          className="mt-3 text-slate-950 hover:text-brand-600 dark:text-white dark:hover:text-brand-300"
+          className="mt-3 text-strong hover:text-brand-600"
         >
           <h2 className="text-lg font-semibold leading-snug">{event.title}</h2>
         </Link>
 
-        <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+        <p className="mt-2 line-clamp-2 text-sm leading-6 text-soft">
           {summary}
         </p>
 
-        <div className="mt-4 grid gap-2 text-sm text-slate-500 dark:text-slate-400">
+        <div className="mt-4 grid gap-2 text-sm text-muted">
           <span className="inline-flex items-center gap-1.5">
             <Calendar size={14} />
             {formatEventDate(event.startsAt)}
@@ -114,10 +115,10 @@ function EventCard({ event }: { event: EdutuEvent }) {
           </span>
         </div>
 
-        <div className="mt-5 flex items-center justify-end border-t border-slate-200 pt-4 dark:border-white/10">
+        <div className="mt-5 flex items-center justify-end border-t border-border-subtle pt-4">
           <Link
             to={`/events/${event.slug}`}
-            className="inline-flex items-center gap-1 rounded-md bg-slate-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+            className="inline-flex items-center gap-1 rounded-full px-5 py-3 text-sm font-semibold bg-surface-layer border border-border-subtle hover:border-brand-500/30 transition-all duration-300"
           >
             Details
             <ArrowRight size={14} />
@@ -130,7 +131,28 @@ function EventCard({ event }: { event: EdutuEvent }) {
 
 function LoadingCard() {
   return (
-    <div className="h-[330px] animate-pulse rounded-lg bg-slate-200 dark:bg-white/5" />
+    <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface-layer animate-pulse">
+      <div className="aspect-[16/9] bg-surface-elevated" />
+      <div className="p-4 space-y-3">
+        <div className="flex gap-2">
+          <div className="h-5 w-14 rounded-md bg-surface-elevated" />
+          <div className="h-5 w-16 rounded-md bg-surface-elevated" />
+        </div>
+        <div className="h-5 w-3/4 rounded bg-surface-elevated" />
+        <div className="space-y-2">
+          <div className="h-4 w-full rounded bg-surface-elevated" />
+          <div className="h-4 w-2/3 rounded bg-surface-elevated" />
+        </div>
+        <div className="space-y-2 pt-1">
+          <div className="h-4 w-1/2 rounded bg-surface-elevated" />
+          <div className="h-4 w-1/3 rounded bg-surface-elevated" />
+          <div className="h-4 w-2/5 rounded bg-surface-elevated" />
+        </div>
+        <div className="flex justify-end pt-2">
+          <div className="h-9 w-24 rounded-full bg-surface-elevated" />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -237,7 +259,7 @@ export default function EventsPage() {
             <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">
               Upcoming Edutu events
             </h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300">
+            <p className="mt-3 max-w-2xl text-base leading-7 text-soft">
               Join workshops, mentorship sessions, and live announcements from
               the Edutu team.
             </p>
@@ -247,18 +269,18 @@ export default function EventsPage() {
             type="button"
             onClick={() => void loadEvents()}
             disabled={loading}
-            className="inline-flex items-center gap-2 self-start rounded-md border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-brand-300 hover:text-brand-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:text-white"
+            className="inline-flex items-center gap-2 self-start rounded-full px-5 py-3 text-sm font-semibold bg-surface-layer border border-border-subtle hover:border-brand-500/30 disabled:cursor-not-allowed disabled:opacity-60 transition-all duration-300"
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
             Refresh
           </button>
         </section>
 
-        <section className="mt-5 rounded-lg border border-slate-200 bg-white/92 p-3 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/92">
+        <section className="rounded-2xl border border-border-subtle bg-surface-layer p-4">
           <div className="relative">
             <Search
               size={18}
-              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted"
             />
             <input
               type="text"
@@ -266,13 +288,13 @@ export default function EventsPage() {
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="Search by title, location, or topic"
-              className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-11 text-sm text-slate-950 placeholder:text-slate-400 focus:border-brand-500 focus:bg-white dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:bg-slate-950"
+              className="h-11 w-full rounded-xl border border-border-subtle bg-surface-elevated/60 pl-11 pr-11 text-sm text-strong placeholder:text-muted focus:border-brand-500 focus:bg-surface-layer"
             />
             {searchTerm ? (
               <button
                 type="button"
                 onClick={() => setSearchTerm("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-slate-400 transition hover:text-slate-700 dark:hover:text-white"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted transition-all duration-300 hover:text-strong"
                 aria-label="Clear search"
               >
                 <X size={16} />
@@ -291,21 +313,29 @@ export default function EventsPage() {
         ) : null}
 
         {loading ? (
-          <section className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 6 }).map((_, index) => (
               <LoadingCard key={index} />
             ))}
           </section>
         ) : filteredEvents.length > 0 ? (
-          <section className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {filteredEvents.map((event) => (
-              <EventCard key={event.id} event={event} />
+              <motion.div
+                key={event.id}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.4, ease: "easeOut" }}
+              >
+                <EventCard event={event} />
+              </motion.div>
             ))}
           </section>
         ) : (
-          <section className="mt-5 rounded-lg border border-slate-200 bg-white p-8 text-center dark:border-white/10 dark:bg-slate-950">
+          <section className="mt-6 rounded-2xl border border-border-subtle bg-surface-layer p-10 text-center">
             <h2 className="text-2xl font-semibold">No events found</h2>
-            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-soft">
               Check back soon or clear your search to see all announced events.
             </p>
           </section>

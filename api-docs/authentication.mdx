@@ -1,0 +1,68 @@
+---
+title: Authentication
+description: How Edutu API keys are issued, sent, and scoped.
+---
+
+# Authentication
+
+The Edutu API uses **API keys** for server-to-server access. Keys are long-lived
+opaque tokens — never embed them in client-side code or commit them to a repo.
+
+## Sending the key
+
+All three of these are accepted on every endpoint:
+
+<CodeGroup>
+```http Header
+x-edutu-api-key: edu_live_ab12cd34_<secret>
+```
+
+```http Alias
+x-api-key: edu_live_ab12cd34_<secret>
+```
+
+```http Bearer
+Authorization: Bearer edu_live_ab12cd34_<secret>
+```
+</CodeGroup>
+
+## Key format
+
+```
+edu_<environment>_<public-prefix>_<secret>
+```
+
+- `edu_live_...` — production key.
+- `edu_test_...` — sandbox key, lower quotas, safe for CI.
+
+The `<public-prefix>` is **non-secret** and appears in your dashboard and logs so
+you can identify a key without exposing the secret. Only the full key authorizes
+requests.
+
+## Security model
+
+- The full key is returned **exactly once** at creation and rotation.
+- Keys are stored **hashed** (HMAC-SHA256 with a server-side pepper). Edutu
+  cannot recover a lost key — rotate it instead.
+- Every key belongs to a **project** owned by your account.
+- Keys carry **scopes**; a key can only call endpoints its scopes permit.
+
+## Scopes
+
+| Scope | Grants |
+|---|---|
+| `opportunities:read` | `GET /v1/opportunities`, `/v1/opportunities/:id`, `/v1/categories`, `/v1/opportunities/stats` |
+| `opportunities:sync` | `GET /v1/opportunities/sync` |
+| `recommendations:read` | `POST /v1/recommendations` |
+| `events:write` | `POST /v1/events` |
+| `usage:read` | `GET /v1/usage` |
+
+## Rotate or revoke
+
+In the dashboard, use **Rotate** to issue a new secret for the same project (the
+old secret stops working immediately), or **Revoke** to disable the project
+entirely. Rotation is the recommended response to a suspected leak.
+
+<Note>
+Never log full API keys server-side. Log the `<public-prefix>` instead.
+</Note>

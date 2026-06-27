@@ -1915,7 +1915,7 @@ export default function Opportunities() {
                           aria-label={`Improve ${opp.title || "opportunity"} with AI`}
                           disabled={isEnhancing}
                           onClick={() => handleEnhanceOpportunity(opp.id)}
-                          style={{ color: "#a78bfa" }}
+                          style={{ color: "#60a5fa" }}
                         >
                           {isEnhancing ? (
                             <Loader2 size={15} className="animate-spin" />
@@ -2081,7 +2081,7 @@ export default function Opportunities() {
                             method.id === "apify-edutu"
                               ? "linear-gradient(135deg, #ff6600, #ff4500)"
                               : method.id.startsWith("apify")
-                                ? "linear-gradient(135deg, var(--apple-blue), var(--apple-purple))"
+                                ? "linear-gradient(135deg, var(--apple-blue), var(--apple-blue-alt))"
                                 : "var(--bg-tertiary)",
                           display: "flex",
                           alignItems: "center",
@@ -2748,7 +2748,7 @@ export default function Opportunities() {
                     borderRadius: "50%",
                     background:
                       loadingStatus.progress < 100
-                        ? "linear-gradient(135deg, var(--apple-blue), var(--apple-purple))"
+                        ? "linear-gradient(135deg, var(--apple-blue), var(--apple-blue-alt))"
                         : loadingStatus.message.includes("Error")
                           ? "#ef4444"
                           : "#10b981",
@@ -2818,7 +2818,7 @@ export default function Opportunities() {
                           height: "100%",
                           width: loadingStatus.progress + "%",
                           background:
-                            "linear-gradient(90deg, var(--apple-blue), var(--apple-purple))",
+                            "linear-gradient(90deg, var(--apple-blue), var(--apple-blue-alt))",
                           borderRadius: 4,
                           transition: "width 0.5s ease",
                         }}
@@ -3019,7 +3019,7 @@ export default function Opportunities() {
                   style={{
                     padding: "20px",
                     background:
-                      "linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1))",
+                      "linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(20, 110, 245, 0.1))",
                     borderRadius: "12px",
                     border: "1px solid var(--border-color)",
                   }}

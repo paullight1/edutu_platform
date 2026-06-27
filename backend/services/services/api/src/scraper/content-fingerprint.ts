@@ -5,7 +5,7 @@
  * when a source's page structure has changed, which may break scraping.
  */
 
-import * as crypto from 'crypto';
+import * as crypto from "crypto";
 
 /**
  * Generate a structural fingerprint from HTML content.
@@ -15,11 +15,13 @@ import * as crypto from 'crypto';
 export function generateFingerprint(html: string): string {
   // Remove script and style content (not structural)
   const cleaned = html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "");
 
   // Extract tag names and class names only — ignore text content
-  const structure = cleaned.match(/<\/?([a-zA-Z][a-zA-Z0-9]*)\b[^>]*class="([^"]*)"[^>]*>/g) || [];
+  const structure =
+    cleaned.match(/<\/?([a-zA-Z][a-zA-Z0-9]*)\b[^>]*class="([^"]*)"[^>]*>/g) ||
+    [];
   const tags = cleaned.match(/<\/?([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>/g) || [];
 
   // Combine into a stable signature
@@ -27,15 +29,19 @@ export function generateFingerprint(html: string): string {
     .map((m) =>
       m
         // Normalize whitespace
-        .replace(/\s+/g, ' ')
+        .replace(/\s+/g, " ")
         // Strip data attributes and dynamic values that don't affect structure
-        .replace(/\s(data-[a-z-]+|id|style|aria-[a-z-]+)="[^"]*"/gi, '')
+        .replace(/\s(data-[a-z-]+|id|style|aria-[a-z-]+)="[^"]*"/gi, "")
         .trim(),
     )
     .sort()
-    .join('\n');
+    .join("\n");
 
-  return crypto.createHash('sha256').update(signature).digest('hex').substring(0, 16);
+  return crypto
+    .createHash("sha256")
+    .update(signature)
+    .digest("hex")
+    .substring(0, 16);
 }
 
 /**

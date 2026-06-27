@@ -1,0 +1,44 @@
+---
+title: Introduction
+description: The Edutu Scholarship API gives your product verified global opportunities as JSON.
+---
+
+# Edutu Scholarship API
+
+The Edutu Scholarship API exposes a curated, continuously-refreshed catalog of
+scholarships, fellowships, internships, and grants as a stable JSON API. Every
+record is normalized, deduplicated, and carries a **trust** block
+(verification status, last-verified timestamp, quality score) so you can decide
+what to show your users.
+
+## What you can build
+
+- **Scholarship search** in your edtech, university portal, or fintech app.
+- **Personalized recommendations** from a learner profile.
+- **Delta sync** to keep a local cache fresh without re-downloading the catalog.
+- **Conversion tracking** by sending impression/view/click/apply events back.
+
+## Why Edutu
+
+- **Coverage**: opportunities across 31+ countries with eligibility, funding,
+  deadlines, and application URLs.
+- **Quality**: scraped, AI-enriched, deduplicated, and link-verified before they
+  reach the API.
+- **Stable contract**: versioned (`/v1`), cursor-paginated, consistent error
+  envelope, and OpenAPI-documented end-to-end.
+
+## Explore
+
+- **[Quickstart](./quickstart)** — make your first request in 2 minutes.
+- **[Authentication](./authentication)** — how API keys work.
+- **[Rate limits](./rate-limits)** — quotas, throttling, and headers.
+- **[Errors](./errors)** — status codes and the error envelope.
+
+<Columns>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Your first request in cURL, JavaScript, and Python.
+  </Card>
+  <Card title="API Reference" icon="terminal" href="/api-reference">
+    Every endpoint, generated from our OpenAPI spec.
+  </Card>
+</Columns>

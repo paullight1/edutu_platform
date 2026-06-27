@@ -69,7 +69,9 @@ export function useAnnounce() {
 
         // Remove after announcement
         setTimeout(() => {
-            document.body.removeChild(announcer);
+            if (announcer.parentNode) {
+                document.body.removeChild(announcer);
+            }
         }, 1000);
     }, []);
 
@@ -82,12 +84,15 @@ export function useAnnounce() {
  * Detects user's reduced motion preference
  */
 export function useReducedMotion(): boolean {
-    const mediaQuery = typeof window !== 'undefined'
-        ? window.matchMedia('(prefers-reduced-motion: reduce)')
-        : null;
+    const [mediaQuery] = useState<MediaQueryList | null>(() =>
+        typeof window !== 'undefined'
+            ? window.matchMedia('(prefers-reduced-motion: reduce)')
+            : null
+    );
 
-    const getInitialState = () => mediaQuery?.matches ?? false;
-    const [prefersReducedMotion, setPrefersReducedMotion] = useState(getInitialState);
+    const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(
+        () => mediaQuery?.matches ?? false
+    );
 
     useEffect(() => {
         if (!mediaQuery) return;
@@ -126,19 +131,50 @@ export const VisuallyHidden: React.FC<{ children: React.ReactNode }> = ({ childr
     </span>
 );
 
+interface SkipLinkProps {
+    targetId?: string;
+    children?: React.ReactNode;
+}
+
 /**
  * SkipLink Component
- * 
- * Provides a skip link for keyboard users to jump to main content
+ *
+ * Provides a skip link for keyboard users to jump to main content. When
+ * `targetId` is supplied the link targets that element; otherwise it falls
+ * back to the first <main> landmark and moves focus into it.
  */
-export const SkipLink: React.FC<{ targetId: string }> = ({ targetId }) => (
-    <a
-        href={`#${targetId}`}
-        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-4 focus:left-4 focus:bg-brand-600 focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-brand-400"
-    >
-        Skip to main content
-    </a>
-);
+export const SkipLink: React.FC<SkipLinkProps> = ({ targetId, children = 'Skip to main content' }) => {
+    const handleClick = useCallback(
+        (event: React.MouseEvent<HTMLAnchorElement>) => {
+            const target = targetId
+                ? document.getElementById(targetId)
+                : document.querySelector<HTMLElement>('main');
+
+            if (!target) {
+                return;
+            }
+
+            event.preventDefault();
+            if (!target.hasAttribute('tabindex')) {
+                target.setAttribute('tabindex', '-1');
+            }
+            target.focus();
+        },
+        [targetId]
+    );
+
+    const href = targetId ? `#${targetId}` : '#main-content';
+
+    return (
+        <a
+            href={href}
+            onClick={handleClick}
+            className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-4 focus:left-4 focus:bg-brand-600 focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-brand-400"
+        >
+            {children}
+        </a>
+    );
+};
 
 /**
  * Generate unique IDs for accessibility

@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabaseClient";
+import logger from "../lib/logger";
 
 export type TransactionType =
   | "purchase"
@@ -47,7 +48,7 @@ export async function getCreditBalance(userId: string): Promise<number> {
     .single();
 
   if (error) {
-    console.error("Error fetching credit balance:", error);
+    logger.error("Error fetching credit balance:", error);
     return 0;
   }
 
@@ -66,7 +67,7 @@ export async function getTransactionHistory(
     .limit(limit);
 
   if (error) {
-    console.error("Error fetching transaction history:", error);
+    logger.error("Error fetching transaction history:", error);
     return [];
   }
 
@@ -89,7 +90,7 @@ export async function spendCredits(
   });
 
   if (error) {
-    console.error("spendCredits RPC error:", error);
+    logger.error("spendCredits RPC error:", error);
     return { success: false, balance: 0, error: error.message };
   }
 
@@ -117,7 +118,7 @@ export async function addCredits(
   });
 
   if (error) {
-    console.error("addCredits RPC error:", error);
+    logger.error("addCredits RPC error:", error);
     return { success: false, balance: 0 };
   }
 

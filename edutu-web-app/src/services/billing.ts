@@ -8,6 +8,19 @@ export interface BillingStatus {
   subscriptionStatus: string | null;
   entitlements: string[];
   featureAccess: Record<string, boolean>;
+  transactions: BillingTransaction[];
+}
+
+export interface BillingTransaction {
+  id: string;
+  provider: string;
+  providerReference: string | null;
+  type: string;
+  amount: number;
+  currency: string;
+  status: string;
+  description: string;
+  createdAt: string | null;
 }
 
 import { getApiBaseUrl } from '../lib/apiBaseUrl';
@@ -50,7 +63,12 @@ export async function getBillingStatus(token: string): Promise<BillingStatus> {
 
 export async function createCheckout(
   token: string,
-  input: { plan: BillingInterval; feature?: string | null; returnTo?: string | null },
+  input: {
+    plan?: BillingInterval;
+    feature?: string | null;
+    credits?: number | null;
+    returnTo?: string | null;
+  },
 ): Promise<CheckoutResponse> {
   return requestBilling<CheckoutResponse>('/billing/checkout', token, {
     method: 'POST',

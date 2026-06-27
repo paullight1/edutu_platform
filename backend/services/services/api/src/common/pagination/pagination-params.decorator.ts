@@ -1,5 +1,5 @@
-import { createParamDecorator, ExecutionContext } from '@nestjs/common';
-import { PaginationParams } from './paginated-response';
+import { createParamDecorator, ExecutionContext } from "@nestjs/common";
+import { PaginationParams } from "./paginated-response";
 
 export const PaginationQuery = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext): PaginationParams => {
@@ -8,9 +8,7 @@ export const PaginationQuery = createParamDecorator(
 
     return {
       page: page ? Math.max(1, parseInt(page, 10)) : 1,
-      perPage: perPage
-        ? Math.min(100, Math.max(1, parseInt(perPage, 10)))
-        : 20,
+      perPage: perPage ? Math.min(100, Math.max(1, parseInt(perPage, 10))) : 20,
     };
   },
 );

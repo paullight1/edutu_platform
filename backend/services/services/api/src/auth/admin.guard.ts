@@ -34,7 +34,7 @@ export class AdminGuard implements CanActivate {
 
     const adminEmails = (
       process.env.ADMIN_EMAILS ||
-      "admin@edutu.ai,founder@edutu.ai,nwosupaul3@gmail.com,nwouspaul3@gmail.com"
+      "admin@edutu.org,founder@edutu.org,nwosupaul3@gmail.com,nwouspaul3@gmail.com"
     )
       .split(",")
       .map((e) => e.trim().toLowerCase());

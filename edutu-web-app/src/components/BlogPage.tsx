@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Calendar, Clock, User, Search, ChevronRight, BookOpen, TrendingUp, Lightbulb } from 'lucide-react';
 import { useDarkMode } from '../hooks/useDarkMode';
-import PublicSiteMenu from './PublicSiteMenu';
+import PublicHeader from './PublicHeader';
 
 interface BlogPost {
   id: string;
@@ -93,22 +93,7 @@ const BlogPage: React.FC = () => {
       className="min-h-[100dvh] overflow-x-hidden"
       style={{ backgroundColor: isDarkMode ? '#080808' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808', fontFamily: "'Inter', 'Arial', sans-serif" }}
     >
-      {/* Header */}
-      <header
-        className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md transition-colors duration-300"
-        style={{ backgroundColor: isDarkMode ? 'rgba(8, 8, 8, 0.95)' : 'rgba(255, 255, 255, 0.95)', borderBottom: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}` }}
-      >
-        <div className="max-w-[1200px] mx-auto px-4 sm:px-6 h-[64px] flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2" style={{ textDecoration: 'none' }}>
-            <img src="/edutu-logo.png" alt="Edutu" className="h-8 w-8 object-contain" />
-            <span className="font-bold text-xl tracking-tight" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>
-              edutu
-            </span>
-          </Link>
-
-          <PublicSiteMenu />
-        </div>
-      </header>
+      <PublicHeader fixed />
 
       <main className="pt-[120px] pb-[96px] px-4 sm:px-6">
         <div className="max-w-[1200px] mx-auto">

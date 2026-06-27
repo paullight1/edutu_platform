@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, Optional } from "@nestjs/common";
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from "@nestjs/common";
 import { db } from "../db";
 import { goals, milestones } from "../db/schema";
 import { and, desc, eq } from "drizzle-orm";
@@ -47,7 +52,10 @@ export class GoalsService {
       .from(milestones)
       .where(eq(milestones.goalId, id));
 
-    return { ...this.serializeGoal(goalResult[0]), milestones: milestonesResult };
+    return {
+      ...this.serializeGoal(goalResult[0]),
+      milestones: milestonesResult,
+    };
   }
 
   // Create
@@ -71,7 +79,8 @@ export class GoalsService {
         deadline: this.toLegacyDeadline(targetDate),
         priority: createGoalDto.priority || null,
         source: createGoalDto.source || "custom",
-        templateId: createGoalDto.templateId || createGoalDto.template_id || null,
+        templateId:
+          createGoalDto.templateId || createGoalDto.template_id || null,
         completedAt: status === "completed" ? new Date() : null,
       })
       .returning();
@@ -115,7 +124,8 @@ export class GoalsService {
     const values: GoalMutation = { updatedAt: now };
 
     if (dto.title !== undefined) values.title = dto.title;
-    if (dto.description !== undefined) values.description = dto.description || null;
+    if (dto.description !== undefined)
+      values.description = dto.description || null;
     if (dto.category !== undefined) values.category = dto.category || null;
     if (dto.progress !== undefined) {
       values.progress = this.normalizeProgress(dto.progress);
@@ -143,7 +153,9 @@ export class GoalsService {
     return values;
   }
 
-  private resolveTargetDate(dto: Pick<CreateGoalDto, "targetDate" | "deadline">) {
+  private resolveTargetDate(
+    dto: Pick<CreateGoalDto, "targetDate" | "deadline">,
+  ) {
     const rawValue = dto.targetDate ?? dto.deadline ?? null;
     if (!rawValue) return null;
     return new Date(rawValue);

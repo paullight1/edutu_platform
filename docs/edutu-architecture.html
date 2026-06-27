@@ -536,9 +536,9 @@
             <tr>
               <td><code>edutu-platform/edutu-web</code></td>
               <td><code>edutu-platform</code></td>
-              <td>Next.js waitlist landing page and waitlist API route.</td>
+              <td>Next.js Scholarship Engine docs site and onboarding route.</td>
               <td>Next 14, React 18, Tailwind, Supabase/Neon packages</td>
-              <td><span class="status done">Active</span> Marketing/waitlist scope.</td>
+              <td><span class="status done">Active</span> Docs/onboarding scope.</td>
             </tr>
             <tr>
               <td><code>edutu-platform/crawl4ai-scraper</code></td>
@@ -579,7 +579,7 @@
 │   ├── admin/                            # Standalone admin dashboard
 │   ├── backend/services/services/api/    # NestJS API server
 │   ├── crawl4ai-scraper/                 # Python Crawl4AI scraper
-│   ├── edutu-web/                        # Next.js waitlist landing page
+│   ├── edutu-web/                        # Next.js Scholarship Engine docs site
 │   ├── edutu-web-app/                    # Full web app + Capacitor/PWA
 │   ├── supabase/                         # Shared Supabase migrations/functions
 │   ├── docs/                             # Platform documentation
@@ -604,7 +604,7 @@
               <span class="node">Main Web App</span><span class="arrow">-&gt;</span>
               <span class="node">Admin Dashboard</span><span class="arrow">-&gt;</span>
               <span class="node">Expo Mobile</span><span class="arrow">-&gt;</span>
-              <span class="node">Waitlist Site</span>
+              <span class="node">Scholarship Engine Docs Site</span>
             </div>
           </div>
           <div class="lane">
@@ -666,7 +666,7 @@
           "backend API",
           "standalone admin",
           "main web app",
-          "waitlist site",
+          "docs site",
           "Crawl4AI scraper",
           "shared Supabase assets",
           "platform documentation"
@@ -760,13 +760,13 @@
         "app/admin"
       ]
     },
-    "waitlistSite": {
+    "docsSite": {
       "path": "edutu-platform/edutu-web",
       "runtime": "Next.js",
       "responsibilities": [
-        "public waitlist landing page",
-        "waitlist API route",
-        "waitlist database scripts"
+        "public Scholarship Engine docs site",
+        "docs routing",
+        "docs and onboarding content"
       ]
     },
     "pythonScraper": {
@@ -917,13 +917,12 @@
           </div>
 
           <div class="card">
-            <h3>Waitlist Site</h3>
+            <h3>Scholarship Engine Docs Site</h3>
             <p><strong>Path:</strong> <code>edutu-platform/edutu-web</code></p>
             <p>
-              The Next.js site renders a public waitlist landing page with a
-              typed hero message and <code>WaitlistForm</code>. It includes
-              SQL scripts for waitlist table setup and an API route at
-              <code>app/api/waitlist/route.ts</code>.
+              The Next.js site renders the public Scholarship Engine docs and
+              onboarding experience with quickstart, auth, endpoint, billing,
+              and integration guidance.
             </p>
           </div>
         </div>
@@ -1206,7 +1205,7 @@ POST   /notifications/admin/process-due</code></pre>
             <tr><td>Web App</td><td><code>npm run typecheck</code>, <code>npm run test</code>, <code>npm run build</code></td><td>Verify types, tests, and production build.</td></tr>
             <tr><td>Mobile</td><td><code>cd edutumobile &amp;&amp; npm run dev</code></td><td>Start Expo dev server.</td></tr>
             <tr><td>Mobile</td><td><code>npm run typecheck</code>, <code>npm run test</code>, <code>npm run android</code>, <code>npm run ios</code></td><td>Verify and run native mobile targets.</td></tr>
-            <tr><td>Waitlist</td><td><code>cd edutu-platform/edutu-web &amp;&amp; npm run dev</code></td><td>Start Next.js waitlist site.</td></tr>
+            <tr><td>Docs Site</td><td><code>cd edutu-platform/edutu-web &amp;&amp; npm run dev</code></td><td>Start the Scholarship Engine docs site.</td></tr>
             <tr><td>Scraper</td><td><code>cd edutu-platform/crawl4ai-scraper &amp;&amp; python main.py --all --save</code></td><td>Run all scraper sources and persist output.</td></tr>
           </tbody>
         </table>
@@ -1354,7 +1353,7 @@ EXPO_PUBLIC_API_URL=http://localhost:3000</code></pre>
           <li><code>edutu-platform/edutu-web-app/src/App.tsx</code>, services, hooks, libs, admin components, Supabase functions, and migrations.</li>
           <li><code>edutumobile/app</code>, <code>components</code>, <code>lib</code>, <code>packages/core</code>, Supabase functions, and package scripts.</li>
           <li><code>edutu-platform/crawl4ai-scraper/README.md</code>, <code>crawler.py</code>, <code>main.py</code>, <code>cli.py</code>, extractor, cleaner, and Supabase client.</li>
-          <li><code>edutu-platform/edutu-web/app/page.tsx</code>, waitlist component, and waitlist scripts.</li>
+          <li><code>edutu-platform/edutu-web/app/page.tsx</code>, docs page, and onboarding scripts.</li>
         </ul>
 
         <div class="note">
