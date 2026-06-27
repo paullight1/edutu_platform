@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
+import logger from '../lib/logger';
 
 export interface CvDocument {
   id: string;
@@ -145,7 +146,7 @@ const ensureCvQuota = async (userId: string): Promise<void> => {
     .eq('user_id', userId);
 
   if (error) {
-    console.error('Error checking CV quota:', error);
+    logger.error('Error checking CV quota:', error);
     throw error;
   }
 
@@ -160,7 +161,7 @@ const createSignedDownloadUrl = async (path: string, expiresIn = DEFAULT_SIGNED_
     .createSignedUrl(path, expiresIn);
 
   if (error) {
-    console.warn('Failed to create signed URL:', error);
+    logger.warn('Failed to create signed URL:', error);
     return null;
   }
 
@@ -576,7 +577,7 @@ export const listCvDocuments = async (userId: string): Promise<CvDocument[]> => 
     .order('uploaded_at', { ascending: false });
 
   if (error) {
-    console.error('Error fetching CV documents:', error);
+    logger.error('Error fetching CV documents:', error);
     throw error;
   }
 
@@ -625,7 +626,7 @@ export const uploadCvDocument = async (userId: string, payload: UploadCvPayload)
     });
 
   if (uploadError) {
-    console.error('Error uploading CV file to storage:', uploadError);
+    logger.error('Error uploading CV file to storage:', uploadError);
     throw uploadError;
   }
 
@@ -647,11 +648,11 @@ export const uploadCvDocument = async (userId: string, payload: UploadCvPayload)
     .single();
 
   if (error) {
-    console.error('Error saving CV record metadata:', error);
+    logger.error('Error saving CV record metadata:', error);
     await supabase.storage
       .from(CV_BUCKET)
       .remove([storagePath])
-      .catch((removeError) => console.warn('Failed to clean up storage object after DB error:', removeError));
+      .catch((removeError) => logger.warn('Failed to clean up storage object after DB error:', removeError));
     throw error;
   }
 
@@ -692,7 +693,7 @@ export const getCvDocument = async (userId: string, cvId: string): Promise<CvDoc
     .single();
 
   if (error) {
-    console.error('Error fetching CV document:', error);
+    logger.error('Error fetching CV document:', error);
     return undefined;
   }
 
@@ -737,7 +738,7 @@ export const getCvDownloadUrl = async (userId: string, cvId: string, expiresIn =
     .single();
 
   if (error) {
-    console.error('Error looking up CV storage path:', error);
+    logger.error('Error looking up CV storage path:', error);
     throw error;
   }
 
@@ -793,7 +794,7 @@ export const analyzeCvDocument = async (userId: string, payload: AtsAnalysisPayl
     .eq('user_id', userId);
 
   if (updateError) {
-    console.error('Error updating CV with analysis:', updateError);
+    logger.error('Error updating CV with analysis:', updateError);
     throw updateError;
   }
 
@@ -850,7 +851,7 @@ export const optimizeCvDocument = async (userId: string, payload: OptimizationPa
     .eq('user_id', userId);
 
   if (updateError) {
-    console.error('Error updating CV with optimization:', updateError);
+    logger.error('Error updating CV with optimization:', updateError);
     throw updateError;
   }
 
@@ -870,7 +871,7 @@ export const deleteCvDocument = async (userId: string, cvId: string): Promise<vo
     .single();
 
   if (fetchError && fetchError.code !== 'PGRST116') {
-    console.error('Error fetching CV storage path before delete:', fetchError);
+    logger.error('Error fetching CV storage path before delete:', fetchError);
     throw fetchError;
   }
 
@@ -881,7 +882,7 @@ export const deleteCvDocument = async (userId: string, cvId: string): Promise<vo
     .eq('user_id', userId);
 
   if (error) {
-    console.error('Error deleting CV document:', error);
+    logger.error('Error deleting CV document:', error);
     throw error;
   }
 
@@ -891,7 +892,7 @@ export const deleteCvDocument = async (userId: string, cvId: string): Promise<vo
       .remove([cvRecord.storage_path]);
 
     if (removeError) {
-      console.warn('CV record deleted but failed to remove storage object:', removeError);
+      logger.warn('CV record deleted but failed to remove storage object:', removeError);
     }
   }
 };
@@ -922,7 +923,7 @@ export const generateCvDocument = async (userId: string, payload: CvGenerationPa
     });
 
   if (uploadError) {
-    console.error('Error uploading generated CV to storage:', uploadError);
+    logger.error('Error uploading generated CV to storage:', uploadError);
     throw uploadError;
   }
 
@@ -944,11 +945,11 @@ export const generateCvDocument = async (userId: string, payload: CvGenerationPa
     .single();
 
   if (error) {
-    console.error('Error generating CV document:', error);
+    logger.error('Error generating CV document:', error);
     await supabase.storage
       .from(CV_BUCKET)
       .remove([storagePath])
-      .catch((removeError) => console.warn('Failed to clean up generated CV after DB error:', removeError));
+      .catch((removeError) => logger.warn('Failed to clean up generated CV after DB error:', removeError));
     throw error;
   }
 
@@ -986,7 +987,7 @@ export const resetCvDocuments = async (userId: string): Promise<void> => {
     .eq('user_id', userId);
 
   if (listError) {
-    console.error('Error fetching CV records prior to reset:', listError);
+    logger.error('Error fetching CV records prior to reset:', listError);
     throw listError;
   }
 
@@ -1001,7 +1002,7 @@ export const resetCvDocuments = async (userId: string): Promise<void> => {
     .eq('user_id', userId);
 
   if (error) {
-    console.error('Error resetting CV documents:', error);
+    logger.error('Error resetting CV documents:', error);
     throw error;
   }
 
@@ -1011,7 +1012,7 @@ export const resetCvDocuments = async (userId: string): Promise<void> => {
       .remove(storagePaths);
 
     if (removeError) {
-      console.warn('Failed to remove some CV storage objects during reset:', removeError);
+      logger.warn('Failed to remove some CV storage objects during reset:', removeError);
     }
   }
 };

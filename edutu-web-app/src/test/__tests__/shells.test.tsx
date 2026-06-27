@@ -3,6 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AppWorkspaceShell from "../../components/AppWorkspaceShell";
 import PublicEditorialShell from "../../components/PublicEditorialShell";
+import "../../i18n";
 
 const clerkMocks = vi.hoisted(() => ({
   isSignedIn: false,

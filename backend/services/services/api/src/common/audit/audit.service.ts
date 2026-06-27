@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable } from "@nestjs/common";
 
 export interface AuditEntry {
   action: string;
@@ -21,7 +21,7 @@ export class AuditService {
     this.logFn = (entry) => {
       console.log(
         JSON.stringify({
-          event: 'audit',
+          event: "audit",
           ...entry,
         }),
       );
@@ -48,51 +48,77 @@ export class AuditService {
       // await this.db.insert(adminAuditLogs).values(entry);
     } catch (error) {
       // Audit failures must never break the main flow
-      console.error('Audit log write failed:', error);
+      console.error("Audit log write failed:", error);
     }
   }
 
   // Convenience methods for common actions
-  async logOpportunityCreate(userId: string, opportunityId: string, title: string): Promise<void> {
-    await this.log('opportunity.create', userId, 'opportunity', {
+  async logOpportunityCreate(
+    userId: string,
+    opportunityId: string,
+    title: string,
+  ): Promise<void> {
+    await this.log("opportunity.create", userId, "opportunity", {
       resourceId: opportunityId,
       title,
     });
   }
 
-  async logOpportunityUpdate(userId: string, opportunityId: string, changes: Record<string, unknown>): Promise<void> {
-    await this.log('opportunity.update', userId, 'opportunity', {
+  async logOpportunityUpdate(
+    userId: string,
+    opportunityId: string,
+    changes: Record<string, unknown>,
+  ): Promise<void> {
+    await this.log("opportunity.update", userId, "opportunity", {
       resourceId: opportunityId,
       changes,
     });
   }
 
-  async logOpportunityDelete(userId: string, opportunityId: string, title: string): Promise<void> {
-    await this.log('opportunity.delete', userId, 'opportunity', {
+  async logOpportunityDelete(
+    userId: string,
+    opportunityId: string,
+    title: string,
+  ): Promise<void> {
+    await this.log("opportunity.delete", userId, "opportunity", {
       resourceId: opportunityId,
       title,
     });
   }
 
-  async logCreatorApproval(adminId: string, creatorId: string, approved: boolean): Promise<void> {
+  async logCreatorApproval(
+    adminId: string,
+    creatorId: string,
+    approved: boolean,
+  ): Promise<void> {
     await this.log(
-      approved ? 'creator.approve' : 'creator.reject',
+      approved ? "creator.approve" : "creator.reject",
       adminId,
-      'creator',
+      "creator",
       { resourceId: creatorId },
     );
   }
 
-  async logSettingChange(userId: string, key: string, oldValue: unknown, newValue: unknown): Promise<void> {
-    await this.log('settings.update', userId, 'settings', {
+  async logSettingChange(
+    userId: string,
+    key: string,
+    oldValue: unknown,
+    newValue: unknown,
+  ): Promise<void> {
+    await this.log("settings.update", userId, "settings", {
       key,
       oldValue,
       newValue,
     });
   }
 
-  async logUserRoleChange(adminId: string, targetUserId: string, oldRole: string, newRole: string): Promise<void> {
-    await this.log('user.role_change', adminId, 'user', {
+  async logUserRoleChange(
+    adminId: string,
+    targetUserId: string,
+    oldRole: string,
+    newRole: string,
+  ): Promise<void> {
+    await this.log("user.role_change", adminId, "user", {
       resourceId: targetUserId,
       oldRole,
       newRole,

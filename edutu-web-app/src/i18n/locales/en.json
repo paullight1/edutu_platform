@@ -20,7 +20,8 @@
         "none": "None",
         "yes": "Yes",
         "no": "No",
-        "ok": "OK"
+        "ok": "OK",
+        "showAll": "Show all"
     },
     "auth": {
         "signIn": "Sign In",
@@ -35,7 +36,90 @@
         "termsAgree": "By continuing, you agree to our",
         "termsOfService": "Terms of Service",
         "and": "and",
-        "privacyPolicy": "Privacy Policy"
+        "privacyPolicy": "Privacy Policy",
+        "or": "OR",
+        "agreeTerms": "I agree to Edutu's terms and privacy policy.",
+        "footerTerms": "By continuing, you agree to Edutu's Terms & Privacy Policy.",
+        "recoverPrompt": "Password not working? Send a recovery code to reset it.",
+        "recoverPassword": "Recover password",
+        "titles": {
+            "welcomeBack": "Welcome back",
+            "createAccount": "Create Account",
+            "checkEmail": "Check your email",
+            "oneMoreStep": "One more step",
+            "resetPassword": "Reset password"
+        },
+        "subtitles": {
+            "verifyEmail": "We sent a verification code to {{email}}",
+            "secondFactorTotp": "Enter the code from your authenticator app.",
+            "secondFactorBackup": "Enter one of your backup codes.",
+            "secondFactorCode": "Enter the second verification code sent by Clerk.",
+            "resetSent": "Enter the reset code sent to {{email}}",
+            "resetPrompt": "Enter your email and we will send you a reset code.",
+            "signIn": "Sign in to continue with Edutu",
+            "signUp": "Your information is secure and will not be shared."
+        },
+        "fields": {
+            "verificationCode": "Verification code",
+            "email": "Email",
+            "resetCode": "Reset code",
+            "newPassword": "New password",
+            "name": "Name",
+            "password": "Password",
+            "confirmPassword": "Confirm password"
+        },
+        "placeholders": {
+            "email": "e.g. ahmed@edutu.org",
+            "name": "e.g. Amina Bello",
+            "password": "Enter your password",
+            "confirmPassword": "Repeat your password",
+            "newPassword": "Create a new password",
+            "backupCode": "BACKUPCODE",
+            "code": "000000"
+        },
+        "buttons": {
+            "verifying": "Verifying...",
+            "verifyAndSignIn": "Verify and sign in",
+            "verifyEmail": "Verify email",
+            "resendCode": "Resend code",
+            "pleaseWait": "Please wait...",
+            "resetPassword": "Reset password",
+            "sendResetCode": "Send reset code",
+            "backToSignIn": "Back to sign in",
+            "signingIn": "Signing in...",
+            "creatingAccount": "Creating account...",
+            "signIn": "Sign in",
+            "createAccount": "Create an account",
+            "signUp": "Sign up",
+            "logIn": "Log in"
+        },
+        "errors": {
+            "authenticationFailed": "Authentication failed",
+            "invalidCredentials": "Invalid email or password",
+            "tooManyAttempts": "Too many attempts. Please try again later.",
+            "failed": "Failed to authenticate. Please try again.",
+            "enterEmail": "Please enter your email",
+            "enterPassword": "Please enter your password",
+            "enterName": "Please enter your name",
+            "passwordTooShort": "Password must be at least 8 characters",
+            "passwordsDontMatch": "Passwords do not match",
+            "acceptTerms": "Please accept the terms and privacy policy",
+            "clerkLoading": "Clerk is still loading. Please try again.",
+            "enterCode": "Please enter your verification code",
+            "enter6DigitCode": "Please enter the 6-digit code",
+            "enterResetCode": "Please enter the 6-digit reset code",
+            "resetIncomplete": "Password reset is not complete yet.",
+            "verifyIncomplete": "Verification is not complete yet.",
+            "enterEmailFirst": "Please enter your email first",
+            "accountExists": "That account already exists. Sign in with the same email to finish verification or resend the code."
+        }
+    },
+    "workspace": {
+        "greeting": "Greetings {{name}}",
+        "there": "there",
+        "section": "Workspace",
+        "developers": "Developers",
+        "menu": "Menu"
     },
     "dashboard": {
         "greeting": {
@@ -53,7 +137,83 @@
         "sections": {
             "recentActivity": "Recent Activity",
             "upcomingDeadlines": "Upcoming Deadlines",
-            "quickActions": "Quick Actions"
+            "quickActions": "Quick Actions",
+            "exploreOpportunities": "Explore opportunities",
+            "recommendedPicks": "Recommended picks"
+        },
+        "forYou": "For you",
+        "completeProfile": "Complete your profile",
+        "reviewProfile": "Review profile",
+        "needForMatches": "Need 60% for matches",
+        "moreCount": "+{{count}} more",
+        "categoryOpportunities": "{{category}} opportunities",
+        "moreOpportunities": "More opportunities",
+        "filteredBySelection": "Filtered by your selection",
+        "scrollDown": "Scroll down to keep reviewing cards",
+        "browseAll": "Browse all",
+        "improveProfile": "Improve profile",
+        "shuffle": "Shuffle",
+        "viewMore": "View more",
+        "viewAll": "View all",
+        "savedCount": "Saved {{count}}",
+        "applicationsCount": "Applications {{count}}",
+        "latestActivity": "Latest saved and tracked opportunities",
+        "profileBanner": {
+            "unlock": "Unlock personalized matches at {{score}}%"
+        },
+        "empty": {
+            "noRecommendations": "No recommendations yet",
+            "noRecommendationsDescription": "Complete your profile or browse the full opportunity feed while Edutu prepares better matches.",
+            "browseOpportunities": "Browse opportunities",
+            "showAll": "Show all",
+            "noCategoryFound": "No {{category}} found",
+            "tryAnotherCategory": "Try another category or clear the filter to return to the full feed."
+        }
+    },
+    "opportunities": {
+        "title": "Opportunities",
+        "searchPlaceholder": "Search by title, location, or keyword",
+        "showClosed": "Show closed",
+        "browseCategory": "Browse {{label}} from the Edutu opportunity feed.",
+        "filters": {
+            "deadline": "Deadline",
+            "funding": "Funding"
+        },
+        "deadlineWindows": {
+            "any": "Any time",
+            "week": "Closing this week",
+            "month": "Closing this month",
+            "90days": "Next 90 days"
+        },
+        "funding": {
+            "any": "Any funding",
+            "paid": "Paid / funded"
+        },
+        "remoteOnly": "Remote only",
+        "featured": "Featured",
+        "sort": {
+            "recommended": "Recommended",
+            "deadline": "Deadline (soonest)",
+            "newest": "Newest",
+            "funding": "Funding (highest)"
+        },
+        "showing": {
+            "opportunities_one": "Showing {{shown}} of {{total}} opportunity",
+            "opportunities_other": "Showing {{shown}} of {{total}} opportunities"
+        },
+        "clearAll": "Clear all",
+        "clearFilters": "Clear filters",
+        "loadMore": "Load more",
+        "errorTitle": "Unable to load opportunities",
+        "categories": {
+            "scholarships": "Scholarships",
+            "internships": "Internships",
+            "programs": "Programs",
+            "fellowships": "Fellowships"
+        },
+        "empty": {
+            "title": "No opportunities found",
+            "description": "Try a broader search term or clear the current filters to see more listings."
         }
     },
     "goals": {
@@ -175,9 +335,16 @@
         "profile": "Profile",
         "saved": "Saved",
         "applied": "Applied",
+        "applications": "Applications",
+        "opportunities": "Opportunities",
+        "opportunityDetail": "Opportunity",
         "deadlines": "Deadlines",
+        "dates": "Dates",
+        "developerApi": "Developer API",
         "wallet": "Wallet",
-        "creator": "Creator"
+        "creator": "Creator",
+        "logOut": "Log out",
+        "signingOut": "Signing out..."
     },
     "saved": {
         "title": "Saved Opportunities",

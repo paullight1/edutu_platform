@@ -15,7 +15,7 @@ describe("AppController", () => {
         {
           provide: OpportunitiesService,
           useValue: {
-            getPublicAppBaseUrl: jest.fn(() => "https://edutu.ai"),
+            getPublicAppBaseUrl: jest.fn(() => "https://www.edutu.org"),
             listSitemapOpportunities: jest.fn(() => []),
           },
         },

@@ -7,6 +7,8 @@ import {
   eq,
   gte,
   ilike,
+  lt,
+  gt,
   lte,
   or,
   sql,
@@ -22,6 +24,11 @@ import type {
 } from "./dto/edutu-api.dto";
 
 type OpportunityRow = typeof opportunities.$inferSelect;
+type OpportunitySortField = "updatedAt" | "createdAt" | "deadline";
+type OpportunityCursor = {
+  value: string;
+  id: string;
+};
 
 @Injectable()
 export class EdutuApiService {
@@ -35,28 +42,37 @@ export class EdutuApiService {
   ) {
     const limit = this.toLimit(query.limit, 25, 100);
     const offset = this.toOffset(query.offset);
+    const cursor = this.parseCursor(query.cursor);
     const filters = this.buildOpportunityFilters(query);
+    const cursorFilters = this.buildCursorFilters(query.sort, cursor);
     const orderBy = this.toOrderBy(query.sort);
 
-    const rows = await db
+    const request = db
       .select()
       .from(opportunities)
-      .where(and(...filters))
-      .orderBy(orderBy)
-      .limit(limit + 1)
-      .offset(offset)
-      .execute();
+      .where(and(...filters, ...cursorFilters))
+      .orderBy(...orderBy)
+      .limit(limit + 1);
+
+    const paginatedRequest = cursor ? request : request.offset(offset);
+
+    const rows = await paginatedRequest.execute();
     const data = rows.slice(0, limit);
     const hasMore = rows.length > limit;
     const total = await this.getOptionalTotal(query.includeTotal, filters);
+    const nextCursor = hasMore
+      ? this.buildCursor(data[data.length - 1], query.sort)
+      : null;
 
     return {
       object: "list",
       data: data.map((row) => this.toPublicOpportunity(row)),
       meta: {
         limit,
-        offset,
-        nextOffset: hasMore ? offset + data.length : null,
+        offset: cursor ? null : offset,
+        cursor: cursor?.value ? (query.cursor ?? null) : null,
+        nextOffset: cursor ? null : hasMore ? offset + data.length : null,
+        nextCursor,
         total,
         hasMore,
         generatedAt: new Date().toISOString(),
@@ -113,6 +129,89 @@ export class EdutuApiService {
         generatedAt: new Date().toISOString(),
         requestId: consumer.requestId,
         quota: consumer.quota,
+      },
+    };
+  }
+
+  async syncOpportunities(
+    query: ListOpportunitiesQuery,
+    consumer: ApiConsumerContext,
+  ) {
+    return this.listOpportunities(
+      {
+        ...query,
+        includeExpired: "true",
+        limit: query.limit ?? 100,
+        sort: query.sort ?? "updated_desc",
+      },
+      consumer,
+    );
+  }
+
+  async listCategories(consumer: ApiConsumerContext) {
+    const categoriesResult = await db.execute(sql`
+      select
+        coalesce(nullif(canonical_category, ''), 'other') as slug,
+        count(*)::int as count
+      from opportunities
+      where status = 'active'
+      group by 1
+      order by count(*) desc, slug asc
+    `);
+
+    const rows = ((categoriesResult as { rows?: unknown[] }).rows ??
+      (Array.isArray(categoriesResult) ? categoriesResult : [])) as Array<{
+      slug?: string;
+      count?: number | string;
+    }>;
+
+    return {
+      object: "list",
+      data: rows.map((row) => {
+        const slug = String(row.slug ?? "other");
+        return {
+          slug,
+          label: this.humanizeCategorySlug(slug),
+          count: Number(row.count ?? 0),
+        };
+      }),
+      meta: {
+        generatedAt: new Date().toISOString(),
+        requestId: consumer.requestId,
+        quota: consumer.quota,
+      },
+    };
+  }
+
+  async getUsage(consumer: ApiConsumerContext) {
+    const limit = consumer.quota?.limit ?? consumer.monthlyQuota ?? null;
+    const remaining = consumer.quota?.remaining ?? null;
+    const used =
+      limit === null || remaining === null
+        ? null
+        : Math.max(limit - remaining, 0);
+
+    return {
+      object: "usage",
+      consumer: {
+        id: consumer.id,
+        name: consumer.name,
+        plan: consumer.plan,
+      },
+      credits: {
+        remaining: consumer.creditBalance ?? null,
+      },
+      period: {
+        resetAt: consumer.quota?.resetAt ?? null,
+      },
+      quota: {
+        limit,
+        remaining,
+        used,
+      },
+      meta: {
+        generatedAt: new Date().toISOString(),
+        requestId: consumer.requestId,
       },
     };
   }
@@ -180,7 +279,9 @@ export class EdutuApiService {
     const filters = [eq(opportunities.status, "active")];
 
     if (query.canonicalCategory) {
-      filters.push(eq(opportunities.canonicalCategory, query.canonicalCategory));
+      filters.push(
+        eq(opportunities.canonicalCategory, query.canonicalCategory),
+      );
     } else if (query.category) {
       filters.push(
         or(
@@ -288,6 +389,13 @@ export class EdutuApiService {
     };
   }
 
+  private humanizeCategorySlug(slug: string) {
+    return slug
+      .replace(/[_-]+/g, " ")
+      .trim()
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
+
   private toLimit(value: unknown, fallback: number, max: number) {
     const parsed = Number(value ?? fallback);
     if (!Number.isFinite(parsed)) return fallback;
@@ -311,20 +419,126 @@ export class EdutuApiService {
   }
 
   private toOrderBy(sort?: string) {
+    const config = this.toSortConfig(sort);
+    const primaryOrder = config.ascending
+      ? asc(config.column)
+      : desc(config.column);
+    const secondaryOrder = config.ascending
+      ? asc(opportunities.id)
+      : desc(opportunities.id);
+    return [primaryOrder, secondaryOrder];
+  }
+
+  private toSortConfig(sort?: string): {
+    column: any;
+    ascending: boolean;
+    field: OpportunitySortField;
+  } {
     switch (sort) {
       case "deadline_asc":
-        return asc(opportunities.deadline);
+        return {
+          column: opportunities.deadline,
+          ascending: true,
+          field: "deadline",
+        };
       case "deadline_desc":
-        return desc(opportunities.deadline);
+        return {
+          column: opportunities.deadline,
+          ascending: false,
+          field: "deadline",
+        };
       case "created_asc":
-        return asc(opportunities.createdAt);
+        return {
+          column: opportunities.createdAt,
+          ascending: true,
+          field: "createdAt",
+        };
       case "created_desc":
-        return desc(opportunities.createdAt);
+        return {
+          column: opportunities.createdAt,
+          ascending: false,
+          field: "createdAt",
+        };
       case "updated_asc":
-        return asc(opportunities.updatedAt);
+        return {
+          column: opportunities.updatedAt,
+          ascending: true,
+          field: "updatedAt",
+        };
       case "updated_desc":
       default:
-        return desc(opportunities.updatedAt);
+        return {
+          column: opportunities.updatedAt,
+          ascending: false,
+          field: "updatedAt",
+        };
     }
+  }
+
+  private buildCursorFilters(
+    sort: string | undefined,
+    cursor: OpportunityCursor | null,
+  ) {
+    if (!cursor) return [];
+
+    const config = this.toSortConfig(sort);
+    const cursorValue = this.parseCursorValue(cursor.value);
+    if (!cursorValue) return [];
+
+    const compare = config.ascending ? gt : lt;
+    return [
+      or(
+        compare(config.column, cursorValue),
+        and(
+          eq(config.column, cursorValue),
+          compare(opportunities.id, cursor.id),
+        ),
+      )!,
+    ];
+  }
+
+  private parseCursor(cursor: string | undefined): OpportunityCursor | null {
+    if (!cursor) return null;
+
+    try {
+      const decoded = JSON.parse(
+        Buffer.from(cursor, "base64url").toString("utf8"),
+      ) as Partial<OpportunityCursor>;
+      if (typeof decoded.value !== "string" || typeof decoded.id !== "string") {
+        return null;
+      }
+
+      return {
+        value: decoded.value,
+        id: decoded.id,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private buildCursor(
+    row: OpportunityRow & Record<string, any>,
+    sort?: string,
+  ) {
+    if (!row.id) return null;
+
+    const config = this.toSortConfig(sort);
+    const value = row[config.field];
+    if (!value) return null;
+
+    const serialized =
+      value instanceof Date ? value.toISOString() : String(value);
+    return Buffer.from(
+      JSON.stringify({
+        value: serialized,
+        id: String(row.id),
+      }),
+    ).toString("base64url");
+  }
+
+  private parseCursorValue(value: string) {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 }

@@ -1,0 +1,55 @@
+---
+title: Errors
+description: Status codes, the error envelope, and stable error codes.
+---
+
+# Errors
+
+The Edutu API uses conventional HTTP status codes and a single, consistent error
+envelope on every failure.
+
+## Error envelope
+
+```json
+{
+  "error": {
+    "message": "Human-readable summary.",
+    "status": 429,
+    "code": "rate_limit_exceeded",
+    "details": null,
+    "quota": null,
+    "retryAfter": 12
+  },
+  "requestId": "req_4f2a8c..."
+}
+```
+
+Always include the `requestId` when contacting support.
+
+## Status codes
+
+| Status | Meaning |
+|---|---|
+| `400` | Malformed request (bad query, bad body). |
+| `401` | Missing or invalid API key. |
+| `403` | Valid key but missing the required scope. |
+| `404` | Resource not found. |
+| `402` | Monthly quota exceeded or credits exhausted. |
+| `429` | Per-minute rate limit exceeded. |
+| `500` | Unexpected server error. |
+| `503` | Dependency unavailable (try again). |
+
+## Stable error codes
+
+Branch on `error.code`, not the human message.
+
+| `code` | `status` | When |
+|---|---|---|
+| `rate_limit_exceeded` | `429` | Too many requests in the current minute. |
+| `quota_exceeded` | `402` | Monthly request quota reached. |
+| `credits_exhausted` | `402` | API credit balance is zero. |
+
+<Note>
+Validation errors (`400`) include an `error.details` array of
+`{ path, message }` objects — one per invalid field.
+</Note>

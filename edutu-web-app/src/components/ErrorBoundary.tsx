@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { ArrowLeft, Briefcase, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Briefcase, RefreshCw, RotateCcw } from 'lucide-react';
+import { captureException } from '../lib/sentry';
 
 interface Props {
     children: ReactNode;
@@ -34,16 +35,13 @@ class ErrorBoundary extends Component<Props, State> {
     }
 
     componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-        // Log the error to console (in production, send to error tracking service)
-        console.error('ErrorBoundary caught an error:', error);
-        console.error('Error Info:', errorInfo);
+        console.error('ErrorBoundary caught an error:', error, errorInfo);
 
         this.setState({ errorInfo });
 
-        // TODO: Send to error tracking service like Sentry
-        // if (typeof window !== 'undefined' && window.Sentry) {
-        //   window.Sentry.captureException(error, { extra: errorInfo });
-        // }
+        captureException(error, {
+            componentStack: errorInfo.componentStack,
+        });
     }
 
     handleGoHome = (): void => {
@@ -56,6 +54,10 @@ class ErrorBoundary extends Component<Props, State> {
             error: null,
             errorInfo: null
         });
+    };
+
+    handleReload = (): void => {
+        window.location.reload();
     };
 
     render() {
@@ -87,6 +89,15 @@ class ErrorBoundary extends Component<Props, State> {
                             >
                                 <RefreshCw className="h-4 w-4" />
                                 Try again
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={this.handleReload}
+                                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 transition-colors hover:bg-slate-50"
+                            >
+                                <RotateCcw className="h-4 w-4" />
+                                Reload page
                             </button>
 
                             <button

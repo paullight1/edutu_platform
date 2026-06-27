@@ -16,8 +16,9 @@ import {
     type LucideIcon,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useDarkMode } from '../hooks/useDarkMode';
 import PublicEditorialShell from './PublicEditorialShell';
+
+const apiSpecUrl = import.meta.env.VITE_API_OPENAPI_URL || 'https://api.edutu.org/v1/openapi.json';
 
 type DocLink = {
     label: string;
@@ -54,7 +55,7 @@ const endpointGroups: Endpoint[] = [
         method: 'GET',
         path: '/opportunities',
         title: 'Global opportunities API',
-        description: 'Returns the canonical public feed for scholarships, fellowships, internships, and other opportunities. Use it for home pages, filters, search, and list views.',
+        description: 'Returns the canonical public feed for scholarships, fellowships, internships, and other opportunities with stable cursor-based pagination. Use it for home pages, filters, search, and list views.',
     },
     {
         method: 'GET',
@@ -67,6 +68,12 @@ const endpointGroups: Endpoint[] = [
         path: '/api/scraper/stats',
         title: 'Scraper health',
         description: 'Shows the current scrape coverage and sync status so your admin surface can reflect whether the inventory is fresh.',
+    },
+    {
+        method: 'GET',
+        path: '/v1/openapi.json',
+        title: 'OpenAPI contract',
+        description: 'Downloads the machine-readable API contract used by SDK generators and docs tools.',
     },
     {
         method: 'POST',
@@ -143,6 +150,11 @@ const opportunities = await response.json();`,
   opportunities: payload,
 });`,
     },
+    {
+        label: 'OpenAPI',
+        title: 'Fetch the machine-readable contract',
+        code: `curl "${apiSpecUrl}"`,
+    },
 ];
 
 const opportunityFields = [
@@ -163,8 +175,12 @@ const opportunityFields = [
 
 const quickRefs = [
     {
-        title: 'Scholarship API',
-        text: 'Use `/opportunities` and `/opportunities/:id` for live scholarship and global opportunities data.',
+        title: 'Scholarship Engine',
+        text: 'Use `/opportunities` and `/opportunities/:id` for live scholarship and global opportunities data. The default feed is cursor-paginated for stable syncs.',
+    },
+    {
+        title: 'Billing & credits',
+        text: 'Open `/dashboard/developer` to create a project, buy API credits with Paystack, review invoices, and watch usage and renewal state update in real time.',
     },
     {
         title: 'SEO-ready pages',
@@ -174,32 +190,21 @@ const quickRefs = [
         title: 'Shared schema',
         text: 'The public feed, mobile app, and admin panel all consume the same normalized opportunity contract.',
     },
+    {
+        title: 'OpenAPI spec',
+        text: `Generate clients and keep docs in sync from ${apiSpecUrl}.`,
+    },
 ];
 
 const DeveloperDocsPage: React.FC = () => {
-    const { isDarkMode } = useDarkMode();
-
     return (
         <PublicEditorialShell>
-            <div
-                className="min-h-[100dvh] overflow-x-hidden"
-                style={{
-                    backgroundColor: isDarkMode ? '#080808' : '#f7f9fc',
-                    color: isDarkMode ? '#f5f5f5' : '#080808',
-                    fontFamily: "'Inter', 'Arial', sans-serif",
-                }}
-            >
+            <div className="min-h-[100dvh] overflow-x-hidden bg-surface-body">
                 <main className="mx-auto max-w-[1480px] px-4 py-10 sm:px-6 lg:px-8 lg:py-12">
                     <div className="grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)_240px]">
                         <aside className="hidden lg:block">
-                            <div
-                                className="sticky top-24 rounded-[24px] border p-4"
-                                style={{
-                                    backgroundColor: isDarkMode ? '#111' : '#ffffff',
-                                    borderColor: isDarkMode ? '#222' : '#d8e1eb',
-                                }}
-                            >
-                                <div className="mb-4 flex items-center gap-2 text-[#146ef5]">
+                            <div className="sticky top-24 rounded-2xl border border-subtle bg-surface-layer p-4 shadow-soft">
+                                <div className="mb-4 flex items-center gap-2 text-brand-500">
                                     <BookOpen size={16} />
                                     <span className="text-[11px] font-bold uppercase tracking-[0.24em]">On this page</span>
                                 </div>
@@ -208,26 +213,19 @@ const DeveloperDocsPage: React.FC = () => {
                                         <a
                                             key={link.href}
                                             href={link.href}
-                                            className="block rounded-xl px-3 py-2 text-sm font-medium transition-colors hover:bg-slate-50"
-                                            style={{ color: isDarkMode ? '#d6dae1' : '#475569' }}
+                                            className="block rounded-xl px-3 py-2 text-sm font-medium text-soft transition-colors hover:bg-surface-elevated"
                                         >
                                             {link.label}
                                         </a>
                                     ))}
                                 </nav>
 
-                                <div
-                                    className="mt-5 rounded-[20px] p-4"
-                                    style={{
-                                        backgroundColor: isDarkMode ? '#0b0b0b' : '#f8fbff',
-                                        border: `1px solid ${isDarkMode ? '#1d1d1d' : '#e5edf6'}`,
-                                    }}
-                                >
-                                    <div className="flex items-center gap-2 text-[#146ef5]">
+                                <div className="mt-5 rounded-xl border border-subtle bg-surface-layer p-4">
+                                    <div className="flex items-center gap-2 text-brand-500">
                                         <ShieldCheck size={14} />
                                         <span className="text-[10px] font-bold uppercase tracking-[0.22em]">Quick ref</span>
                                     </div>
-                                    <p className="mt-3 text-sm leading-6" style={{ color: isDarkMode ? '#aab2c0' : '#64748b' }}>
+                                    <p className="mt-3 text-sm leading-6 text-muted">
                                         The Edutu API powers the public app, the Expo mobile client, and the admin ingest flow.
                                     </p>
                                 </div>
@@ -235,28 +233,22 @@ const DeveloperDocsPage: React.FC = () => {
                         </aside>
 
                         <div className="min-w-0">
-                            <section id="overview" className="scroll-mt-28 border-b pb-10 sm:pb-12">
+                            <section id="overview" className="scroll-mt-28 border-b border-subtle pb-10 sm:pb-12">
                                 <motion.div
                                     initial={{ opacity: 0, y: 16 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    transition={{ duration: 0.45 }}
+                                    transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
                                 >
-                                    <div className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[11px] font-bold uppercase tracking-[0.26em] text-[#146ef5]">
+                                    <div className="inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.26em] text-brand-500">
                                         <Code2 size={14} />
                                         edutu-api
                                     </div>
 
                                     <div className="mt-6 max-w-4xl space-y-5">
-                                        <h1
-                                            className="text-[clamp(2rem,3.5vw,3.4rem)] font-medium leading-[1.06] tracking-[-0.05em]"
-                                            style={{ color: isDarkMode ? '#fafafa' : '#0b1220' }}
-                                        >
+                                        <h1 className="text-[clamp(2rem,3.5vw,3.4rem)] font-medium leading-[1.06] tracking-[-0.05em] text-strong">
                                             Integrate Edutu with a clean, predictable API contract.
                                         </h1>
-                                        <p
-                                            className="max-w-3xl text-[16px] leading-[1.8] sm:text-[18px]"
-                                            style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}
-                                        >
+                                        <p className="max-w-3xl text-[16px] leading-[1.8] sm:text-[18px] text-soft">
                                             The same scholarship and global opportunities data powers the public web feed, the mobile client, and the admin ingestion pipeline. Start with the live feed, then layer on SEO pages, mobile views, and sync tooling.
                                         </p>
                                     </div>
@@ -265,16 +257,12 @@ const DeveloperDocsPage: React.FC = () => {
                                         {quickRefs.map((item) => (
                                             <div
                                                 key={item.title}
-                                                className="rounded-[20px] border p-4"
-                                                style={{
-                                                    backgroundColor: isDarkMode ? '#111' : '#ffffff',
-                                                    borderColor: isDarkMode ? '#222' : '#d8e1eb',
-                                                }}
+                                                className="rounded-xl border border-subtle bg-surface-layer p-4 shadow-soft transition-colors duration-300 hover:border-brand-500/20"
                                             >
-                                                <p className="text-[12px] font-bold uppercase tracking-[0.18em]" style={{ color: '#146ef5' }}>
+                                                <p className="text-[12px] font-bold uppercase tracking-[0.18em] text-brand-500">
                                                     {item.title}
                                                 </p>
-                                                <p className="mt-2 text-sm leading-6" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                                <p className="mt-2 text-sm leading-6 text-soft">
                                                     {item.text}
                                                 </p>
                                             </div>
@@ -288,16 +276,10 @@ const DeveloperDocsPage: React.FC = () => {
                                 className="scroll-mt-28 py-10 sm:py-12"
                             >
                                 <div className="max-w-3xl">
-                                    <p className="text-[11px] font-bold uppercase tracking-[0.26em] text-[#146ef5]">
-                                        API surface
-                                    </p>
-                                    <h2
-                                        className="mt-3 text-[clamp(1.6rem,2.4vw,2.35rem)] font-medium leading-[1.05] tracking-[-0.045em]"
-                                        style={{ color: isDarkMode ? '#fafafa' : '#0b1220' }}
-                                    >
+                                    <h2 className="text-[clamp(1.6rem,2.4vw,2.35rem)] font-medium leading-[1.05] tracking-[-0.045em] text-strong">
                                         Scholarship and global opportunities endpoints.
                                     </h2>
-                                    <p className="mt-4 text-[15px] leading-[1.75]" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                    <p className="mt-4 text-[15px] leading-[1.75] text-soft">
                                         Build against the backend once, then let every surface consume the same normalized opportunity object. That keeps lists, share pages, detail pages, and admin tools aligned.
                                     </p>
                                 </div>
@@ -309,12 +291,8 @@ const DeveloperDocsPage: React.FC = () => {
                                             initial={{ opacity: 0, y: 14 }}
                                             whileInView={{ opacity: 1, y: 0 }}
                                             viewport={{ once: true, margin: '-40px' }}
-                                            transition={{ duration: 0.35, delay: index * 0.05 }}
-                                            className="grid gap-4 rounded-[24px] border p-5 sm:grid-cols-[160px_minmax(0,1fr)] sm:items-start"
-                                            style={{
-                                                backgroundColor: isDarkMode ? '#111' : '#ffffff',
-                                                borderColor: isDarkMode ? '#222' : '#d8e1eb',
-                                            }}
+                                            transition={{ duration: 0.35, delay: index * 0.05, ease: [0.16, 1, 0.3, 1] }}
+                                            className="rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft transition-colors duration-300 hover:border-brand-500/20 grid gap-4 sm:grid-cols-[160px_minmax(0,1fr)] sm:items-start"
                                         >
                                             <div className="flex items-center gap-3">
                                                 <div
@@ -327,20 +305,20 @@ const DeveloperDocsPage: React.FC = () => {
                                                     <Terminal size={18} />
                                                 </div>
                                                 <div>
-                                                    <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#146ef5]">
+                                                    <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-brand-500">
                                                         {endpoint.method}
                                                     </div>
-                                                    <div className="mt-1 font-mono text-[13px] text-slate-500">
+                                                    <div className="mt-1 font-mono text-[13px] text-soft">
                                                         {endpoint.path}
                                                     </div>
                                                 </div>
                                             </div>
 
                                             <div>
-                                                <h3 className="text-lg font-semibold tracking-[-0.02em]" style={{ color: isDarkMode ? '#fafafa' : '#0b1220' }}>
+                                                <h3 className="text-lg font-semibold tracking-[-0.02em] text-strong">
                                                     {endpoint.title}
                                                 </h3>
-                                                <p className="mt-2 max-w-3xl text-[15px] leading-[1.75]" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                                <p className="mt-2 max-w-3xl text-[15px] leading-[1.75] text-soft">
                                                     {endpoint.description}
                                                 </p>
                                             </div>
@@ -349,18 +327,19 @@ const DeveloperDocsPage: React.FC = () => {
                                 </div>
                             </section>
 
-                            <section id="platform-setup" className="scroll-mt-28 border-y py-10 sm:py-12">
+                            <motion.section
+                                id="platform-setup"
+                                initial={{ opacity: 0, y: 24 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true, margin: '-60px' }}
+                                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                                className="scroll-mt-28 border-y border-subtle py-10 sm:py-12"
+                            >
                                 <div className="max-w-3xl">
-                                    <p className="text-[11px] font-bold uppercase tracking-[0.26em] text-[#146ef5]">
-                                        Platform setup
-                                    </p>
-                                    <h2
-                                        className="mt-3 text-[clamp(1.6rem,2.4vw,2.35rem)] font-medium leading-[1.05] tracking-[-0.045em]"
-                                        style={{ color: isDarkMode ? '#fafafa' : '#0b1220' }}
-                                    >
+                                    <h2 className="text-[clamp(1.6rem,2.4vw,2.35rem)] font-medium leading-[1.05] tracking-[-0.045em] text-strong">
                                         One opportunity source, three clients.
                                     </h2>
-                                    <p className="mt-4 text-[15px] leading-[1.75]" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                    <p className="mt-4 text-[15px] leading-[1.75] text-soft">
                                         The web app, Expo mobile app, and admin panel all point at the same contract. That is the simplest way to keep scholarship data, editorial pages, and sync jobs in agreement.
                                     </p>
                                 </div>
@@ -372,12 +351,8 @@ const DeveloperDocsPage: React.FC = () => {
                                             initial={{ opacity: 0, y: 14 }}
                                             whileInView={{ opacity: 1, y: 0 }}
                                             viewport={{ once: true, margin: '-40px' }}
-                                            transition={{ duration: 0.35, delay: index * 0.05 }}
-                                            className="rounded-[24px] border p-5"
-                                            style={{
-                                                backgroundColor: isDarkMode ? '#111' : '#ffffff',
-                                                borderColor: isDarkMode ? '#222' : '#d8e1eb',
-                                            }}
+                                            transition={{ duration: 0.35, delay: index * 0.05, ease: [0.16, 1, 0.3, 1] }}
+                                            className="rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft transition-colors duration-300 hover:border-brand-500/20"
                                         >
                                             <div
                                                 className="flex h-11 w-11 items-center justify-center rounded-2xl"
@@ -388,12 +363,12 @@ const DeveloperDocsPage: React.FC = () => {
                                             <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.24em]" style={{ color: card.accent }}>
                                                 {card.subtitle}
                                             </p>
-                                            <h3 className="mt-2 text-xl font-semibold tracking-[-0.03em]" style={{ color: isDarkMode ? '#fafafa' : '#0b1220' }}>
+                                            <h3 className="mt-2 text-xl font-semibold tracking-[-0.03em] text-strong">
                                                 {card.title}
                                             </h3>
                                             <ul className="mt-4 space-y-2">
                                                 {card.items.map((item) => (
-                                                    <li key={item} className="flex items-start gap-2 text-sm leading-6" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                                    <li key={item} className="flex items-start gap-2 text-sm leading-6 text-soft">
                                                         <CheckCircle size={15} className="mt-0.5 shrink-0" style={{ color: card.accent }} />
                                                         <span>{item}</span>
                                                     </li>
@@ -402,33 +377,28 @@ const DeveloperDocsPage: React.FC = () => {
                                         </motion.article>
                                     ))}
                                 </div>
-                            </section>
+                            </motion.section>
 
-                            <section id="seo-pages" className="scroll-mt-28 py-10 sm:py-12">
+                            <motion.section
+                                id="seo-pages"
+                                initial={{ opacity: 0, y: 24 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true, margin: '-60px' }}
+                                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                                className="scroll-mt-28 py-10 sm:py-12"
+                            >
                                 <div className="max-w-3xl">
-                                    <p className="text-[11px] font-bold uppercase tracking-[0.26em] text-[#146ef5]">
-                                        SEO pages
-                                    </p>
-                                    <h2
-                                        className="mt-3 text-[clamp(1.6rem,2.4vw,2.35rem)] font-medium leading-[1.05] tracking-[-0.045em]"
-                                        style={{ color: isDarkMode ? '#fafafa' : '#0b1220' }}
-                                    >
+                                    <h2 className="text-[clamp(1.6rem,2.4vw,2.35rem)] font-medium leading-[1.05] tracking-[-0.045em] text-strong">
                                         Make public pages readable, crawlable, and useful.
                                     </h2>
-                                    <p className="mt-4 text-[15px] leading-[1.75]" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                    <p className="mt-4 text-[15px] leading-[1.75] text-soft">
                                         Opportunity share pages should read like a concise article: descriptive title, plain summary, source details, deadline, and a clear action. That structure helps scholarship pages rank and makes previews look trustworthy when shared.
                                     </p>
                                 </div>
 
                                 <div className="mt-6 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-                                    <div
-                                        className="rounded-[24px] border p-5"
-                                        style={{
-                                            backgroundColor: isDarkMode ? '#111' : '#ffffff',
-                                            borderColor: isDarkMode ? '#222' : '#d8e1eb',
-                                        }}
-                                    >
-                                        <div className="flex items-center gap-2 text-[#146ef5]">
+                                    <div className="rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft transition-colors duration-300 hover:border-brand-500/20">
+                                        <div className="flex items-center gap-2 text-brand-500">
                                             <Globe size={16} />
                                             <span className="text-[11px] font-bold uppercase tracking-[0.24em]">Public routes</span>
                                         </div>
@@ -441,14 +411,10 @@ const DeveloperDocsPage: React.FC = () => {
                                             ].map((item) => (
                                                 <div
                                                     key={item.route}
-                                                    className="rounded-[18px] border px-4 py-3"
-                                                    style={{
-                                                        backgroundColor: isDarkMode ? '#0a0a0a' : '#f8fbff',
-                                                        borderColor: isDarkMode ? '#1f1f1f' : '#e5edf6',
-                                                    }}
+                                                    className="rounded-xl border border-subtle bg-surface-layer px-4 py-3"
                                                 >
-                                                    <p className="font-mono text-[12px] text-[#146ef5]">{item.route}</p>
-                                                    <p className="mt-1 text-sm leading-6" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                                    <p className="font-mono text-[12px] text-brand-500">{item.route}</p>
+                                                    <p className="mt-1 text-sm leading-6 text-soft">
                                                         {item.text}
                                                     </p>
                                                 </div>
@@ -456,38 +422,33 @@ const DeveloperDocsPage: React.FC = () => {
                                         </div>
                                     </div>
 
-                                    <div
-                                        className="rounded-[24px] border p-5"
-                                        style={{
-                                            backgroundColor: isDarkMode ? '#111' : '#ffffff',
-                                            borderColor: isDarkMode ? '#222' : '#d8e1eb',
-                                        }}
-                                    >
-                                        <div className="flex items-center gap-2 text-[#146ef5]">
+                                    <div className="rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft transition-colors duration-300 hover:border-brand-500/20">
+                                        <div className="flex items-center gap-2 text-brand-500">
                                             <Database size={16} />
                                             <span className="text-[11px] font-bold uppercase tracking-[0.24em]">Metadata tips</span>
                                         </div>
-                                        <ul className="mt-4 space-y-3 text-sm leading-6" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                        <ul className="mt-4 space-y-3 text-sm leading-6 text-soft">
                                             <li>• Keep title, summary, organization, and location visible in the first screen.</li>
                                             <li>• Use descriptive headings and consistent field names across pages.</li>
                                             <li>• Treat the share page as a public article, not a dense dashboard card.</li>
                                         </ul>
                                     </div>
                                 </div>
-                            </section>
+                            </motion.section>
 
-                            <section id="data-contract" className="scroll-mt-28 border-y py-10 sm:py-12">
+                            <motion.section
+                                id="data-contract"
+                                initial={{ opacity: 0, y: 24 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true, margin: '-60px' }}
+                                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                                className="scroll-mt-28 border-y border-subtle py-10 sm:py-12"
+                            >
                                 <div className="max-w-3xl">
-                                    <p className="text-[11px] font-bold uppercase tracking-[0.26em] text-[#146ef5]">
-                                        Data contract
-                                    </p>
-                                    <h2
-                                        className="mt-3 text-[clamp(1.6rem,2.4vw,2.35rem)] font-medium leading-[1.05] tracking-[-0.045em]"
-                                        style={{ color: isDarkMode ? '#fafafa' : '#0b1220' }}
-                                    >
+                                    <h2 className="text-[clamp(1.6rem,2.4vw,2.35rem)] font-medium leading-[1.05] tracking-[-0.045em] text-strong">
                                         The same normalized fields power every surface.
                                     </h2>
-                                    <p className="mt-4 text-[15px] leading-[1.75]" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                    <p className="mt-4 text-[15px] leading-[1.75] text-soft">
                                         Once an opportunity is normalized, the public web app, the mobile app, and the admin panel all read the same keys without extra mapping layers.
                                     </p>
                                 </div>
@@ -496,28 +457,24 @@ const DeveloperDocsPage: React.FC = () => {
                                     {opportunityFields.map((field) => (
                                         <span
                                             key={field}
-                                            className="rounded-full border px-3 py-1 text-[12px] font-medium"
-                                            style={{
-                                                backgroundColor: isDarkMode ? '#111' : '#ffffff',
-                                                color: isDarkMode ? '#d8dee9' : '#334155',
-                                                borderColor: isDarkMode ? '#222' : '#d8e1eb',
-                                            }}
+                                            className="rounded-full border border-subtle bg-surface-layer px-3 py-1 text-[12px] font-medium text-soft"
                                         >
                                             {field}
                                         </span>
                                     ))}
                                 </div>
-                            </section>
+                            </motion.section>
 
-                            <section id="examples" className="scroll-mt-28 py-10 sm:py-12">
+                            <motion.section
+                                id="examples"
+                                initial={{ opacity: 0, y: 24 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true, margin: '-60px' }}
+                                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                                className="scroll-mt-28 py-10 sm:py-12"
+                            >
                                 <div className="max-w-3xl">
-                                    <p className="text-[11px] font-bold uppercase tracking-[0.26em] text-[#146ef5]">
-                                        Examples
-                                    </p>
-                                    <h2
-                                        className="mt-3 text-[clamp(1.6rem,2.4vw,2.35rem)] font-medium leading-[1.05] tracking-[-0.045em]"
-                                        style={{ color: isDarkMode ? '#fafafa' : '#0b1220' }}
-                                    >
+                                    <h2 className="text-[clamp(1.6rem,2.4vw,2.35rem)] font-medium leading-[1.05] tracking-[-0.045em] text-strong">
                                         Copy-paste starts for web, mobile, and admin.
                                     </h2>
                                 </div>
@@ -526,114 +483,87 @@ const DeveloperDocsPage: React.FC = () => {
                                     {codeSamples.map((sample) => (
                                         <div
                                             key={sample.label}
-                                            className="rounded-[24px] border p-5"
-                                            style={{
-                                                backgroundColor: isDarkMode ? '#111' : '#ffffff',
-                                                borderColor: isDarkMode ? '#222' : '#d8e1eb',
-                                            }}
+                                            className="rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft transition-colors duration-300 hover:border-brand-500/20"
                                         >
-                                            <div className="flex items-center gap-2 text-[#146ef5]">
+                                            <div className="flex items-center gap-2 text-brand-500">
                                                 <Layers3 size={14} />
                                                 <span className="text-[10px] font-bold uppercase tracking-[0.24em]">{sample.label}</span>
                                             </div>
-                                            <h3 className="mt-2 text-lg font-semibold tracking-[-0.02em]" style={{ color: isDarkMode ? '#fafafa' : '#0b1220' }}>
+                                            <h3 className="mt-2 text-lg font-semibold tracking-[-0.02em] text-strong">
                                                 {sample.title}
                                             </h3>
-                                            <pre
-                                                className="mt-4 overflow-x-auto rounded-[18px] border p-4 text-[12px] leading-[1.7] whitespace-pre-wrap"
-                                                style={{
-                                                    backgroundColor: isDarkMode ? '#0a0a0a' : '#f8fbff',
-                                                    borderColor: isDarkMode ? '#1f1f1f' : '#e5edf6',
-                                                    color: isDarkMode ? '#d8dee9' : '#0f172a',
-                                                }}
-                                            >
+                                            <pre className="mt-4 overflow-x-auto rounded-xl border border-subtle bg-surface-layer p-4 text-[12px] leading-[1.7] whitespace-pre-wrap text-soft">
 {sample.code}
                                             </pre>
                                         </div>
                                     ))}
                                 </div>
-                            </section>
+                            </motion.section>
 
-                            <section id="support" className="scroll-mt-28 py-10 sm:py-12">
-                                <div
-                                    className="rounded-[28px] border p-6 sm:p-8"
-                                    style={{
-                                        background: isDarkMode ? 'linear-gradient(180deg, #111 0%, #0a0a0a 100%)' : 'linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)',
-                                        borderColor: isDarkMode ? '#222' : '#d8e1eb',
-                                    }}
-                                >
-                                    <div className="flex items-center gap-2 text-[#146ef5]">
-                                        <ShieldCheck size={16} />
-                                        <span className="text-[11px] font-bold uppercase tracking-[0.24em]">Support</span>
-                                    </div>
-                                    <h2
-                                        className="mt-4 text-[clamp(1.6rem,2.4vw,2.25rem)] font-medium leading-[1.08] tracking-[-0.04em]"
-                                        style={{ color: isDarkMode ? '#fafafa' : '#0b1220' }}
-                                    >
+                            <motion.section
+                                id="support"
+                                initial={{ opacity: 0, y: 24 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true, margin: '-60px' }}
+                                transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                                className="scroll-mt-28 py-10 sm:py-12"
+                            >
+                                <div className="rounded-2xl border border-subtle bg-gradient-to-br from-brand-500/[0.06] to-surface p-6 shadow-soft sm:p-8">
+                                    <h2 className="text-[clamp(1.6rem,2.4vw,2.25rem)] font-medium leading-[1.08] tracking-[-0.04em] text-strong">
                                         Build with Edutu, then ship faster with one opportunity engine.
                                     </h2>
-                                    <p className="mt-4 max-w-3xl text-[15px] leading-[1.75]" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                    <p className="mt-4 max-w-3xl text-[15px] leading-[1.75] text-soft">
                                         If you are wiring Edutu into a school portal, a scholarship directory, or a community platform, keep every surface pointed at the same backend and the same opportunity schema.
                                     </p>
 
                                     <div className="mt-6 flex flex-wrap gap-3">
                                         <Link
-                                            to="/scholarship-api"
-                                            className="inline-flex items-center gap-2 rounded-full bg-[#146ef5] px-5 py-3 text-sm font-semibold text-white no-underline transition-transform duration-200 hover:translate-y-[-1px]"
+                                            to="/scholarship-engine"
+                                            className="inline-flex items-center gap-2 rounded-full bg-brand-500 px-6 py-3 text-sm font-semibold text-white no-underline transition-all duration-300 hover:scale-[0.98] active:scale-[0.97]"
                                         >
-                                            Open Scholarship API
+                                            Open Scholarship Engine
                                             <ArrowRight size={16} />
                                         </Link>
                                         <Link
-                                            to="/download"
-                                            className="inline-flex items-center gap-2 rounded-full border px-5 py-3 text-sm font-semibold no-underline transition-colors hover:bg-slate-50"
-                                            style={{
-                                                color: isDarkMode ? '#fafafa' : '#0b1220',
-                                                borderColor: isDarkMode ? '#363636' : '#d8e1eb',
-                                            }}
+                                            to="/dashboard/developer"
+                                            className="inline-flex items-center gap-2 rounded-full border border-subtle bg-surface-layer px-6 py-3 text-sm font-semibold text-strong no-underline transition-all duration-300 hover:scale-[0.98] active:scale-[0.97]"
                                         >
-                                            View download page
+                                            Open dashboard
                                         </Link>
                                     </div>
                                 </div>
-                            </section>
+                            </motion.section>
                         </div>
 
                         <aside className="hidden xl:block">
                             <div className="sticky top-24 space-y-4">
-                                <div
-                                    className="rounded-[24px] border p-4"
-                                    style={{
-                                        backgroundColor: isDarkMode ? '#111' : '#ffffff',
-                                        borderColor: isDarkMode ? '#222' : '#d8e1eb',
-                                    }}
-                                >
-                                    <div className="flex items-center gap-2 text-[#146ef5]">
+                                <div className="rounded-2xl border border-subtle bg-surface-layer p-4 shadow-soft">
+                                    <div className="flex items-center gap-2 text-brand-500">
                                         <Workflow size={15} />
                                         <span className="text-[11px] font-bold uppercase tracking-[0.24em]">Quick refs</span>
                                     </div>
                                     <div className="mt-4 space-y-3">
-                                        <div className="rounded-[18px] border px-3 py-3" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#f8fbff', borderColor: isDarkMode ? '#1f1f1f' : '#e5edf6' }}>
-                                            <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: '#146ef5' }}>
+                                        <div className="rounded-xl border border-subtle bg-surface-layer px-3 py-3">
+                                            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand-500">
                                                 Base URL
                                             </p>
-                                            <p className="mt-1 font-mono text-[13px]" style={{ color: isDarkMode ? '#d8dee9' : '#0f172a' }}>
+                                            <p className="mt-1 font-mono text-[13px] text-strong">
                                                 http://localhost:3000
                                             </p>
                                         </div>
-                                        <div className="rounded-[18px] border px-3 py-3" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#f8fbff', borderColor: isDarkMode ? '#1f1f1f' : '#e5edf6' }}>
-                                            <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: '#146ef5' }}>
+                                        <div className="rounded-xl border border-subtle bg-surface-layer px-3 py-3">
+                                            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand-500">
                                                 Public pages
                                             </p>
-                                            <p className="mt-1 text-sm leading-6" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                            <p className="mt-1 text-sm leading-6 text-soft">
                                                 `share/opportunity/:id`, `/opportunities`, `/blog`
                                             </p>
                                         </div>
-                                        <div className="rounded-[18px] border px-3 py-3" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#f8fbff', borderColor: isDarkMode ? '#1f1f1f' : '#e5edf6' }}>
-                                            <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: '#146ef5' }}>
+                                        <div className="rounded-xl border border-subtle bg-surface-layer px-3 py-3">
+                                            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand-500">
                                                 Integrations
                                             </p>
-                                            <p className="mt-1 text-sm leading-6" style={{ color: isDarkMode ? '#aab2c0' : '#526173' }}>
+                                            <p className="mt-1 text-sm leading-6 text-soft">
                                                 Web, Expo mobile, admin sync, and scraper ingestion all read the same contract.
                                             </p>
                                         </div>

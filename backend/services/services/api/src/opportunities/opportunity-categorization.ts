@@ -8,10 +8,7 @@ export type OpportunityCanonicalCategory =
   | "competitions"
   | "other";
 
-export type OpportunityClassificationSource =
-  | "stored"
-  | "rules"
-  | "fallback";
+export type OpportunityClassificationSource = "stored" | "rules" | "fallback";
 
 export interface OpportunityClassificationResult {
   canonicalCategory: OpportunityCanonicalCategory;
@@ -142,7 +139,9 @@ function normalizeText(value: unknown): string {
   return String(value).toLowerCase();
 }
 
-function normalizeCategory(value: unknown): OpportunityCanonicalCategory | null {
+function normalizeCategory(
+  value: unknown,
+): OpportunityCanonicalCategory | null {
   const key = normalizeText(value)
     .replace(/[\s-]+/g, "_")
     .replace(/[^a-z_]/g, "");

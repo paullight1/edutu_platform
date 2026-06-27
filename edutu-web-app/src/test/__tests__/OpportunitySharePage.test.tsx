@@ -68,11 +68,11 @@ describe("OpportunitySharePage", () => {
         "Deadline: August 1, 2026",
         "",
         "Open the link below to view the preview.",
-        "https://edutu.ai/share/opportunity/opp-123",
+        "https://www.edutu.org/share/opportunity/opp-123",
         "",
         "Share this with anyone who needs the link.",
       ].join("\n"),
-      shareUrl: "https://edutu.ai/share/opportunity/opp-123",
+      shareUrl: "https://www.edutu.org/share/opportunity/opp-123",
     });
   });
 

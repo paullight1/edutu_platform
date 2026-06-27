@@ -3,6 +3,8 @@ import { ScraperService } from "./scraper.service";
 import { SchedulerRegistry } from "@nestjs/schedule";
 import { AiService } from "../ai";
 import { OpportunityShareCardService } from "../opportunities/opportunity-share-card.service";
+import { ScraperAlertsService } from "./scraper-alerts.service";
+import { RobotsChecker } from "./robots-checker";
 
 describe("ScraperService", () => {
   let service: ScraperService;
@@ -20,6 +22,14 @@ describe("ScraperService", () => {
     ensureShareCardForOpportunity: jest.fn(),
     buildSharePdfForOpportunity: jest.fn(),
   };
+  const mockScraperAlertsService = {
+    checkAlertConditions: jest.fn().mockResolvedValue([]),
+    checkYieldDrop: jest.fn().mockResolvedValue(null),
+    checkErrorSpike: jest.fn().mockResolvedValue(null),
+  };
+  const mockRobotsChecker = {
+    isAllowed: jest.fn().mockResolvedValue(true),
+  };
 
   beforeEach(async () => {
     // Clear env vars to test fallback behavior
@@ -35,6 +45,14 @@ describe("ScraperService", () => {
         {
           provide: OpportunityShareCardService,
           useValue: mockOpportunityShareCardService,
+        },
+        {
+          provide: ScraperAlertsService,
+          useValue: mockScraperAlertsService,
+        },
+        {
+          provide: RobotsChecker,
+          useValue: mockRobotsChecker,
         },
       ],
     }).compile();
@@ -168,17 +186,19 @@ describe("ScraperService", () => {
         transformed.organization,
         transformed.description,
         ...(transformed.tags as string[]),
-        ...((transformed.metadata as any).requirements as string[]),
-        ...((transformed.metadata as any).benefits as string[]),
+        ...(transformed.metadata.requirements as string[]),
+        ...(transformed.metadata.benefits as string[]),
       ].join(" ");
 
-      expect(publicText).not.toMatch(/dixcoverhubx|smartyacad|by admin|scraped/i);
+      expect(publicText).not.toMatch(
+        /dixcoverhubx|smartyacad|by admin|scraped/i,
+      );
       expect(transformed.organization).toBe("The Bridge");
       expect(transformed.tags).not.toContain("Scraped");
-      expect((transformed.metadata as any).requirements).toContain(
+      expect(transformed.metadata.requirements).toContain(
         "Open to young Nigerians interested in leadership, innovation, and policy.",
       );
-      expect((transformed.metadata as any).requirements).not.toEqual(
+      expect(transformed.metadata.requirements).not.toEqual(
         expect.arrayContaining([expect.stringMatching(/dixcoverhubx/i)]),
       );
     });

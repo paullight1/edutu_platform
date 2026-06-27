@@ -1,0 +1,45 @@
+---
+title: Pagination
+description: Cursor-based pagination for list endpoints.
+---
+
+# Pagination
+
+List endpoints (`GET /v1/opportunities`, `GET /v1/opportunities/sync`) use
+**cursor pagination** for stable, scalable paging that never skips or duplicates
+rows when data changes underneath you.
+
+## How it works
+
+1. Request the first page with `limit` (max `100`).
+2. Read `meta.next_cursor` from the response.
+3. If `meta.has_more` is `true`, pass `cursor` on the next request.
+4. Stop when `meta.has_more` is `false` or `next_cursor` is `null`.
+
+```bash
+curl "https://api.edutu.org/v1/opportunities?limit=50&cursor=eyJ1Ijoi..."
+```
+
+```json
+{
+  "object": "list",
+  "data": [ /* ... */ ],
+  "meta": {
+    "has_more": true,
+    "next_cursor": "eyJ1cGRhdGVkQXQiOjE3..."
+  }
+}
+```
+
+## Tips
+
+- **Treat the cursor as opaque.** Don't parse or construct it yourself.
+- **Use `sort`** (`updated_desc` default) for a deterministic order.
+- **For syncs**, combine `cursor` with `updatedSince` to walk only changed rows
+  (see [Delta Sync](./use-cases/sync)).
+- **`limit` is capped at 100.** Requesting more silently returns up to 100.
+
+<Note>
+Ordering by `deadline_asc` is great for "closing soon" feeds; pair it with
+`deadlineTo` to bound the window.
+</Note>

@@ -1,11 +1,7 @@
-import {
-  PipeTransform,
-  Injectable,
-  ArgumentMetadata,
-} from '@nestjs/common';
-import { ZodError } from 'zod';
-import type { ZodSchema } from 'zod';
-import { AppException, ErrorCode } from '../errors';
+import { PipeTransform, Injectable, ArgumentMetadata } from "@nestjs/common";
+import { ZodError } from "zod";
+import type { ZodSchema } from "zod";
+import { AppException, ErrorCode } from "../errors";
 
 @Injectable()
 export class ZodValidationPipe implements PipeTransform {
@@ -13,18 +9,18 @@ export class ZodValidationPipe implements PipeTransform {
 
   transform(value: unknown, metadata: ArgumentMetadata) {
     // Only validate body and query params — skip others
-    if (metadata.type !== 'body' && metadata.type !== 'query') {
+    if (metadata.type !== "body" && metadata.type !== "query") {
       return value;
     }
 
     const result = this.schema.safeParse(value);
 
     if (!result.success) {
-      const zodError = result.error as ZodError;
+      const zodError = result.error;
       const fieldErrors: Record<string, string[]> = {};
 
       for (const issue of zodError.issues) {
-        const path = issue.path.join('.') || '_root';
+        const path = issue.path.join(".") || "_root";
         if (!fieldErrors[path]) {
           fieldErrors[path] = [];
         }
@@ -33,7 +29,7 @@ export class ZodValidationPipe implements PipeTransform {
 
       throw AppException.validationFailed(
         ErrorCode.VALIDATION_ERROR,
-        'Validation failed',
+        "Validation failed",
         { fields: fieldErrors },
       );
     }

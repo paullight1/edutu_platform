@@ -12,7 +12,7 @@ The platform backend uses Drizzle ORM with a Postgres connection from `DATABASE_
 
 Edutu is intentionally multi-repo:
 
-- `edutu-platform` owns platform backend schema definitions, platform web/admin/waitlist data needs, scraper tables, and shared platform Supabase assets.
+- `edutu-platform` owns platform backend schema definitions, platform web/admin/docs-site data needs, scraper tables, and shared platform Supabase assets.
 - `edutumobile` owns mobile app code and mobile-specific Supabase functions/migrations.
 
 Migration ownership should be explicit because the workspace currently contains multiple Supabase migration folders.

@@ -1,5 +1,6 @@
 // Service to handle community marketplace functionality with Supabase
 import { supabase } from '../lib/supabaseClient';
+import logger from '../lib/logger';
 import type {
   CommunityStory,
   CommunityStoryQueryOptions,
@@ -103,7 +104,7 @@ export async function fetchCommunityStories(
     try {
       stories.push(...await fetchRoadmapCommunityStories(options));
     } catch (error) {
-      console.error('Error fetching backend roadmaps:', error);
+      logger.error('Error fetching backend roadmaps:', error);
     }
   }
 
@@ -130,7 +131,7 @@ export async function fetchCommunityStories(
 
     const { data, error } = await query;
     if (error) {
-      console.error('Error fetching marketplace listings:', error);
+      logger.error('Error fetching marketplace listings:', error);
     } else if (data) {
       stories.push(...data.map(mapListingToStory));
     }

@@ -67,7 +67,7 @@ npm run preview
 npm run android
 ```
 
-## Waitlist Site
+## Scholarship Engine Docs Site
 
 Path:
 
@@ -161,7 +161,7 @@ cd edutu-web && npm run build
 
 ## Incident Checklist
 
-1. Identify impacted surface: backend, admin, web app, waitlist, scraper, Supabase, or external provider.
+1. Identify impacted surface: backend, admin, web app, docs site, scraper, Supabase, or external provider.
 2. Check recent deployments and migrations.
 3. Check backend logs and AI usage logs if AI features are involved.
 4. Check Supabase function logs for edge-function paths.

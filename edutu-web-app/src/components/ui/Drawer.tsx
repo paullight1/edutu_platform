@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '../../lib/cn';
+import { useFocusTrap, useReducedMotion } from '../../lib/accessibility';
 
 interface DrawerContextValue {
   open: boolean;
@@ -29,8 +30,36 @@ export const Drawer: React.FC<DrawerProps> = ({ open, side = 'right', onOpenChan
   <DrawerContext.Provider value={{ open, side, onOpenChange }}>{children}</DrawerContext.Provider>
 );
 
-export const DrawerContent: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, children, ...props }) => {
+export const DrawerContent: React.FC<
+  React.HTMLAttributes<HTMLDivElement> & { ariaLabel?: string }
+> = ({ className, children, ariaLabel, ...props }) => {
   const { open, onOpenChange, side } = useDrawerContext();
+  const reducedMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    return () => {
+      previouslyFocused?.focus();
+    };
+  }, [open]);
+
+  const containerRef = useFocusTrap(open);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onOpenChange?.(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [open, onOpenChange]);
 
   useEffect(() => {
     if (!open) {
@@ -55,11 +84,16 @@ export const DrawerContent: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ 
         aria-hidden="true"
       />
       <div
+        ref={containerRef}
         className={cn(
           'relative flex h-full w-full max-w-lg flex-col overflow-y-auto bg-white p-6 shadow-2xl',
           side === 'right' ? 'ml-auto' : 'mr-auto',
+          !reducedMotion && 'animate-fade-in',
           className
         )}
+        role="dialog"
+        aria-modal="true"
+        aria-label={ariaLabel}
         {...props}
       >
         {children}

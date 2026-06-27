@@ -5,6 +5,7 @@
 
 import { supabase } from '../lib/supabaseClient';
 import { authService } from '../lib/auth';
+import logger from '../lib/logger';
 
 const BUCKET_NAME = 'avatars';
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -78,7 +79,7 @@ export async function uploadProfileImage(
         return { success: true, url: publicUrl };
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
-        console.error('Failed to upload profile image:', error);
+        logger.error('Failed to upload profile image:', error);
         return { success: false, error: message };
     }
 }
@@ -106,7 +107,7 @@ export async function saveProfileImageUrl(userId: string, url: string): Promise<
             updated_at: new Date().toISOString(),
         });
     } catch (error) {
-        console.error('Failed to save profile image URL:', error);
+        logger.error('Failed to save profile image URL:', error);
         throw error;
     }
 }
@@ -125,7 +126,7 @@ export async function getProfileImageUrl(userId: string): Promise<string | null>
 
         return avatarUrl;
     } catch (error) {
-        console.error('Failed to get profile image URL:', error);
+        logger.error('Failed to get profile image URL:', error);
         return null;
     }
 }
@@ -161,7 +162,7 @@ export async function deleteProfileImage(userId: string): Promise<{ success: boo
         return { success: true };
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
-        console.error('Failed to delete profile image:', error);
+        logger.error('Failed to delete profile image:', error);
         return { success: false, error: message };
     }
 }

@@ -6,7 +6,7 @@ Generated from the local platform workspace on 2026-05-23.
 
 Edutu is an intentional multi-repo system.
 
-- `edutu-platform` owns the backend API, web app, admin, waitlist site, platform scraper, shared Supabase assets, and platform docs.
+- `edutu-platform` owns the backend API, web app, admin, Scholarship Engine docs site, platform scraper, shared Supabase assets, and platform docs.
 - `edutumobile` owns the Expo mobile app, mobile core package, mobile-specific Supabase functions/migrations, and native widgets.
 - The parent folder is a local workspace container, not a monorepo boundary.
 
@@ -14,7 +14,7 @@ Edutu is an intentional multi-repo system.
 
 ```text
 Users and admins
-  -> web, admin, mobile, waitlist clients
+  -> web, admin, mobile, docs clients
   -> NestJS API and selected Supabase edge functions
   -> Supabase Postgres
   -> external services: Clerk, Gemini, OpenRouter, Paystack, RevenueCat, Apify, n8n
@@ -27,7 +27,7 @@ Users and admins
 | Backend API | `backend/services/services/api` | NestJS, Drizzle, Postgres | Business logic, auth verification, AI routing, scraper controls, data access, admin endpoints |
 | Standalone Admin | `admin` | React, Vite, Supabase JS | Operational dashboard for users, opportunities, creators, roadmaps, scraper, mobile control |
 | Main Web App | `edutu-web-app` | React, Vite, Capacitor, PWA | User app, public pages, premium gates, creator flows, embedded admin routes |
-| Waitlist Site | `edutu-web` | Next.js | Public waitlist landing page and waitlist API route |
+| Scholarship Engine Docs Site | `edutu-web` | Next.js | Public Scholarship Engine docs and onboarding site |
 | Python Scraper | `crawl4ai-scraper` | Python, Crawl4AI | Opportunity crawling, extraction, cleaning, optional Supabase persistence |
 | Shared Supabase Assets | `supabase` | SQL, Deno edge functions | Shared migrations and edge functions |
 

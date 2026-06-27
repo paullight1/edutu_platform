@@ -27,6 +27,7 @@ import { ScheduleModule } from "@nestjs/schedule";
 import { ConfigModule } from "@nestjs/config";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { APP_GUARD } from "@nestjs/core";
+import { DeveloperModule } from "./developer/developer.module";
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { APP_GUARD } from "@nestjs/core";
     HealthModule,
     EventsModule,
     EdutuApiModule,
+    DeveloperModule,
   ],
   controllers: [AppController],
   providers: [

@@ -175,7 +175,7 @@ Keep these separate:
 ```txt
 admin.edutu.org       -> Admin dashboard
 app.edutu.org         -> User web app, if deployed
-edutu.org             -> Marketing/waitlist site, if deployed
+ edutu.org             -> Marketing site, if deployed
 ```
 
 Do not merge the admin dashboard into the public user web app for launch unless there is a strong reason. Separate deployment is safer and faster.

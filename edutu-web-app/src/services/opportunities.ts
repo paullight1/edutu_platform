@@ -1,4 +1,11 @@
 import type { Opportunity, OpportunityDifficulty } from "../types/opportunity";
+import {
+  differenceInCalendarDays,
+  endOfDay,
+  isBefore,
+  isValid,
+  parseISO,
+} from "date-fns";
 import { getApiBaseUrl } from "../lib/apiBaseUrl";
 import { normalizeExternalUrl } from "../lib/externalUrl";
 import { syncOpportunityInventorySnapshot } from "./analyticsAggregator";
@@ -6,7 +13,6 @@ import { updateOpportunitiesInN8n } from "./n8nIntegration";
 import { productApiRequest } from "./productApi";
 
 let cachedOpportunities: Opportunity[] | null = null;
-const fallbackUpdatedAt = new Date().toISOString();
 const SOURCE_BRAND_RE =
   /\b(?:dixcoverhubx|dixcover\s*hubx|opportunities\s*circle|oya\s*opportunities|scholars4dev|global\s*scholar\s*desk|scholarship\s*portal|jobs\.smartyacad\.com)\b/i;
 const SCRAPER_ARTIFACT_RE =
@@ -19,157 +25,56 @@ const PUBLIC_TAG_BLOCKLIST = new Set([
   "source",
 ]);
 
-const fallbackOpportunities: Opportunity[] = [
-  {
-    id: "fallback-chevening-masters",
-    title: "Chevening Masters Scholarship",
-    organization: "UK Foreign, Commonwealth & Development Office",
-    category: "Scholarships",
-    deadline: "2026-11-05",
-    location: "United Kingdom",
-    description:
-      "Full funding for a one-year master’s degree in the UK with tuition, travel, and living support.",
-    requirements: [
-      "Bachelor’s degree",
-      "Leadership experience",
-      "English proficiency",
-    ],
-    benefits: ["Full tuition", "Monthly stipend", "Travel costs"],
-    applicationProcess: [
-      "Create a profile",
-      "Draft your essays",
-      "Submit references",
-    ],
-    image: "https://images.pexels.com/photos/267885/pexels-photo-267885.jpeg",
-    match: 96,
-    difficulty: "Hard",
-    lastUpdated: fallbackUpdatedAt,
-  },
-  {
-    id: "fallback-daad-research",
-    title: "DAAD Research Fellowship",
-    organization: "German Academic Exchange Service",
-    category: "Fellowships",
-    deadline: "2026-10-18",
-    location: "Germany",
-    description:
-      "Short-term research support for graduate students and early-career researchers in German universities.",
-    requirements: [
-      "Research proposal",
-      "Academic transcript",
-      "Supervisor match",
-    ],
-    benefits: ["Monthly funding", "Research network access", "Travel support"],
-    applicationProcess: [
-      "Pick a host lab",
-      "Prepare proposal",
-      "Submit supporting documents",
-    ],
-    image: "https://images.pexels.com/photos/1438072/pexels-photo-1438072.jpeg",
-    match: 92,
-    difficulty: "Hard",
-    lastUpdated: fallbackUpdatedAt,
-  },
-  {
-    id: "fallback-global-tech-internship",
-    title: "Global Tech Internship",
-    organization: "International Innovation Lab",
-    category: "Internships",
-    deadline: "2026-08-30",
-    location: "Remote",
-    description:
-      "A remote internship for students who want hands-on experience with product, design, or software teams.",
-    requirements: [
-      "Portfolio or resume",
-      "Availability for 10-12 weeks",
-      "Strong communication",
-    ],
-    benefits: ["Mentorship", "Portfolio project", "Weekly feedback"],
-    applicationProcess: [
-      "Apply online",
-      "Complete a short task",
-      "Join a chat interview",
-    ],
-    image: "https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg",
-    match: 89,
-    difficulty: "Medium",
-    lastUpdated: fallbackUpdatedAt,
-  },
-  {
-    id: "fallback-mandela-leadership",
-    title: "Mandela Leadership Program",
-    organization: "Pan-African Fellowship Network",
-    category: "Programs",
-    deadline: "2026-09-12",
-    location: "South Africa",
-    description:
-      "A leadership development program for young changemakers building impact projects in their communities.",
-    requirements: ["Community project idea", "Short essay", "Two references"],
-    benefits: [
-      "Leadership training",
-      "Mentor circles",
-      "Seed funding pitch day",
-    ],
-    applicationProcess: [
-      "Submit essays",
-      "Attend interview",
-      "Present your project",
-    ],
-    image: "https://images.pexels.com/photos/1181715/pexels-photo-1181715.jpeg",
-    match: 90,
-    difficulty: "Medium",
-    lastUpdated: fallbackUpdatedAt,
-  },
-  {
-    id: "fallback-open-science-grant",
-    title: "Open Science Research Grant",
-    organization: "Global Research Collective",
-    category: "Grants",
-    deadline: "2026-12-01",
-    location: "Global",
-    description:
-      "Small grant support for student-led research, experiments, and open educational resources.",
-    requirements: ["Research outline", "Budget plan", "Supervisor endorsement"],
-    benefits: ["Seed funding", "Publication support", "Open science network"],
-    applicationProcess: [
-      "Prepare proposal",
-      "Upload budget",
-      "Wait for review",
-    ],
-    image: "https://images.pexels.com/photos/2280571/pexels-photo-2280571.jpeg",
-    match: 84,
-    difficulty: "Easy",
-    lastUpdated: fallbackUpdatedAt,
-  },
-  {
-    id: "fallback-future-leaders-summer",
-    title: "Future Leaders Summer School",
-    organization: "Global Campus Alliance",
-    category: "Programs",
-    deadline: "2026-07-20",
-    location: "Canada",
-    description:
-      "A summer program for ambitious learners who want to build a stronger academic profile and global network.",
-    requirements: ["CV", "Motivation letter", "Academic transcript"],
-    benefits: [
-      "Certificate of completion",
-      "Networking sessions",
-      "Career workshops",
-    ],
-    applicationProcess: [
-      "Apply with documents",
-      "Complete screening",
-      "Receive acceptance email",
-    ],
-    image: "https://images.pexels.com/photos/1595391/pexels-photo-1595391.jpeg",
-    match: 87,
-    difficulty: "Medium",
-    lastUpdated: fallbackUpdatedAt,
-  },
-];
+export const fallbackOpportunities: Opportunity[] = [];
 
 export function getFallbackOpportunities(): Opportunity[] {
   return fallbackOpportunities;
+}
+
+export function parseOpportunityDeadline(
+  deadline?: string | null,
+): Date | null {
+  if (!deadline) {
+    return null;
+  }
+
+  const isoParsed = parseISO(deadline);
+  if (isValid(isoParsed)) {
+    return isoParsed;
+  }
+
+  const fallbackParsed = new Date(deadline);
+  return isValid(fallbackParsed) ? fallbackParsed : null;
+}
+
+export function getOpportunityDaysLeft(
+  deadline?: string | null,
+  now: Date = new Date(),
+): number | null {
+  const parsed = parseOpportunityDeadline(deadline);
+  if (!parsed) {
+    return null;
+  }
+
+  const daysLeft = differenceInCalendarDays(parsed, now);
+  return daysLeft >= 0 ? daysLeft : null;
+}
+
+export function isOpportunityExpired(
+  opportunity: Pick<Opportunity, "deadline">,
+  now: Date = new Date(),
+): boolean {
+  const { deadline } = opportunity;
+  if (!deadline) {
+    return false;
+  }
+
+  const parsed = parseISO(deadline);
+  if (!isValid(parsed)) {
+    return false;
+  }
+
+  return isBefore(endOfDay(parsed), now);
 }
 
 interface FetchOptions {
@@ -709,8 +614,9 @@ export async function getOpportunity(id: string): Promise<Opportunity | null> {
     }
   }
 
+  let response: Response;
   try {
-    const response = await fetch(
+    response = await fetch(
       buildBackendUrl(`/opportunities/${encodeURIComponent(id)}`),
       {
         method: "GET",
@@ -719,49 +625,35 @@ export async function getOpportunity(id: string): Promise<Opportunity | null> {
         },
       },
     );
-
-    if (!response.ok) {
-      try {
-        const snapshot = await requestStaticOpportunitySnapshot();
-        return snapshot.find((opportunity) => opportunity.id === id) ?? null;
-      } catch {
-        return null;
-      }
-    }
-
-    const payload = await response.json().catch(() => null);
-    if (!payload) {
-      try {
-        const snapshot = await requestStaticOpportunitySnapshot();
-        return snapshot.find((opportunity) => opportunity.id === id) ?? null;
-      } catch {
-        return null;
-      }
-    }
-
-    const row =
-      extractOpportunityRows(payload)[0] ??
-      (Array.isArray(payload) ? payload[0] : payload);
-    if (!row || typeof row !== "object") {
-      return null;
-    }
-
-    const opportunity = normaliseOpportunity(row as BackendOpportunityRow);
-    cachedOpportunities = cachedOpportunities
-      ? cachedOpportunities.map((item) =>
-          item.id === opportunity.id ? opportunity : item,
-        )
-      : [opportunity];
-
-    return opportunity;
-  } catch {
-    try {
-      const snapshot = await requestStaticOpportunitySnapshot();
-      return snapshot.find((opportunity) => opportunity.id === id) ?? null;
-    } catch {
-      return null;
-    }
+  } catch (networkError) {
+    console.error("Network error fetching opportunity:", networkError);
+    throw networkError;
   }
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(`Opportunity request failed with ${response.status}`);
+  }
+
+  const payload = await response.json().catch(() => null);
+  const row =
+    extractOpportunityRows(payload)[0] ??
+    (Array.isArray(payload) ? payload[0] : payload);
+  if (!row || typeof row !== "object") {
+    return null;
+  }
+
+  const opportunity = normaliseOpportunity(row as BackendOpportunityRow);
+  cachedOpportunities = cachedOpportunities
+    ? cachedOpportunities.map((item) =>
+        item.id === opportunity.id ? opportunity : item,
+      )
+    : [opportunity];
+
+  return opportunity;
 }
 
 export function clearOpportunitiesCache() {

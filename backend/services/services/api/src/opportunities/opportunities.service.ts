@@ -862,7 +862,7 @@ export class OpportunitiesService {
 
     const deleted = await db
       .delete(opportunities)
-      .where(deleteCondition!)
+      .where(deleteCondition)
       .returning({ id: opportunities.id })
       .execute();
 
@@ -1652,7 +1652,7 @@ ${sourceText || "No source page text was available. Improve wording only from st
         timeout: AI_SOURCE_FETCH_TIMEOUT_MS,
         headers: {
           "User-Agent":
-            "Mozilla/5.0 (compatible; EdutuOpportunityBot/1.0; +https://edutu.ai)",
+            "Mozilla/5.0 (compatible; EdutuOpportunityBot/1.0; +https://www.edutu.org)",
           Accept:
             "text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.7",
         },
@@ -2435,7 +2435,7 @@ ${sourceText || "No source page text was available. Improve wording only from st
       process.env.WEB_APP_URL ||
       process.env.FRONTEND_URL ||
       process.env.APP_URL ||
-      "https://edutu.ai"
+      "https://www.edutu.org"
     ).replace(/\/$/, "");
   }
 }

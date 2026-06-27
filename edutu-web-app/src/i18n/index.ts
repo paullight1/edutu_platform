@@ -1,7 +1,6 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
-// Import language files
 import enTranslations from './locales/en.json';
 import esTranslations from './locales/es.json';
 import frTranslations from './locales/fr.json';
@@ -9,98 +8,93 @@ import deTranslations from './locales/de.json';
 import zhTranslations from './locales/zh.json';
 import arTranslations from './locales/ar.json';
 
-/**
- * i18n Configuration for Edutu App
- * Supports multi-language internationalization
- */
+export type SupportedLanguage = 'en' | 'es' | 'fr' | 'de' | 'zh' | 'ar';
 
-// Language definitions
-export const supportedLanguages = {
-    en: { name: 'English', nativeName: 'English', dir: 'ltr' },
-    es: { name: 'Spanish', nativeName: 'Español', dir: 'ltr' },
-    fr: { name: 'French', nativeName: 'Français', dir: 'ltr' },
-    de: { name: 'German', nativeName: 'Deutsch', dir: 'ltr' },
-    zh: { name: 'Chinese', nativeName: '中文', dir: 'ltr' },
-    ar: { name: 'Arabic', nativeName: 'العربية', dir: 'rtl' },
-} as const;
+export type SupportedLanguageOption = {
+    code: SupportedLanguage;
+    label: string;
+    dir: 'ltr' | 'rtl';
+};
 
-export type SupportedLanguage = keyof typeof supportedLanguages;
+const LANGUAGE_CONFIG: Record<SupportedLanguage, { label: string; dir: 'ltr' | 'rtl' }> = {
+    en: { label: 'English', dir: 'ltr' },
+    es: { label: 'Español', dir: 'ltr' },
+    fr: { label: 'Français', dir: 'ltr' },
+    de: { label: 'Deutsch', dir: 'ltr' },
+    zh: { label: '中文', dir: 'ltr' },
+    ar: { label: 'العربية', dir: 'rtl' },
+};
 
-// Detect user's preferred language
+export const supportedLanguages: SupportedLanguageOption[] = (
+    Object.keys(LANGUAGE_CONFIG) as SupportedLanguage[]
+).map((code) => ({
+    code,
+    label: LANGUAGE_CONFIG[code].label,
+    dir: LANGUAGE_CONFIG[code].dir,
+}));
+
+const STORAGE_KEY = 'edutu-language';
+
+const isSupportedLanguage = (
+    value: string | null | undefined,
+): value is SupportedLanguage => !!value && value in LANGUAGE_CONFIG;
+
 const detectLanguage = (): SupportedLanguage => {
-    // Check localStorage first
-    const saved = localStorage.getItem('edutu-language');
-    if (saved && saved in supportedLanguages) {
-        return saved as SupportedLanguage;
-    }
+    if (typeof window !== 'undefined') {
+        const saved = window.localStorage.getItem(STORAGE_KEY);
+        if (isSupportedLanguage(saved)) return saved;
 
-    // Check browser language
-    const browserLang = navigator.language.split('-')[0];
-    if (browserLang in supportedLanguages) {
-        return browserLang as SupportedLanguage;
+        if (typeof navigator !== 'undefined' && navigator.language) {
+            const browserLang = navigator.language.split('-')[0];
+            if (isSupportedLanguage(browserLang)) return browserLang;
+        }
     }
-
-    // Default to English
     return 'en';
 };
 
-// Initialize i18n
-i18n
-    .use(initReactI18next)
-    .init({
-        resources: {
-            en: { translation: enTranslations },
-            es: { translation: esTranslations },
-            fr: { translation: frTranslations },
-            de: { translation: deTranslations },
-            zh: { translation: zhTranslations },
-            ar: { translation: arTranslations },
-        },
-        lng: detectLanguage(),
-        fallbackLng: 'en',
-        debug: import.meta.env.DEV,
-
-        interpolation: {
-            escapeValue: false, // React already escapes values
-        },
-
-        // Namespace configuration
-        ns: ['translation'],
-        defaultNS: 'translation',
-
-        // React specific options
-        react: {
-            useSuspense: true,
-            bindI18n: 'languageChanged loaded',
-            bindI18nStore: 'added removed',
-            transEmptyNodeValue: '',
-            transSupportBasicHtmlNodes: true,
-            transKeepBasicHtmlNodesFor: ['br', 'strong', 'i', 'p', 'span'],
-        },
-    });
-
-// Language change handler with document update
-export const changeLanguage = (lang: SupportedLanguage) => {
-    i18n.changeLanguage(lang);
-    localStorage.setItem('edutu-language', lang);
-
-    // Update document attributes for RTL support
-    const langConfig = supportedLanguages[lang];
+const applyDocumentLanguage = (lang: SupportedLanguage) => {
+    if (typeof document === 'undefined') return;
     document.documentElement.lang = lang;
-    document.documentElement.dir = langConfig.dir;
+    document.documentElement.dir = LANGUAGE_CONFIG[lang].dir;
 };
 
-// Get current language
+i18n.use(initReactI18next).init({
+    resources: {
+        en: { translation: enTranslations },
+        es: { translation: esTranslations },
+        fr: { translation: frTranslations },
+        de: { translation: deTranslations },
+        zh: { translation: zhTranslations },
+        ar: { translation: arTranslations },
+    },
+    lng: detectLanguage(),
+    fallbackLng: 'en',
+    debug: import.meta.env.DEV,
+    interpolation: {
+        escapeValue: false,
+    },
+    ns: ['translation'],
+    defaultNS: 'translation',
+    react: {
+        useSuspense: false,
+    },
+});
+
+applyDocumentLanguage(detectLanguage());
+
+export const changeLanguage = (lang: SupportedLanguage) => {
+    void i18n.changeLanguage(lang);
+    if (typeof window !== 'undefined') {
+        window.localStorage.setItem(STORAGE_KEY, lang);
+    }
+    applyDocumentLanguage(lang);
+};
+
 export const getCurrentLanguage = (): SupportedLanguage => {
-    return i18n.language as SupportedLanguage;
+    const current = i18n.language?.split('-')[0];
+    return isSupportedLanguage(current) ? current : 'en';
 };
 
-// Get all available languages
-export const getAvailableLanguages = () => {
-    return Object.entries(supportedLanguages).map(([code, config]) => ({
-        code: code as SupportedLanguage,
-        ...config,
-    }));
-};
+export const getAvailableLanguages = (): SupportedLanguageOption[] => supportedLanguages;
 
 export default i18n;

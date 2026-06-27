@@ -7,10 +7,15 @@ import { useDarkMode } from '../hooks/useDarkMode';
 type NavItem = {
   label: string;
   to: string;
+  external?: boolean;
 };
 
+const docsUrl = import.meta.env.VITE_DOCS_URL || "https://docs.edutu.org";
 const defaultNavItems: NavItem[] = [
   { label: 'Opportunities', to: '/opportunities' },
+  { label: 'Scholarship Engine', to: '/scholarship-engine' },
+  { label: 'Developers', to: '/developers' },
+  { label: 'Docs', to: docsUrl, external: true },
   { label: 'Mentor', to: '/mentor' },
   { label: 'About', to: '/about' },
   { label: 'Blog', to: '/blog' },
@@ -37,9 +42,19 @@ const PublicSiteMenu: React.FC = () => {
     <div className="relative">
       <nav className="hidden items-center gap-8 text-sm font-semibold text-slate-600 md:flex">
         {defaultNavItems.map((item) => {
-          const isActive = activePath(item.to);
+          const isActive = item.external ? false : activePath(item.to);
 
-          return (
+          return item.external ? (
+            <a
+              key={item.to}
+              href={item.to}
+              target="_blank"
+              rel="noreferrer"
+              className="transition hover:text-[#146ef5]"
+            >
+              {item.label}
+            </a>
+          ) : (
             <Link
               key={item.to}
               to={item.to}
@@ -95,22 +110,35 @@ const PublicSiteMenu: React.FC = () => {
 
               <div className="space-y-1">
                 {defaultNavItems.map((item) => {
-                  const isActive = activePath(item.to);
+                  const isActive = item.external ? false : activePath(item.to);
+                  const className = `flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-semibold transition-colors ${
+                    isActive
+                      ? isDarkMode
+                        ? 'bg-white/10 text-white'
+                        : 'bg-slate-100 text-slate-950'
+                      : isDarkMode
+                        ? 'text-slate-300 hover:bg-white/5 hover:text-white'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                  }`;
 
-                  return (
+                  return item.external ? (
+                    <a
+                      key={item.to}
+                      href={item.to}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => setOpen(false)}
+                      className={className}
+                    >
+                      <span>{item.label}</span>
+                      <ChevronRight size={16} className="opacity-60" />
+                    </a>
+                  ) : (
                     <Link
                       key={item.to}
                       to={item.to}
                       onClick={() => setOpen(false)}
-                      className={`flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-semibold transition-colors ${
-                        isActive
-                          ? isDarkMode
-                            ? 'bg-white/10 text-white'
-                            : 'bg-slate-100 text-slate-950'
-                          : isDarkMode
-                            ? 'text-slate-300 hover:bg-white/5 hover:text-white'
-                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                      }`}
+                      className={className}
                       aria-current={isActive ? 'page' : undefined}
                     >
                       <span>{item.label}</span>

@@ -59,9 +59,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        display: ['"Outfit"', '"Inter"', ...defaultTheme.fontFamily.sans],
-        body: ['"Inter"', ...defaultTheme.fontFamily.sans],
-        sans: ['"Inter"', ...defaultTheme.fontFamily.sans],
+        display: ['"Outfit"', ...defaultTheme.fontFamily.sans],
+        body: ['"Outfit"', ...defaultTheme.fontFamily.sans],
+        sans: ['"Outfit"', ...defaultTheme.fontFamily.sans],
       },
       colors: {
         primary: withOpacity('--color-brand-600'),
@@ -132,7 +132,7 @@ export default {
       animation: {
         'fade-in': 'fadeIn 0.6s ease-out',
         'slide-up': 'slideUp 0.6s ease-out',
-        'bounce-subtle': 'bounceSubtle 2s ease-in-out infinite',
+        'bounce-subtle': 'bounceSubtle 2s cubic-bezier(0.4, 0, 0.2, 1) infinite',
         'pulse-glow': 'pulseGlow 2s ease-in-out infinite',
         spin: 'spin 1s linear infinite',
       },

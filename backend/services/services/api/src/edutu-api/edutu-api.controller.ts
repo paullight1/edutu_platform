@@ -17,6 +17,7 @@ import {
   CurrentApiConsumer,
   type ApiConsumerContext,
 } from "./current-api-consumer.decorator";
+import { EdutuApiPublic } from "./edutu-api-public.decorator";
 import type {
   ListOpportunitiesQuery,
   PartnerEventDto,
@@ -41,15 +42,18 @@ export class EdutuApiController {
   constructor(private readonly edutuApiService: EdutuApiService) {}
 
   @Get("health")
-  health(@CurrentApiConsumer() consumer: ApiConsumerContext) {
+  @EdutuApiPublic()
+  health(@CurrentApiConsumer() consumer?: ApiConsumerContext) {
     return {
       object: "health",
       status: "ok",
       service: "edutu-api",
-      consumer: {
-        name: consumer.name,
-        plan: consumer.plan,
-      },
+      consumer: consumer
+        ? {
+            name: consumer.name,
+            plan: consumer.plan,
+          }
+        : null,
     };
   }
 
@@ -67,6 +71,16 @@ export class EdutuApiController {
   @ApiScope("opportunities:read")
   getOpportunityStats(@CurrentApiConsumer() consumer: ApiConsumerContext) {
     return this.edutuApiService.getOpportunityStats(consumer);
+  }
+
+  @Get("opportunities/sync")
+  @ApiScope("opportunities:sync")
+  syncOpportunities(
+    @Query(new ZodValidationPipe(ListOpportunitiesQuerySchema))
+    query: ListOpportunitiesQuery,
+    @CurrentApiConsumer() consumer: ApiConsumerContext,
+  ) {
+    return this.edutuApiService.syncOpportunities(query, consumer);
   }
 
   @Get("opportunities/:id")
@@ -100,5 +114,17 @@ export class EdutuApiController {
     @CurrentApiConsumer() consumer: ApiConsumerContext,
   ) {
     return this.edutuApiService.recordPartnerEvent(body, consumer);
+  }
+
+  @Get("categories")
+  @ApiScope("opportunities:read")
+  listCategories(@CurrentApiConsumer() consumer: ApiConsumerContext) {
+    return this.edutuApiService.listCategories(consumer);
+  }
+
+  @Get("usage")
+  @ApiScope("usage:read")
+  getUsage(@CurrentApiConsumer() consumer: ApiConsumerContext) {
+    return this.edutuApiService.getUsage(consumer);
   }
 }

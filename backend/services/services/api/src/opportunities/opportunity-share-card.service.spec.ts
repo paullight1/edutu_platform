@@ -1,4 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from "@jest/globals";
 import { OpportunityShareCardService } from "./opportunity-share-card.service";
 
 describe("OpportunityShareCardService", () => {
@@ -42,14 +49,16 @@ describe("OpportunityShareCardService", () => {
       expiresAt: null,
     };
 
-    jest.spyOn(service as any, "ensureSharePdfForOpportunity").mockResolvedValue({
-      sharePdf: cachedSharePdf,
-    });
+    jest
+      .spyOn(service as any, "ensureSharePdfForOpportunity")
+      .mockResolvedValue({
+        sharePdf: cachedSharePdf,
+      });
 
     const fetchMock = jest.spyOn(globalThis as any, "fetch").mockResolvedValue({
-        ok: true,
-        arrayBuffer: async () => Uint8Array.from([37, 80, 68, 70]).buffer,
-      });
+      ok: true,
+      arrayBuffer: async () => Uint8Array.from([37, 80, 68, 70]).buffer,
+    });
 
     const result = await service.buildSharePdfForOpportunity({ id: "opp-1" });
 

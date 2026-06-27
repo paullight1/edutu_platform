@@ -16,6 +16,7 @@ import {
   Res,
   StreamableFile,
 } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import { timingSafeEqual } from "crypto";
 import type { Response } from "express";
 import {
@@ -39,6 +40,12 @@ import { OpportunitiesService } from "./opportunities.service";
 import { OpportunityVerificationService } from "./opportunity-verification.service";
 import { CurrentUser, Public, AdminGuard } from "../auth";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
+import { stripInternalOpportunityFieldsBatch } from "./public-opportunity-projection";
+
+// Caps for the anonymous/learner public feed. The paid API (/v1) is uncapped
+// and returns the full normalized DTO; this surface only powers browse UI.
+const PUBLIC_FEED_MAX_LIMIT = 24;
+const PUBLIC_FEED_MAX_OFFSET = 480;
 
 @Controller("opportunities")
 export class OpportunitiesController {
@@ -48,14 +55,31 @@ export class OpportunitiesController {
   ) {}
 
   @Public()
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Get()
-  findAll(
+  async findAll(
     @Query("limit") limit?: number,
     @Query("offset") offset?: number,
-    @Query("status") status?: string,
     @Query("category") category?: string,
   ) {
-    return this.opportunitiesService.findAll(limit, offset, status, category);
+    // Public learner feed: active records only, capped page size and depth,
+    // and internal/paid-trust fields stripped so the catalog can't be
+    // harvested for free at parity with the paid API.
+    const cappedLimit = Math.min(
+      Math.max(Number(limit) || 20, 1),
+      PUBLIC_FEED_MAX_LIMIT,
+    );
+    const cappedOffset = Math.min(Math.max(Number(offset) || 0, 0), PUBLIC_FEED_MAX_OFFSET);
+
+    const rows = await this.opportunitiesService.findAll(
+      cappedLimit,
+      cappedOffset,
+      "active",
+      category,
+    );
+    return stripInternalOpportunityFieldsBatch(
+      rows as Record<string, unknown>[],
+    );
   }
 
   @Post("recommendations/query")
@@ -153,9 +177,7 @@ export class OpportunitiesController {
 
   @Post("admin/reclassify")
   @UseGuards(AdminGuard)
-  reclassifyExisting(
-    @Body() body: { limit?: number; dryRun?: boolean } = {},
-  ) {
+  reclassifyExisting(@Body() body: { limit?: number; dryRun?: boolean } = {}) {
     return this.opportunitiesService.reclassifyExistingOpportunities(body);
   }
 
@@ -227,9 +249,13 @@ export class OpportunitiesController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @Get(":id")
-  findOne(@Param("id") id: string) {
-    return this.opportunitiesService.findOne(id);
+  async findOne(@Param("id") id: string) {
+    const row = await this.opportunitiesService.findOne(id);
+    return stripInternalOpportunityFieldsBatch(
+      (row ? [row] : []) as Record<string, unknown>[],
+    )[0] ?? null;
   }
 
   @Public()

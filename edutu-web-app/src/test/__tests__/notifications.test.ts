@@ -10,7 +10,7 @@ vi.mock("../../lib/apiBaseUrl", () => ({
 
 vi.mock("../../lib/localDevAuthHeaders", () => ({
   getLocalDevAuthHeaders: vi.fn(() => ({
-    "X-Edutu-Admin-Email": "tester@edutu.ai",
+    "X-Edutu-Admin-Email": "tester@edutu.org",
   })),
 }));
 
@@ -64,7 +64,7 @@ describe("notification service", () => {
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: "Bearer token-123",
-          "X-Edutu-Admin-Email": "tester@edutu.ai",
+          "X-Edutu-Admin-Email": "tester@edutu.org",
         }),
       }),
     );

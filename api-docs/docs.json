@@ -1,0 +1,60 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "Edutu Scholarship API",
+  "description": "Verified global scholarships, fellowships, internships, and grants — as an API.",
+  "theme": "polar",
+  "colors": {
+    "primary": "#146ef5",
+    "light": "#4b8dff",
+    "dark": "#0b54d6"
+  },
+  "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg",
+    "href": "https://www.edutu.org/developers"
+  },
+  "topbarLinks": [
+    {
+      "name": "Dashboard",
+      "url": "https://www.edutu.org/dashboard/developer"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Get an API key",
+    "url": "https://www.edutu.org/developers"
+  },
+  "anchors": [
+    {
+      "name": "Status",
+      "icon": "circle-check",
+      "url": "https://status.edutu.org"
+    },
+    {
+      "name": "Support",
+      "icon": "envelope",
+      "url": "mailto:api@edutu.org"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Overview",
+      "pages": ["introduction", "quickstart"]
+    },
+    {
+      "group": "Guides",
+      "pages": ["authentication", "rate-limits", "errors", "pagination"]
+    },
+    {
+      "group": "Use Cases",
+      "pages": ["use-cases/sync", "use-cases/recommendations"]
+    }
+  ],
+  "api": {
+    "openapi": "https://api.edutu.org/v1/openapi.json"
+  },
+  "footerSocials": {
+    "x": "https://x.com/edutuorg",
+    "github": "https://github.com/edutuorg"
+  }
+}

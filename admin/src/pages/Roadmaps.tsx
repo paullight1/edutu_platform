@@ -254,7 +254,7 @@ const Roadmaps = () => {
                     { label: 'Total Roadmaps', value: stats.total_roadmaps, icon: BookOpen, gradient: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)' },
                     { label: 'Published', value: stats.published_roadmaps, icon: CheckCircle, gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' },
                     { label: 'Total Enrollments', value: stats.total_enrollments, icon: Users, gradient: 'linear-gradient(135deg, #ff6600 0%, #ff4500 100%)' },
-                    { label: 'Avg Satisfaction', value: stats.avg_satisfaction ? `${Number(stats.avg_satisfaction).toFixed(1)}/5` : 'N/A', icon: Star, gradient: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)' },
+                    { label: 'Avg Satisfaction', value: stats.avg_satisfaction ? `${Number(stats.avg_satisfaction).toFixed(1)}/5` : 'N/A', icon: Star, gradient: 'linear-gradient(135deg, #146ef5 0%, #146ef5 100%)' },
                 ].map((stat, i) => (
                     <div key={i} className="card card-hover" style={{ padding: '24px', position: 'relative', overflow: 'hidden', background: stat.gradient }}>
                         <div style={{ fontSize: '28px', marginBottom: '4px', color: '#ffffff', fontWeight: 700 }}>{stat.value}</div>
@@ -399,7 +399,7 @@ const Roadmaps = () => {
             {isCreateModalOpen && (
                 <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
                     <div className="card" style={{ width: '800px', maxHeight: '92vh', overflowY: 'auto', padding: '0', borderRadius: '20px' }}>
-                        <div style={{ padding: '24px 28px', borderBottom: '1px solid var(--border-light)', background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)', borderRadius: '20px 20px 0 0' }}>
+                        <div style={{ padding: '24px 28px', borderBottom: '1px solid var(--border-light)', background: 'linear-gradient(135deg, #146ef5 0%, #146ef5 100%)', borderRadius: '20px 20px 0 0' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <h2 style={{ fontSize: '22px', fontWeight: 'bold', color: 'white', margin: 0 }}>Create Roadmap</h2>
                                 <button onClick={() => { setIsCreateModalOpen(false); resetForm(); }} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', cursor: 'pointer', color: 'white', padding: '8px', borderRadius: '8px' }}><X size={20} /></button>
@@ -407,7 +407,7 @@ const Roadmaps = () => {
                             <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
                                 {[1, 2, 3].map(step => (
                                     <div key={step} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: createStep >= step ? 'white' : 'rgba(255,255,255,0.3)', color: createStep >= step ? '#8b5cf6' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '13px' }}>
+                                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: createStep >= step ? 'white' : 'rgba(255,255,255,0.3)', color: createStep >= step ? '#146ef5' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '13px' }}>
                                             {createStep > step ? <CheckCircle size={16} /> : step}
                                         </div>
                                         <span style={{ color: 'white', fontSize: '12px', fontWeight: 600, opacity: 0.9 }}>{step === 1 ? 'Topic' : step === 2 ? 'AI Intent' : 'Details'}</span>
@@ -475,14 +475,14 @@ const Roadmaps = () => {
                                     </div>
 
                                     {aiSuggestion && (
-                                        <div style={{ padding: '20px', background: 'rgba(139,92,246,0.05)', borderRadius: '12px', border: '1px solid rgba(139,92,246,0.2)', marginBottom: '24px' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}><Sparkles size={18} color="#8b5cf6" /><h4 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>AI Roadmap Suggestion</h4></div>
+                                        <div style={{ padding: '20px', background: 'rgba(20,110,245,0.05)', borderRadius: '12px', border: '1px solid rgba(20,110,245,0.2)', marginBottom: '24px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}><Sparkles size={18} color="#146ef5" /><h4 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>AI Roadmap Suggestion</h4></div>
                                             <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '16px' }}><strong>{aiSuggestion.title}</strong></p>
                                             <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginBottom: '16px' }}>{aiSuggestion.description}</p>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                 {aiSuggestion.steps.map((s, i) => (
                                                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '13px' }}>
-                                                        <span style={{ width: 24, height: 24, borderRadius: '50%', background: '#8b5cf6', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 600, flexShrink: 0 }}>{i + 1}</span>
+                                                        <span style={{ width: 24, height: 24, borderRadius: '50%', background: '#146ef5', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 600, flexShrink: 0 }}>{i + 1}</span>
                                                         <div><strong>{s.title}</strong> — {s.duration}<br /><span style={{ color: 'var(--text-tertiary)' }}>{s.description}</span></div>
                                                     </div>
                                                 ))}

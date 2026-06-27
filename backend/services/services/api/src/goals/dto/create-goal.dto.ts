@@ -1,18 +1,9 @@
 import { z } from "zod";
 
 const optionalText = (maxLength: number) =>
-  z
-    .string()
-    .trim()
-    .max(maxLength)
-    .nullable()
-    .optional();
+  z.string().trim().max(maxLength).nullable().optional();
 
-const optionalIsoDate = z
-  .string()
-  .datetime()
-  .nullable()
-  .optional();
+const optionalIsoDate = z.string().datetime().nullable().optional();
 
 export const CreateGoalSchema = z
   .object({

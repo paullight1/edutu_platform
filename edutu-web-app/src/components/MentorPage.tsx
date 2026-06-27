@@ -30,7 +30,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useDarkMode } from '../hooks/useDarkMode';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { supabase } from '../lib/supabaseClient';
-import PublicSiteMenu from './PublicSiteMenu';
+import PublicHeader from './PublicHeader';
 
 interface MentorFormData {
     displayName: string;
@@ -314,30 +314,22 @@ const MentorPage: React.FC = () => {
 
     if (!showApplication) {
         return (
-            <div className="min-h-[100dvh] bg-surface-body" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808' }}>
-                <header className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md transition-colors duration-300" style={{ backgroundColor: isDarkMode ? 'rgba(10,10,10,0.92)' : 'rgba(255,255,255,0.95)', borderBottom: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}` }}>
-                    <div className="max-w-[1200px] mx-auto px-4 sm:px-6 h-[64px] flex items-center justify-between">
-                        <Link to="/" className="flex items-center gap-2">
-                            <img src="/edutu-logo.png" alt="Edutu" className="h-8 w-8 object-contain" />
-                            <span className="font-bold text-xl tracking-tight" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>edutu</span>
-                        </Link>
-                        <PublicSiteMenu />
-                    </div>
-                </header>
+            <div className="min-h-[100dvh] bg-white text-slate-950 dark:bg-gray-950 dark:text-white">
+                <PublicHeader fixed />
 
                 <main>
-                    <section className="relative overflow-hidden">
-                        <div className="absolute inset-0" style={{ background: isDarkMode ? 'radial-gradient(circle at 50% 10%, rgba(20,110,245,0.16), transparent 34%)' : 'radial-gradient(circle at 50% 10%, rgba(20,110,245,0.08), transparent 35%)' }} />
+                    <motion.section
+                        initial={{ opacity: 0 }}
+                        whileInView={{ opacity: 1 }}
+                        viewport={{ once: true, margin: "-100px" }}
+                        className="relative overflow-hidden"
+                    >
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_10%,rgba(20,110,245,0.08),transparent_34%)] dark:bg-[radial-gradient(circle_at_50%_10%,rgba(20,110,245,0.16),transparent_34%)]" />
                         <div className="relative max-w-[1200px] mx-auto px-4 sm:px-6 pt-32 pb-20 md:pt-36 md:pb-28 text-center">
                             <motion.div
                                 initial={{ opacity: 0, y: 14 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                className="inline-flex items-center gap-2 px-4 py-2 mb-8 rounded-full"
-                                style={{
-                                    backgroundColor: isDarkMode ? 'rgba(20,110,245,0.08)' : 'rgba(20,110,245,0.06)',
-                                    border: `1px solid ${isDarkMode ? 'rgba(20,110,245,0.18)' : 'rgba(20,110,245,0.14)'}`,
-                                    color: '#146ef5',
-                                }}
+                                className="inline-flex items-center gap-2 px-4 py-2 mb-8 rounded-full bg-[#146ef5]/10 dark:bg-[#146ef5]/20 text-[#146ef5] border border-[#146ef5]/20 dark:border-[#146ef5]/30"
                             >
                                 <Sparkles size={14} />
                                 <span className="text-xs font-bold tracking-widest">MENTOR WITH EDUTU</span>
@@ -347,19 +339,17 @@ const MentorPage: React.FC = () => {
                                 initial={{ opacity: 0, y: 18 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.05 }}
-                                className="max-w-3xl mx-auto text-[clamp(2rem,4.4vw,3.35rem)] md:text-[clamp(2.35rem,4.6vw,4rem)] font-medium tracking-[-0.03em] leading-[1.06] mb-7"
-                                style={{ color: isDarkMode ? '#fafafa' : '#080808' }}
+                                className="max-w-3xl mx-auto text-[clamp(2rem,4.4vw,3.35rem)] md:text-[clamp(2.35rem,4.6vw,4rem)] font-medium tracking-[-0.03em] leading-[1.06] mb-7 text-slate-950 dark:text-white"
                             >
                                 Help ambitious learners turn opportunity into{' '}
-                                <span style={{ color: '#146ef5' }}>real outcomes.</span>
+                                <span className="text-[#146ef5]">real outcomes.</span>
                             </motion.h1>
 
                             <motion.p
                                 initial={{ opacity: 0, y: 16 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.1 }}
-                                className="max-w-2xl mx-auto text-base md:text-lg leading-relaxed mb-10"
-                                style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}
+                                className="max-w-2xl mx-auto text-base md:text-lg leading-relaxed mb-10 text-slate-500 dark:text-gray-400"
                             >
                                 Join Edutu as a mentor or resource expert. Share what worked for you and help students prepare stronger applications, career plans, and next steps.
                             </motion.p>
@@ -373,24 +363,29 @@ const MentorPage: React.FC = () => {
                                 <button
                                     type="button"
                                     onClick={startApplication}
-                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl text-sm font-bold shadow-xl shadow-blue-600/20"
-                                    style={{ backgroundColor: '#146ef5', color: '#ffffff' }}
+                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-sm font-bold bg-[#146ef5] text-white shadow-xl shadow-blue-600/20 transition-all duration-300 hover:scale-[0.98] active:scale-[0.97]"
                                 >
                                     Become a Mentor <ArrowRight size={16} />
                                 </button>
                                 <a
                                     href="#options"
-                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl text-sm font-bold border"
-                                    style={{ borderColor: isDarkMode ? '#2a2a2a' : '#d8d8d8', color: isDarkMode ? '#fafafa' : '#080808' }}
+                                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full px-8 py-4 text-sm font-bold border border-slate-200 text-slate-950 transition-all duration-300 hover:scale-[0.98] active:scale-[0.97] dark:border-white/10 dark:text-white"
                                 >
                                     Explore Options <PlayCircle size={16} />
                                 </a>
                             </motion.div>
                         </div>
-                    </section>
+                    </motion.section>
 
-                    <section id="why" className="max-w-[1200px] mx-auto px-4 sm:px-6 py-12">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 border-y py-10" style={{ borderColor: isDarkMode ? '#1e1e1e' : '#e8e8e8' }}>
+                    <motion.section
+                        id="why"
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true, margin: "-80px" }}
+                        transition={{ duration: 0.5 }}
+                        className="max-w-[1200px] mx-auto px-4 sm:px-6 py-12"
+                    >
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 border-y border-slate-200 py-10 dark:border-white/10">
                             {[
                                 { num: '$1,070,304', label: 'Funding opportunities', icon: DollarSign, color: '#00b86b' },
                                 { num: '20+', label: 'Verified mentors', icon: Users, color: '#146ef5' },
@@ -403,18 +398,25 @@ const MentorPage: React.FC = () => {
                                 >
                                     <stat.icon size={22} className="mx-auto" style={{ color: stat.color }} />
                                     <div className="mt-4 text-2xl md:text-3xl font-semibold" style={{ color: stat.color }}>{stat.num}</div>
-                                    <div className="mt-2 text-xs font-bold tracking-[0.16em] uppercase" style={{ color: isDarkMode ? '#888' : '#666' }}>{stat.label}</div>
+                                    <div className="mt-2 text-xs font-bold tracking-[0.16em] uppercase text-slate-400 dark:text-gray-500">{stat.label}</div>
                                 </div>
                             ))}
                         </div>
-                    </section>
+                    </motion.section>
 
-                    <section id="options" className="max-w-[1200px] mx-auto px-4 sm:px-6 py-16">
+                    <motion.section
+                        id="options"
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true, margin: "-80px" }}
+                        transition={{ duration: 0.5 }}
+                        className="max-w-[1200px] mx-auto px-4 sm:px-6 py-16"
+                    >
                         <div className="text-center mb-10">
-                            <h2 className="text-2xl md:text-3xl font-semibold mb-3" style={{ color: isDarkMode ? '#fafafa' : '#080808' }}>
+                            <h2 className="text-2xl md:text-3xl font-semibold mb-3 text-slate-950 dark:text-white">
                                 Choose how you want to help
                             </h2>
-                            <p className="max-w-xl mx-auto text-base" style={{ color: isDarkMode ? '#888' : '#666' }}>
+                            <p className="max-w-xl mx-auto text-base text-slate-500 dark:text-gray-400">
                                 Start with mentorship, resources, or repeatable guidance. Edutu turns your expertise into structured learner support.
                             </p>
                         </div>
@@ -424,40 +426,40 @@ const MentorPage: React.FC = () => {
                                     type="button"
                                     key={option.title}
                                     onClick={startApplication}
-                                    className="group p-7 rounded-3xl border text-left transition-all hover:-translate-y-1"
+                                    className="group p-7 rounded-3xl border text-left transition-all duration-300 hover:-translate-y-1 hover:scale-[0.98] active:scale-[0.97] bg-white dark:bg-gray-900/50"
                                     style={{
-                                        background: isDarkMode
-                                            ? `linear-gradient(135deg, ${option.color}20, #111 52%)`
-                                            : index === 0
-                                                ? 'linear-gradient(135deg, #eaf3ff, #ffffff)'
-                                                : index === 1
-                                                    ? 'linear-gradient(135deg, #fff7df, #ffffff)'
-                                                    : 'linear-gradient(135deg, #eafff5, #ffffff)',
                                         borderColor: `${option.color}35`,
                                     }}
                                 >
                                     <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-7" style={{ backgroundColor: `${option.color}14`, color: option.color }}>
                                         <option.icon size={22} />
                                     </div>
-                                    <h3 className="text-lg font-semibold mb-3" style={{ color: isDarkMode ? '#fafafa' : '#080808' }}>{option.title}</h3>
-                                    <p className="text-sm leading-relaxed mb-6" style={{ color: isDarkMode ? '#888' : '#666' }}>{option.desc}</p>
+                                    <h3 className="text-lg font-semibold mb-3 text-slate-950 dark:text-white">{option.title}</h3>
+                                    <p className="text-sm leading-relaxed mb-6 text-slate-500 dark:text-gray-400">{option.desc}</p>
                                     <span className="inline-flex items-center gap-2 text-sm font-bold" style={{ color: option.color }}>
                                         Apply now <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" />
                                     </span>
                                 </button>
                             ))}
                         </div>
-                    </section>
+                    </motion.section>
 
-                    <section id="process" className="max-w-[1200px] mx-auto px-4 sm:px-6 py-16">
-                        <div className="rounded-[28px] border p-6 md:p-10" style={{ backgroundColor: isDarkMode ? '#111' : '#fafafa', borderColor: isDarkMode ? '#1e1e1e' : '#e8e8e8' }}>
+                    <motion.section
+                        id="process"
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true, margin: "-80px" }}
+                        transition={{ duration: 0.5 }}
+                        className="max-w-[1200px] mx-auto px-4 sm:px-6 py-16"
+                    >
+                        <div className="rounded-[28px] border border-slate-200 p-6 md:p-10 bg-slate-50 dark:border-white/10 dark:bg-gray-900/50">
                             <div className="grid grid-cols-1 md:grid-cols-[0.9fr_1.1fr] gap-8 items-center">
                                 <div>
-                                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold mb-5" style={{ backgroundColor: '#146ef510', color: '#146ef5' }}>
+                                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold mb-5 bg-[#146ef5]/10 text-[#146ef5]">
                                         <ShieldCheck size={14} /> Verified mentor flow
                                     </div>
-                                    <h2 className="text-2xl font-semibold mb-4" style={{ color: isDarkMode ? '#fafafa' : '#080808' }}>Apply once. Support learners at scale.</h2>
-                                    <p className="text-base leading-relaxed" style={{ color: isDarkMode ? '#888' : '#666' }}>
+                                    <h2 className="text-2xl font-semibold mb-4 text-slate-950 dark:text-white">Apply once. Support learners at scale.</h2>
+                                    <p className="text-base leading-relaxed text-slate-500 dark:text-gray-400">
                                         We review each mentor application so learners get trusted, relevant guidance. Once accepted, you can publish resources and offer mentorship inside Edutu.
                                     </p>
                                 </div>
@@ -467,28 +469,33 @@ const MentorPage: React.FC = () => {
                                         { title: 'Apply', desc: 'Tell us your expertise and mentoring focus.', icon: FileCheck },
                                         { title: 'Launch', desc: 'Start helping learners after approval.', icon: Rocket },
                                     ].map((step, index) => (
-                                        <div key={step.title} className="p-5 rounded-2xl border" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#ffffff', borderColor: isDarkMode ? '#1e1e1e' : '#e8e8e8' }}>
-                                            <div className="w-11 h-11 rounded-2xl flex items-center justify-center mb-5" style={{ backgroundColor: '#146ef510', color: '#146ef5' }}>
+                                        <div key={step.title} className="p-5 rounded-2xl border border-slate-200 bg-white dark:border-white/10 dark:bg-gray-950">
+                                            <div className="w-11 h-11 rounded-2xl flex items-center justify-center mb-5 bg-[#146ef5]/10 text-[#146ef5]">
                                                 <step.icon size={20} />
                                             </div>
-                                            <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold mb-5" style={{ backgroundColor: '#146ef5', color: '#fff' }}>{index + 1}</div>
-                                            <h3 className="font-bold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#080808' }}>{step.title}</h3>
-                                            <p className="text-sm leading-relaxed" style={{ color: isDarkMode ? '#888' : '#666' }}>{step.desc}</p>
+                                            <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold mb-5 bg-[#146ef5] text-white">{index + 1}</div>
+                                            <h3 className="font-bold mb-2 text-slate-950 dark:text-white">{step.title}</h3>
+                                            <p className="text-sm leading-relaxed text-slate-500 dark:text-gray-400">{step.desc}</p>
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         </div>
-                    </section>
+                    </motion.section>
 
-                    <section className="max-w-[1200px] mx-auto px-4 sm:px-6 py-16 text-center">
+                    <motion.section
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true, margin: "-80px" }}
+                        transition={{ duration: 0.5 }}
+                        className="max-w-[1200px] mx-auto px-4 sm:px-6 py-16 text-center"
+                    >
                         <div
-                            className="relative overflow-hidden rounded-[28px] p-8 md:p-12"
+                            className="relative overflow-hidden rounded-[28px] p-8 md:p-12 text-white"
                             style={{
                                 backgroundImage: "linear-gradient(135deg, rgba(8,8,8,0.78), rgba(20,110,245,0.64)), url('https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg')",
                                 backgroundSize: 'cover',
                                 backgroundPosition: 'center',
-                                color: '#ffffff',
                             }}
                         >
                             <div className="relative z-10">
@@ -503,7 +510,7 @@ const MentorPage: React.FC = () => {
                                         { label: 'Applications', icon: FileCheck },
                                         { label: 'Global Reach', icon: Globe },
                                     ].map((item) => (
-                                        <div key={item.label} className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold" style={{ backgroundColor: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.16)' }}>
+                                        <div key={item.label} className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold bg-white/20 border border-white/30">
                                             <item.icon size={14} />
                                             {item.label}
                                         </div>
@@ -512,28 +519,23 @@ const MentorPage: React.FC = () => {
                                 <button
                                     type="button"
                                     onClick={startApplication}
-                                    className="inline-flex items-center gap-2 px-8 py-4 rounded-xl text-sm font-bold bg-white text-[#146ef5]"
+                                    className="inline-flex items-center gap-2 rounded-full px-8 py-4 text-sm font-bold bg-white text-[#146ef5] transition-all duration-300 hover:scale-[0.98] active:scale-[0.97]"
                                 >
                                     Become a Mentor <ArrowRight size={16} />
                                 </button>
                             </div>
                         </div>
-                    </section>
+                    </motion.section>
                 </main>
                 <footer className="max-w-[1200px] mx-auto px-4 sm:px-6 pb-10">
-                    <div className="flex items-center justify-between border-t pt-6" style={{ borderColor: isDarkMode ? '#1e1e1e' : '#e8e8e8' }}>
-                        <span className="text-sm" style={{ color: isDarkMode ? '#888' : '#666' }}>
+                    <div className="flex items-center justify-between border-t border-slate-200 pt-6 dark:border-white/10">
+                        <span className="text-sm text-slate-500 dark:text-gray-400">
                             Edutu mentor program
                         </span>
                         <button
                             type="button"
                             onClick={toggleDarkMode}
-                            className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-bold"
-                            style={{
-                                borderColor: isDarkMode ? '#2a2a2a' : '#e8e8e8',
-                                color: isDarkMode ? '#fafafa' : '#080808',
-                                backgroundColor: isDarkMode ? '#111' : '#ffffff',
-                            }}
+                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-950 transition-all duration-300 hover:scale-[0.98] active:scale-[0.97] dark:border-white/10 dark:bg-gray-900 dark:text-white"
                             aria-label="Toggle theme"
                         >
                             {isDarkMode ? <Sun size={17} /> : <Moon size={17} />}
@@ -547,7 +549,7 @@ const MentorPage: React.FC = () => {
 
     if (isSubmitted) {
         return (
-            <div className="min-h-[100dvh]" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808' }}>
+            <div className="min-h-[100dvh] bg-white text-slate-950 dark:bg-gray-950 dark:text-white">
                 <div className="max-w-[1200px] mx-auto px-4 sm:px-6 flex items-center justify-center min-h-[100dvh]">
                     <motion.div
                         initial={{ opacity: 0, scale: 0.9 }}
@@ -567,15 +569,15 @@ const MentorPage: React.FC = () => {
                         >
                             <CheckCircle size={40} className="text-white" />
                         </motion.div>
-                        <h1 className="text-2xl font-semibold mb-3" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>
+                        <h1 className="text-2xl font-semibold mb-3 text-slate-950 dark:text-white">
                             Application Sent!
                         </h1>
-                        <p className="text-base leading-relaxed mb-8" style={{ color: isDarkMode ? '#888' : '#666' }}>
+                        <p className="text-base leading-relaxed mb-8 text-slate-500 dark:text-gray-400">
                             Thanks for applying to be a mentor. We'll review your application and get back to you within 2-3 business days.
                         </p>
-                        <div className="flex justify-center">
-                            <PublicSiteMenu />
-                        </div>
+                        <Link to="/" className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-lg transition-colors" style={{ backgroundColor: '#146ef5', color: '#ffffff' }}>
+                            Back to Home <ArrowRight size={16} />
+                        </Link>
                     </motion.div>
                 </div>
             </div>
@@ -583,46 +585,34 @@ const MentorPage: React.FC = () => {
     }
 
     return (
-        <div className="min-h-[100dvh]" style={{ backgroundColor: isDarkMode ? '#0a0a0a' : '#ffffff', color: isDarkMode ? '#f5f5f5' : '#080808' }}>
-            {/* Header */}
-            <header className="sticky top-0 z-50 backdrop-blur-md" style={{ backgroundColor: isDarkMode ? 'rgba(10,10,10,0.9)' : 'rgba(255,255,255,0.95)', borderBottom: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}` }}>
-                <div className="max-w-[1200px] mx-auto px-4 sm:px-6 h-[64px] flex items-center justify-between">
-                    <Link to="/" className="flex items-center gap-2">
-                        <img src="/edutu-logo.png" alt="Edutu" className="h-8 w-8 object-contain" />
-                        <span className="font-bold text-xl tracking-tight" style={{ color: isDarkMode ? '#ffffff' : '#080808' }}>edutu</span>
-                    </Link>
-                    <div className="flex items-center gap-4">
-                        <button onClick={showLandingPage} className="text-sm font-medium" style={{ color: isDarkMode ? '#ababab' : '#5a5a5a' }}>
-                            Mentor Overview
-                        </button>
-                    </div>
-                </div>
-            </header>
+        <div className="min-h-[100dvh] bg-white text-slate-950 dark:bg-gray-950 dark:text-white">
+            <PublicHeader />
 
             <main className="max-w-[800px] mx-auto px-4 sm:px-6 py-12">
-                {/* Step Progress */}
                 <div className="flex items-center justify-center gap-3 mb-12">
                     {MENTOR_STEPS.map((s, i) => (
                         <React.Fragment key={s}>
                             <motion.div
                                 animate={{
                                     scale: i === stepIndex ? 1.2 : 1,
-                                    backgroundColor: i <= stepIndex ? '#146ef5' : isDarkMode ? '#2a2a2a' : '#e5e5e5',
+                                    backgroundColor: i <= stepIndex ? '#146ef5' : '',
                                 }}
-                                className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold"
-                                style={{ color: i <= stepIndex ? '#fff' : isDarkMode ? '#666' : '#888' }}
+                                className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold ${
+                                    i <= stepIndex
+                                        ? 'bg-[#146ef5] text-white'
+                                        : 'bg-slate-200 text-slate-400 dark:bg-gray-800 dark:text-gray-500'
+                                }`}
                             >
                                 {i < stepIndex ? <CheckCircle size={16} /> : i + 1}
                             </motion.div>
                             {i < MENTOR_STEPS.length - 1 && (
-                                <div className="w-16 h-0.5 rounded-full" style={{ backgroundColor: i < stepIndex ? '#146ef5' : isDarkMode ? '#2a2a2a' : '#e5e5e5' }} />
+                                <div className={`w-16 h-0.5 rounded-full ${i < stepIndex ? 'bg-[#146ef5]' : 'bg-slate-200 dark:bg-gray-800'}`} />
                             )}
                         </React.Fragment>
                     ))}
                 </div>
 
                 <AnimatePresence mode="wait">
-                    {/* STEP 1: INTRO */}
                     {currentStep === 'intro' && (
                         <motion.div
                             key="intro"
@@ -632,17 +622,14 @@ const MentorPage: React.FC = () => {
                             transition={{ duration: 0.3 }}
                         >
                             <div className="text-center mb-12">
-                                <div className="inline-flex items-center gap-2 px-4 py-2 mb-6 rounded-full" style={{
-                                    backgroundColor: isDarkMode ? 'rgba(20,110,245,0.08)' : 'rgba(20,110,245,0.06)',
-                                    border: `1px solid ${isDarkMode ? 'rgba(20,110,245,0.15)' : 'rgba(20,110,245,0.12)'}`,
-                                }}>
+                                <div className="inline-flex items-center gap-2 px-4 py-2 mb-6 rounded-full bg-[#146ef5]/10 dark:bg-[#146ef5]/20 border border-[#146ef5]/20 dark:border-[#146ef5]/30">
                                     <Sparkles size={14} className="text-[#146ef5]" />
                                     <span className="text-xs font-bold tracking-widest text-[#146ef5]">Become a Mentor</span>
                                 </div>
-                                <h1 className="text-3xl md:text-4xl font-semibold mb-4 tracking-tight" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>
-                                    Share Your <span style={{ color: '#146ef5' }}>Success Story</span>
+                                <h1 className="text-3xl md:text-4xl font-semibold mb-4 tracking-tight text-slate-950 dark:text-white">
+                                    Share Your <span className="text-[#146ef5]">Success Story</span>
                                 </h1>
-                                <p className="max-w-lg mx-auto text-base leading-relaxed" style={{ color: isDarkMode ? '#888' : '#666' }}>
+                                <p className="max-w-lg mx-auto text-base leading-relaxed text-slate-500 dark:text-gray-400">
                                     You've achieved something incredible. Help others get there too by sharing your knowledge and experience.
                                 </p>
                             </div>
@@ -658,30 +645,23 @@ const MentorPage: React.FC = () => {
                                         initial={{ opacity: 0, y: 10 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ delay: i * 0.1 }}
-                                        className="p-6 rounded-2xl text-center"
-                                        style={{
-                                            backgroundColor: isDarkMode ? '#111' : '#fafafa',
-                                            border: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}`,
-                                        }}
+                                        className="p-6 rounded-2xl text-center bg-slate-50 border border-slate-200 dark:bg-gray-900/50 dark:border-white/10"
                                     >
                                         <stat.icon size={20} style={{ color: stat.color, margin: '0 auto 8px' }} />
                                         <div className="text-2xl font-bold" style={{ color: stat.color }}>{stat.num}</div>
-                                        <div className="text-xs font-medium" style={{ color: isDarkMode ? '#888' : '#666' }}>{stat.label}</div>
+                                        <div className="text-xs font-medium text-slate-500 dark:text-gray-400">{stat.label}</div>
                                     </motion.div>
                                 ))}
                             </div>
 
-                            <div className="p-6 rounded-2xl mb-8" style={{
-                                backgroundColor: isDarkMode ? 'rgba(20,110,245,0.05)' : 'rgba(20,110,245,0.04)',
-                                border: `1px solid ${isDarkMode ? 'rgba(20,110,245,0.15)' : 'rgba(20,110,245,0.1)'}`,
-                            }}>
+                            <div className="p-6 rounded-2xl mb-8 bg-[#146ef5]/5 border border-[#146ef5]/20 dark:bg-[#146ef5]/10 dark:border-[#146ef5]/30">
                                 <div className="flex items-start gap-4">
-                                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#146ef5' }}>
+                                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-[#146ef5]">
                                         <Globe size={18} className="text-white" />
                                     </div>
                                     <div>
-                                        <h3 className="text-base font-semibold mb-1" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>Global Impact</h3>
-                                        <p className="text-sm leading-relaxed" style={{ color: isDarkMode ? '#888' : '#666' }}>
+                                        <h3 className="text-base font-semibold mb-1 text-slate-950 dark:text-white">Global Impact</h3>
+                                        <p className="text-sm leading-relaxed text-slate-500 dark:text-gray-400">
                                             Reach learners from 31+ countries. Your experience can change someone's life anywhere in the world.
                                         </p>
                                     </div>
@@ -690,15 +670,13 @@ const MentorPage: React.FC = () => {
 
                             <button
                                 onClick={nextStep}
-                                className="w-full py-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
-                                style={{ backgroundColor: '#146ef5', color: '#fff' }}
+                                className="w-full rounded-full px-6 py-4 font-semibold transition-all duration-300 hover:scale-[0.98] active:scale-[0.97] bg-[#146ef5] text-white flex items-center justify-center gap-2 text-sm"
                             >
                                 Get Started <ArrowRight size={16} />
                             </button>
                         </motion.div>
                     )}
 
-                    {/* STEP 2: MOTIVATION */}
                     {currentStep === 'motivation' && (
                         <motion.div
                             key="motivation"
@@ -708,11 +686,11 @@ const MentorPage: React.FC = () => {
                             transition={{ duration: 0.3 }}
                         >
                             <div className="mb-8">
-                                <button onClick={prevStep} className="flex items-center gap-1 text-sm mb-6" style={{ color: isDarkMode ? '#888' : '#666' }}>
+                                <button onClick={prevStep} className="flex items-center gap-1 text-sm mb-6 text-slate-500 dark:text-gray-400">
                                     <ArrowLeft size={14} /> Back
                                 </button>
-                                <h2 className="text-2xl font-bold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>What motivates you?</h2>
-                                <p className="text-sm" style={{ color: isDarkMode ? '#888' : '#666' }}>Choose the reason that best describes why you want to mentor.</p>
+                                <h2 className="text-2xl font-bold mb-2 text-slate-950 dark:text-white">What motivates you?</h2>
+                                <p className="text-sm text-slate-500 dark:text-gray-400">Choose the reason that best describes why you want to mentor.</p>
                             </div>
 
                             <div className="space-y-3 mb-8">
@@ -724,20 +702,20 @@ const MentorPage: React.FC = () => {
                                             whileHover={{ scale: 1.01 }}
                                             whileTap={{ scale: 0.99 }}
                                             onClick={() => updateField('motivation', option.id)}
-                                            className="w-full p-5 rounded-2xl flex items-center gap-4 text-left transition-all"
-                                            style={{
-                                                backgroundColor: isSelected
-                                                    ? isDarkMode ? 'rgba(20,110,245,0.12)' : 'rgba(20,110,245,0.06)'
-                                                    : isDarkMode ? '#111' : '#fafafa',
-                                                border: `2px solid ${isSelected ? '#146ef5' : isDarkMode ? '#1e1e1e' : '#e8e8e8'}`,
-                                            }}
+                                            className={`w-full p-5 rounded-2xl flex items-center gap-4 text-left transition-all border-2 ${
+                                                isSelected
+                                                    ? 'bg-[#146ef5]/10 dark:bg-[#146ef5]/20 border-[#146ef5]'
+                                                    : 'bg-slate-50 dark:bg-gray-900/50 border-slate-200 dark:border-white/10'
+                                            }`}
                                         >
-                                            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{
-                                                backgroundColor: isSelected ? '#146ef5' : isDarkMode ? '#1e1e1e' : '#e5e5e5',
-                                            }}>
-                                                <option.icon size={18} className={isSelected ? 'text-white' : ''} style={{ color: isSelected ? '#fff' : isDarkMode ? '#888' : '#666' }} />
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                                                isSelected ? 'bg-[#146ef5]' : 'bg-slate-200 dark:bg-gray-800'
+                                            }`}>
+                                                <option.icon size={18} className={isSelected ? 'text-white' : 'text-slate-500 dark:text-gray-400'} />
                                             </div>
-                                            <span className="text-sm font-medium" style={{ color: isSelected ? '#146ef5' : isDarkMode ? '#fafafa' : '#0a0a0a' }}>
+                                            <span className={`text-sm font-medium ${
+                                                isSelected ? 'text-[#146ef5]' : 'text-slate-950 dark:text-white'
+                                            }`}>
                                                 {option.text}
                                             </span>
                                         </motion.button>
@@ -748,19 +726,17 @@ const MentorPage: React.FC = () => {
                             <button
                                 onClick={nextStep}
                                 disabled={!canProceed()}
-                                className="w-full py-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
-                                style={{
-                                    backgroundColor: canProceed() ? '#146ef5' : isDarkMode ? '#1e1e1e' : '#e5e5e5',
-                                    color: canProceed() ? '#fff' : isDarkMode ? '#666' : '#888',
-                                    cursor: canProceed() ? 'pointer' : 'not-allowed',
-                                }}
+                                className={`w-full rounded-full px-6 py-4 font-semibold transition-all duration-300 hover:scale-[0.98] active:scale-[0.97] flex items-center justify-center gap-2 text-sm ${
+                                    canProceed()
+                                        ? 'bg-[#146ef5] text-white'
+                                        : 'bg-slate-200 text-slate-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-500'
+                                }`}
                             >
                                 Continue <ArrowRight size={16} />
                             </button>
                         </motion.div>
                     )}
 
-                    {/* STEP 3: DETAILS */}
                     {currentStep === 'details' && (
                         <motion.div
                             key="details"
@@ -770,74 +746,54 @@ const MentorPage: React.FC = () => {
                             transition={{ duration: 0.3 }}
                         >
                             <div className="mb-8">
-                                <button onClick={prevStep} className="flex items-center gap-1 text-sm mb-6" style={{ color: isDarkMode ? '#888' : '#666' }}>
+                                <button onClick={prevStep} className="flex items-center gap-1 text-sm mb-6 text-slate-500 dark:text-gray-400">
                                     <ArrowLeft size={14} /> Back
                                 </button>
-                                <h2 className="text-2xl font-bold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>Tell us about yourself</h2>
-                                <p className="text-sm" style={{ color: isDarkMode ? '#888' : '#666' }}>Help learners understand the opportunity you won and how you can support them.</p>
+                                <h2 className="text-2xl font-bold mb-2 text-slate-950 dark:text-white">Tell us about yourself</h2>
+                                <p className="text-sm text-slate-500 dark:text-gray-400">Help learners understand the opportunity you won and how you can support them.</p>
                             </div>
 
                             <div className="space-y-6 mb-8">
                                 <div>
-                                    <label className="block text-sm font-semibold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>Display Name</label>
+                                    <label className="block text-sm font-semibold mb-2 text-slate-950 dark:text-white">Display Name</label>
                                     <input
                                         type="text"
                                         value={formData.displayName}
                                         onChange={(e) => updateField('displayName', e.target.value)}
                                         placeholder="How should learners know you?"
-                                        className="w-full px-4 py-3 rounded-xl text-sm"
-                                        style={{
-                                            backgroundColor: isDarkMode ? '#111' : '#fafafa',
-                                            border: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}`,
-                                            color: isDarkMode ? '#fafafa' : '#0a0a0a',
-                                        }}
+                                        className="w-full rounded-xl border border-border-subtle bg-surface-body px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all outline-none"
                                     />
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-semibold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>Email Address</label>
+                                        <label className="block text-sm font-semibold mb-2 text-slate-950 dark:text-white">Email Address</label>
                                         <input
                                             type="email"
                                             value={formData.email}
                                             onChange={(e) => updateField('email', e.target.value)}
                                             placeholder="you@example.com"
-                                            className="w-full px-4 py-3 rounded-xl text-sm"
-                                            style={{
-                                                backgroundColor: isDarkMode ? '#111' : '#fafafa',
-                                                border: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}`,
-                                                color: isDarkMode ? '#fafafa' : '#0a0a0a',
-                                            }}
+                                            className="w-full rounded-xl border border-border-subtle bg-surface-body px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all outline-none"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>Phone Number</label>
+                                        <label className="block text-sm font-semibold mb-2 text-slate-950 dark:text-white">Phone Number</label>
                                         <input
                                             type="tel"
                                             value={formData.phoneNumber}
                                             onChange={(e) => updateField('phoneNumber', e.target.value)}
                                             placeholder="+234 800 000 0000"
-                                            className="w-full px-4 py-3 rounded-xl text-sm"
-                                            style={{
-                                                backgroundColor: isDarkMode ? '#111' : '#fafafa',
-                                                border: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}`,
-                                                color: isDarkMode ? '#fafafa' : '#0a0a0a',
-                                            }}
+                                            className="w-full rounded-xl border border-border-subtle bg-surface-body px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all outline-none"
                                         />
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-semibold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>Country</label>
+                                    <label className="block text-sm font-semibold mb-2 text-slate-950 dark:text-white">Country</label>
                                     <select
                                         value={formData.country}
                                         onChange={(e) => updateField('country', e.target.value)}
-                                        className="w-full px-4 py-3 rounded-xl text-sm"
-                                        style={{
-                                            backgroundColor: isDarkMode ? '#111' : '#fafafa',
-                                            border: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}`,
-                                            color: isDarkMode ? '#fafafa' : '#0a0a0a',
-                                        }}
+                                        className="w-full rounded-xl border border-border-subtle bg-surface-body px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all outline-none"
                                     >
                                         <option value="">Select your country</option>
                                         {COUNTRY_OPTIONS.map((country) => (
@@ -847,7 +803,7 @@ const MentorPage: React.FC = () => {
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-semibold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>What experience can you share?</label>
+                                    <label className="block text-sm font-semibold mb-2 text-slate-950 dark:text-white">What experience can you share?</label>
                                     <div className="grid grid-cols-2 gap-3">
                                         {CONTENT_TYPES.map((type) => {
                                             const isSelected = formData.contentType === type.id;
@@ -855,17 +811,21 @@ const MentorPage: React.FC = () => {
                                                 <button
                                                     key={type.id}
                                                     onClick={() => updateField('contentType', type.id)}
-                                                    className="p-4 rounded-xl text-left transition-all"
+                                                    className={`p-4 rounded-xl text-left transition-all duration-200 ${
+                                                        isSelected
+                                                            ? 'border-2'
+                                                            : 'border-2 border-slate-200 dark:border-white/10'
+                                                    }`}
                                                     style={{
                                                         backgroundColor: isSelected
                                                             ? isDarkMode ? 'rgba(20,110,245,0.12)' : 'rgba(20,110,245,0.06)'
-                                                            : isDarkMode ? '#111' : '#fafafa',
-                                                        border: `2px solid ${isSelected ? type.color : isDarkMode ? '#1e1e1e' : '#e8e8e8'}`,
+                                                            : '',
+                                                        borderColor: isSelected ? type.color : undefined,
                                                     }}
                                                 >
                                                     <type.icon size={16} style={{ color: type.color, marginBottom: 8 }} />
-                                                    <div className="text-sm font-semibold" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>{type.label}</div>
-                                                    <div className="text-xs" style={{ color: isDarkMode ? '#888' : '#666' }}>{type.desc}</div>
+                                                    <div className="text-sm font-semibold text-slate-950 dark:text-white">{type.label}</div>
+                                                    <div className="text-xs text-slate-500 dark:text-gray-400">{type.desc}</div>
                                                 </button>
                                             );
                                         })}
@@ -873,50 +833,37 @@ const MentorPage: React.FC = () => {
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-semibold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>Your Bio</label>
+                                    <label className="block text-sm font-semibold mb-2 text-slate-950 dark:text-white">Your Bio</label>
                                     <textarea
                                         value={formData.bio}
                                         onChange={(e) => updateField('bio', e.target.value)}
                                         placeholder="Share the opportunity you benefited from, what helped you win, and how you can guide future applicants..."
                                         rows={4}
-                                        className="w-full px-4 py-3 rounded-xl text-sm resize-none"
-                                        style={{
-                                            backgroundColor: isDarkMode ? '#111' : '#fafafa',
-                                            border: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}`,
-                                            color: isDarkMode ? '#fafafa' : '#0a0a0a',
-                                        }}
+                                        className="w-full rounded-xl border border-border-subtle bg-surface-body px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all outline-none resize-none"
                                     />
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-semibold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>LinkedIn URL</label>
+                                        <label className="block text-sm font-semibold mb-2 text-slate-950 dark:text-white">LinkedIn URL</label>
                                         <input
                                             type="url"
                                             value={formData.linkedInUrl}
                                             onChange={(e) => updateField('linkedInUrl', e.target.value)}
                                             placeholder="https://linkedin.com/in/..."
-                                            className="w-full px-4 py-3 rounded-xl text-sm"
-                                            style={{
-                                                backgroundColor: isDarkMode ? '#111' : '#fafafa',
-                                                border: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}`,
-                                                color: isDarkMode ? '#fafafa' : '#0a0a0a',
-                                            }}
+                                            className="w-full rounded-xl border border-border-subtle bg-surface-body px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all outline-none"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-semibold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>Portfolio URL <span style={{ color: isDarkMode ? '#888' : '#666', fontWeight: 500 }}>(optional)</span></label>
+                                        <label className="block text-sm font-semibold mb-2 text-slate-950 dark:text-white">
+                                            Portfolio URL <span className="font-medium text-slate-500 dark:text-gray-400">(optional)</span>
+                                        </label>
                                         <input
                                             type="url"
                                             value={formData.portfolioUrl}
                                             onChange={(e) => updateField('portfolioUrl', e.target.value)}
                                             placeholder="https://your-portfolio.com"
-                                            className="w-full px-4 py-3 rounded-xl text-sm"
-                                            style={{
-                                                backgroundColor: isDarkMode ? '#111' : '#fafafa',
-                                                border: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}`,
-                                                color: isDarkMode ? '#fafafa' : '#0a0a0a',
-                                            }}
+                                            className="w-full rounded-xl border border-border-subtle bg-surface-body px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all outline-none"
                                         />
                                     </div>
                                 </div>
@@ -925,19 +872,17 @@ const MentorPage: React.FC = () => {
                             <button
                                 onClick={nextStep}
                                 disabled={!canProceed()}
-                                className="w-full py-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
-                                style={{
-                                    backgroundColor: canProceed() ? '#146ef5' : isDarkMode ? '#1e1e1e' : '#e5e5e5',
-                                    color: canProceed() ? '#fff' : isDarkMode ? '#666' : '#888',
-                                    cursor: canProceed() ? 'pointer' : 'not-allowed',
-                                }}
+                                className={`w-full rounded-full px-6 py-4 font-semibold transition-all duration-300 hover:scale-[0.98] active:scale-[0.97] flex items-center justify-center gap-2 text-sm ${
+                                    canProceed()
+                                        ? 'bg-[#146ef5] text-white'
+                                        : 'bg-slate-200 text-slate-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-500'
+                                }`}
                             >
                                 Review Application <ArrowRight size={16} />
                             </button>
                         </motion.div>
                     )}
 
-                    {/* STEP 4: REVIEW */}
                     {currentStep === 'review' && (
                         <motion.div
                             key="review"
@@ -947,11 +892,11 @@ const MentorPage: React.FC = () => {
                             transition={{ duration: 0.3 }}
                         >
                             <div className="mb-8">
-                                <button onClick={prevStep} className="flex items-center gap-1 text-sm mb-6" style={{ color: isDarkMode ? '#888' : '#666' }}>
+                                <button onClick={prevStep} className="flex items-center gap-1 text-sm mb-6 text-slate-500 dark:text-gray-400">
                                     <ArrowLeft size={14} /> Back
                                 </button>
-                                <h2 className="text-2xl font-bold mb-2" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>Review your application</h2>
-                                <p className="text-sm" style={{ color: isDarkMode ? '#888' : '#666' }}>Make sure everything looks good before submitting.</p>
+                                <h2 className="text-2xl font-bold mb-2 text-slate-950 dark:text-white">Review your application</h2>
+                                <p className="text-sm text-slate-500 dark:text-gray-400">Make sure everything looks good before submitting.</p>
                             </div>
 
                             <div className="space-y-4 mb-8">
@@ -967,20 +912,20 @@ const MentorPage: React.FC = () => {
                                     { label: 'Portfolio', value: formData.portfolioUrl || 'Not provided' },
                                     { label: 'Award Proof', value: proofFile?.name || 'Required before submission' },
                                 ].map((item, i) => (
-                                    <div key={i} className="p-4 rounded-xl" style={{ backgroundColor: isDarkMode ? '#111' : '#fafafa', border: `1px solid ${isDarkMode ? '#1e1e1e' : '#e8e8e8'}` }}>
-                                        <div className="text-xs font-semibold tracking-wide mb-1" style={{ color: isDarkMode ? '#888' : '#666' }}>{item.label}</div>
-                                        <div className="text-sm" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>{item.value}</div>
+                                    <div key={i} className="p-4 rounded-xl bg-surface-layer border border-border-subtle">
+                                        <div className="text-xs font-semibold tracking-wide mb-1 text-text-muted">{item.label}</div>
+                                        <div className="text-sm text-text-primary">{item.value}</div>
                                     </div>
                                 ))}
                             </div>
 
                             <div className="space-y-4 mb-8">
                                 <label
-                                    className="block rounded-2xl border p-5 cursor-pointer transition-all"
-                                    style={{
-                                        backgroundColor: isDarkMode ? '#111' : '#fafafa',
-                                        borderColor: proofFile ? '#00b86b' : isDarkMode ? '#1e1e1e' : '#e8e8e8',
-                                    }}
+                                    className={`block rounded-2xl border p-5 cursor-pointer transition-all ${
+                                        proofFile
+                                            ? 'border-[#00b86b] bg-surface-layer'
+                                            : 'border-border-subtle bg-surface-layer'
+                                    }`}
                                 >
                                     <input
                                         type="file"
@@ -989,18 +934,20 @@ const MentorPage: React.FC = () => {
                                         onChange={handleProofUpload}
                                     />
                                     <div className="flex items-start gap-4">
-                                        <div className="h-11 w-11 rounded-xl flex items-center justify-center" style={{ backgroundColor: proofFile ? '#00b86b18' : '#146ef510', color: proofFile ? '#00b86b' : '#146ef5' }}>
+                                        <div className={`h-11 w-11 rounded-xl flex items-center justify-center ${
+                                            proofFile ? 'bg-[#00b86b]/10 text-[#00b86b]' : 'bg-[#146ef5]/10 text-[#146ef5]'
+                                        }`}>
                                             {proofFile ? <FileCheck size={21} /> : <Upload size={21} />}
                                         </div>
                                         <div className="flex-1">
-                                            <div className="text-sm font-bold mb-1" style={{ color: isDarkMode ? '#fafafa' : '#0a0a0a' }}>
+                                            <div className="text-sm font-bold mb-1 text-text-primary">
                                                 Upload proof of your award or opportunity
                                             </div>
-                                            <p className="text-xs leading-relaxed" style={{ color: isDarkMode ? '#888' : '#666' }}>
+                                            <p className="text-xs leading-relaxed text-text-muted">
                                                 PDF or image showing your scholarship, fellowship, internship, grant, admission, or award confirmation.
                                             </p>
                                             {proofFile && (
-                                                <p className="mt-2 text-xs font-bold" style={{ color: '#00b86b' }}>
+                                                <p className="mt-2 text-xs font-bold text-[#00b86b]">
                                                     {proofFile.name}
                                                 </p>
                                             )}
@@ -1009,19 +956,19 @@ const MentorPage: React.FC = () => {
                                 </label>
 
                                 <label
-                                    className="flex items-start gap-3 rounded-2xl border p-5 cursor-pointer"
-                                    style={{
-                                        backgroundColor: isDarkMode ? '#111' : '#fafafa',
-                                        borderColor: consentAccepted ? '#146ef5' : isDarkMode ? '#1e1e1e' : '#e8e8e8',
-                                    }}
+                                    className={`flex items-start gap-3 rounded-2xl border p-5 cursor-pointer ${
+                                        consentAccepted
+                                            ? 'border-[#146ef5] bg-surface-layer'
+                                            : 'border-border-subtle bg-surface-layer'
+                                    }`}
                                 >
                                     <input
                                         type="checkbox"
                                         checked={consentAccepted}
                                         onChange={(event) => setConsentAccepted(event.target.checked)}
-                                        className="mt-1 h-4 w-4"
+                                        className="mt-1 h-4 w-4 rounded border-slate-300 text-[#146ef5] focus:ring-[#146ef5]"
                                     />
-                                    <span className="text-sm leading-relaxed" style={{ color: isDarkMode ? '#d8d8d8' : '#222' }}>
+                                    <span className="text-sm leading-relaxed text-text-primary">
                                         I consent to Edutu reviewing my submitted proof and contacting me about this mentor application.
                                     </span>
                                 </label>
@@ -1030,12 +977,11 @@ const MentorPage: React.FC = () => {
                             <button
                                 onClick={handleSubmit}
                                 disabled={isSubmitting || !proofFile || !consentAccepted}
-                                className="w-full py-4 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
-                                style={{
-                                    backgroundColor: isSubmitting || !proofFile || !consentAccepted ? isDarkMode ? '#1e1e1e' : '#e5e5e5' : '#146ef5',
-                                    color: isSubmitting || !proofFile || !consentAccepted ? isDarkMode ? '#666' : '#888' : '#fff',
-                                    cursor: isSubmitting || !proofFile || !consentAccepted ? 'not-allowed' : 'pointer',
-                                }}
+                                className={`w-full rounded-full px-6 py-4 font-semibold transition-all duration-300 hover:scale-[0.98] active:scale-[0.97] flex items-center justify-center gap-2 text-sm ${
+                                    isSubmitting || !proofFile || !consentAccepted
+                                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-500'
+                                        : 'bg-[#146ef5] text-white'
+                                }`}
                             >
                                 {isSubmitting ? (
                                     <>

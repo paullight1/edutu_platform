@@ -568,7 +568,10 @@ ${dto.userNotes || ""}`;
     return dbUserId;
   }
 
-  private toInsertPayload(userId: string, dto: SaveCVRecordDto): CVRecordInsert {
+  private toInsertPayload(
+    userId: string,
+    dto: SaveCVRecordDto,
+  ): CVRecordInsert {
     const rawDto = dto as Record<string, unknown>;
     const stats = this.asRecord(dto.stats) ?? {};
     const content = this.parseCVContent(stats.cv);

@@ -14,7 +14,7 @@ const siteUrl = normaliseSiteUrl(
   process.env.VITE_PUBLIC_SITE_URL ||
     process.env.VITE_WEB_APP_URL ||
     process.env.SITE_URL ||
-    "https://edutu.ai",
+    "https://www.edutu.org",
 );
 const apiBaseUrl = normaliseSiteUrl(
   process.env.VITE_BACKEND_URL || process.env.VITE_API_URL || "",

@@ -5,6 +5,7 @@
 
 import { supabase } from '../../lib/supabaseClient';
 import type { AppNotification, NotificationDraft } from '../../types/notification';
+import logger from '../../lib/logger';
 
 // ================================
 // Types for Admin Portal Integration
@@ -99,7 +100,7 @@ export async function checkAdminAccess(): Promise<{ isAdmin: boolean; role: Admi
 
         return { isAdmin, role: isAdmin ? role : null };
     } catch (error) {
-        console.error('Error checking admin access:', error);
+        logger.error('Error checking admin access:', error);
         return { isAdmin: false, role: null };
     }
 }
@@ -319,7 +320,7 @@ export async function scheduleNotification(
         if (error) throw error;
         return { success: true, scheduledId: data.id };
     } catch (error) {
-        console.error('Error scheduling notification:', error);
+        logger.error('Error scheduling notification:', error);
         return { success: false };
     }
 }
@@ -379,7 +380,7 @@ export async function respondToTicket(
                     attachments: [],
                 });
 
-            if (noteError) console.warn('Failed to add internal note:', noteError);
+            if (noteError) logger.warn('Failed to add internal note:', noteError);
         }
 
         return { success: true };
@@ -539,7 +540,7 @@ export async function logAdminAction(
             metadata: metadata ?? {},
         });
     } catch (error) {
-        console.error('Failed to log admin action:', error);
+        logger.error('Failed to log admin action:', error);
     }
 }
 

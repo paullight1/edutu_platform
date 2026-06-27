@@ -1,4 +1,11 @@
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import {
+  type ReactNode,
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import {
   Navigate,
   Route,
@@ -8,34 +15,51 @@ import {
 } from "react-router-dom";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { ArrowLeft, ShieldAlert } from "lucide-react";
-import AuthScreen from "./components/AuthScreen";
-import AuthCallback from "./components/AuthCallback";
 import AppWorkspaceShell from "./components/AppWorkspaceShell";
-import ApplicationsPage from "./components/ApplicationsPage";
-import Dashboard from "./components/Dashboard";
-import LandingPageV3 from "./components/LandingPageV3";
-import OpportunitiesPage from "./components/OpportunitiesPage";
-import OpportunityDetailFetcher from "./components/OpportunityDetailFetcher";
-import OpportunitySharePage from "./components/OpportunitySharePage";
-import EventsPage from "./components/EventsPage";
-import EventDetailPage from "./components/EventDetailPage";
-import AboutPage from "./components/AboutPage";
-import BlogPage from "./components/BlogPage";
-import MentorPage from "./components/MentorPage";
-import DownloadPage from "./components/DownloadPage";
-import DeveloperDocsPage from "./components/DeveloperDocsPage";
-import ScholarshipApiPage from "./components/ScholarshipApiPage";
 import PublicEditorialShell from "./components/PublicEditorialShell";
-import DeadlinesPage from "./components/DeadlinesPage";
-import ProfilePage from "./components/ProfilePage";
-import SavedPage from "./components/SavedPage";
-import SettingsPage from "./components/SettingsPage";
+import GoogleOneTapGate from "./components/GoogleOneTapGate";
+import PageSuspense from "./components/PageSuspense";
 import { consumePostAuthRedirect } from "./lib/auth";
 import { verifyAdminAccess } from "./lib/adminAccess";
 import { useAuth as useAppAuth } from "./hooks/useAuth";
+import { useAbsoluteSessionTimeout } from "./hooks/useAbsoluteSessionTimeout";
+
+const AuthScreen = lazy(() => import("./components/AuthScreen"));
+const AuthCallback = lazy(() => import("./components/AuthCallback"));
+const ApplicationsPage = lazy(() => import("./components/ApplicationsPage"));
+const Dashboard = lazy(() => import("./components/Dashboard"));
+const LandingPageV3 = lazy(() => import("./components/LandingPageV3"));
+const OpportunitiesPage = lazy(() => import("./components/OpportunitiesPage"));
+const OpportunityDetailFetcher = lazy(
+  () => import("./components/OpportunityDetailFetcher"),
+);
+const OpportunitySharePage = lazy(
+  () => import("./components/OpportunitySharePage"),
+);
+const EventsPage = lazy(() => import("./components/EventsPage"));
+const EventDetailPage = lazy(() => import("./components/EventDetailPage"));
+const AboutPage = lazy(() => import("./components/AboutPage"));
+const BlogPage = lazy(() => import("./components/BlogPage"));
+const MentorPage = lazy(() => import("./components/MentorPage"));
+const DownloadPage = lazy(() => import("./components/DownloadPage"));
+const ScholarshipApiPage = lazy(() => import("./components/ScholarshipApiPage"));
+const DevelopersLandingPage = lazy(
+  () => import("./components/DevelopersLandingPage"),
+);
+const DeveloperDashboardPage = lazy(
+  () => import("./components/DeveloperDashboardPage"),
+);
+const DeadlinesPage = lazy(() => import("./components/DeadlinesPage"));
+const ProfilePage = lazy(() => import("./components/ProfilePage"));
+const SavedPage = lazy(() => import("./components/SavedPage"));
+const SettingsPage = lazy(() => import("./components/SettingsPage"));
 
 const ADMIN_PORTAL_URL =
   import.meta.env.VITE_ADMIN_URL || "https://admin.edutu.org";
+const DOCS_SITE_URL = import.meta.env.VITE_DOCS_URL || "https://docs.edutu.org";
+// When the Next.js marketing site is live, set VITE_MARKETING_URL (e.g.
+// https://www.edutu.org) and the public marketing routes redirect there.
+const MARKETING_SITE_URL = import.meta.env.VITE_MARKETING_URL || "";
 
 type AdminGateState =
   | { status: "checking"; message?: string }
@@ -265,6 +289,64 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   return children;
 }
 
+function DocsRedirect() {
+  useEffect(() => {
+    window.location.replace(DOCS_SITE_URL);
+  }, []);
+
+  return (
+    <PublicEditorialShell>
+      <div className="flex min-h-[calc(100dvh-180px)] items-center justify-center px-6 text-center">
+        <div className="max-w-sm">
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-brand-500/25 border-t-brand-500" />
+          <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+            Opening Scholarship Engine docs
+          </p>
+        </div>
+      </div>
+    </PublicEditorialShell>
+  );
+}
+
+/**
+ * When VITE_MARKETING_URL is set (i.e. the Next.js marketing site is live),
+ * redirect public marketing routes there so there is ONE marketing surface.
+ * Until then, render the in-app fallback page so nothing breaks.
+ */
+function MarketingRedirect({
+  path,
+  fallback,
+}: {
+  path: string;
+  fallback: ReactNode;
+}) {
+  useEffect(() => {
+    if (!MARKETING_SITE_URL) return;
+    try {
+      window.location.replace(new URL(path, MARKETING_SITE_URL).toString());
+    } catch {
+      // invalid URL — fall through to the in-app page
+    }
+  }, [path]);
+
+  if (!MARKETING_SITE_URL) {
+    return <>{fallback}</>;
+  }
+
+  return (
+    <PublicEditorialShell>
+      <div className="flex min-h-[calc(100dvh-180px)] items-center justify-center px-6 text-center">
+        <div className="max-w-sm">
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-brand-500/25 border-t-brand-500" />
+          <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+            Opening Edutu
+          </p>
+        </div>
+      </div>
+    </PublicEditorialShell>
+  );
+}
+
 function UserDashboardPage() {
   const navigate = useNavigate();
   const { user } = useAppAuth();
@@ -327,6 +409,9 @@ function AppWorkspaceRoute({ children }: { children: ReactNode }) {
 function App() {
   const navigate = useNavigate();
   const { isSignedIn } = useClerkAuth();
+  const { signOut } = useAppAuth();
+
+  useAbsoluteSessionTimeout(signOut);
 
   const handleAuthSuccess = useCallback(
     (_userData: unknown) => {
@@ -340,7 +425,10 @@ function App() {
   }, [isSignedIn, navigate]);
 
   return (
-    <Routes>
+    <>
+      <GoogleOneTapGate />
+      <Suspense fallback={<PageSuspense />}>
+        <Routes>
       <Route
         path="/"
         element={<LandingPageV3 onGetStarted={handleGetStarted} />}
@@ -376,8 +464,36 @@ function App() {
       <Route path="/about" element={<AboutPage />} />
       <Route path="/blog" element={<BlogPage />} />
       <Route path="/download" element={<DownloadPage />} />
-      <Route path="/docs" element={<DeveloperDocsPage />} />
-      <Route path="/scholarship-api" element={<ScholarshipApiPage />} />
+      <Route path="/docs" element={<DocsRedirect />} />
+      <Route
+        path="/scholarship-engine"
+        element={
+          <MarketingRedirect path="/scholarship-api" fallback={<ScholarshipApiPage />} />
+        }
+      />
+      <Route
+        path="/scholarship-api"
+        element={
+          <MarketingRedirect
+            path="/scholarship-api"
+            fallback={<Navigate to="/scholarship-engine" replace />}
+          />
+        }
+      />
+      <Route
+        path="/developers"
+        element={
+          <MarketingRedirect path="/scholarship-api" fallback={<DevelopersLandingPage />} />
+        }
+      />
+      <Route
+        path="/dashboard/developer"
+        element={
+          <ProtectedRoute>
+            <DeveloperDashboardPage />
+          </ProtectedRoute>
+        }
+      />
       <Route path="/coach" element={<Navigate to="/dashboard" replace />} />
       <Route path="/app/coach" element={<Navigate to="/dashboard" replace />} />
       <Route path="/cv" element={<Navigate to="/dashboard" replace />} />
@@ -515,6 +631,8 @@ function App() {
       <Route path="/admin/*" element={<AdminPortalGate />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
+      </Suspense>
+    </>
   );
 }
 

@@ -31,8 +31,8 @@ export class AppService {
       supabaseUrl: Boolean(process.env.SUPABASE_URL),
       supabaseAnonKey: Boolean(
         process.env.SUPABASE_ANON_KEY ||
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-          process.env.VITE_SUPABASE_ANON_KEY,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+        process.env.VITE_SUPABASE_ANON_KEY,
       ),
       supabaseServiceRole: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
       clerkSecret: Boolean(process.env.CLERK_SECRET_KEY),

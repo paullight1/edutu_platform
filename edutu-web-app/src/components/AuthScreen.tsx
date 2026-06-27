@@ -13,6 +13,7 @@ import {
   User,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useTranslation } from "react-i18next";
 import { useClerk, useSignIn, useSignUp } from "@clerk/clerk-react";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
@@ -148,6 +149,7 @@ const isExistingAccountError = (err: unknown) => {
 };
 
 const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
+  const { t } = useTranslation();
   const { signInWithGoogle, signInWithApple } = useAuth();
   const { setActive } = useClerk();
   const { signIn: clerkSignIn } = useSignIn();
@@ -189,21 +191,29 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         from?: { pathname?: string; search?: string; hash?: string };
       } | null
     )?.from;
-    rememberPostAuthRedirect(from ?? null);
-  }, [location.state]);
+
+    // Honor an explicit ?redirect= query param as a fallback. This survives
+    // Google/Apple OAuth handoffs (which drop in-memory location.state) and
+    // lets developer-facing CTAs send sign-ups straight to /dashboard/developer.
+    const redirectParam = new URLSearchParams(location.search).get("redirect");
+
+    rememberPostAuthRedirect(
+      from ?? (redirectParam ? { pathname: redirectParam } : null),
+    );
+  }, [location.state, location.search]);
 
   const parseError = (err: unknown): string => {
-    if (!err) return "Something went wrong";
+    if (!err) return t("common.error");
     if (typeof err === "string") return err;
     const e = err as Record<string, unknown>;
     if (typeof e.message === "string") return e.message;
     if (Array.isArray(e.errors) && e.errors.length > 0) {
       const first = e.errors[0] as { message?: string; longMessage?: string };
-      return first.message || first.longMessage || "Authentication failed";
+      return first.message || first.longMessage || t("auth.errors.authenticationFailed");
     }
-    if (e.status === 422) return "Invalid email or password";
-    if (e.status === 429) return "Too many attempts. Please try again later.";
-    return "Failed to authenticate. Please try again.";
+    if (e.status === 422) return t("auth.errors.invalidCredentials");
+    if (e.status === 429) return t("auth.errors.tooManyAttempts");
+    return t("auth.errors.failed");
   };
 
   const resetMode = (nextMode: AuthMode) => {
@@ -236,11 +246,11 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   };
 
   const handleEmailSignIn = async () => {
-    if (!emailAddress.trim()) throw new Error("Please enter your email");
-    if (!password.trim()) throw new Error("Please enter your password");
+    if (!emailAddress.trim()) throw new Error(t("auth.errors.enterEmail"));
+    if (!password.trim()) throw new Error(t("auth.errors.enterPassword"));
 
     if (!clerkSignIn)
-      throw new Error("Clerk is still loading. Please try again.");
+      throw new Error(t("auth.errors.clerkLoading"));
     const result = await clerkSignIn.create({
       strategy: "password",
       identifier: emailAddress.trim(),
@@ -332,12 +342,12 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
     setError("");
 
     if (!code.trim()) {
-      setError("Please enter your verification code");
+      setError(t("auth.errors.enterCode"));
       return;
     }
 
     if (!clerkSignIn) {
-      setError("Clerk is still loading. Please try again.");
+      setError(t("auth.errors.clerkLoading"));
       return;
     }
 
@@ -370,12 +380,12 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
     setError("");
 
     if (code.length < 6) {
-      setError("Please enter the 6-digit code");
+      setError(t("auth.errors.enter6DigitCode"));
       return;
     }
 
     if (!clerkSignIn) {
-      setError("Clerk is still loading. Please try again.");
+      setError(t("auth.errors.clerkLoading"));
       return;
     }
 
@@ -436,16 +446,16 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
 
   const handleEmailSignUp = async () => {
     const trimmedName = fullName.trim();
-    if (!trimmedName) throw new Error("Please enter your name");
-    if (!emailAddress.trim()) throw new Error("Please enter your email");
+    if (!trimmedName) throw new Error(t("auth.errors.enterName"));
+    if (!emailAddress.trim()) throw new Error(t("auth.errors.enterEmail"));
     if (password.length < 8)
-      throw new Error("Password must be at least 8 characters");
-    if (password !== confirmPassword) throw new Error("Passwords do not match");
+      throw new Error(t("auth.errors.passwordTooShort"));
+    if (password !== confirmPassword) throw new Error(t("auth.errors.passwordsDontMatch"));
     if (!acceptTerms)
-      throw new Error("Please accept the terms and privacy policy");
+      throw new Error(t("auth.errors.acceptTerms"));
 
     if (!clerkSignUp)
-      throw new Error("Clerk is still loading. Please try again.");
+      throw new Error(t("auth.errors.clerkLoading"));
 
     const result = await clerkSignUp.create({
       emailAddress: emailAddress.trim(),
@@ -486,9 +496,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
       }
       if (mode === "sign-up" && isExistingAccountError(err)) {
         setMode("sign-in");
-        setError(
-          "That account already exists. Sign in with the same email to finish verification or resend the code.",
-        );
+        setError(t("auth.errors.accountExists"));
         return;
       }
       setError(parseError(err));
@@ -502,7 +510,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
     setError("");
 
     if (!emailAddress.trim()) {
-      setError("Please enter your email first");
+      setError(t("auth.errors.enterEmailFirst"));
       emailRef.current?.focus();
       return;
     }
@@ -510,7 +518,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
     setLoading(true);
     try {
       if (!clerkSignIn)
-        throw new Error("Clerk is still loading. Please try again.");
+        throw new Error(t("auth.errors.clerkLoading"));
       await clerkSignIn.create({
         strategy: "reset_password_email_code",
         identifier: emailAddress.trim(),
@@ -530,19 +538,19 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
     setError("");
 
     if (code.length < 6) {
-      setError("Please enter the 6-digit reset code");
+      setError(t("auth.errors.enterResetCode"));
       return;
     }
 
     if (resetPassword.length < 8) {
-      setError("Password must be at least 8 characters");
+      setError(t("auth.errors.passwordTooShort"));
       return;
     }
 
     setLoading(true);
     try {
       if (!clerkSignIn)
-        throw new Error("Clerk is still loading. Please try again.");
+        throw new Error(t("auth.errors.clerkLoading"));
       const attempt = await clerkSignIn.attemptFirstFactor({
         strategy: "reset_password_email_code",
         code,
@@ -556,7 +564,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         setSignInFailureCount(0);
         onAuthSuccess({ email: emailAddress });
       } else {
-        setError("Password reset is not complete yet.");
+        setError(t("auth.errors.resetIncomplete"));
       }
     } catch (err: unknown) {
       setError(parseError(err));
@@ -570,14 +578,14 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
     setError("");
 
     if (code.length < 6) {
-      setError("Please enter the 6-digit code");
+      setError(t("auth.errors.enter6DigitCode"));
       return;
     }
 
     setLoading(true);
     try {
       if (!clerkSignUp)
-        throw new Error("Clerk is still loading. Please try again.");
+        throw new Error(t("auth.errors.clerkLoading"));
       const attempt = await clerkSignUp.attemptEmailAddressVerification({
         code,
       });
@@ -591,7 +599,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
           name: fullName,
         });
       } else {
-        setError("Verification is not complete yet.");
+        setError(t("auth.errors.verifyIncomplete"));
       }
     } catch (err: unknown) {
       setError(parseError(err));
@@ -606,7 +614,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
     try {
       if (mode === "verify-sign-in") {
         if (!clerkSignIn)
-          throw new Error("Clerk is still loading. Please try again.");
+          throw new Error(t("auth.errors.clerkLoading"));
         const emailCodeFactor = signInEmailCodeFactorId
           ? { emailAddressId: signInEmailCodeFactorId }
           : getEmailCodeFactor(clerkSignIn.supportedFirstFactors);
@@ -623,7 +631,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
 
       if (mode === "verify-second-factor") {
         if (!clerkSignIn)
-          throw new Error("Clerk is still loading. Please try again.");
+          throw new Error(t("auth.errors.clerkLoading"));
         if (secondFactorStrategy === "email_code") {
           await clerkSignIn.prepareSecondFactor({
             strategy: "email_code",
@@ -644,7 +652,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
       }
 
       if (!clerkSignUp)
-        throw new Error("Clerk is still loading. Please try again.");
+        throw new Error(t("auth.errors.clerkLoading"));
       await clerkSignUp.prepareEmailAddressVerification({
         strategy: "email_code",
       });
@@ -662,30 +670,30 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
 
   const title =
     mode === "sign-in"
-      ? "Welcome back"
+      ? t("auth.titles.welcomeBack")
       : mode === "verify" || mode === "verify-sign-in"
-        ? "Check your email"
+        ? t("auth.titles.checkEmail")
         : mode === "verify-second-factor"
-          ? "One more step"
+          ? t("auth.titles.oneMoreStep")
           : mode === "reset-password"
-            ? "Reset password"
-            : "Create Account";
+            ? t("auth.titles.resetPassword")
+            : t("auth.titles.createAccount");
   const subtitle =
     mode === "verify" || mode === "verify-sign-in"
-      ? `We sent a verification code to ${emailAddress}`
+      ? t("auth.subtitles.verifyEmail", { email: emailAddress })
       : mode === "verify-second-factor"
         ? secondFactorStrategy === "totp"
-          ? "Enter the code from your authenticator app."
+          ? t("auth.subtitles.secondFactorTotp")
           : secondFactorStrategy === "backup_code"
-            ? "Enter one of your backup codes."
-            : "Enter the second verification code sent by Clerk."
+            ? t("auth.subtitles.secondFactorBackup")
+            : t("auth.subtitles.secondFactorCode")
         : mode === "reset-password"
           ? resetCodeSent
-            ? `Enter the reset code sent to ${emailAddress}`
-            : "Enter your email and we will send you a reset code."
+            ? t("auth.subtitles.resetSent", { email: emailAddress })
+            : t("auth.subtitles.resetPrompt")
           : mode === "sign-in"
-            ? "Sign in to continue with Edutu"
-            : "Your information is secure and will not be shared.";
+            ? t("auth.subtitles.signIn")
+            : t("auth.subtitles.signUp");
 
   return (
     <PublicEditorialShell mainClassName="max-w-md py-10 sm:py-14">
@@ -815,7 +823,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                     }
                     className="space-y-5"
                   >
-                    <FieldShell label="Verification code">
+                    <FieldShell label={t("auth.fields.verificationCode")}>
                       <input
                         type="text"
                         inputMode={
@@ -840,8 +848,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                         className={`${baseInputClass} text-center text-lg`}
                         placeholder={
                           secondFactorStrategy === "backup_code"
-                            ? "BACKUPCODE"
-                            : "000000"
+                            ? t("auth.placeholders.backupCode")
+                            : t("auth.placeholders.code")
                         }
                         autoFocus
                       />

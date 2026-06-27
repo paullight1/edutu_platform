@@ -22,6 +22,10 @@ import {
   isInvalidOrExpiredTokenError,
 } from "../lib/clerkToken";
 import PullToRefresh from "./ui/PullToRefresh";
+import Button from "./ui/Button";
+import Input from "./ui/Input";
+import Label from "./ui/Label";
+import Textarea from "./ui/Textarea";
 import {
   fetchBackendProfile,
   updateBackendProfile,
@@ -92,6 +96,14 @@ function calculateAge(dateOfBirth: string) {
 
   return age >= 0 ? age : null;
 }
+
+const FIELD_LABEL_CLASS_NAME = "font-black text-slate-950 dark:text-white";
+const FIELD_INPUT_CLASS_NAME =
+  "h-11 rounded-xl border-slate-200 bg-white px-3 pr-10 text-slate-700 font-semibold dark:border-white/10 dark:bg-gray-950 dark:text-white";
+const DATE_INPUT_CLASS_NAME =
+  "h-11 rounded-xl border-slate-200 bg-white px-3 text-slate-700 font-semibold dark:border-white/10 dark:bg-gray-950 dark:text-white";
+const SKILLS_TEXTAREA_CLASS_NAME =
+  "resize-none rounded-xl border-slate-200 px-3 py-3 pr-10 text-slate-700 font-semibold leading-6 dark:border-white/10 dark:bg-gray-950 dark:text-white";
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -354,13 +366,19 @@ export default function ProfilePage() {
                 </span>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="block">
-                  <span className="text-sm font-black">Full name</span>
+                <div className="block">
+                  <Label
+                    htmlFor="profile-full-name"
+                    className={FIELD_LABEL_CLASS_NAME}
+                  >
+                    Full name
+                  </Label>
                   <div className="relative mt-2">
-                    <input
+                    <Input
+                      id="profile-full-name"
                       value={fullName}
                       onChange={(event) => setFullName(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-gray-950 dark:text-white"
+                      className={FIELD_INPUT_CLASS_NAME}
                       placeholder="Your name"
                     />
                     <PencilLine
@@ -368,16 +386,19 @@ export default function ProfilePage() {
                       className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                     />
                   </div>
-                </label>
+                </div>
 
-                <label className="block">
-                  <span className="text-sm font-black">Email</span>
+                <div className="block">
+                  <Label htmlFor="profile-email" className={FIELD_LABEL_CLASS_NAME}>
+                    Email
+                  </Label>
                   <div className="relative mt-2">
-                    <input
+                    <Input
+                      id="profile-email"
                       type="email"
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-gray-950 dark:text-white"
+                      className={FIELD_INPUT_CLASS_NAME}
                       placeholder="you@example.com"
                     />
                     <PencilLine
@@ -385,15 +406,18 @@ export default function ProfilePage() {
                       className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                     />
                   </div>
-                </label>
+                </div>
 
-                <label className="block">
-                  <span className="text-sm font-black">Country</span>
+                <div className="block">
+                  <Label htmlFor="profile-country" className={FIELD_LABEL_CLASS_NAME}>
+                    Country
+                  </Label>
                   <div className="relative mt-2">
-                    <input
+                    <Input
+                      id="profile-country"
                       value={country}
                       onChange={(event) => setCountry(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-gray-950 dark:text-white"
+                      className={FIELD_INPUT_CLASS_NAME}
                       placeholder="Country or primary market"
                     />
                     <PencilLine
@@ -401,15 +425,18 @@ export default function ProfilePage() {
                       className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                     />
                   </div>
-                </label>
+                </div>
 
-                <label className="block">
-                  <span className="text-sm font-black">School</span>
+                <div className="block">
+                  <Label htmlFor="profile-school" className={FIELD_LABEL_CLASS_NAME}>
+                    School
+                  </Label>
                   <div className="relative mt-2">
-                    <input
+                    <Input
+                      id="profile-school"
                       value={school}
                       onChange={(event) => setSchool(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-gray-950 dark:text-white"
+                      className={FIELD_INPUT_CLASS_NAME}
                       placeholder="University or school"
                     />
                     <PencilLine
@@ -417,15 +444,21 @@ export default function ProfilePage() {
                       className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                     />
                   </div>
-                </label>
+                </div>
 
-                <label className="block">
-                  <span className="text-sm font-black">Course of study</span>
+                <div className="block">
+                  <Label
+                    htmlFor="profile-course-of-study"
+                    className={FIELD_LABEL_CLASS_NAME}
+                  >
+                    Course of study
+                  </Label>
                   <div className="relative mt-2">
-                    <input
+                    <Input
+                      id="profile-course-of-study"
                       value={courseOfStudy}
                       onChange={(event) => setCourseOfStudy(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-gray-950 dark:text-white"
+                      className={FIELD_INPUT_CLASS_NAME}
                       placeholder="Computer science, medicine, law"
                     />
                     <PencilLine
@@ -433,15 +466,18 @@ export default function ProfilePage() {
                       className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                     />
                   </div>
-                </label>
+                </div>
 
-                <label className="block">
-                  <span className="text-sm font-black">Degree level</span>
+                <div className="block">
+                  <Label htmlFor="profile-degree" className={FIELD_LABEL_CLASS_NAME}>
+                    Degree level
+                  </Label>
                   <div className="relative mt-2">
-                    <input
+                    <Input
+                      id="profile-degree"
                       value={degree}
                       onChange={(event) => setDegree(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-gray-950 dark:text-white"
+                      className={FIELD_INPUT_CLASS_NAME}
                       placeholder="Undergraduate, masters, PhD"
                     />
                     <PencilLine
@@ -449,16 +485,19 @@ export default function ProfilePage() {
                       className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                     />
                   </div>
-                </label>
+                </div>
 
-                <label className="block">
-                  <span className="text-sm font-black">CGPA</span>
+                <div className="block">
+                  <Label htmlFor="profile-cgpa" className={FIELD_LABEL_CLASS_NAME}>
+                    CGPA
+                  </Label>
                   <div className="relative mt-2">
-                    <input
+                    <Input
+                      id="profile-cgpa"
                       inputMode="decimal"
                       value={cgpa}
                       onChange={(event) => setCgpa(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-gray-950 dark:text-white"
+                      className={FIELD_INPUT_CLASS_NAME}
                       placeholder="4.5"
                     />
                     <PencilLine
@@ -466,16 +505,22 @@ export default function ProfilePage() {
                       className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                     />
                   </div>
-                </label>
+                </div>
 
-                <label className="block">
-                  <span className="text-sm font-black">Graduation year</span>
+                <div className="block">
+                  <Label
+                    htmlFor="profile-grad-year"
+                    className={FIELD_LABEL_CLASS_NAME}
+                  >
+                    Graduation year
+                  </Label>
                   <div className="relative mt-2">
-                    <input
+                    <Input
+                      id="profile-grad-year"
                       inputMode="numeric"
                       value={gradYear}
                       onChange={(event) => setGradYear(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-gray-950 dark:text-white"
+                      className={FIELD_INPUT_CLASS_NAME}
                       placeholder="2027"
                     />
                     <PencilLine
@@ -483,16 +528,22 @@ export default function ProfilePage() {
                       className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                     />
                   </div>
-                </label>
+                </div>
 
-                <label className="block">
-                  <span className="text-sm font-black">Date of birth</span>
+                <div className="block">
+                  <Label
+                    htmlFor="profile-date-of-birth"
+                    className={FIELD_LABEL_CLASS_NAME}
+                  >
+                    Date of birth
+                  </Label>
                   <div className="relative mt-2">
-                    <input
+                    <Input
+                      id="profile-date-of-birth"
                       type="date"
                       value={dateOfBirth}
                       onChange={(event) => setDateOfBirth(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-gray-950 dark:text-white"
+                      className={DATE_INPUT_CLASS_NAME}
                     />
                   </div>
                   {calculatedAge !== null ? (
@@ -500,19 +551,23 @@ export default function ProfilePage() {
                       Age {calculatedAge}
                     </span>
                   ) : null}
-                </label>
+                </div>
 
-                <label className="block sm:col-span-2">
-                  <span className="text-sm font-black">
+                <div className="block sm:col-span-2">
+                  <Label
+                    htmlFor="profile-interested-countries"
+                    className={FIELD_LABEL_CLASS_NAME}
+                  >
                     Interested countries
-                  </span>
+                  </Label>
                   <div className="relative mt-2">
-                    <input
+                    <Input
+                      id="profile-interested-countries"
                       value={interestedCountriesText}
                       onChange={(event) =>
                         setInterestedCountriesText(event.target.value)
                       }
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-gray-950 dark:text-white"
+                      className={FIELD_INPUT_CLASS_NAME}
                       placeholder="Canada, Germany, United Kingdom"
                     />
                     <PencilLine
@@ -520,17 +575,21 @@ export default function ProfilePage() {
                       className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                     />
                   </div>
-                </label>
+                </div>
 
-                <label className="block sm:col-span-2">
-                  <span className="text-sm font-black">
+                <div className="block sm:col-span-2">
+                  <Label
+                    htmlFor="profile-interests"
+                    className={FIELD_LABEL_CLASS_NAME}
+                  >
                     Opportunity interest tags
-                  </span>
+                  </Label>
                   <div className="relative mt-2">
-                    <input
+                    <Input
+                      id="profile-interests"
                       value={interestsText}
                       onChange={(event) => setInterestsText(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-gray-950 dark:text-white"
+                      className={FIELD_INPUT_CLASS_NAME}
                       placeholder="Scholarships, fellowships, internships, research"
                     />
                     <PencilLine
@@ -538,16 +597,19 @@ export default function ProfilePage() {
                       className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                     />
                   </div>
-                </label>
+                </div>
 
-                <label className="block sm:col-span-2">
-                  <span className="text-sm font-black">Skills</span>
+                <div className="block sm:col-span-2">
+                  <Label htmlFor="profile-skills" className={FIELD_LABEL_CLASS_NAME}>
+                    Skills
+                  </Label>
                   <div className="relative mt-2">
-                    <textarea
+                    <Textarea
+                      id="profile-skills"
                       value={skillsText}
                       onChange={(event) => setSkillsText(event.target.value)}
                       rows={5}
-                      className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-3 pr-10 text-sm font-semibold leading-6 text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-gray-950 dark:text-white"
+                      className={SKILLS_TEXTAREA_CLASS_NAME}
                       placeholder="Scholarship essays, data analysis, community leadership"
                     />
                     <PencilLine
@@ -555,14 +617,14 @@ export default function ProfilePage() {
                       className="pointer-events-none absolute right-3 top-4 text-slate-400"
                     />
                   </div>
-                </label>
+                </div>
               </div>
 
               <div className="mt-5 flex flex-wrap items-center gap-3">
-                <button
+                <Button
                   type="submit"
+                  variant="primary"
                   disabled={saving || loading}
-                  className="inline-flex h-11 items-center gap-2 rounded-xl bg-brand-500 px-5 text-sm font-black text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {saving ? (
                     <Loader2 size={17} className="animate-spin" />
@@ -570,15 +632,15 @@ export default function ProfilePage() {
                     <Save size={17} />
                   )}
                   Save profile
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="secondary"
                   onClick={() => navigate("/opportunities")}
-                  className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10"
                 >
                   <Briefcase size={17} />
                   View matches
-                </button>
+                </Button>
               </div>
             </form>
 

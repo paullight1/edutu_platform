@@ -156,21 +156,28 @@ export async function getApplications(userId: string, token?: string | null): Pr
   return extractApiRows(response).map((row) => mapApiApplication(row, userId));
 }
 
+export interface AddApplicationOptions {
+  notes?: string;
+  status?: ApplicationStatus;
+}
+
 export async function addApplication(
   userId: string,
   opportunity: Pick<Opportunity, 'id' | 'title' | 'category'>,
-  notes?: string,
+  options: AddApplicationOptions = {},
   token?: string | null
 ): Promise<ApplicationRecord | null> {
   if (!hasToken(token)) {
     return null;
   }
 
+  const intendedStatus = options.status ?? 'draft';
+  const notes = options.notes;
   const response = await productApiRequest<ApiApplicationRecord | null>('/me/applications', token, {
     method: 'POST',
     body: JSON.stringify({
       opportunityId: opportunity.id,
-      status: 'submitted',
+      status: toProductStatus(intendedStatus),
       notes: notes || null,
       metadata: {
         opportunity_title: opportunity.title,
@@ -178,7 +185,10 @@ export async function addApplication(
       },
     })
   });
-  return response ? mapApiApplication(response, userId, opportunity) : mapApiApplication({}, userId, opportunity);
+  const record = response
+    ? mapApiApplication(response, userId, opportunity)
+    : mapApiApplication({}, userId, opportunity);
+  return { ...record, status: intendedStatus };
 }
 
 export async function updateApplicationStatus(

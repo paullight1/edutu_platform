@@ -177,7 +177,7 @@ export const PWAInstallBanner: React.FC<PWABannerProps> = ({ className = '' }) =
     if (isUpdateAvailable) {
         return (
             <div
-                className={`fixed bottom-20 left-4 right-4 sm:left-auto sm:right-4 sm:w-80 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-4 shadow-lg z-50 ${className}`}
+                className={`fixed bottom-20 left-4 right-4 sm:left-auto sm:right-4 sm:w-80 bg-gradient-to-r from-brand-600 to-brand-800 rounded-xl p-4 shadow-lg z-50 ${className}`}
             >
                 <div className="flex items-start gap-3">
                     <RefreshCw className="w-6 h-6 text-white mt-0.5" />
@@ -216,7 +216,7 @@ export const PWAInstallBanner: React.FC<PWABannerProps> = ({ className = '' }) =
     if (isInstallable) {
         return (
             <div
-                className={`fixed bottom-20 left-4 right-4 sm:left-auto sm:right-4 sm:w-80 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-4 shadow-lg z-50 ${className}`}
+                className={`fixed bottom-20 left-4 right-4 sm:left-auto sm:right-4 sm:w-80 bg-gradient-to-r from-brand-600 to-brand-800 rounded-xl p-4 shadow-lg z-50 ${className}`}
             >
                 <div className="flex items-start gap-3">
                     <Download className="w-6 h-6 text-white mt-0.5" />

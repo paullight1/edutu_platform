@@ -11,6 +11,7 @@ import {
   buildPackageTemplateZip,
   createDataUrl
 } from './packageDownloads';
+import logger from '../lib/logger';
 
 // Define new types for the package functionality
 export interface PackageStep {
@@ -316,7 +317,7 @@ export async function updatePackageTaskProgress(
   done: boolean
 ): Promise<void> {
   // In a real implementation, this would make an API call to update the task status
-  console.log(`Updating task ${taskId} in package ${packageId} to ${done ? 'done' : 'not done'}`);
+  logger.log(`Updating task ${taskId} in package ${packageId} to ${done ? 'done' : 'not done'}`);
   
   // This is where we would typically send a PATCH request to an endpoint like:
   // PATCH /api/packages/:id/progress with { taskId, done }
@@ -339,7 +340,7 @@ export async function askPackageCreator(
   message: string
 ): Promise<void> {
   // In a real implementation, this would make an API call to send a message to the creator
-  console.log(`Sending message to creator of package ${packageId}: ${message}`);
+  logger.log(`Sending message to creator of package ${packageId}: ${message}`);
   
   // This is where we would typically make a POST request to an endpoint like:
   // POST /api/packages/:id/questions with { userId, message }
@@ -353,7 +354,7 @@ export async function addPackageReview(
   comment: string
 ): Promise<void> {
   // In a real implementation, this would make an API call to add a review
-  console.log(`Adding review for package ${packageId}: ${rating} stars - ${comment}`);
+  logger.log(`Adding review for package ${packageId}: ${rating} stars - ${comment}`);
 
   // This is where we would typically make a POST request to an endpoint like:
   // POST /api/packages/:id/reviews with { userId, rating, comment }

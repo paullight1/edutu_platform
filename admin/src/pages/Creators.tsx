@@ -678,7 +678,7 @@ const CreatorManagement = () => {
       label: "Submitted This Week",
       value: stats.submittedThisWeek,
       icon: BarChart3,
-      gradient: "linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)",
+      gradient: "linear-gradient(135deg, #146ef5 0%, #1d4ed8 100%)",
     },
   ];
 
@@ -1624,7 +1624,7 @@ const CreatorManagement = () => {
 
               <div className="card" style={{ padding: "18px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
-                  <Sparkles size={16} style={{ color: "#8b5cf6" }} />
+                  <Sparkles size={16} style={{ color: "#146ef5" }} />
                   <h3 style={{ margin: 0 }}>Creator Metadata</h3>
                 </div>
                 {Object.keys(selectedApplication.profileMetadata).length > 0 ? (

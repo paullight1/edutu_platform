@@ -119,7 +119,7 @@ export interface DesignTokens {
 const baseTypography: TypographyScale = {
   fontFamilies: {
     display: ['"Outfit"', '"Inter"', 'system-ui', '-apple-system', 'sans-serif'],
-    body: ['"Inter"', 'system-ui', '-apple-system', 'sans-serif'],
+    body: ['"Outfit"', 'system-ui', '-apple-system', 'sans-serif'],
     mono: ['"JetBrains Mono"', '"Fira Code"', 'monospace'],
   },
   sizes: {
@@ -203,7 +203,7 @@ export const lightTokens: DesignTokens = {
       50: '#F8FAFC',
       100: '#F1F5F9',
       200: '#E2E8F0',
-      300: '#CBD5F5',
+      300: '#CBD5E1',
       400: '#94A3B8',
       500: '#64748B',
       600: '#475569',
@@ -271,7 +271,7 @@ export const lightTokens: DesignTokens = {
       overlay: 'rgba(15, 23, 42, 0.48)',
       brandTint: '#EEF2FF',
       borderSubtle: '#E2E8F0',
-      borderBold: '#CBD5F5',
+      borderBold: '#CBD5E1',
     },
     text: {
       primary: '#0F172A',
@@ -282,7 +282,7 @@ export const lightTokens: DesignTokens = {
     },
     border: {
       subtle: '#E2E8F0',
-      default: '#CBD5F5',
+      default: '#CBD5E1',
       strong: '#94A3B8',
       focus: 'rgba(99, 102, 241, 0.45)',
     },

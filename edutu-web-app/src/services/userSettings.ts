@@ -4,6 +4,7 @@
  */
 
 import { productApiRequest } from "./productApi";
+import logger from "../lib/logger";
 
 // ================================
 // Types
@@ -72,7 +73,7 @@ export async function getUserSettings(
       updatedAt: data.updatedAt || new Date().toISOString(),
     };
   } catch (error) {
-    console.error("Failed to fetch user settings:", error);
+    logger.error("Failed to fetch user settings:", error);
     return null;
   }
 }
@@ -94,7 +95,7 @@ export async function savePrivacySettings(
     return { success: true };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("Failed to save privacy settings:", error);
+    logger.error("Failed to save privacy settings:", error);
     return { success: false, error: message };
   }
 }
@@ -116,7 +117,7 @@ export async function saveSecuritySettings(
     return { success: true };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("Failed to save security settings:", error);
+    logger.error("Failed to save security settings:", error);
     return { success: false, error: message };
   }
 }

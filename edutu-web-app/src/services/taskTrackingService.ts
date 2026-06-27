@@ -1,4 +1,5 @@
 // src/services/taskTrackingService.ts
+import logger from '../lib/logger';
 
 export interface CompletedTask {
   id: string;
@@ -21,7 +22,7 @@ export const taskTrackingService = {
       const tasks = localStorage.getItem(TASK_STORAGE_KEY);
       return tasks ? JSON.parse(tasks) : [];
     } catch (error) {
-      console.error('Error loading completed tasks:', error);
+      logger.error('Error loading completed tasks:', error);
       return [];
     }
   },
@@ -35,7 +36,7 @@ export const taskTrackingService = {
     try {
       localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(tasks));
     } catch (error) {
-      console.error('Error saving completed tasks:', error);
+      logger.error('Error saving completed tasks:', error);
     }
   },
 

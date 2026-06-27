@@ -4,10 +4,14 @@ import {
   InternalServerErrorException,
   Logger,
 } from "@nestjs/common";
+import { eq, sql } from "drizzle-orm";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createHmac, timingSafeEqual } from "crypto";
+import { db } from "../db";
+import { profiles, transactions } from "../db/schema";
 import type {
   BillingInterval,
+  BillingTransactionSummary,
   BillingStatus,
   CreateCheckoutDto,
 } from "./dto/billing.dto";
@@ -37,6 +41,18 @@ const PLAN_CONFIG: Record<
   },
 };
 
+type BillingTransactionRow = {
+  id: string;
+  provider: string | null;
+  provider_reference: string | null;
+  type: string | null;
+  amount: number | string | null;
+  currency: string | null;
+  status: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: Date | string | null;
+};
+
 @Injectable()
 export class BillingService {
   private readonly logger = new Logger(BillingService.name);
@@ -49,13 +65,15 @@ export class BillingService {
 
     const supabase = this.getSupabase();
     let profile: any = null;
+    let creditProfile: { creditsBalance?: number | null } | null = null;
     let activeEntitlements: any[] = [];
     let activeSubscription: any = null;
+    let recentTransactions: BillingTransactionSummary[] = [];
 
     if (supabase) {
       const profileResult = await supabase
         .from("profiles")
-        .select("is_pro, pro_since, pro_expires_at, credits")
+        .select("is_pro, pro_since, pro_expires_at, credits, credits_balance")
         .eq("user_id", userId)
         .maybeSingle();
 
@@ -91,6 +109,37 @@ export class BillingService {
       if (!subscriptionResult.error) {
         activeSubscription = subscriptionResult.data;
       }
+
+      const transactionResult = await supabase
+        .from("billing_transactions")
+        .select(
+          "id, provider, provider_reference, type, amount, currency, status, metadata, created_at",
+        )
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (!transactionResult.error) {
+        recentTransactions = this.mapBillingTransactionRows(
+          (transactionResult.data ?? []) as BillingTransactionRow[],
+        );
+      }
+    }
+
+    try {
+      const [row] = await db
+        .select({ creditsBalance: profiles.creditsBalance })
+        .from(profiles)
+        .where(eq(profiles.userId, userId))
+        .limit(1)
+        .execute();
+      creditProfile = row ?? null;
+    } catch (error) {
+      this.logger.warn(
+        `Unable to load API credits for ${userId}: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
     }
 
     const proExpiresAt =
@@ -116,11 +165,17 @@ export class BillingService {
       isPro,
       proSince: profile?.pro_since ?? null,
       proExpiresAt,
-      credits: Number(profile?.credits ?? 0),
+      credits: Number(
+        creditProfile?.creditsBalance ??
+          profile?.credits_balance ??
+          profile?.credits ??
+          0,
+      ),
       subscriptionStatus:
         activeSubscription?.status ?? (isPro ? "active" : null),
       entitlements: Array.from(entitlements),
       featureAccess,
+      transactions: recentTransactions,
     };
   }
 
@@ -132,6 +187,7 @@ export class BillingService {
     if (!userId) throw new BadRequestException("Missing user id");
     if (!email) throw new BadRequestException("A billing email is required");
 
+    const isApiCredits = dto.feature === "api_credits";
     const plan: BillingInterval = dto.plan === "yearly" ? "yearly" : "monthly";
     const config = PLAN_CONFIG[plan];
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
@@ -154,9 +210,16 @@ export class BillingService {
     callbackUrl.searchParams.set("reference", reference);
     if (dto.returnTo) callbackUrl.searchParams.set("returnTo", dto.returnTo);
 
+    const apiCreditCount = isApiCredits
+      ? Math.max(Number(dto.credits ?? 1000) || 1000, 1)
+      : null;
+    const amount = isApiCredits
+      ? (apiCreditCount ?? 0) * 100
+      : config.amount * 100;
+
     const body: Record<string, unknown> = {
       email,
-      amount: config.amount * 100,
+      amount,
       currency: "NGN",
       reference,
       callback_url: callbackUrl.toString(),
@@ -164,13 +227,16 @@ export class BillingService {
         user_id: userId,
         plan,
         feature: dto.feature ?? "pro",
+        credits: apiCreditCount,
         return_to: dto.returnTo ?? null,
       },
     };
 
-    const planCode = process.env[config.envPlanCode];
-    if (planCode) {
-      body.plan = planCode;
+    if (!isApiCredits) {
+      const planCode = process.env[config.envPlanCode];
+      if (planCode) {
+        body.plan = planCode;
+      }
     }
 
     const response = await fetch(
@@ -197,8 +263,8 @@ export class BillingService {
       user_id: userId,
       provider: "paystack",
       provider_reference: reference,
-      type: "subscription",
-      amount: config.amount,
+      type: isApiCredits ? "credit_topup" : "subscription",
+      amount: isApiCredits ? (apiCreditCount ?? 0) : config.amount,
       currency: "NGN",
       status: "pending",
       metadata: body.metadata,
@@ -238,9 +304,26 @@ export class BillingService {
     const userId = data.metadata?.user_id;
     const plan = data.metadata?.plan === "yearly" ? "yearly" : "monthly";
     const reference = data.reference;
+    const feature = data.metadata?.feature ?? "pro";
 
     if (!userId || !reference) {
       throw new BadRequestException("Webhook missing metadata");
+    }
+
+    if (feature === "api_credits") {
+      const credits = Math.max(
+        Number(
+          data.metadata?.credits ?? Math.round(Number(data.amount ?? 0) / 100),
+        ) || 0,
+        1,
+      );
+      await this.recordApiCreditsPurchase({
+        userId,
+        credits,
+        reference,
+        payload: data,
+      });
+      return { received: true };
     }
 
     const periodEnd = new Date();
@@ -331,6 +414,96 @@ export class BillingService {
         `Unable to record billing transaction: ${error.message}`,
       );
     }
+  }
+
+  private async recordApiCreditsPurchase(input: {
+    userId: string;
+    credits: number;
+    reference: string;
+    payload: any;
+  }) {
+    const supabase = this.getSupabase();
+    if (!supabase) {
+      throw new InternalServerErrorException("Supabase is not configured");
+    }
+
+    await supabase.from("billing_transactions").upsert(
+      {
+        user_id: input.userId,
+        provider: "paystack",
+        provider_reference: input.reference,
+        type: "credit_topup",
+        amount: input.credits,
+        currency: input.payload.currency ?? "NGN",
+        status: "completed",
+        metadata: input.payload,
+      },
+      { onConflict: "provider,provider_reference" },
+    );
+
+    await db
+      .update(profiles)
+      .set({
+        creditsBalance: sql`${profiles.creditsBalance} + ${input.credits}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(profiles.userId, input.userId))
+      .execute();
+
+    await db
+      .insert(transactions)
+      .values({
+        userId: input.userId,
+        amount: input.credits,
+        type: "credit_topup",
+        status: "completed",
+        referenceId: input.reference,
+        description: `API credit top-up: +${input.credits}`,
+      })
+      .execute();
+  }
+
+  private mapBillingTransactionRows(
+    rows: BillingTransactionRow[],
+  ): BillingTransactionSummary[] {
+    return rows.map((row) => {
+      const amount = Number(row.amount ?? 0);
+      return {
+        id: row.id,
+        provider: row.provider ?? "paystack",
+        providerReference: row.provider_reference ?? null,
+        type: row.type ?? "subscription",
+        amount: Number.isFinite(amount) ? amount : 0,
+        currency: row.currency ?? "NGN",
+        status: row.status ?? "pending",
+        description: this.describeBillingTransaction(row),
+        createdAt: this.toIso(row.created_at),
+      };
+    });
+  }
+
+  private describeBillingTransaction(row: BillingTransactionRow) {
+    const type = row.type ?? "subscription";
+    if (type === "credit_topup") {
+      const credits = Number(row.amount ?? 0);
+      return Number.isFinite(credits) && credits > 0
+        ? `API credit top-up for ${credits.toLocaleString()} credits`
+        : "API credit top-up";
+    }
+
+    const metadataFeature = row.metadata?.feature;
+    if (metadataFeature === "api_credits") {
+      return "API credit checkout";
+    }
+
+    return "Subscription payment";
+  }
+
+  private toIso(value: Date | string | null | undefined) {
+    if (!value) return null;
+    if (value instanceof Date) return value.toISOString();
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
   }
 
   private verifyPaystackSignature(

@@ -6,6 +6,16 @@ export interface ApiConsumerContext {
   plan: string;
   scopes: string[];
   monthlyQuota: number | null;
+  ownerUserId?: string | null;
+  contactEmail?: string | null;
+  keyPrefix?: string | null;
+  environment?: string | null;
+  status?: string | null;
+  rateLimitPerMinute?: number | null;
+  lastUsedAt?: string | null;
+  revokedAt?: string | null;
+  expiresAt?: string | null;
+  creditBalance?: number | null;
   requestId?: string;
   quota?: {
     limit: number | null;

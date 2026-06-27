@@ -1,5 +1,5 @@
-import { HttpException, HttpStatus } from '@nestjs/common';
-import { ErrorCode } from './error-codes';
+import { HttpException, HttpStatus } from "@nestjs/common";
+import { ErrorCode } from "./error-codes";
 
 export interface AppExceptionResponse {
   errorCode: ErrorCode;
@@ -32,35 +32,40 @@ export class AppException extends HttpException {
 
   static notFound(
     errorCode: ErrorCode,
-    message = 'Resource not found',
+    message = "Resource not found",
   ): AppException {
     return new AppException(errorCode, message, HttpStatus.NOT_FOUND);
   }
 
   static unauthorized(
     errorCode: ErrorCode = ErrorCode.UNAUTHORIZED,
-    message = 'Authentication required',
+    message = "Authentication required",
   ): AppException {
     return new AppException(errorCode, message, HttpStatus.UNAUTHORIZED);
   }
 
   static forbidden(
     errorCode: ErrorCode = ErrorCode.FORBIDDEN,
-    message = 'Access denied',
+    message = "Access denied",
   ): AppException {
     return new AppException(errorCode, message, HttpStatus.FORBIDDEN);
   }
 
   static validationFailed(
     errorCode: ErrorCode = ErrorCode.VALIDATION_ERROR,
-    message = 'Validation failed',
+    message = "Validation failed",
     metadata?: Record<string, unknown>,
   ): AppException {
-    return new AppException(errorCode, message, HttpStatus.BAD_REQUEST, metadata);
+    return new AppException(
+      errorCode,
+      message,
+      HttpStatus.BAD_REQUEST,
+      metadata,
+    );
   }
 
   static rateLimited(
-    message = 'Too many requests',
+    message = "Too many requests",
     retryAfterSeconds?: number,
   ): AppException {
     return new AppException(
@@ -73,7 +78,7 @@ export class AppException extends HttpException {
 
   static internal(
     errorCode: ErrorCode = ErrorCode.INTERNAL_ERROR,
-    message = 'Internal server error',
+    message = "Internal server error",
   ): AppException {
     return new AppException(
       errorCode,

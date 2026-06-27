@@ -1,0 +1,36 @@
+---
+title: Delta Sync
+description: Keep a local cache of the catalog fresh without re-downloading everything.
+---
+
+# Delta Sync
+
+If you mirror the Edutu catalog locally, use `GET /v1/opportunities/sync` to pull
+only rows that changed since your last successful sync. This requires the
+`opportunities:sync` scope.
+
+## Algorithm
+
+1. Store the timestamp of your **last successful sync** (UTC, ISO 8601).
+2. Call `/v1/opportunities/sync?updatedSince=<timestamp>&limit=100`.
+3. Walk pages with `cursor` until `meta.has_more` is `false`.
+4. On success, advance your stored timestamp to `now()` **before** the next run.
+5. Compare incoming rows by `id`; upsert, and mark anything missing as stale
+   rather than deleting (it may be re-published).
+
+```bash
+curl "https://api.edutu.org/v1/opportunities/sync?updatedSince=2026-06-01T00:00:00Z&limit=100" \
+  -H "x-edutu-api-key: edu_live_..."
+```
+
+## Trust signals
+
+Each row includes a `trust` object. On sync, you can drop or hide rows where
+`trust.verificationStatus === 'broken'` and prefer rows with a high
+`trust.qualityScore`.
+
+<Note>
+Run delta syncs on a schedule (e.g. hourly) rather than in a hot request path.
+A single `GET /v1/opportunities/stats` call tells you `lastUpdatedAt` and
+`verifiedCount` for freshness checks.
+</Note>
