@@ -110,8 +110,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
     readStoredColors("darkTheme", defaultDarkTheme),
   );
 
-  const isDarkMode =
-    preference !== null ? preference === "dark" : systemPrefersDarkMode;
+  // Dark mode has been removed from the product. This is forced to false so
+  // every `isDarkMode ? dark : light` branch resolves to light, the `.dark`
+  // class is never applied to <html>, and light theme CSS variables are used.
+  const isDarkMode = false;
 
   // Reflect the active mode on <html> via the `.dark` class.
   useEffect(() => {

@@ -8,7 +8,6 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  KeyRound,
   LayoutGrid,
   LogOut,
   Menu,
@@ -45,10 +44,6 @@ const secondaryNavItems: WorkspaceNavItem[] = [
   { to: "/app/applications", label: "navigation.applications", icon: Send },
   { to: "/app/profile", label: "navigation.profile", icon: UserCheck },
   { to: "/app/settings", label: "navigation.settings", icon: Settings },
-];
-
-const developerNavItems: WorkspaceNavItem[] = [
-  { to: "/dashboard/developer", label: "navigation.developerApi", icon: KeyRound },
 ];
 
 const mobileSecondaryNavItems = secondaryNavItems.filter(
@@ -94,10 +89,6 @@ function isRouteActive(pathname: string, to: string, exact?: boolean) {
     return pathname === "/settings" || pathname.startsWith("/app/settings");
   }
 
-  if (to === "/dashboard/developer") {
-    return pathname === "/dashboard/developer";
-  }
-
   return exact ? pathname === to : pathname === to || pathname.startsWith(`${to}/`);
 }
 
@@ -110,7 +101,6 @@ function getWorkspaceTitleKey(pathname: string): string | null {
   if (pathname.startsWith("/app/applications") || pathname === "/applications") return "navigation.applications";
   if (pathname.startsWith("/app/profile") || pathname === "/profile") return "navigation.profile";
   if (pathname.startsWith("/app/settings") || pathname === "/settings") return "navigation.settings";
-  if (pathname === "/dashboard/developer") return "navigation.developerApi";
   return "common.appName";
 }
 
@@ -260,7 +250,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
           ) : null}
 
           <div className={cn("mb-4 flex items-center gap-3", isSidebarOpen ? "px-1" : "justify-center px-0")}>
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500 text-sm font-black text-white">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-sm font-black text-white">
                 {initials}
             </div>
             {isSidebarOpen ? (
@@ -355,45 +345,6 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                     {isSidebarOpen ? (
                       <span className="truncate">
                       {t(item.label)}
-                      </span>
-                    ) : null}
-                  </NavLink>
-                );
-              })}
-            </nav>
-          </div>
-
-          <div className="mt-4">
-            {isSidebarOpen ? (
-              <p className={cn("px-3 pb-2 text-xs font-semibold", isDarkMode ? "text-slate-500" : "text-slate-400")}>
-                {t("workspace.developers")}
-              </p>
-            ) : null}
-            <nav className="space-y-1" aria-label="Developer API">
-              {developerNavItems.map((item) => {
-                const Icon = item.icon;
-                const active = isRouteActive(pathname, item.to);
-                return (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    title={!isSidebarOpen ? t(item.label) : undefined}
-                    className={cn(
-                      "flex h-10 w-full items-center rounded-xl text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 active:scale-[0.98]",
-                      isSidebarOpen ? "justify-start gap-3 px-3" : "justify-center px-0",
-                      active
-                        ? "bg-brand-500/10 text-brand-700 dark:text-brand-200"
-                        : isDarkMode
-                          ? "text-slate-300 hover:bg-white/10 hover:text-white"
-                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-950",
-                    )}
-                    aria-current={active ? "page" : undefined}
-                    aria-label={t(item.label)}
-                  >
-                    <Icon size={17} className="shrink-0 text-brand-500" />
-                    {isSidebarOpen ? (
-                      <span className="truncate">
-                        {t(item.label)}
                       </span>
                     ) : null}
                   </NavLink>
@@ -499,7 +450,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
               </NavLink>
               <NavLink
                 to="/app/profile"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-black text-white shadow-sm transition active:scale-[0.98]"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-black text-white shadow-sm transition active:scale-[0.98]"
                 aria-label="Open profile"
               >
                 {initials}
@@ -560,7 +511,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                 isDarkMode ? "border-white/10 bg-white/5" : "border-slate-200 bg-white",
               )}
             >
-              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-500 text-lg font-black text-white">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-lg font-black text-white">
                 {initials}
               </span>
               <span className="min-w-0 flex-1">
@@ -640,42 +591,6 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                         <span
                           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] bg-brand-500/10 text-brand-600 dark:text-brand-200"
                         >
-                          <Icon size={19} />
-                        </span>
-                        <span className="truncate text-[15px] font-black">
-                          {t(item.label)}
-                        </span>
-                      </span>
-                      <ChevronRight size={16} className="text-slate-400" />
-                    </NavLink>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="mt-5">
-              <p className="mb-2 px-1 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
-                {t("workspace.developers")}
-              </p>
-              <div className="grid gap-2.5">
-                {developerNavItems.map((item) => {
-                  const Icon = item.icon;
-                  const active = isRouteActive(pathname, item.to);
-                  return (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      onClick={() => setIsMobileMoreOpen(false)}
-                      className={cn(
-                        "flex min-h-[64px] items-center justify-between rounded-[24px] border p-3.5 text-left shadow-sm transition active:scale-[0.98]",
-                        isDarkMode
-                          ? "border-white/10 bg-white/5 text-slate-100 hover:bg-white/10"
-                          : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
-                      )}
-                      aria-current={active ? "page" : undefined}
-                    >
-                      <span className="flex min-w-0 items-center gap-3">
-                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[18px] bg-brand-500/10 text-brand-600 dark:text-brand-200">
                           <Icon size={19} />
                         </span>
                         <span className="truncate text-[15px] font-black">

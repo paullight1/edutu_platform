@@ -55,7 +55,9 @@ const neutralPalette = {
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
-  darkMode: 'class',
+  // Dark mode removed from the product. Setting this to false makes every
+  // `dark:` variant a no-op app-wide.
+  darkMode: false,
   theme: {
     extend: {
       fontFamily: {

@@ -3,8 +3,6 @@ import {
     ArrowLeft,
     ArrowRight,
     Sparkles,
-    Sun,
-    Moon,
     CheckCircle,
     Users,
     Award,
@@ -106,7 +104,7 @@ const LANDING_OPTIONS = [
 ];
 
 const MentorPage: React.FC = () => {
-    const { isDarkMode, toggleDarkMode } = useDarkMode();
+    const { isDarkMode } = useDarkMode();
     const { userId, isSignedIn } = useAuth();
     const { user } = useUser();
     const navigate = useNavigate();
@@ -528,19 +526,10 @@ const MentorPage: React.FC = () => {
                     </motion.section>
                 </main>
                 <footer className="max-w-[1200px] mx-auto px-4 sm:px-6 pb-10">
-                    <div className="flex items-center justify-between border-t border-slate-200 pt-6 dark:border-white/10">
-                        <span className="text-sm text-slate-500 dark:text-gray-400">
+                    <div className="flex items-center justify-between border-t border-slate-200 pt-6">
+                        <span className="text-sm text-slate-500">
                             Edutu mentor program
                         </span>
-                        <button
-                            type="button"
-                            onClick={toggleDarkMode}
-                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-950 transition-all duration-300 hover:scale-[0.98] active:scale-[0.97] dark:border-white/10 dark:bg-gray-900 dark:text-white"
-                            aria-label="Toggle theme"
-                        >
-                            {isDarkMode ? <Sun size={17} /> : <Moon size={17} />}
-                            {isDarkMode ? 'Light mode' : 'Dark mode'}
-                        </button>
                     </div>
                 </footer>
             </div>
