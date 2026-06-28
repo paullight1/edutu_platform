@@ -622,8 +622,6 @@ const styles = StyleSheet.create({
     },
     aiHoldBackground: {
         borderRadius: 34,
-        transitionProperty: 'background-color',
-        transitionDuration: '200ms',
     },
     aiGlassBorder: {
         position: 'absolute',
