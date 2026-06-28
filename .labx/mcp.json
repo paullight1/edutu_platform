@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "labx-browser-bridge": {
+      "args": [
+        ".labx/tools/browser-sidecar.mjs",
+        "mcp",
+        "--workspace",
+        "/Users/MAC/Desktop/Desktop/app-projects/Edutu_Folder"
+      ],
+      "command": "node"
+    }
+  }
+}

@@ -1,0 +1,399 @@
+{
+  "version": 1,
+  "projectPath": "/Users/MAC/Desktop/Desktop/app-projects/Edutu_Folder",
+  "updatedAt": "2026-06-18T18:42:21.386831+00:00",
+  "state": {
+    "activeTabId": "tab_mq790wlz_d904z1ht",
+    "agentContext": [
+      {
+        "body": "http://localhost:5173/",
+        "createdAt": "2026-06-18T17:48:56.584Z",
+        "id": "ctx_mqjsnk3s_ybzhhkhj",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://127.0.0.1:5173/",
+        "createdAt": "2026-06-18T14:06:07.086Z",
+        "id": "ctx_mqjkp04u_mjj4rhtq",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "https://keystore.expo.dev/?token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3ODE2NTAxNzMsImV4cCI6MTc4MTY1MDM1M30.IZxr2wy5uqKnMFlTMM_NJkvpgY-dmOXUCCq4FhQSZg7SUtJE2aB5SfAiI5X0aEHbsUzrRpjdXqpNBMTdghx0C9oLCb4UWIoulLT1wfFhyKGzw2fmRwnAF1iSdVNiPgyRh__p8hoqSkBO42XI_fzsX7fnGknxuWPz2Fxk-sJsWm4XDCjB51_l1ec4XGan75q9DMkpNVqrEF4hCqtUx1tplTzS7UAJBAvtCwFCnE-f3ksSnOdaR7dPtk9nMMFXAHiOw30GeWMLE74IP5fwO36eaCi0mq30VoKKn0mbXCxcB9h2FL0Ez_4rDPa2U98Ex65qhSj-XCRImwIeOxA2E1TpRJ7OZdz_dzU7ymMqdnfsF9BKz-UEMhqa5LrLbRiX_WXHsifripCSotLCwnDA6cMhf4VQn_RY6CWClDt02U35NXOhLav35tiUY3kI20f7_NGoBbVvCaSipFSXAuSdLi-_07W-zFuBqAH1GlnaEdWjvr80W-M6ofs0aWUr82v2eddAVIqu6IjU92ad0m2qSaXvQ2ZyF6L5_tAzvBInNcvo8ZAwsSzhU8asvc9WJ6nkO7nOQbC1G-l2CG-xyyC_5t15EJUzOLPCBmywj0NhRbqv7iYrTGUQTMYYmD9TaVEzXCaINagLlqjH5SCVh-qiulP4eilx2FVMT1i0Z1qYuNaGbS4",
+        "createdAt": "2026-06-16T22:49:59.905Z",
+        "id": "ctx_mqh8j0ip_xigwzdll",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "https://expo.dev/login?client_id=eas-cli&redirect_uri=http://localhost:53144/auth/callback&response_type=code&code_challenge=n0c5Zg4-mZfNb66332m5bF6uHLSbjogE7fd93sn1QkE&code_challenge_method=S256&state=43YD3p6omDPWfAjouth7_4h48hJMP60sqWcb0WIpL_o&confirm_account=true",
+        "createdAt": "2026-06-16T12:29:49.475Z",
+        "id": "ctx_mqgmdgrn_w0cq547x",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://localhost:5173/",
+        "createdAt": "2026-06-16T05:55:17.742Z",
+        "id": "ctx_mqg8a3ji_7erbpl2z",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://127.0.0.1:4173/opportunities",
+        "createdAt": "2026-06-15T21:43:26.031Z",
+        "id": "ctx_mqfqpk5r_w2it5viz",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "URL: http://localhost:3000/\nSelector: body\nElement: body\nElement text: Unavailable\nElement link: Unavailable\nImage source: Unavailable\nViewport bounds: x=2, y=1, width=94, height=56\nTag: task\nNote: is this browser broken?\nAttachment 1: Component reference\nAttachment type: component\nAttachment source: body\nAttachment value: {\n  \"selector\": \"body\",\n  \"tagName\": \"body\",\n  \"role\": null,\n  \"text\": null\n}\nCreated: 2026-06-15T21:41:47.716Z\nUpdated: 2026-06-15T21:41:47.716Z",
+        "createdAt": "2026-06-15T21:41:47.717Z",
+        "id": "ctx_mqfqngat_i3ac4t3g",
+        "sourceId": "ann_mqfqngas_r5c8ciqq",
+        "title": "Annotation (task)",
+        "type": "annotation"
+      },
+      {
+        "body": "http://localhost:3000/",
+        "createdAt": "2026-06-15T21:34:07.537Z",
+        "id": "ctx_mqfqdl81_hz2ea9c3",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://localhost:3000/",
+        "createdAt": "2026-06-15T21:33:03.989Z",
+        "id": "ctx_mqfqc86t_84tzy4s5",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "https://www.nairaland.com/",
+        "createdAt": "2026-06-15T20:04:41.879Z",
+        "id": "ctx_mqfn6l1z_votfv7zt",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://localhost:3000/",
+        "createdAt": "2026-06-15T20:03:14.901Z",
+        "id": "ctx_mqfn4pxx_bheitpic",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://localhost:3001/",
+        "createdAt": "2026-06-10T06:38:50.923Z",
+        "id": "ctx_mq7p6zvv_aigxs663",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://localhost:3001/",
+        "createdAt": "2026-06-09T23:42:15.344Z",
+        "id": "ctx_mq7ab968_nvpz1lje",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://localhost:3001/",
+        "createdAt": "2026-06-09T23:29:17.339Z",
+        "id": "ctx_mq79ukuz_chrk8bp1",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://localhost:3001/",
+        "createdAt": "2026-06-09T23:18:14.383Z",
+        "id": "ctx_mq79gdbj_e5yb9nq3",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://localhost:3001/",
+        "createdAt": "2026-06-09T23:06:20.518Z",
+        "id": "ctx_mq7912hy_tf9gpytr",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://localhost:3001/",
+        "createdAt": "2026-06-09T23:05:47.358Z",
+        "id": "ctx_mq790cwu_ukvzopr5",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://localhost:3001/",
+        "createdAt": "2026-06-09T23:05:06.708Z",
+        "id": "ctx_mq78zhjo_huzpjw30",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "https://www.nairaland.com/",
+        "createdAt": "2026-06-09T19:04:54.995Z",
+        "id": "ctx_mq70eleb_lih8byy0",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://127.0.0.1:4173/",
+        "createdAt": "2026-06-08T18:32:54.715Z",
+        "id": "ctx_mq5jtl17_4xc3n7fx",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "https://supabase.com/docs/guides/realtime/authorization",
+        "createdAt": "2026-06-08T04:06:38.834Z",
+        "id": "ctx_mq4ovk6q_ldklozd4",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://localhost:3004/",
+        "createdAt": "2026-06-07T13:42:51.255Z",
+        "id": "ctx_mq3u0prr_va17xpon",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://127.0.0.1:3001/",
+        "createdAt": "2026-06-07T09:43:11.190Z",
+        "id": "ctx_mq3lgi1i_h5uaz5z1",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://localhost:3004/",
+        "createdAt": "2026-06-07T09:14:20.004Z",
+        "id": "ctx_mq3kfe90_fszwjvm1",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "https://chatgpt.com/codex?app-landing-page=true",
+        "createdAt": "2026-05-28T12:31:36.706Z",
+        "id": "ctx_mpph2kua_jijtgvkm",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "https://chatgpt.com/codex/settings/",
+        "createdAt": "2026-05-28T10:04:44.584Z",
+        "id": "ctx_mppbtpd4_r29th8ow",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://127.0.0.1:3002/",
+        "createdAt": "2026-05-27T03:37:29.583Z",
+        "id": "ctx_mpnijugf_quhc86av",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://localhost:5173/",
+        "createdAt": "2026-05-27T03:10:37.688Z",
+        "id": "ctx_mpnhlapk_htqn5eae",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "https://clerk.com/docs/deployments/overview",
+        "createdAt": "2026-05-26T16:59:59.661Z",
+        "id": "ctx_mpmvs0ml_w8g9tz66",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "https://clerk.com/docs/components/clerk-provider",
+        "createdAt": "2026-05-26T08:10:01.340Z",
+        "id": "ctx_mpmcugvw_4eq63vgo",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "https://chatgpt.com/codex?app-landing-page=true",
+        "createdAt": "2026-05-26T02:01:22.595Z",
+        "id": "ctx_mplzodyb_5ef9veqe",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://192.168.100.29:3006/",
+        "createdAt": "2026-05-26T01:59:27.090Z",
+        "id": "ctx_mplzlwtu_7nauv7lj",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://localhost:3000/",
+        "createdAt": "2026-05-22T22:45:57.864Z",
+        "id": "ctx_mphidj3c_ygg7urlx",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://127.0.0.1:3002/admin",
+        "createdAt": "2026-05-22T22:45:13.527Z",
+        "id": "ctx_mphickvr_v3oo6pn5",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://192.168.100.29:3000/",
+        "createdAt": "2026-05-22T22:27:08.011Z",
+        "id": "ctx_mphhpbaj_pjdjb6cd",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://localhost:3000/",
+        "createdAt": "2026-05-22T21:02:05.609Z",
+        "id": "ctx_mpheny95_5dlqtz5a",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://localhost:3000/",
+        "createdAt": "2026-05-22T20:58:19.653Z",
+        "id": "ctx_mphej3wl_zde15l7u",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "http://localhost:3000/",
+        "createdAt": "2026-05-22T20:56:27.656Z",
+        "id": "ctx_mphegphk_gzjjd2nt",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "https://www.nigeriaaischool.com/",
+        "createdAt": "2026-05-22T20:56:14.237Z",
+        "id": "ctx_mphegf4t_meg5dpfo",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
+      {
+        "body": "https://www.nairaland.com/",
+        "createdAt": "2026-05-22T16:22:05.318Z",
+        "id": "ctx_mph4nv2e_p1o0kwwb",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      }
+    ],
+    "annotations": [
+      {
+        "attachments": [
+          {
+            "id": "d9bf9c9f-2a49-4e40-9e8e-19967cf14c59",
+            "kind": "component",
+            "label": "Component reference",
+            "source": "body",
+            "value": "{\n  \"selector\": \"body\",\n  \"tagName\": \"body\",\n  \"role\": null,\n  \"text\": null\n}"
+          }
+        ],
+        "createdAt": "2026-06-15T21:41:47.716Z",
+        "id": "ann_mqfqngas_r5c8ciqq",
+        "note": "is this browser broken?",
+        "rect": {
+          "height": 56.09928773706341,
+          "width": 94.13140671091443,
+          "x": 2.284983407079646,
+          "y": 0.944499270574101
+        },
+        "selector": "body",
+        "tag": "task",
+        "target": {
+          "href": null,
+          "html": "<body></body>",
+          "imageSrc": null,
+          "role": null,
+          "selector": "body",
+          "tagName": "body",
+          "text": null
+        },
+        "updatedAt": "2026-06-15T21:41:47.716Z",
+        "url": "http://localhost:3000/"
+      }
+    ],
+    "currentInspection": null,
+    "currentUrl": "http://localhost:5173/",
+    "isRecording": false,
+    "mode": "browse",
+    "previewMessage": null,
+    "previewRevision": 47,
+    "previewStatus": "ready",
+    "recordedActions": [],
+    "selectedAnnotationId": null,
+    "tabs": [
+      {
+        "createdAt": "2026-06-09T23:06:12.885Z",
+        "history": [
+          "http://localhost:3001/",
+          "http://localhost:3000/",
+          "https://www.nairaland.com/",
+          "http://localhost:3000/",
+          "http://127.0.0.1:4173/opportunities",
+          "http://localhost:5173/",
+          "https://expo.dev/login?client_id=eas-cli&redirect_uri=http://localhost:53144/auth/callback&response_type=code&code_challenge=n0c5Zg4-mZfNb66332m5bF6uHLSbjogE7fd93sn1QkE&code_challenge_method=S256&state=43YD3p6omDPWfAjouth7_4h48hJMP60sqWcb0WIpL_o&confirm_account=true",
+          "https://keystore.expo.dev/?token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3ODE2NTAxNzMsImV4cCI6MTc4MTY1MDM1M30.IZxr2wy5uqKnMFlTMM_NJkvpgY-dmOXUCCq4FhQSZg7SUtJE2aB5SfAiI5X0aEHbsUzrRpjdXqpNBMTdghx0C9oLCb4UWIoulLT1wfFhyKGzw2fmRwnAF1iSdVNiPgyRh__p8hoqSkBO42XI_fzsX7fnGknxuWPz2Fxk-sJsWm4XDCjB51_l1ec4XGan75q9DMkpNVqrEF4hCqtUx1tplTzS7UAJBAvtCwFCnE-f3ksSnOdaR7dPtk9nMMFXAHiOw30GeWMLE74IP5fwO36eaCi0mq30VoKKn0mbXCxcB9h2FL0Ez_4rDPa2U98Ex65qhSj-XCRImwIeOxA2E1TpRJ7OZdz_dzU7ymMqdnfsF9BKz-UEMhqa5LrLbRiX_WXHsifripCSotLCwnDA6cMhf4VQn_RY6CWClDt02U35NXOhLav35tiUY3kI20f7_NGoBbVvCaSipFSXAuSdLi-_07W-zFuBqAH1GlnaEdWjvr80W-M6ofs0aWUr82v2eddAVIqu6IjU92ad0m2qSaXvQ2ZyF6L5_tAzvBInNcvo8ZAwsSzhU8asvc9WJ6nkO7nOQbC1G-l2CG-xyyC_5t15EJUzOLPCBmywj0NhRbqv7iYrTGUQTMYYmD9TaVEzXCaINagLlqjH5SCVh-qiulP4eilx2FVMT1i0Z1qYuNaGbS4",
+          "http://127.0.0.1:5173/",
+          "http://localhost:5173/"
+        ],
+        "historyIndex": 9,
+        "id": "tab_mq790wlz_d904z1ht",
+        "previewMessage": null,
+        "previewStatus": "ready",
+        "title": "localhost",
+        "updatedAt": "2026-06-18T17:48:56.582Z",
+        "url": "http://localhost:5173/"
+      }
+    ],
+    "urlInput": "http://localhost:5173/"
+  }
+}

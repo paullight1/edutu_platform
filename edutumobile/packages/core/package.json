@@ -1,0 +1,94 @@
+{
+    "name": "@edutu/core",
+    "version": "0.0.0",
+    "private": true,
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "exports": {
+        ".": {
+            "types": "./src/index.ts",
+            "default": "./src/index.ts",
+            "react-native": "./src/index.ts"
+        },
+        "./hooks/useChat": {
+            "types": "./src/hooks/useChat.ts",
+            "default": "./src/hooks/useChat.ts",
+            "react-native": "./src/hooks/useChat.ts"
+        },
+        "./hooks/useCommunity": {
+            "types": "./src/hooks/useCommunity.ts",
+            "default": "./src/hooks/useCommunity.ts",
+            "react-native": "./src/hooks/useCommunity.ts"
+        },
+        "./hooks/useGoals": {
+            "types": "./src/hooks/useGoals.ts",
+            "default": "./src/hooks/useGoals.ts",
+            "react-native": "./src/hooks/useGoals.ts"
+        },
+        "./hooks/useNotifications": {
+            "types": "./src/hooks/useNotifications.ts",
+            "default": "./src/hooks/useNotifications.ts",
+            "react-native": "./src/hooks/useNotifications.ts"
+        },
+        "./hooks/useOpportunities": {
+            "types": "./src/hooks/useOpportunities.ts",
+            "default": "./src/hooks/useOpportunities.ts",
+            "react-native": "./src/hooks/useOpportunities.ts"
+        },
+        "./types/chat": {
+            "types": "./src/types/chat.ts",
+            "default": "./src/types/chat.ts",
+            "react-native": "./src/types/chat.ts"
+        },
+        "./types/community": {
+            "types": "./src/types/community.ts",
+            "default": "./src/types/community.ts",
+            "react-native": "./src/types/community.ts"
+        },
+        "./types/notification": {
+            "types": "./src/types/notification.ts",
+            "default": "./src/types/notification.ts",
+            "react-native": "./src/types/notification.ts"
+        },
+        "./types/opportunity": {
+            "types": "./src/types/opportunity.ts",
+            "default": "./src/types/opportunity.ts",
+            "react-native": "./src/types/opportunity.ts"
+        },
+        "./types/user": {
+            "types": "./src/types/user.ts",
+            "default": "./src/types/user.ts",
+            "react-native": "./src/types/user.ts"
+        },
+        "./services/chat": {
+            "types": "./src/services/chat.ts",
+            "default": "./src/services/chat.ts",
+            "react-native": "./src/services/chat.ts"
+        },
+        "./services/community": {
+            "types": "./src/services/community.ts",
+            "default": "./src/services/community.ts",
+            "react-native": "./src/services/community.ts"
+        },
+        "./services/opportunities": {
+            "types": "./src/services/opportunities.ts",
+            "default": "./src/services/opportunities.ts",
+            "react-native": "./src/services/opportunities.ts"
+        },
+        "./services/supabase": {
+            "types": "./src/services/supabase.ts",
+            "default": "./src/services/supabase.ts",
+            "react-native": "./src/services/supabase.ts"
+        }
+    },
+    "scripts": {
+        "dev": "tsc --watch",
+        "build": "tsc"
+    },
+    "dependencies": {
+        "@supabase/supabase-js": "^2.45.1"
+    },
+    "devDependencies": {
+        "typescript": "^5.0.0"
+    }
+}

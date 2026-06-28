@@ -1,0 +1,16 @@
+const { getDefaultConfig } = require('expo/metro-config');
+const { withNativeWind } = require('nativewind/metro');
+
+// Using relative paths to avoid Windows absolute path issues with ESM loader
+const config = getDefaultConfig('.');
+
+config.watchFolders = ['../..'];
+
+config.resolver.nodeModulesPaths = [
+    './node_modules',
+    '../../node_modules',
+];
+
+config.resolver.disableHierarchicalLookup = true;
+
+module.exports = withNativeWind(config, { input: './global.css' });

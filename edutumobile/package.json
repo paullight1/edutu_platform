@@ -1,0 +1,131 @@
+{
+  "name": "edutu-mobile",
+  "version": "1.0.0",
+  "main": "expo-router/entry",
+  "scripts": {
+    "dev": "expo start",
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "RUBYOPT=-rlogger PATH=\"$HOME/.gem/ruby/2.6.0/bin:$PATH\" expo run:ios --device \"iPhone 17 Pro\"",
+    "web": "expo start --web",
+    "postinstall": "node scripts/fix-react-native-gradle-settings.js",
+    "test": "jest",
+    "typecheck": "tsc --noEmit",
+    "migrate": "supabase db push",
+    "deploy:webhook": "supabase functions deploy revenuecat-webhook"
+  },
+  "jest": {
+    "preset": "react-native",
+    "roots": [
+      "<rootDir>/app",
+      "<rootDir>/components",
+      "<rootDir>/hooks",
+      "<rootDir>/lib",
+      "<rootDir>/packages",
+      "<rootDir>/widgets",
+      "<rootDir>/constants",
+      "<rootDir>/types",
+      "<rootDir>/data",
+      "<rootDir>/__tests__"
+    ],
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.ts"
+    ],
+    "moduleNameMapper": {
+      "^expo$": "<rootDir>/empty.js",
+      "^expo/src/winter/.*$": "<rootDir>/empty.js"
+    },
+    "modulePathIgnorePatterns": [
+      "<rootDir>/android/",
+      "<rootDir>/ios/",
+      "<rootDir>/.expo/",
+      "<rootDir>/supabase/",
+      "<rootDir>/plugins/",
+      "<rootDir>/docs/"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/android/",
+      "/ios/",
+      "/.expo/",
+      "/supabase/",
+      "/plugins/",
+      "/docs/"
+    ],
+    "transformIgnorePatterns": [
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg)"
+    ]
+  },
+  "dependencies": {
+    "@clerk/clerk-expo": "^2.19.11",
+    "@edutu/core": "file:./packages/core",
+    "@expo/ui": "~56.0.18",
+    "@radix-ui/react-slot": "^1.1.0",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@supabase/supabase-js": "^2.45.1",
+    "@types/color": "^4.2.0",
+    "@types/react": "^19.2.17",
+    "clsx": "^2.1.1",
+    "color": "^4.2.3",
+    "expo": "~56.0.12",
+    "expo-asset": "~56.0.17",
+    "expo-audio": "~56.0.12",
+    "expo-auth-session": "~56.0.14",
+    "expo-blur": "~56.0.3",
+    "expo-constants": "~56.0.18",
+    "expo-dev-client": "~56.0.20",
+    "expo-document-picker": "~56.0.4",
+    "expo-file-system": "~56.0.8",
+    "expo-haptics": "~56.0.3",
+    "expo-image-picker": "~56.0.18",
+    "expo-linear-gradient": "~56.0.4",
+    "expo-linking": "~56.0.14",
+    "expo-notifications": "~56.0.18",
+    "expo-router": "~56.2.11",
+    "expo-secure-store": "~56.0.4",
+    "expo-sharing": "~56.0.18",
+    "expo-speech": "~56.0.3",
+    "expo-status-bar": "~56.0.4",
+    "expo-updates": "~56.0.19",
+    "expo-web-browser": "~56.0.5",
+    "expo-widgets": "~56.0.19",
+    "lottie-react-native": "^7.3.8",
+    "lucide-react-native": "^1.7.0",
+    "nativewind": "~4.1.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.85.3",
+    "react-native-css-interop": "^0.2.3",
+    "react-native-gesture-handler": "~2.31.1",
+    "react-native-pager-view": "8.0.1",
+    "react-native-purchases": "^10.1.0",
+    "react-native-reanimated": "4.3.1",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "4.25.2",
+    "react-native-svg": "15.15.4",
+    "react-native-url-polyfill": "^3.0.0",
+    "react-native-view-shot": "5.1.0",
+    "react-native-web": "^0.21.0",
+    "react-native-webview": "13.16.1",
+    "react-native-worklets": "0.8.3",
+    "tailwind-merge": "^2.3.0",
+    "tailwindcss": "^3.4.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.24.0",
+    "@testing-library/jest-native": "^5.4.3",
+    "@testing-library/react-native": "^13.3.3",
+    "@types/react": "^19.2.0",
+    "babel-preset-expo": "~56.0.0",
+    "jest": "~29.7.0",
+    "jest-expo": "~56.0.5",
+    "react-test-renderer": "19.2.3",
+    "sharp": "^0.34.5",
+    "typescript": "~6.0.3"
+  },
+  "overrides": {
+    "ajv": "^8.0.0",
+    "ajv-keywords": "^5.0.0"
+  },
+  "private": true
+}

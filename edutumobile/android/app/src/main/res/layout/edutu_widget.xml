@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/edutu_widget_root"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:orientation="vertical"
+  android:gravity="center_vertical"
+  android:padding="16dp"
+  android:background="@drawable/edutu_widget_background">
+
+  <TextView
+    android:id="@+id/edutu_widget_title"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:ellipsize="end"
+    android:maxLines="1"
+    android:text="@string/edutu_widget_title"
+    android:textColor="@android:color/white"
+    android:textSize="16sp"
+    android:textStyle="bold" />
+
+  <TextView
+    android:id="@+id/edutu_widget_subtitle"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="6dp"
+    android:ellipsize="end"
+    android:maxLines="2"
+    android:text="@string/edutu_widget_subtitle"
+    android:textColor="#D6DBFF"
+    android:textSize="13sp" />
+</LinearLayout>

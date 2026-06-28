@@ -1,0 +1,279 @@
+import React, { useState, useEffect } from 'react';
+import {
+    View,
+    Text,
+    ScrollView,
+    TouchableOpacity,
+    ActivityIndicator,
+    Linking,
+    Share,
+    Image
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { 
+    GraduationCap, 
+    Clock, 
+    MapPin, 
+    Users,
+    ExternalLink,
+    Share2,
+    Bookmark,
+    BookmarkCheck,
+    ChevronLeft,
+    Award
+} from 'lucide-react-native';
+import { Card } from '../../../components/ui/Card';
+import { Button } from '../../../components/ui/Button';
+import { Badge } from '../../../components/ui/Badge';
+import { ScreenHeader } from "../../../components/ui/ScreenHeader";
+import { Opportunity } from '../../../packages/core/src/types/opportunity';
+
+const MOCK_OPPORTUNITY: Opportunity = {
+    id: '1',
+    title: '2024 Mastercard Foundation Scholars Program',
+    organization: 'Mastercard Foundation',
+    category: 'Scholarship',
+    description: 'The Mastercard Foundation Scholars Program provides comprehensive support to talented young Africans who have demonstrated academic excellence despite economic adversity. This fully-funded scholarship covers tuition, accommodation, travel, and living expenses for undergraduate and graduate studies.',
+    requirements: [
+        'African citizenship',
+        'Demonstrated financial need',
+        'Academic excellence (GPA 3.0+)',
+        'Leadership potential',
+        'Community involvement',
+        'Admission to a partner institution'
+    ],
+    benefits: [
+        'Full tuition coverage',
+        'Accommodation & meals',
+        'Travel allowance',
+        'Stipend for living expenses',
+        'Leadership development program',
+        'Career mentorship'
+    ],
+    applicationProcess: ['Submit application', 'Interview', 'Acceptance'],
+    deadline: '2024-03-31',
+    location: 'Various (Canada, USA, UK, Australia)',
+    image: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800',
+    applyUrl: 'https://mastercardfdn.org/scholars',
+    match: 92,
+    featured: true,
+    createdAt: '2024-01-15',
+};
+
+export default function OpportunityDetailScreen() {
+    const { id } = useLocalSearchParams();
+    const router = useRouter();
+    const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [saved, setSaved] = useState(false);
+
+    useEffect(() => {
+        // Simulate fetch - in real app, fetch from Supabase
+        setTimeout(() => {
+            setOpportunity(MOCK_OPPORTUNITY);
+            setLoading(false);
+        }, 500);
+    }, [id]);
+
+    const handleApply = async () => {
+        if (opportunity?.applyUrl) {
+            try {
+                await Linking.openURL(opportunity.applyUrl);
+            } catch (error) {
+                console.error('Failed to open URL:', error);
+            }
+        }
+    };
+
+    const handleShare = async () => {
+        if (opportunity) {
+            try {
+                await Share.share({
+                    title: opportunity.title,
+                    message: `Check out this opportunity: ${opportunity.title}\n\n${opportunity.description.substring(0, 100)}...\n\n${opportunity.applyUrl}`,
+                });
+            } catch (error) {
+                console.error('Failed to share:', error);
+            }
+        }
+    };
+
+    const getCategoryColor = (category: string) => {
+        switch (category?.toLowerCase()) {
+            case 'scholarship': return '#6366F1';
+            case 'job': return '#10B981';
+            case 'course': return '#F59E0B';
+            case 'mentorship': return '#EC4899';
+            default: return '#94A3B8';
+        }
+    };
+
+    if (loading) {
+        return (
+            <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+                <ScreenHeader title="Loading..." showBack />
+                <View className="flex-1 items-center justify-center">
+                    <ActivityIndicator color="#6366F1" size="large" />
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    if (!opportunity) {
+        return (
+            <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+                <ScreenHeader title="Not Found" showBack />
+                <View className="flex-1 items-center justify-center p-5">
+                    <Text className="text-text-secondary">Opportunity not found</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    const daysUntilDeadline = Math.ceil(
+        (new Date(opportunity.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    return (
+        <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+            <View className="flex-row items-center px-5 pt-2 pb-4 border-b border-slate-800">
+                <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 rounded-xl bg-slate-800 items-center justify-center mr-3">
+                    <ChevronLeft size={20} color="#94A3B8" />
+                </TouchableOpacity>
+                <View className="flex-1" />
+                <View className="flex-row gap-2">
+                    <TouchableOpacity onPress={() => setSaved(!saved)} className="p-2">
+                        {saved ? (
+                            <BookmarkCheck size={22} color="#6366F1" />
+                        ) : (
+                            <Bookmark size={22} color="#94A3B8" />
+                        )}
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={handleShare} className="p-2">
+                        <Share2 size={22} color="#94A3B8" />
+                    </TouchableOpacity>
+                </View>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Hero Image */}
+                <View className="h-48 relative">
+                    {opportunity.image ? (
+                        <Image 
+                            source={{ uri: opportunity.image }} 
+                            className="w-full h-full"
+                            resizeMode="cover"
+                        />
+                    ) : (
+                        <View className="w-full h-full bg-slate-800 items-center justify-center">
+                            <GraduationCap size={48} color="#334155" />
+                        </View>
+                    )}
+                    <View className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+                    {opportunity.featured && (
+                        <View className="absolute top-4 left-4 bg-brand-500 px-3 py-1 rounded-lg">
+                            <Text className="text-white text-xs font-bold uppercase tracking-wider">Featured</Text>
+                        </View>
+                    )}
+                </View>
+
+                <View className="px-5 -mt-8 pb-10">
+                    {/* Category & Organization */}
+                    <View className="flex-row items-center gap-2 mb-3">
+                        <Badge 
+                            label={opportunity.category} 
+                            variant="blue" 
+                            size="sm" 
+                        />
+                        <Text className="text-text-secondary text-sm">{opportunity.organization}</Text>
+                    </View>
+
+                    {/* Title */}
+                    <Text className="text-white text-2xl font-bold mb-4">{opportunity.title}</Text>
+
+                    {/* Key Info Cards */}
+                    <View className="flex-row gap-2 mb-6">
+                        <Card className="flex-1 p-3">
+                            <View className="flex-row items-center">
+                                <MapPin size={16} color="#94A3B8" />
+                                <Text className="text-text-secondary text-xs ml-2 flex-1" numberOfLines={1}>
+                                    {opportunity.location || 'Remote'}
+                                </Text>
+                            </View>
+                        </Card>
+                        <Card className="flex-1 p-3">
+                            <View className="flex-row items-center">
+                                <Users size={16} color="#94A3B8" />
+                                <Text className="text-text-secondary text-xs ml-2">852 Enrolled</Text>
+                            </View>
+                        </Card>
+                    </View>
+
+                    {/* Deadline Warning */}
+                    <Card className={`p-4 mb-6 ${daysUntilDeadline <= 30 ? 'border-danger-500/50' : ''}`}>
+                        <View className="flex-row items-center">
+                            <Clock size={20} color={daysUntilDeadline <= 30 ? '#EF4444' : '#10B981'} />
+                            <View className="ml-3">
+                                <Text className="text-text-secondary text-xs">Deadline</Text>
+                                <Text className="text-white font-bold">
+                                    {daysUntilDeadline > 0 
+                                        ? `${daysUntilDeadline} days remaining` 
+                                        : 'Closed'
+                                    }
+                                </Text>
+                            </View>
+                        </View>
+                    </Card>
+
+                    {/* Description */}
+                    <Text className="text-white text-lg font-bold mb-3">About</Text>
+                    <Text className="text-text-secondary text-sm leading-relaxed mb-6">
+                        {opportunity.description}
+                    </Text>
+
+                    {/* Requirements */}
+                    {opportunity.requirements && (
+                        <>
+                            <Text className="text-white text-lg font-bold mb-3">Requirements</Text>
+                            <Card className="p-4 mb-6">
+                                {opportunity.requirements.map((req, index) => (
+                                    <View key={index} className="flex-row items-start mb-2">
+                                        <View className="w-1.5 h-1.5 rounded-full bg-brand-500 mt-2 mr-3" />
+                                        <Text className="text-text-secondary text-sm flex-1">{req}</Text>
+                                    </View>
+                                ))}
+                            </Card>
+                        </>
+                    )}
+
+                    {/* Benefits */}
+                    {opportunity.benefits && (
+                        <>
+                            <Text className="text-white text-lg font-bold mb-3">Benefits</Text>
+                            <Card className="p-4 mb-6">
+                                {opportunity.benefits.map((benefit, index) => (
+                                    <View key={index} className="flex-row items-start mb-2">
+                                        <Award size={16} color="#10B981" className="mr-3 mt-0.5" />
+                                        <Text className="text-text-secondary text-sm flex-1">{benefit}</Text>
+                                    </View>
+                                ))}
+                            </Card>
+                        </>
+                    )}
+
+                    {/* Apply Button */}
+                    <Button 
+                        onPress={handleApply}
+                        fullWidth
+                        icon={<ExternalLink size={18} color="white" />}
+                        iconPosition="right"
+                        style={{ marginBottom: 20 }}
+                    >
+                        Apply Now
+                    </Button>
+                </View>
+            </ScrollView>
+        </SafeAreaView>
+    );
+}

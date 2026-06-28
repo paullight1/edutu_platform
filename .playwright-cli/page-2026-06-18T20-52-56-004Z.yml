@@ -1,0 +1,104 @@
+- generic [ref=e3]:
+  - link "Skip to content" [ref=e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - link "Edutu opportunities" [ref=e7] [cursor=pointer]:
+        - /url: /opportunities
+        - img "Edutu" [ref=e8]
+        - generic [ref=e9]: Edutu
+      - navigation "Primary navigation" [ref=e10]:
+        - link "Opportunities" [ref=e11] [cursor=pointer]:
+          - /url: /opportunities
+      - generic [ref=e12]:
+        - button "Use dark theme" [ref=e13] [cursor=pointer]:
+          - img [ref=e14]
+        - link "Sign in" [ref=e16] [cursor=pointer]:
+          - /url: /auth?mode=sign-in
+        - link "Join" [ref=e17] [cursor=pointer]:
+          - /url: /auth?signup=true
+  - main [ref=e18]:
+    - generic [ref=e19]:
+      - generic [ref=e20]:
+        - button "Back to opportunities" [ref=e21] [cursor=pointer]:
+          - img [ref=e22]
+          - text: Back to opportunities
+        - generic [ref=e24]: •
+        - generic [ref=e25]: Public details
+        - generic [ref=e26]: •
+        - generic [ref=e27]: Updated Jun 18, 2026
+      - generic [ref=e28]:
+        - article [ref=e29]:
+          - generic [ref=e30]:
+            - paragraph [ref=e31]: Opportunity detail
+            - heading "The Bridge Fully funded Leadership Residential Bootcamp 2026 (Nationwide for Nigerian Students)" [level=1] [ref=e32]
+            - paragraph [ref=e33]: dixcoverhubx bootcamp
+            - paragraph [ref=e34]: The Bridge Fully funded Leadership Residential Bootcamp 2026 (Nationwide for Nigerian Students) By Admin On May 19, 2026 Applications are now open for The Bridge Program Fellowship 2026, a fully funded leadership accelerator programme designed for high potential young Nigerians interested in leadership, innovation, policy,.
+          - generic [ref=e35]:
+            - generic [ref=e36]:
+              - paragraph [ref=e37]: Match
+              - paragraph [ref=e38]: 45%
+            - generic [ref=e39]:
+              - paragraph [ref=e40]: Difficulty
+              - paragraph [ref=e41]: Medium
+            - generic [ref=e42]:
+              - paragraph [ref=e43]: Deadline
+              - paragraph [ref=e44]: May 18, 2026
+            - generic [ref=e45]:
+              - paragraph [ref=e46]: Location
+              - paragraph [ref=e47]: Worldwide
+            - generic [ref=e48]:
+              - paragraph [ref=e49]: Applicants
+              - paragraph [ref=e50]: No applicant data
+          - generic [ref=e51]:
+            - heading "Requirements" [level=2] [ref=e52]
+            - list [ref=e53]:
+              - listitem [ref=e54]:
+                - generic [ref=e56]: Requirements will be updated soon.
+          - generic [ref=e57]:
+            - heading "Benefits" [level=2] [ref=e58]
+            - list [ref=e59]:
+              - listitem [ref=e60]:
+                - generic [ref=e62]: Benefits will be updated soon.
+          - generic [ref=e63]:
+            - heading "Application process" [level=2] [ref=e64]
+            - list [ref=e65]:
+              - listitem [ref=e66]:
+                - generic [ref=e67]: "01"
+                - generic [ref=e68]: Online application
+          - generic [ref=e69]:
+            - heading "Tags" [level=2] [ref=e70]
+            - generic [ref=e71]:
+              - generic [ref=e72]: Scraped
+              - generic [ref=e73]: Scholarship
+        - complementary [ref=e74]:
+          - generic [ref=e75]:
+            - paragraph [ref=e76]: Quick facts
+            - generic [ref=e77]:
+              - generic [ref=e78]:
+                - term [ref=e79]: Success rate
+                - definition [ref=e80]: Success rate not shared yet
+              - generic [ref=e81]:
+                - term [ref=e82]: Remote
+                - definition [ref=e83]: Not specified
+              - generic [ref=e84]:
+                - term [ref=e85]: Deadline urgency
+                - definition [ref=e86]: Deadline has passed
+          - generic [ref=e87]:
+            - paragraph [ref=e88]: Actions
+            - generic [ref=e89]:
+              - button "Apply now" [ref=e90] [cursor=pointer]:
+                - img [ref=e91]
+                - text: Apply now
+              - button "Share link" [ref=e95] [cursor=pointer]:
+                - img [ref=e96]
+                - text: Share link
+              - button "Sign in to save" [ref=e102] [cursor=pointer]:
+                - img [ref=e103]
+                - text: Sign in to save
+  - contentinfo [ref=e105]:
+    - generic [ref=e106]:
+      - generic [ref=e108]: Edutu
+      - paragraph [ref=e109]: Updated scholarships, internships, fellowships, grants, and application links for learners planning their next step.
+      - link "support@edutu.ai" [ref=e110] [cursor=pointer]:
+        - /url: mailto:support@edutu.ai
