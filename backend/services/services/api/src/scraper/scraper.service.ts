@@ -5,7 +5,6 @@ import { CronJob } from "cron";
 import axios from "axios";
 import { z } from "zod";
 import * as cheerio from "cheerio";
-import type { Cheerio, Element as CheerioElement } from "cheerio";
 import { AiService } from "../ai";
 import { OpportunityShareCardService } from "../opportunities/opportunity-share-card.service";
 import { classifyOpportunity } from "../opportunities/opportunity-categorization";
@@ -2447,10 +2446,7 @@ ${text}`;
     return true;
   }
 
-  private extractCardDescription(
-    card: Cheerio<CheerioElement>,
-    title: string,
-  ): string {
+  private extractCardDescription(card: any, title: string): string {
     const directDescription = card
       .find(
         "p, .entry-summary, .excerpt, .post-excerpt, .elementor-post__excerpt",
@@ -2470,12 +2466,9 @@ ${text}`;
     return this.cleanText(text, 1200);
   }
 
-  private extractCardImage(
-    card: Cheerio<CheerioElement>,
-    baseUrl: string,
-  ): string | null {
+  private extractCardImage(card: any, baseUrl: string): string | null {
     let imageUrl: string | null = null;
-    card.find("img").each((_, el: CheerioElement) => {
+    card.find("img").each((_, el: any) => {
       if (imageUrl) return;
       const attrs = el.attribs || {};
       imageUrl =
