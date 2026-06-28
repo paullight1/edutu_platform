@@ -8,5 +8,7 @@
 !.env.sample
 google-services.json
 GOOGLE_APPLICATION_CREDENTIALS
+.expo/
+node_modules/
 expo-env.d.ts
 # @end expo-cli
