@@ -102,7 +102,7 @@ export default function VoiceRecordingModal({
     onStopRecording,
     onReset,
 }: VoiceRecordingModalProps) {
-    const [autoSendTimeout, setAutoSendTimeout] = useState<NodeJS.Timeout | null>(null);
+    const [autoSendTimeout, setAutoSendTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         if (transcript && recordingState === 'idle') {
