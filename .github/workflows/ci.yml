@@ -12,14 +12,16 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: edutu-platform/backend/services/services/api
+        working-directory: backend/services/services/api
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: false
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: edutu-platform/backend/services/services/api/package-lock.json
+          cache-dependency-path: backend/services/services/api/package-lock.json
       - run: npm ci
       - run: npm run test
       - run: npm run test:e2e
@@ -29,9 +31,11 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: edutu-platform/backend/services/services/api
+        working-directory: backend/services/services/api
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: false
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -75,14 +79,16 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: edutu-platform/admin
+        working-directory: admin
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: false
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: edutu-platform/admin/package-lock.json
+          cache-dependency-path: admin/package-lock.json
       - run: npm ci
       - run: npx tsc --noEmit
 
@@ -91,14 +97,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: false
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
       - run: |
-          cd edutu-platform/backend/services/services/api && npm ci && npm audit --audit-level=high || true
-          cd ../../../../../
+          cd backend/services/services/api && npm ci && npm audit --audit-level=high || true
       - run: |
           cd edutumobile && npm ci && npm audit --audit-level=high || true
-          cd ../
       - run: |
-          cd edutu-platform/admin && npm ci && npm audit --audit-level=high || true
+          cd admin && npm ci && npm audit --audit-level=high || true
