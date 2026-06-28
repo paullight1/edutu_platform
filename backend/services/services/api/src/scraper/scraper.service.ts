@@ -5,6 +5,7 @@ import { CronJob } from "cron";
 import axios from "axios";
 import { z } from "zod";
 import * as cheerio from "cheerio";
+import type { Cheerio, Element as CheerioElement } from "cheerio";
 import { AiService } from "../ai";
 import { OpportunityShareCardService } from "../opportunities/opportunity-share-card.service";
 import { classifyOpportunity } from "../opportunities/opportunity-categorization";
@@ -600,12 +601,14 @@ export class ScraperService implements OnModuleInit {
 
     if (error || !data) return;
 
-    const sourcesStatus = (data as Array<{
-      id: number;
-      name: string | null;
-      consecutive_failures: number | null;
-      last_success: string | null;
-    }>).map((row) => ({
+    const sourcesStatus = (
+      data as Array<{
+        id: number;
+        name: string | null;
+        consecutive_failures: number | null;
+        last_success: string | null;
+      }>
+    ).map((row) => ({
       sourceId: row.id,
       sourceName: row.name ?? "unknown",
       lastSuccessAt: row.last_success ?? null,
@@ -2444,7 +2447,10 @@ ${text}`;
     return true;
   }
 
-  private extractCardDescription(card: any, title: string): string {
+  private extractCardDescription(
+    card: Cheerio<CheerioElement>,
+    title: string,
+  ): string {
     const directDescription = card
       .find(
         "p, .entry-summary, .excerpt, .post-excerpt, .elementor-post__excerpt",
@@ -2464,9 +2470,12 @@ ${text}`;
     return this.cleanText(text, 1200);
   }
 
-  private extractCardImage(card: any, baseUrl: string): string | null {
+  private extractCardImage(
+    card: Cheerio<CheerioElement>,
+    baseUrl: string,
+  ): string | null {
     let imageUrl: string | null = null;
-    card.find("img").each((_, el) => {
+    card.find("img").each((_, el: CheerioElement) => {
       if (imageUrl) return;
       const attrs = el.attribs || {};
       imageUrl =

@@ -220,7 +220,9 @@ jest.mock('../lib/opportunityWidgetSync', () => ({
 }));
 
 jest.mock('../lib/supabase', () => ({
-  supabase: {},
+  supabase: {
+    from: jest.fn(),
+  },
 }));
 
 jest.mock('@edutu/core/src/hooks/useOpportunities', () => ({
@@ -251,6 +253,15 @@ jest.mock('/Users/MAC/Desktop/Desktop/app-projects/Edutu_Folder/edutumobile/pack
 }), { virtual: true });
 
 jest.mock('/Users/MAC/Desktop/Desktop/app-projects/Edutu_Folder/edutumobile/packages/core/src/services/deadlines', () => ({
+  fetchOpportunityDeadlines: (...args: unknown[]) => mockFetchOpportunityDeadlines(...args),
+}), { virtual: true });
+
+jest.mock('../packages/core/src/services/applications', () => ({
+  fetchTrackedApplications: (...args: unknown[]) => mockFetchTrackedApplications(...args),
+  updateTrackedApplicationStatus: (...args: unknown[]) => mockUpdateTrackedApplicationStatus(...args),
+}), { virtual: true });
+
+jest.mock('../packages/core/src/services/deadlines', () => ({
   fetchOpportunityDeadlines: (...args: unknown[]) => mockFetchOpportunityDeadlines(...args),
 }), { virtual: true });
 
