@@ -87,7 +87,8 @@ const institutions = [
 ];
 
 const heroOpportunityWords = ['Opportunities', 'Scholarships', 'Internships', 'Fellowships'];
-const heroBackdropVideoUrl = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260403_050628_c4e32401-fab4-4a27-b7a8-6e9291cd5959.mp4';
+
+
 
 const heroBackdropImages = [
     {
@@ -271,19 +272,14 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                     }}
                 >
                     <div className="absolute inset-0">
-                        <video
-                            src={heroBackdropVideoUrl}
+                        <img
+                            src={heroBackdropImages[0].src}
+                            alt=""
                             aria-hidden="true"
-                            autoPlay
-                            muted
-                            loop
-                            playsInline
-                            preload="auto"
                             className="absolute inset-0 h-full w-full object-cover"
-                            style={{
-                                filter: 'saturate(0.9) contrast(0.98) brightness(0.84)',
-                                objectPosition: 'center center',
-                            }}
+                            style={{ filter: 'saturate(0.9) contrast(0.98) brightness(0.6)' }}
+                            loading="lazy"
+                            draggable={false}
                         />
                         <div
                             className="absolute inset-0"
@@ -892,18 +888,6 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                 loading="lazy"
                                 draggable={false}
                             />
-                            <video
-                                src={heroBackdropVideoUrl}
-                                poster={heroBackdropImages[0].src}
-                                aria-hidden="true"
-                                autoPlay
-                                muted
-                                loop
-                                playsInline
-                                preload="auto"
-                                className="absolute inset-0 h-full w-full object-cover"
-                                style={{ filter: 'saturate(0.78) contrast(0.95) brightness(0.48)', backgroundColor: 'transparent' }}
-                            />
                             <div
                                 className="absolute inset-0"
                                 style={{
@@ -1028,7 +1012,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
 
                     <div className="flex flex-col md:flex-row justify-between items-center pt-6 md:pt-8" style={{ borderTop: `1px solid ${isDarkMode ? '#222' : '#d8d8d8'}` }}>
                         <span className="text-[11px] md:text-[12px]" style={{ color: isDarkMode ? '#5a5a5a' : '#ababab' }}>
-                            © {new Date().getFullYear()} Edutu Inc. All rights reserved.
+                            © {new Date().getFullYear()} Edutu Inc. All rights reserved. v0.1.2
                         </span>
                         <div className="flex items-center gap-4 md:gap-6 mt-3 md:mt-0">
                             <a href="https://twitter.com/edutu" target="_blank" rel="noopener noreferrer" className="p-1.5 md:p-2 transition-colors" style={{ color: isDarkMode ? '#5a5a5a' : '#5a5a5a' }} onMouseEnter={(e) => (e.currentTarget.style.color = '#146ef5')} onMouseLeave={(e) => (e.currentTarget.style.color = isDarkMode ? '#5a5a5a' : '#5a5a5a')}>
