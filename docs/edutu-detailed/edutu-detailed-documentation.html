@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Edutu Detailed Documentation Pack</title>
+  <style>
+    :root {
+      --bg: #f5f2ea;
+      --ink: #171717;
+      --muted: #64645f;
+      --paper: #fffdf7;
+      --line: #d8d1c1;
+      --nav: #13201d;
+      --accent: #13775d;
+      --blue: #1d4ed8;
+      --orange: #b45309;
+      --red: #b91c1c;
+      --code: #101817;
+      --code-ink: #e7f3ed;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--bg);
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+      letter-spacing: 0;
+    }
+    .layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 100vh; }
+    aside {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: auto;
+      padding: 28px 20px;
+      background: var(--nav);
+      color: white;
+    }
+    aside h1 { margin: 0 0 6px; font-size: 21px; line-height: 1.15; }
+    aside p { margin: 0 0 22px; color: #bbcac3; font-size: 13px; }
+    nav { display: grid; gap: 4px; }
+    nav a {
+      color: #cbd6d1;
+      text-decoration: none;
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    nav a:hover { background: rgba(255,255,255,.08); color: white; }
+    main { max-width: 1240px; padding: 34px; }
+    header, section {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 26px;
+      margin-bottom: 18px;
+      box-shadow: 0 12px 30px rgba(19, 32, 29, .08);
+    }
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    h2 { margin: 0; font-size: clamp(34px, 5vw, 62px); line-height: .98; max-width: 900px; }
+    h3 { margin: 0 0 12px; font-size: 27px; line-height: 1.15; }
+    h4 { margin: 0 0 8px; font-size: 18px; }
+    p { margin: 0 0 12px; }
+    .lead { color: var(--muted); font-size: 18px; max-width: 880px; margin-top: 16px; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .card { border: 1px solid var(--line); border-radius: 8px; padding: 16px; background: #fffaf0; }
+    .metric strong { display: block; font-size: 30px; line-height: 1; }
+    .metric span { color: var(--muted); font-size: 13px; }
+    ul, ol { margin: 8px 0 0; padding-left: 22px; }
+    li { margin: 6px 0; }
+    .table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 8px; margin-top: 12px; }
+    table { width: 100%; border-collapse: collapse; min-width: 760px; background: white; }
+    th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line); font-size: 14px; }
+    th { background: #eee9dc; text-transform: uppercase; font-size: 12px; letter-spacing: .07em; }
+    tr:last-child td { border-bottom: 0; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+    code { font-size: .94em; }
+    pre { overflow: auto; background: var(--code); color: var(--code-ink); border-radius: 8px; padding: 16px; }
+    .pill { display: inline-flex; border-radius: 999px; padding: 3px 8px; font-size: 12px; font-weight: 800; border: 1px solid; }
+    .p-red { color: var(--red); background: #fee2e2; border-color: #fecaca; }
+    .p-orange { color: var(--orange); background: #fff4dc; border-color: #f0d49a; }
+    .p-blue { color: var(--blue); background: #e8f1ff; border-color: #c8dbff; }
+    footer { color: var(--muted); font-size: 13px; padding: 0 0 26px; }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      aside { position: relative; height: auto; }
+      main { padding: 20px; }
+      .grid, .two { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside>
+      <h1>Edutu Detailed Docs</h1>
+      <p>Full codebase architecture and process documentation.</p>
+      <nav>
+        <a href="#summary">Summary</a>
+        <a href="#inventory">Inventory</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#backend">Backend</a>
+        <a href="#web">Web and Admin</a>
+        <a href="#mobile">Mobile</a>
+        <a href="#data">Data</a>
+        <a href="#scraper-ai">Scraper and AI</a>
+        <a href="#operations">Operations</a>
+        <a href="#findings">Review Findings</a>
+        <a href="#tasks">Tasks</a>
+      </nav>
+    </aside>
+    <main>
+      <header id="summary">
+        <p class="eyebrow">Generated 2026-05-22</p>
+        <h2>Edutu is a multi-workspace opportunity platform, not a single app.</h2>
+        <p class="lead">This HTML index summarizes the detailed Markdown documentation pack in <code>docs/edutu-detailed</code>. It covers the active API, web/admin surfaces, Expo mobile app, Supabase schemas/functions, scraper generations, AI control plane, operations, and review findings.</p>
+        <div class="grid">
+          <div class="card metric"><strong>915</strong><span>non-build source/docs/config files inventoried</span></div>
+          <div class="card metric"><strong>9</strong><span>documentation files in this detailed pack</span></div>
+          <div class="card metric"><strong>4</strong><span>parallel review lanes integrated</span></div>
+        </div>
+      </header>
+
+      <section id="inventory">
+        <h3>Inventory</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Surface</th><th>Path</th><th>Status</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr><td>NestJS API</td><td><code>edutu-platform/backend/services/services/api</code></td><td><span class="pill p-blue">active</span></td><td>Main backend, business logic, AI, billing, notifications, scraper control, partner API.</td></tr>
+              <tr><td>Standalone Admin</td><td><code>edutu-platform/admin</code></td><td><span class="pill p-blue">active</span></td><td>Operations dashboard for opportunities, users, creators, roadmaps, scraper, mobile control.</td></tr>
+              <tr><td>Web App</td><td><code>edutu-platform/edutu-web-app</code></td><td><span class="pill p-blue">active</span></td><td>Main web/PWA/Capacitor app and embedded admin.</td></tr>
+              <tr><td>Mobile App</td><td><code>edutumobile</code></td><td><span class="pill p-blue">active</span></td><td>Expo app with Clerk, Supabase bridge, offline cache, push, widgets, RevenueCat.</td></tr>
+              <tr><td>Waitlist</td><td><code>edutu-platform/edutu-web</code></td><td><span class="pill p-blue">active</span></td><td>Next.js waitlist landing page backed by Neon Postgres.</td></tr>
+              <tr><td>Crawl4AI Scraper</td><td><code>edutu-platform/crawl4ai-scraper</code></td><td><span class="pill p-blue">active</span></td><td>Python scraping pipeline.</td></tr>
+              <tr><td>Express Scraper APIs</td><td><code>edutu-platform/backend</code>, <code>admin/backend</code></td><td><span class="pill p-orange">secondary</span></td><td>Older scraper APIs and Apify/Gemini tooling.</td></tr>
+              <tr><td>Archived Scraper Work</td><td><code>edutu-platform/other-files</code></td><td><span class="pill p-orange">archive</span></td><td>Historical scraper actors, experiments, docs.</td></tr>
+              <tr><td>Launch Video</td><td><code>edutu-launch-video</code></td><td><span class="pill p-blue">active asset</span></td><td>Remotion vertical launch video package.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="architecture">
+        <h3>Architecture</h3>
+        <div class="two">
+          <div class="card">
+            <h4>Intended Boundary</h4>
+            <pre><code>Clients -> NestJS API -> Supabase</code></pre>
+            <p>Actual implementation is transitional. Web, mobile, and admin still use Supabase directly for selected RLS reads/writes, auth, storage, and edge functions.</p>
+          </div>
+          <div class="card">
+            <h4>Identity</h4>
+            <p>Clerk is primary for web/mobile. Backend accepts Clerk bearer tokens and Supabase fallback tokens. Standalone admin uses Supabase auth. Partner API uses API keys.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="backend">
+        <h3>Backend</h3>
+        <p>The active backend path is <code>edutu-platform/backend/services/services/api</code>. It boots with raw body support for Paystack webhooks, CORS allowlists, global Clerk/Supabase auth, throttling, scheduling, and feature modules.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Module</th><th>Route</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>Profile</td><td><code>/profile</code></td><td>Read/update profile, completeness, opportunity and notification preferences.</td></tr>
+              <tr><td>Opportunities</td><td><code>/opportunities</code></td><td>Public reads, recommendations, signals, admin CRUD, sync, bulk import.</td></tr>
+              <tr><td>Scraper</td><td><code>/api/scraper</code></td><td>Sources, jobs, stats, settings, dynamic schedule.</td></tr>
+              <tr><td>AI</td><td><code>/ai</code></td><td>Provider keys, routes, config, generation test.</td></tr>
+              <tr><td>Roadmaps</td><td><code>/roadmaps</code></td><td>Library, creator roadmaps, adoption, enrollment, progress, recommendations, ICS calendar.</td></tr>
+              <tr><td>Billing</td><td><code>/billing</code></td><td>Paystack checkout and webhook entitlement updates.</td></tr>
+              <tr><td>Notifications</td><td><code>/notifications</code></td><td>Inbox, preferences, push tokens, broadcasts, queue.</td></tr>
+              <tr><td>Mobile Control</td><td><code>/mobile-control</code></td><td>Campaigns, feature flags, widget feeds, events.</td></tr>
+              <tr><td>Partner API</td><td><code>/v1</code></td><td>API-keyed health, opportunities, recommendations.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="web">
+        <h3>Web and Admin</h3>
+        <div class="grid">
+          <div class="card"><h4>Standalone Admin</h4><p>Supabase-authenticated admin dashboard with pages for dashboard, opportunities, users, creators, roadmaps, blog, settings, scraper, mobile control, and profile.</p></div>
+          <div class="card"><h4>Web App</h4><p>Clerk-authenticated Vite app with public marketing routes, `/app/*` product routes, premium gates, PWA, Capacitor Android, and embedded admin.</p></div>
+          <div class="card"><h4>Waitlist</h4><p>Next.js landing page with `/api/waitlist`, Neon Postgres, duplicate email handling, and SEO/OpenGraph metadata.</p></div>
+        </div>
+      </section>
+
+      <section id="mobile">
+        <h3>Mobile</h3>
+        <p>Expo Router app under <code>edutumobile</code>. Root providers include Clerk, theme, offline, error boundary, deep-link listener, update prompt, mobile campaign host, and opportunity widget sync.</p>
+        <div class="two">
+          <div class="card"><h4>Core Services</h4><p><code>@edutu/core</code> owns opportunities, goals, chat, CV, payments, bookmarks, notifications, feature flags, analytics, deep links, hooks, and shared types.</p></div>
+          <div class="card"><h4>Native Features</h4><p>Push notifications, haptics, voice recording, text to speech, offline cache, native widgets, mobile campaigns, RevenueCat payments.</p></div>
+        </div>
+      </section>
+
+      <section id="data">
+        <h3>Data and Supabase</h3>
+        <p>Data is split across Drizzle schema and multiple Supabase SQL homes. This is the highest structural risk in the repo.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Schema Home</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr><td><code>src/db/schema.ts</code></td><td>Backend Drizzle core tables.</td></tr>
+              <tr><td><code>backend/services/services/api/supabase</code></td><td>Backend/API migrations, partner API, scraper, roadmaps, AI, RLS.</td></tr>
+              <tr><td><code>edutu-web-app/supabase</code></td><td>Web feature parity, credits, billing, Clerk RLS helpers.</td></tr>
+              <tr><td><code>edutumobile/supabase</code></td><td>Mobile CV, creator, payments, feature flags, billing, text user ID conversion.</td></tr>
+              <tr><td><code>edutu-platform/supabase</code></td><td>Mobile control plane and hardening.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="scraper-ai">
+        <h3>Scraper and AI</h3>
+        <div class="two">
+          <div class="card"><h4>Scraper Flow</h4><p>Crawl4AI fetches source pages, BeautifulSoup extracts scholarship cards, DataCleaner normalizes and dedupes, Supabase upserts by <code>canonical_url</code>. NestJS scraper module handles admin runs, schedule, sources, jobs, and stats.</p></div>
+          <div class="card"><h4>AI Control Plane</h4><p>Routes include scraper extraction, opportunity enhancement/extraction/reranking, CV draft/tailor, roadmap questions/tags/match, quiz generation, chat coaching, and transcription.</p></div>
+        </div>
+      </section>
+
+      <section id="operations">
+        <h3>Operations</h3>
+        <pre><code># Backend
+cd edutu-platform/backend/services/services/api && npm run dev
+
+# Admin
+cd edutu-platform/admin && npm run dev
+
+# Web app
+cd edutu-platform/edutu-web-app && npm run dev
+
+# Mobile
+cd edutumobile && npm run dev
+
+# Waitlist
+cd edutu-platform/edutu-web && npm run dev
+
+# Scraper
+cd edutu-platform/crawl4ai-scraper && python main.py --all --save</code></pre>
+      </section>
+
+      <section id="findings">
+        <h3>Review Findings</h3>
+        <ol>
+          <li><span class="pill p-red">High</span> Canonical opportunity schema drift across scraper, admin, Drizzle, and Supabase schemas.</li>
+          <li><span class="pill p-red">High</span> User ID model mismatch between UUID-shaped backend IDs and mobile text Clerk IDs.</li>
+          <li><span class="pill p-red">High</span> Marketplace financial operations need transaction/locking guarantees.</li>
+          <li><span class="pill p-red">High</span> Possible missing-key auth weakness in n8n webhook.</li>
+          <li><span class="pill p-orange">Review</span> Scraper overlap and broad retention deletion risks.</li>
+          <li><span class="pill p-orange">Review</span> Mobile deep-link mismatch between parser and widget/campaign links.</li>
+          <li><span class="pill p-orange">Review</span> Paystack and RevenueCat entitlement source split.</li>
+        </ol>
+        <p>Full findings are documented in <code>09-review-findings.md</code>.</p>
+      </section>
+
+      <section id="tasks">
+        <h3>Task Backlog</h3>
+        <p>The full backlog is in <code>08-task-backlog.md</code>. Priority themes:</p>
+        <ul>
+          <li>Pick canonical schema and migration home.</li>
+          <li>Unify admin auth and user ID contracts.</li>
+          <li>Move sensitive client writes behind backend or audited edge functions.</li>
+          <li>Make scraper imports locked, scoped, and observable.</li>
+          <li>Make billing/credits/marketplace operations transactional and idempotent.</li>
+          <li>Add OpenAPI docs, e2e tests, smoke tests, and runbooks.</li>
+        </ul>
+      </section>
+
+      <footer>
+        Detailed Markdown files live in <code>docs/edutu-detailed</code>. Previous overview remains at <code>docs/edutu-platform-architecture.html</code>.
+      </footer>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,35 @@
+[    1714ms] [LOG] %c
+▲
+
+ _____ _              _                    _   _             __
+|_   _| |__   ___    / \   __ _  ___ _ __ | |_(_) ___       / /
+  | | | '_ \ / _ \  / _ \ / _` |/ _ \ '_ \| __| |/ __|     / /
+  | | | | | |  __/ / ___ \ (_| |  __/ | | | |_| | (__     /_/
+  |_| |_| |_|\___|/_/   \_\__, |\___|_| |_|\__|_|\___|    (_)
+                           |___/
+ ___        __               _                   _                 _
+|_ _|_ __  / _|_ __ __ _ ___| |_ _ __ _   _  ___| |_ _   _ _ __ ___
+ | || '_ \| |_| '__/ _` / __| __| '__| | | |/ __| __| | | | '__/ _ \
+ | || | | |  _| | | (_| \__ \ |_| |  | |_| | (__| |_| |_| | | |  __/
+|___|_| |_|_| |_|  \__,_|___/\__|_|   \__,_|\___|\__|\__,_|_|  \___|
+  
+
+Hello!
+
+- Open Source https://vercel.com/oss
+- Careers https://vercel.com/careers
+- Status https://vercel-status.com
+
+ font-family: "Geist Mono", monospace; white-space: pre; line-height: 1; @ https://vercel.com/_next/static/immutable/chunks/2v4re5sjm46o_.js:108
+[    3399ms] [WARNING] Deprecated API for given entry type. @ https://vercel.com/_next/static/immutable/chunks/2pior404zc98i.js:18
+[    3479ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://vercel.com/api/jwt:0
+[    7128ms] [WARNING] The resource https://vercel.com/_next/static/immutable/chunks/3l1vkaiao2o7o.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ https://vercel.com/oauth/device?user_code=WRFM-JTMM:0
+[    7129ms] [WARNING] The resource https://vercel.com/_next/static/immutable/chunks/1777f8dhtch_9.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ https://vercel.com/oauth/device?user_code=WRFM-JTMM:0
+[    7129ms] [WARNING] The resource https://vercel.com/_next/static/immutable/chunks/1_-gzlz1lfys2.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ https://vercel.com/oauth/device?user_code=WRFM-JTMM:0
+[    7129ms] [WARNING] The resource https://vercel.com/_next/static/immutable/chunks/0uj5f3hoqmasw.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ https://vercel.com/oauth/device?user_code=WRFM-JTMM:0
+[   17472ms] [WARNING] The resource https://vercel.com/_next/static/immutable/chunks/3l1vkaiao2o7o.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ https://vercel.com/oauth/device?user_code=WRFM-JTMM:0
+[   17472ms] [WARNING] The resource https://vercel.com/_next/static/immutable/chunks/1777f8dhtch_9.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ https://vercel.com/oauth/device?user_code=WRFM-JTMM:0
+[   17472ms] [WARNING] The resource https://vercel.com/_next/static/immutable/chunks/1_-gzlz1lfys2.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ https://vercel.com/oauth/device?user_code=WRFM-JTMM:0
+[   17472ms] [WARNING] The resource https://vercel.com/_next/static/immutable/chunks/0uj5f3hoqmasw.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ https://vercel.com/oauth/device?user_code=WRFM-JTMM:0
+[   20777ms] [LOG] Error @ https://vercel.com/149e9513-01fa-4fb0-aad4-566afd725d1b/2d206a39-8ed7-437e-a3be-862e0f06eea3/a-4-a/c.js?i=0&v=3&h=vercel.com:0
+[   20794ms] [WARNING] [.WebGL-0x104005a2c00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels @ https://vercel.com/oauth/device?user_code=WRFM-JTMM:0

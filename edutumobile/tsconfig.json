@@ -1,0 +1,28 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "@edutu/core": ["./packages/core/src/index.ts"],
+      "@edutu/core/hooks/*": ["./packages/core/src/hooks/*.ts"],
+      "@edutu/core/types/*": ["./packages/core/src/types/*.ts"],
+      "@edutu/core/services/*": ["./packages/core/src/services/*.ts"],
+      "@edutu/core/src/*": ["./packages/core/src/*"]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts",
+    "nativewind-env.d.ts",
+    "types/**/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "supabase/functions",
+    "__tests__"
+  ]
+}

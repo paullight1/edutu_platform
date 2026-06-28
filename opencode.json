@@ -1,0 +1,11 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "apify": {
+      "type": "remote",
+      "url": "https://mcp.apify.com?tools=actors,docs,paullight/edutu-scraper1,majestic_fund/the-scholarship-scraper-actor,fiery_dream/scholarship-intel",
+      "headers": {},
+      "enabled": true
+    }
+  }
+}

@@ -1,0 +1,53 @@
+- generic [ref=e3]:
+  - link "Skip to content" [ref=e4] [cursor=pointer]:
+    - /url: "#main-content"
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - link "Edutu opportunities" [ref=e7] [cursor=pointer]:
+        - /url: /opportunities
+        - img "Edutu" [ref=e8]
+        - generic [ref=e9]: Edutu
+      - navigation "Primary navigation" [ref=e10]:
+        - link "Opportunities" [ref=e11] [cursor=pointer]:
+          - /url: /opportunities
+      - generic [ref=e12]:
+        - button "Use dark theme" [ref=e13] [cursor=pointer]:
+          - img [ref=e14]
+        - link "Sign in" [ref=e16] [cursor=pointer]:
+          - /url: /auth?mode=sign-in
+        - link "Join" [ref=e17] [cursor=pointer]:
+          - /url: /auth?signup=true
+  - main [ref=e18]:
+    - generic [ref=e19]:
+      - generic [ref=e20]:
+        - paragraph [ref=e21]: Updated public feed
+        - heading "Scholarships, internships, grants and fellowships" [level=1] [ref=e22]
+        - paragraph [ref=e23]: Browse active opportunities with deadlines, eligibility notes, benefits, and application links in one focused Edutu index.
+        - generic [ref=e24]:
+          - generic [ref=e25]:
+            - term [ref=e26]:
+              - img [ref=e27]
+              - text: Last updated
+            - definition [ref=e30]: Checking now
+          - generic [ref=e31]:
+            - term [ref=e32]: Active listings
+            - definition [ref=e33]: Loading
+          - generic [ref=e34]:
+            - term [ref=e35]: Categories
+            - definition [ref=e36]: Loading
+      - button "Refresh" [disabled] [ref=e37]:
+        - img [ref=e38]
+        - text: Refresh
+    - generic [ref=e44]:
+      - generic [ref=e45]:
+        - img
+        - textbox "Search opportunities" [ref=e46]:
+          - /placeholder: Search by title, organization, location, or keyword
+      - button "All" [pressed] [ref=e48] [cursor=pointer]
+      - generic [ref=e50]: Loading opportunities...
+  - contentinfo [ref=e58]:
+    - generic [ref=e59]:
+      - generic [ref=e61]: Edutu
+      - paragraph [ref=e62]: Updated scholarships, internships, fellowships, grants, and application links for learners planning their next step.
+      - link "support@edutu.ai" [ref=e63] [cursor=pointer]:
+        - /url: mailto:support@edutu.ai
