@@ -415,7 +415,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         <div className="mt-10 flex justify-center">
                             <Link
                                 to="/opportunities"
-                                className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-[16px] font-medium no-underline transition-all duration-200 text-[#080808] dark:text-[#f5f5f5] border border-[#d8d8d8] dark:border-[#363636] hover:border-[#898989] hover:translate-x-1.5"
+                                className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-[16px] font-medium no-underline transition-all duration-200 text-[#1a1a1a] border border-[#d8d8d8] dark:border-[#555] hover:text-[#000] hover:border-[#898989] hover:translate-x-1.5"
                             >
                                 Explore all opportunities <ArrowRight size={16} />
                             </Link>

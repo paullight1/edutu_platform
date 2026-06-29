@@ -674,34 +674,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   ];
 
   const detailContent = (
-    <div className="opportunities-force-light">
-      <style>{`
-        .opportunities-force-light {
-          color: #0f172a !important;
-          background-color: #f8fafc !important;
-        }
-        .opportunities-force-light [class*="dark\\:text-"] {
-          color: #0f172a !important;
-        }
-        .opportunities-force-light [class*="dark\\:text-brand"] {
-          color: #4338ca !important;
-        }
-        .opportunities-force-light [class*="dark\\:text-emerald"] {
-          color: #047857 !important;
-        }
-        .opportunities-force-light [class*="dark\\:text-rose"] {
-          color: #be123c !important;
-        }
-        .opportunities-force-light [class*="dark\\:text-amber"] {
-          color: #b45309 !important;
-        }
-        .opportunities-force-light [class*="dark\\:bg-"] {
-          background-color: #ffffff !important;
-        }
-        .opportunities-force-light [class*="dark\\:border-"] {
-          border-color: #e2e8f0 !important;
-        }
-      `}</style>
+    <>
       <Seo
         title={`${opportunity.title} | Edutu opportunities`}
         description={seoDescription}
@@ -1085,21 +1058,48 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
           </div>
         </div>
       ) : null}
-    </div>
+    </>
   );
 
-  if (embedded) {
-    return (
-      <main className="mx-auto w-full max-w-6xl px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:py-6 lg:px-8">
-        {detailContent}
-      </main>
-    );
-  }
-
   return (
-    <PublicEditorialShell mainClassName="max-w-6xl py-5 sm:py-6">
-      {detailContent}
-    </PublicEditorialShell>
+    <div className="opportunities-force-light">
+      <style>{`
+        .opportunities-force-light {
+          color: #0f172a !important;
+          background-color: #f8fafc !important;
+        }
+        .opportunities-force-light [class*="dark\\:text-"] {
+          color: #0f172a !important;
+        }
+        .opportunities-force-light [class*="dark\\:text-brand"] {
+          color: #4338ca !important;
+        }
+        .opportunities-force-light [class*="dark\\:text-emerald"] {
+          color: #047857 !important;
+        }
+        .opportunities-force-light [class*="dark\\:text-rose"] {
+          color: #be123c !important;
+        }
+        .opportunities-force-light [class*="dark\\:text-amber"] {
+          color: #b45309 !important;
+        }
+        .opportunities-force-light [class*="dark\\:bg-"] {
+          background-color: #ffffff !important;
+        }
+        .opportunities-force-light [class*="dark\\:border-"] {
+          border-color: #e2e8f0 !important;
+        }
+      `}</style>
+      {embedded ? (
+        <main className="mx-auto w-full max-w-6xl px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:py-6 lg:px-8">
+          {detailContent}
+        </main>
+      ) : (
+        <PublicEditorialShell mainClassName="max-w-6xl py-5 sm:py-6">
+          {detailContent}
+        </PublicEditorialShell>
+      )}
+    </div>
   );
 };
 
