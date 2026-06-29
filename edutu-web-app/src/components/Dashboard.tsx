@@ -413,7 +413,7 @@ const DEFAULT_BANNERS: BannerAd[] = [
   },
 ];
 
-function BannerCarousel({ banners }: { banners: BannerAd[] }) {
+function BannerCarousel({ banners, mobileHeight }: { banners: BannerAd[]; mobileHeight?: string }) {
   const [current, setCurrent] = useState(0);
 
   useEffect(() => {
@@ -431,22 +431,34 @@ function BannerCarousel({ banners }: { banners: BannerAd[] }) {
   if (banners.length === 0) return null;
 
   return (
-    <div className="relative w-full overflow-hidden rounded-[20px] bg-slate-100">
-      <a
-        href={banners[current].url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="group relative block w-full overflow-hidden"
-        style={{ aspectRatio: "1200 / 300" }}
+    <div
+      className="relative w-full overflow-hidden rounded-[20px] bg-slate-100"
+      style={
+        mobileHeight
+          ? { height: mobileHeight, maxWidth: '800px', margin: '0 auto' }
+          : {}
+      }
+    >
+      <div
+        className="relative block w-full overflow-hidden"
+        style={mobileHeight ? { height: mobileHeight } : { aspectRatio: "1200 / 300" }}
       >
         <img
           src={banners[current].image}
           alt={banners[current].alt}
-          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+          className="h-full w-full object-cover"
           style={{ position: "absolute", inset: 0 }}
         />
-        <div className="absolute inset-0 bg-black/10" />
-      </a>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-black/10" />
+        <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
+          <span className="text-lg font-bold tracking-tight text-white drop-shadow-sm sm:text-2xl">
+            Welcome to Edutu
+          </span>
+          <span className="mt-1 text-xs font-medium text-white/80 drop-shadow-sm sm:text-sm">
+            Discover global opportunities, scholarships, and career growth
+          </span>
+        </div>
+      </div>
       {banners.length > 1 && (
         <>
           <button
@@ -1708,6 +1720,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
               </section>
             ) : null}
 
+            <section className="sm:hidden mb-6">
+              <BannerCarousel banners={DEFAULT_BANNERS} mobileHeight="150px" />
+            </section>
+
             {/* Content Layout */}
             <div className="grid lg:grid-cols-12 gap-8 pb-8">
               <div
@@ -1858,10 +1874,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                               {selectedDiscoveryCategory ? t("dashboard.empty.showAll") : t("dashboard.viewAll")}
                               <ChevronRight size={16} />
                             </button>
-                          </div>
-
-                          <div className="mb-6">
-                            <BannerCarousel banners={DEFAULT_BANNERS} />
                           </div>
 
                           <div className="mb-3 flex items-start justify-between gap-3">
