@@ -424,10 +424,6 @@ function BannerCarousel({ banners, mobileHeight }: { banners: BannerAd[]; mobile
     return () => clearInterval(timer);
   }, [banners.length]);
 
-  const goTo = (index: number) => setCurrent(index);
-  const goPrev = () => setCurrent((prev) => (prev - 1 + banners.length) % banners.length);
-  const goNext = () => setCurrent((prev) => (prev + 1) % banners.length);
-
   if (banners.length === 0) return null;
 
   return (
@@ -459,39 +455,6 @@ function BannerCarousel({ banners, mobileHeight }: { banners: BannerAd[]; mobile
           </span>
         </div>
       </div>
-      {banners.length > 1 && (
-        <>
-          <button
-            type="button"
-            onClick={goPrev}
-            className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-slate-700 shadow-sm backdrop-blur-sm transition hover:bg-white"
-            aria-label="Previous banner"
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <button
-            type="button"
-            onClick={goNext}
-            className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-slate-700 shadow-sm backdrop-blur-sm transition hover:bg-white"
-            aria-label="Next banner"
-          >
-            <ChevronRight size={18} />
-          </button>
-          <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-2">
-            {banners.map((_, index) => (
-              <button
-                key={index}
-                type="button"
-                onClick={() => goTo(index)}
-                className={`h-2 rounded-full transition-all ${
-                  index === current ? "w-6 bg-white" : "w-2 bg-white/50"
-                }`}
-                aria-label={`Go to banner ${index + 1}`}
-              />
-            ))}
-          </div>
-        </>
-      )}
     </div>
   );
 }
