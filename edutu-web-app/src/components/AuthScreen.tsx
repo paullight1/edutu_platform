@@ -96,7 +96,7 @@ const FieldShell = ({
   label: string;
 }) => (
   <label className="block">
-    <span className="mb-2 block text-xs font-medium text-slate-700">
+    <span className="mb-2 block text-xs font-medium text-slate-700 dark:text-slate-300">
       {label}
     </span>
     {children}
@@ -697,7 +697,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
 
   return (
     <PublicEditorialShell mainClassName="max-w-md py-10 sm:py-14">
-      <section className="text-slate-950">
+      <section className="text-slate-950 dark:text-white">
         <section className="mx-auto flex items-center justify-center">
           <motion.div
             initial={{ opacity: 0, y: 18 }}
@@ -779,14 +779,14 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
             <div className="flex items-center justify-center">
               <div className="w-full">
                 <div className="mb-8 text-center">
-                  <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-blue-50">
+                  <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-500/10">
                     {mode === "verify" ||
                     mode === "verify-sign-in" ||
                     mode === "verify-second-factor" ||
                     mode === "reset-password" ? (
                       <ShieldCheck className="text-blue-600" size={27} />
                     ) : (
-                      <User className="text-slate-700" size={26} />
+                      <User className="text-slate-700 dark:text-slate-300" size={26} />
                     )}
                   </div>
                   <h1 className="text-2xl font-semibold text-slate-950 dark:text-white">
@@ -803,7 +803,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                       initial={{ opacity: 0, y: -8 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -8 }}
-                      className="mb-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-center text-sm text-red-600"
+                      className="mb-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-center text-sm text-red-600 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400"
                     >
                       {error}
                     </motion.div>
@@ -857,7 +857,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                     <button
                       type="submit"
                       disabled={loading || code.length < 6}
-                      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+                      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none dark:disabled:bg-slate-600"
                     >
                       {loading ? (
                         <Loader2 size={17} className="animate-spin" />
@@ -878,7 +878,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                         type="button"
                         onClick={handleResendCode}
                         disabled={loading}
-                        className="w-full text-center text-sm font-medium text-blue-600 disabled:text-slate-300"
+                        className="w-full text-center text-sm font-medium text-blue-600 disabled:text-slate-300 dark:text-blue-400 dark:disabled:text-slate-500"
                       >
                         Resend code
                       </button>
@@ -896,21 +896,21 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                     <FieldShell label="Email">
                       <div className="relative">
                         <Mail
-                          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                          size={17}
-                        />
-                        <input
-                          ref={emailRef}
-                          type="email"
-                          value={emailAddress}
-                          onChange={(event) =>
-                            setEmailAddress(event.target.value)
-                          }
-                          className={`${baseInputClass} pl-11`}
-                          placeholder="e.g. ahmed@edutu.org"
-                          autoComplete="email"
-                          disabled={resetCodeSent}
-                        />
+                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"
+                  size={17}
+                />
+                <input
+                  ref={emailRef}
+                  type="email"
+                  value={emailAddress}
+                  onChange={(event) =>
+                    setEmailAddress(event.target.value)
+                  }
+                  className={`${baseInputClass} pl-11`}
+                  placeholder="e.g. ahmed@edutu.org"
+                  autoComplete="email"
+                  disabled={resetCodeSent}
+                />
                       </div>
                     </FieldShell>
 
@@ -937,7 +937,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
 
                         <FieldShell label="New password">
                           <div className="relative">
-                            <span className="pointer-events-none absolute left-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                            <span className="pointer-events-none absolute left-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">
                               <LockKeyhole size={15} strokeWidth={1.9} />
                             </span>
                             <input
@@ -955,7 +955,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                               onClick={() =>
                                 setShowResetPassword((value) => !value)
                               }
-                              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-700"
+                              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300"
                               aria-label={
                                 showResetPassword
                                   ? "Hide new password"
@@ -980,7 +980,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                         (resetCodeSent &&
                           (code.length < 6 || resetPassword.length < 8))
                       }
-                      className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+                      className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none dark:disabled:bg-slate-600"
                     >
                       {loading ? (
                         <Loader2 size={17} className="animate-spin" />
@@ -997,7 +997,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                     <button
                       type="button"
                       onClick={() => resetMode("sign-in")}
-                      className="w-full text-center text-sm font-medium text-blue-600 hover:text-blue-700"
+                      className="w-full text-center text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                     >
                       Back to sign in
                     </button>
@@ -1009,7 +1009,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                         <FieldShell label="Name">
                           <div className="relative">
                             <User
-                              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"
                               size={17}
                             />
                             <input
@@ -1030,7 +1030,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                       <FieldShell label="Email">
                         <div className="relative">
                           <Mail
-                            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"
                             size={17}
                           />
                           <input
@@ -1049,7 +1049,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
 
                       <FieldShell label="Password">
                         <div className="relative">
-                          <span className="pointer-events-none absolute left-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                          <span className="pointer-events-none absolute left-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">
                             <LockKeyhole size={15} strokeWidth={1.9} />
                           </span>
                           <input
@@ -1069,7 +1069,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                           <button
                             type="button"
                             onClick={() => setShowPassword((value) => !value)}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-700"
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300"
                             aria-label={
                               showPassword ? "Hide password" : "Show password"
                             }
@@ -1084,15 +1084,15 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                       </FieldShell>
 
                       {mode === "sign-in" && signInFailureCount >= 1 && (
-                        <div className="-mt-1 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
-                          <p className="text-xs font-medium leading-5 text-blue-950">
+                        <div className="-mt-1 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 dark:border-blue-900/50 dark:bg-blue-950/30">
+                          <p className="text-xs font-medium leading-5 text-blue-950 dark:text-blue-200">
                             Password not working? Send a recovery code to reset
                             it.
                           </p>
                           <button
                             type="button"
                             onClick={() => resetMode("reset-password")}
-                            className="mt-2 text-xs font-bold text-blue-700 hover:text-blue-800"
+                            className="mt-2 text-xs font-bold text-blue-700 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                           >
                             Recover password
                           </button>
@@ -1103,25 +1103,25 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                         <>
                           <FieldShell label="Confirm password">
                             <div className="relative">
-                              <span className="pointer-events-none absolute left-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-                                <LockKeyhole size={15} strokeWidth={1.9} />
-                              </span>
-                              <input
-                                type={showConfirmPassword ? "text" : "password"}
-                                value={confirmPassword}
-                                onChange={(event) =>
-                                  setConfirmPassword(event.target.value)
-                                }
-                                className={`${baseInputClass} pl-12 pr-11`}
-                                placeholder="Repeat your password"
-                                autoComplete="new-password"
-                              />
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setShowConfirmPassword((value) => !value)
-                                }
-                                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-700"
+                            <span className="pointer-events-none absolute left-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500">
+                              <LockKeyhole size={15} strokeWidth={1.9} />
+                            </span>
+                            <input
+                              type={showConfirmPassword ? "text" : "password"}
+                              value={confirmPassword}
+                              onChange={(event) =>
+                                setConfirmPassword(event.target.value)
+                              }
+                              className={`${baseInputClass} pl-12 pr-11`}
+                              placeholder="Repeat your password"
+                              autoComplete="new-password"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setShowConfirmPassword((value) => !value)
+                              }
+                              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300"
                                 aria-label={
                                   showConfirmPassword
                                     ? "Hide confirm password"
@@ -1137,14 +1137,14 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                             </div>
                           </FieldShell>
 
-                          <label className="flex items-start gap-2 text-xs text-slate-500">
+                          <label className="flex items-start gap-2 text-xs text-slate-500 dark:text-slate-400">
                             <input
                               type="checkbox"
                               checked={acceptTerms}
                               onChange={(event) =>
                                 setAcceptTerms(event.target.checked)
                               }
-                              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600 dark:bg-slate-800"
                             />
                             <span>
                               I agree to Edutu's terms and privacy policy.
@@ -1153,7 +1153,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
 
                           <div
                             id="clerk-captcha"
-                            className="min-h-[65px] rounded-xl border border-slate-100 bg-slate-50/70 p-2"
+                            className="min-h-[65px] rounded-xl border border-slate-100 bg-slate-50/70 p-2 dark:border-slate-800 dark:bg-slate-900/50"
                           />
                         </>
                       )}
@@ -1161,7 +1161,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                       <button
                         type="submit"
                         disabled={loading}
-                        className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+                        className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-800"
                       >
                         {loading ? (
                           <Loader2 size={17} className="animate-spin" />
@@ -1178,7 +1178,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                       </button>
                     </form>
 
-                    <p className="mt-5 text-center text-sm text-slate-500">
+                    <p className="mt-5 text-center text-sm text-slate-500 dark:text-slate-400">
                       {mode === "sign-in"
                         ? "Don't have an account? "
                         : "Already have an account? "}
@@ -1187,16 +1187,16 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                         onClick={() =>
                           resetMode(mode === "sign-in" ? "sign-up" : "sign-in")
                         }
-                        className="font-semibold text-blue-600 hover:text-blue-700"
+                        className="font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                       >
                         {mode === "sign-in" ? "Sign up" : "Log in"}
                       </button>
                     </p>
 
                     <div className="my-6 flex items-center gap-4">
-                      <div className="h-px flex-1 bg-slate-100" />
-                      <span className="text-xs text-slate-400">OR</span>
-                      <div className="h-px flex-1 bg-slate-100" />
+                      <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
+                      <span className="text-xs text-slate-400 dark:text-slate-500">OR</span>
+                      <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -1230,7 +1230,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                   </>
                 )}
 
-                <p className="mt-8 text-center text-xs leading-5 text-slate-400">
+                <p className="mt-8 text-center text-xs leading-5 text-slate-400 dark:text-slate-500">
                   By continuing, you agree to Edutu's Terms & Privacy Policy.
                 </p>
               </div>
