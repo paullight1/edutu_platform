@@ -133,7 +133,7 @@ const AboutPage: React.FC = () => {
                                         loading="lazy"
                                     />
                                     <div className="absolute inset-0 bg-gradient-to-br from-black/25 via-transparent to-brand-500/15" />
-                                    <div className="absolute left-5 bottom-5 inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-xs font-semibold tracking-wider text-gray-900 shadow-lg backdrop-blur-sm">
+                                    <div className="absolute left-5 bottom-5 inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-xs font-semibold tracking-wider text-gray-900 shadow-lg backdrop-blur-sm dark:bg-gray-800/90 dark:text-white">
                                         <Target size={14} className="text-brand-500" />
                                         GLOBAL ACCESS
                                     </div>
@@ -373,7 +373,7 @@ const AboutPage: React.FC = () => {
                                         loading="lazy"
                                     />
                                     <div className="absolute inset-0 bg-gradient-to-br from-black/35 via-transparent to-brand-500/15" />
-                                    <div className="absolute left-6 bottom-6 inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-xs font-semibold tracking-wider text-gray-900 shadow-lg backdrop-blur-sm">
+                                    <div className="absolute left-6 bottom-6 inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-xs font-semibold tracking-wider text-gray-900 shadow-lg backdrop-blur-sm dark:bg-gray-800/90 dark:text-white">
                                         <Sparkles size={14} className="text-brand-500" />
                                         FOUNDERS VIEW
                                     </div>
@@ -433,7 +433,7 @@ const AboutPage: React.FC = () => {
                         </p>
                         <Link
                             to="/"
-                            className="inline-flex items-center gap-2 px-10 py-4 text-base font-medium rounded-lg bg-white text-gray-900 shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated"
+                            className="inline-flex items-center gap-2 px-10 py-4 text-base font-medium rounded-lg bg-white text-gray-900 shadow-soft transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated dark:bg-gray-800 dark:text-white"
                         >
                             Browse Opportunities <ArrowRight size={16} />
                         </Link>

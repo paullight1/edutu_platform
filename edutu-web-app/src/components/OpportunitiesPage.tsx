@@ -153,23 +153,9 @@ function formatFunding(opportunity: Opportunity): string | null {
   return `${getCurrencySymbol(opportunity.currency)}${Number(stipend).toLocaleString()} funding`;
 }
 
-type DeadlineWindow = "any" | "week" | "month" | "90days";
-type FundingFilter = "any" | "paid";
 type SortOption = "recommended" | "deadline" | "newest" | "funding";
 
 const PAGE_SIZE = 12;
-
-const deadlineWindowOptions: { value: DeadlineWindow; labelKey: string }[] = [
-  { value: "any", labelKey: "opportunities.deadlineWindows.any" },
-  { value: "week", labelKey: "opportunities.deadlineWindows.week" },
-  { value: "month", labelKey: "opportunities.deadlineWindows.month" },
-  { value: "90days", labelKey: "opportunities.deadlineWindows.90days" },
-];
-
-const fundingOptions: { value: FundingFilter; labelKey: string }[] = [
-  { value: "any", labelKey: "opportunities.funding.any" },
-  { value: "paid", labelKey: "opportunities.funding.paid" },
-];
 
 const sortOptions: { value: SortOption; labelKey: string }[] = [
   { value: "recommended", labelKey: "opportunities.sort.recommended" },
@@ -177,27 +163,6 @@ const sortOptions: { value: SortOption; labelKey: string }[] = [
   { value: "newest", labelKey: "opportunities.sort.newest" },
   { value: "funding", labelKey: "opportunities.sort.funding" },
 ];
-
-function deadlineWindowMatches(
-  opportunity: Opportunity,
-  window: DeadlineWindow,
-): boolean {
-  if (window === "any") return true;
-  const daysLeft = getOpportunityDaysLeft(opportunity.deadline);
-  if (daysLeft === null) return false;
-  if (window === "week") return daysLeft <= 7;
-  if (window === "month") return daysLeft <= 31;
-  return daysLeft <= 90;
-}
-
-function hasPaidFunding(opportunity: Opportunity): boolean {
-  const stipend = opportunity.stipend;
-  return (
-    typeof stipend === "number" &&
-    Number.isFinite(stipend) &&
-    stipend > 0
-  );
-}
 
 function getOpportunityStipend(opportunity: Opportunity): number {
   const stipend = opportunity.stipend;
@@ -320,7 +285,7 @@ function OpportunityCard({
           type="button"
           onClick={() => onShare(opportunity)}
           disabled={isSharing}
-          className="absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-md bg-white/92 text-slate-600 shadow-sm backdrop-blur transition hover:text-brand-600 disabled:cursor-wait disabled:opacity-60 dark:bg-slate-950/80 dark:text-slate-200 dark:hover:text-white"
+          className="absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-md bg-white/90 text-slate-700 shadow-sm backdrop-blur transition hover:bg-white hover:text-slate-900 disabled:cursor-wait disabled:opacity-60 dark:bg-white/15 dark:text-slate-200 dark:hover:bg-white/25 dark:hover:text-white"
           aria-label={`Share ${opportunity.title}`}
         >
           <Share2 size={15} />
@@ -383,31 +348,6 @@ function LoadingCard() {
   );
 }
 
-function FilterChip({
-  active,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`inline-flex h-8 items-center rounded-md border px-2.5 text-xs font-semibold transition ${
-        active
-          ? "border-brand-500 bg-brand-500/10 text-brand-700 dark:border-brand-400 dark:bg-brand-500/20 dark:text-brand-200"
-          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-white/20"
-      }`}
-    >
-      {label}
-    </button>
-  );
-}
-
 interface OpportunitiesPageProps {
   embedded?: boolean;
 }
@@ -420,10 +360,6 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   const [searchTerm, setSearchTerm] = useState("");
   const [sharingId, setSharingId] = useState<string | null>(null);
   const [showClosed, setShowClosed] = useState(false);
-  const [deadlineWindow, setDeadlineWindow] = useState<DeadlineWindow>("any");
-  const [fundingFilter, setFundingFilter] = useState<FundingFilter>("any");
-  const [remoteOnly, setRemoteOnly] = useState(false);
-  const [featuredOnly, setFeaturedOnly] = useState(false);
   const [sortOption, setSortOption] = useState<SortOption>("recommended");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const selectedCategoryId = searchParams.get("category")?.toLowerCase() ?? "";
@@ -441,22 +377,6 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
         selectedCategoryId &&
         !opportunityMatchesCategory(opportunity, selectedCategoryId)
       ) {
-        return false;
-      }
-
-      if (!deadlineWindowMatches(opportunity, deadlineWindow)) {
-        return false;
-      }
-
-      if (fundingFilter === "paid" && !hasPaidFunding(opportunity)) {
-        return false;
-      }
-
-      if (remoteOnly && !opportunity.isRemote) {
-        return false;
-      }
-
-      if (featuredOnly && !opportunity.featured) {
         return false;
       }
 
@@ -481,10 +401,6 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
     searchTerm,
     selectedCategoryId,
     showClosed,
-    deadlineWindow,
-    fundingFilter,
-    remoteOnly,
-    featuredOnly,
   ]);
 
   const sortedOpportunities = useMemo(
@@ -501,10 +417,6 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   const hasActiveFilters = Boolean(
     searchTerm.trim() ||
       selectedCategoryId ||
-      deadlineWindow !== "any" ||
-      fundingFilter !== "any" ||
-      remoteOnly ||
-      featuredOnly ||
       showClosed,
   );
 
@@ -581,10 +493,6 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
 
   const clearAllFilters = () => {
     setSearchTerm("");
-    setDeadlineWindow("any");
-    setFundingFilter("any");
-    setRemoteOnly(false);
-    setFeaturedOnly(false);
     setShowClosed(false);
     setSearchParams(new URLSearchParams(), { replace: true });
   };
@@ -632,15 +540,43 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   };
 
   const content = (
-    <>
+    <div className="opportunities-force-light">
+      <style>{`
+        .opportunities-force-light {
+          color: #0f172a !important;
+          background-color: #f8fafc !important;
+        }
+        .opportunities-force-light [class*="dark\\:text-"] {
+          color: #0f172a !important;
+        }
+        .opportunities-force-light [class*="dark\\:text-brand"] {
+          color: #4338ca !important;
+        }
+        .opportunities-force-light [class*="dark\\:text-emerald"] {
+          color: #047857 !important;
+        }
+        .opportunities-force-light [class*="dark\\:text-rose"] {
+          color: #be123c !important;
+        }
+        .opportunities-force-light [class*="dark\\:text-amber"] {
+          color: #b45309 !important;
+        }
+        .opportunities-force-light .dark\\:bg-gray-950,
+        .opportunities-force-light [class*="dark\\:bg-"] {
+          background-color: #ffffff !important;
+        }
+        .opportunities-force-light [class*="dark\\:border-"] {
+          border-color: #e2e8f0 !important;
+        }
+      `}</style>
         {selectedCategory ? (
           <section className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-brand-600 dark:text-brand-300">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600 dark:text-brand-300">
                   {t("navigation.explore")}
                 </p>
-                <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 dark:text-white">
+                <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">
                   {t(selectedCategory.labelKey)}
                 </h1>
                 <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
@@ -650,7 +586,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
               <button
                 type="button"
                 onClick={clearCategory}
-                className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+                className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
               >
                 {t("common.all")}
                 <X size={14} />
@@ -660,7 +596,32 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
         ) : null}
 
         <section className={`sticky ${embedded ? "top-[72px]" : "top-[76px]"} z-20 rounded-lg border border-slate-200 bg-white/92 p-3 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/92`}>
-          <div className="space-y-3">
+          <div className="flex items-center justify-between sm:hidden">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {t("opportunities.showing.opportunities", {
+                shown: visibleOpportunities.length,
+                total: sortedOpportunities.length,
+                count: sortedOpportunities.length,
+              })}
+            </p>
+            <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+              {t("common.sort")}
+              <select
+                value={sortOption}
+                onChange={(event) =>
+                  setSortOption(event.target.value as SortOption)
+                }
+                className="h-8 rounded-md border border-slate-200 bg-white pl-2.5 pr-7 text-xs font-semibold text-slate-700 focus:border-brand-500 focus:outline-none dark:border-white/10 dark:bg-slate-950 dark:text-slate-200"
+              >
+                {sortOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {t(option.labelKey)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="hidden space-y-3 sm:block">
             <div className="flex flex-col gap-3 sm:flex-row">
               <div className="relative flex-1">
               <Search
@@ -679,7 +640,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                 <button
                   type="button"
                   onClick={clearSearch}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-slate-400 transition hover:text-slate-700 dark:hover:text-white"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-slate-500 transition hover:text-slate-700 dark:hover:text-white"
                   aria-label="Clear search"
                 >
                   <X size={16} />
@@ -695,57 +656,6 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                 />
                 {t("opportunities.showClosed")}
               </label>
-            </div>
-
-            <div className="flex flex-col gap-3 border-t border-slate-200 pt-3 dark:border-white/10">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="mr-1 text-[0.7rem] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                  {t("opportunities.filters.deadline")}
-                </span>
-                {deadlineWindowOptions.map((option) => (
-                  <FilterChip
-                    key={option.value}
-                    active={deadlineWindow === option.value}
-                    label={t(option.labelKey)}
-                    onClick={() => setDeadlineWindow(option.value)}
-                  />
-                ))}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="mr-1 text-[0.7rem] font-black uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">
-                  {t("opportunities.filters.funding")}
-                </span>
-                {fundingOptions.map((option) => (
-                  <FilterChip
-                    key={option.value}
-                    active={fundingFilter === option.value}
-                    label={t(option.labelKey)}
-                    onClick={() => setFundingFilter(option.value)}
-                  />
-                ))}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3">
-                <label className="inline-flex h-8 cursor-pointer select-none items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 dark:border-white/10 dark:bg-slate-950 dark:text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={remoteOnly}
-                    onChange={(event) => setRemoteOnly(event.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 dark:border-white/20 dark:bg-slate-900"
-                  />
-                  {t("opportunities.remoteOnly")}
-                </label>
-                <label className="inline-flex h-8 cursor-pointer select-none items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 dark:border-white/10 dark:bg-slate-950 dark:text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={featuredOnly}
-                    onChange={(event) => setFeaturedOnly(event.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 dark:border-white/20 dark:bg-slate-900"
-                  />
-                  {t("opportunities.featured")}
-                </label>
-              </div>
             </div>
 
             <div className="flex flex-col gap-3 border-t border-slate-200 pt-3 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
@@ -854,7 +764,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
             </button>
           </section>
         )}
-    </>
+    </div>
   );
 
   return (

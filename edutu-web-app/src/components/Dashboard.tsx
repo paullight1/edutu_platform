@@ -5,10 +5,10 @@ import {
   Briefcase,
   Calendar,
   ChevronRight,
+  ChevronLeft,
   Clock,
   Download,
   GraduationCap,
-  Heart,
   LayoutGrid,
   List,
   Send,
@@ -41,43 +41,14 @@ import { getApplications } from "../services/applications";
 import { getDeadlines, type Deadline } from "../services/deadlines";
 import { fetchBackendProfile, type BackendProfile } from "../services/profile";
 import type { UserProfileForRecommendations } from "../services/personalizedRecommendations";
-import {
-  fetchMobileControlConfig,
-  recordMobileCampaignEvent,
-  type MobileCampaign,
-} from "../services/mobileControl";
+
 import ImageWithFallback from "./ImageWithFallback";
 
 const HOME_FEED_BATCH_SIZE = 8;
 const HOME_FEED_PROMO_INTERVAL = 6;
 const HOME_SCREEN_PROMPT_DISMISSED_KEY = "edutu_home_screen_prompt_dismissed";
 
-type HomePromoCard = {
-  campaignId?: string;
-  eyebrow: string;
-  title: string;
-  body: string;
-  actionLabel: string;
-  image: string;
-  actionScreen?: string;
-  actionRoute?: string;
-  actionUrl?: string;
-};
 
-const DEFAULT_HOME_PROMO: HomePromoCard = {
-  eyebrow: "Sponsored",
-  title: "Improve your matches",
-  body: "Complete your profile so Edutu can show stronger matches first.",
-  actionLabel: "Review",
-  image: "/discovery/internships.png",
-  actionScreen: "profile",
-};
-
-const HOME_PROMO_CAMPAIGN_TYPES = new Set([
-  "banner",
-  "announcement",
-  "notification",
-]);
 
 type DiscoveryCategoryId =
   | "scholarships"
@@ -165,64 +136,6 @@ function opportunityMatchesDiscoveryCategory(
   );
 }
 
-function readCreativeString(
-  creative: Record<string, unknown> | undefined,
-  keys: string[],
-) {
-  for (const key of keys) {
-    const value = creative?.[key];
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-  }
-  return undefined;
-}
-
-function isHomePromoCampaign(campaign: MobileCampaign) {
-  const placement = campaign.placement?.toLowerCase();
-  const type = campaign.campaign_type?.toLowerCase();
-
-  return (
-    (placement === "home" || placement === "global") &&
-    HOME_PROMO_CAMPAIGN_TYPES.has(type)
-  );
-}
-
-function mapCampaignToHomePromo(campaign: MobileCampaign): HomePromoCard {
-  const creative = campaign.creative ?? {};
-
-  return {
-    campaignId: campaign.id,
-    eyebrow:
-      readCreativeString(creative, ["eyebrow", "label", "sponsorLabel"]) ??
-      DEFAULT_HOME_PROMO.eyebrow,
-    title: campaign.title || DEFAULT_HOME_PROMO.title,
-    body: campaign.body || DEFAULT_HOME_PROMO.body,
-    actionLabel:
-      readCreativeString(creative, ["ctaLabel", "actionLabel", "buttonLabel"]) ??
-      DEFAULT_HOME_PROMO.actionLabel,
-    image:
-      readCreativeString(creative, [
-        "image",
-        "imageUrl",
-        "backgroundImage",
-        "backgroundUrl",
-      ]) ?? DEFAULT_HOME_PROMO.image,
-    actionScreen: readCreativeString(creative, [
-      "screen",
-      "targetScreen",
-      "actionScreen",
-    ]),
-    actionRoute: readCreativeString(creative, [
-      "route",
-      "href",
-      "path",
-      "ctaRoute",
-    ]),
-    actionUrl: readCreativeString(creative, ["url", "externalUrl", "ctaUrl"]),
-  };
-}
-
 function createOpportunityShuffleSeed() {
   if (typeof crypto !== "undefined" && crypto.getRandomValues) {
     return crypto.getRandomValues(new Uint32Array(1))[0] || Date.now();
@@ -297,63 +210,12 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
   const openLabel = `Open ${opportunity?.title ?? "opportunity"}`;
   const bookmarkLabel = isBookmarked ? "Remove bookmark" : "Save opportunity";
 
-  const renderBookmark = (iconSize: number, wrapperClass: string) => (
-    <button
-      type="button"
-      onClick={(event) => onToggleBookmark(opportunity, event)}
-      className={wrapperClass}
-      aria-label={bookmarkLabel}
-    >
-      <Heart size={iconSize} fill={isBookmarked ? "currentColor" : "none"} />
-    </button>
-  );
 
-  const renderShare = (iconSize: number, wrapperClass: string) => (
-    <button
-      type="button"
-      onClick={(event) => onShare(opportunity, event)}
-      className={wrapperClass}
-      aria-label="Share opportunity"
-    >
-      <Share2 size={iconSize} />
-    </button>
-  );
-
-  const smallMediaButton = `flex h-6 w-6 items-center justify-center rounded-full backdrop-blur-sm transition-all ${
-    isBookmarked
-      ? "bg-rose-500/90 text-white"
-      : "bg-black/30 text-white/80 hover:bg-black/50"
-  }`;
-  const smallMediaShareButton =
-    "flex h-6 w-6 items-center justify-center rounded-full bg-black/30 text-white/80 backdrop-blur-sm";
-  const largeMediaButton = `flex h-7 w-7 items-center justify-center rounded-full backdrop-blur-sm transition-all ${
-    isBookmarked
-      ? "bg-rose-500/90 text-white"
-      : "bg-black/30 text-white/80 hover:bg-black/50"
-  }`;
-  const largeMediaShareButton =
-    "flex h-7 w-7 items-center justify-center rounded-full bg-black/30 text-white/80 backdrop-blur-sm";
-
-  const renderSmallMediaActions = (position: string, gap: string) => (
-    <div className={`pointer-events-auto absolute ${position} flex ${gap}`}>
-      {renderBookmark(11, smallMediaButton)}
-      {renderShare(11, smallMediaShareButton)}
-    </div>
-  );
-
-  const renderLargeMediaActions = (position: string, gap: string) => (
-    <div className={`pointer-events-auto absolute ${position} flex ${gap}`}>
-      {renderBookmark(13, largeMediaButton)}
-      {renderShare(12, largeMediaShareButton)}
-    </div>
-  );
 
   if (variant === "list") {
     return (
       <article
-        className={`group relative grid w-full grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 border-b p-3 text-left transition-colors last:border-b-0 hover:bg-slate-50 dark:hover:bg-white/5 ${
-          isDarkMode ? "border-white/10" : "border-slate-100"
-        }`}
+        className={`group relative grid w-full grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 border-b border-slate-100 p-3 text-left transition-colors last:border-b-0 hover:bg-slate-50`}
       >
         <button
           type="button"
@@ -377,11 +239,11 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
         </div>
         <div className="pointer-events-none relative z-10 flex-1 min-w-0">
           <div className="mb-1 flex items-center gap-2">
-            <span className="rounded-md bg-brand-500/10 px-2 py-0.5 text-xs font-semibold text-brand-600 dark:text-brand-300">
+            <span className="rounded-md bg-brand-500/10 px-2 py-0.5 text-xs font-semibold text-brand-600">
               {opportunity.category || "Direct"}
             </span>
           </div>
-          <h3 className="text-sm font-bold text-slate-900 transition-colors line-clamp-1 group-hover:text-primary dark:text-white">
+          <h3 className="text-sm font-semibold text-slate-900 transition-colors line-clamp-1 group-hover:text-primary text-slate-900">
             {opportunity.title}
           </h3>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-slate-500 dark:text-slate-400">
@@ -390,18 +252,6 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
           </div>
         </div>
         <div className="pointer-events-auto relative z-10 flex shrink-0 items-center gap-1">
-          {renderBookmark(
-            15,
-            `flex h-8 w-8 items-center justify-center rounded-lg transition-all hover:scale-110 ${
-              isBookmarked
-                ? "text-rose-500"
-                : "text-slate-300 hover:text-rose-400"
-            }`,
-          )}
-          {renderShare(
-            14,
-            "flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition-all hover:text-primary hover:scale-110",
-          )}
           <ChevronRight
             className="pointer-events-none text-slate-300 group-hover:text-primary transition-colors"
             size={18}
@@ -414,9 +264,7 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
   if (variant === "carousel") {
     return (
       <article
-        className={`mobile-personalized-card relative flex h-44 w-[62vw] max-w-[250px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border text-left transition active:scale-[0.98] ${
-          isDarkMode ? "border-white/10 bg-gray-900" : "border-slate-200 bg-white"
-        }`}
+        className={`mobile-personalized-card relative flex h-44 w-[62vw] max-w-[250px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-left transition active:scale-[0.98]`}
       >
         <button
           type="button"
@@ -440,10 +288,9 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
           <span className="absolute left-2 top-2 max-w-[calc(100%-1rem)] truncate rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-brand-600 backdrop-blur">
             {opportunity.category || "General"}
           </span>
-          {renderSmallMediaActions("right-1.5 top-1.5", "gap-1")}
         </div>
         <div className="pointer-events-none relative z-10 flex min-h-0 flex-1 flex-col p-3">
-          <h4 className="text-sm font-black leading-snug text-slate-950 line-clamp-2 dark:text-white">
+          <h4 className="text-sm font-semibold leading-snug text-slate-950 line-clamp-2 text-slate-900">
             {opportunity.title}
           </h4>
           <div className="mt-auto flex items-center justify-between gap-2 pt-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
@@ -460,9 +307,7 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
   if (variant === "mobileGrid") {
     return (
       <article
-        className={`mobile-more-opportunity-card relative flex min-h-[188px] min-w-0 flex-col overflow-hidden rounded-2xl border text-left transition active:scale-[0.98] ${
-          isDarkMode ? "border-white/10 bg-gray-900" : "border-slate-200 bg-white"
-        }`}
+        className={`mobile-more-opportunity-card relative flex min-h-[188px] min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm transition active:scale-[0.98]`}
         style={{ width: "100%", minWidth: 0, maxWidth: "100%" }}
       >
         <button
@@ -484,13 +329,12 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
             className="h-full w-full object-cover"
             fallbackClassName="h-full w-full"
           />
-          {renderSmallMediaActions("right-1.5 top-1.5", "gap-1")}
         </div>
         <div className="pointer-events-none relative z-10 flex min-h-0 min-w-0 flex-1 flex-col p-2.5">
-          <span className="mb-1 block truncate text-[10px] font-bold leading-4 text-brand-600 dark:text-brand-300">
+          <span className="mb-1 block truncate text-[10px] font-bold leading-4 text-brand-600">
             {opportunity.category || "General"}
           </span>
-          <span className="line-clamp-3 block min-w-0 break-words text-[13px] font-black leading-[1.16] text-slate-950 dark:text-white">
+          <span className="line-clamp-3 block min-w-0 break-words text-[13px] font-semibold leading-[1.16] text-slate-950 text-slate-900">
             {opportunity.title}
           </span>
           <div className="mt-auto flex min-w-0 flex-col gap-0.5 pt-2 text-[10px] font-semibold leading-4 text-slate-500 dark:text-slate-400">
@@ -506,11 +350,7 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
 
   return (
     <article
-      className={`group relative flex min-h-[244px] flex-col overflow-hidden rounded-[20px] border text-left transition-all hover:-translate-y-0.5 ${
-        isDarkMode
-          ? "border-white/5 bg-gray-900 hover:border-white/10"
-          : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-xl hover:shadow-slate-200/70"
-      }`}
+      className={`group relative flex min-h-[244px] flex-col overflow-hidden rounded-[20px] border border-slate-200 bg-white text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-xl hover:shadow-slate-200/70`}
     >
       <button
         type="button"
@@ -532,16 +372,15 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
           fallbackClassName="w-full h-full"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/35 via-transparent to-transparent" />
-        <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-black text-brand-600 backdrop-blur">
+        <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-semibold text-brand-600 backdrop-blur">
           {opportunity.category || "General"}
         </span>
-        {renderLargeMediaActions("right-2 top-2", "gap-1.5")}
       </div>
       <div className="pointer-events-none relative z-10 flex flex-1 flex-col p-3 sm:p-4">
-        <h3 className="text-xs sm:text-sm font-black text-slate-900 transition-colors line-clamp-2 leading-snug group-hover:text-primary dark:text-white">
+        <h3 className="text-xs sm:text-sm font-semibold text-slate-900 transition-colors line-clamp-2 leading-snug group-hover:text-primary text-slate-900">
           {opportunity.title}
         </h3>
-        <div className="mt-auto flex flex-col gap-1 pt-4 text-[10px] font-bold text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-auto flex flex-col gap-1 pt-4 text-[10px] font-medium text-slate-500 sm:flex-row sm:items-center sm:justify-between">
           <span className="truncate">{opportunity.location || "Remote"}</span>
           <span>{formatOpportunityDeadline(opportunity.deadline)}</span>
         </div>
@@ -549,6 +388,101 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
     </article>
   );
 });
+
+type BannerAd = {
+  image: string;
+  url: string;
+  alt: string;
+};
+
+const DEFAULT_BANNERS: BannerAd[] = [
+  {
+    image: "https://images.pexels.com/photos/267885/pexels-photo-267885.jpeg",
+    url: "https://edutu.org",
+    alt: "Scholarship opportunities",
+  },
+  {
+    image: "https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg",
+    url: "https://edutu.org",
+    alt: "Study abroad programs",
+  },
+  {
+    image: "https://images.pexels.com/photos/1595391/pexels-photo-1595391.jpeg",
+    url: "https://edutu.org",
+    alt: "Career development",
+  },
+];
+
+function BannerCarousel({ banners }: { banners: BannerAd[] }) {
+  const [current, setCurrent] = useState(0);
+
+  useEffect(() => {
+    if (banners.length <= 1) return;
+    const timer = setInterval(() => {
+      setCurrent((prev) => (prev + 1) % banners.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [banners.length]);
+
+  const goTo = (index: number) => setCurrent(index);
+  const goPrev = () => setCurrent((prev) => (prev - 1 + banners.length) % banners.length);
+  const goNext = () => setCurrent((prev) => (prev + 1) % banners.length);
+
+  if (banners.length === 0) return null;
+
+  return (
+    <div className="relative w-full overflow-hidden rounded-[20px] bg-slate-100">
+      <a
+        href={banners[current].url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="group relative block w-full overflow-hidden"
+        style={{ aspectRatio: "1200 / 300" }}
+      >
+        <img
+          src={banners[current].image}
+          alt={banners[current].alt}
+          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+          style={{ position: "absolute", inset: 0 }}
+        />
+        <div className="absolute inset-0 bg-black/10" />
+      </a>
+      {banners.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={goPrev}
+            className="absolute left-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-slate-700 shadow-sm backdrop-blur-sm transition hover:bg-white"
+            aria-label="Previous banner"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <button
+            type="button"
+            onClick={goNext}
+            className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/80 text-slate-700 shadow-sm backdrop-blur-sm transition hover:bg-white"
+            aria-label="Next banner"
+          >
+            <ChevronRight size={18} />
+          </button>
+          <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-2">
+            {banners.map((_, index) => (
+              <button
+                key={index}
+                type="button"
+                onClick={() => goTo(index)}
+                className={`h-2 rounded-full transition-all ${
+                  index === current ? "w-6 bg-white" : "w-2 bg-white/50"
+                }`}
+                aria-label={`Go to banner ${index + 1}`}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 interface DashboardProps {
   user: AppUser | null;
@@ -631,9 +565,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     });
     const [activeDiscoveryCategory, setActiveDiscoveryCategory] =
       useState<DiscoveryCategoryId | null>(null);
-    const [adminHomePromo, setAdminHomePromo] = useState<HomePromoCard | null>(
-      null,
-    );
     const { isDarkMode } = useDarkMode();
     const { t } = useTranslation();
     const { getToken } = useClerkAuth();
@@ -883,30 +814,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     ]);
 
     useEffect(() => {
-      let isMounted = true;
-
-      async function loadAdminHomePromo() {
-        try {
-          const config = await fetchMobileControlConfig();
-          const campaign = config.campaigns.find(isHomePromoCampaign);
-          if (isMounted) {
-            setAdminHomePromo(
-              campaign ? mapCampaignToHomePromo(campaign) : null,
-            );
-          }
-        } catch (error) {
-          console.error("Failed to load admin home promo:", error);
-          if (isMounted) setAdminHomePromo(null);
-        }
-      }
-
-      void loadAdminHomePromo();
-      return () => {
-        isMounted = false;
-      };
-    }, []);
-
-    useEffect(() => {
       if (!user?.id) return;
       const userId = user.id;
       let isMounted = true;
@@ -1017,64 +924,15 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       return items;
     }, [mobileExploreOpportunities]);
 
-    const mobileHomePromo = adminHomePromo ?? DEFAULT_HOME_PROMO;
-
-    const homePromos = useMemo(
-      () => [
-        {
-          title: "Track deadlines",
-          copy: "Keep upcoming application dates visible before they slip past.",
-          action: "Open tracker",
-          screen: "deadlines",
-        },
-        {
-          title: "Improve your matches",
-          copy: "Complete your profile so Edutu can rank opportunities better.",
-          action: "Review profile",
-          screen: "profile",
-        },
-        {
-          title: "Review your shortlist",
-          copy: "Use saved items as a working list instead of hunting from scratch.",
-          action: "Open saved",
-          screen: "saved",
-        },
-      ],
-      [],
-    );
-
     const homeFeedItems = useMemo(() => {
-      const items: Array<
-        | { type: "opportunity"; key: string; opportunity: any }
-        | { type: "promo"; key: string; promo: (typeof homePromos)[number] }
-      > = [];
-
-      visibleHomeOpportunities.forEach((opportunity: any, index) => {
-        items.push({
-          type: "opportunity",
-          key: opportunity?.id
-            ? `opportunity-${opportunity.id}`
-            : `opportunity-${index}`,
-          opportunity,
-        });
-
-        if (
-          !activeDiscoveryCategory &&
-          (index + 1) % HOME_FEED_PROMO_INTERVAL === 0
-        ) {
-          items.push({
-            type: "promo",
-            key: `promo-${index}`,
-            promo:
-              homePromos[
-                Math.floor(index / HOME_FEED_PROMO_INTERVAL) % homePromos.length
-              ],
-          });
-        }
-      });
-
-      return items;
-    }, [activeDiscoveryCategory, homePromos, visibleHomeOpportunities]);
+      return visibleHomeOpportunities.map((opportunity: any, index) => ({
+        type: "opportunity" as const,
+        key: opportunity?.id
+          ? `opportunity-${opportunity.id}`
+          : `opportunity-${index}`,
+        opportunity,
+      }));
+    }, [visibleHomeOpportunities]);
 
     useEffect(() => {
       setHomeFeedLimit(HOME_FEED_BATCH_SIZE);
@@ -1207,36 +1065,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       onNavigate?.(getDiscoveryCategoryRoute(category));
     }
 
-    function handleMobileHomePromoClick() {
-      if (mobileHomePromo.campaignId) {
-        void getToken()
-          .catch(() => null)
-          .then((token) =>
-            recordMobileCampaignEvent(
-              mobileHomePromo.campaignId!,
-              "click",
-              token,
-              { placement: "dashboard-home-promo" },
-            ),
-          )
-          .catch((error) =>
-            console.error("Failed to record promo click:", error),
-          );
-      }
-
-      if (mobileHomePromo.actionUrl) {
-        window.open(mobileHomePromo.actionUrl, "_blank", "noopener,noreferrer");
-        return;
-      }
-
-      if (mobileHomePromo.actionRoute) {
-        window.location.assign(mobileHomePromo.actionRoute);
-        return;
-      }
-
-      openDashboardDestination(mobileHomePromo.actionScreen || "profile");
-    }
-
     const handleCalendarEventClick = (event: CalendarEvent) => {
       if (event.type === "goal") {
         onNavigate?.("deadlines");
@@ -1317,14 +1145,14 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       onClick: () => void,
     ) => (
       <div
-        className={`rounded-2xl border p-5 text-center ${isDarkMode ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"}`}
+        className={`rounded-2xl border border-slate-200 bg-slate-50 p-5 text-center`}
       >
         <div
-          className={`mx-auto flex h-12 w-12 items-center justify-center rounded-2xl ${isDarkMode ? "bg-white/10 text-slate-300" : "bg-white text-slate-500"}`}
+          className={`mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-500`}
         >
           <Briefcase size={20} />
         </div>
-        <h3 className="mt-4 text-sm font-black text-slate-950 dark:text-white">
+        <h3 className="mt-4 text-sm font-semibold text-slate-950 text-slate-900">
           {title}
         </h3>
         <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
@@ -1366,11 +1194,11 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     category: bookmark.opportunity_category,
                   })
                 }
-                className={`w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 ${isDarkMode ? "border-white/10 bg-white/5 hover:bg-white/10" : "border-slate-200 bg-white hover:shadow-sm"}`}
+                className={`w-full rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-black leading-5 text-slate-950 dark:text-white">
+                    <p className="text-sm font-semibold leading-5 text-slate-950 text-slate-900">
                       {bookmark.opportunity_title}
                     </p>
                     <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -1379,10 +1207,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                   </div>
                   <ChevronRight
                     size={17}
-                    className="mt-1 shrink-0 text-slate-400"
+                    className="mt-1 shrink-0 text-slate-500"
                   />
                 </div>
-                <div className="mt-3 flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
+                <div className="mt-3 flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
                   <Calendar size={14} />
                   {formatPanelDate(bookmark.opportunity_deadline)}
                 </div>
@@ -1415,22 +1243,22 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     category: application.opportunity_category,
                   })
                 }
-                className={`w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 ${isDarkMode ? "border-white/10 bg-white/5 hover:bg-white/10" : "border-slate-200 bg-white hover:shadow-sm"}`}
+                className={`w-full rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-black leading-5 text-slate-950 dark:text-white">
+                    <p className="text-sm font-semibold leading-5 text-slate-950 text-slate-900">
                       {application.opportunity_title}
                     </p>
                     <p className="mt-1 text-xs font-semibold capitalize text-slate-500 dark:text-slate-400">
                       {application.status || "tracked"}
                     </p>
                   </div>
-                  <span className="rounded-lg bg-emerald-500/10 px-2 py-1 text-[10px] font-black text-emerald-600 dark:text-emerald-300">
+                  <span className="rounded-lg bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-300">
                     Applied
                   </span>
                 </div>
-                <div className="mt-3 flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
+                <div className="mt-3 flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
                   <Clock size={14} />
                   {formatPanelDate(application.applied_at)}
                 </div>
@@ -1473,7 +1301,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         });
                       }
                     }}
-                    className={`w-full rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 ${isDarkMode ? "border-white/10 bg-white/5 hover:bg-white/10" : "border-slate-200 bg-white hover:shadow-sm"}`}
+                    className={`w-full rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm`}
                   >
                     <div className="flex items-start gap-3">
                       <div
@@ -1488,14 +1316,14 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         <Calendar size={18} />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-black leading-5 text-slate-950 dark:text-white">
+                        <p className="text-sm font-semibold leading-5 text-slate-950 text-slate-900">
                           {item.title}
                         </p>
-                        <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">
+                        <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
                           {formatPanelDate(item.date)}
                         </p>
                       </div>
-                      <span className="shrink-0 rounded-lg bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                      <span className="shrink-0 rounded-lg bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">
                         {item.daysUntil < 0
                           ? "Past"
                           : item.daysUntil === 0
@@ -1515,14 +1343,14 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         return (
           <div className="space-y-4">
             <div
-              className={`rounded-2xl border p-4 ${isDarkMode ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}`}
+              className={`rounded-2xl border border-slate-200 bg-white p-4`}
             >
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500 text-base font-black text-white">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500 text-base font-semibold text-white">
                   {(user?.name || user?.email || "E").charAt(0).toUpperCase()}
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-black text-slate-950 dark:text-white">
+                  <p className="truncate text-sm font-semibold text-slate-950 text-slate-900">
                     {user?.name || "Edutu learner"}
                   </p>
                   <p className="truncate text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -1533,13 +1361,13 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
             </div>
 
             <div
-              className={`rounded-2xl border p-4 ${isDarkMode ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}`}
+              className={`rounded-2xl border border-slate-200 bg-white p-4`}
             >
               <div className="flex items-center justify-between">
-                <p className="text-sm font-black text-slate-950 dark:text-white">
+                <p className="text-sm font-semibold text-slate-950 text-slate-900">
                   Match readiness
                 </p>
-                <span className="text-sm font-black text-brand-600 dark:text-brand-300">
+                <span className="text-sm font-semibold text-brand-600 dark:text-brand-300">
                   {score}%
                 </span>
               </div>
@@ -1558,9 +1386,9 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
             {profileScore?.missingFields?.length ? (
               <div
-                className={`rounded-2xl border p-4 ${isDarkMode ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}`}
+                className={`rounded-2xl border border-slate-200 bg-white p-4`}
               >
-                <p className="text-sm font-black text-slate-950 dark:text-white">
+                <p className="text-sm font-semibold text-slate-950 text-slate-900">
                   Missing details
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -1579,7 +1407,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
             <button
               type="button"
               onClick={onViewAllOpportunities}
-              className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-brand-500 px-4 text-sm font-black text-white transition hover:bg-brand-600"
+              className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-brand-500 px-4 text-sm font-semibold text-white transition hover:bg-brand-600"
             >
               Browse matched opportunities
             </button>
@@ -1596,7 +1424,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
     return (
       <div
-        className={`min-h-screen ${isDarkMode ? "bg-gray-950 text-white" : "bg-slate-50 text-slate-900"} font-body transition-colors duration-500 overflow-x-hidden ${embeddedDesktopShell ? "pb-0 pt-0 lg:pb-12" : "pb-[calc(5rem+env(safe-area-inset-bottom))] pt-14 md:pt-16 lg:pb-12"}`}
+        className={`min-h-screen bg-white text-slate-900 font-body transition-colors duration-500 overflow-x-hidden ${embeddedDesktopShell ? "pb-0 pt-0 lg:pb-12" : "pb-[calc(5rem+env(safe-area-inset-bottom))] pt-14 md:pt-16 lg:pb-12"}`}
       >
         {/* Background Mesh Gradient */}
         <div className="fixed inset-0 pointer-events-none opacity-30 dark:opacity-20 mesh-gradient" />
@@ -1618,20 +1446,20 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                 animate={{ opacity: 1, x: 0, y: 0 }}
                 exit={{ opacity: 0, x: 28, y: 28 }}
                 transition={{ duration: 0.22 }}
-                className={`fixed inset-x-0 bottom-0 z-50 max-h-[82dvh] overflow-hidden rounded-t-[24px] border-t shadow-2xl lg:inset-x-auto lg:bottom-0 lg:right-0 lg:top-16 lg:h-[calc(100dvh-4rem)] lg:max-h-none lg:w-[390px] lg:rounded-none lg:border-l lg:border-t-0 ${isDarkMode ? "border-white/10 bg-gray-950 text-white shadow-black/40" : "border-slate-200 bg-white text-slate-950 shadow-slate-300/70"}`}
+                className={`fixed inset-x-0 bottom-0 z-50 max-h-[82dvh] overflow-hidden rounded-t-[24px] border-t border-slate-200 bg-white text-slate-950 shadow-2xl shadow-slate-300/70 lg:inset-x-auto lg:bottom-0 lg:right-0 lg:top-16 lg:h-[calc(100dvh-4rem)] lg:max-h-none lg:w-[390px] lg:rounded-none lg:border-l lg:border-t-0`}
                 aria-label={`${PANEL_COPY[activePanel].title} panel`}
               >
                 <div
-                  className={`border-b p-5 ${isDarkMode ? "border-white/10" : "border-slate-200"}`}
+                  className={`border-b border-slate-200 p-5`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p
-                        className={`text-[10px] font-black uppercase tracking-[0.18em] ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}
+                        className={`text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500`}
                       >
                         Dashboard panel
                       </p>
-                      <h2 className="mt-1 text-lg font-black tracking-tight text-slate-950 dark:text-white">
+                      <h2 className="mt-1 text-lg font-semibold tracking-tight text-slate-950 text-slate-900">
                         {PANEL_COPY[activePanel].title}
                       </h2>
                       <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
@@ -1641,7 +1469,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     <button
                       type="button"
                       onClick={() => setActivePanel(null)}
-                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition ${isDarkMode ? "hover:bg-white/10" : "hover:bg-slate-100"}`}
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition hover:bg-slate-100`}
                       aria-label="Close panel"
                     >
                       <X size={18} />
@@ -1666,18 +1494,14 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
               className="space-y-3"
             >
               <div className="flex items-center justify-between gap-3">
-                <h2 className="text-base font-semibold tracking-tight text-slate-950 dark:text-white">
+                <h2 className="text-base font-semibold tracking-tight text-slate-950 text-slate-900">
                   {t("dashboard.sections.exploreOpportunities")}
                 </h2>
                 {selectedDiscoveryCategory ? (
                   <button
                     type="button"
                     onClick={() => setActiveDiscoveryCategory(null)}
-                    className={`h-8 shrink-0 rounded-full border px-3 text-xs font-black transition active:scale-[0.98] ${
-                      isDarkMode
-                        ? "border-white/10 bg-white/5 text-slate-200 hover:bg-white/10"
-                        : "border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
-                    }`}
+                    className={`h-8 shrink-0 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 active:scale-[0.98]`}
                   >
                     {t("common.all")}
                   </button>
@@ -1720,7 +1544,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         >
                           <Icon size={25} strokeWidth={1.7} />
                         </span>
-                        <span className="min-w-0 flex-1 text-[13px] font-black leading-4 text-white md:flex-none md:text-sm">
+                        <span className="min-w-0 flex-1 text-[13px] font-semibold leading-4 text-white md:flex-none md:text-sm">
                           {category.title}
                         </span>
                       </div>
@@ -1737,18 +1561,18 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: 100 }}
                   transition={{ duration: 0.3 }}
-                  className={`profile-completion-card rounded-[20px] p-5 border ${isDarkMode ? "bg-amber-500/5 border-amber-500/20" : "bg-amber-50 border-amber-200"}`}
+                  className={`profile-completion-card rounded-[20px] border border-amber-200 bg-amber-50 p-5`}
                 >
                   <div className="flex items-start gap-4">
                     <div
-                      className={`p-2.5 rounded-xl shrink-0 ${isDarkMode ? "bg-amber-500/10 text-amber-400" : "bg-amber-100 text-amber-600"}`}
+                      className={`shrink-0 rounded-xl bg-amber-100 p-2.5 text-amber-600`}
                     >
                       <UserCheck size={20} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <h3 className="text-sm font-black tracking-wider text-slate-900 dark:text-white mb-1">
+                          <h3 className="text-sm font-semibold tracking-wider text-slate-900 text-slate-900 mb-1">
                             {t("dashboard.completeProfile")}
                           </h3>
                           <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
@@ -1761,7 +1585,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                 .map((field) => (
                                   <span
                                     key={field}
-                                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${isDarkMode ? "bg-white/10 text-slate-300" : "bg-white text-slate-600"}`}
+                                    className={`rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-600`}
                                   >
                                     {field}
                                   </span>
@@ -1776,7 +1600,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         </div>
                         <button
                           onClick={() => setDismissBanner(true)}
-                          className={`p-1 rounded-lg transition-colors ${isDarkMode ? "hover:bg-white/10 text-slate-500" : "hover:bg-slate-100 text-slate-400"}`}
+                          className={`rounded-lg p-1 text-slate-500 transition-colors hover:bg-slate-100`}
                         >
                           <X size={16} />
                         </button>
@@ -1797,7 +1621,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         <div className="flex items-center justify-between">
                           <button
                             onClick={() => setActivePanel("profile")}
-                            className="text-xs font-black tracking-widest text-brand-500 hover:text-brand-600 transition-colors"
+                            className="text-xs font-semibold tracking-widest text-brand-500 hover:text-brand-600 transition-colors"
                           >
                             {t("dashboard.reviewProfile")}
                           </button>
@@ -1833,33 +1657,25 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
             {showHomeScreenPrompt ? (
               <section className="sm:hidden">
                 <div
-                  className={`relative overflow-hidden rounded-[24px] border p-4 shadow-sm ${
-                    isDarkMode
-                      ? "border-white/10 bg-white/5"
-                      : "border-slate-200 bg-white"
-                  }`}
+                  className={`relative overflow-hidden rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm`}
                 >
                   <button
                     type="button"
                     onClick={closeHomeScreenPrompt}
-                    className={`absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full transition ${
-                      isDarkMode
-                        ? "text-slate-400 hover:bg-white/10 hover:text-white"
-                        : "text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                    }`}
+                    className={`absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700`}
                     aria-label="Dismiss add to home screen prompt"
                   >
                     <X size={16} />
                   </button>
                   <div className="flex items-start gap-3 pr-8">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">
                       {isInstallable ? <Download size={19} /> : <Share2 size={19} />}
                     </span>
                     <div className="min-w-0">
-                      <h2 className="text-sm font-black text-slate-950 dark:text-white">
+                      <h2 className="text-sm font-semibold text-slate-950 text-slate-900">
                         Add Edutu to Home Screen
                       </h2>
-                      <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
+                      <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
                         Keep opportunities, saved picks, and deadlines one tap
                         away.
                       </p>
@@ -1870,24 +1686,20 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       <button
                         type="button"
                         onClick={handleInstallPrompt}
-                        className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-2xl bg-brand-500 px-4 text-sm font-black text-white shadow-sm transition hover:bg-brand-600 active:scale-[0.98]"
+                        className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-2xl bg-brand-500 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 active:scale-[0.98]"
                       >
                         <Download size={16} />
                         Add app
                       </button>
                     ) : (
-                      <div className="flex-1 rounded-2xl bg-brand-500/10 px-3 py-2 text-xs font-bold leading-5 text-brand-700 dark:text-brand-200">
+                        <div className="flex-1 rounded-2xl bg-brand-500/10 px-3 py-2 text-xs font-bold leading-5 text-brand-700">
                         Tap Share, then Add to Home Screen.
                       </div>
                     )}
                     <button
                       type="button"
                       onClick={closeHomeScreenPrompt}
-                      className={`h-10 rounded-2xl px-4 text-sm font-black transition ${
-                        isDarkMode
-                          ? "bg-white/10 text-slate-200 hover:bg-white/15"
-                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                      }`}
+                      className={`h-10 rounded-2xl bg-slate-100 px-4 text-sm font-semibold text-slate-600 transition hover:bg-slate-200`}
                     >
                       Later
                     </button>
@@ -1910,11 +1722,11 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                           <Briefcase size={19} />
                         </div>
                         <div className="min-w-0">
-                          <h2 className="truncate text-lg font-semibold tracking-tight text-slate-950 dark:text-white">
+                          <h2 className="truncate text-lg font-semibold tracking-tight text-slate-950 text-slate-900">
                             {t("dashboard.sections.recommendedPicks")}
                           </h2>
                           <p
-                            className={`truncate text-xs font-normal ${isDarkMode ? "text-slate-400" : "text-slate-500"}`}
+                            className={`truncate text-xs font-normal text-slate-500`}
                           >
                             {selectedDiscoveryCategory
                               ? selectedDiscoveryCategory.title
@@ -1924,7 +1736,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       </div>
                       <div className="flex shrink-0 items-center gap-1.5">
                         <div
-                          className={`hidden sm:flex items-center gap-1 rounded-2xl border p-1 ${isDarkMode ? "border-white/10 bg-white/5" : "border-slate-200 bg-white shadow-sm"}`}
+                          className={`hidden sm:flex items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm`}
                         >
                           <button
                             type="button"
@@ -1932,9 +1744,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             className={`h-9 w-9 rounded-xl flex items-center justify-center transition-all ${
                               viewMode === "grid"
                                 ? "bg-brand-500 text-white shadow-lg shadow-brand-500/20"
-                                : isDarkMode
-                                  ? "text-slate-400 hover:bg-white/10 hover:text-white"
-                                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                                : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                             }`}
                             aria-label="Grid view"
                           >
@@ -1946,9 +1756,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             className={`h-9 w-9 rounded-xl flex items-center justify-center transition-all ${
                               viewMode === "list"
                                 ? "bg-brand-500 text-white shadow-lg shadow-brand-500/20"
-                                : isDarkMode
-                                  ? "text-slate-400 hover:bg-white/10 hover:text-white"
-                                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                                : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                             }`}
                             aria-label="List view"
                           >
@@ -1958,11 +1766,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         <button
                           type="button"
                           onClick={handleShuffleOpportunities}
-                          className={`inline-flex h-10 w-10 items-center justify-center rounded-full border text-xs font-semibold transition-all active:scale-[0.98] sm:w-auto sm:rounded-2xl sm:px-3 ${
-                            isDarkMode
-                              ? "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
-                              : "border-slate-200 bg-white text-slate-600 shadow-sm hover:border-slate-300 hover:text-slate-950"
-                          }`}
+                          className={`inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-slate-300 hover:text-slate-950 active:scale-[0.98] sm:w-auto sm:rounded-2xl sm:px-3`}
                           aria-label="Shuffle recommended opportunities"
                           title={t("dashboard.shuffle")}
                         >
@@ -1972,11 +1776,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         <button
                           type="button"
                           onClick={onViewAllOpportunities}
-                          className={`inline-flex h-10 w-10 items-center justify-center rounded-full border text-xs font-semibold transition-all sm:w-auto sm:rounded-2xl sm:px-3 ${
-                            isDarkMode
-                              ? "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
-                              : "border-slate-200 bg-white text-slate-600 shadow-sm hover:border-slate-300 hover:text-slate-950"
-                          }`}
+                          className={`inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-slate-300 hover:text-slate-950 sm:w-auto sm:rounded-2xl sm:px-3`}
                           aria-label="View all opportunities"
                           title={t("dashboard.viewMore")}
                         >
@@ -1993,13 +1793,13 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         {Array.from({ length: 3 }).map((_, i) => (
                           <div
                             key={i}
-                            className={`h-44 w-[62vw] max-w-[250px] shrink-0 animate-pulse rounded-2xl ${isDarkMode ? "bg-white/5" : "bg-slate-200"}`}
+                            className={`h-44 w-[62vw] max-w-[250px] shrink-0 animate-pulse rounded-2xl bg-slate-200`}
                           />
                         ))}
                       </div>
                     ) : feedErrorMessage && normalizedOpportunityFeed.length === 0 ? (
                       <div
-                        className={`rounded-2xl border ${isDarkMode ? "border-white/10 bg-gray-900/60" : "border-slate-200 bg-white"}`}
+                        className={`rounded-2xl border border-slate-200 bg-white`}
                       >
                         <ErrorState
                           message={feedErrorMessage}
@@ -2008,7 +1808,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       </div>
                     ) : mobilePersonalizedOpportunities.length === 0 ? (
                       <div
-                        className={`rounded-2xl border ${isDarkMode ? "border-white/10 bg-gray-900/60" : "border-slate-200 bg-white"}`}
+                        className={`rounded-2xl border border-slate-200 bg-white`}
                       >
                         <EmptyState
                           icon={<Briefcase size={28} />}
@@ -2049,7 +1849,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                   ? () => setActiveDiscoveryCategory(null)
                                   : onViewAllOpportunities
                               }
-                              className={`mobile-personalized-card flex h-44 w-28 shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-2xl border px-3 text-center text-xs font-black transition active:scale-[0.98] ${
+                              className={`mobile-personalized-card flex h-44 w-28 shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-2xl border px-3 text-center text-xs font-semibold transition active:scale-[0.98] ${
                                 isDarkMode
                                   ? "border-white/10 bg-white/5 text-slate-300"
                                   : "border-slate-200 bg-slate-50 text-slate-600"
@@ -2061,46 +1861,13 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                           </div>
                         </div>
 
-                        <div>
-                          <button
-                            type="button"
-                            onClick={handleMobileHomePromoClick}
-                            className="group relative mb-6 flex min-h-[148px] w-full flex-col overflow-hidden rounded-2xl bg-slate-950 p-4 text-left text-white shadow-sm transition active:scale-[0.98]"
-                            aria-label={mobileHomePromo.title}
-                          >
-                            <img
-                              src={mobileHomePromo.image}
-                              alt=""
-                              aria-hidden="true"
-                              className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                            />
-                            <div className="absolute inset-0 bg-slate-950/76" />
-                            <div className="absolute inset-0 bg-gradient-to-br from-slate-950/30 via-transparent to-brand-500/20" />
-                            <div className="relative flex min-h-[116px] flex-col pr-14">
-                              <span className="text-[10px] font-semibold text-white/70">
-                                {mobileHomePromo.eyebrow}
-                              </span>
-                              <span className="mt-2 block text-base font-black leading-tight text-white">
-                                {mobileHomePromo.title}
-                              </span>
-                              <span className="mt-2 max-w-[18rem] text-sm leading-5 text-white/78">
-                                {mobileHomePromo.body}
-                              </span>
-                              <span className="mt-auto inline-flex pt-3 text-sm font-black text-white">
-                                {mobileHomePromo.actionLabel}
-                              </span>
-                              <span
-                                className="absolute bottom-0 right-0 flex h-10 w-10 items-center justify-center rounded-full bg-white/14 text-white backdrop-blur-sm transition group-hover:bg-white/22 group-hover:translate-x-0.5"
-                                aria-hidden="true"
-                              >
-                                <ChevronRight size={19} strokeWidth={2.3} />
-                              </span>
-                            </div>
-                          </button>
+                        <div className="mb-6">
+                          <BannerCarousel banners={DEFAULT_BANNERS} />
+                        </div>
 
                           <div className="mb-3 flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <h3 className="text-lg font-black tracking-tight text-slate-950 dark:text-white">
+                              <h3 className="text-lg font-semibold tracking-tight text-slate-950 text-slate-900">
                                 {selectedDiscoveryCategory
                                   ? t("dashboard.categoryOpportunities", { category: selectedDiscoveryCategory.title })
                                   : t("dashboard.moreOpportunities")}
@@ -2157,7 +1924,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                           <button
                             type="button"
                             onClick={onViewAllOpportunities}
-                            className={`mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl border text-sm font-black transition active:scale-[0.99] ${
+                            className={`mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl border text-sm font-semibold transition active:scale-[0.99] ${
                               isDarkMode
                                 ? "border-white/10 bg-white/5 text-white hover:bg-white/10"
                                 : "border-slate-200 bg-white text-slate-800 shadow-sm hover:border-slate-300 hover:bg-slate-50"
@@ -2171,6 +1938,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     )}
                   </div>
 
+                  <div className="hidden sm:block mb-6">
+                    <BannerCarousel banners={DEFAULT_BANNERS} />
+                  </div>
+
                   {viewMode === "grid" ? (
                     <div className="hidden grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-4 sm:grid">
                       {opportunitiesLoading ? (
@@ -2180,21 +1951,21 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             className="min-h-[244px] overflow-hidden rounded-[20px] animate-pulse"
                           >
                             <div
-                              className={`h-32 ${isDarkMode ? "bg-white/5" : "bg-slate-200"}`}
+                              className={`h-32 bg-slate-200`}
                             />
                             <div className="p-4 space-y-3">
                               <div
-                                className={`h-3 rounded ${isDarkMode ? "bg-white/5" : "bg-slate-200"} w-1/2`}
+                                className={`h-3 w-1/2 rounded bg-slate-200`}
                               />
                               <div
-                                className={`h-4 rounded ${isDarkMode ? "bg-white/5" : "bg-slate-200"} w-4/5`}
+                                className={`h-4 w-4/5 rounded bg-slate-200`}
                               />
                             </div>
                           </div>
                         ))
                       ) : feedErrorMessage && normalizedOpportunityFeed.length === 0 ? (
                         <div
-                          className={`col-span-full rounded-[20px] border ${isDarkMode ? "border-white/10 bg-gray-900/60" : "border-slate-200 bg-white"}`}
+                          className={`col-span-full rounded-[20px] border border-slate-200 bg-white`}
                         >
                           <ErrorState
                             message={feedErrorMessage}
@@ -2203,7 +1974,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         </div>
                       ) : homeFeedItems.length === 0 ? (
                         <div
-                          className={`col-span-full rounded-[20px] border ${isDarkMode ? "border-white/10 bg-gray-900/60" : "border-slate-200 bg-white"}`}
+                          className={`col-span-full rounded-[20px] border border-slate-200 bg-white`}
                         >
                           <EmptyState
                             icon={<Briefcase size={32} />}
@@ -2225,39 +1996,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         </div>
                       ) : (
                         homeFeedItems.map((item) => {
-                          if (item.type === "promo") {
-                            return (
-                              <button
-                                key={item.key}
-                                type="button"
-                                onClick={() =>
-                                  openDashboardDestination(item.promo.screen)
-                                }
-                                className="flex min-h-[244px] flex-col justify-between overflow-hidden rounded-[20px] border border-brand-500/20 bg-gradient-to-br from-brand-500 to-indigo-600 p-4 text-left text-white shadow-lg shadow-brand-500/15 transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50"
-                              >
-                                <div className="flex items-center justify-between gap-4">
-                                  <div className="min-w-0">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/70">
-                                      Edutu
-                                    </p>
-                                    <h3 className="mt-1 text-lg font-black tracking-tight">
-                                      {item.promo.title}
-                                    </h3>
-                                    <p className="mt-1 text-sm leading-5 text-white/80">
-                                      {item.promo.copy}
-                                    </p>
-                                  </div>
-                                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/15">
-                                    <ChevronRight size={20} />
-                                  </span>
-                                </div>
-                                <span className="mt-4 inline-flex text-xs font-black text-white">
-                                  {item.promo.action}
-                                </span>
-                              </button>
-                            );
-                          }
-
                           const { opportunity } = item;
                           return (
                             <DashboardOpportunityCard
@@ -2276,7 +2014,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     </div>
                   ) : (
                     <div
-                      className={`hidden overflow-hidden rounded-2xl border sm:block ${isDarkMode ? "border-white/10 bg-gray-900/40" : "border-slate-200 bg-white"}`}
+                      className={`hidden overflow-hidden rounded-2xl border border-slate-200 bg-white sm:block`}
                     >
                       {opportunitiesLoading ? (
                         Array.from({ length: 3 }).map((_, i) => (
@@ -2284,15 +2022,13 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             key={i}
                             className="h-20 rounded-xl animate-pulse"
                             style={{
-                              backgroundColor: isDarkMode
-                                ? "#1a1a1a"
-                                : "#f0f0f0",
+                              backgroundColor: "#f0f0f0",
                             }}
                           />
                         ))
                       ) : feedErrorMessage && normalizedOpportunityFeed.length === 0 ? (
                         <div
-                          className={`rounded-[20px] border ${isDarkMode ? "border-white/10 bg-gray-900/60" : "border-slate-200 bg-white"}`}
+                          className={`rounded-[20px] border border-slate-200 bg-white`}
                         >
                           <ErrorState
                             message={feedErrorMessage}
@@ -2301,7 +2037,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         </div>
                       ) : homeFeedItems.length === 0 ? (
                         <div
-                          className={`rounded-[20px] border ${isDarkMode ? "border-white/10 bg-gray-900/60" : "border-slate-200 bg-white"}`}
+                          className={`rounded-[20px] border border-slate-200 bg-white`}
                         >
                           <EmptyState
                             icon={<Briefcase size={32} />}
@@ -2323,37 +2059,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         </div>
                       ) : (
                         homeFeedItems.map((item) => {
-                          if (item.type === "promo") {
-                            return (
-                              <button
-                                key={item.key}
-                                type="button"
-                                onClick={() =>
-                                  openDashboardDestination(item.promo.screen)
-                                }
-                                className="w-full border-b border-white/10 bg-brand-500 p-4 text-left text-white transition hover:bg-brand-600"
-                              >
-                                <div className="flex items-center justify-between gap-3">
-                                  <div>
-                                    <p className="text-xs font-semibold text-white/75">
-                                      Edutu
-                                    </p>
-                                    <h3 className="mt-1 text-base font-black">
-                                      {item.promo.title}
-                                    </h3>
-                                    <p className="mt-1 text-xs leading-5 text-white/80">
-                                      {item.promo.copy}
-                                    </p>
-                                  </div>
-                                  <ChevronRight
-                                    size={20}
-                                    className="shrink-0"
-                                  />
-                                </div>
-                              </button>
-                            );
-                          }
-
                           const { opportunity } = item;
                           return (
                             <DashboardOpportunityCard
@@ -2382,7 +2087,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
               {recentActivity.length > 0 && (
                 <aside className="lg:col-span-4 space-y-6">
                   <section
-                    className={`rounded-[20px] border p-5 relative overflow-hidden ${isDarkMode ? "bg-gray-900 border-white/10" : "bg-white border-slate-200 shadow-sm"}`}
+                    className={`relative overflow-hidden rounded-[20px] border border-slate-200 bg-white p-5 shadow-sm`}
                   >
                     <div className="flex items-center justify-between mb-6 relative">
                       <div className="flex items-center gap-3">
@@ -2390,10 +2095,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                           <Sparkles size={18} />
                         </div>
                         <div>
-                          <h2 className="text-base font-black">
+                          <h2 className="text-base font-semibold">
                             {t("dashboard.sections.recentActivity")}
                           </h2>
-                          <p className="text-xs text-slate-400">
+                          <p className="text-xs text-slate-500">
                             {t("dashboard.latestActivity")}
                           </p>
                         </div>
@@ -2403,7 +2108,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                           <button
                             type="button"
                             onClick={() => setActivePanel("saved")}
-                            className="text-[10px] font-black uppercase tracking-[0.12em] text-brand-500 transition hover:text-brand-600"
+                            className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-500 transition hover:text-brand-600"
                           >
                             {t("navigation.saved")}
                           </button>
@@ -2412,7 +2117,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                           <button
                             type="button"
                             onClick={() => setActivePanel("applied")}
-                            className="text-[10px] font-black uppercase tracking-[0.12em] text-brand-500 transition hover:text-brand-600"
+                            className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-500 transition hover:text-brand-600"
                           >
                             {t("navigation.applied")}
                           </button>
@@ -2430,10 +2135,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             {win.icon}
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-bold truncate group-hover/win:text-brand-500 transition-colors">
+                            <p className="text-xs font-medium truncate group-hover/win:text-brand-500 transition-colors">
                               {win.title}
                             </p>
-                            <p className="text-[10px] font-bold text-slate-400">
+                            <p className="text-[10px] font-medium text-slate-500">
                               {win.date}
                             </p>
                           </div>
@@ -2441,7 +2146,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       ))}
                     </div>
 
-                    <div className="mt-6 pt-4 border-t border-slate-100 dark:border-white/5 flex items-center justify-between text-[10px] font-bold text-slate-400 tracking-widest">
+                    <div className="mt-6 pt-4 border-t border-slate-100 dark:border-white/5 flex items-center justify-between text-[10px] font-medium text-slate-500 tracking-widest">
                       <span>{t("dashboard.savedCount", { count: bookmarks.length })}</span>
                       <span>{t("dashboard.applicationsCount", { count: applications.length })}</span>
                     </div>
@@ -2454,11 +2159,11 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
         {/* Footer with Dark Mode Toggle */}
         <footer
-          className={`mx-auto hidden max-w-7xl px-4 py-6 sm:px-6 lg:block lg:px-8 border-t ${isDarkMode ? "border-white/5" : "border-slate-200"}`}
+          className={`mx-auto hidden max-w-7xl border-t border-slate-200 px-4 py-6 sm:px-6 lg:block lg:px-8`}
         >
           <div className="flex items-center justify-between">
             <p
-              className={`text-xs ${isDarkMode ? "text-slate-500" : "text-slate-400"}`}
+              className="text-xs text-slate-500"
             >
               © {new Date().getFullYear()} Edutu. All rights reserved.
             </p>

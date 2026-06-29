@@ -94,7 +94,11 @@ export class RobotsChecker {
       const value = line.slice(sep + 1).trim();
 
       if (field === "user-agent") {
-        if (current && current.allow.length === 0 && current.disallow.length === 0) {
+        if (
+          current &&
+          current.allow.length === 0 &&
+          current.disallow.length === 0
+        ) {
           // Extend the current group with another agent (consecutive UA lines).
           current.agents.push(value.toLowerCase());
         } else {
@@ -127,7 +131,10 @@ export class RobotsChecker {
     for (const group of applicable) {
       for (const pattern of group.disallow) {
         if (pattern === "") continue; // empty Disallow = allow everything
-        if (RobotsChecker.matches(pattern, path) && pattern.length >= bestMatch.length) {
+        if (
+          RobotsChecker.matches(pattern, path) &&
+          pattern.length >= bestMatch.length
+        ) {
           if (pattern.length > bestMatch.length || bestIsAllow === false) {
             bestMatch = pattern;
             bestIsAllow = false;
@@ -135,7 +142,10 @@ export class RobotsChecker {
         }
       }
       for (const pattern of group.allow) {
-        if (RobotsChecker.matches(pattern, path) && pattern.length >= bestMatch.length) {
+        if (
+          RobotsChecker.matches(pattern, path) &&
+          pattern.length >= bestMatch.length
+        ) {
           if (pattern.length > bestMatch.length || bestIsAllow === true) {
             bestMatch = pattern;
             bestIsAllow = true;
@@ -151,7 +161,9 @@ export class RobotsChecker {
   private static matches(pattern: string, path: string): boolean {
     const ends = pattern.endsWith("$");
     const src = ends ? pattern.slice(0, -1) : pattern;
-    const escaped = src.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+    const escaped = src
+      .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
+      .replace(/\*/g, ".*");
     const regex = new RegExp(`^${escaped}${ends ? "$" : ""}`, "i");
     return regex.test(path);
   }

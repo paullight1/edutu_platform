@@ -674,7 +674,34 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   ];
 
   const detailContent = (
-    <>
+    <div className="opportunities-force-light">
+      <style>{`
+        .opportunities-force-light {
+          color: #0f172a !important;
+          background-color: #f8fafc !important;
+        }
+        .opportunities-force-light [class*="dark\\:text-"] {
+          color: #0f172a !important;
+        }
+        .opportunities-force-light [class*="dark\\:text-brand"] {
+          color: #4338ca !important;
+        }
+        .opportunities-force-light [class*="dark\\:text-emerald"] {
+          color: #047857 !important;
+        }
+        .opportunities-force-light [class*="dark\\:text-rose"] {
+          color: #be123c !important;
+        }
+        .opportunities-force-light [class*="dark\\:text-amber"] {
+          color: #b45309 !important;
+        }
+        .opportunities-force-light [class*="dark\\:bg-"] {
+          background-color: #ffffff !important;
+        }
+        .opportunities-force-light [class*="dark\\:border-"] {
+          border-color: #e2e8f0 !important;
+        }
+      `}</style>
       <Seo
         title={`${opportunity.title} | Edutu opportunities`}
         description={seoDescription}
@@ -1009,7 +1036,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={handleApply}
-                className="inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white transition active:scale-[0.98] dark:bg-white dark:text-slate-950"
+                className="inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-semibold text-white transition active:scale-[0.98] dark:bg-white dark:text-slate-950"
               >
                 <ExternalLink size={17} />
                 <span className="truncate">Apply now</span>
@@ -1018,7 +1045,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
               <button
                 type="button"
                 disabled
-                className="inline-flex h-12 min-w-0 flex-1 cursor-not-allowed items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white opacity-50 dark:bg-white dark:text-slate-950"
+                className="inline-flex h-12 min-w-0 flex-1 cursor-not-allowed items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-semibold text-white opacity-50 dark:bg-white dark:text-slate-950"
               >
                 <ExternalLink size={17} />
                 <span className="truncate">Application unavailable</span>
@@ -1058,7 +1085,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
           </div>
         </div>
       ) : null}
-    </>
+    </div>
   );
 
   if (embedded) {

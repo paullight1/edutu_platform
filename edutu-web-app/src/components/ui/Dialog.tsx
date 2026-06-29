@@ -86,7 +86,7 @@ export const DialogContent: React.FC<
       <div
         ref={containerRef}
         className={cn(
-          'relative z-10 w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl focus:outline-none',
+          'relative z-10 w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl focus:outline-none dark:bg-gray-800',
           !reducedMotion && 'animate-fade-in',
           className
         )}
@@ -111,7 +111,7 @@ export const DialogFooter: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ c
 );
 
 export const DialogTitle: React.FC<React.HTMLAttributes<HTMLHeadingElement>> = ({ className, ...props }) => (
-  <h2 className={cn('text-lg font-semibold text-gray-900', className)} {...props} />
+  <h2 className={cn('text-lg font-semibold text-gray-900 dark:text-white', className)} {...props} />
 );
 
 export const DialogDescription: React.FC<React.HTMLAttributes<HTMLParagraphElement>> = ({

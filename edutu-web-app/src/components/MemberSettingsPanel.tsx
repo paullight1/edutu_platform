@@ -121,7 +121,7 @@ function Toggle({
       aria-pressed={checked}
     >
       <span className="min-w-0">
-        <span className="block text-sm font-black text-slate-950 dark:text-white">
+        <span className="block text-sm font-semibold text-slate-950 dark:text-white">
           {label}
         </span>
         <span className="mt-1 block text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
@@ -333,7 +333,7 @@ export default function MemberSettingsPanel({
               <Bell size={19} />
             </span>
             <span className="min-w-0">
-              <span className="block text-sm font-black text-slate-950 dark:text-white">
+              <span className="block text-sm font-semibold text-slate-950 dark:text-white">
                 Notifications
               </span>
               <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -343,7 +343,7 @@ export default function MemberSettingsPanel({
           </span>
           <span className="flex shrink-0 items-center gap-2">
             {unreadCount > 0 ? (
-              <span className="rounded-full bg-brand-500/10 px-2 py-1 text-[11px] font-black text-brand-600 dark:text-brand-300">
+              <span className="rounded-full bg-brand-500/10 px-2 py-1 text-[11px] font-semibold text-brand-600 dark:text-brand-300">
                 {unreadCount}
               </span>
             ) : null}
@@ -353,7 +353,7 @@ export default function MemberSettingsPanel({
       </section>
 
       <section className="space-y-2">
-        <div className="flex items-center gap-2 px-1 text-xs font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+        <div className="flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
           <ShieldCheck size={14} />
           Privacy
         </div>
@@ -367,7 +367,7 @@ export default function MemberSettingsPanel({
               aria-expanded={visibilityPickerOpen}
             >
               <span className="min-w-0">
-                <span className="block text-sm font-black text-slate-950 dark:text-white">
+                <span className="block text-sm font-semibold text-slate-950 dark:text-white">
                   Profile visibility
                 </span>
                 <span className="mt-1 block text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
@@ -396,7 +396,7 @@ export default function MemberSettingsPanel({
             type="button"
             onClick={savePrivacy}
             disabled={saving}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 text-sm font-black text-white shadow-sm transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : null}
             Save privacy changes
@@ -405,7 +405,7 @@ export default function MemberSettingsPanel({
       </section>
 
       <section className="space-y-2">
-        <div className="flex items-center gap-2 px-1 text-xs font-black uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+        <div className="flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
           <Database size={14} />
           Account
         </div>
@@ -416,7 +416,7 @@ export default function MemberSettingsPanel({
             className="flex w-full items-center justify-between border-b border-slate-100 px-4 py-4 text-left transition hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/10"
           >
             <span className="min-w-0">
-              <span className="block text-sm font-black text-slate-950 dark:text-white">
+              <span className="block text-sm font-semibold text-slate-950 dark:text-white">
                 Sign-in security
               </span>
               <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -432,7 +432,7 @@ export default function MemberSettingsPanel({
             className="flex w-full items-center justify-between px-4 py-4 text-left transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-white/10"
           >
             <span className="min-w-0">
-              <span className="block text-sm font-black text-slate-950 dark:text-white">
+              <span className="block text-sm font-semibold text-slate-950 dark:text-white">
                 Export account data
               </span>
               <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -450,7 +450,7 @@ export default function MemberSettingsPanel({
         </div>
         {confirmDeletion ? (
           <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-500/20 dark:bg-rose-500/10">
-            <p className="text-sm font-black text-rose-700 dark:text-rose-300">
+            <p className="text-sm font-semibold text-rose-700 dark:text-rose-300">
               Confirm deletion request
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -458,7 +458,7 @@ export default function MemberSettingsPanel({
                 type="button"
                 onClick={() => setConfirmDeletion(false)}
                 disabled={deleting}
-                className="h-10 rounded-xl border border-rose-200 bg-white text-sm font-black text-rose-700 disabled:opacity-60 dark:border-rose-500/20 dark:bg-white/10 dark:text-rose-200"
+                className="h-10 rounded-xl border border-rose-200 bg-white text-sm font-semibold text-rose-700 disabled:opacity-60 dark:border-rose-500/20 dark:bg-white/10 dark:text-rose-200"
               >
                 Cancel
               </button>
@@ -466,7 +466,7 @@ export default function MemberSettingsPanel({
                 type="button"
                 onClick={requestDeletion}
                 disabled={deleting}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-rose-600 text-sm font-black text-white disabled:opacity-60"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-rose-600 text-sm font-semibold text-white disabled:opacity-60"
               >
                 {deleting ? (
                   <Loader2 size={15} className="animate-spin" />
@@ -481,7 +481,7 @@ export default function MemberSettingsPanel({
             onClick={() => setConfirmDeletion(true)}
             className="flex w-full items-center justify-between rounded-2xl border border-rose-200 bg-rose-50 p-4 text-left text-rose-700 transition hover:bg-rose-100 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/15"
           >
-            <span className="text-sm font-black">Request account deletion</span>
+            <span className="text-sm font-semibold">Request account deletion</span>
             <Trash2 size={18} />
           </button>
         )}
@@ -503,7 +503,7 @@ export default function MemberSettingsPanel({
               <div className="min-w-0">
                 <h2
                   id="profile-visibility-title"
-                  className="text-base font-black text-slate-950 dark:text-white"
+                  className="text-base font-semibold text-slate-950 dark:text-white"
                 >
                   Profile visibility
                 </h2>
@@ -545,7 +545,7 @@ export default function MemberSettingsPanel({
                     }`}
                   >
                     <span className="min-w-0">
-                      <span className="block text-sm font-black">
+                      <span className="block text-sm font-semibold">
                         {option.label}
                       </span>
                       <span className="mt-0.5 block text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">

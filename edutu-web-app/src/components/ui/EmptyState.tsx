@@ -49,7 +49,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
                 </div>
             )}
 
-            <h3 className="text-base font-black text-gray-900 dark:text-white">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">
                 {title}
             </h3>
 

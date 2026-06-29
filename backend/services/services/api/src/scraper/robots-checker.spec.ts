@@ -35,7 +35,9 @@ describe("RobotsChecker", () => {
     });
 
     it("ignores comments and blank lines", () => {
-      const groups = RobotsChecker.parse("# comment\n\nUser-agent: *\n# mid\nDisallow: /x");
+      const groups = RobotsChecker.parse(
+        "# comment\n\nUser-agent: *\n# mid\nDisallow: /x",
+      );
       expect(groups[0].disallow).toEqual(["/x"]);
     });
   });
@@ -54,15 +56,21 @@ describe("RobotsChecker", () => {
     it("blocks a disallowed path and allows an unrelated path", async () => {
       mockRobots("User-agent: *\nDisallow: /private");
       const checker = new RobotsChecker();
-      expect(await checker.isAllowed("https://ex.com/private/page")).toBe(false);
+      expect(await checker.isAllowed("https://ex.com/private/page")).toBe(
+        false,
+      );
       expect(await checker.isAllowed("https://ex.com/public")).toBe(true);
     });
 
     it("respects Allow overriding Disallow (longest match wins)", async () => {
       mockRobots("User-agent: *\nDisallow: /private\nAllow: /private/public");
       const checker = new RobotsChecker();
-      expect(await checker.isAllowed("https://ex.com/private/public")).toBe(true);
-      expect(await checker.isAllowed("https://ex.com/private/secret")).toBe(false);
+      expect(await checker.isAllowed("https://ex.com/private/public")).toBe(
+        true,
+      );
+      expect(await checker.isAllowed("https://ex.com/private/secret")).toBe(
+        false,
+      );
     });
 
     it("treats missing robots.txt (404) as allow-all", async () => {
@@ -89,9 +97,7 @@ describe("RobotsChecker", () => {
     });
 
     it("matches a specific bot group over the wildcard", async () => {
-      mockRobots(
-        "User-agent: *\nAllow: /\nUser-agent: BadBot\nDisallow: /",
-      );
+      mockRobots("User-agent: *\nAllow: /\nUser-agent: BadBot\nDisallow: /");
       const checker = new RobotsChecker();
       // Default UA is EdutuBot — not BadBot, so allowed by the * group.
       expect(await checker.isAllowed("https://ex.com/anywhere")).toBe(true);

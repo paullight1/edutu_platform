@@ -97,7 +97,7 @@ export default function PublicHeader({
 
   return (
     <header
-      className={`${positionClass} inset-x-0 top-0 z-50 border-b border-slate-200 bg-white text-slate-950`}
+      className={`${positionClass} inset-x-0 top-0 z-50 border-b border-slate-200 bg-white text-slate-950 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100`}
     >
       <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-4 sm:px-6">
         <Link
@@ -152,7 +152,7 @@ export default function PublicHeader({
                   className="fixed inset-0 z-10"
                   onClick={() => setMoreOpen(false)}
                 />
-                <div className="absolute right-0 top-full z-20 mt-2 w-48 rounded-xl border border-slate-200 bg-white py-2 shadow-xl">
+                <div className="absolute right-0 top-full z-20 mt-2 w-48 rounded-xl border border-slate-200 bg-white py-2 shadow-xl dark:border-slate-800 dark:bg-slate-950">
                   {moreNavItems.map((item) =>
                     item.external ? (
                       <a
@@ -190,17 +190,18 @@ export default function PublicHeader({
         <button
           type="button"
           onClick={() => setMenuOpen((open) => !open)}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-950 transition hover:bg-slate-50 md:hidden"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-lg border-2 border-slate-400 bg-white shadow-sm md:hidden dark:border-slate-700 dark:bg-slate-950"
           aria-label={menuOpen ? "Close menu" : "Open menu"}
           aria-expanded={menuOpen}
+          style={{ color: '#000000' }}
         >
-          {menuOpen ? <X size={18} /> : <Menu size={18} />}
+          {menuOpen ? <X size={20} style={{ color: '#000000' }} /> : <Menu size={20} style={{ color: '#000000' }} />}
         </button>
       </div>
 
       {menuOpen && (
         <nav
-          className="border-t border-slate-200 bg-white px-4 py-3 md:hidden"
+          className="border-t border-slate-200 bg-white px-4 py-3 md:hidden dark:border-slate-800 dark:bg-slate-950"
           aria-label="Mobile navigation"
         >
           <div className="mx-auto flex max-w-[1200px] flex-col gap-1">

@@ -64,7 +64,7 @@ const DownloadPage: React.FC = () => {
               </Link>
               <Link
                 to="/opportunities"
-                className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-900 no-underline transition-colors hover:border-slate-300 hover:bg-slate-50"
+                className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-900 no-underline transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:border-slate-600 dark:hover:bg-slate-800"
               >
                 Browse opportunities
               </Link>
@@ -76,7 +76,7 @@ const DownloadPage: React.FC = () => {
               {installWays.map((step) => (
                 <article
                   key={step.title}
-                  className="rounded-[24px] border bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.06)]"
+                  className="rounded-[24px] border bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.06)] dark:border-slate-800 dark:bg-slate-950"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div>

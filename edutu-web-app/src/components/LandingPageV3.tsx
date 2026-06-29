@@ -265,36 +265,26 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
             <main className="relative z-10">
                 {/* Hero Section */}
                 <section
-                    className="landing-hero relative min-h-dvh overflow-hidden px-4 sm:px-6"
+                    className="landing-hero relative h-[55vh] overflow-hidden px-4 sm:px-6 md:min-h-dvh"
                     id="platform"
                     style={{
                         backgroundColor: isDarkMode ? '#080808' : '#f7fbff',
                     }}
                 >
-                    <div className="absolute inset-0">
-                        <img
-                            src={heroBackdropImages[0].src}
-                            alt=""
-                            aria-hidden="true"
-                            className="absolute inset-0 h-full w-full object-cover"
-                            style={{ filter: 'saturate(0.9) contrast(0.98) brightness(0.6)' }}
-                            loading="lazy"
-                            draggable={false}
-                        />
-                        <div
-                            className="absolute inset-0"
-                            style={{
-                                background: 'linear-gradient(180deg, rgba(3,8,18,0.16) 0%, rgba(3,8,18,0.08) 42%, rgba(3,8,18,0.24) 100%), radial-gradient(circle at 50% 12%, rgba(20,110,245,0.08), transparent 34%)',
-                            }}
-                        />
-                    </div>
-                    <div className="relative z-10 mx-auto flex min-h-dvh max-w-[1200px] flex-col items-center justify-center pb-20 pt-24 text-center sm:pb-24 sm:pt-28">
+                    <div
+                        className="absolute inset-0 bg-cover bg-center"
+                        style={{
+                            backgroundImage: `url('https://i.pinimg.com/736x/41/69/d9/4169d952f479236822aa971619a36a7f.jpg')`,
+                        }}
+                    />
+                    <div className="absolute inset-0 bg-white/40" />
+                    <div className="relative z-10 mx-auto flex h-full max-w-[1200px] flex-col items-center justify-center pb-6 pt-24 text-center sm:pb-24 sm:pt-28">
                         <motion.h1
                             initial={{ opacity: 0, y: 30 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.6, delay: 0.1 }}
                             className="landing-hero-title text-[clamp(2.6rem,8vw,5rem)] sm:text-[clamp(3.8rem,7vw,5.5rem)] md:text-[80px] font-semibold leading-[1.04] tracking-[-0.8px] mb-8 text-balance"
-                            style={{ color: '#ffffff' }}
+                            style={{ color: '#1a1a2e' }}
                         >
                             Your AI Guide to{' '}
                             <span className="landing-hero-highlight" style={{ color: 'inherit', whiteSpace: 'nowrap' }}>
@@ -302,7 +292,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                 <span
                                     className="landing-hero-word"
                                     style={{
-                                        color: '#ffffff',
+                                        color: '#1a1a2e',
                                         display: 'inline-block',
                                         minWidth: '6.8em',
                                         textAlign: 'left',
@@ -316,7 +306,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                             animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                                             exit={{ opacity: 0, y: -24, filter: 'blur(8px)' }}
                                             transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
-                                            style={{ display: 'inline-block', color: '#69a8ff' }}
+                                            style={{ display: 'inline-block', color: '#146ef5' }}
                                         >
                                             {heroOpportunityWords[heroWordIndex]}
                                         </motion.span>
@@ -330,9 +320,9 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.6, delay: 0.2 }}
                             className="landing-hero-copy max-w-[680px] text-[20px] leading-[1.4] font-normal mb-12"
-                            style={{ color: 'rgba(255,255,255,0.78)' }}
+                            style={{ color: '#1a1a2e' }}
                         >
-                            Edutu maps your ambition to global opportunities. We build automated paths to mastery through intelligence-driven career orchestration.
+                            Edutu finds scholarships, fellowships, and career programs matched to you — globally, automatically, before the deadline.
                         </motion.p>
 
                         <motion.div
@@ -348,14 +338,8 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                     boxShadow: webflowShadow
                                 }}
                             >
-                                Join Edutu <ArrowRight size={16} />
+                                Get Started <ArrowRight size={16} />
                             </button>
-                            <Link
-                                to="/download"
-                                className="inline-flex items-center gap-2 px-10 py-4 text-[16px] font-medium rounded-xl cursor-pointer no-underline transition-all duration-200 border border-white/30 bg-white/[0.04] text-white hover:border-white/60 hover:bg-white/[0.08] hover:translate-x-1.5"
-                            >
-                                Download app <ArrowRight size={16} />
-                            </Link>
                         </motion.div>
                     </div>
                 </section>
@@ -916,7 +900,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                     </h2>
                                     <p
                                         className="mx-auto max-w-[620px] text-center text-sm leading-relaxed sm:text-base"
-                                        style={{ color: 'rgba(255,255,255,0.78)' }}
+                            style={{ color: 'rgba(26,26,46,0.7)' }}
                                     >
                                         <span className="block">Explore scholarships, fellowships, internships, and funded programs</span>
               <span className="block">matched to your profile before deadlines pass.</span>
