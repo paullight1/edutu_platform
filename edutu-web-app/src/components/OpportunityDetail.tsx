@@ -935,7 +935,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={handleApply}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-md bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-md bg-brand-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
                   >
                     <ExternalLink size={16} />
                     Apply now
@@ -944,7 +944,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                   <button
                     type="button"
                     disabled
-                    className="inline-flex flex-1 cursor-not-allowed items-center justify-center gap-2 rounded-md bg-slate-950 px-4 py-3 text-sm font-semibold text-white opacity-50 dark:bg-white dark:text-slate-950"
+                    className="inline-flex flex-1 cursor-not-allowed items-center justify-center gap-2 rounded-md bg-brand-600/60 px-4 py-3 text-sm font-semibold text-white"
                   >
                     <ExternalLink size={16} />
                     Application link unavailable
@@ -1009,7 +1009,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={handleApply}
-                className="inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-semibold text-white transition active:scale-[0.98] dark:bg-white dark:text-slate-950"
+                className="inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl bg-brand-600 px-4 text-sm font-semibold text-white transition active:scale-[0.98]"
               >
                 <ExternalLink size={17} />
                 <span className="truncate">Apply now</span>
@@ -1018,7 +1018,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
               <button
                 type="button"
                 disabled
-                className="inline-flex h-12 min-w-0 flex-1 cursor-not-allowed items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-semibold text-white opacity-50 dark:bg-white dark:text-slate-950"
+                className="inline-flex h-12 min-w-0 flex-1 cursor-not-allowed items-center justify-center gap-2 rounded-2xl bg-brand-600/60 px-4 text-sm font-semibold text-white"
               >
                 <ExternalLink size={17} />
                 <span className="truncate">Application unavailable</span>

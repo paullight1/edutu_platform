@@ -108,7 +108,7 @@ export default function CalendarStrip({
       }`}
     >
       <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-800 dark:text-white">
+        <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-black">
           <Calendar size={compact ? 15 : 17} />
           <span className="truncate">Upcoming activity</span>
         </div>
@@ -116,7 +116,7 @@ export default function CalendarStrip({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-black transition hover:bg-slate-100 hover:text-black dark:hover:bg-white/10 dark:hover:text-white"
             aria-label="Close upcoming activity"
           >
             <X size={15} />
@@ -141,11 +141,11 @@ export default function CalendarStrip({
               compact ? "p-2.5" : "p-3"
             }`}
           >
-            <span className="mb-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+            <span className="mb-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-black">
               <Clock size={13} />
               {formatEventDate(event.date)}
             </span>
-            <span className="line-clamp-1 block text-xs font-semibold leading-5 text-slate-950 dark:text-white">
+            <span className="line-clamp-1 block text-xs font-semibold leading-5 text-black">
               {event.title}
             </span>
           </button>
