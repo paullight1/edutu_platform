@@ -1859,11 +1859,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                               <ChevronRight size={16} />
                             </button>
                           </div>
-                        </div>
 
-                        <div className="mb-6">
-                          <BannerCarousel banners={DEFAULT_BANNERS} />
-                        </div>
+                          <div className="mb-6">
+                            <BannerCarousel banners={DEFAULT_BANNERS} />
+                          </div>
 
                           <div className="mb-3 flex items-start justify-between gap-3">
                             <div className="min-w-0">

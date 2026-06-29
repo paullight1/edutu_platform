@@ -540,35 +540,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   };
 
   const content = (
-    <div className="opportunities-force-light">
-      <style>{`
-        .opportunities-force-light {
-          color: #0f172a !important;
-          background-color: #f8fafc !important;
-        }
-        .opportunities-force-light [class*="dark\\:text-"] {
-          color: #0f172a !important;
-        }
-        .opportunities-force-light [class*="dark\\:text-brand"] {
-          color: #4338ca !important;
-        }
-        .opportunities-force-light [class*="dark\\:text-emerald"] {
-          color: #047857 !important;
-        }
-        .opportunities-force-light [class*="dark\\:text-rose"] {
-          color: #be123c !important;
-        }
-        .opportunities-force-light [class*="dark\\:text-amber"] {
-          color: #b45309 !important;
-        }
-        .opportunities-force-light .dark\\:bg-gray-950,
-        .opportunities-force-light [class*="dark\\:bg-"] {
-          background-color: #ffffff !important;
-        }
-        .opportunities-force-light [class*="dark\\:border-"] {
-          border-color: #e2e8f0 !important;
-        }
-      `}</style>
+    <>
         {selectedCategory ? (
           <section className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950">
             <div className="flex items-start justify-between gap-3">
@@ -763,12 +735,40 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
               {t("opportunities.clearFilters")}
             </button>
           </section>
-        )}
-    </div>
+      )}
+    </>
   );
 
   return (
-    <>
+    <div className="opportunities-force-light">
+      <style>{`
+        .opportunities-force-light {
+          color: #0f172a !important;
+          background-color: #f8fafc !important;
+        }
+        .opportunities-force-light [class*="dark\\:text-"] {
+          color: #0f172a !important;
+        }
+        .opportunities-force-light [class*="dark\\:text-brand"] {
+          color: #4338ca !important;
+        }
+        .opportunities-force-light [class*="dark\\:text-emerald"] {
+          color: #047857 !important;
+        }
+        .opportunities-force-light [class*="dark\\:text-rose"] {
+          color: #be123c !important;
+        }
+        .opportunities-force-light [class*="dark\\:text-amber"] {
+          color: #b45309 !important;
+        }
+        .opportunities-force-light .dark\\:bg-gray-950,
+        .opportunities-force-light [class*="dark\\:bg-"] {
+          background-color: #ffffff !important;
+        }
+        .opportunities-force-light [class*="dark\\:border-"] {
+          border-color: #e2e8f0 !important;
+        }
+      `}</style>
       <Seo
         title={
           selectedCategory
@@ -792,7 +792,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
         <PublicEditorialShell mainClassName="max-w-7xl py-5 sm:py-6">
           {content}
         </PublicEditorialShell>
-      )}
-    </>
-  );
-}
+        )}
+      </div>
+    );
+  }
