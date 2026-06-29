@@ -97,7 +97,7 @@ function calculateAge(dateOfBirth: string) {
   return age >= 0 ? age : null;
 }
 
-const FIELD_LABEL_CLASS_NAME = "font-black text-slate-950 dark:text-white";
+const FIELD_LABEL_CLASS_NAME = "font-semibold text-slate-950 dark:text-white";
 const FIELD_INPUT_CLASS_NAME =
   "h-11 rounded-xl border-slate-200 bg-white px-3 pr-10 text-slate-700 font-semibold dark:border-white/10 dark:bg-gray-950 dark:text-white";
 const DATE_INPUT_CLASS_NAME =
@@ -289,7 +289,7 @@ export default function ProfilePage() {
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
                   <UserCheck size={22} />
                 </div>
-                <h1 className="mt-4 text-2xl font-black tracking-tight sm:text-3xl">
+                <h1 className="mt-4 text-2xl font-semibold tracking-tight sm:text-3xl">
                   Your profile
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
@@ -301,11 +301,11 @@ export default function ProfilePage() {
                 className={`rounded-2xl border p-4 ${isDarkMode ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"}`}
               >
                 <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500 text-base font-black text-white">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500 text-base font-semibold text-white">
                     {displayName(profile, user?.name).charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-black">
+                    <p className="truncate text-sm font-semibold">
                       {displayName(profile, user?.name)}
                     </p>
                     <p className="truncate text-xs font-semibold text-slate-500 dark:text-slate-400">
@@ -314,7 +314,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
                 <div className="mt-5">
-                  <div className="flex items-center justify-between text-sm font-black">
+                  <div className="flex items-center justify-between text-sm font-semibold">
                     <span>Profile completeness</span>
                     <span className="text-brand-600 dark:text-brand-300">
                       {completenessPercent}%
@@ -354,7 +354,7 @@ export default function ProfilePage() {
             >
               <div className="mb-5 flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-black tracking-tight">
+                  <h2 className="text-lg font-semibold tracking-tight">
                     Profile details
                   </h2>
                   <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
@@ -547,7 +547,7 @@ export default function ProfilePage() {
                     />
                   </div>
                   {calculatedAge !== null ? (
-                    <span className="mt-1 block text-xs font-bold text-slate-500 dark:text-slate-400">
+                    <span className="mt-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
                       Age {calculatedAge}
                     </span>
                   ) : null}
@@ -648,7 +648,7 @@ export default function ProfilePage() {
               <div
                 className={`rounded-[20px] border p-5 ${isDarkMode ? "border-white/10 bg-gray-900/70" : "border-slate-200 bg-white shadow-sm"}`}
               >
-                <div className="flex items-center gap-2 text-sm font-black">
+                <div className="flex items-center gap-2 text-sm font-semibold">
                   <Sparkles size={17} />
                   Match readiness
                 </div>
@@ -657,7 +657,7 @@ export default function ProfilePage() {
                     {completeness.missing.map((field) => (
                       <span
                         key={field.key}
-                        className="rounded-xl bg-amber-500/10 px-2.5 py-1 text-xs font-black text-amber-700 dark:text-amber-300"
+                        className="rounded-xl bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:text-amber-300"
                       >
                         {field.label}
                       </span>
@@ -675,12 +675,12 @@ export default function ProfilePage() {
                 <div
                   className={`rounded-[20px] border p-5 ${isDarkMode ? "border-white/10 bg-gray-900/70" : "border-slate-200 bg-white shadow-sm"}`}
                 >
-                  <p className="text-sm font-black">Interested countries</p>
+                  <p className="text-sm font-semibold">Interested countries</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {interestedCountries.map((countryName) => (
                       <span
                         key={countryName}
-                        className="rounded-xl bg-emerald-500/10 px-2.5 py-1 text-xs font-black text-emerald-700 dark:text-emerald-300"
+                        className="rounded-xl bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300"
                       >
                         {countryName}
                       </span>
@@ -693,12 +693,12 @@ export default function ProfilePage() {
                 <div
                   className={`rounded-[20px] border p-5 ${isDarkMode ? "border-white/10 bg-gray-900/70" : "border-slate-200 bg-white shadow-sm"}`}
                 >
-                  <p className="text-sm font-black">Interest tags</p>
+                  <p className="text-sm font-semibold">Interest tags</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {interests.map((interest) => (
                       <span
                         key={interest}
-                        className="rounded-xl bg-sky-500/10 px-2.5 py-1 text-xs font-black text-sky-700 dark:text-sky-300"
+                        className="rounded-xl bg-sky-500/10 px-2.5 py-1 text-xs font-semibold text-sky-700 dark:text-sky-300"
                       >
                         {interest}
                       </span>
@@ -711,12 +711,12 @@ export default function ProfilePage() {
                 <div
                   className={`rounded-[20px] border p-5 ${isDarkMode ? "border-white/10 bg-gray-900/70" : "border-slate-200 bg-white shadow-sm"}`}
                 >
-                  <p className="text-sm font-black">Skill tags</p>
+                  <p className="text-sm font-semibold">Skill tags</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {skills.map((skill) => (
                       <span
                         key={skill}
-                        className="rounded-xl bg-brand-500/10 px-2.5 py-1 text-xs font-black text-brand-700 dark:text-brand-300"
+                        className="rounded-xl bg-brand-500/10 px-2.5 py-1 text-xs font-semibold text-brand-700 dark:text-brand-300"
                       >
                         {skill}
                       </span>

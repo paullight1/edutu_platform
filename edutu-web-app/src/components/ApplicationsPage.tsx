@@ -229,7 +229,7 @@ export default function ApplicationsPage() {
                         setFilter(item);
                         setIsFilterOpen(false);
                       }}
-                      className={`flex h-10 w-full items-center justify-between rounded-xl px-3 text-left text-sm font-black transition ${
+                      className={`flex h-10 w-full items-center justify-between rounded-xl px-3 text-left text-sm font-semibold transition ${
                         filter === item
                           ? 'bg-brand-500 text-white'
                           : isDarkMode
@@ -257,7 +257,7 @@ export default function ApplicationsPage() {
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300">
                 <Briefcase size={22} />
               </div>
-              <h2 className="mt-4 text-base font-black">No tracked applications</h2>
+              <h2 className="mt-4 text-base font-semibold">No tracked applications</h2>
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">
                 Open an opportunity and use the application action to add it to this tracker.
               </p>
@@ -282,10 +282,10 @@ export default function ApplicationsPage() {
                       onClick={() => navigate(`/opportunity/${application.opportunity_id}`)}
                       className="min-w-0 text-left"
                     >
-                      <p className="text-xs font-black uppercase tracking-[0.16em] text-brand-600 dark:text-brand-300">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-600 dark:text-brand-300">
                         {application.opportunity_category || 'Opportunity'}
                       </p>
-                      <h2 className="mt-2 line-clamp-2 text-lg font-black leading-6 tracking-tight">
+                      <h2 className="mt-2 line-clamp-2 text-lg font-semibold leading-6 tracking-tight">
                         {application.opportunity_title}
                       </h2>
                       <div className="mt-3 flex flex-wrap items-center gap-3 text-sm font-semibold text-slate-500 dark:text-slate-400">
@@ -301,7 +301,7 @@ export default function ApplicationsPage() {
                     </button>
 
                     <div>
-                      <span className={`inline-flex rounded-xl px-2.5 py-1 text-xs font-black ${statusTone(application.status)}`}>
+                      <span className={`inline-flex rounded-xl px-2.5 py-1 text-xs font-semibold ${statusTone(application.status)}`}>
                         {STATUS_LABELS[application.status]}
                       </span>
                       <select

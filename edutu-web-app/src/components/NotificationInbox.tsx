@@ -149,7 +149,7 @@ export default function NotificationInbox({
                 <div>
                   <h2
                     id="notification-inbox-title"
-                    className="text-base font-black text-slate-950 dark:text-white"
+                    className="text-base font-semibold text-slate-950 dark:text-white"
                   >
                     Notifications
                   </h2>
@@ -203,7 +203,7 @@ export default function NotificationInbox({
 
         <div className="flex-1 overflow-y-auto">
           <section className="border-b border-slate-200 p-4 dark:border-white/10">
-            <div className="mb-3 flex items-center gap-2 text-sm font-black text-slate-950 dark:text-white">
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-950 dark:text-white">
               <Settings size={16} />
               Reminder settings
             </div>
@@ -255,7 +255,7 @@ export default function NotificationInbox({
           ) : error ? (
             <div className="p-4">
               <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">
-                <p className="font-black">Could not load notifications</p>
+                <p className="font-semibold">Could not load notifications</p>
                 <p className="mt-1 leading-6">{error}</p>
                 <button
                   type="button"
@@ -272,7 +272,7 @@ export default function NotificationInbox({
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300">
                 <Bell size={22} />
               </div>
-              <h3 className="mt-4 text-sm font-black text-slate-950 dark:text-white">
+              <h3 className="mt-4 text-sm font-semibold text-slate-950 dark:text-white">
                 No notifications yet
               </h3>
               <p className="mt-2 max-w-xs text-sm leading-6 text-slate-500 dark:text-slate-400">
@@ -297,10 +297,10 @@ export default function NotificationInbox({
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
                               {formatKind(notification.kind)}
                             </p>
-                            <h3 className="mt-1 text-sm font-black leading-5 text-slate-950 dark:text-white">
+                            <h3 className="mt-1 text-sm font-semibold leading-5 text-slate-950 dark:text-white">
                               {notification.title}
                             </h3>
                           </div>

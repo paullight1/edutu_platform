@@ -69,7 +69,10 @@ export class OpportunitiesController {
       Math.max(Number(limit) || 20, 1),
       PUBLIC_FEED_MAX_LIMIT,
     );
-    const cappedOffset = Math.min(Math.max(Number(offset) || 0, 0), PUBLIC_FEED_MAX_OFFSET);
+    const cappedOffset = Math.min(
+      Math.max(Number(offset) || 0, 0),
+      PUBLIC_FEED_MAX_OFFSET,
+    );
 
     const rows = await this.opportunitiesService.findAll(
       cappedLimit,
@@ -77,9 +80,7 @@ export class OpportunitiesController {
       "active",
       category,
     );
-    return stripInternalOpportunityFieldsBatch(
-      rows as Record<string, unknown>[],
-    );
+    return stripInternalOpportunityFieldsBatch(rows);
   }
 
   @Post("recommendations/query")
@@ -253,9 +254,11 @@ export class OpportunitiesController {
   @Get(":id")
   async findOne(@Param("id") id: string) {
     const row = await this.opportunitiesService.findOne(id);
-    return stripInternalOpportunityFieldsBatch(
-      (row ? [row] : []) as Record<string, unknown>[],
-    )[0] ?? null;
+    return (
+      stripInternalOpportunityFieldsBatch(
+        (row ? [row] : []) as Record<string, unknown>[],
+      )[0] ?? null
+    );
   }
 
   @Public()

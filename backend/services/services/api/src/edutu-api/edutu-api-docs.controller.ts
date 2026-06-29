@@ -188,7 +188,8 @@ export class EdutuApiDocsController {
             in: "query",
             required: false,
             schema: { type: "string" },
-            description: "Filter by opportunity type (e.g. scholarship, fellowship, internship, grant).",
+            description:
+              "Filter by opportunity type (e.g. scholarship, fellowship, internship, grant).",
           },
           OpportunityFundingType: {
             name: "fundingType",
@@ -213,21 +214,24 @@ export class EdutuApiDocsController {
             in: "query",
             required: false,
             schema: { type: "string", format: "date" },
-            description: "Include opportunities with a deadline on or after this date.",
+            description:
+              "Include opportunities with a deadline on or after this date.",
           },
           OpportunityDeadlineTo: {
             name: "deadlineTo",
             in: "query",
             required: false,
             schema: { type: "string", format: "date" },
-            description: "Include opportunities with a deadline on or before this date.",
+            description:
+              "Include opportunities with a deadline on or before this date.",
           },
           OpportunityUpdatedSince: {
             name: "updatedSince",
             in: "query",
             required: false,
             schema: { type: "string", format: "date-time" },
-            description: "Only return rows updated on or after this timestamp (use for delta sync).",
+            description:
+              "Only return rows updated on or after this timestamp (use for delta sync).",
           },
           OpportunityLimit: {
             name: "limit",
@@ -241,7 +245,8 @@ export class EdutuApiDocsController {
             in: "query",
             required: false,
             schema: { type: "string" },
-            description: "Opaque pagination cursor returned in the previous response meta.next_cursor.",
+            description:
+              "Opaque pagination cursor returned in the previous response meta.next_cursor.",
           },
           OpportunitySort: {
             name: "sort",

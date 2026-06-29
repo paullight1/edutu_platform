@@ -117,17 +117,17 @@ export default function SavedPage() {
           <section className={`rounded-[20px] border p-4 sm:p-5 ${surfaceClass}`}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-brand-600 dark:text-brand-300">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-600 dark:text-brand-300">
                   Saved workspace
                 </p>
-                <h1 className="mt-1 text-xl font-black tracking-tight">
+                <h1 className="mt-1 text-xl font-semibold tracking-tight">
                   Saved opportunities
                 </h1>
                 <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
                   Everything you bookmarked, ready to revisit and apply.
                 </p>
               </div>
-              <span className="shrink-0 rounded-full bg-brand-500/10 px-3 py-1 text-xs font-black text-brand-700 dark:text-brand-200">
+              <span className="shrink-0 rounded-full bg-brand-500/10 px-3 py-1 text-xs font-semibold text-brand-700 dark:text-brand-200">
                 {bookmarks.length}
               </span>
             </div>
@@ -174,13 +174,13 @@ export default function SavedPage() {
                     <Bookmark size={20} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-black uppercase tracking-[0.14em] text-brand-600 dark:text-brand-300">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-600 dark:text-brand-300">
                       {bookmark.opportunity_category || "Opportunity"}
                     </p>
-                    <h3 className="mt-1 line-clamp-2 text-sm font-black text-slate-950 dark:text-white">
+                    <h3 className="mt-1 line-clamp-2 text-sm font-semibold text-slate-950 dark:text-white">
                       {bookmark.opportunity_title}
                     </h3>
-                    <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400">
+                    <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
                       {bookmark.opportunity_location || "Worldwide"} ·{" "}
                       {formatDeadline(bookmark.opportunity_deadline)}
                     </p>

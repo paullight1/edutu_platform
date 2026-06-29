@@ -80,7 +80,7 @@ const AvatarNode = ({
   label: string;
 }) => (
   <div
-    className={`absolute h-14 w-14 rounded-2xl border border-white/60 bg-white/95 p-1.5 shadow-xl ${className}`}
+    className={`absolute h-14 w-14 rounded-2xl border border-white/60 bg-white/95 p-1.5 shadow-xl dark:border-gray-700/60 dark:bg-gray-900/95 ${className}`}
   >
     <div className="flex h-full w-full items-center justify-center rounded-xl bg-slate-900 text-xs font-semibold text-white">
       {label}
@@ -104,7 +104,7 @@ const FieldShell = ({
 );
 
 const baseInputClass =
-  "h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400";
+  "h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400 dark:border-slate-700 dark:bg-gray-900 dark:text-slate-100";
 
 const describeFactors = (factors: { strategy: string }[] | null | undefined) =>
   factors?.map((factor) => factor.strategy.replace(/_/g, " ")).join(", ") ||
@@ -714,7 +714,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                   <img
                     src="/edutu-logo.png"
                     alt=""
-                    className="h-7 w-7 rounded-lg bg-white/90 p-1"
+                    className="h-7 w-7 rounded-lg bg-white/90 p-1 dark:bg-gray-900/90"
                   />
                   <span>Edutu</span>
                 </div>
@@ -1204,7 +1204,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                         type="button"
                         onClick={() => handleOAuth("google")}
                         disabled={oauthLoading !== null}
-                        className="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-gray-900 dark:text-slate-200 dark:hover:border-slate-600 dark:hover:bg-gray-800"
                       >
                         {oauthLoading === "google" ? (
                           <Loader2 size={16} className="animate-spin" />
@@ -1217,7 +1217,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                         type="button"
                         onClick={() => handleOAuth("apple")}
                         disabled={oauthLoading !== null}
-                        className="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-gray-900 dark:text-slate-200 dark:hover:border-slate-600 dark:hover:bg-gray-800"
                       >
                         {oauthLoading === "apple" ? (
                           <Loader2 size={16} className="animate-spin" />

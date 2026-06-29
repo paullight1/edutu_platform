@@ -239,7 +239,7 @@ const BlogPage: React.FC = () => {
             }}
           >
             <TrendingUp size={32} className="mx-auto mb-4 text-white" />
-            <h2 className="text-2xl font-bold mb-2 text-white">Stay Ahead of the Curve</h2>
+            <h2 className="text-2xl font-semibold mb-2 text-white">Stay Ahead of the Curve</h2>
             <p className="text-white/80 mb-6 max-w-lg mx-auto">
               Get weekly insights on scholarships, fellowships, and career opportunities delivered to your inbox.
             </p>

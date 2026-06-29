@@ -472,7 +472,7 @@ const MentorPage: React.FC = () => {
                                                 <step.icon size={20} />
                                             </div>
                                             <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold mb-5 bg-[#146ef5] text-white">{index + 1}</div>
-                                            <h3 className="font-bold mb-2 text-slate-950 dark:text-white">{step.title}</h3>
+                                            <h3 className="font-semibold mb-2 text-slate-950 dark:text-white">{step.title}</h3>
                                             <p className="text-sm leading-relaxed text-slate-500 dark:text-gray-400">{step.desc}</p>
                                         </div>
                                     ))}
@@ -678,7 +678,7 @@ const MentorPage: React.FC = () => {
                                 <button onClick={prevStep} className="flex items-center gap-1 text-sm mb-6 text-slate-500 dark:text-gray-400">
                                     <ArrowLeft size={14} /> Back
                                 </button>
-                                <h2 className="text-2xl font-bold mb-2 text-slate-950 dark:text-white">What motivates you?</h2>
+                                <h2 className="text-2xl font-semibold mb-2 text-slate-950 dark:text-white">What motivates you?</h2>
                                 <p className="text-sm text-slate-500 dark:text-gray-400">Choose the reason that best describes why you want to mentor.</p>
                             </div>
 
@@ -738,7 +738,7 @@ const MentorPage: React.FC = () => {
                                 <button onClick={prevStep} className="flex items-center gap-1 text-sm mb-6 text-slate-500 dark:text-gray-400">
                                     <ArrowLeft size={14} /> Back
                                 </button>
-                                <h2 className="text-2xl font-bold mb-2 text-slate-950 dark:text-white">Tell us about yourself</h2>
+                                <h2 className="text-2xl font-semibold mb-2 text-slate-950 dark:text-white">Tell us about yourself</h2>
                                 <p className="text-sm text-slate-500 dark:text-gray-400">Help learners understand the opportunity you won and how you can support them.</p>
                             </div>
 
@@ -884,7 +884,7 @@ const MentorPage: React.FC = () => {
                                 <button onClick={prevStep} className="flex items-center gap-1 text-sm mb-6 text-slate-500 dark:text-gray-400">
                                     <ArrowLeft size={14} /> Back
                                 </button>
-                                <h2 className="text-2xl font-bold mb-2 text-slate-950 dark:text-white">Review your application</h2>
+                                <h2 className="text-2xl font-semibold mb-2 text-slate-950 dark:text-white">Review your application</h2>
                                 <p className="text-sm text-slate-500 dark:text-gray-400">Make sure everything looks good before submitting.</p>
                             </div>
 

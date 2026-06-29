@@ -86,7 +86,7 @@ export const DrawerContent: React.FC<
       <div
         ref={containerRef}
         className={cn(
-          'relative flex h-full w-full max-w-lg flex-col overflow-y-auto bg-white p-6 shadow-2xl',
+          'relative flex h-full w-full max-w-lg flex-col overflow-y-auto bg-white p-6 shadow-2xl dark:bg-gray-800',
           side === 'right' ? 'ml-auto' : 'mr-auto',
           !reducedMotion && 'animate-fade-in',
           className
@@ -112,7 +112,7 @@ export const DrawerFooter: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ c
 );
 
 export const DrawerTitle: React.FC<React.HTMLAttributes<HTMLHeadingElement>> = ({ className, ...props }) => (
-  <h2 className={cn('text-lg font-semibold text-gray-900', className)} {...props} />
+  <h2 className={cn('text-lg font-semibold text-gray-900 dark:text-white', className)} {...props} />
 );
 
 export const DrawerDescription: React.FC<React.HTMLAttributes<HTMLParagraphElement>> = ({

@@ -89,7 +89,6 @@ export class BlogController {
 
   @Post("upload-image")
   @UseGuards(AdminGuard)
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   @UseInterceptors(FileInterceptor("file", { storage: createMemoryStorage() }))
   async uploadImage(@UploadedFile() file?: BlogUploadFile) {
     if (!file) {
