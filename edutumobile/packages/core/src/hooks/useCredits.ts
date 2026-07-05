@@ -7,26 +7,35 @@ interface CreditTransaction {
   type: string;
   amount: number;
   description: string;
-  status: string;
+  status?: string; // present on legacy payment_transactions rows; absent on credit_transactions
   created_at: string;
 }
 
 interface UseCreditsReturn {
   credits: number;
+  loginStreak: number;
   isLoading: boolean;
   transactions: CreditTransaction[];
   spendCredits: (amount: number, reason: string) => Promise<boolean>;
   refreshCredits: () => Promise<void>;
 }
 
+// Profiles are keyed by the raw Clerk ID (written by the Clerk webhook);
+// the hashed toSafeUUID form only exists in rows created by older builds.
+function lookupIds(userId: string): string[] {
+  return Array.from(new Set([userId, toSafeUUID(userId)]));
+}
+
 export function useCredits(supabase: SupabaseClient, userId: string | null): UseCreditsReturn {
   const [credits, setCredits] = useState(0);
+  const [loginStreak, setLoginStreak] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
 
   const refreshCredits = useCallback(async () => {
     if (!userId) {
       setCredits(0);
+      setLoginStreak(0);
       setTransactions([]);
       setIsLoading(false);
       return;
@@ -35,20 +44,25 @@ export function useCredits(supabase: SupabaseClient, userId: string | null): Use
     setIsLoading(true);
 
     try {
-      // Get credits balance
-      const { data: profile } = await supabase
+      const ids = lookupIds(userId);
+
+      // Get credits balance + login streak
+      const { data: profiles } = await supabase
         .from('profiles')
-        .select('credits')
-        .eq('user_id', toSafeUUID(userId))
-        .single();
+        .select('user_id, credits, login_streak')
+        .in('user_id', ids);
 
+      const profile =
+        profiles?.find((row: { user_id: string }) => row.user_id === userId) ?? profiles?.[0];
       setCredits(profile?.credits || 0);
+      setLoginStreak(profile?.login_streak || 0);
 
-      // Get recent transactions
+      // Get recent transactions. credit_transactions is the canonical credit
+      // ledger (all credit RPCs write here); it has no `status` column.
       const { data: txns } = await supabase
-        .from('payment_transactions')
-        .select('id, type, amount, description, status, created_at')
-        .eq('user_id', toSafeUUID(userId))
+        .from('credit_transactions')
+        .select('id, type, amount, description, created_at')
+        .in('user_id', ids)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -64,13 +78,18 @@ export function useCredits(supabase: SupabaseClient, userId: string | null): Use
     if (!userId) return false;
 
     try {
-      const { data } = await supabase.rpc('deduct_credits', {
-        user_uuid: toSafeUUID(userId),
-        amount,
-        reason,
+      // Server-side atomic deduction scoped to the authenticated user.
+      const { data, error } = await supabase.rpc('spend_credits', {
+        p_amount: amount,
+        p_reason: reason,
       });
 
-      if (data) {
+      if (error) {
+        console.error('Error spending credits:', error);
+        return false;
+      }
+
+      if (data === true) {
         await refreshCredits();
         return true;
       }
@@ -86,8 +105,29 @@ export function useCredits(supabase: SupabaseClient, userId: string | null): Use
     refreshCredits();
   }, [refreshCredits]);
 
+  // Live balance/streak updates. Profiles are written server-side (Clerk +
+  // RevenueCat webhooks); mirror the realtime pattern used in useProStatus so
+  // the balance reflects a credit purchase as soon as the webhook lands.
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase
+      .channel(`credits-status-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `user_id=eq.${userId}` },
+        () => void refreshCredits(),
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [refreshCredits, supabase, userId]);
+
   return {
     credits,
+    loginStreak,
     isLoading,
     transactions,
     spendCredits,

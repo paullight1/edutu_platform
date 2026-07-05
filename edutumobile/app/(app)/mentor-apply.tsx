@@ -14,6 +14,7 @@ import {
 import { useTheme } from '../../components/context/ThemeContext';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { supabase } from '../../lib/supabase';
+import { toSafeUUID } from '@edutu/core/src/utils/auth';
 
 const { width } = Dimensions.get('window');
 
@@ -71,26 +72,37 @@ export default function MentorApply() {
     };
 
     const handleSubmit = async () => {
+        if (!user?.id) {
+            Alert.alert('Not signed in', 'Please sign in to submit a mentor application.');
+            return;
+        }
         setIsSubmitting(true);
         try {
+            // Column names are snake_case (PostgREST rejected the old camelCase
+            // keys). application_kind='mentor' distinguishes this from creator
+            // applications so approval routes to mentor_status, not the studio.
             const { error } = await supabase
                 .from('creator_applications')
                 .insert({
-                    userId: user?.id || 'anonymous',
-                    displayName: formData.displayName,
+                    user_id: toSafeUUID(user.id),
+                    application_kind: 'mentor',
+                    display_name: formData.displayName,
                     bio: formData.bio,
-                    contentType: formData.contentType,
+                    content_type: formData.contentType,
                     experience: formData.experience,
-                    sampleContentUrl: formData.portfolioUrl || formData.linkedInUrl,
+                    motivation: formData.motivation,
+                    linkedin_url: formData.linkedInUrl,
+                    portfolio_url: formData.portfolioUrl,
+                    sample_content_url: formData.portfolioUrl || formData.linkedInUrl,
                     status: 'pending',
-                    submittedAt: new Date().toISOString(),
+                    applied_at: new Date().toISOString(),
                 });
 
             if (error) throw error;
             setIsSubmitted(true);
-        } catch (err) {
+        } catch (err: any) {
             console.error('Submission error:', err);
-            Alert.alert('Error', 'Something went wrong. Please try again.');
+            Alert.alert('Error', err?.message || 'Something went wrong. Please try again.');
         } finally {
             setIsSubmitting(false);
         }

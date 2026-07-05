@@ -37,6 +37,8 @@ import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { supabase } from '../../../lib/supabase';
 import { notificationService } from '../../../lib/notifications';
 import { useGoals } from '@edutu/core/src/hooks/useGoals';
+import { useCreditRewards } from '@edutu/core/src/hooks/useCreditRewards';
+import { useToast } from '../../../components/context/ToastContext';
 import { fetchOpportunities } from '@edutu/core/src/services/opportunities';
 import { toSafeUUID } from '@edutu/core/src/utils/auth';
 import { Opportunity } from '@edutu/core/src/types/opportunity';
@@ -272,6 +274,23 @@ export default function GoalsDashboard() {
             }
         }
     });
+
+    const { show: showToast } = useToast();
+    const { award } = useCreditRewards(supabase, user?.id || null, {
+        onEarned: (amount) => {
+            showToast({
+                emoji: '🎉',
+                variant: 'success',
+                message: `+${amount} credit${amount > 1 ? 's' : ''} for completing a goal`,
+            });
+        },
+    });
+
+    const handleCompleteGoal = useCallback(async (id: string) => {
+        await updateGoal(id, { status: 'completed', progress: 100 });
+        // Reward completion (server grants at most once/day; toast via onEarned).
+        void award('COMPLETE_GOAL');
+    }, [updateGoal, award]);
 
     const [bookmarkedOpps, setBookmarkedOpps] = useState<{ id: string, title: string, closeDate: string }[]>([]);
     const [personalizedOpps, setPersonalizedOpps] = useState<Opportunity[]>([]);
@@ -564,7 +583,7 @@ export default function GoalsDashboard() {
                                     <GoalCard
                                         key={goal.id}
                                         goal={goal}
-                                        onComplete={async (id) => updateGoal(id, { status: 'completed', progress: 100 })}
+                                        onComplete={handleCompleteGoal}
                                         onReopen={async (id) => updateGoal(id, { status: 'active', progress: 0 })}
                                         onDelete={deleteGoal as any}
                                         getDaysUntil={getDaysUntil}
