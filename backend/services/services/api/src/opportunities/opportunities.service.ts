@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Optional } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { existsSync } from "fs";
 import { readFile } from "fs/promises";
@@ -19,6 +19,9 @@ import {
 } from "./dto/personalization.dto";
 import { AiService } from "../ai";
 import { OpportunityShareCardService } from "./opportunity-share-card.service";
+import { CacheService } from "../common/cache/cache.service";
+
+const OPPS_CACHE_PREFIX = "opps:";
 import {
   buildOpportunityPublicShareUrl,
   buildOpportunityShareText,
@@ -419,6 +422,7 @@ export class OpportunitiesService {
     private readonly opportunityRankingService: OpportunityRankingService,
     private readonly aiService: AiService,
     private readonly opportunityShareCardService: OpportunityShareCardService,
+    @Optional() private readonly cache?: CacheService,
   ) {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -439,7 +443,9 @@ export class OpportunitiesService {
     const statusFilter = status || "active";
     const cappedLimit = Math.min(Number(limit) || 20, 100);
     const normalizedOffset = Number(offset) || 0;
+    const cacheKey = `${OPPS_CACHE_PREFIX}list:${statusFilter}:${category || ""}:${cappedLimit}:${normalizedOffset}`;
 
+    const run = async () => {
     try {
       if (this.supabase) {
         let request = this.supabase
@@ -509,6 +515,9 @@ export class OpportunitiesService {
       statusFilter,
       category,
     ).map((row) => withOpportunityUrlAliases(row as Record<string, any>));
+    };
+
+    return this.cache ? this.cache.wrap(cacheKey, 45, run) : run();
   }
 
   async listSitemapOpportunities(
@@ -598,6 +607,7 @@ export class OpportunitiesService {
   }
 
   async findOne(id: string) {
+    const run = async () => {
     try {
       if (this.supabase) {
         const { data, error } = await this.supabase
@@ -634,6 +644,11 @@ export class OpportunitiesService {
     const snapshotRows = await loadStaticOpportunitySnapshot();
     const row = snapshotRows.find((item) => String(item.id) === String(id));
     return row ? withOpportunityUrlAliases(row as Record<string, any>) : null;
+    };
+
+    return this.cache
+      ? this.cache.wrap(`${OPPS_CACHE_PREFIX}detail:${id}`, 60, run)
+      : run();
   }
 
   async ensureShareCard(id: string) {

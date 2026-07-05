@@ -18,6 +18,7 @@ import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import { LinearGradient } from "expo-linear-gradient";
 import { BrandedLoader } from "../../components/ui/BrandedLoader";
 import { shareIcsString } from "../../lib/roadmapCalendar";
+import { swr } from "../../packages/core/src/services/swrCache";
 
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://edutu-platform.onrender.com').replace(/\/$/, '');
 const API_RETRY_COOLDOWN_MS = 30 * 1000;
@@ -154,6 +155,7 @@ export default function RoadmapsScreen() {
     const [roadmaps, setRoadmaps] = useState<Roadmap[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [category, setCategory] = useState('All');
     const [selectedItem, setSelectedItem] = useState<Roadmap | null>(null);
     const [enrolling, setEnrolling] = useState(false);
@@ -174,26 +176,38 @@ export default function RoadmapsScreen() {
     const inputBg = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)';
     const borderColor = colors.border;
 
+    // Debounce the search box so we don't fire a request (and a spinner) per keystroke.
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+        return () => clearTimeout(timer);
+    }, [search]);
+
     const fetchRoadmaps = useCallback(async () => {
-        setLoading(true);
-        try {
-            if (!isApiAvailable()) return;
+        const cacheKey = `roadmaps:list:${category}:${debouncedSearch}`;
+        const params = new URLSearchParams({ limit: '50' });
+        if (category !== 'All') params.set('category', category.toLowerCase());
+        if (debouncedSearch) params.set('search', debouncedSearch);
 
-            const params = new URLSearchParams({ limit: '50' });
-            if (category !== 'All') params.set('category', category.toLowerCase());
-            if (search.trim()) params.set('search', search.trim());
-
-            const res = await apiFetch(`/roadmaps?${params}`);
-            if (res?.ok) {
-                const data = await res.json();
-                setRoadmaps(data);
-            }
-        } catch (e) {
-            console.error('Failed to fetch roadmaps:', e);
-        } finally {
-            setLoading(false);
-        }
-    }, [category, search]);
+        // Stale-while-revalidate: paint cached results instantly, refresh in background.
+        // No setLoading(true) here — the initial state already shows the loader once,
+        // and cached data keeps the list on screen while filters change.
+        await swr<Roadmap[]>(
+            cacheKey,
+            async () => {
+                if (!isApiAvailable()) throw new Error('offline');
+                const res = await apiFetch(`/roadmaps?${params}`);
+                if (!res?.ok) throw new Error('roadmaps request failed');
+                return res.json();
+            },
+            {
+                maxAgeMs: 60000,
+                onData: (data) => {
+                    if (Array.isArray(data)) setRoadmaps(data);
+                    setLoading(false);
+                },
+            },
+        ).finally(() => setLoading(false));
+    }, [category, debouncedSearch]);
 
     useEffect(() => { fetchRoadmaps(); }, [fetchRoadmaps]);
 
@@ -633,6 +647,10 @@ export default function RoadmapsScreen() {
                     columnWrapperStyle={styles.row}
                     contentContainerStyle={styles.listContent}
                     showsVerticalScrollIndicator={false}
+                    initialNumToRender={6}
+                    maxToRenderPerBatch={8}
+                    windowSize={7}
+                    removeClippedSubviews
                     refreshControl={
                         <RefreshControl refreshing={loading} onRefresh={fetchRoadmaps} tintColor="#6366F1" />
                     }

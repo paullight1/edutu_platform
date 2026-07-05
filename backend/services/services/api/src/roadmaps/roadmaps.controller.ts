@@ -8,6 +8,7 @@ import {
   Param,
   Query,
   UseGuards,
+  Header,
 } from "@nestjs/common";
 import { RoadmapsService } from "./roadmaps.service";
 import type {
@@ -41,6 +42,7 @@ export class RoadmapsController {
 
   @Public()
   @Get()
+  @Header("Cache-Control", "public, max-age=60, s-maxage=180")
   findAll(
     @Query("status") _status?: string,
     @Query("category") category?: string,
@@ -69,6 +71,7 @@ export class RoadmapsController {
 
   @Public()
   @Get("templates")
+  @Header("Cache-Control", "public, max-age=120, s-maxage=300")
   findTemplates(
     @Query("category") category?: string,
     @Query("difficulty") difficulty?: string,
