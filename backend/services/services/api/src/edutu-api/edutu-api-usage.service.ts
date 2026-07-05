@@ -1,7 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { and, eq, gt, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { db } from "../db";
-import { apiUsageEvents, profiles, transactions } from "../db/schema";
+import { apiUsageEvents } from "../db/schema";
 import type { ApiConsumerContext } from "./current-api-consumer.decorator";
 
 export interface QuotaReservation {
@@ -228,69 +228,65 @@ export class EdutuApiUsageService {
 
     const ownerUserId = consumer.ownerUserId;
     const requestId = consumer.requestId ?? null;
+    const description = `Edutu API request: ${endpoint}`.slice(0, 200);
 
     try {
       return await db.transaction(async (tx) => {
-        // Claim the request by inserting its ledger row first. The unique index
-        // on (type, reference_id) makes a retry of the same requestId a no-op,
-        // so we never charge twice for one request.
+        // profiles.credits is guarded by the protect_profile_privileged_columns
+        // trigger; the RPCs set this flag before mutating credits, so we do the
+        // same for our direct (service-role) write. Transaction-local.
+        await tx.execute(sql`select set_config('app.credit_op', 'on', true)`);
+
+        // Claim the request by inserting its ledger row first. The partial
+        // unique index on (related_type, related_id) makes a retry of the same
+        // requestId a no-op, so one request is never charged twice. type is
+        // 'spend' (constrained enum); the API row is tagged via related_type.
         let claimed = true;
         if (requestId) {
           const claim = await tx.execute(sql`
-            insert into transactions (user_id, amount, type, status, reference_id, description)
-            values (
-              ${ownerUserId}::uuid, -1, 'api_request', 'completed',
-              ${requestId}, ${`Edutu API request: ${endpoint}`}
-            )
-            on conflict (type, reference_id) where reference_id is not null
+            insert into credit_transactions
+              (user_id, amount, type, description, related_id, related_type)
+            values
+              (${ownerUserId}, -1, 'spend', ${description}, ${requestId}, 'api_request')
+            on conflict (related_type, related_id)
+              where related_id is not null
+                and related_type in ('api_request', 'api_credit_purchase')
             do nothing
             returning id
           `);
           claimed = this.rowCount(claim) > 0;
         } else {
-          await tx.insert(transactions).values({
-            userId: ownerUserId,
-            amount: -1,
-            type: "api_request",
-            status: "completed",
-            referenceId: null,
-            description: `Edutu API request: ${endpoint}`,
-          });
+          await tx.execute(sql`
+            insert into credit_transactions
+              (user_id, amount, type, description, related_id, related_type)
+            values
+              (${ownerUserId}, -1, 'spend', ${description}, null, 'api_request')
+          `);
         }
 
         // Duplicate delivery of an already-charged request: report the current
         // balance without charging again.
         if (!claimed) {
-          const [profile] = await tx
-            .select({ creditsBalance: profiles.creditsBalance })
-            .from(profiles)
-            .where(eq(profiles.userId, ownerUserId))
-            .limit(1);
-          return Number(profile?.creditsBalance ?? 0);
+          const current = await tx.execute(sql`
+            select credits from profiles where user_id = ${ownerUserId} limit 1
+          `);
+          return this.readNumber(current, "credits");
         }
 
         // Atomically decrement, but only while credits remain.
-        const [updated] = await tx
-          .update(profiles)
-          .set({
-            creditsBalance: sql`${profiles.creditsBalance} - 1`,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(profiles.userId, ownerUserId),
-              gt(profiles.creditsBalance, 0),
-            ),
-          )
-          .returning({ creditsBalance: profiles.creditsBalance });
+        const decremented = await tx.execute(sql`
+          update profiles set credits = credits - 1, updated_at = now()
+          where user_id = ${ownerUserId} and credits > 0
+          returning credits
+        `);
 
         // Insufficient credits: roll back the ledger insert so no charge is
         // recorded, and signal exhaustion to the caller.
-        if (!updated) {
+        if (this.rowCount(decremented) === 0) {
           throw new InsufficientCreditsError();
         }
 
-        return Number(updated.creditsBalance ?? 0);
+        return this.readNumber(decremented, "credits");
       });
     } catch (error) {
       if (error instanceof InsufficientCreditsError) {
@@ -307,10 +303,18 @@ export class EdutuApiUsageService {
 
   private rowCount(result: unknown): number {
     const asObj = result as { rowCount?: number; rows?: unknown[] };
-    if (typeof asObj?.rowCount === "number") return asObj.rowCount;
     if (Array.isArray(asObj?.rows)) return asObj.rows.length;
+    if (typeof asObj?.rowCount === "number") return asObj.rowCount;
     if (Array.isArray(result)) return result.length;
     return 0;
+  }
+
+  // Reads a numeric column from the first row of a raw db.execute() result.
+  private readNumber(result: unknown, column: string): number {
+    const rows =
+      (result as { rows?: Record<string, unknown>[] }).rows ??
+      (Array.isArray(result) ? (result as Record<string, unknown>[]) : []);
+    return Number(rows[0]?.[column] ?? 0) || 0;
   }
 
   private exhaustedReservation(
@@ -345,18 +349,16 @@ export class EdutuApiUsageService {
     return /\/v1\/(usage|health)(?:\/|$)/i.test(endpoint);
   }
 
-  private async readCreditBalance(ownerUserId: string | null) {
+  private async readCreditBalance(
+    ownerUserId: string | null,
+  ): Promise<number | null> {
     if (!ownerUserId) return null;
 
     try {
-      const [profile] = await db
-        .select({ creditsBalance: profiles.creditsBalance })
-        .from(profiles)
-        .where(eq(profiles.userId, ownerUserId))
-        .limit(1)
-        .execute();
-
-      return Number(profile?.creditsBalance ?? 0);
+      const result = await db.execute(sql`
+        select credits from profiles where user_id = ${ownerUserId} limit 1
+      `);
+      return this.readNumber(result, "credits");
     } catch (error) {
       this.logger.warn(
         `Unable to read API credit balance: ${
