@@ -441,26 +441,41 @@ export class BillingService {
       { onConflict: "provider,provider_reference" },
     );
 
-    await db
-      .update(profiles)
-      .set({
-        creditsBalance: sql`${profiles.creditsBalance} + ${input.credits}`,
-        updatedAt: new Date(),
-      })
-      .where(eq(profiles.userId, input.userId))
-      .execute();
+    // Paystack retries webhooks, so the credit grant must be idempotent. Insert
+    // the ledger row keyed by (type, reference_id) first; only credit the
+    // profile when this delivery actually inserted the row. Both writes share
+    // one transaction so a partial failure cannot grant credits without a
+    // ledger record (or vice-versa).
+    await db.transaction(async (tx) => {
+      const inserted = await tx
+        .insert(transactions)
+        .values({
+          userId: input.userId,
+          amount: input.credits,
+          type: "credit_topup",
+          status: "completed",
+          referenceId: input.reference,
+          description: `API credit top-up: +${input.credits}`,
+        })
+        .onConflictDoNothing({
+          target: [transactions.type, transactions.referenceId],
+          where: sql`reference_id is not null`,
+        })
+        .returning({ id: transactions.id });
 
-    await db
-      .insert(transactions)
-      .values({
-        userId: input.userId,
-        amount: input.credits,
-        type: "credit_topup",
-        status: "completed",
-        referenceId: input.reference,
-        description: `API credit top-up: +${input.credits}`,
-      })
-      .execute();
+      if (inserted.length === 0) {
+        // Webhook redelivery — credits were already granted for this reference.
+        return;
+      }
+
+      await tx
+        .update(profiles)
+        .set({
+          creditsBalance: sql`${profiles.creditsBalance} + ${input.credits}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(profiles.userId, input.userId));
+    });
   }
 
   private mapBillingTransactionRows(
