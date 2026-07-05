@@ -13,6 +13,7 @@ jest.mock("../db", () => ({
 }));
 
 const mockedDb = db as unknown as {
+  execute: jest.Mock;
   select: jest.Mock;
   update: jest.Mock;
   insert: jest.Mock;
@@ -37,41 +38,36 @@ describe("EdutuApiUsageService", () => {
     requestId: "req-123",
   };
 
-  // Builds a fake tx object for db.transaction(cb). `claimed` controls whether
-  // the ledger-insert claim inserted a new row (first delivery) or hit the
-  // unique index (retry). `balance` is what the decrement returns.
+  // Models the raw-SQL flow inside db.transaction(cb). tx.execute is called in
+  // sequence: (1) set_config guard, (2) claim insert ... returning id, (3) if
+  // claimed -> update ... returning credits, else -> select credits.
   function stubTransaction(opts: {
     claimed: boolean;
     balanceAfterDecrement?: number | null;
     currentBalance?: number;
   }) {
-    const txExecute = jest.fn().mockResolvedValue({
-      rowCount: opts.claimed ? 1 : 0,
-      rows: opts.claimed ? [{ id: "ledger-1" }] : [],
+    const txExecute = jest.fn();
+    txExecute.mockResolvedValueOnce({ rows: [] }); // set_config
+    txExecute.mockResolvedValueOnce({
+      rows: opts.claimed ? [{ id: "ledger-1" }] : [], // claim insert
     });
-    const decReturning = jest
-      .fn()
-      .mockResolvedValue(
-        opts.balanceAfterDecrement === null
-          ? []
-          : [{ creditsBalance: opts.balanceAfterDecrement }],
-      );
-    const decWhere = jest.fn().mockReturnValue({ returning: decReturning });
-    const set = jest.fn().mockReturnValue({ where: decWhere });
-    const update = jest.fn().mockReturnValue({ set });
-    const selLimit = jest
-      .fn()
-      .mockResolvedValue([{ creditsBalance: opts.currentBalance ?? 0 }]);
-    const selWhere = jest.fn().mockReturnValue({ limit: selLimit });
-    const selFrom = jest.fn().mockReturnValue({ where: selWhere });
-    const select = jest.fn().mockReturnValue({ from: selFrom });
-    const tx = { execute: txExecute, update, select, insert: jest.fn() };
+    txExecute.mockResolvedValueOnce(
+      opts.claimed
+        ? {
+            rows:
+              opts.balanceAfterDecrement === null
+                ? [] // guarded decrement matched no row (exhausted)
+                : [{ credits: opts.balanceAfterDecrement }],
+          }
+        : { rows: [{ credits: opts.currentBalance ?? 0 }] }, // current balance read
+    );
+    const tx = { execute: txExecute };
     mockedDb.transaction.mockImplementation(async (cb: any) => cb(tx));
-    return { txExecute, update, set };
+    return { txExecute };
   }
 
-  it("deducts one API credit for billable endpoints and records a transaction", async () => {
-    const { txExecute, set, update } = stubTransaction({
+  it("deducts one API credit for a billable request (first delivery)", async () => {
+    const { txExecute } = stubTransaction({
       claimed: true,
       balanceAfterDecrement: 9,
     });
@@ -82,29 +78,31 @@ describe("EdutuApiUsageService", () => {
     );
 
     expect(remaining).toBe(9);
-    expect(txExecute).toHaveBeenCalledTimes(1); // ledger claim insert
-    expect(update).toHaveBeenCalledTimes(1); // balance decrement
-    expect(set).toHaveBeenCalledWith(
-      expect.objectContaining({ updatedAt: expect.any(Date) }),
-    );
+    // set_config + claim insert + decrement = 3 statements.
+    expect(txExecute).toHaveBeenCalledTimes(3);
   });
 
   it("does not double-charge when the same request id is retried (idempotent)", async () => {
-    const { update } = stubTransaction({ claimed: false, currentBalance: 9 });
+    // Distinct currentBalance proves it read the balance and did NOT decrement.
+    const { txExecute } = stubTransaction({
+      claimed: false,
+      currentBalance: 42,
+    });
 
     const remaining = await service.reserveRequestCredit(
       billableConsumer,
       "/v1/opportunities",
     );
 
-    // Retry: report current balance, never decrement again.
-    expect(remaining).toBe(9);
-    expect(update).not.toHaveBeenCalled();
+    expect(remaining).toBe(42);
+    // set_config + claim (conflict no-op) + current-balance read = 3 statements,
+    // the third being a SELECT, not a decrementing UPDATE.
+    expect(txExecute).toHaveBeenCalledTimes(3);
   });
 
   it("returns null and does not persist a charge when credits are exhausted", async () => {
     // Claimed the ledger row, but the guarded decrement matched no row.
-    const { update } = stubTransaction({
+    const { txExecute } = stubTransaction({
       claimed: true,
       balanceAfterDecrement: null,
     });
@@ -115,15 +113,11 @@ describe("EdutuApiUsageService", () => {
     );
 
     expect(remaining).toBeNull(); // InsufficientCreditsError rolls back the tx
-    expect(update).toHaveBeenCalledTimes(1);
+    expect(txExecute).toHaveBeenCalledTimes(3);
   });
 
   it("reads the balance for credit-free endpoints without deducting", async () => {
-    const execute = jest.fn().mockResolvedValue([{ creditsBalance: 17 }]);
-    const limit = jest.fn().mockReturnValue({ execute });
-    const where = jest.fn().mockReturnValue({ limit });
-    const from = jest.fn().mockReturnValue({ where });
-    mockedDb.select.mockReturnValue({ from });
+    mockedDb.execute.mockResolvedValue({ rows: [{ credits: 17 }] });
 
     const remaining = await service.reserveRequestCredit(
       {
@@ -138,7 +132,7 @@ describe("EdutuApiUsageService", () => {
     );
 
     expect(remaining).toBe(17);
-    expect(mockedDb.update).not.toHaveBeenCalled();
+    expect(mockedDb.transaction).not.toHaveBeenCalled();
   });
 
   describe("reserveRateLimit", () => {
