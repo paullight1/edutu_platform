@@ -12,15 +12,22 @@ import {
   Map as MapIcon,
   X,
   Check,
+  CalendarPlus,
 } from "lucide-react";
 import {
   fetchRoadmaps,
   adoptRoadmap,
   type BackendRoadmap,
 } from "../services/roadmapApi";
+import { downloadRoadmapCalendar } from "../lib/calendarDownload";
 import PullToRefresh from "./ui/PullToRefresh";
 import { EmptyState, ErrorState } from "./ui/EmptyState";
 import Button from "./ui/Button";
+
+interface AdoptionInfo {
+  enrollmentId: string;
+  goalsCreated: number;
+}
 
 const surfaceClass = "border-subtle bg-surface-layer shadow-soft";
 
@@ -53,7 +60,8 @@ export default function RoadmapsPage() {
   const [category, setCategory] = useState("all");
   const [selected, setSelected] = useState<BackendRoadmap | null>(null);
   const [enrollingId, setEnrollingId] = useState<string | null>(null);
-  const [enrolledIds, setEnrolledIds] = useState<Set<string>>(new Set());
+  const [adoptions, setAdoptions] = useState<Record<string, AdoptionInfo>>({});
+  const [addingCalendar, setAddingCalendar] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -98,8 +106,14 @@ export default function RoadmapsPage() {
       setEnrollingId(roadmap.id);
       try {
         const token = await getToken().catch(() => null);
-        await adoptRoadmap(roadmap.id, {}, token);
-        setEnrolledIds((prev) => new Set(prev).add(roadmap.id));
+        const result = await adoptRoadmap(roadmap.id, {}, token);
+        setAdoptions((prev) => ({
+          ...prev,
+          [roadmap.id]: {
+            enrollmentId: result.id,
+            goalsCreated: result.goalsCreated ?? 0,
+          },
+        }));
       } catch (enrollError) {
         console.error("Failed to enroll in roadmap", enrollError);
         window.alert(
@@ -109,6 +123,22 @@ export default function RoadmapsPage() {
         );
       } finally {
         setEnrollingId(null);
+      }
+    },
+    [getToken],
+  );
+
+  const addToCalendar = useCallback(
+    async (enrollmentId: string) => {
+      setAddingCalendar(true);
+      try {
+        const token = await getToken().catch(() => null);
+        const ok = await downloadRoadmapCalendar(enrollmentId, token);
+        if (!ok) {
+          window.alert("Could not build the calendar. Please try again.");
+        }
+      } finally {
+        setAddingCalendar(false);
       }
     },
     [getToken],
@@ -240,8 +270,10 @@ export default function RoadmapsPage() {
         <RoadmapDetailModal
           roadmap={selected}
           enrolling={enrollingId === selected.id}
-          enrolled={enrolledIds.has(selected.id)}
+          adoption={adoptions[selected.id]}
+          addingCalendar={addingCalendar}
           onEnroll={() => void enroll(selected)}
+          onAddCalendar={(enrollmentId) => void addToCalendar(enrollmentId)}
           onViewGoals={() => navigate("/goals")}
           onClose={() => setSelected(null)}
         />
@@ -337,15 +369,19 @@ function RoadmapCard({
 function RoadmapDetailModal({
   roadmap,
   enrolling,
-  enrolled,
+  adoption,
+  addingCalendar,
   onEnroll,
+  onAddCalendar,
   onViewGoals,
   onClose,
 }: {
   roadmap: BackendRoadmap;
   enrolling: boolean;
-  enrolled: boolean;
+  adoption?: AdoptionInfo;
+  addingCalendar: boolean;
   onEnroll: () => void;
+  onAddCalendar: (enrollmentId: string) => void;
   onViewGoals: () => void;
   onClose: () => void;
 }) {
@@ -452,15 +488,36 @@ function RoadmapDetailModal({
         </div>
 
         <div className="border-t border-subtle p-4">
-          {enrolled ? (
-            <div className="flex items-center justify-between gap-3">
-              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-600">
+          {adoption ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-600">
                 <Check size={16} />
-                Added to your plan
-              </span>
-              <Button size="sm" onClick={onViewGoals}>
-                View goals
-              </Button>
+                {adoption.goalsCreated > 0
+                  ? `Added — ${adoption.goalsCreated} milestone${adoption.goalsCreated === 1 ? "" : "s"} tracked as goals, reminders scheduled`
+                  : "Added to your plan · reminders scheduled"}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => onAddCalendar(adoption.enrollmentId)}
+                  disabled={addingCalendar}
+                >
+                  {addingCalendar ? (
+                    <Loader2 size={15} className="animate-spin" />
+                  ) : (
+                    <CalendarPlus size={15} />
+                  )}
+                  Add to calendar
+                </Button>
+                <Button size="sm" onClick={onViewGoals}>
+                  View goals
+                </Button>
+              </div>
+              <p className="text-xs text-text-muted">
+                The calendar file (.ics) adds every milestone with reminders to
+                Google Calendar, Apple Calendar, or Outlook.
+              </p>
             </div>
           ) : (
             <Button

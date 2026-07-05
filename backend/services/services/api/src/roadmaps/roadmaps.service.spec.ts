@@ -158,6 +158,66 @@ describe("RoadmapsService", () => {
     expect(mockedDb.update).not.toHaveBeenCalled();
   });
 
+  describe("createAdoptionGoals", () => {
+    it("creates one imported goal per dated plan step and skips empty titles", async () => {
+      const create = jest.fn().mockResolvedValue({});
+      const svc = new RoadmapsService(aiService as any, { create } as any);
+
+      const count = await (svc as any).createAdoptionGoals(
+        "user-1",
+        { id: "rm-1", category: "scholarship" },
+        {
+          steps: [
+            { id: "s1", title: "Draft SOP", description: "Write it", dueAt: "2026-08-01T09:00:00.000Z" },
+            { id: "s2", title: "Submit application", dueAt: null },
+            { id: "s3", title: "", dueAt: "2026-08-05T09:00:00.000Z" },
+          ],
+        },
+      );
+
+      expect(count).toBe(2);
+      expect(create).toHaveBeenCalledWith(
+        "user-1",
+        expect.objectContaining({
+          title: "Draft SOP",
+          source: "imported",
+          templateId: "rm-1",
+          category: "scholarship",
+          targetDate: "2026-08-01T09:00:00.000Z",
+        }),
+      );
+      // A step with no due date still becomes a goal (no reminder date).
+      expect(create).toHaveBeenCalledWith(
+        "user-1",
+        expect.objectContaining({ title: "Submit application", targetDate: undefined }),
+      );
+    });
+
+    it("is a no-op when the goals service is unavailable", async () => {
+      const svc = new RoadmapsService(aiService as any);
+      const count = await (svc as any).createAdoptionGoals("user-1", { id: "rm-1" }, {
+        steps: [{ id: "s1", title: "Draft SOP" }],
+      });
+      expect(count).toBe(0);
+    });
+
+    it("continues past a failing goal creation and counts the rest", async () => {
+      const create = jest
+        .fn()
+        .mockRejectedValueOnce(new Error("db down"))
+        .mockResolvedValueOnce({});
+      const svc = new RoadmapsService(aiService as any, { create } as any);
+
+      const count = await (svc as any).createAdoptionGoals(
+        "user-1",
+        { id: "rm-1" },
+        { steps: [{ id: "s1", title: "First" }, { id: "s2", title: "Second" }] },
+      );
+
+      expect(count).toBe(1);
+    });
+  });
+
   describe("generateOpportunityPlan", () => {
     it("returns AI-enriched content aligned to the provided milestone scaffold", async () => {
       aiService.generateJson.mockResolvedValue({
