@@ -1,6 +1,15 @@
 import { BadRequestException } from "@nestjs/common";
 import { BillingService } from "./billing.service";
 
+const PRO_SINCE_ISO = new Date(
+  Date.now() - 30 * 24 * 3600 * 1000,
+).toISOString();
+// Always in the future so isPro stays true regardless of when tests run.
+const PRO_EXPIRES_ISO = new Date(
+  Date.now() + 30 * 24 * 3600 * 1000,
+).toISOString();
+
+
 describe("BillingService", () => {
   const originalEnv = {
     PAYSTACK_SECRET_KEY: process.env.PAYSTACK_SECRET_KEY,
@@ -26,8 +35,8 @@ describe("BillingService", () => {
     const profileResult = {
       data: {
         is_pro: true,
-        pro_since: "2026-06-01T00:00:00.000Z",
-        pro_expires_at: "2026-07-01T00:00:00.000Z",
+        pro_since: PRO_SINCE_ISO,
+        pro_expires_at: PRO_EXPIRES_ISO,
         credits: 1000,
         credits_balance: 1200,
       },
@@ -38,7 +47,7 @@ describe("BillingService", () => {
       data: [
         {
           feature_key: "pro",
-          expires_at: "2026-07-01T00:00:00.000Z",
+          expires_at: PRO_EXPIRES_ISO,
           status: "active",
         },
       ],
@@ -48,7 +57,7 @@ describe("BillingService", () => {
     const subscriptionResult = {
       data: {
         status: "active",
-        current_period_end: "2026-07-01T00:00:00.000Z",
+        current_period_end: PRO_EXPIRES_ISO,
       },
       error: null,
     };
@@ -212,8 +221,8 @@ describe("BillingService", () => {
 
     expect(status).toMatchObject({
       isPro: true,
-      proSince: "2026-06-01T00:00:00.000Z",
-      proExpiresAt: "2026-07-01T00:00:00.000Z",
+      proSince: PRO_SINCE_ISO,
+      proExpiresAt: PRO_EXPIRES_ISO,
       credits: 1200,
       subscriptionStatus: "active",
     });

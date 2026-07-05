@@ -249,12 +249,24 @@ export class AiService {
   private async resolveRoute(
     options: AiGenerateOptions,
   ): Promise<AiRouteConfig> {
-    const [storedRoute] = await db
-      .select()
-      .from(aiRoutes)
-      .where(eq(aiRoutes.feature, options.feature))
-      .limit(1)
-      .execute();
+    // The ai_routes table is an admin override, not a dependency: when the
+    // control-plane DB is unreachable, fall back to the built-in defaults and
+    // env API keys instead of failing every AI feature.
+    let storedRoute: typeof aiRoutes.$inferSelect | undefined;
+    try {
+      [storedRoute] = await db
+        .select()
+        .from(aiRoutes)
+        .where(eq(aiRoutes.feature, options.feature))
+        .limit(1)
+        .execute();
+    } catch (error) {
+      this.logger.warn(
+        `ai_routes lookup failed for "${options.feature}" — using env defaults: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+    }
 
     const fallback = DEFAULT_ROUTES[options.feature] || {
       provider: "deepseek",
@@ -265,9 +277,15 @@ export class AiService {
     const provider = this.normalizeProvider(
       storedRoute?.provider || fallback.provider,
     );
-    const providerKey = storedRoute?.providerKeyId
-      ? await this.getKeyById(storedRoute.providerKeyId)
-      : await this.getLatestKey(provider);
+    let providerKey: string | null = null;
+    try {
+      providerKey = storedRoute?.providerKeyId
+        ? await this.getKeyById(storedRoute.providerKeyId)
+        : await this.getLatestKey(provider);
+    } catch {
+      // Stored keys unavailable — getEnvKey below still supplies the key.
+      providerKey = null;
+    }
 
     return {
       feature: options.feature,
