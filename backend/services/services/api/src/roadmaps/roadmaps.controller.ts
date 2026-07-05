@@ -16,11 +16,13 @@ import type {
   RoadmapIntentDto,
   RoadmapFeedbackDto,
   AIAssistDto,
+  OpportunityPlanDto,
   AdoptRoadmapDto,
   UpdateRoadmapProgressDto,
 } from "./dto/roadmap.dto";
 import {
   AIAssistDtoSchema,
+  OpportunityPlanDtoSchema,
   AdoptRoadmapDtoSchema,
   CreateRoadmapDtoSchema,
   RoadmapFeedbackDtoSchema,
@@ -241,6 +243,15 @@ export class RoadmapsController {
       dto.topic,
       dto.category,
     );
+  }
+
+  @Public()
+  @Post("ai/opportunity-plan")
+  generateOpportunityPlan(
+    @Body(new ZodValidationPipe(OpportunityPlanDtoSchema))
+    dto: OpportunityPlanDto,
+  ) {
+    return this.roadmapsService.generateOpportunityPlan(dto);
   }
 
   @Get("stats")
