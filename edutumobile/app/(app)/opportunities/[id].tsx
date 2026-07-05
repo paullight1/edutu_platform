@@ -73,7 +73,7 @@ import { File, Paths } from "expo-file-system";
 import { EdutuLogo } from "../../../components/branding/EdutuLogo";
 import { getConfig } from "../../../lib/config";
 import {
-  generateRoadmapFromOpportunity,
+  generateRoadmap,
   AIGeneratedRoadmap,
 } from "@edutu/core/src/services/aiRoadmapGenerator";
 import { notificationService } from "../../../lib/notifications";
@@ -89,6 +89,15 @@ type RoadmapStep =
   | "weekly"
   | "checklist"
   | "confirm";
+
+// Phases shown while the plan generates. They map to real work: build the dated
+// scaffold, then personalize the narrative with the backend LLM.
+const GENERATION_PHASES = [
+  "Analyzing the opportunity",
+  "Building your preparation timeline",
+  "Personalizing milestones with AI",
+  "Scheduling deadline reminders",
+] as const;
 
 const SHARE_TEXT_LIMITS = {
   summary: 360,
@@ -295,6 +304,7 @@ export default function OpportunityDetailScreen() {
   const [generatedRoadmap, setGeneratedRoadmap] =
     useState<AIGeneratedRoadmap | null>(null);
   const [generatingRoadmap, setGeneratingRoadmap] = useState(false);
+  const [generationPhase, setGenerationPhase] = useState(0);
   const [selectedChecklistItems, setSelectedChecklistItems] = useState<
     string[]
   >([]);
@@ -302,6 +312,21 @@ export default function OpportunityDetailScreen() {
   const [addingCustomMilestone, setAddingCustomMilestone] = useState(false);
   const [newMilestoneTitle, setNewMilestoneTitle] = useState("");
   const [newMilestoneDesc, setNewMilestoneDesc] = useState("");
+
+  // Advance the generation phases while the plan is being built, so the wait
+  // reads as authored progress rather than a static spinner.
+  useEffect(() => {
+    if (!generatingRoadmap) {
+      setGenerationPhase(0);
+      return;
+    }
+    const timer = setInterval(() => {
+      setGenerationPhase((phase) =>
+        Math.min(phase + 1, GENERATION_PHASES.length - 1),
+      );
+    }, 850);
+    return () => clearInterval(timer);
+  }, [generatingRoadmap]);
 
   const slideAnim = useRef(new Animated.Value(0)).current;
   const viewRecordedRef = useRef(false);
@@ -549,13 +574,16 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
     setGeneratingRoadmap(true);
     setRoadmapStep("overview");
 
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    const roadmap = generateRoadmapFromOpportunity(opportunity);
-    setGeneratedRoadmap(roadmap);
-    setCustomMilestones(roadmap.milestones);
-    setSelectedChecklistItems(roadmap.checklist.map((c) => c.id));
-    setGeneratingRoadmap(false);
+    try {
+      // Real generation: deterministic dated scaffold + backend LLM enrichment.
+      // Falls back to the offline scaffold automatically if the API is unreachable.
+      const roadmap = await generateRoadmap(opportunity);
+      setGeneratedRoadmap(roadmap);
+      setCustomMilestones(roadmap.milestones);
+      setSelectedChecklistItems(roadmap.checklist.map((c) => c.id));
+    } finally {
+      setGeneratingRoadmap(false);
+    }
   }, [opportunity, isPro, credits, spendCredits, router]);
 
   const handleTrackWithRoadmap = useCallback(async () => {
@@ -1647,31 +1675,43 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
             >
               {generatingRoadmap && (
                 <View style={styles.generatingContainer}>
-                  <BrandedLoader label="Generating your roadmap..." size={64} />
+                  <BrandedLoader label="Building your plan..." size={64} />
                   <View style={styles.generatingSteps}>
-                    {[
-                      "Analyzing opportunity requirements",
-                      "Creating preparation timeline",
-                      "Building weekly goals",
-                      "Setting up reminders",
-                    ].map((step, i) => (
-                      <View key={i} style={styles.generatingStep}>
-                        <View
-                          style={[
-                            styles.generatingDot,
-                            { backgroundColor: colors.accent },
-                          ]}
-                        />
-                        <Text
-                          style={[
-                            styles.generatingStepText,
-                            { color: textSecondary },
-                          ]}
-                        >
-                          {step}
-                        </Text>
-                      </View>
-                    ))}
+                    {GENERATION_PHASES.map((step, i) => {
+                      const isDone = i < generationPhase;
+                      const isActive = i === generationPhase;
+                      return (
+                        <View key={i} style={styles.generatingStep}>
+                          {isDone ? (
+                            <CheckCircle2 size={16} color={colors.success} />
+                          ) : (
+                            <View
+                              style={[
+                                styles.generatingDot,
+                                {
+                                  backgroundColor: isActive
+                                    ? colors.accent
+                                    : colors.border,
+                                },
+                              ]}
+                            />
+                          )}
+                          <Text
+                            style={[
+                              styles.generatingStepText,
+                              {
+                                color: isDone || isActive
+                                  ? colors.foreground
+                                  : textSecondary,
+                                fontWeight: isActive ? "700" : "500",
+                              },
+                            ]}
+                          >
+                            {step}
+                          </Text>
+                        </View>
+                      );
+                    })}
                   </View>
                 </View>
               )}
@@ -1695,6 +1735,21 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                       >
                         Your Personalized Roadmap
                       </Text>
+                      {generatedRoadmap.personalized && (
+                        <View
+                          style={[
+                            styles.aiBadge,
+                            { backgroundColor: `${colors.accent}18` },
+                          ]}
+                        >
+                          <Sparkles size={11} color={colors.accent} />
+                          <Text
+                            style={[styles.aiBadgeText, { color: colors.accent }]}
+                          >
+                            Personalized by AI
+                          </Text>
+                        </View>
+                      )}
                       <Text
                         style={[styles.overviewDesc, { color: textSecondary }]}
                       >
@@ -3044,6 +3099,17 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   overviewDesc: { fontSize: 14, lineHeight: 22, textAlign: "center" },
+  aiBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    alignSelf: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    marginBottom: 10,
+  },
+  aiBadgeText: { fontSize: 11, fontWeight: "700", letterSpacing: 0.3 },
   overviewStats: {
     flexDirection: "row",
     flexWrap: "wrap",

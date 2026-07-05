@@ -205,6 +205,7 @@ jest.mock('@edutu/core/src/services/opportunitySignals', () => ({
 
 jest.mock('@edutu/core/src/services/aiRoadmapGenerator', () => ({
   generateRoadmapFromOpportunity: (...args: unknown[]) => mockGenerateRoadmap(...args),
+  generateRoadmap: (...args: unknown[]) => Promise.resolve(mockGenerateRoadmap(...args)),
 }), { virtual: true });
 
 jest.mock('@edutu/core/src/hooks/useGoals', () => ({
@@ -440,10 +441,9 @@ describe('mobile opportunity detail route', () => {
         await Promise.resolve();
       });
       expect(mockSpendCredits).toHaveBeenCalledWith(10, 'AI Roadmap: Global Fellowship');
-      expect(mockGenerateRoadmap).toHaveBeenCalledWith(expect.objectContaining({
-        id: 'opp-1',
-        title: 'Global Fellowship',
-      }));
+      expect(mockGenerateRoadmap).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'opp-1', title: 'Global Fellowship' }),
+      );
     } finally {
       (global as any).requestAnimationFrame = originalRequestAnimationFrame;
       jest.useRealTimers();
