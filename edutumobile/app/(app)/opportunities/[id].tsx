@@ -44,7 +44,6 @@ import {
   AlertCircle,
   Info,
   Plus,
-  Trash2,
   Check,
 } from "lucide-react-native";
 import { useAuth, useUser } from "@clerk/clerk-expo";
@@ -76,6 +75,13 @@ import {
   generateRoadmap,
   AIGeneratedRoadmap,
 } from "@edutu/core/src/services/aiRoadmapGenerator";
+import { useStaggeredReveal } from "../../../packages/core/src/hooks/useStaggeredReveal";
+import { RoadmapTimeline } from "../../../components/roadmap/RoadmapTimeline";
+import {
+  RoadmapIntake,
+  type RoadmapIntakeValue,
+} from "../../../components/roadmap/RoadmapIntake";
+import { exportRoadmapToCalendar } from "../../../lib/roadmapCalendar";
 import { notificationService } from "../../../lib/notifications";
 import { AnimatedPressable } from "../../../components/ui/AnimatedPressable";
 import { FadeInDown } from "react-native-reanimated";
@@ -305,6 +311,10 @@ export default function OpportunityDetailScreen() {
     useState<AIGeneratedRoadmap | null>(null);
   const [generatingRoadmap, setGeneratingRoadmap] = useState(false);
   const [generationPhase, setGenerationPhase] = useState(0);
+  const [intake, setIntake] = useState<RoadmapIntakeValue>({});
+  const [completedMilestoneIds, setCompletedMilestoneIds] = useState<string[]>(
+    [],
+  );
   const [selectedChecklistItems, setSelectedChecklistItems] = useState<
     string[]
   >([]);
@@ -327,6 +337,11 @@ export default function OpportunityDetailScreen() {
     }, 850);
     return () => clearInterval(timer);
   }, [generatingRoadmap]);
+
+  // Milestones assemble one-by-one when the user opens the milestones step.
+  const milestoneRevealCount = useStaggeredReveal(customMilestones.length, {
+    enabled: roadmapStep === "milestones",
+  });
 
   const slideAnim = useRef(new Animated.Value(0)).current;
   const viewRecordedRef = useRef(false);
@@ -575,16 +590,37 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
     setRoadmapStep("overview");
 
     try {
-      // Real generation: deterministic dated scaffold + backend LLM enrichment.
-      // Falls back to the offline scaffold automatically if the API is unreachable.
-      const roadmap = await generateRoadmap(opportunity);
+      // Real generation: deterministic dated scaffold + backend LLM enrichment,
+      // tuned by the user's time/level intake. Falls back to the offline scaffold.
+      const roadmap = await generateRoadmap(opportunity, intake);
       setGeneratedRoadmap(roadmap);
       setCustomMilestones(roadmap.milestones);
+      setCompletedMilestoneIds([]);
       setSelectedChecklistItems(roadmap.checklist.map((c) => c.id));
     } finally {
       setGeneratingRoadmap(false);
     }
-  }, [opportunity, isPro, credits, spendCredits, router]);
+  }, [opportunity, isPro, credits, spendCredits, router, intake]);
+
+  const handleExportCalendar = useCallback(async () => {
+    if (!generatedRoadmap || !opportunity) return;
+    // Reflect any edits the user made to the milestone list.
+    const result = await exportRoadmapToCalendar(
+      { ...generatedRoadmap, milestones: customMilestones },
+      opportunity.title,
+    );
+    if (result.reason === "unsupported") {
+      Alert.alert(
+        "Use the mobile app",
+        "Calendar export with reminders is available in the Edutu mobile app.",
+      );
+    } else if (!result.ok && result.reason === "error") {
+      Alert.alert(
+        "Export failed",
+        "Could not create the calendar file. Please try again.",
+      );
+    }
+  }, [generatedRoadmap, customMilestones, opportunity]);
 
   const handleTrackWithRoadmap = useCallback(async () => {
     if (!user || !opportunity || !generatedRoadmap) return;
@@ -764,10 +800,6 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
     setNewMilestoneTitle("");
     setNewMilestoneDesc("");
     setAddingCustomMilestone(false);
-  };
-
-  const removeCustomMilestone = (index: number) => {
-    setCustomMilestones(customMilestones.filter((_, i) => i !== index));
   };
 
   const toggleChecklistItem = (itemId: string) => {
@@ -1368,6 +1400,32 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
             </>
           )}
 
+          {/* Fit-to-my-life intake — optional, tunes the generated plan */}
+          {!bookmarked && opportunity.deadline && !isClosed && (
+            <View
+              style={[
+                styles.intakeCard,
+                { backgroundColor: cardBg, borderColor },
+              ]}
+            >
+              <Text style={[styles.intakeTitle, { color: textPrimary }]}>
+                Tune your plan{" "}
+                <Text style={{ color: textSecondary }}>(optional)</Text>
+              </Text>
+              <RoadmapIntake
+                value={intake}
+                onChange={setIntake}
+                colors={{
+                  foreground: textPrimary,
+                  textSecondary,
+                  accent: colors.accent,
+                  border: borderColor,
+                  card: cardBg,
+                }}
+              />
+            </View>
+          )}
+
           {/* AI Roadmap CTA */}
           {!bookmarked && opportunity.deadline && !isClosed && (
             <AnimatedPressable
@@ -1757,6 +1815,21 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                       </Text>
                     </View>
 
+                    <TouchableOpacity
+                      onPress={handleExportCalendar}
+                      style={[
+                        styles.calendarCta,
+                        { borderColor: `${colors.accent}30` },
+                      ]}
+                    >
+                      <Calendar size={16} color={colors.accent} />
+                      <Text
+                        style={[styles.calendarCtaText, { color: colors.accent }]}
+                      >
+                        Add to calendar & remind me
+                      </Text>
+                    </TouchableOpacity>
+
                     <View style={styles.overviewStats}>
                       <View
                         style={[
@@ -1935,73 +2008,38 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                 generatedRoadmap &&
                 roadmapStep === "milestones" && (
                   <View style={styles.milestonesContainer}>
-                    {customMilestones.map((milestone, i) => (
-                      <View
-                        key={milestone.id || i}
-                        style={[
-                          styles.milestoneCard,
-                          { backgroundColor: cardBg, borderColor },
-                        ]}
-                      >
-                        <View style={styles.milestoneHeader}>
-                          <View
-                            style={[
-                              styles.milestoneNum,
-                              { backgroundColor: `${colors.accent}15` },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.milestoneNumText,
-                                { color: colors.accent },
-                              ]}
-                            >
-                              Week{" "}
-                              {Math.ceil(
-                                (i + 1) *
-                                  (generatedRoadmap.totalWeeks /
-                                    customMilestones.length),
-                              )}
-                            </Text>
-                          </View>
-                          <TouchableOpacity
-                            onPress={() => removeCustomMilestone(i)}
-                            style={{ padding: 4 }}
-                          >
-                            <Trash2 size={14} color="#EF4444" />
-                          </TouchableOpacity>
-                        </View>
-                        <Text
-                          style={[
-                            styles.milestoneTitle,
-                            { color: textPrimary },
-                          ]}
-                        >
-                          {milestone.title}
-                        </Text>
-                        {milestone.description && (
-                          <Text
-                            style={[
-                              styles.milestoneDesc,
-                              { color: textSecondary },
-                            ]}
-                          >
-                            {milestone.description}
-                          </Text>
-                        )}
-                        <View style={styles.milestoneDate}>
-                          <Calendar size={12} color={textSecondary} />
-                          <Text
-                            style={[
-                              styles.milestoneDateText,
-                              { color: textSecondary },
-                            ]}
-                          >
-                            {new Date(milestone.date).toLocaleDateString()}
-                          </Text>
-                        </View>
-                      </View>
-                    ))}
+                    <Text
+                      style={[styles.milestonesHint, { color: textSecondary }]}
+                    >
+                      Tap a milestone to mark it done. Your timeline runs to the
+                      submission deadline.
+                    </Text>
+                    <RoadmapTimeline
+                      milestones={customMilestones}
+                      completedIds={completedMilestoneIds}
+                      visibleCount={milestoneRevealCount}
+                      today={new Date()}
+                      onToggle={(id) =>
+                        setCompletedMilestoneIds((prev) =>
+                          prev.includes(id)
+                            ? prev.filter((x) => x !== id)
+                            : [...prev, id],
+                        )
+                      }
+                      onRemove={(id) =>
+                        setCustomMilestones((prev) =>
+                          prev.filter((m) => m.id !== id),
+                        )
+                      }
+                      colors={{
+                        foreground: textPrimary,
+                        textSecondary,
+                        accent: colors.accent,
+                        success: colors.success,
+                        border: borderColor,
+                        card: cardBg,
+                      }}
+                    />
 
                     {!addingCustomMilestone ? (
                       <TouchableOpacity
@@ -3152,6 +3190,26 @@ const styles = StyleSheet.create({
 
   // Milestones
   milestonesContainer: { paddingHorizontal: 20, gap: 12 },
+  milestonesHint: { fontSize: 12, lineHeight: 17, marginBottom: 4 },
+  intakeCard: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 16,
+  },
+  intakeTitle: { fontSize: 15, fontWeight: "800", marginBottom: 14 },
+  calendarCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 12,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 12,
+  },
+  calendarCtaText: { fontSize: 14, fontWeight: "800" },
   milestoneCard: { padding: 16, borderRadius: 14, borderWidth: 1 },
   milestoneHeader: {
     flexDirection: "row",
