@@ -239,9 +239,221 @@ describe("ScraperService", () => {
       expect(result).toBe("Business");
     });
 
-    it("should return General for unknown categories", () => {
+    it("should return null for unknown categories so the caller derives a label", () => {
       const result = (service as any).categorize("Random Opportunity");
-      expect(result).toBe("General");
+      expect(result).toBeNull();
+    });
+
+    it("should map canonical categories to display labels", () => {
+      expect((service as any).displayCategoryFor("scholarships")).toBe(
+        "Scholarship",
+      );
+      expect((service as any).displayCategoryFor("unknown_thing")).toBe(
+        "General",
+      );
+    });
+  });
+
+  describe("anti-generic guards", () => {
+    it("normalizeSummary returns empty string when no real content exists", () => {
+      const result = (service as any).normalizeSummary("", "", "");
+      expect(result).toBe("");
+    });
+
+    it("normalizeSummary never emits placeholder copy", () => {
+      const result = (service as any).normalizeSummary(null, null, "");
+      expect(result).not.toMatch(/being verified by Edutu/i);
+    });
+
+    it("inferOrganizerName returns null instead of a generic default", () => {
+      const result = (service as any).inferOrganizerName({
+        title: "",
+        apply_url: "https://example.com",
+        source: "",
+        source_url: "https://example.com",
+      });
+      expect(result).toBeNull();
+    });
+
+    it("inferType detects non-scholarship opportunity types", () => {
+      expect((service as any).inferType("Software Internship 2026")).toBe(
+        "internship",
+      );
+      expect((service as any).inferType("Research Fellowship")).toBe(
+        "fellowship",
+      );
+      // "grant" is not in the opportunities_type_check constraint — grants
+      // map to scholarship (canonical_category keeps the precise class).
+      expect((service as any).inferType("Innovation Grant for Startups")).toBe(
+        "scholarship",
+      );
+      expect((service as any).inferType("Fully Funded Scholarship")).toBe(
+        "scholarship",
+      );
+      expect(
+        (service as any).inferType("Leadership Training Conference 2026"),
+      ).toBe("course");
+      expect((service as any).inferType("Data Science Bootcamp")).toBe(
+        "bootcamp",
+      );
+      // Every inferType output must satisfy the DB constraint.
+      for (const sample of [
+        "Innovation Grant",
+        "Tech Workshop",
+        "Annual Summit",
+        "Random Opportunity",
+      ]) {
+        expect(
+          (service as any).toAllowedType((service as any).inferType(sample)),
+        ).toBe((service as any).inferType(sample));
+      }
+    });
+  });
+
+  describe("unique meta images", () => {
+    it("rejects an image already claimed by a different opportunity in the run", async () => {
+      const banner = "https://cdn.example.com/site-default-banner.jpg";
+
+      const first = await (service as any).claimUniqueImage(
+        [banner],
+        "https://source.example.com/post-a",
+      );
+      const second = await (service as any).claimUniqueImage(
+        [banner, "https://cdn.example.com/post-b-hero.jpg"],
+        "https://source.example.com/post-b",
+      );
+      const third = await (service as any).claimUniqueImage(
+        [banner],
+        "https://source.example.com/post-c",
+      );
+
+      expect(first).toBe(banner);
+      // Second item skips the shared banner and keeps its own article image.
+      expect(second).toBe("https://cdn.example.com/post-b-hero.jpg");
+      // No unique candidate left → no image (UI renders a category tile).
+      expect(third).toBeNull();
+    });
+
+    it("lets the same opportunity re-claim its own image on retry", async () => {
+      const image = "https://cdn.example.com/unique-hero.jpg";
+      const applyUrl = "https://source.example.com/post-a";
+
+      const first = await (service as any).claimUniqueImage([image], applyUrl);
+      const retry = await (service as any).claimUniqueImage([image], applyUrl);
+
+      expect(first).toBe(image);
+      expect(retry).toBe(image);
+    });
+
+    it("extractImageCandidatesFromHTML returns og:image first, then article images", () => {
+      const html = `
+        <html><head>
+          <meta property="og:image" content="https://cdn.example.com/og.jpg" />
+        </head><body>
+          <article><img src="/uploads/inline-1.jpg" /><img src="/uploads/inline-2.jpg" /></article>
+        </body></html>`;
+
+      const candidates = (service as any).extractImageCandidatesFromHTML(
+        html,
+        "https://source.example.com/post",
+      );
+
+      expect(candidates[0]).toBe("https://cdn.example.com/og.jpg");
+      expect(candidates).toContain(
+        "https://source.example.com/uploads/inline-1.jpg",
+      );
+    });
+  });
+
+  describe("clean output contract", () => {
+    const nextYear = new Date().getUTCFullYear() + 1;
+
+    it("parses messy scraped deadline fragments into exact ISO dates", () => {
+      const parse = (value: string) =>
+        (service as any).parseDeadlineDate(value);
+
+      expect(parse(`Deadline: 15th March ${nextYear} at 11:59 PM GMT`)).toBe(
+        `${nextYear}-03-15`,
+      );
+      expect(parse(`March 5, ${nextYear}`)).toBe(`${nextYear}-03-05`);
+      expect(parse(`${nextYear}-11-30`)).toBe(`${nextYear}-11-30`);
+      expect(parse(`Applications close on 28/02/${nextYear}`)).toBe(
+        `${nextYear}-02-28`,
+      );
+    });
+
+    it("infers the next occurrence when the year is omitted", () => {
+      const result = (service as any).parseDeadlineDate("December 1");
+      expect(result).toMatch(/^\d{4}-12-01$/);
+      expect(new Date(result).getTime()).toBeGreaterThan(
+        Date.now() - 24 * 3600 * 1000,
+      );
+    });
+
+    it("returns null for rolling deadlines, junk, and implausible dates", () => {
+      const parse = (value: string) =>
+        (service as any).parseDeadlineDate(value);
+
+      expect(parse("Rolling basis")).toBeNull();
+      expect(parse("open until filled")).toBeNull();
+      expect(parse("contact the office for details")).toBeNull();
+      // Stale/misparsed: years in the past or absurdly far ahead.
+      expect(parse("January 10, 2020")).toBeNull();
+      expect(parse("March 1, 2085")).toBeNull();
+      // Invalid calendar date must not roll over into a real one.
+      expect(parse(`February 31, ${nextYear}`)).toBeNull();
+    });
+
+    it("strips CTA junk and aggregator branding from titles", () => {
+      const clean = (value: string) =>
+        (service as any).cleanOpportunityTitle(value);
+
+      expect(
+        clean(
+          "Apply Now: Mastercard Foundation Scholarship 2026 – Deadline March 5",
+        ),
+      ).toBe("Mastercard Foundation Scholarship 2026");
+      expect(clean("XYZ Global Fellowship | Opportunities Circle")).toBe(
+        "XYZ Global Fellowship",
+      );
+      expect(clean("UN Youth Programme - Apply Now")).toBe(
+        "UN Youth Programme",
+      );
+      expect(clean("  Chevening   Scholarship  ")).toBe(
+        "Chevening Scholarship",
+      );
+    });
+
+    it("holds records with already-passed deadlines out of the live feed", () => {
+      const item = {
+        title: "Complete Fellowship With Every Field Present",
+        apply_url: "https://source.example.com/post",
+        direct_apply_url: "https://organizer.example.com/apply",
+        image_url: "https://cdn.example.com/hero.jpg",
+        summary:
+          "A fully documented fellowship offering mentorship, funding, and a global cohort experience for early-career professionals across multiple regions.",
+        description:
+          "This fellowship provides a comprehensive programme including a living stipend, dedicated mentorship, and structured training. Applicants join a global cohort and complete a capstone project with placement support after graduation. The programme runs for twelve months and includes travel support for two in-person residencies.",
+        requirements: ["Bachelor's degree", "Two references"],
+        benefits: ["Stipend", "Mentorship"],
+        application_process: ["Online form", "Interview"],
+        deadline: "January 10, 2024",
+        eligibility: { organization: "Global Fellowship Institute" },
+        source: "Test Source",
+        source_url: "https://source.example.com",
+      };
+
+      const record = (service as any).transformToOpportunity(item, null);
+      // Unparseable-past deadline → no close_date, but the record itself is
+      // complete, so it publishes with no deadline rather than a wrong one.
+      expect(record.close_date).toBeNull();
+
+      const futureRecord = (service as any).transformToOpportunity(
+        { ...item, deadline: `March 5, ${nextYear}` },
+        null,
+      );
+      expect(futureRecord.close_date).toBe(`${nextYear}-03-05`);
+      expect(futureRecord.status).toBe("active");
     });
   });
 });
