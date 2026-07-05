@@ -374,17 +374,10 @@ export class OpportunityRankingService {
   private async getUserSignalScores(
     userId: string,
   ): Promise<Map<string, SignalScore>> {
-    const rows = await db
-      .select({
-        opportunityId: userOpportunitySignals.opportunityId,
-        signalType: userOpportunitySignals.signalType,
-        signalValue: userOpportunitySignals.signalValue,
-      })
-      .from(userOpportunitySignals)
-      .where(eq(userOpportunitySignals.userId, userId))
-      .limit(1000)
-      .execute();
-
+    // Weighted per-opportunity aggregation, done in SQL (was: fetch up to 1000
+    // raw signal rows and reduce in JS, which also silently dropped signals
+    // beyond the 1000 cap). GROUP BY returns one row per opportunity the user
+    // has signalled, over ALL their signals.
     const weights: Record<string, number> = {
       view: 2,
       click: 5,
@@ -396,30 +389,43 @@ export class OpportunityRankingService {
       dismiss: -100,
     };
 
+    // Build the weight lookup as a parameterized CASE so the weights above stay
+    // the single source of truth.
+    const weightCase = sql.join(
+      [
+        sql`case ${userOpportunitySignals.signalType}`,
+        ...Object.entries(weights).map(
+          ([type, weight]) => sql`when ${type} then ${weight}`,
+        ),
+        sql`else 0 end`,
+      ],
+      sql` `,
+    );
+
+    // delta = weight(signalType) * signalValue (default 1). Positive/negative
+    // sum the raw deltas; only the total score is clamped to [-30, 30] — this
+    // matches the previous JS behaviour exactly.
+    const delta = sql`(${weightCase}) * coalesce(${userOpportunitySignals.signalValue}, 1)`;
+
+    const rows = await db
+      .select({
+        opportunityId: userOpportunitySignals.opportunityId,
+        score: sql<number>`greatest(-30, least(30, sum(${delta})))::int`,
+        positive: sql<number>`sum(case when ${delta} > 0 then ${delta} else 0 end)::int`,
+        negative: sql<number>`sum(case when ${delta} < 0 then -(${delta}) else 0 end)::int`,
+      })
+      .from(userOpportunitySignals)
+      .where(eq(userOpportunitySignals.userId, userId))
+      .groupBy(userOpportunitySignals.opportunityId)
+      .execute();
+
     const scores = new Map<string, SignalScore>();
     for (const row of rows) {
-      const current = scores.get(row.opportunityId) || {
-        score: 0,
-        positive: 0,
-        negative: 0,
+      scores.set(row.opportunityId, {
+        score: Number(row.score) || 0,
+        positive: Number(row.positive) || 0,
+        negative: Number(row.negative) || 0,
         counts: {},
-      };
-      const value = row.signalValue ?? 1;
-      const delta = (weights[row.signalType] ?? 0) * value;
-
-      current.score += delta;
-      current.counts[row.signalType] =
-        (current.counts[row.signalType] || 0) + 1;
-      if (delta > 0) current.positive += delta;
-      if (delta < 0) current.negative += Math.abs(delta);
-
-      scores.set(row.opportunityId, current);
-    }
-
-    for (const [id, signal] of scores) {
-      scores.set(id, {
-        ...signal,
-        score: Math.max(-30, Math.min(30, signal.score)),
       });
     }
 
