@@ -19,8 +19,8 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
-import { useDarkMode } from "../hooks/useDarkMode";
 import { cn } from "../lib/cn";
+import OfflineBanner from "./OfflineBanner";
 
 interface AppWorkspaceShellProps {
   children: ReactNode;
@@ -107,7 +107,6 @@ function getWorkspaceTitleKey(pathname: string): string | null {
 export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) {
   const { t } = useTranslation();
   const { user, signOut } = useAuth();
-  const { isDarkMode } = useDarkMode();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const swipeStartRef = useRef<{ x: number; y: number; time: number } | null>(
@@ -189,14 +188,12 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
       isSidebarOpen ? "justify-start gap-3 px-3" : "justify-center px-0",
       active
         ? "bg-brand-500 text-white"
-        : isDarkMode
-          ? "text-slate-300 hover:bg-white/10 hover:text-white"
-          : "text-slate-600 hover:bg-slate-50 hover:text-slate-950",
+        : "text-text-secondary hover:bg-surface-elevated hover:text-text-primary",
     );
 
   return (
     <div
-      className={cn("min-h-[100dvh] bg-white text-slate-950")}
+      className={cn("min-h-[100dvh] bg-surface-body text-text-primary")}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
@@ -205,12 +202,12 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
         className={cn(
           "fixed inset-y-0 left-0 z-50 hidden border-r transition-[width] duration-300 lg:block",
           isSidebarOpen ? "w-[272px]" : "w-[76px]",
-          "border-slate-200 bg-white",
+          "border-subtle bg-surface-layer",
         )}
         aria-label="Workspace navigation"
       >
         <div className={cn("flex h-full flex-col overflow-y-auto overflow-x-hidden py-4", isSidebarOpen ? "px-4" : "px-2")}>
-          <div className={cn("mb-4 flex items-center border-b border-slate-100 pb-4", isSidebarOpen ? "justify-between gap-3" : "justify-center")}>
+          <div className={cn("mb-4 flex items-center border-b border-subtle pb-4", isSidebarOpen ? "justify-between gap-3" : "justify-center")}>
             <NavLink
               to="/dashboard"
               className={cn("flex min-w-0 items-center gap-3 rounded-xl transition", isSidebarOpen ? "px-1" : "justify-center")}
@@ -220,7 +217,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
               {isSidebarOpen ? (
                 <div className="min-w-0">
                   <p className="text-base font-semibold tracking-tight">Edutu</p>
-                  <p className={cn("text-xs font-semibold text-slate-400")}>
+                  <p className={cn("text-xs font-semibold text-text-muted")}>
                     {t("workspace.section")}
                   </p>
                 </div>
@@ -230,7 +227,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
               <button
                 type="button"
                 onClick={() => setIsSidebarOpen(false)}
-                className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition hover:bg-slate-50")}
+                className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition hover:bg-surface-elevated")}
                 aria-label="Collapse sidebar"
               >
                 <ChevronLeft size={17} />
@@ -242,7 +239,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
             <button
               type="button"
               onClick={() => setIsSidebarOpen(true)}
-              className={cn("mb-3 flex h-10 w-full items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-50")}
+              className={cn("mb-3 flex h-10 w-full items-center justify-center rounded-xl text-text-secondary transition hover:bg-surface-elevated")}
               aria-label="Open sidebar"
             >
               <Menu size={18} />
@@ -250,13 +247,13 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
           ) : null}
 
           <div className={cn("mb-4 flex items-center gap-3", isSidebarOpen ? "px-1" : "justify-center px-0")}>
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-sm font-semibold text-white">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand text-sm font-semibold text-white">
                 {initials}
             </div>
             {isSidebarOpen ? (
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">{displayName}</p>
-                <p className={cn("truncate text-xs leading-5 text-slate-500")}>
+                <p className={cn("truncate text-xs leading-5 text-text-muted")}>
                   {displayEmail}
                 </p>
               </div>
@@ -266,7 +263,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                 to="/app/settings"
                 aria-label="Notifications"
                 className={cn(
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50",
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-subtle bg-surface-layer text-text-secondary transition hover:bg-surface-elevated",
                 )}
               >
                 <Bell size={17} />
@@ -276,7 +273,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                 to="/app/settings"
                 aria-label="Notifications"
                 className={cn(
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-600 transition hover:bg-slate-50",
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-text-secondary transition hover:bg-surface-elevated",
                 )}
               >
                 <Bell size={17} />
@@ -308,11 +305,11 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
             })}
           </nav>
 
-          <div className={cn("my-4 h-px bg-slate-100")} />
+          <div className={cn("my-4 h-px bg-surface-elevated")} />
 
           <div>
             {isSidebarOpen ? (
-              <p className={cn("px-3 pb-2 text-xs font-semibold text-slate-400")}>
+              <p className={cn("px-3 pb-2 text-xs font-semibold text-text-muted")}>
                 {t("workspace.section")}
               </p>
             ) : null}
@@ -330,7 +327,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                       isSidebarOpen ? "justify-start gap-3 px-3" : "justify-center px-0",
                       active
                         ? "bg-brand-500/10 text-brand-700"
-                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-950",
+                        : "text-text-secondary hover:bg-surface-elevated hover:text-text-primary",
                     )}
                     aria-current={active ? "page" : undefined}
                     aria-label={t(item.label)}
@@ -347,14 +344,14 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
             </nav>
           </div>
 
-          <div className={cn("mt-auto border-t border-slate-100 pt-4")}>
+          <div className={cn("mt-auto border-t border-subtle pt-4")}>
             {isSidebarOpen ? (
               <button
                 type="button"
                 onClick={() => void handleSignOut()}
                 disabled={isSigningOut}
                 className={cn(
-                  "flex h-10 w-full items-center gap-3 rounded-xl px-3 text-sm font-semibold text-rose-600 transition-all duration-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60",
+                  "flex h-10 w-full items-center gap-3 rounded-xl px-3 text-sm font-semibold text-danger transition-all duration-300 hover:bg-danger/10 disabled:cursor-not-allowed disabled:opacity-60",
                 )}
               >
                 <LogOut size={17} className="shrink-0" />
@@ -366,7 +363,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                 onClick={() => void handleSignOut()}
                 disabled={isSigningOut}
                 className={cn(
-                  "flex h-10 w-full items-center justify-center rounded-xl text-rose-600 transition-all duration-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60",
+                  "flex h-10 w-full items-center justify-center rounded-xl text-danger transition-all duration-300 hover:bg-danger/10 disabled:cursor-not-allowed disabled:opacity-60",
                 )}
                 aria-label={t("navigation.logOut")}
               >
@@ -389,7 +386,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
       >
         <header
           className={cn(
-            "fixed inset-x-0 top-0 z-50 border-b border-slate-200 bg-white/95 px-4 backdrop-blur-xl lg:hidden",
+            "fixed inset-x-0 top-0 z-50 border-b border-subtle bg-surface-layer/90 px-4 backdrop-blur-xl lg:hidden",
           )}
         >
           <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3">
@@ -399,7 +396,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                   type="button"
                   onClick={goBack}
                   className={cn(
-                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-100",
+                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-text-secondary transition hover:bg-surface-elevated",
                   )}
                   aria-label="Go back"
                 >
@@ -417,7 +414,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                   className="h-10 w-10 shrink-0 object-contain"
                 />
                 <span className="min-w-0">
-                  <span className="block truncate text-xl font-semibold leading-6 tracking-tight text-slate-900">
+                  <span className="block truncate text-xl font-semibold leading-6 tracking-tight text-text-primary">
                     {workspaceTitle}
                   </span>
                 </span>
@@ -428,14 +425,14 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                 to="/app/settings"
                 aria-label="Notifications"
                 className={cn(
-                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50",
+                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-subtle bg-surface-layer text-text-secondary shadow-sm transition hover:bg-surface-elevated",
                 )}
               >
                 <Bell size={20} />
               </NavLink>
               <NavLink
                 to="/app/profile"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white shadow-sm transition active:scale-[0.98]"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-sm font-semibold text-white shadow-sm transition active:scale-[0.98]"
                 aria-label="Open profile"
               >
                 {initials}
@@ -443,7 +440,8 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
             </div>
           </div>
         </header>
-        {children}
+        <OfflineBanner />
+
       </div>
 
       {isMobileMoreOpen ? (
@@ -452,12 +450,12 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
           aria-modal="true"
           aria-labelledby="mobile-workspace-menu-title"
           className={cn(
-            "fixed inset-0 z-[70] flex flex-col overflow-y-auto bg-white text-slate-950 lg:hidden",
+            "fixed inset-0 z-[70] flex flex-col overflow-y-auto bg-surface-body text-text-primary lg:hidden",
           )}
         >
           <div
             className={cn(
-              "sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-4 backdrop-blur-xl",
+              "sticky top-0 z-10 border-b border-subtle bg-surface-layer/90 px-4 backdrop-blur-xl",
             )}
           >
             <div className="flex h-16 items-center gap-3">
@@ -465,7 +463,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                 type="button"
                 onClick={() => setIsMobileMoreOpen(false)}
                 className={cn(
-                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-700 transition hover:bg-slate-100",
+                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-text-secondary transition hover:bg-surface-elevated",
                 )}
                 aria-label="Close menu"
               >
@@ -486,17 +484,17 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
               onClick={() => setIsMobileMoreOpen(false)}
               className={cn(
                 "group mb-5 flex items-center gap-3 rounded-[24px] border p-4 shadow-sm transition active:scale-[0.98]",
-                "border-slate-200 bg-white",
+                "border-subtle bg-surface-layer",
               )}
             >
-              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-lg font-semibold text-white">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand text-lg font-semibold text-white">
                 {initials}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold">
                   {displayName}
                 </span>
-                <span className="mt-1 block truncate text-xs font-semibold text-slate-500">
+                <span className="mt-1 block truncate text-xs font-semibold text-text-muted">
                   {displayEmail}
                 </span>
               </span>
@@ -506,7 +504,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
             </NavLink>
 
             <section>
-              <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+              <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-text-muted">
                 {t("navigation.explore")}
               </p>
               <div className="grid gap-2.5">
@@ -520,7 +518,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                       to={item.to}
                       onClick={() => setIsMobileMoreOpen(false)}
                       className={cn(
-                        "flex min-h-[64px] items-center justify-between rounded-[24px] border border-slate-200 bg-white p-3.5 text-left text-slate-800 shadow-sm transition hover:bg-slate-50 active:scale-[0.98]",
+                        "flex min-h-[64px] items-center justify-between rounded-[24px] border border-subtle bg-surface-layer p-3.5 text-left text-text-secondary shadow-sm transition hover:bg-surface-elevated active:scale-[0.98]",
                       )}
                       aria-current={active ? "page" : undefined}
                     >
@@ -534,7 +532,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                           {itemLabel}
                         </span>
                       </span>
-                      <ChevronRight size={16} className="text-slate-400" />
+                      <ChevronRight size={16} className="text-text-muted" />
                     </NavLink>
                   );
                 })}
@@ -542,7 +540,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
             </section>
 
             <section className="mt-5">
-              <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+              <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-text-muted">
                 {t("workspace.section")}
               </p>
               <div className="grid gap-2.5">
@@ -555,7 +553,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                       to={item.to}
                       onClick={() => setIsMobileMoreOpen(false)}
                       className={cn(
-                        "flex min-h-[64px] items-center justify-between rounded-[24px] border border-slate-200 bg-white p-3.5 text-left text-slate-800 shadow-sm transition hover:bg-slate-50 active:scale-[0.98]",
+                        "flex min-h-[64px] items-center justify-between rounded-[24px] border border-subtle bg-surface-layer p-3.5 text-left text-text-secondary shadow-sm transition hover:bg-surface-elevated active:scale-[0.98]",
                       )}
                       aria-current={active ? "page" : undefined}
                     >
@@ -569,7 +567,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                           {t(item.label)}
                         </span>
                       </span>
-                      <ChevronRight size={16} className="text-slate-400" />
+                      <ChevronRight size={16} className="text-text-muted" />
                     </NavLink>
                   );
                 })}
@@ -582,16 +580,16 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                 onClick={() => void handleSignOut()}
                 disabled={isSigningOut}
                 className={cn(
-                  "flex min-h-[64px] w-full items-center justify-between rounded-[24px] border border-rose-100 bg-rose-50 p-3.5 text-[15px] font-semibold text-rose-700 shadow-sm transition hover:bg-rose-100 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60",
+                  "flex min-h-[64px] w-full items-center justify-between rounded-[24px] border border-danger/20 bg-danger/10 p-3.5 text-[15px] font-semibold text-danger shadow-sm transition hover:bg-danger/10 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60",
                 )}
               >
                 <span className="flex items-center gap-3">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-rose-500/10">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-danger/10">
                     <LogOut size={19} />
                   </span>
                   {isSigningOut ? t("navigation.signingOut") : t("navigation.logOut")}
                 </span>
-                <ChevronRight size={16} className="text-rose-400" />
+                <ChevronRight size={16} className="text-danger/60" />
               </button>
             </div>
           </div>
@@ -602,7 +600,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
         <nav
           aria-hidden={isMobileMoreOpen}
           className={cn(
-            "fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 backdrop-blur-xl lg:hidden",
+            "fixed inset-x-0 bottom-0 z-50 border-t border-subtle bg-surface-layer/90 px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 backdrop-blur-xl lg:hidden",
           )}
           aria-label="Mobile app navigation"
         >
@@ -619,7 +617,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                     "relative flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden px-1 text-[11px] font-semibold transition active:scale-[0.98]",
                     active
                       ? "text-brand-600"
-                      : "text-slate-500 hover:text-slate-950",
+                      : "text-text-muted hover:text-text-primary",
                   )}
                   aria-current={active ? "page" : undefined}
                 >
@@ -642,7 +640,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                 "relative flex min-h-[58px] flex-col items-center justify-center gap-1 px-1 text-[11px] font-semibold transition active:scale-[0.98]",
                 isMobileMoreOpen
                   ? "text-brand-600"
-                  : "text-slate-700 hover:text-slate-950",
+                  : "text-text-secondary hover:text-text-primary",
               )}
               aria-expanded={isMobileMoreOpen}
               aria-label="Open more workspace pages"
