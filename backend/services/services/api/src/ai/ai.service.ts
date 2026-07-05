@@ -12,6 +12,27 @@ import {
 } from "./ai.types";
 import { DeepSeekAdapter, GeminiAdapter } from "./adapters/gemini.adapter";
 import { OpenRouterAdapter } from "./adapters/openrouter.adapter";
+import { createHash } from "crypto";
+import { TtlCache } from "../common/cache/ttl-cache";
+
+function aiNumberEnv(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+// Server-side output-token ceiling applied when a route doesn't set one, so a
+// large prompt can't run up an unbounded (and unbudgeted) completion.
+const DEFAULT_MAX_OUTPUT_TOKENS = aiNumberEnv(
+  process.env.AI_DEFAULT_MAX_OUTPUT_TOKENS,
+  4096,
+);
+// Identical-prompt response cache: only used for deterministic (very low
+// temperature) JSON generations, where the same input yields the same output.
+const RESPONSE_CACHE_TTL_MS = aiNumberEnv(
+  process.env.AI_RESPONSE_CACHE_TTL_MS,
+  300_000,
+);
+const RESPONSE_CACHE_MAX_TEMPERATURE = 0.1;
 
 const DEFAULT_ROUTES: Record<
   string,
@@ -103,6 +124,10 @@ const DEFAULT_ROUTES: Record<
 export class AiService {
   private readonly logger = new Logger(AiService.name);
   private readonly adapters = new Map<AiProvider, AiProviderAdapter>();
+  private readonly responseCache = new TtlCache<AiGenerateResult>(
+    RESPONSE_CACHE_TTL_MS,
+    200,
+  );
 
   constructor(
     private readonly encryption: AiEncryptionService,
@@ -128,12 +153,22 @@ export class AiService {
       throw new Error(`AI provider ${route.provider} is not supported yet`);
     }
 
+    // Identical-prompt cache for deterministic JSON routes (see cacheKeyFor).
+    const cacheKey = this.responseCacheKey(route, options);
+    if (cacheKey) {
+      const cached = this.responseCache.get(cacheKey);
+      if (cached) return cached;
+    }
+
     try {
       const result = await adapter.generateText(route, options);
-      await this.logUsage(options, route, result, Date.now() - startedAt);
+      // Fire-and-forget: don't block the response on the usage-log write
+      // (logUsage swallows its own errors).
+      void this.logUsage(options, route, result, Date.now() - startedAt);
+      if (cacheKey) this.responseCache.set(cacheKey, result);
       return result;
     } catch (error) {
-      await this.logUsage(options, route, null, Date.now() - startedAt, error);
+      void this.logUsage(options, route, null, Date.now() - startedAt, error);
 
       // A provider outage should not take down the feature if a fallback
       // provider is configured. Retry once on the secondary before giving up.
@@ -150,15 +185,16 @@ export class AiService {
               fallbackRoute,
               options,
             );
-            await this.logUsage(
+            void this.logUsage(
               options,
               fallbackRoute,
               result,
               Date.now() - fallbackStartedAt,
             );
+            if (cacheKey) this.responseCache.set(cacheKey, result);
             return result;
           } catch (fallbackError) {
-            await this.logUsage(
+            void this.logUsage(
               options,
               fallbackRoute,
               null,
@@ -171,6 +207,38 @@ export class AiService {
 
       throw error;
     }
+  }
+
+  // Returns a cache key only for deterministic generations — very low
+  // temperature AND JSON output — where an identical prompt reliably yields an
+  // identical result. Creative/chat routes (higher temperature, prose) are
+  // never cached. The key covers everything that can change the output.
+  private responseCacheKey(
+    route: AiRouteConfig,
+    options: AiGenerateOptions,
+  ): string | null {
+    const temperature =
+      typeof options.temperature === "number"
+        ? options.temperature
+        : (route.temperature ?? null);
+    const isJson =
+      route.responseMimeType === "application/json" ||
+      options.responseMimeType === "application/json";
+
+    if (!isJson || temperature === null) return null;
+    if (temperature > RESPONSE_CACHE_MAX_TEMPERATURE) return null;
+
+    const material = JSON.stringify({
+      feature: options.feature,
+      provider: route.provider,
+      model: route.model,
+      systemPrompt: route.systemPrompt ?? options.systemInstruction ?? null,
+      temperature,
+      maxOutputTokens: route.maxOutputTokens ?? null,
+      responseMimeType: route.responseMimeType ?? options.responseMimeType,
+      prompt: options.prompt,
+    });
+    return createHash("sha256").update(material).digest("hex");
   }
 
   async generateJson<T = unknown>(
@@ -343,7 +411,7 @@ export class AiService {
         options.maxOutputTokens ||
         storedRoute?.maxOutputTokens ||
         fallback.maxOutputTokens ||
-        null,
+        DEFAULT_MAX_OUTPUT_TOKENS,
       responseMimeType:
         options.responseMimeType ||
         storedRoute?.responseMimeType ||
