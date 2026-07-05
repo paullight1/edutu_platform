@@ -57,6 +57,8 @@ export interface AIGeneratedRoadmap {
   winningStrategy: string;
   summary: string;
   totalWeeks: number;
+  /** True when backend LLM enrichment was applied (vs. the deterministic scaffold). */
+  personalized?: boolean;
 }
 
 function weeksBetween(start: Date, end: Date): number {
@@ -132,6 +134,7 @@ export function generateRoadmapFromOpportunity(
     winningStrategy,
     summary,
     totalWeeks,
+    personalized: false,
   };
 }
 
@@ -199,6 +202,7 @@ export function mergeRoadmapEnrichment(
 
   return {
     ...roadmap,
+    personalized: enrichment.generatedBy === 'ai',
     summary: enrichment.summary?.trim() || roadmap.summary,
     winningStrategy: enrichment.winningStrategy?.trim() || roadmap.winningStrategy,
     supportActions: hasSupportActions ? enrichment.supportActions! : roadmap.supportActions,
