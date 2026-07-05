@@ -196,8 +196,11 @@ export class OpportunityRankingService {
     const preferences = request.preferences || null;
     const goals = request.goals || [];
 
+    // O(1) membership instead of Array.includes per candidate (was O(n·m)).
+    const dismissedIdSet = new Set(dismissedIds);
+
     let ranked = rows
-      .filter((row) => !dismissedIds.includes(row.id))
+      .filter((row) => !dismissedIdSet.has(row.id))
       .map((row) =>
         this.scoreOpportunity(
           row,
