@@ -93,6 +93,10 @@ export class OpportunitiesController {
 
   @Post("recommendations/query")
   @Public()
+  // Anonymous + does a candidate scan per call, so keep it tight. The LLM
+  // re-rank is not reachable here (service gates it behind an authenticated
+  // userId), so this endpoint can never drive provider spend.
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   queryRecommendations(
     @Body(new ZodValidationPipe(RecommendationQuerySchema))
     body: RecommendationQueryDto,

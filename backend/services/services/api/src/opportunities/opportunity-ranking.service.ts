@@ -173,6 +173,7 @@ export class OpportunityRankingService {
       limit: request.limit,
       minMatchScore: request.minMatchScore,
       excludeOpportunityIds: request.excludeOpportunityIds,
+      aiRerank: request.aiRerank,
       userId,
     });
   }
@@ -211,14 +212,22 @@ export class OpportunityRankingService {
       .sort((a, b) => b.match - a.match)
       .slice(0, limit * 2);
 
-    ranked = await this.rerankWithDeepSeek(
-      ranked,
-      profile,
-      preferences,
-      goals,
-      request.message || "",
-      limit,
-    );
+    // The heuristic ranking above serves every request. The LLM re-rank is an
+    // optional refinement that costs a provider round-trip, so it is gated:
+    // opt-in via aiRerank AND only for authenticated callers. This keeps the
+    // public/anonymous endpoint from driving unbounded LLM spend.
+    if (request.aiRerank && request.userId) {
+      ranked = await this.rerankWithDeepSeek(
+        ranked,
+        profile,
+        preferences,
+        goals,
+        request.message || "",
+        limit,
+      );
+    } else {
+      ranked = ranked.slice(0, limit);
+    }
 
     const opportunitiesWithShape = ranked.slice(0, limit).map((row) => ({
       ...row,
