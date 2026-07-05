@@ -28,9 +28,17 @@ export type ScrapeStreamEvent =
   | { type: "start"; totalSources: number; sources: string[] }
   | { type: "source-start"; name: string }
   | { type: "opportunity"; opportunity: unknown }
-  | { type: "source-done"; name: string; itemsFound: number; error?: string };
+  | { type: "source-done"; name: string; itemsFound: number; error?: string }
+  | { type: "control"; state: "paused" | "resumed" | "stopping" };
 
 export type ScrapeEventListener = (event: ScrapeStreamEvent) => void;
+
+/** Live pause/stop control for the single in-flight scrape (advisory-locked). */
+interface ActiveRunControl {
+  paused: boolean;
+  stopRequested: boolean;
+  emit?: ScrapeEventListener;
+}
 
 export interface ScrapeSource {
   id: number;
@@ -594,6 +602,53 @@ export class ScraperService implements OnModuleInit {
    * manual triggers. Without this, each replica's cron (and overlapping manual
    * runs) would crawl concurrently, duplicating work and AI spend.
    */
+  /** Pause/stop control for the current run (only one runs at a time). */
+  private activeRun: ActiveRunControl | null = null;
+
+  /** Pause the in-flight scrape — the crawl loop halts between pages/sources. */
+  pauseRun(): { ok: boolean; status: string } {
+    if (!this.activeRun || this.activeRun.stopRequested) {
+      return { ok: false, status: this.activeRun ? "stopping" : "idle" };
+    }
+    this.activeRun.paused = true;
+    this.activeRun.emit?.({ type: "control", state: "paused" });
+    return { ok: true, status: "paused" };
+  }
+
+  /** Resume a paused scrape. */
+  resumeRun(): { ok: boolean; status: string } {
+    if (!this.activeRun || this.activeRun.stopRequested) {
+      return { ok: false, status: this.activeRun ? "stopping" : "idle" };
+    }
+    this.activeRun.paused = false;
+    this.activeRun.emit?.({ type: "control", state: "resumed" });
+    return { ok: true, status: "running" };
+  }
+
+  /** Request a graceful stop — the crawl finalizes with partial results. */
+  stopRun(): { ok: boolean; status: string } {
+    if (!this.activeRun) return { ok: false, status: "idle" };
+    this.activeRun.stopRequested = true;
+    this.activeRun.paused = false; // release any pause wait so the loop can exit
+    this.activeRun.emit?.({ type: "control", state: "stopping" });
+    return { ok: true, status: "stopping" };
+  }
+
+  getRunStatus(): { running: boolean; paused: boolean; stopping: boolean } {
+    return {
+      running: Boolean(this.activeRun),
+      paused: Boolean(this.activeRun?.paused),
+      stopping: Boolean(this.activeRun?.stopRequested),
+    };
+  }
+
+  /** Block while the run is paused (unless a stop was requested). */
+  private async waitWhilePaused(): Promise<void> {
+    while (this.activeRun?.paused && !this.activeRun?.stopRequested) {
+      await this.delay(400);
+    }
+  }
+
   async runScraper(
     options: ScrapeOptions,
     onEvent?: ScrapeEventListener,
@@ -609,9 +664,14 @@ export class ScraperService implements OnModuleInit {
       return this.mockScrape();
     }
 
-    const lock = await this.withScrapeLock(() =>
-      this.executeScraperRun(options, onEvent),
-    );
+    // Register pause/stop control only once the advisory lock is held, so a
+    // concurrent (lock-losing) call can never clobber the active run's control.
+    const lock = await this.withScrapeLock(() => {
+      this.activeRun = { paused: false, stopRequested: false, emit: onEvent };
+      return this.executeScraperRun(options, onEvent).finally(() => {
+        this.activeRun = null;
+      });
+    });
 
     if (!lock.acquired) {
       this.logger.warn(
@@ -1218,6 +1278,11 @@ export class ScraperService implements OnModuleInit {
     const pagesToCrawl = Math.min(maxPages, MAX_PAGES_CAP);
 
     for (const source of sources) {
+      // Honor live pause/stop between sources.
+      if (this.activeRun?.stopRequested) break;
+      await this.waitWhilePaused();
+      if (this.activeRun?.stopRequested) break;
+
       const sourceStartTime = Date.now();
       let itemsFound = 0;
       let urlsDiscovered = 0;
@@ -1246,6 +1311,11 @@ export class ScraperService implements OnModuleInit {
         }
 
         for (let page = 1; page <= pagesToCrawl; page++) {
+          // Honor live pause/stop between pages.
+          if (this.activeRun?.stopRequested) break;
+          await this.waitWhilePaused();
+          if (this.activeRun?.stopRequested) break;
+
           const pageUrl = this.buildPageUrl(source.url, page);
           this.logger.log(`  → Fetching page ${page}: ${pageUrl}`);
 
