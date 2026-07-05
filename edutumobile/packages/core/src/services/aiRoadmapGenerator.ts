@@ -1,5 +1,7 @@
 import { Opportunity } from '../types/opportunity';
 
+const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://edutu-platform.onrender.com').replace(/\/$/, '');
+
 export interface RoadmapMilestone {
   id: string;
   title: string;
@@ -131,6 +133,98 @@ export function generateRoadmapFromOpportunity(
     summary,
     totalWeeks,
   };
+}
+
+export interface RoadmapGenerationOptions {
+  startDate?: Date;
+  hoursPerWeek?: number;
+  currentLevel?: 'beginner' | 'intermediate' | 'advanced';
+  signal?: AbortSignal;
+}
+
+interface OpportunityPlanEnrichment {
+  summary?: string;
+  winningStrategy?: string;
+  milestones?: Array<{ id: string; title: string; description: string }>;
+  checklist?: string[];
+  supportActions?: string[];
+  generatedBy?: 'ai' | 'fallback';
+}
+
+/**
+ * Fetches AI-authored narrative enrichment for a roadmap from the backend LLM.
+ * Returns null on any failure so callers can fall back to the deterministic plan.
+ */
+export async function fetchOpportunityPlanEnrichment(
+  opportunity: Opportunity,
+  milestones: RoadmapMilestone[],
+  options: Pick<RoadmapGenerationOptions, 'hoursPerWeek' | 'currentLevel' | 'signal'> = {}
+): Promise<OpportunityPlanEnrichment | null> {
+  try {
+    const response = await fetch(`${API_URL}/roadmaps/ai/opportunity-plan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: opportunity.title,
+        organization: opportunity.organization,
+        category: opportunity.category,
+        deadline: opportunity.deadline ?? undefined,
+        description: opportunity.description?.slice(0, 4000),
+        hoursPerWeek: options.hoursPerWeek,
+        currentLevel: options.currentLevel,
+        milestones: milestones.map((milestone) => ({ id: milestone.id, title: milestone.title })),
+      }),
+      signal: options.signal,
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as OpportunityPlanEnrichment;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Merges AI enrichment onto the deterministic roadmap. The scheduling (dates,
+ * reminders, daily plan) always comes from the heuristic; the LLM only refines
+ * narrative fields, and milestones are matched by id so alignment is stable.
+ */
+export function mergeRoadmapEnrichment(
+  roadmap: AIGeneratedRoadmap,
+  enrichment: OpportunityPlanEnrichment | null
+): AIGeneratedRoadmap {
+  if (!enrichment) return roadmap;
+
+  const enrichedById = new Map((enrichment.milestones || []).map((milestone) => [milestone.id, milestone]));
+  const hasSupportActions = Array.isArray(enrichment.supportActions) && enrichment.supportActions.length > 0;
+
+  return {
+    ...roadmap,
+    summary: enrichment.summary?.trim() || roadmap.summary,
+    winningStrategy: enrichment.winningStrategy?.trim() || roadmap.winningStrategy,
+    supportActions: hasSupportActions ? enrichment.supportActions! : roadmap.supportActions,
+    milestones: roadmap.milestones.map((milestone) => {
+      const enriched = enrichedById.get(milestone.id);
+      if (!enriched) return milestone;
+      return {
+        ...milestone,
+        title: enriched.title?.trim() || milestone.title,
+        description: enriched.description?.trim() || milestone.description,
+      };
+    }),
+  };
+}
+
+/**
+ * Preferred entry point: builds the deterministic roadmap, then enriches it with
+ * the backend LLM. Always resolves to a usable roadmap even fully offline.
+ */
+export async function generateRoadmap(
+  opportunity: Opportunity,
+  options: RoadmapGenerationOptions = {}
+): Promise<AIGeneratedRoadmap> {
+  const roadmap = generateRoadmapFromOpportunity(opportunity, options.startDate);
+  const enrichment = await fetchOpportunityPlanEnrichment(opportunity, roadmap.milestones, options);
+  return mergeRoadmapEnrichment(roadmap, enrichment);
 }
 
 function generateMilestones(

@@ -20,6 +20,7 @@ import {
   RoadmapIntentDto,
   RoadmapFeedbackDto,
   AIAssistDto,
+  OpportunityPlanDto,
   AdoptRoadmapDto,
 } from "./dto/roadmap.dto";
 import { AiService } from "../ai";
@@ -692,6 +693,208 @@ Then suggest a roadmap with 4-8 steps tailored to "${topic}".
       );
       return this.getDefaultMatchQuestions(topic);
     }
+  }
+
+  // The default preparation milestones — kept id-aligned with the mobile roadmap
+  // scaffold so the client can merge AI enrichment back onto its dated plan.
+  private readonly defaultPlanMilestones: Array<{ id: string; title: string }> =
+    [
+      { id: "milestone-1", title: "Confirm fit and requirements" },
+      { id: "milestone-2", title: "Collect proof and references" },
+      { id: "milestone-3", title: "Draft SOP and essays" },
+      { id: "milestone-4", title: "Feedback and final polish" },
+      { id: "milestone-5", title: "Submit before deadline" },
+    ];
+
+  async generateOpportunityPlan(dto: OpportunityPlanDto): Promise<{
+    summary: string;
+    winningStrategy: string;
+    milestones: Array<{ id: string; title: string; description: string }>;
+    checklist: string[];
+    supportActions: string[];
+    generatedBy: "ai" | "fallback";
+  }> {
+    const scaffold =
+      dto.milestones && dto.milestones.length > 0
+        ? dto.milestones
+        : this.defaultPlanMilestones;
+
+    const constraints = [
+      dto.currentLevel ? `Current level: ${dto.currentLevel}.` : "",
+      dto.hoursPerWeek
+        ? `Available time: about ${dto.hoursPerWeek} hours per week.`
+        : "",
+      dto.deadline ? `Application deadline: ${dto.deadline}.` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    const prompt = `You are Edutu's opportunity coach for ambitious young Africans. Build a concrete, personalized preparation plan for this specific opportunity.
+
+Opportunity: "${dto.title}"${dto.organization ? ` by ${dto.organization}` : ""}${dto.category ? ` (category: ${dto.category})` : ""}.
+${dto.description ? `Details: ${dto.description.slice(0, 800)}` : ""}
+${constraints}
+
+Rewrite each of these milestones with specific, actionable guidance for THIS opportunity. Keep the same id and order:
+${scaffold.map((m, i) => `${i + 1}. [${m.id}] ${m.title}`).join("\n")}
+
+Return ONLY valid JSON with this exact structure:
+{
+  "summary": "2-3 sentence motivating overview specific to this opportunity",
+  "winningStrategy": "3-4 sentences on how to genuinely stand out for this specific opportunity",
+  "milestones": [ { "id": "<same id>", "title": "<refined title>", "description": "<specific, concrete guidance in 1-2 sentences>" } ],
+  "checklist": ["specific document or task", "..."],
+  "supportActions": ["concrete support step", "..."]
+}
+Provide 6-10 checklist items and 3-5 support actions.`;
+
+    try {
+      const parsed = await this.aiService.generateJson<any>({
+        feature: "roadmaps.opportunity_plan",
+        prompt,
+        responseMimeType: "application/json",
+        temperature: 0.4,
+        metadata: { title: dto.title, category: dto.category },
+      });
+
+      const normalized = this.normalizeOpportunityPlan(parsed, scaffold);
+      if (normalized) return { ...normalized, generatedBy: "ai" };
+    } catch (e) {
+      this.logger.warn(
+        "AI opportunity plan generation failed",
+        e instanceof Error ? e.message : String(e),
+      );
+    }
+
+    return {
+      ...this.fallbackOpportunityPlan(dto, scaffold),
+      generatedBy: "fallback",
+    };
+  }
+
+  private normalizeOpportunityPlan(
+    parsed: any,
+    scaffold: Array<{ id: string; title: string }>,
+  ): {
+    summary: string;
+    winningStrategy: string;
+    milestones: Array<{ id: string; title: string; description: string }>;
+    checklist: string[];
+    supportActions: string[];
+  } | null {
+    if (!parsed || typeof parsed !== "object") return null;
+
+    const aiMilestones: any[] = Array.isArray(parsed.milestones)
+      ? parsed.milestones
+      : [];
+    if (aiMilestones.length === 0) return null;
+
+    const byId = new Map<string, any>();
+    aiMilestones.forEach((m) => {
+      if (m && typeof m.id === "string") byId.set(m.id, m);
+    });
+
+    // Align AI output to the scaffold by id (falling back to positional order),
+    // so a partial or reordered AI response can never drop a milestone.
+    const milestones = scaffold.map((base, index) => {
+      const match = byId.get(base.id) || aiMilestones[index] || {};
+      const description =
+        typeof match.description === "string" && match.description.trim()
+          ? match.description.trim()
+          : "";
+      if (!description) return null;
+      return {
+        id: base.id,
+        title:
+          typeof match.title === "string" && match.title.trim()
+            ? match.title.trim()
+            : base.title,
+        description,
+      };
+    });
+
+    if (milestones.some((m) => m === null)) return null;
+
+    const toStringList = (value: any): string[] =>
+      Array.isArray(value)
+        ? value
+            .map((item) => (typeof item === "string" ? item.trim() : ""))
+            .filter(Boolean)
+        : [];
+
+    const summary =
+      typeof parsed.summary === "string" ? parsed.summary.trim() : "";
+    const winningStrategy =
+      typeof parsed.winningStrategy === "string"
+        ? parsed.winningStrategy.trim()
+        : "";
+    if (!summary || !winningStrategy) return null;
+
+    return {
+      summary,
+      winningStrategy,
+      milestones: milestones as Array<{
+        id: string;
+        title: string;
+        description: string;
+      }>,
+      checklist: toStringList(parsed.checklist),
+      supportActions: toStringList(parsed.supportActions),
+    };
+  }
+
+  private fallbackOpportunityPlan(
+    dto: OpportunityPlanDto,
+    scaffold: Array<{ id: string; title: string }>,
+  ): {
+    summary: string;
+    winningStrategy: string;
+    milestones: Array<{ id: string; title: string; description: string }>;
+    checklist: string[];
+    supportActions: string[];
+  } {
+    const org = dto.organization || "the organization";
+    const isScholarship = /scholar|fellow|grant/i.test(
+      `${dto.category || ""} ${dto.title}`,
+    );
+
+    const guidance: Record<string, string> = {
+      "milestone-1": `Confirm the deadline, eligibility, required documents, and what ${org} rewards in strong applicants for ${dto.title}.`,
+      "milestone-2": `Gather transcripts, certificates, ID, and an updated CV, and request recommendation letters early.`,
+      "milestone-3": `Write a focused story covering impact, leadership, and why ${dto.title} is the right next step for you.`,
+      "milestone-4": `Get mentor feedback, tighten weak claims, proofread, and confirm every portal requirement.`,
+      "milestone-5": `Submit ahead of the deadline${dto.deadline ? ` (${dto.deadline})` : ""} and save confirmations and reference numbers.`,
+    };
+
+    return {
+      summary: `A step-by-step plan to prepare a competitive application for ${dto.title}${dto.organization ? ` at ${dto.organization}` : ""}. Turn each milestone into concrete assets — documents, essays, and reviews — and submit with time to spare.`,
+      winningStrategy: `Aim to submit a few days before the deadline. Use every task to produce one asset that proves ${isScholarship ? "academic strength, leadership, service, and long-term impact" : "fit, proof of skill, and motivation"}. Get a mentor to review your CV and statement before the final week.`,
+      milestones: scaffold.map((m) => ({
+        id: m.id,
+        title: m.title,
+        description:
+          guidance[m.id] ||
+          `Complete "${m.title}" for ${dto.title} and update your progress.`,
+      })),
+      checklist: [
+        "Official academic transcripts",
+        "Updated CV/Resume",
+        "Proof of identity (passport/national ID)",
+        "Academic certificates and awards",
+        isScholarship
+          ? "Recommendation letters (2-3)"
+          : "Professional references",
+        "Compelling personal statement / essays",
+        "Completed online application form",
+        "Final review before submission",
+      ],
+      supportActions: [
+        `Search for a recent applicant or alumni community for ${org}.`,
+        "Find one mentor to review your CV and statement before the final week.",
+        "Keep one evidence folder for transcripts, certificates, ID, and letters.",
+        "Book two feedback checkpoints: after the first draft and before submission.",
+      ],
+    };
   }
 
   private getDefaultMatchQuestions(topic: string): {

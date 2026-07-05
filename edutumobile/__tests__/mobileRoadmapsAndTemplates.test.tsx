@@ -249,6 +249,49 @@ describe('mobile roadmaps and templates routes', () => {
     );
   });
 
+  it('renders backend-authored templates when the templates endpoint returns data', async () => {
+    mockFetch.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/roadmaps/templates')) {
+        return {
+          ok: true,
+          json: async () => [
+            {
+              id: 'db-roadmap-1',
+              title: 'Chevening Scholarship Prep',
+              description: 'A backend-authored roadmap.',
+              category: 'scholarship',
+              difficulty: 'intermediate',
+              estimated_duration: '6 weeks',
+              outcomes: 'Draft essays\nSecure references',
+              steps: [
+                { id: 's1', title: 'Draft your SOP', description: 'Write the first draft.', relativeDueDays: 7, phase: 'writing', resources: ['res-1'] },
+                { id: 's2', title: 'Secure references', description: 'Ask referees early.', relativeDueDays: 21 },
+              ],
+              resources: [{ id: 'res-1', title: 'SOP Guide', url: 'https://example.com/sop', type: 'guide' }],
+            },
+          ],
+        } as Response;
+      }
+      return { ok: false, json: async () => ({}) } as Response;
+    });
+
+    const { getByText, queryByText } = render(<RoadmapTemplatesScreen />);
+
+    // Backend template replaces the curated fallback set.
+    await waitFor(() => expect(getByText('Chevening Scholarship Prep')).toBeTruthy());
+    expect(queryByText('Complete Python Programming Course')).toBeNull();
+
+    await act(async () => {
+      pressNearestTouchTarget(getByText('Chevening Scholarship Prep'));
+    });
+
+    // Steps map to milestones; relativeDueDays (7) → Week 1, and step resources resolve to clickable chips.
+    await waitFor(() => expect(getByText('Week 1')).toBeTruthy());
+    expect(getByText('Draft your SOP')).toBeTruthy();
+    expect(getByText('SOP Guide')).toBeTruthy();
+  });
+
   it('renders roadmap cards and their detail stats', async () => {
     const { getByText } = render(<RoadmapsScreen />);
 
