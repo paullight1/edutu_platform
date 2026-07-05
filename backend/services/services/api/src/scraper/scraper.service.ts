@@ -20,6 +20,18 @@ interface ScrapeOptions {
   maxPages?: number;
 }
 
+/**
+ * Live progress event emitted during a scrape run (consumed by the SSE
+ * endpoint). Optional — synchronous callers pass no listener.
+ */
+export type ScrapeStreamEvent =
+  | { type: "start"; totalSources: number; sources: string[] }
+  | { type: "source-start"; name: string }
+  | { type: "opportunity"; opportunity: unknown }
+  | { type: "source-done"; name: string; itemsFound: number; error?: string };
+
+export type ScrapeEventListener = (event: ScrapeStreamEvent) => void;
+
 export interface ScrapeSource {
   id: number;
   name: string;
@@ -582,7 +594,10 @@ export class ScraperService implements OnModuleInit {
    * manual triggers. Without this, each replica's cron (and overlapping manual
    * runs) would crawl concurrently, duplicating work and AI spend.
    */
-  async runScraper(options: ScrapeOptions): Promise<ScrapeResult> {
+  async runScraper(
+    options: ScrapeOptions,
+    onEvent?: ScrapeEventListener,
+  ): Promise<ScrapeResult> {
     const { sourceId, allSources, maxPages = 3 } = options;
 
     this.logger.log(
@@ -595,7 +610,7 @@ export class ScraperService implements OnModuleInit {
     }
 
     const lock = await this.withScrapeLock(() =>
-      this.executeScraperRun(options),
+      this.executeScraperRun(options, onEvent),
     );
 
     if (!lock.acquired) {
@@ -648,6 +663,7 @@ export class ScraperService implements OnModuleInit {
 
   private async executeScraperRun(
     options: ScrapeOptions,
+    onEvent?: ScrapeEventListener,
   ): Promise<ScrapeResult> {
     const { sourceId, allSources, maxPages = 3 } = options;
     const startTime = Date.now();
@@ -667,10 +683,16 @@ export class ScraperService implements OnModuleInit {
       }
 
       this.logger.log(`Found ${sources.length} source(s) to scrape`);
+      onEvent?.({
+        type: "start",
+        totalSources: sources.length,
+        sources: sources.map((s) => s.name),
+      });
       const { results, sourceResults, outcome } = await this.crawlSources(
         sources,
         maxPages,
         jobLogId,
+        onEvent,
       );
       const duration = Math.round((Date.now() - startTime) / 1000);
 
@@ -1185,6 +1207,7 @@ export class ScraperService implements OnModuleInit {
     sources: ScrapeSource[],
     maxPages: number,
     jobLogId: string | null,
+    onEvent?: ScrapeEventListener,
   ): Promise<{
     results: RawItem[];
     sourceResults: SourceResult[];
@@ -1198,6 +1221,8 @@ export class ScraperService implements OnModuleInit {
       const sourceStartTime = Date.now();
       let itemsFound = 0;
       let urlsDiscovered = 0;
+
+      onEvent?.({ type: "source-start", name: source.name });
 
       try {
         this.logger.log(`Crawling: ${source.name} (${source.url})`);
@@ -1268,6 +1293,10 @@ export class ScraperService implements OnModuleInit {
             );
             allResults.push(...enrichedItems);
             itemsFound += enrichedItems.length;
+            // Stream each enriched opportunity to any live listener (SSE).
+            for (const item of enrichedItems) {
+              onEvent?.({ type: "opportunity", opportunity: item });
+            }
             this.logger.log(
               `  ✓ ${enrichedItems.length} items enriched from page ${page}`,
             );
@@ -1297,8 +1326,10 @@ export class ScraperService implements OnModuleInit {
           urlsDiscovered,
           duration,
         });
+        onEvent?.({ type: "source-done", name: source.name, itemsFound });
       } catch (error: any) {
         this.logger.error(`Error crawling "${source.name}": ${error.message}`);
+        onEvent?.({ type: "source-done", name: source.name, itemsFound: 0, error: error.message });
         await this.updateSourceStatus(
           source.id,
           false,

@@ -629,101 +629,132 @@ export default function ScraperDashboard() {
         abortControllerRef.current = controller;
 
         try {
-            // Use port 3000 (NestJS default) unless overridden by env
-            const backendUrl = (import.meta.env.VITE_BACKEND_URL || 'https://edutu-api.onrender.com').replace(/\/$/, '');
+            const backendUrl = (import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'https://edutu-api.onrender.com').replace(/\/$/, '');
 
-            // Step 1: Connecting to sources
+            // Step 1 → 2
             setCurrentStep(1);
-            await new Promise(r => setTimeout(r, 500));
-
-            // Step 2: Starting scrape
+            await new Promise(r => setTimeout(r, 300));
             setCurrentStep(2);
-            // Mark all as 'scraping'
-            setScrapingProgress(sourcesToScrape.map(s => ({ source: s.name, status: 'scraping' as const, progress: 0 })));
+            setScrapingProgress(sourcesToScrape.map(s => ({ source: s.name, status: 'pending' as const, progress: 0 })));
 
-            const response = await fetch(`${backendUrl}/api/scraper/run`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(await getAuthHeaders()),
-                },
-                body: JSON.stringify({
-                    sourceId: sourceId ?? undefined,
-                    allSources: !sourceId,
-                    maxPages: maxPages,
-                }),
+            const params = new URLSearchParams({ maxPages: String(maxPages) });
+            if (sourceId) params.set('sourceId', String(sourceId));
+            else params.set('allSources', 'true');
+
+            // GET the SSE stream via fetch (so auth headers are sent; EventSource can't).
+            const response = await fetch(`${backendUrl}/api/scraper/run/stream?${params.toString()}`, {
+                method: 'GET',
+                headers: { ...(await getAuthHeaders()) },
                 signal: controller.signal,
             });
 
-            // Step 3: Processing results
-            setCurrentStep(3);
-
-            if (response.ok) {
-                const result = await response.json();
-                console.log('Scrape result:', result);
-
-                // Map backend response to expected ScrapeResult shape
-                const mapped: ScrapeResult = {
-                    success: result.success,
-                    sourcesScraped: result.sourcesScraped ?? sourcesToScrape.length,
-                    totalResults: result.totalResults ?? 0,
-                    duration: result.duration,
-                    jobId: result.jobId ?? result.jobLogId ?? undefined,
-                    error: result.error,
-                    sourceResults: result.sourceResults ?? sourcesToScrape.map(s => ({
-                        name: s.name,
-                        url: s.url,
-                        status: 'success' as const,
-                        itemsFound: 0,
-                        itemsSaved: 0,
-                    })),
-                    opportunities: result.opportunities ?? [],
-                };
-
-                setScrapeResult(mapped);
-                setActiveScrapeJobId(mapped.jobId ?? null);
-                setLiveFoundCount(mapped.opportunities?.length ?? mapped.totalResults ?? 0);
-
-                setScrapingProgress(
-                    (result.sourceResults ?? sourcesToScrape.map(s => ({ name: s.name, status: 'success' as const }))).map(
-                        (sr: SourceResult | { name: string; status: 'success' | 'failed' | 'skipped' | 'pending' }) => ({
-                            source: sr.name,
-                            status: sr.status === 'failed' ? 'failed' as const : 'completed' as const,
-                            progress: 100,
-                        })
-                    )
-                );
-
-                // Step 4: Complete
-                setCurrentStep(4);
-                const foundCount = mapped.opportunities?.length ?? mapped.totalResults ?? 0;
-                await new Promise(r => setTimeout(r, 1000));
-                setScrapingStartedAt(null);
-
-                if (isBackgroundRef.current) {
-                    // Finished while minimized — don't hijack the screen. Surface it
-                    // in the toast + Recent Scrapes list so the user can open it.
-                    setIsBackground(false);
-                    isBackgroundRef.current = false;
-                    setShowLoadingModal(false);
-                    showNotification(
-                        `Background scrape complete — ${foundCount} opportunities found. Open it from Recent Scrapes below.`,
-                        'success',
-                    );
-                } else {
-                    setShowLoadingModal(false);
-                    setShowResultsModal(true);
-                }
-                await loadData();
-                await loadRecentOpportunities();
-            } else {
-                const errorText = await response.text();
-                console.error('Scrape failed:', response.status, errorText);
+            if (!response.ok || !response.body) {
+                const errorText = await response.text().catch(() => '');
                 let errorMsg = `Server error ${response.status}`;
                 try { errorMsg = JSON.parse(errorText).message || errorMsg; } catch { /* noop */ }
-                setModalError(`Backend error: ${errorMsg}`);
-                setScrapeResult({ success: false, error: errorMsg });
+                throw new Error(errorMsg);
             }
+
+            // ── Consume the Server-Sent-Events stream: each event is `data: <json>\n\n` ──
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            const streamed: ScrapedOpportunity[] = [];
+            let buffer = '';
+            let finalResult: Record<string, unknown> | null = null;
+            let streamError: string | null = null;
+
+            const markSource = (name: string, status: 'pending' | 'scraping' | 'completed' | 'failed') =>
+                setScrapingProgress(prev => prev.map(p =>
+                    p.source === name ? { ...p, status, progress: status === 'completed' ? 100 : p.progress } : p));
+
+            streamLoop: while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const chunks = buffer.split('\n\n');
+                buffer = chunks.pop() || '';
+                for (const chunk of chunks) {
+                    const dataLine = chunk.split('\n').find(l => l.startsWith('data:'));
+                    if (!dataLine) continue;
+                    let evt: Record<string, unknown>;
+                    try { evt = JSON.parse(dataLine.slice(5).trim()); } catch { continue; }
+
+                    switch (evt.type) {
+                        case 'start': {
+                            setCurrentStep(2);
+                            const names = Array.isArray(evt.sources) ? (evt.sources as string[]) : sourcesToScrape.map(s => s.name);
+                            setScrapingProgress(names.map(n => ({ source: n, status: 'pending' as const, progress: 0 })));
+                            break;
+                        }
+                        case 'source-start':
+                            markSource(String(evt.name), 'scraping');
+                            break;
+                        case 'opportunity':
+                            // Live append — this is what makes items stream in one by one.
+                            streamed.push(evt.opportunity as ScrapedOpportunity);
+                            setLiveFoundCount(streamed.length);
+                            setCurrentStep(3);
+                            setScrapeResult({
+                                success: true,
+                                sourcesScraped: sourcesToScrape.length,
+                                totalResults: streamed.length,
+                                opportunities: [...streamed],
+                            });
+                            break;
+                        case 'source-done':
+                            markSource(String(evt.name), evt.error ? 'failed' : 'completed');
+                            break;
+                        case 'done':
+                            finalResult = (evt.result as Record<string, unknown>) || {};
+                            break;
+                        case 'error':
+                            streamError = String(evt.error || 'Scrape failed');
+                            break streamLoop;
+                    }
+                }
+            }
+
+            if (streamError) throw new Error(streamError);
+
+            // Final mapped result (prefer streamed items; fall back to the done payload).
+            const doneOpps = Array.isArray(finalResult?.opportunities) ? (finalResult!.opportunities as ScrapedOpportunity[]) : [];
+            const opportunities = streamed.length ? streamed : doneOpps;
+            const mapped: ScrapeResult = {
+                success: (finalResult?.success as boolean) ?? true,
+                sourcesScraped: (finalResult?.sourcesScraped as number) ?? sourcesToScrape.length,
+                totalResults: (finalResult?.totalResults as number) ?? opportunities.length,
+                duration: finalResult?.duration as number | undefined,
+                jobId: (finalResult?.jobId as string) ?? (finalResult?.jobLogId as string) ?? undefined,
+                sourceResults: (finalResult?.sourceResults as SourceResult[]) ?? undefined,
+                opportunities,
+            };
+
+            setScrapeResult(mapped);
+            setActiveScrapeJobId(mapped.jobId ?? null);
+            setLiveFoundCount(mapped.opportunities?.length ?? mapped.totalResults ?? 0);
+            setScrapingProgress(prev => prev.map(p =>
+                p.status === 'scraping' || p.status === 'pending' ? { ...p, status: 'completed' as const, progress: 100 } : p));
+
+            // Step 4: Complete (background-aware)
+            setCurrentStep(4);
+            const foundCount = mapped.opportunities?.length ?? mapped.totalResults ?? 0;
+            await new Promise(r => setTimeout(r, 800));
+            setScrapingStartedAt(null);
+
+            if (isBackgroundRef.current) {
+                setIsBackground(false);
+                isBackgroundRef.current = false;
+                setShowLoadingModal(false);
+                showNotification(
+                    `Background scrape complete — ${foundCount} opportunities found. Open it from Recent Scrapes below.`,
+                    'success',
+                );
+            } else {
+                setShowLoadingModal(false);
+                setShowResultsModal(true);
+            }
+            await loadData();
+            await loadRecentOpportunities();
         } catch (error: unknown) {
             if (error instanceof Error && error.name === 'AbortError') {
                 console.log('Scrape cancelled by user');
@@ -2785,19 +2816,18 @@ export default function ScraperDashboard() {
                                         </span>
                                     </div>
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                                        {currentStep === 4 && scrapeResult?.opportunities?.length
-                                            ? scrapeResult.opportunities.slice(0, 4).map((opp, i) => (
-                                                <div key={i} style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border-light)' }}>
-                                                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opp.title}</div>
-                                                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opp.organization || opp.source}</div>
-                                                </div>
-                                            ))
-                                            : Array.from({ length: 4 }).map((_, i) => (
-                                                <div key={i} style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border-light)' }}>
-                                                    <div style={{ height: 10, width: '80%', borderRadius: 4, background: 'var(--bg-tertiary)', animation: 'pulse 1.5s ease-in-out infinite', animationDelay: `${i * 0.15}s` }} />
-                                                    <div style={{ height: 8, width: '55%', borderRadius: 4, background: 'var(--bg-tertiary)', marginTop: 8, animation: 'pulse 1.5s ease-in-out infinite', animationDelay: `${i * 0.15 + 0.2}s` }} />
-                                                </div>
-                                            ))}
+                                        {(scrapeResult?.opportunities ?? []).slice(0, 4).map((opp, i) => (
+                                            <div key={`opp-${i}`} style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', animation: 'fadeIn 0.3s ease' }}>
+                                                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opp.title}</div>
+                                                <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opp.organization || opp.source}</div>
+                                            </div>
+                                        ))}
+                                        {currentStep < 4 && Array.from({ length: Math.max(0, 4 - Math.min(4, scrapeResult?.opportunities?.length ?? 0)) }).map((_, i) => (
+                                            <div key={`sk-${i}`} style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border-light)' }}>
+                                                <div style={{ height: 10, width: '80%', borderRadius: 4, background: 'var(--bg-tertiary)', animation: 'pulse 1.5s ease-in-out infinite', animationDelay: `${i * 0.15}s` }} />
+                                                <div style={{ height: 8, width: '55%', borderRadius: 4, background: 'var(--bg-tertiary)', marginTop: 8, animation: 'pulse 1.5s ease-in-out infinite', animationDelay: `${i * 0.15 + 0.2}s` }} />
+                                            </div>
+                                        ))}
                                     </div>
                                     {currentStep === 4 && liveFoundCount > 4 && (
                                         <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-tertiary)', textAlign: 'center' }}>
