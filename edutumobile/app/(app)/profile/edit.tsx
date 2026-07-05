@@ -37,6 +37,8 @@ import {
 } from 'lucide-react-native';
 import { Avatar } from '../../../components/ui/Avatar';
 import { toSafeUUID } from '@edutu/core/src/utils/auth';
+import { useCreditRewards } from '@edutu/core/src/hooks/useCreditRewards';
+import { useToast } from '../../../components/context/ToastContext';
 
 interface ProfileData {
     full_name?: string;
@@ -58,6 +60,18 @@ export default function EditProfileScreen() {
     const [profile, setProfile] = useState<ProfileData>({});
     const [focusedField, setFocusedField] = useState<string | null>(null);
 
+    const { show: showToast } = useToast();
+    const { award } = useCreditRewards(supabase, user?.id || null, {
+        onEarned: (amount) => {
+            showToast({
+                emoji: '🎯',
+                variant: 'success',
+                message: `+${amount} credit${amount > 1 ? 's' : ''} for completing your profile`,
+            });
+        },
+    });
+    // TODO: wire REFER_FRIEND when referral flow exists
+
     useEffect(() => {
         if (user) {
             loadProfile();
@@ -66,13 +80,16 @@ export default function EditProfileScreen() {
 
     async function loadProfile() {
         try {
-            const { data, error } = await supabase
+            // Profiles are keyed by the raw Clerk ID (written by the Clerk
+            // webhook); the hashed form only exists in rows from older builds.
+            const lookupIds = Array.from(new Set([user?.id!, toSafeUUID(user?.id!)]));
+            const { data: rows, error } = await supabase
                 .from('profiles')
                 .select('*')
-                .eq('user_id', toSafeUUID(user?.id!))
-                .single();
+                .in('user_id', lookupIds);
 
-            if (error && error.code !== 'PGRST116') throw error;
+            if (error) throw error;
+            const data = rows?.find((row) => row.user_id === user?.id) ?? rows?.[0];
 
             setProfile({
                 full_name: data?.full_name || user?.fullName || '',
@@ -104,7 +121,8 @@ export default function EditProfileScreen() {
             const { error } = await supabase
                 .from('profiles')
                 .upsert({
-                    user_id: toSafeUUID(user.id),
+                    // Must be the raw Clerk ID — RLS requires auth.uid()::text = user_id.
+                    user_id: user.id,
                     full_name: profile.full_name,
                     school: profile.school,
                     major: profile.major,
@@ -117,6 +135,8 @@ export default function EditProfileScreen() {
                 });
 
             if (error) throw error;
+            // Reward profile completion (server grants once; toast via onEarned).
+            void award('PROFILE_COMPLETE');
             Alert.alert('Success', 'Profile updated successfully!', [
                 { text: 'OK', onPress: () => router.back() }
             ]);

@@ -14,8 +14,11 @@ import {
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../../components/context/ThemeContext";
+import { ToastProvider, useToast } from "../../components/context/ToastContext";
+import { useCreditRewards } from "@edutu/core/src/hooks/useCreditRewards";
 import { EdutuLogo } from "../../components/branding/EdutuLogo";
 import { WelcomeHintSystem } from "../../components/ui/WelcomeHintSystem";
+import * as Notifications from "expo-notifications";
 import { notificationService, registerForPushNotificationsAsync } from "../../lib/notifications";
 import { supabase } from "../../lib/supabase";
 import { useNotifications } from "@edutu/core/src/hooks/useNotifications";
@@ -359,6 +362,35 @@ function BottomNav({
     );
 }
 
+// ─── Daily Login Credit Claim ───────────────────────────────────────────────
+// Runs inside <ToastProvider> so it can surface the reward toast. Fires once
+// per mount (ref-guarded) when the user is signed in.
+function DailyLoginRewards() {
+    const { isSignedIn, userId } = useAuth();
+    const { show } = useToast();
+    const claimedForUserRef = React.useRef<string | null>(null);
+
+    const { claimDaily } = useCreditRewards(supabase, userId ?? null, {
+        onEarned: (amount, label) => {
+            show({
+                emoji: "🔥",
+                variant: "success",
+                message: `+${amount} credit${amount > 1 ? "s" : ""} · ${label}`,
+            });
+        },
+    });
+
+    useEffect(() => {
+        if (!isSignedIn || !userId || claimedForUserRef.current === userId) {
+            return;
+        }
+        claimedForUserRef.current = userId;
+        void claimDaily();
+    }, [isSignedIn, userId, claimDaily]);
+
+    return null;
+}
+
 // ─── Root Layout ──────────────────────────────────────────────────────────────
 export default function AppLayout() {
     const { isSignedIn, isLoaded, getToken, userId } = useAuth();
@@ -386,6 +418,42 @@ export default function AppLayout() {
             await registerForPushNotificationsAsync(userId, token);
         })();
     }, [getToken, isSignedIn, userId]);
+
+    // Route the user when they tap a notification (foreground, background,
+    // or cold start via the last-response check).
+    useEffect(() => {
+        if (!isSignedIn) return;
+
+        const handledIds = new Set<string>();
+        const handleResponse = (response: Notifications.NotificationResponse | null) => {
+            if (!response) return;
+            const id = response.notification.request.identifier;
+            if (handledIds.has(id)) return;
+            handledIds.add(id);
+
+            const data = response.notification.request.content.data as Record<string, unknown> | undefined;
+            if (!data) return;
+
+            if (typeof data.url === "string" && data.url.startsWith("/")) {
+                router.push(data.url as never);
+                return;
+            }
+            if (typeof data.goalId === "string") {
+                router.push(`/goals/${data.goalId}` as never);
+                return;
+            }
+            if (typeof data.opportunityId === "string") {
+                router.push(`/opportunities/${data.opportunityId}` as never);
+                return;
+            }
+            router.push("/notifications" as never);
+        };
+
+        const subscription = Notifications.addNotificationResponseReceivedListener(handleResponse);
+        void Notifications.getLastNotificationResponseAsync().then(handleResponse);
+
+        return () => subscription.remove();
+    }, [isSignedIn, router]);
 
     const getActiveRoute = (): string => {
         const path = pathname.toLowerCase();
@@ -455,7 +523,9 @@ export default function AppLayout() {
     ];
 
     return (
+        <ToastProvider>
         <View style={styles.appContainer}>
+            <DailyLoginRewards />
             {!hideSharedHeader && (
                 <AppHeader isDark={isDark} colors={colors} unreadNotifications={unreadCount} />
             )}
@@ -521,6 +591,7 @@ export default function AppLayout() {
                 isDark={isDark}
             />
         </View>
+        </ToastProvider>
     );
 }
 
