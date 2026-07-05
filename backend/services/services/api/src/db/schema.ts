@@ -1063,3 +1063,39 @@ export type RoadmapFeedback = typeof roadmapFeedback.$inferSelect;
 export type MobileAppCampaign = typeof mobileAppCampaigns.$inferSelect;
 export type MobileFeatureFlag = typeof mobileFeatureFlags.$inferSelect;
 export type WidgetFeed = typeof widgetFeeds.$inferSelect;
+
+// --- Google Calendar two-way sync ---
+export const googleCalendarConnections = pgTable(
+  "google_calendar_connections",
+  {
+    userId: uuid("user_id").primaryKey(),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token").notNull(),
+    expiryDate: timestamp("expiry_date"),
+    calendarId: text("calendar_id").notNull().default("primary"),
+    syncToken: text("sync_token"),
+    status: text("status").notNull().default("active"),
+    connectedAt: timestamp("connected_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+);
+
+export const calendarEventLinks = pgTable(
+  "calendar_event_links",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull(),
+    goalId: uuid("goal_id").notNull(),
+    googleEventId: text("google_event_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("calendar_event_links_user_idx").on(table.userId),
+    uniqueIndex("calendar_event_links_goal_idx").on(table.goalId),
+  ],
+);
+
+export type GoogleCalendarConnection =
+  typeof googleCalendarConnections.$inferSelect;
+export type CalendarEventLink = typeof calendarEventLinks.$inferSelect;

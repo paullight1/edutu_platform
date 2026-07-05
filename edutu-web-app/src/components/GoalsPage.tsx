@@ -17,6 +17,7 @@ import PullToRefresh from "./ui/PullToRefresh";
 import { EmptyState } from "./ui/EmptyState";
 import Button from "./ui/Button";
 import EnableNotificationsButton from "./EnableNotificationsButton";
+import ConnectCalendarButton from "./ConnectCalendarButton";
 
 type FilterKey = "all" | "active" | "completed";
 
@@ -206,6 +207,7 @@ export default function GoalsPage() {
             Back
           </button>
           <div className="flex items-center gap-2">
+            <ConnectCalendarButton />
             <EnableNotificationsButton />
             <button
               type="button"
