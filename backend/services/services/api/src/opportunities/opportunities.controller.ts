@@ -58,10 +58,18 @@ export class OpportunitiesController {
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Get()
   async findAll(
+    @Res({ passthrough: true }) response: Response,
     @Query("limit") limit?: number,
     @Query("offset") offset?: number,
     @Query("category") category?: string,
   ) {
+    // The catalog is near-static (changes on admin writes + the daily sync).
+    // Let browsers/CDN absorb repeat reads; Express adds a matching ETag and
+    // answers If-None-Match with 304 automatically.
+    response.setHeader(
+      "Cache-Control",
+      "public, max-age=60, stale-while-revalidate=300",
+    );
     // Public learner feed: active records only, capped page size and depth,
     // and internal/paid-trust fields stripped so the catalog can't be
     // harvested for free at parity with the paid API.
@@ -252,7 +260,14 @@ export class OpportunitiesController {
   @Public()
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @Get(":id")
-  async findOne(@Param("id") id: string) {
+  async findOne(
+    @Param("id") id: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    response.setHeader(
+      "Cache-Control",
+      "public, max-age=60, stale-while-revalidate=300",
+    );
     const row = await this.opportunitiesService.findOne(id);
     return (
       stripInternalOpportunityFieldsBatch(

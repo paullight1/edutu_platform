@@ -5,6 +5,7 @@ import {
   AiProviderAdapter,
   AiRouteConfig,
 } from "../ai.types";
+import { aiFetch } from "./ai-http";
 
 const DEEPSEEK_API_URL =
   process.env.DEEPSEEK_API_URL || "https://api.deepseek.com/chat/completions";
@@ -24,7 +25,9 @@ export class DeepSeekAdapter implements AiProviderAdapter {
       throw new Error("DeepSeek API key is not configured");
     }
 
-    const response = await fetch(DEEPSEEK_API_URL, {
+    const response = await aiFetch(
+      DEEPSEEK_API_URL,
+      {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -61,7 +64,9 @@ export class DeepSeekAdapter implements AiProviderAdapter {
           ? { response_format: { type: "json_object" } }
           : {}),
       }),
-    });
+      },
+      { label: "DeepSeek" },
+    );
 
     if (!response.ok) {
       const failureText = await response.text();
@@ -99,7 +104,9 @@ export class GeminiAdapter implements AiProviderAdapter {
     const model = config.model || "gemini-2.0-flash";
     const systemPrompt = config.systemPrompt || options.systemInstruction;
     const endpoint = `${GEMINI_API_URL_BASE}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(config.apiKey)}`;
-    const response = await fetch(endpoint, {
+    const response = await aiFetch(
+      endpoint,
+      {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -138,7 +145,9 @@ export class GeminiAdapter implements AiProviderAdapter {
             : {}),
         },
       }),
-    });
+      },
+      { label: "Gemini" },
+    );
 
     if (!response.ok) {
       const failureText = await response.text();

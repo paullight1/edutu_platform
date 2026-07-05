@@ -42,6 +42,8 @@ export interface AiRouteConfig {
   maxOutputTokens?: number | null;
   responseMimeType?: string | null;
   responseJsonSchema?: Record<string, unknown> | null;
+  fallbackProvider?: AiProvider | null;
+  fallbackModel?: string | null;
   isEnabled: boolean;
 }
 

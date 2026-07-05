@@ -11,6 +11,7 @@ import { eq, or, and, sql, lt, isNull, desc } from "drizzle-orm";
 import * as path from "path";
 import { z } from "zod";
 import { OpportunityRankingService } from "./opportunity-ranking.service";
+import { TtlCache } from "../common/cache/ttl-cache";
 import {
   OpportunityPreferenceDto,
   OpportunitySignalDto,
@@ -410,10 +411,29 @@ async function loadStaticOpportunitySnapshot(): Promise<
   }
 }
 
+const OPPORTUNITY_READ_CACHE_TTL_MS = Number(
+  process.env.OPPORTUNITY_READ_CACHE_TTL_MS ?? 60_000,
+);
+
 @Injectable()
 export class OpportunitiesService {
   private readonly logger = new Logger(OpportunitiesService.name);
   private readonly supabase: SupabaseClient | null = null;
+
+  // Read-through caches for the near-static catalog. Invalidated on every write
+  // (create/update/status/remove/import/enhance/purge/sync). See TtlCache note
+  // re: multi-instance staleness.
+  private readonly listCache = new TtlCache<Record<string, any>[]>(
+    OPPORTUNITY_READ_CACHE_TTL_MS,
+  );
+  private readonly detailCache = new TtlCache<Record<string, any> | null>(
+    OPPORTUNITY_READ_CACHE_TTL_MS,
+  );
+
+  private invalidateReadCaches(): void {
+    this.listCache.clear();
+    this.detailCache.clear();
+  }
 
   constructor(
     private readonly opportunityRankingService: OpportunityRankingService,
@@ -440,6 +460,28 @@ export class OpportunitiesService {
     const cappedLimit = Math.min(Number(limit) || 20, 100);
     const normalizedOffset = Number(offset) || 0;
 
+    const cacheKey = `${statusFilter}|${category ?? ""}|${cappedLimit}|${normalizedOffset}`;
+    const cached = this.listCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const rows = await this.loadOpportunityList(
+      statusFilter,
+      category,
+      cappedLimit,
+      normalizedOffset,
+    );
+    this.listCache.set(cacheKey, rows);
+    return rows;
+  }
+
+  private async loadOpportunityList(
+    statusFilter: string,
+    category: string | undefined,
+    cappedLimit: number,
+    normalizedOffset: number,
+  ): Promise<Record<string, any>[]> {
     try {
       if (this.supabase) {
         let request = this.supabase
@@ -480,14 +522,14 @@ export class OpportunitiesService {
             )
             .limit(cappedLimit)
             .offset(normalizedOffset)
-            .orderBy(opportunities.createdAt)
+            .orderBy(desc(opportunities.createdAt))
         : db
             .select()
             .from(opportunities)
             .where(eq(opportunities.status, statusFilter))
             .limit(cappedLimit)
             .offset(normalizedOffset)
-            .orderBy(opportunities.createdAt);
+            .orderBy(desc(opportunities.createdAt));
 
       const rows = await query.execute();
       if (rows.length > 0) {
@@ -598,6 +640,17 @@ export class OpportunitiesService {
   }
 
   async findOne(id: string) {
+    const cached = this.detailCache.get(id);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const result = await this.loadOpportunityDetail(id);
+    this.detailCache.set(id, result);
+    return result;
+  }
+
+  private async loadOpportunityDetail(id: string) {
     try {
       if (this.supabase) {
         const { data, error } = await this.supabase
@@ -837,6 +890,7 @@ export class OpportunitiesService {
     olderThanDays?: number | null;
     missingImagesOnly?: boolean;
   }) {
+    this.invalidateReadCaches();
     const hasMissingImagesFilter = Boolean(options.missingImagesOnly);
     const hasAgeFilter =
       typeof options.olderThanDays === "number" &&
@@ -879,6 +933,9 @@ export class OpportunitiesService {
 
     const limit = Math.min(Math.max(Number(options.limit) || 200, 1), 1000);
     const dryRun = Boolean(options.dryRun);
+    if (!dryRun) {
+      this.invalidateReadCaches();
+    }
     const { data, error } = await this.supabase
       .from("opportunities")
       .select("*")
@@ -952,6 +1009,7 @@ export class OpportunitiesService {
   }
 
   async create(dto: CreateOpportunityDto) {
+    this.invalidateReadCaches();
     if (this.supabase) {
       const { data, error } = await this.supabase
         .from("opportunities")
@@ -1000,6 +1058,7 @@ export class OpportunitiesService {
   }
 
   async update(id: string, data: Partial<CreateOpportunityDto>) {
+    this.invalidateReadCaches();
     if (this.supabase) {
       const { data: updated, error } = await this.supabase
         .from("opportunities")
@@ -1039,6 +1098,7 @@ export class OpportunitiesService {
   }
 
   async updateStatus(id: string, status: string) {
+    this.invalidateReadCaches();
     if (this.supabase) {
       const { error } = await this.supabase
         .from("opportunities")
@@ -1184,6 +1244,10 @@ export class OpportunitiesService {
       updated_at: new Date().toISOString(),
     };
 
+    // findOne() above populated the caches with the pre-enhancement row; clear
+    // them now (just before the write) so post-enhancement reads are fresh.
+    this.invalidateReadCaches();
+
     if (this.supabase) {
       const { data, error } = await this.supabase
         .from("opportunities")
@@ -1259,6 +1323,7 @@ export class OpportunitiesService {
   }
 
   async remove(id: string) {
+    this.invalidateReadCaches();
     if (this.supabase) {
       const { error } = await this.supabase
         .from("opportunities")
@@ -1765,10 +1830,9 @@ ${sourceText || "No source page text was available. Improve wording only from st
     const cleanedSummary = this.cleanOptionalText(summary, 420);
     const cleanedDescription = this.cleanText(String(description || ""), 1200);
     const fallback =
-      this.firstSentence(cleanedDescription) ||
-      this.cleanText(title, 220) ||
-      "Scholarship opportunity details are being verified by Edutu.";
+      this.firstSentence(cleanedDescription) || this.cleanText(title, 220);
     const candidate = cleanedSummary || fallback;
+    if (!candidate) return "";
     const words = candidate.split(/\s+/).filter(Boolean);
     const limited =
       words.length > 45 ? words.slice(0, 45).join(" ") : candidate;
@@ -1989,6 +2053,7 @@ ${sourceText || "No source page text was available. Improve wording only from st
 
   // Save opportunities to database
   async saveOpportunities(items: any[]) {
+    this.invalidateReadCaches();
     let inserted = 0;
     let skipped = 0;
 
