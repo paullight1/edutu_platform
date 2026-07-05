@@ -100,6 +100,27 @@ export class ScraperController {
     return subject.asObservable();
   }
 
+  // ─── Live run controls (pause / resume / stop the in-flight scrape) ────────
+  @Post("run/pause")
+  pauseRun() {
+    return this.scraperService.pauseRun();
+  }
+
+  @Post("run/resume")
+  resumeRun() {
+    return this.scraperService.resumeRun();
+  }
+
+  @Post("run/stop")
+  stopRun() {
+    return this.scraperService.stopRun();
+  }
+
+  @Get("run/status")
+  runStatus() {
+    return this.scraperService.getRunStatus();
+  }
+
   @Post("backfill")
   @Throttle({ default: { limit: 12, ttl: 3600000 } })
   async backfill(@Body() body: { limit?: number }) {

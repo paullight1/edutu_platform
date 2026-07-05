@@ -220,6 +220,10 @@ export default function ScraperDashboard() {
     // Background-run UX: when the modal is minimized the scrape keeps running.
     const [isBackground, setIsBackground] = useState(false);
     const [liveFoundCount, setLiveFoundCount] = useState(0);
+    // Live pause/stop + real progress tracking.
+    const [isPaused, setIsPaused] = useState(false);
+    const [sourcesTotal, setSourcesTotal] = useState(0);
+    const [sourcesDone, setSourcesDone] = useState(0);
     const [notifications, setNotifications] = useState<Notification[]>([]);
 
     const showNotification = (message: string, type: Notification['type'] = 'info') => {
@@ -530,6 +534,26 @@ export default function ScraperDashboard() {
         setShowLoadingModal(true);
     }
 
+    // Live run controls — hit the backend so the crawl actually pauses/stops.
+    const postRunControl = async (action: 'pause' | 'resume' | 'stop') => {
+        try {
+            await fetch(`${API_URL}/run/${action}`, {
+                method: 'POST',
+                headers: await getAuthHeaders(),
+            });
+        } catch (e) {
+            console.warn(`Failed to ${action} scrape run`, e);
+        }
+    };
+    const pauseScrape = () => { setIsPaused(true); void postRunControl('pause'); };
+    const resumeScrape = () => { setIsPaused(false); void postRunControl('resume'); };
+    // Graceful stop: the backend finalizes with partial results and the stream
+    // sends `done`, so the normal completion path renders what was gathered.
+    const requestStopScrape = () => {
+        void postRunControl('stop');
+        showNotification('Stopping scrape — finishing the current item…', 'info');
+    };
+
     const getJobSourceResults = (job: ScrapeJob) => {
         if (!job.source_results) return [];
         try {
@@ -614,6 +638,9 @@ export default function ScraperDashboard() {
         setIsBackground(false);
         isBackgroundRef.current = false;
         setLiveFoundCount(0);
+        setIsPaused(false);
+        setSourcesTotal(0);
+        setSourcesDone(0);
         setShowLoadingModal(true);
         setCurrentStep(1);
         setScrapingStartedAt(Date.now());
@@ -684,10 +711,15 @@ export default function ScraperDashboard() {
                             setCurrentStep(2);
                             const names = Array.isArray(evt.sources) ? (evt.sources as string[]) : sourcesToScrape.map(s => s.name);
                             setScrapingProgress(names.map(n => ({ source: n, status: 'pending' as const, progress: 0 })));
+                            setSourcesTotal(names.length);
+                            setSourcesDone(0);
                             break;
                         }
                         case 'source-start':
                             markSource(String(evt.name), 'scraping');
+                            break;
+                        case 'control':
+                            setIsPaused(evt.state === 'paused');
                             break;
                         case 'opportunity':
                             // Live append — this is what makes items stream in one by one.
@@ -703,6 +735,7 @@ export default function ScraperDashboard() {
                             break;
                         case 'source-done':
                             markSource(String(evt.name), evt.error ? 'failed' : 'completed');
+                            setSourcesDone(prev => prev + 1);
                             break;
                         case 'done':
                             finalResult = (evt.result as Record<string, unknown>) || {};
@@ -952,11 +985,14 @@ export default function ScraperDashboard() {
         ? 0
         : currentStep >= 4
             ? 100
-            : currentStep === 3
-                ? Math.min(96, 78 + Math.floor(scrapingElapsedSeconds / 3))
-                : currentStep === 2
-                    ? Math.min(76, 28 + Math.floor(scrapingElapsedSeconds * 1.6))
-                    : Math.min(24, 8 + Math.floor(scrapingElapsedSeconds * 2));
+            // Real progress once the source count is known (sources completed / total).
+            : sourcesTotal > 0
+                ? Math.min(99, Math.max(2, Math.round((sourcesDone / sourcesTotal) * 100)))
+                : currentStep === 3
+                    ? Math.min(96, 78 + Math.floor(scrapingElapsedSeconds / 3))
+                    : currentStep === 2
+                        ? Math.min(76, 28 + Math.floor(scrapingElapsedSeconds * 1.6))
+                        : Math.min(24, 8 + Math.floor(scrapingElapsedSeconds * 2));
 
     const toggleOpportunitySelection = (index: number) => {
         const newSelection = new Set(selectedOpportunities);
@@ -2595,6 +2631,8 @@ export default function ScraperDashboard() {
                                         <AlertCircle size={32} color="white" />
                                     ) : currentStep === 4 ? (
                                         <CheckCircle2 size={32} color="white" />
+                                    ) : isPaused ? (
+                                        <Pause size={30} color="white" />
                                     ) : (
                                         <Loader2 size={32} color="white" className="animate-spin" />
                                     )}
@@ -2605,7 +2643,7 @@ export default function ScraperDashboard() {
                                     color: modalError ? '#ff3b30' : 'var(--text-primary)',
                                     margin: 0,
                                 }}>
-                                    {modalError ? 'Scraping Failed' : currentStep === 4 ? 'Scraping Complete!' : 'Scraping in Progress...'}
+                                    {modalError ? 'Scraping Failed' : currentStep === 4 ? 'Scraping Complete!' : isPaused ? 'Scrape Paused' : 'Scraping in Progress...'}
                                 </h2>
                                 <p style={{
                                     color: 'var(--text-tertiary)',
@@ -2857,26 +2895,26 @@ export default function ScraperDashboard() {
                                 ) : (
                                     <>
                                         <button
-                                            onClick={minimizeScrape}
-                                            title="Keep the scrape running and close this window"
+                                            onClick={isPaused ? resumeScrape : pauseScrape}
+                                            title={isPaused ? 'Resume the scrape' : 'Pause the scrape'}
                                             style={{
                                                 display: 'flex', alignItems: 'center', gap: 8,
-                                                padding: '10px 24px', background: 'var(--apple-blue)',
-                                                border: '1px solid transparent', borderRadius: 10,
-                                                color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                                                padding: '10px 22px', background: isPaused ? 'rgba(52, 199, 89, 0.12)' : 'var(--bg-tertiary)',
+                                                border: `1px solid ${isPaused ? 'rgba(52, 199, 89, 0.35)' : 'var(--border-medium)'}`, borderRadius: 10,
+                                                color: isPaused ? '#34c759' : 'var(--text-primary)', fontSize: 14, fontWeight: 600, cursor: 'pointer',
                                                 transition: 'opacity 0.2s ease',
                                             }}
-                                            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.88'; }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
                                             onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
                                         >
-                                            <ArrowLeft size={16} /> Run in background
+                                            {isPaused ? <><Play size={16} /> Resume</> : <><Pause size={16} /> Pause</>}
                                         </button>
                                         <button
-                                            onClick={stopScrape}
-                                            title="Abort this scrape"
+                                            onClick={requestStopScrape}
+                                            title="Stop and keep what was gathered so far"
                                             style={{
                                                 display: 'flex', alignItems: 'center', gap: 8,
-                                                padding: '10px 24px', background: 'rgba(255, 59, 48, 0.1)',
+                                                padding: '10px 22px', background: 'rgba(255, 59, 48, 0.1)',
                                                 border: '1px solid rgba(255, 59, 48, 0.3)', borderRadius: 10,
                                                 color: '#ff3b30', fontSize: 14, fontWeight: 500, cursor: 'pointer',
                                                 transition: 'opacity 0.2s ease',
@@ -2884,7 +2922,22 @@ export default function ScraperDashboard() {
                                             onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
                                             onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
                                         >
-                                            <X size={16} /> Cancel
+                                            <X size={16} /> Stop
+                                        </button>
+                                        <button
+                                            onClick={minimizeScrape}
+                                            title="Keep the scrape running and close this window"
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 8,
+                                                padding: '10px 22px', background: 'var(--apple-blue)',
+                                                border: '1px solid transparent', borderRadius: 10,
+                                                color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                                                transition: 'opacity 0.2s ease',
+                                            }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.88'; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+                                        >
+                                            <ArrowLeft size={16} /> Background
                                         </button>
                                     </>
                                 )}
@@ -2896,28 +2949,50 @@ export default function ScraperDashboard() {
 
             {/* Floating background-scrape pill (shown while minimized) */}
             {scraping && isBackground && !showLoadingModal && (
-                <button
-                    onClick={restoreScrape}
-                    title="Scrape running in background — click to view progress"
+                <div
                     style={{
                         position: 'fixed', bottom: 24, right: 24, zIndex: 1100,
-                        display: 'flex', alignItems: 'center', gap: 12,
-                        padding: '12px 18px', borderRadius: 999,
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '10px 12px 10px 14px', borderRadius: 18,
                         background: 'var(--bg-primary)', border: '1px solid var(--border-medium)',
-                        boxShadow: '0 12px 30px -8px rgba(0,0,0,0.35)', cursor: 'pointer',
+                        boxShadow: '0 12px 30px -8px rgba(0,0,0,0.35)',
                         color: 'var(--text-primary)', animation: 'slideUp 0.3s ease',
                     }}
                 >
-                    <span style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#146ef5,#60a5fa)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-                        <Loader2 size={18} className="animate-spin" />
-                    </span>
-                    <span style={{ textAlign: 'left' }}>
-                        <span style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>Scraping in background…</span>
-                        <span style={{ display: 'block', fontSize: 11, color: 'var(--text-tertiary)' }}>
-                            {formatElapsed(scrapingElapsedSeconds)} elapsed • tap to view
+                    <button
+                        onClick={restoreScrape}
+                        title="Tap to view scrape progress"
+                        style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0 }}
+                    >
+                        <span style={{ width: 34, height: 34, borderRadius: 10, background: isPaused ? 'var(--bg-tertiary)' : 'linear-gradient(135deg,#146ef5,#60a5fa)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isPaused ? 'var(--text-secondary)' : 'white' }}>
+                            {isPaused ? <Pause size={17} /> : <Loader2 size={18} className="animate-spin" />}
                         </span>
-                    </span>
-                </button>
+                        <span style={{ textAlign: 'left' }}>
+                            <span style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>
+                                {isPaused ? 'Scrape paused' : 'Scraping…'} <span style={{ color: '#146ef5' }}>{liveFoundCount}</span> found · {estimatedProgress}%
+                            </span>
+                            <span style={{ display: 'block', fontSize: 11, color: 'var(--text-tertiary)' }}>
+                                {formatElapsed(scrapingElapsedSeconds)} elapsed · tap to view
+                            </span>
+                        </span>
+                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 4 }}>
+                        <button
+                            onClick={isPaused ? resumeScrape : pauseScrape}
+                            title={isPaused ? 'Resume' : 'Pause'}
+                            style={{ width: 32, height: 32, borderRadius: 9, border: '1px solid var(--border-light)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                            {isPaused ? <Play size={15} /> : <Pause size={15} />}
+                        </button>
+                        <button
+                            onClick={requestStopScrape}
+                            title="Stop (keep what was gathered)"
+                            style={{ width: 32, height: 32, borderRadius: 9, border: '1px solid rgba(255,59,48,0.3)', background: 'rgba(255,59,48,0.1)', color: '#ff3b30', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                            <X size={15} />
+                        </button>
+                    </div>
+                </div>
             )}
 
             {/* Results Modal */}
