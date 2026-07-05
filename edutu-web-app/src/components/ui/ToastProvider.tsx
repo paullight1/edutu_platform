@@ -31,23 +31,23 @@ interface ToastContextValue {
 const ToastContext = createContext<ToastContextValue | null>(null);
 
 const VARIANT_STYLES: Record<ToastVariant, string> = {
-  default: 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200',
-  success: 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300',
-  error: 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300',
-  warning: 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
-  info: 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
-  offline: 'border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300',
-  online: 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+  default: 'border-subtle bg-surface-layer text-text-primary',
+  success: 'border-success/20 bg-success/10 text-success',
+  error: 'border-danger/20 bg-danger/10 text-danger',
+  warning: 'border-warning/20 bg-warning/10 text-warning',
+  info: 'border-info/20 bg-info/10 text-info',
+  offline: 'border-subtle bg-surface-elevated text-text-secondary',
+  online: 'border-success/20 bg-success/10 text-success'
 };
 
 const VARIANT_ICONS: Record<ToastVariant, React.ReactNode> = {
   default: null,
-  success: <CheckCircle size={18} className="text-emerald-500" />,
-  error: <XCircle size={18} className="text-red-500" />,
-  warning: <AlertTriangle size={18} className="text-amber-500" />,
-  info: <Info size={18} className="text-blue-500" />,
-  offline: <WifiOff size={18} className="text-gray-500" />,
-  online: <Wifi size={18} className="text-emerald-500" />
+  success: <CheckCircle size={18} className="text-success" />,
+  error: <XCircle size={18} className="text-danger" />,
+  warning: <AlertTriangle size={18} className="text-warning" />,
+  info: <Info size={18} className="text-info" />,
+  offline: <WifiOff size={18} className="text-text-muted" />,
+  online: <Wifi size={18} className="text-success" />
 };
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -100,7 +100,9 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     const handleOffline = () => {
-      toast({ title: "You're offline", description: 'Some features may be unavailable', variant: 'offline', durationMs: 0 });
+      // The persistent offline state is surfaced by <OfflineBanner /> (a slim
+      // top bar) instead of a bottom toast, so we only record that we went
+      // offline to trigger the "back online" confirmation on reconnect.
       setWasOffline(true);
     };
 
