@@ -33,7 +33,7 @@ function createPool(connectionString: string) {
   });
 }
 
-const pool = createPool(process.env.DATABASE_URL!);
+export const pool = createPool(process.env.DATABASE_URL!);
 
 pool.on("error", (error) => {
   console.error("Unexpected database pool error", error);
