@@ -35,6 +35,7 @@ function getWidgetItems(props: OpportunityWidgetProps): RenderableWidgetItem[] {
       category: props.category,
       location: props.location,
       match: props.match,
+      urgent: props.urgent,
       deepLink: props.deepLink,
     }];
 
@@ -61,13 +62,22 @@ function MatchText({ match, dark = false }: { match?: number; dark?: boolean }) 
   );
 }
 
-function DeadlineText({ children, compact = false }: { children: string; compact?: boolean }) {
+function DeadlineText({
+  children,
+  compact = false,
+  urgent = false,
+}: {
+  children: string;
+  compact?: boolean;
+  urgent?: boolean;
+}) {
   return (
     <Text
       modifiers={[
         font({ size: compact ? 11 : 12, weight: "semibold" }),
         foregroundStyle("#FFFFFF"),
-        background("#3563E9"),
+        // Red when a deadline is closing soon, otherwise the calm brand blue.
+        background(urgent ? "#E5484D" : "#3563E9"),
         padding({ horizontal: compact ? 6 : 8, vertical: compact ? 2 : 4 }),
         lineLimit(1),
         truncationMode("tail"),
@@ -123,6 +133,7 @@ function SystemSmall(props: OpportunityWidgetProps) {
     category: props.category,
     location: props.location,
     match: props.match,
+    urgent: props.urgent,
     deepLink: props.deepLink,
   };
 
@@ -144,7 +155,7 @@ function SystemSmall(props: OpportunityWidgetProps) {
       <Text modifiers={[font({ size: 16, weight: "bold" }), foregroundStyle("#101828"), lineLimit(3), truncationMode("tail")]}>
         {hero.title}
       </Text>
-      <DeadlineText compact>{hero.deadline}</DeadlineText>
+      <DeadlineText compact urgent={hero.urgent}>{hero.deadline}</DeadlineText>
     </VStack>
   );
 }
@@ -158,6 +169,7 @@ function SystemMedium(props: OpportunityWidgetProps) {
     category: props.category,
     location: props.location,
     match: props.match,
+    urgent: props.urgent,
     deepLink: props.deepLink,
   };
   const next = items[1];
@@ -182,7 +194,7 @@ function SystemMedium(props: OpportunityWidgetProps) {
         {hero.title}
       </Text>
       <HStack spacing={8}>
-        <DeadlineText>{hero.deadline}</DeadlineText>
+        <DeadlineText urgent={hero.urgent}>{hero.deadline}</DeadlineText>
         <Text modifiers={[font({ size: 12, weight: "semibold" }), foregroundStyle("#C7D2FE"), lineLimit(1), truncationMode("tail")]}>
           {hero.provider}
         </Text>

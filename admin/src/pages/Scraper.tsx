@@ -217,6 +217,9 @@ export default function ScraperDashboard() {
     const [scrapingElapsedSeconds, setScrapingElapsedSeconds] = useState(0);
     const [selectedOpportunities, setSelectedOpportunities] = useState<Set<number>>(new Set());
     const [activeScrapeJobId, setActiveScrapeJobId] = useState<string | null>(null);
+    // Background-run UX: when the modal is minimized the scrape keeps running.
+    const [isBackground, setIsBackground] = useState(false);
+    const [liveFoundCount, setLiveFoundCount] = useState(0);
     const [notifications, setNotifications] = useState<Notification[]>([]);
 
     const showNotification = (message: string, type: Notification['type'] = 'info') => {
@@ -235,16 +238,19 @@ export default function ScraperDashboard() {
     const [detailsOpportunity, setDetailsOpportunity] = useState<ScrapedOpportunity | null>(null);
     const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
     const abortControllerRef = useRef<AbortController | null>(null);
+    // Mirrors isBackground for the async scrape closure (state would be stale).
+    const isBackgroundRef = useRef(false);
 
     useEffect(() => {
-        if (!showLoadingModal || !scrapingStartedAt || modalError || currentStep >= 4) return;
+        // Keep ticking while the modal is open OR minimized to the background pill.
+        if (!(showLoadingModal || isBackground) || !scrapingStartedAt || modalError || currentStep >= 4) return;
 
         const interval = window.setInterval(() => {
             setScrapingElapsedSeconds(Math.max(0, Math.floor((Date.now() - scrapingStartedAt) / 1000)));
         }, 1000);
 
         return () => window.clearInterval(interval);
-    }, [showLoadingModal, scrapingStartedAt, modalError, currentStep]);
+    }, [showLoadingModal, isBackground, scrapingStartedAt, modalError, currentStep]);
 
     const fetchSettings = useCallback(async () => {
         try {
@@ -494,15 +500,34 @@ export default function ScraperDashboard() {
         };
     }, [fetchSettings, loadData, loadRecentOpportunities]);
 
+    // Explicit cancel: aborts the in-flight scrape and resets everything.
     function stopScrape() {
         if (abortControllerRef.current) {
             abortControllerRef.current.abort();
         }
         setScraping(false);
         setShowLoadingModal(false);
+        setIsBackground(false);
+        isBackgroundRef.current = false;
         setModalError(null);
         setScrapingStartedAt(null);
         setScrapingElapsedSeconds(0);
+        setLiveFoundCount(0);
+    }
+
+    // Minimize: hide the modal but let the scrape keep running in the background.
+    // The fetch promise in startScrape is NOT aborted, so it completes normally.
+    function minimizeScrape() {
+        setShowLoadingModal(false);
+        setIsBackground(true);
+        isBackgroundRef.current = true;
+    }
+
+    // Re-open the progress modal from the floating background pill.
+    function restoreScrape() {
+        setIsBackground(false);
+        isBackgroundRef.current = false;
+        setShowLoadingModal(true);
     }
 
     const getJobSourceResults = (job: ScrapeJob) => {
@@ -586,6 +611,9 @@ export default function ScraperDashboard() {
         setScrapeResult(null);
         setModalError(null);
         setActiveScrapeJobId(null);
+        setIsBackground(false);
+        isBackgroundRef.current = false;
+        setLiveFoundCount(0);
         setShowLoadingModal(true);
         setCurrentStep(1);
         setScrapingStartedAt(Date.now());
@@ -654,6 +682,7 @@ export default function ScraperDashboard() {
 
                 setScrapeResult(mapped);
                 setActiveScrapeJobId(mapped.jobId ?? null);
+                setLiveFoundCount(mapped.opportunities?.length ?? mapped.totalResults ?? 0);
 
                 setScrapingProgress(
                     (result.sourceResults ?? sourcesToScrape.map(s => ({ name: s.name, status: 'success' as const }))).map(
@@ -667,11 +696,24 @@ export default function ScraperDashboard() {
 
                 // Step 4: Complete
                 setCurrentStep(4);
+                const foundCount = mapped.opportunities?.length ?? mapped.totalResults ?? 0;
                 await new Promise(r => setTimeout(r, 1000));
-
-                setShowLoadingModal(false);
-                setShowResultsModal(true);
                 setScrapingStartedAt(null);
+
+                if (isBackgroundRef.current) {
+                    // Finished while minimized — don't hijack the screen. Surface it
+                    // in the toast + Recent Scrapes list so the user can open it.
+                    setIsBackground(false);
+                    isBackgroundRef.current = false;
+                    setShowLoadingModal(false);
+                    showNotification(
+                        `Background scrape complete — ${foundCount} opportunities found. Open it from Recent Scrapes below.`,
+                        'success',
+                    );
+                } else {
+                    setShowLoadingModal(false);
+                    setShowResultsModal(true);
+                }
                 await loadData();
                 await loadRecentOpportunities();
             } else {
@@ -695,6 +737,13 @@ export default function ScraperDashboard() {
                 setModalError(hint);
                 setScrapeResult({ success: false, error: hint });
             }
+        }
+        // If an error surfaced while the modal was minimized, bring it back so the
+        // user actually sees what went wrong (success path already cleared the ref).
+        if (isBackgroundRef.current) {
+            setIsBackground(false);
+            isBackgroundRef.current = false;
+            setShowLoadingModal(true);
         }
         setScraping(false);
         abortControllerRef.current = null;
@@ -2722,37 +2771,124 @@ export default function ScraperDashboard() {
                                 </div>
                             )}
 
-                            {/* Stop / Dismiss Button */}
-                            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 20 }}>
-                                <button
-                                    onClick={stopScrape}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 8,
-                                        padding: '10px 28px',
-                                        background: modalError ? 'var(--apple-blue)' : 'rgba(255, 59, 48, 0.1)',
-                                        border: `1px solid ${modalError ? 'transparent' : 'rgba(255, 59, 48, 0.3)'}`,
-                                        borderRadius: 10,
-                                        color: modalError ? 'white' : '#ff3b30',
-                                        fontSize: 14,
-                                        fontWeight: 500,
-                                        cursor: 'pointer',
-                                        transition: 'opacity 0.2s ease',
-                                    }}
-                                    onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
-                                    onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
-                                >
-                                    {modalError
-                                        ? <><CheckCircle2 size={16} /> Dismiss</>
-                                        : <><X size={16} /> Stop Scraping</>
-                                    }
-                                </button>
+                            {/* Live opportunity count + per-item loading skeletons */}
+                            {!modalError && (
+                                <div style={{ marginBottom: 4 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                            {currentStep === 4 ? 'Opportunities found' : 'Opportunities incoming'}
+                                        </span>
+                                        <span style={{ fontSize: 15, fontWeight: 700, color: '#146ef5', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                            {currentStep === 4
+                                                ? liveFoundCount
+                                                : <><Loader2 size={13} className="animate-spin" /> scanning…</>}
+                                        </span>
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                                        {currentStep === 4 && scrapeResult?.opportunities?.length
+                                            ? scrapeResult.opportunities.slice(0, 4).map((opp, i) => (
+                                                <div key={i} style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border-light)' }}>
+                                                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opp.title}</div>
+                                                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opp.organization || opp.source}</div>
+                                                </div>
+                                            ))
+                                            : Array.from({ length: 4 }).map((_, i) => (
+                                                <div key={i} style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border-light)' }}>
+                                                    <div style={{ height: 10, width: '80%', borderRadius: 4, background: 'var(--bg-tertiary)', animation: 'pulse 1.5s ease-in-out infinite', animationDelay: `${i * 0.15}s` }} />
+                                                    <div style={{ height: 8, width: '55%', borderRadius: 4, background: 'var(--bg-tertiary)', marginTop: 8, animation: 'pulse 1.5s ease-in-out infinite', animationDelay: `${i * 0.15 + 0.2}s` }} />
+                                                </div>
+                                            ))}
+                                    </div>
+                                    {currentStep === 4 && liveFoundCount > 4 && (
+                                        <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-tertiary)', textAlign: 'center' }}>
+                                            + {liveFoundCount - 4} more — click the run in Recent Scrapes to view all
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+            {/* Footer actions: minimize (keep running) vs cancel; Dismiss on error/complete */}
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 20 }}>
+                                {modalError || currentStep === 4 ? (
+                                    <button
+                                        onClick={stopScrape}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: 8,
+                                            padding: '10px 28px', background: 'var(--apple-blue)',
+                                            border: '1px solid transparent', borderRadius: 10,
+                                            color: 'white', fontSize: 14, fontWeight: 500, cursor: 'pointer',
+                                            transition: 'opacity 0.2s ease',
+                                        }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+                                    >
+                                        <CheckCircle2 size={16} /> Dismiss
+                                    </button>
+                                ) : (
+                                    <>
+                                        <button
+                                            onClick={minimizeScrape}
+                                            title="Keep the scrape running and close this window"
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 8,
+                                                padding: '10px 24px', background: 'var(--apple-blue)',
+                                                border: '1px solid transparent', borderRadius: 10,
+                                                color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                                                transition: 'opacity 0.2s ease',
+                                            }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.88'; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+                                        >
+                                            <ArrowLeft size={16} /> Run in background
+                                        </button>
+                                        <button
+                                            onClick={stopScrape}
+                                            title="Abort this scrape"
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 8,
+                                                padding: '10px 24px', background: 'rgba(255, 59, 48, 0.1)',
+                                                border: '1px solid rgba(255, 59, 48, 0.3)', borderRadius: 10,
+                                                color: '#ff3b30', fontSize: 14, fontWeight: 500, cursor: 'pointer',
+                                                transition: 'opacity 0.2s ease',
+                                            }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+                                        >
+                                            <X size={16} /> Cancel
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>
                 )
             }
+
+            {/* Floating background-scrape pill (shown while minimized) */}
+            {scraping && isBackground && !showLoadingModal && (
+                <button
+                    onClick={restoreScrape}
+                    title="Scrape running in background — click to view progress"
+                    style={{
+                        position: 'fixed', bottom: 24, right: 24, zIndex: 1100,
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '12px 18px', borderRadius: 999,
+                        background: 'var(--bg-primary)', border: '1px solid var(--border-medium)',
+                        boxShadow: '0 12px 30px -8px rgba(0,0,0,0.35)', cursor: 'pointer',
+                        color: 'var(--text-primary)', animation: 'slideUp 0.3s ease',
+                    }}
+                >
+                    <span style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#146ef5,#60a5fa)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                        <Loader2 size={18} className="animate-spin" />
+                    </span>
+                    <span style={{ textAlign: 'left' }}>
+                        <span style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>Scraping in background…</span>
+                        <span style={{ display: 'block', fontSize: 11, color: 'var(--text-tertiary)' }}>
+                            {formatElapsed(scrapingElapsedSeconds)} elapsed • tap to view
+                        </span>
+                    </span>
+                </button>
+            )}
 
             {/* Results Modal */}
             {

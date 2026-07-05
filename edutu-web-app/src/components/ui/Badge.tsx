@@ -6,10 +6,10 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 }
 
 const variantStyles: Record<Required<BadgeProps>['variant'], string> = {
-  default: 'bg-gray-100 text-gray-700',
-  success: 'bg-emerald-100 text-emerald-700',
-  danger: 'bg-red-100 text-red-600',
-  outline: 'border border-gray-200 text-gray-600'
+  default: 'bg-surface-elevated text-text-secondary',
+  success: 'bg-success/10 text-success',
+  danger: 'bg-danger/10 text-danger',
+  outline: 'border border-subtle text-text-secondary'
 };
 
 const Badge: React.FC<BadgeProps> = ({ className, variant = 'default', ...props }) => (

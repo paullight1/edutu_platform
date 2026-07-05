@@ -55,9 +55,7 @@ const DeveloperDashboardPage = lazy(
   () => import("./components/DeveloperDashboardPage"),
 );
 const DeadlinesPage = lazy(() => import("./components/DeadlinesPage"));
-const GoalsPage = lazy(() => import("./components/GoalsPage"));
 const ProfilePage = lazy(() => import("./components/ProfilePage"));
-const RoadmapsPage = lazy(() => import("./components/RoadmapsPage"));
 const SavedPage = lazy(() => import("./components/SavedPage"));
 const SettingsPage = lazy(() => import("./components/SettingsPage"));
 
@@ -546,23 +544,9 @@ function App() {
       <Route path="/app/coach" element={<Navigate to="/dashboard" replace />} />
       <Route path="/cv" element={<Navigate to="/dashboard" replace />} />
       <Route path="/app/cv" element={<Navigate to="/dashboard" replace />} />
-      <Route
-        path="/roadmaps"
-        element={
-          <AppWorkspaceRoute>
-            <RoadmapsPage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route path="/roadmaps/:id" element={<Navigate to="/roadmaps" replace />} />
-      <Route
-        path="/app/roadmaps"
-        element={
-          <AppWorkspaceRoute>
-            <RoadmapsPage />
-          </AppWorkspaceRoute>
-        }
-      />
+      <Route path="/roadmaps" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/roadmaps/:id" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/app/roadmaps" element={<Navigate to="/dashboard" replace />} />
       <Route path="/roadmap-templates" element={<Navigate to="/dashboard" replace />} />
       <Route path="/templates" element={<Navigate to="/dashboard" replace />} />
       <Route path="/app/roadmap-templates" element={<Navigate to="/dashboard" replace />} />
@@ -662,22 +646,8 @@ function App() {
           </AppWorkspaceRoute>
         }
       />
-      <Route
-        path="/goals"
-        element={
-          <AppWorkspaceRoute>
-            <GoalsPage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route
-        path="/app/goals"
-        element={
-          <AppWorkspaceRoute>
-            <GoalsPage />
-          </AppWorkspaceRoute>
-        }
-      />
+      <Route path="/goals" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/app/goals" element={<Navigate to="/dashboard" replace />} />
       <Route path="/wallet" element={<Navigate to="/dashboard" replace />} />
       <Route path="/premium" element={<Navigate to="/dashboard" replace />} />
       <Route path="/app/wallet" element={<Navigate to="/dashboard" replace />} />

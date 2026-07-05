@@ -82,11 +82,11 @@ export const DialogContent: React.FC<
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={handleBackdrop} />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleBackdrop} />
       <div
         ref={containerRef}
         className={cn(
-          'relative z-10 w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl focus:outline-none dark:bg-gray-800',
+          'relative z-10 w-full max-w-2xl rounded-2xl border border-subtle bg-surface-layer p-6 shadow-elevated focus:outline-none',
           !reducedMotion && 'animate-fade-in',
           className
         )}
@@ -111,10 +111,10 @@ export const DialogFooter: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ c
 );
 
 export const DialogTitle: React.FC<React.HTMLAttributes<HTMLHeadingElement>> = ({ className, ...props }) => (
-  <h2 className={cn('text-lg font-semibold text-gray-900 dark:text-white', className)} {...props} />
+  <h2 className={cn('text-lg font-semibold text-text-primary', className)} {...props} />
 );
 
 export const DialogDescription: React.FC<React.HTMLAttributes<HTMLParagraphElement>> = ({
   className,
   ...props
-}) => <p className={cn('text-sm text-gray-500', className)} {...props} />;
+}) => <p className={cn('text-sm text-text-secondary', className)} {...props} />;

@@ -1,7 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
-import { supabase } from '../lib/supabase';
 import { getConfig } from '../lib/config';
 
 interface UseVoiceRecordingOptions {
@@ -9,6 +8,8 @@ interface UseVoiceRecordingOptions {
   onError?: (error: Error) => void;
   maxDurationMs?: number;
   language?: string;
+  /** Clerk token getter (e.g. useAuth().getToken) — chat-proxy requires a Clerk JWT. */
+  getAuthToken?: () => Promise<string | null>;
 }
 
 export function useVoiceRecording({
@@ -16,6 +17,7 @@ export function useVoiceRecording({
   onError,
   maxDurationMs = 30000,
   language = 'en',
+  getAuthToken,
 }: UseVoiceRecordingOptions = {}) {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -114,17 +116,25 @@ export function useVoiceRecording({
         });
 
         const supabaseUrl = getConfig().supabaseUrl;
-        const supabaseKey = getConfig().supabaseAnonKey;
+        // chat-proxy verifies a Clerk JWT — the anon key is rejected.
+        const authToken = await getAuthToken?.();
 
-        if (supabaseUrl && supabaseKey) {
+        if (!authToken) {
+          throw new Error('Sign in to use voice input');
+        }
+
+        if (supabaseUrl) {
           const res = await fetch(`${supabaseUrl}/functions/v1/chat-proxy`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
-            body: JSON.stringify({ action: 'transcribe', audio: { mimeType: 'audio/m4a', data: base64 }, language }),
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+            body: JSON.stringify({ mode: 'transcribe', audio: { mimeType: 'audio/m4a', data: base64 }, language }),
           });
           if (res.ok) {
             const { transcript } = await res.json();
             if (transcript) onTranscription(transcript);
+          } else {
+            const body = await res.json().catch(() => null);
+            throw new Error(body?.error || 'Transcription failed');
           }
         }
       }

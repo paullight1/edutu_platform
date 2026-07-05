@@ -77,28 +77,28 @@ export default function OpportunitySharePage() {
         noindex
       />
 
-      <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200 dark:bg-white/5 dark:ring-white/10 sm:p-8">
+      <section className="rounded-3xl bg-surface-layer p-6 shadow-soft ring-1 ring-border-subtle sm:p-8">
         {loading ? (
           <div className="flex min-h-[220px] items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
+            <Loader2 className="h-8 w-8 animate-spin text-brand" />
           </div>
         ) : (
           <>
             {error ? (
-              <p className="mb-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-600 dark:bg-rose-500/10 dark:text-rose-300">
+              <p className="mb-4 rounded-2xl bg-danger/10 px-4 py-3 text-sm font-semibold text-danger">
                 {error}
               </p>
             ) : null}
 
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-muted">
             {preview.status}
           </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-4xl">
+          <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl">
             {preview.title}
           </h1>
           <Link
             to="/opportunities"
-            className="mt-7 inline-flex h-11 items-center rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+            className="mt-7 inline-flex h-11 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-white shadow-elevated transition hover:bg-brand-700"
           >
             Browse opportunities
           </Link>

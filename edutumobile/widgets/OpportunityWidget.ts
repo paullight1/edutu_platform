@@ -5,6 +5,8 @@ export type OpportunityWidgetProps = {
   category: string;
   location: string;
   match?: number;
+  /** True when the deadline is closing soon — the widget highlights it red. */
+  urgent?: boolean;
   deepLink?: string;
   items?: Array<{
     title: string;
@@ -13,6 +15,7 @@ export type OpportunityWidgetProps = {
     category: string;
     location: string;
     match?: number;
+    urgent?: boolean;
     deepLink?: string;
   }>;
 };

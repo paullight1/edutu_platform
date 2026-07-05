@@ -6,8 +6,8 @@ const PageSuspense = () => {
       aria-live="polite"
     >
       <div className="max-w-sm">
-        <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-brand-500/25 border-t-brand-500" />
-        <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+        <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-brand/20 border-t-brand" />
+        <p className="text-sm font-medium text-text-secondary">
           Loading…
         </p>
       </div>

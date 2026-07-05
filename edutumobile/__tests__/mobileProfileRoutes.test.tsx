@@ -86,7 +86,10 @@ function resolveQuery(table: string, state: { selectArg?: string }, single = fal
     if ((state.selectArg || '').includes('role')) {
       return { data: { role: mockRole }, error: null };
     }
-    return { data: mockProfileRow, error: null };
+    if (single) {
+      return { data: mockProfileRow, error: null };
+    }
+    return { data: [{ user_id: 'user-1', ...mockProfileRow }], error: null };
   }
 
   if (table === 'goals') {
@@ -384,7 +387,7 @@ describe('mobile profile routes', () => {
     await waitFor(() => expect(mockSupabase.from).toHaveBeenCalledWith('profiles'));
     expect(mockUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        user_id: 'safe-user-1',
+        user_id: 'user-1',
         full_name: 'Ada Lovelace',
         cgpa: 3.9,
         country: 'Nigeria',
