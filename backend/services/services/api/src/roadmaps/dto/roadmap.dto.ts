@@ -97,6 +97,20 @@ export const AIAssistDtoSchema = z.object({
   additionalContext: z.string().optional(),
 });
 
+export const OpportunityPlanDtoSchema = z.object({
+  title: z.string().min(3),
+  organization: z.string().optional(),
+  category: z.string().optional(),
+  deadline: z.string().optional(),
+  description: z.string().max(4000).optional(),
+  hoursPerWeek: z.number().int().positive().max(168).optional(),
+  currentLevel: z.enum(["beginner", "intermediate", "advanced"]).optional(),
+  milestones: z
+    .array(z.object({ id: z.string(), title: z.string().min(1) }))
+    .max(12)
+    .optional(),
+});
+
 export const AdoptRoadmapDtoSchema = z.object({
   opportunityId: z.string().optional(),
   targetOpportunityId: z.string().optional(),
@@ -115,6 +129,7 @@ export type UpdateRoadmapDto = z.infer<typeof UpdateRoadmapDtoSchema>;
 export type RoadmapIntentDto = z.infer<typeof RoadmapIntentDtoSchema>;
 export type RoadmapFeedbackDto = z.infer<typeof RoadmapFeedbackDtoSchema>;
 export type AIAssistDto = z.infer<typeof AIAssistDtoSchema>;
+export type OpportunityPlanDto = z.infer<typeof OpportunityPlanDtoSchema>;
 export type AdoptRoadmapDto = z.infer<typeof AdoptRoadmapDtoSchema>;
 export type UpdateRoadmapProgressDto = z.infer<
   typeof UpdateRoadmapProgressSchema

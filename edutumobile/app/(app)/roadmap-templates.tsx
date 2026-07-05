@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Modal, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { BookOpen, Briefcase, Bell, Calendar, ChevronRight, Clock3, Download, ExternalLink, GraduationCap, Rocket, Sparkles, Users, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { File, Paths } from 'expo-file-system';
@@ -22,7 +22,7 @@ interface TemplateMilestone {
     week: number;
     title: string;
     guidance: string;
-    deliverable: string;
+    deliverable?: string;
     resources: TemplateResource[];
 }
 
@@ -39,7 +39,125 @@ interface Template {
     milestones: TemplateMilestone[];
 }
 
-const TEMPLATES: Template[] = [
+const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://edutu-platform.onrender.com').replace(/\/$/, '');
+
+// Backend roadmap shape (snake_case, as serialized by RoadmapsService.serializeRoadmap).
+interface BackendRoadmapStep {
+    id?: string;
+    title?: string;
+    description?: string;
+    duration?: string;
+    resources?: string[];
+    relativeDueDays?: number;
+    phase?: string;
+    taskType?: string;
+}
+interface BackendRoadmapResource {
+    id?: string;
+    title?: string;
+    url?: string;
+    type?: string;
+}
+interface BackendRoadmap {
+    id: string;
+    title: string;
+    description?: string;
+    category?: string;
+    difficulty?: string;
+    estimated_duration?: string;
+    outcomes?: string;
+    steps?: BackendRoadmapStep[];
+    resources?: BackendRoadmapResource[];
+    deadline_strategy?: string | null;
+}
+
+// Category → visual identity. Backend templates carry no icon/accent, so derive one deterministically.
+const CATEGORY_STYLE: { match: string; icon: TemplateIcon; accent: string }[] = [
+    { match: 'scholar', icon: GraduationCap, accent: '#16A34A' },
+    { match: 'fellow', icon: GraduationCap, accent: '#16A34A' },
+    { match: 'grant', icon: GraduationCap, accent: '#16A34A' },
+    { match: 'intern', icon: Briefcase, accent: '#2563EB' },
+    { match: 'job', icon: Briefcase, accent: '#2563EB' },
+    { match: 'career', icon: Briefcase, accent: '#2563EB' },
+    { match: 'lead', icon: Users, accent: '#0891B2' },
+    { match: 'community', icon: Users, accent: '#0891B2' },
+    { match: 'startup', icon: Rocket, accent: '#F97316' },
+    { match: 'entrepreneur', icon: Rocket, accent: '#F97316' },
+    { match: 'business', icon: Rocket, accent: '#F97316' },
+];
+
+function styleForCategory(category?: string): { icon: TemplateIcon; accent: string } {
+    const key = (category || '').toLowerCase();
+    const hit = CATEGORY_STYLE.find((entry) => key.includes(entry.match));
+    return hit ? { icon: hit.icon, accent: hit.accent } : { icon: BookOpen, accent: '#2563EB' };
+}
+
+// `outcomes` is a free-text column; split it into displayable bullet points.
+function parseOutcomes(outcomes?: string): string[] {
+    if (!outcomes) return [];
+    return outcomes
+        .split(/\r?\n|•|;/)
+        .map((line) => line.replace(/^[-*\d.)\s]+/, '').trim())
+        .filter(Boolean)
+        .slice(0, 6);
+}
+
+function providerFromResource(resource: BackendRoadmapResource): string {
+    if (resource.type) return resource.type.charAt(0).toUpperCase() + resource.type.slice(1);
+    try {
+        return new URL(resource.url || '').hostname.replace(/^www\./, '');
+    } catch {
+        return 'Resource';
+    }
+}
+
+function mapBackendRoadmapToTemplate(roadmap: BackendRoadmap): Template | null {
+    const steps = Array.isArray(roadmap.steps) ? roadmap.steps : [];
+    if (steps.length === 0) return null;
+
+    const { icon, accent } = styleForCategory(roadmap.category);
+
+    // Index roadmap-level resources so a step can reference them by id or title.
+    const resourceIndex = new Map<string, BackendRoadmapResource>();
+    (roadmap.resources || []).forEach((resource) => {
+        if (resource.id) resourceIndex.set(resource.id.toLowerCase(), resource);
+        if (resource.title) resourceIndex.set(resource.title.toLowerCase(), resource);
+    });
+
+    const milestones: TemplateMilestone[] = steps.map((step, index) => {
+        const week = typeof step.relativeDueDays === 'number' && step.relativeDueDays > 0
+            ? Math.max(1, Math.ceil(step.relativeDueDays / 7))
+            : index + 1;
+
+        const resources: TemplateResource[] = (step.resources || [])
+            .map((ref) => resourceIndex.get(String(ref).toLowerCase()))
+            .filter((resource): resource is BackendRoadmapResource => Boolean(resource?.url))
+            .map((resource) => ({ title: resource.title || resource.url!, provider: providerFromResource(resource), url: resource.url! }));
+
+        return {
+            week,
+            title: step.title || `Step ${index + 1}`,
+            guidance: step.description || '',
+            deliverable: step.phase ? `Focus: ${step.phase}` : undefined,
+            resources,
+        };
+    });
+
+    return {
+        id: roadmap.id,
+        title: roadmap.title,
+        summary: roadmap.description || 'A guided, step-by-step roadmap.',
+        meta: roadmap.estimated_duration || `${steps.length}-step plan`,
+        difficulty: roadmap.difficulty ? roadmap.difficulty.charAt(0).toUpperCase() + roadmap.difficulty.slice(1) : 'All Levels',
+        icon,
+        accent,
+        outcomes: parseOutcomes(roadmap.outcomes),
+        reminderCadence: 'Milestone reminders scheduled from your start date.',
+        milestones,
+    };
+}
+
+const FALLBACK_TEMPLATES: Template[] = [
     {
         id: 'python-course',
         title: 'Complete Python Programming Course',
@@ -215,6 +333,33 @@ export default function RoadmapTemplatesScreen() {
     const insets = useSafeAreaInsets();
     const { colors, isDark } = useTheme();
     const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+    const [templates, setTemplates] = useState<Template[]>(FALLBACK_TEMPLATES);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+
+    const loadTemplates = useCallback(async (isRefresh = false) => {
+        isRefresh ? setRefreshing(true) : setLoading(true);
+        try {
+            const response = await fetch(`${API_URL}/roadmaps/templates?limit=30`);
+            if (response.ok) {
+                const data = await response.json();
+                const mapped = Array.isArray(data)
+                    ? data.map(mapBackendRoadmapToTemplate).filter((template): template is Template => template !== null)
+                    : [];
+                // Only replace the curated fallback set when the backend returns usable templates.
+                if (mapped.length > 0) setTemplates(mapped);
+            }
+        } catch {
+            // Offline or backend unavailable — keep the curated fallback set already in state.
+        } finally {
+            isRefresh ? setRefreshing(false) : setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadTemplates();
+    }, [loadTemplates]);
+
     const cardBg = isDark ? '#111827' : '#FFFFFF';
     const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)';
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
@@ -299,6 +444,9 @@ export default function RoadmapTemplatesScreen() {
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                     keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+                    refreshControl={
+                        <RefreshControl refreshing={refreshing} onRefresh={() => loadTemplates(true)} tintColor={colors.primary} />
+                    }
                 >
                     <View style={[styles.featuredPanel, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '24' }]}>
                         <View style={styles.featuredTopRow}>
@@ -316,7 +464,7 @@ export default function RoadmapTemplatesScreen() {
                         <View style={styles.statsRow}>
                             <View style={[styles.statPill, { backgroundColor: subtleBg, borderColor }]}>
                                 <BookOpen size={13} color={colors.primary} />
-                                <Text style={[styles.statText, { color: colors.foreground }]}>{TEMPLATES.length} templates</Text>
+                                <Text style={[styles.statText, { color: colors.foreground }]}>{templates.length} templates</Text>
                             </View>
                             <View style={[styles.statPill, { backgroundColor: subtleBg, borderColor }]}>
                                 <Clock3 size={13} color={colors.primary} />
@@ -327,11 +475,13 @@ export default function RoadmapTemplatesScreen() {
 
                     <View style={styles.sectionHeader}>
                         <Text style={[styles.sectionHeading, { color: colors.foreground }]}>Featured paths</Text>
-                        <Text style={[styles.sectionCount, { color: textSecondary }]}>{TEMPLATES.length} available</Text>
+                        {loading
+                            ? <ActivityIndicator size="small" color={colors.primary} />
+                            : <Text style={[styles.sectionCount, { color: textSecondary }]}>{templates.length} available</Text>}
                     </View>
 
                     <View style={styles.list}>
-                        {TEMPLATES.map((template) => {
+                        {templates.map((template) => {
                             const Icon = template.icon;
                             return (
                                 <TouchableOpacity
@@ -430,7 +580,9 @@ export default function RoadmapTemplatesScreen() {
                                         <Text style={[styles.weekLabel, { color: selectedTemplate.accent }]}>Week {milestone.week}</Text>
                                         <Text style={[styles.milestoneTitle, { color: colors.foreground }]}>{milestone.title}</Text>
                                         <Text style={[styles.milestoneText, { color: textSecondary }]}>{milestone.guidance}</Text>
-                                        <Text style={[styles.deliverable, { color: colors.foreground }]}>Deliverable: {milestone.deliverable}</Text>
+                                        {milestone.deliverable ? (
+                                            <Text style={[styles.deliverable, { color: colors.foreground }]}>Deliverable: {milestone.deliverable}</Text>
+                                        ) : null}
                                         <View style={styles.resourceList}>
                                             {milestone.resources.map((resource) => (
                                                 <TouchableOpacity key={resource.url} style={[styles.resourceChip, { borderColor }]} onPress={() => openResource(resource)}>
