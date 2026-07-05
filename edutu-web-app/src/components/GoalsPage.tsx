@@ -16,6 +16,7 @@ import { useGoals, type Goal, type GoalStatus } from "../hooks/useGoals";
 import PullToRefresh from "./ui/PullToRefresh";
 import { EmptyState } from "./ui/EmptyState";
 import Button from "./ui/Button";
+import EnableNotificationsButton from "./EnableNotificationsButton";
 
 type FilterKey = "all" | "active" | "completed";
 
@@ -204,14 +205,17 @@ export default function GoalsPage() {
             <ChevronLeft size={17} />
             Back
           </button>
-          <button
-            type="button"
-            onClick={() => setShowForm(true)}
-            className="inline-flex h-10 items-center gap-2 rounded-xl bg-brand px-3 text-sm font-bold text-white transition hover:bg-brand-700"
-          >
-            <Plus size={17} />
-            New goal
-          </button>
+          <div className="flex items-center gap-2">
+            <EnableNotificationsButton />
+            <button
+              type="button"
+              onClick={() => setShowForm(true)}
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-brand px-3 text-sm font-bold text-white transition hover:bg-brand-700"
+            >
+              <Plus size={17} />
+              New goal
+            </button>
+          </div>
         </div>
       </header>
 

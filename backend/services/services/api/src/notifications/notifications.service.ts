@@ -51,6 +51,38 @@ type BroadcastRecipient = {
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
+  // Lazily-loaded web-push module (optional dependency); null when VAPID keys
+  // are unset or the package isn't installed, in which case web push no-ops.
+  private webpush: any = null;
+  private webpushChecked = false;
+
+  private getWebpush(): any | null {
+    if (this.webpushChecked) return this.webpush;
+    this.webpushChecked = true;
+
+    const publicKey = process.env.VAPID_PUBLIC_KEY;
+    const privateKey = process.env.VAPID_PRIVATE_KEY;
+    if (!publicKey || !privateKey) {
+      this.logger.warn("Web push disabled: VAPID keys not configured");
+      return null;
+    }
+
+    try {
+      // require (not import) so the build stays green without the package.
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const webpush = require("web-push");
+      webpush.setVapidDetails(
+        process.env.VAPID_SUBJECT || "mailto:support@edutu.org",
+        publicKey,
+        privateKey,
+      );
+      this.webpush = webpush;
+      return webpush;
+    } catch {
+      this.logger.warn("Web push disabled: web-push package not installed");
+      return null;
+    }
+  }
 
   async listForUser(userId: string, limit = 30, cursor?: string) {
     const dbUserId = toDatabaseUserId(userId);
@@ -493,7 +525,7 @@ export class NotificationsService {
     }
 
     const push = channels.push
-      ? await this.sendExpoPush(recipients, dto)
+      ? await this.sendPush(recipients, dto)
       : { sent: 0, skipped: "disabled" };
     const email = channels.email
       ? await this.sendEmailWebhook(recipients, dto)
@@ -616,6 +648,84 @@ export class NotificationsService {
       return { sent: 0, skipped: "no expo tokens" };
     }
 
+    return failures.length ? { sent, failed: failures.join("; ") } : { sent };
+  }
+
+  // Dispatches a notification across every push transport (Expo for mobile,
+  // Web Push for browsers) and merges the per-transport results.
+  private async sendPush(
+    recipients: Array<{ userId: string }>,
+    dto: BroadcastNotificationDto,
+  ) {
+    const [expo, web] = await Promise.all([
+      this.sendExpoPush(recipients, dto),
+      this.sendWebPush(recipients, dto),
+    ]);
+    return { sent: (expo.sent || 0) + (web.sent || 0), expo, web };
+  }
+
+  private async sendWebPush(
+    recipients: Array<{ userId: string }>,
+    dto: BroadcastNotificationDto,
+  ) {
+    const webpush = this.getWebpush();
+    if (!webpush) return { sent: 0, skipped: "webpush not configured" };
+
+    const userIds = Array.from(
+      new Set(recipients.map((recipient) => recipient.userId)),
+    );
+    if (!userIds.length) return { sent: 0 };
+
+    const payload = JSON.stringify({
+      title: dto.title,
+      body: dto.body,
+      kind: dto.kind || "admin-broadcast",
+      severity: dto.severity || "info",
+      data: dto.metadata || {},
+    });
+
+    let sent = 0;
+    const failures: string[] = [];
+    const expiredIds: string[] = [];
+
+    for (const userBatch of this.chunk(userIds, BROADCAST_BATCH_SIZE)) {
+      const tokens = await db
+        .select()
+        .from(notificationPushTokens)
+        .where(
+          and(
+            inArray(notificationPushTokens.userId, userBatch),
+            eq(notificationPushTokens.provider, "webpush"),
+          ),
+        );
+
+      for (const item of tokens) {
+        const subscription = (item.device as any)?.subscription;
+        if (!subscription?.endpoint) continue;
+
+        try {
+          await webpush.sendNotification(subscription, payload);
+          sent += 1;
+        } catch (error: any) {
+          // 404/410 mean the browser subscription is gone — prune it.
+          if (error?.statusCode === 404 || error?.statusCode === 410) {
+            expiredIds.push(item.id);
+          } else {
+            failures.push(error?.message || "web push failed");
+          }
+        }
+      }
+    }
+
+    if (expiredIds.length) {
+      await db
+        .delete(notificationPushTokens)
+        .where(inArray(notificationPushTokens.id, expiredIds));
+    }
+
+    if (!sent && !failures.length) {
+      return { sent: 0, skipped: "no webpush subscriptions" };
+    }
     return failures.length ? { sent, failed: failures.join("; ") } : { sent };
   }
 
