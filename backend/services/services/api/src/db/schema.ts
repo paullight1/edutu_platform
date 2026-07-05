@@ -494,6 +494,32 @@ export const transactions = pgTable("transactions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Admin/audit trail. actor_user_id is text (not uuid) because actors can be
+// local-dev admins ("local-admin:<email>") as well as real user ids.
+export const adminAuditLogs = pgTable(
+  "admin_audit_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    action: text("action").notNull(),
+    actorUserId: text("actor_user_id"),
+    resource: text("resource").notNull(),
+    resourceId: text("resource_id"),
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .default({})
+      .notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("admin_audit_logs_created_idx").on(table.createdAt),
+    index("admin_audit_logs_actor_idx").on(table.actorUserId, table.createdAt),
+  ],
+);
+
 // AI-Generated Quizzes
 export const quizzes = pgTable("quizzes", {
   id: uuid("id").primaryKey().defaultRandom(),
