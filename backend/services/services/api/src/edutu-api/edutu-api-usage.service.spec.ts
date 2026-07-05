@@ -1,5 +1,6 @@
 import { db } from "../db";
 import { EdutuApiUsageService } from "./edutu-api-usage.service";
+import type { ApiConsumerContext } from "./current-api-consumer.decorator";
 
 jest.mock("../db", () => ({
   db: {
@@ -87,14 +88,14 @@ describe("EdutuApiUsageService", () => {
   });
 
   describe("reserveRateLimit", () => {
-    const consumer = {
+    const consumer: ApiConsumerContext = {
       id: "consumer-rl",
       name: "RL",
       plan: "starter",
       scopes: ["opportunities:read"],
       monthlyQuota: 1000,
       rateLimitPerMinute: 3,
-    } as const;
+    };
 
     it("allows requests up to the limit then denies with a retry window", () => {
       const first = service.reserveRateLimit(consumer);
