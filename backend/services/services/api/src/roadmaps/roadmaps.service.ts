@@ -27,6 +27,9 @@ import {
 } from "./dto/roadmap.dto";
 import { AiService } from "../ai";
 import { toDatabaseUserId } from "../common/user-id";
+import { CacheService } from "../common/cache/cache.service";
+
+const ROADMAPS_CACHE_PREFIX = "roadmaps:";
 
 type RoadmapStep = {
   id: string;
@@ -59,7 +62,12 @@ export class RoadmapsService {
   constructor(
     private readonly aiService: AiService,
     @Optional() private readonly goalsService?: GoalsService,
+    @Optional() private readonly cache?: CacheService,
   ) {}
+
+  private async invalidateRoadmapCache(): Promise<void> {
+    await this.cache?.delByPrefix(ROADMAPS_CACHE_PREFIX);
+  }
 
   async findAll(params?: {
     status?: string;
@@ -81,27 +89,32 @@ export class RoadmapsService {
     } = params || {};
 
     const cappedLimit = Math.min(limit, 100);
-    const conditions = [eq(roadmaps.status, status)];
+    const key = `${ROADMAPS_CACHE_PREFIX}list:${status}:${category || ""}:${difficulty || ""}:${featured ? 1 : 0}:${search || ""}:${cappedLimit}:${offset}`;
 
-    if (category) conditions.push(eq(roadmaps.category, category));
-    if (difficulty) conditions.push(eq(roadmaps.difficulty, difficulty));
-    if (featured) conditions.push(eq(roadmaps.isFeatured, true));
-    if (search) conditions.push(ilike(roadmaps.title, `%${search}%`));
+    const run = async () => {
+      const conditions = [eq(roadmaps.status, status)];
+      if (category) conditions.push(eq(roadmaps.category, category));
+      if (difficulty) conditions.push(eq(roadmaps.difficulty, difficulty));
+      if (featured) conditions.push(eq(roadmaps.isFeatured, true));
+      if (search) conditions.push(ilike(roadmaps.title, `%${search}%`));
 
-    const items = await db
-      .select()
-      .from(roadmaps)
-      .where(and(...conditions))
-      .orderBy(
-        featuredFirstOrder,
-        desc(roadmaps.ratingAvg),
-        desc(roadmaps.enrollmentCount),
-        desc(roadmaps.createdAt),
-      )
-      .limit(cappedLimit)
-      .offset(offset);
+      const items = await db
+        .select()
+        .from(roadmaps)
+        .where(and(...conditions))
+        .orderBy(
+          featuredFirstOrder,
+          desc(roadmaps.ratingAvg),
+          desc(roadmaps.enrollmentCount),
+          desc(roadmaps.createdAt),
+        )
+        .limit(cappedLimit)
+        .offset(offset);
 
-    return items.map((item) => this.serializeRoadmap(item));
+      return items.map((item) => this.serializeRoadmap(item));
+    };
+
+    return this.cache ? this.cache.wrap(key, 180, run) : run();
   }
 
   async findTemplates(params?: {
@@ -130,23 +143,33 @@ export class RoadmapsService {
   }
 
   async findPublishedById(id: string) {
-    const [item] = await db
-      .select()
-      .from(roadmaps)
-      .where(and(eq(roadmaps.id, id), eq(roadmaps.status, "published")));
+    const run = async () => {
+      const [item] = await db
+        .select()
+        .from(roadmaps)
+        .where(and(eq(roadmaps.id, id), eq(roadmaps.status, "published")));
 
-    if (!item) throw new NotFoundException("Roadmap not found");
-    return this.serializeRoadmap(item);
+      if (!item) throw new NotFoundException("Roadmap not found");
+      return this.serializeRoadmap(item);
+    };
+    return this.cache
+      ? this.cache.wrap(`${ROADMAPS_CACHE_PREFIX}pub:${id}`, 300, run)
+      : run();
   }
 
   async findBySlug(slug: string) {
-    const [item] = await db
-      .select()
-      .from(roadmaps)
-      .where(and(eq(roadmaps.slug, slug), eq(roadmaps.status, "published")));
+    const run = async () => {
+      const [item] = await db
+        .select()
+        .from(roadmaps)
+        .where(and(eq(roadmaps.slug, slug), eq(roadmaps.status, "published")));
 
-    if (!item) throw new NotFoundException("Roadmap not found");
-    return this.serializeRoadmap(item);
+      if (!item) throw new NotFoundException("Roadmap not found");
+      return this.serializeRoadmap(item);
+    };
+    return this.cache
+      ? this.cache.wrap(`${ROADMAPS_CACHE_PREFIX}slug:${slug}`, 300, run)
+      : run();
   }
 
   async create(
@@ -219,6 +242,7 @@ export class RoadmapsService {
       })
       .returning();
 
+    await this.invalidateRoadmapCache();
     return this.serializeRoadmap(item);
   }
 
@@ -292,12 +316,14 @@ export class RoadmapsService {
       .where(eq(roadmaps.id, id))
       .returning();
 
+    await this.invalidateRoadmapCache();
     return this.serializeRoadmap(updated);
   }
 
   async remove(id: string) {
     await this.findOne(id);
     await db.delete(roadmaps).where(eq(roadmaps.id, id));
+    await this.invalidateRoadmapCache();
     return { success: true, id };
   }
 
