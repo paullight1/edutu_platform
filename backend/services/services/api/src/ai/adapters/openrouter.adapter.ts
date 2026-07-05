@@ -5,6 +5,7 @@ import {
   AiProviderAdapter,
   AiRouteConfig,
 } from "../ai.types";
+import { aiFetch } from "./ai-http";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -32,7 +33,9 @@ export class OpenRouterAdapter implements AiProviderAdapter {
       { role: "user", content: options.prompt },
     ];
 
-    const response = await fetch(OPENROUTER_URL, {
+    const response = await aiFetch(
+      OPENROUTER_URL,
+      {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -52,7 +55,9 @@ export class OpenRouterAdapter implements AiProviderAdapter {
           ? { max_tokens: config.maxOutputTokens || options.maxOutputTokens }
           : {}),
       }),
-    });
+      },
+      { label: "OpenRouter" },
+    );
 
     if (!response.ok) {
       throw new Error(

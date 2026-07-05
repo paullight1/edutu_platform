@@ -134,6 +134,41 @@ export class AiService {
       return result;
     } catch (error) {
       await this.logUsage(options, route, null, Date.now() - startedAt, error);
+
+      // A provider outage should not take down the feature if a fallback
+      // provider is configured. Retry once on the secondary before giving up.
+      const fallbackRoute = await this.resolveFallbackRoute(route);
+      if (fallbackRoute) {
+        const fallbackAdapter = this.adapters.get(fallbackRoute.provider);
+        if (fallbackAdapter) {
+          this.logger.warn(
+            `AI feature ${options.feature} failed on ${route.provider}; failing over to ${fallbackRoute.provider}`,
+          );
+          const fallbackStartedAt = Date.now();
+          try {
+            const result = await fallbackAdapter.generateText(
+              fallbackRoute,
+              options,
+            );
+            await this.logUsage(
+              options,
+              fallbackRoute,
+              result,
+              Date.now() - fallbackStartedAt,
+            );
+            return result;
+          } catch (fallbackError) {
+            await this.logUsage(
+              options,
+              fallbackRoute,
+              null,
+              Date.now() - fallbackStartedAt,
+              fallbackError,
+            );
+          }
+        }
+      }
+
       throw error;
     }
   }
@@ -296,7 +331,43 @@ export class AiService {
         storedRoute?.responseMimeType ||
         fallback.responseMimeType ||
         null,
+      fallbackProvider: storedRoute?.fallbackProvider
+        ? this.normalizeProvider(storedRoute.fallbackProvider)
+        : null,
+      fallbackModel: storedRoute?.fallbackModel || null,
       isEnabled: storedRoute?.isEnabled ?? fallback.isEnabled,
+    };
+  }
+
+  /**
+   * Builds a route for the configured fallback provider, or null when there is
+   * no usable fallback (none configured, same provider, or no API key). Used to
+   * survive a single provider outage without taking down every AI feature.
+   */
+  private async resolveFallbackRoute(
+    primary: AiRouteConfig,
+  ): Promise<AiRouteConfig | null> {
+    if (!primary.fallbackProvider) return null;
+
+    const provider = this.normalizeProvider(primary.fallbackProvider);
+    if (!provider || provider === primary.provider) return null;
+    if (!this.adapters.has(provider)) return null;
+
+    const apiKey =
+      (await this.getLatestKey(provider)) || this.getEnvKey(provider);
+    if (!apiKey) return null;
+
+    return {
+      ...primary,
+      provider,
+      model:
+        primary.fallbackModel ||
+        this.getDefaultModel(provider) ||
+        primary.model,
+      apiKey,
+      // Prevent a fallback from chaining into another fallback.
+      fallbackProvider: null,
+      fallbackModel: null,
     };
   }
 
