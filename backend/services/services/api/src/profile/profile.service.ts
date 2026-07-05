@@ -70,31 +70,40 @@ export class ProfileService {
     dto: UpdateMemberSettingsDto,
   ) {
     const dbUserId = toDatabaseUserId(user.id);
-    const profile = await this.findOrCreateProfile(dbUserId, user);
-    const current = this.normalizeSettings(profile.settings);
-    const next = {
-      privacy: {
-        ...current.privacy,
-        ...(dto.privacy || {}),
-      },
-      security: {
-        ...current.security,
-        ...(dto.security || {}),
-      },
-      updatedAt: new Date().toISOString(),
-    };
+    await this.findOrCreateProfile(dbUserId, user);
 
-    const [updated] = await db
-      .update(profiles)
-      .set({
-        settings: next,
-        updatedAt: new Date(),
-      })
-      .where(eq(profiles.userId, dbUserId))
-      .returning();
+    // Lock the row for the read-modify-write so concurrent settings writers
+    // (privacy save, security save, deletion request) can't clobber each
+    // other's fields — the whole settings object is rewritten each time.
+    return db.transaction(async (tx) => {
+      const [profile] = await tx
+        .select()
+        .from(profiles)
+        .where(eq(profiles.userId, dbUserId))
+        .for("update");
+      if (!profile) throw new NotFoundException("Profile not found");
 
-    if (!updated) throw new NotFoundException("Profile not found");
-    return this.normalizeSettings(updated.settings);
+      const current = this.normalizeSettings(profile.settings);
+      const next = {
+        privacy: {
+          ...current.privacy,
+          ...(dto.privacy || {}),
+        },
+        security: {
+          ...current.security,
+          ...(dto.security || {}),
+        },
+        updatedAt: new Date().toISOString(),
+      };
+
+      const [updated] = await tx
+        .update(profiles)
+        .set({ settings: next, updatedAt: new Date() })
+        .where(eq(profiles.userId, dbUserId))
+        .returning();
+
+      return this.normalizeSettings(updated.settings);
+    });
   }
 
   async requestDeletion(user: AuthenticatedProfileUser) {
@@ -353,28 +362,36 @@ export class ProfileService {
     >,
   ) {
     const dbUserId = toDatabaseUserId(user.id);
-    const profile = await this.findOrCreateProfile(dbUserId, user);
-    const current = this.normalizeSettings(profile.settings);
-    const next = {
-      ...current,
-      security: {
-        ...current.security,
-        ...securityUpdates,
-      },
-      updatedAt: new Date().toISOString(),
-    };
+    await this.findOrCreateProfile(dbUserId, user);
 
-    const [updated] = await db
-      .update(profiles)
-      .set({
-        settings: next,
-        updatedAt: new Date(),
-      })
-      .where(eq(profiles.userId, dbUserId))
-      .returning();
+    // Row-locked read-modify-write (see updateMemberSettings) so security
+    // updates and privacy saves don't overwrite each other's settings fields.
+    return db.transaction(async (tx) => {
+      const [profile] = await tx
+        .select()
+        .from(profiles)
+        .where(eq(profiles.userId, dbUserId))
+        .for("update");
+      if (!profile) throw new NotFoundException("Profile not found");
 
-    if (!updated) throw new NotFoundException("Profile not found");
-    return this.normalizeSettings(updated.settings);
+      const current = this.normalizeSettings(profile.settings);
+      const next = {
+        ...current,
+        security: {
+          ...current.security,
+          ...securityUpdates,
+        },
+        updatedAt: new Date().toISOString(),
+      };
+
+      const [updated] = await tx
+        .update(profiles)
+        .set({ settings: next, updatedAt: new Date() })
+        .where(eq(profiles.userId, dbUserId))
+        .returning();
+
+      return this.normalizeSettings(updated.settings);
+    });
   }
 
   private mapProfileForExport(profile: typeof profiles.$inferSelect) {

@@ -13,7 +13,16 @@ import {
   roadmapFeedback,
   profiles,
 } from "../db/schema";
-import { eq, and, or, ilike, desc, gte, sql } from "drizzle-orm";
+import {
+  eq,
+  and,
+  or,
+  ilike,
+  desc,
+  gte,
+  sql,
+  getTableColumns,
+} from "drizzle-orm";
 import {
   CreateRoadmapDto,
   UpdateRoadmapDto,
@@ -299,42 +308,43 @@ export class RoadmapsService {
   async enroll(userId: string, roadmapId: string) {
     await this.findPublishedById(roadmapId);
 
-    const [existing] = await db
-      .select()
-      .from(roadmapEnrollments)
-      .where(
-        and(
-          eq(roadmapEnrollments.userId, userId),
-          eq(roadmapEnrollments.roadmapId, roadmapId),
-        ),
-      );
-
-    const [enrollment] = await db
-      .insert(roadmapEnrollments)
-      .values({
-        userId,
-        roadmapId,
-        status: "enrolled",
-        progress: 0,
-        currentStep: 0,
-        completedSteps: [],
-      })
-      .onConflictDoUpdate({
-        target: [roadmapEnrollments.userId, roadmapEnrollments.roadmapId],
-        set: {
+    // Upsert and bump the counter in one transaction. `xmax = 0` is true only
+    // when THIS statement inserted the row (not on the conflict-update path),
+    // so the enrollment_count increment happens exactly once even when two
+    // first-time enrolls race — no separate SELECT, no lost/double count.
+    const enrollment = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(roadmapEnrollments)
+        .values({
+          userId,
+          roadmapId,
           status: "enrolled",
-          enrolledAt: new Date(),
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
+          progress: 0,
+          currentStep: 0,
+          completedSteps: [],
+        })
+        .onConflictDoUpdate({
+          target: [roadmapEnrollments.userId, roadmapEnrollments.roadmapId],
+          set: {
+            status: "enrolled",
+            enrolledAt: new Date(),
+            updatedAt: new Date(),
+          },
+        })
+        .returning({
+          ...getTableColumns(roadmapEnrollments),
+          inserted: sql<boolean>`(xmax = 0)`,
+        });
 
-    if (!existing) {
-      await db
-        .update(roadmaps)
-        .set({ enrollmentCount: sql`${roadmaps.enrollmentCount} + 1` })
-        .where(eq(roadmaps.id, roadmapId));
-    }
+      const { inserted, ...enrollment } = row;
+      if (inserted) {
+        await tx
+          .update(roadmaps)
+          .set({ enrollmentCount: sql`${roadmaps.enrollmentCount} + 1` })
+          .where(eq(roadmaps.id, roadmapId));
+      }
+      return enrollment;
+    });
 
     return this.serializeEnrollment(enrollment);
   }
@@ -356,51 +366,52 @@ export class RoadmapsService {
       calendarSyncEnabled,
     );
 
-    const [existing] = await db
-      .select()
-      .from(roadmapEnrollments)
-      .where(
-        and(
-          eq(roadmapEnrollments.userId, userId),
-          eq(roadmapEnrollments.roadmapId, roadmapId),
-        ),
-      );
-
-    const [enrollment] = await db
-      .insert(roadmapEnrollments)
-      .values({
-        userId,
-        roadmapId,
-        status: "enrolled",
-        progress: existing?.progress || 0,
-        currentStep: existing?.currentStep || 0,
-        completedSteps: existing?.completedSteps || [],
-        targetOpportunityId,
-        targetDeadline,
-        calendarSyncEnabled,
-        adoptedPlan,
-        enrolledAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: [roadmapEnrollments.userId, roadmapEnrollments.roadmapId],
-        set: {
+    // On the conflict path the SET clause preserves the row's existing
+    // progress/currentStep/completedSteps (it only touches the adopt fields),
+    // and on the insert path there is no prior row — so the values() below use
+    // fresh defaults. `xmax = 0` gates the counter bump to true first inserts.
+    const enrollment = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(roadmapEnrollments)
+        .values({
+          userId,
+          roadmapId,
           status: "enrolled",
+          progress: 0,
+          currentStep: 0,
+          completedSteps: [],
           targetOpportunityId,
           targetDeadline,
           calendarSyncEnabled,
           adoptedPlan,
+          enrolledAt: new Date(),
           updatedAt: new Date(),
-        },
-      })
-      .returning();
+        })
+        .onConflictDoUpdate({
+          target: [roadmapEnrollments.userId, roadmapEnrollments.roadmapId],
+          set: {
+            status: "enrolled",
+            targetOpportunityId,
+            targetDeadline,
+            calendarSyncEnabled,
+            adoptedPlan,
+            updatedAt: new Date(),
+          },
+        })
+        .returning({
+          ...getTableColumns(roadmapEnrollments),
+          inserted: sql<boolean>`(xmax = 0)`,
+        });
 
-    if (!existing) {
-      await db
-        .update(roadmaps)
-        .set({ enrollmentCount: sql`${roadmaps.enrollmentCount} + 1` })
-        .where(eq(roadmaps.id, roadmapId));
-    }
+      const { inserted, ...enrollment } = row;
+      if (inserted) {
+        await tx
+          .update(roadmaps)
+          .set({ enrollmentCount: sql`${roadmaps.enrollmentCount} + 1` })
+          .where(eq(roadmaps.id, roadmapId));
+      }
+      return enrollment;
+    });
 
     return this.serializeEnrollment(enrollment, roadmap);
   }
@@ -457,48 +468,55 @@ export class RoadmapsService {
     completed: boolean,
   ) {
     const roadmap = await this.findPublishedById(roadmapId);
-
-    const [enrollment] = await db
-      .select()
-      .from(roadmapEnrollments)
-      .where(
-        and(
-          eq(roadmapEnrollments.userId, userId),
-          eq(roadmapEnrollments.roadmapId, roadmapId),
-        ),
-      );
-
-    if (!enrollment) throw new NotFoundException("Enrollment not found");
-
     const steps = roadmap.steps as Array<{ id: string }>;
     const stepIndex = steps.findIndex((s) => s.id === stepId);
 
-    let completedSteps = (enrollment.completedSteps as string[]) || [];
+    // Read-modify-write on the completedSteps array under a row lock, so two
+    // concurrent step toggles serialize instead of clobbering each other
+    // (last-write-wins would silently drop a completed step).
+    const updated = await db.transaction(async (tx) => {
+      const [enrollment] = await tx
+        .select()
+        .from(roadmapEnrollments)
+        .where(
+          and(
+            eq(roadmapEnrollments.userId, userId),
+            eq(roadmapEnrollments.roadmapId, roadmapId),
+          ),
+        )
+        .for("update");
 
-    if (completed) {
-      if (!completedSteps.includes(stepId)) {
-        completedSteps.push(stepId);
+      if (!enrollment) throw new NotFoundException("Enrollment not found");
+
+      let completedSteps = (enrollment.completedSteps as string[]) || [];
+
+      if (completed) {
+        if (!completedSteps.includes(stepId)) {
+          completedSteps.push(stepId);
+        }
+      } else {
+        completedSteps = completedSteps.filter((id) => id !== stepId);
       }
-    } else {
-      completedSteps = completedSteps.filter((id) => id !== stepId);
-    }
 
-    const progress =
-      steps.length > 0
-        ? Math.round((completedSteps.length / steps.length) * 100)
-        : 0;
+      const progress =
+        steps.length > 0
+          ? Math.round((completedSteps.length / steps.length) * 100)
+          : 0;
 
-    const [updated] = await db
-      .update(roadmapEnrollments)
-      .set({
-        progress,
-        currentStep: stepIndex,
-        completedSteps,
-        completedAt: progress === 100 ? new Date() : null,
-        updatedAt: new Date(),
-      })
-      .where(eq(roadmapEnrollments.id, enrollment.id))
-      .returning();
+      const [row] = await tx
+        .update(roadmapEnrollments)
+        .set({
+          progress,
+          currentStep: stepIndex,
+          completedSteps,
+          completedAt: progress === 100 ? new Date() : null,
+          updatedAt: new Date(),
+        })
+        .where(eq(roadmapEnrollments.id, enrollment.id))
+        .returning();
+
+      return row;
+    });
 
     return this.serializeEnrollment(updated);
   }
@@ -569,22 +587,27 @@ export class RoadmapsService {
   }
 
   async submitFeedback(userId: string, dto: RoadmapFeedbackDto) {
-    const [feedback] = await db
-      .insert(roadmapFeedback)
-      .values({
-        userId,
-        roadmapId: dto.roadmapId,
-        satisfactionScore: dto.satisfactionScore,
-        metExpectations: dto.metExpectations,
-        whatWorked: dto.whatWorked,
-        whatImproved: dto.whatImproved,
-        wouldRecommend: dto.wouldRecommend,
-      })
-      .returning();
+    // Insert the feedback and roll the rating aggregate forward atomically, so
+    // a failure can't leave feedback recorded with a stale rating (or vice
+    // versa).
+    return db.transaction(async (tx) => {
+      const [feedback] = await tx
+        .insert(roadmapFeedback)
+        .values({
+          userId,
+          roadmapId: dto.roadmapId,
+          satisfactionScore: dto.satisfactionScore,
+          metExpectations: dto.metExpectations,
+          whatWorked: dto.whatWorked,
+          whatImproved: dto.whatImproved,
+          wouldRecommend: dto.wouldRecommend,
+        })
+        .returning();
 
-    await this.updateRoadmapRating(dto.roadmapId, dto.satisfactionScore);
+      await this.updateRoadmapRating(dto.roadmapId, dto.satisfactionScore, tx);
 
-    return feedback;
+      return feedback;
+    });
   }
 
   async getStats() {
@@ -1331,8 +1354,12 @@ ${roadmapsList.map((r) => `- ID: ${r.id}, Title: ${r.title}, Category: ${r.categ
     };
   }
 
-  private async updateRoadmapRating(roadmapId: string, score: number) {
-    await db
+  private async updateRoadmapRating(
+    roadmapId: string,
+    score: number,
+    executor: Pick<typeof db, "update"> = db,
+  ) {
+    await executor
       .update(roadmaps)
       .set({
         ratingAvg: sql`((${roadmaps.ratingAvg} * ${roadmaps.ratingCount}) + ${score}) / (${roadmaps.ratingCount} + 1)`,
