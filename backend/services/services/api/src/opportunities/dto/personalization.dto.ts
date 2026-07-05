@@ -72,6 +72,9 @@ export const RecommendationQuerySchema = z.object({
   limit: z.number().int().min(1).max(50).optional(),
   minMatchScore: z.number().min(0).max(100).optional(),
   excludeOpportunityIds: z.array(z.string().uuid()).max(200).optional(),
+  // Opt-in LLM re-rank refinement. Off by default so the heuristic ranking
+  // serves the hot path; only honored for authenticated callers (see service).
+  aiRerank: z.boolean().optional(),
 });
 
 export type RecommendationQueryDto = z.infer<typeof RecommendationQuerySchema>;
@@ -81,6 +84,7 @@ export const UserRecommendationRequestSchema = RecommendationQuerySchema.pick({
   limit: true,
   minMatchScore: true,
   excludeOpportunityIds: true,
+  aiRerank: true,
 });
 
 export type UserRecommendationRequestDto = z.infer<
