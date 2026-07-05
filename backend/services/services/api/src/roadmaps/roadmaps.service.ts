@@ -4,7 +4,9 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Optional,
 } from "@nestjs/common";
+import { GoalsService } from "../goals/goals.service";
 import { db } from "../db";
 import {
   roadmaps,
@@ -54,7 +56,10 @@ const featuredFirstOrder = desc(
 export class RoadmapsService {
   private readonly logger = new Logger(RoadmapsService.name);
 
-  constructor(private readonly aiService: AiService) {}
+  constructor(
+    private readonly aiService: AiService,
+    @Optional() private readonly goalsService?: GoalsService,
+  ) {}
 
   async findAll(params?: {
     status?: string;
@@ -395,14 +400,69 @@ export class RoadmapsService {
       })
       .returning();
 
+    let goalsCreated = 0;
     if (!existing) {
       await db
         .update(roadmaps)
         .set({ enrollmentCount: sql`${roadmaps.enrollmentCount} + 1` })
         .where(eq(roadmaps.id, roadmapId));
+      // Turn the dated plan into trackable goals. Each goal flows through the
+      // goals reminder pipeline, so the user gets delivered reminders (push +
+      // in-app) for every milestone — the loop that makes adoption "work".
+      goalsCreated = await this.createAdoptionGoals(
+        userId,
+        roadmap,
+        adoptedPlan,
+      );
     }
 
-    return this.serializeEnrollment(enrollment, roadmap);
+    return { ...this.serializeEnrollment(enrollment, roadmap), goalsCreated };
+  }
+
+  private async createAdoptionGoals(
+    userId: string,
+    roadmap: any,
+    adoptedPlan: {
+      steps?: Array<{
+        id?: string;
+        title?: string;
+        description?: string;
+        dueAt?: string | null;
+      }>;
+    },
+  ): Promise<number> {
+    if (!this.goalsService) return 0;
+
+    const steps = Array.isArray(adoptedPlan?.steps) ? adoptedPlan.steps : [];
+    let created = 0;
+
+    for (const step of steps) {
+      if (!step?.title) continue;
+
+      const due = step.dueAt ? new Date(step.dueAt) : null;
+      const targetDate =
+        due && !Number.isNaN(due.getTime()) ? due.toISOString() : undefined;
+
+      try {
+        await this.goalsService.create(userId, {
+          title: step.title,
+          description: step.description || undefined,
+          category: roadmap.category || undefined,
+          targetDate,
+          source: "imported",
+          templateId: roadmap.id,
+          priority: "medium",
+        });
+        created += 1;
+      } catch (e) {
+        this.logger.warn(
+          `Failed to create adoption goal for step ${step.id ?? "?"}`,
+          e instanceof Error ? e.message : String(e),
+        );
+      }
+    }
+
+    return created;
   }
 
   async getUserEnrollments(userId: string) {

@@ -10,17 +10,19 @@ export interface RoadmapExportResult {
   uri?: string;
 }
 
-// Writes the roadmap's .ics to the cache and opens the native share sheet so the
-// user can add it to Apple/Google/Outlook calendars. The ICS itself carries the
-// per-event reminders, so this one action delivers "put it on my calendar".
-export async function exportRoadmapToCalendar(
-  roadmap: AIGeneratedRoadmap,
-  opportunityTitle: string,
+/**
+ * Writes an ICS string to the cache and opens the native share sheet so the user
+ * can add it to Apple/Google/Outlook. Works for both client-built plans and an
+ * ICS fetched from the backend enrollment calendar endpoint.
+ */
+export async function shareIcsString(
+  ics: string,
+  filename: string,
 ): Promise<RoadmapExportResult> {
   try {
     if (Platform.OS === 'web') return { ok: false, reason: 'unsupported' };
+    if (!ics) return { ok: false, reason: 'error' };
 
-    const { ics, filename } = buildRoadmapIcs(roadmap, opportunityTitle);
     const file = new File(Paths.cache, filename);
     file.write(ics);
 
@@ -36,4 +38,15 @@ export async function exportRoadmapToCalendar(
   } catch {
     return { ok: false, reason: 'error' };
   }
+}
+
+// Builds the roadmap's .ics from an AI-generated plan, then shares it. The ICS
+// carries per-event reminders, so this one action delivers "put it on my calendar".
+export async function exportRoadmapToCalendar(
+  roadmap: AIGeneratedRoadmap,
+  opportunityTitle: string,
+): Promise<RoadmapExportResult> {
+  if (Platform.OS === 'web') return { ok: false, reason: 'unsupported' };
+  const { ics, filename } = buildRoadmapIcs(roadmap, opportunityTitle);
+  return shareIcsString(ics, filename);
 }

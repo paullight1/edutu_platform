@@ -17,6 +17,7 @@ import { useAuth, useUser } from "@clerk/clerk-expo";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import { LinearGradient } from "expo-linear-gradient";
 import { BrandedLoader } from "../../components/ui/BrandedLoader";
+import { shareIcsString } from "../../lib/roadmapCalendar";
 
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://edutu-platform.onrender.com').replace(/\/$/, '');
 const API_RETRY_COOLDOWN_MS = 30 * 1000;
@@ -116,6 +117,7 @@ interface Roadmap {
 
 interface RoadmapAdoptionResponse {
     id: string;
+    goalsCreated?: number;
     targetDeadline?: string | null;
     target_deadline?: string | null;
     calendar?: {
@@ -363,11 +365,14 @@ export default function RoadmapsScreen() {
         const targetDeadline = adoption.targetDeadline || adoption.target_deadline;
         const parts = ['Your roadmap is ready.'];
 
+        if (adoption.goalsCreated && adoption.goalsCreated > 0) {
+            parts.push(`${adoption.goalsCreated} milestone${adoption.goalsCreated === 1 ? '' : 's'} added to your goals.`);
+        }
         if (targetDeadline) {
             parts.push(`Deadline: ${new Date(targetDeadline).toLocaleDateString()}.`);
         }
-        if (reminders.length > 0) {
-            parts.push(`${reminders.length} reminders prepared.`);
+        if (reminders.length > 0 || (adoption.goalsCreated ?? 0) > 0) {
+            parts.push('Reminders are scheduled.');
         }
         if (adoption.calendar?.enabled && adoption.calendar.eventCount > 0) {
             parts.push(`${adoption.calendar.eventCount} calendar events prepared.`);
@@ -405,6 +410,26 @@ export default function RoadmapsScreen() {
         });
     };
 
+    const handleAddCalendar = async (enrollmentId: string) => {
+        try {
+            const token = await getAuthToken();
+            const res = await apiFetch(`/roadmaps/enrollments/${enrollmentId}/calendar`, {
+                headers: { 'Authorization': `Bearer ${token}` },
+            });
+            if (!res?.ok) {
+                Alert.alert('Calendar unavailable', 'Could not build the calendar. Please try again.');
+                return;
+            }
+            const data = await res.json();
+            const result = await shareIcsString(data.ics, data.filename || 'roadmap.ics');
+            if (!result.ok && result.reason === 'error') {
+                Alert.alert('Export failed', 'Could not open the calendar file.');
+            }
+        } catch {
+            Alert.alert('Calendar unavailable', 'Could not build the calendar. Please try again.');
+        }
+    };
+
     const handleEnroll = async () => {
         if (!selectedItem || !user) return;
         setEnrolling(true);
@@ -422,6 +447,9 @@ export default function RoadmapsScreen() {
             setSelectedItem(null);
             Alert.alert('Roadmap adopted', buildAdoptionMessage(adoption), [
                 { text: 'View Goals', onPress: () => router.push('/goals') },
+                ...(adoption?.id
+                    ? [{ text: 'Add to Calendar', onPress: () => handleAddCalendar(adoption.id) }]
+                    : []),
                 ...(adoption?.communityAction || adoption?.community_action
                     ? [{ text: 'Open Community', onPress: () => router.push('/roadmaps') }]
                     : []),

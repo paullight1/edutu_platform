@@ -110,6 +110,7 @@ export interface CreateRoadmapInput {
 
 export interface RoadmapAdoptionResponse {
   id: string;
+  goalsCreated?: number;
   roadmapId?: string;
   roadmap_id?: string;
   targetDeadline?: string | null;
