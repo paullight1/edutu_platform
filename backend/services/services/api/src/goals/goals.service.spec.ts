@@ -3,7 +3,7 @@ import { db } from "../db";
 import { toDatabaseUserId } from "../common/user-id";
 import { GoalsService } from "./goals.service";
 import { NotificationsService } from "../notifications/notifications.service";
-import { GoogleCalendarService } from "../calendar/google-calendar.service";
+import { CalendarSyncService } from "../calendar/calendar-sync.service";
 
 jest.mock("../db", () => ({
   db: {
@@ -32,7 +32,7 @@ describe("GoalsService", () => {
   it("emits runtime metadata for the injected dependencies", () => {
     expect(Reflect.getMetadata("design:paramtypes", GoalsService)).toEqual([
       NotificationsService,
-      GoogleCalendarService,
+      CalendarSyncService,
     ]);
   });
 

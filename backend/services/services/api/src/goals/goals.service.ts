@@ -10,7 +10,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { toDatabaseUserId } from "../common/user-id";
 import { NotificationsService } from "../notifications/notifications.service";
 import type { BroadcastNotificationDto } from "../notifications/dto/notification.dto";
-import { GoogleCalendarService } from "../calendar/google-calendar.service";
+import { CalendarSyncService } from "../calendar/calendar-sync.service";
 import type { CreateGoalDto } from "./dto/create-goal.dto";
 import type { UpdateGoalDto } from "./dto/update-goal.dto";
 
@@ -24,7 +24,7 @@ export class GoalsService {
 
   constructor(
     @Optional() private readonly notificationsService?: NotificationsService,
-    @Optional() private readonly calendarService?: GoogleCalendarService,
+    @Optional() private readonly calendarService?: CalendarSyncService,
   ) {}
 
   // Get all goals for a user
