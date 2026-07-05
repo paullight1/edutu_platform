@@ -27,21 +27,53 @@ export class ScraperController {
       sourceId?: number;
       allSources?: boolean;
       maxPages?: number;
+      background?: boolean;
     },
   ) {
-    try {
-      const result = await this.scraperService.runScraper({
-        sourceId: body.sourceId,
-        allSources: body.allSources,
-        maxPages: body.maxPages || 3,
-      });
+    const options = {
+      sourceId: body.sourceId,
+      allSources: body.allSources,
+      maxPages: body.maxPages || 3,
+    };
 
-      return result;
+    // Non-blocking path for long crawls (e.g. allSources): return immediately
+    // and let the client poll GET /api/scraper/jobs. Avoids gateway timeouts on
+    // multi-minute runs. Default stays synchronous for backward compatibility.
+    if (body.background) {
+      const { started, error } = this.scraperService.startScraperRun(options);
+      return {
+        success: started,
+        status: started ? "running" : "not_started",
+        message: started
+          ? "Scrape started in the background. Poll /api/scraper/jobs for progress."
+          : error,
+        error: started ? undefined : error,
+      };
+    }
+
+    try {
+      return await this.scraperService.runScraper(options);
     } catch (error) {
       this.logger.error(`Scraper run failed: ${error.message}`);
       return {
         success: false,
         error: error.message || "An error occurred",
+      };
+    }
+  }
+
+  @Post("backfill")
+  @Throttle({ default: { limit: 12, ttl: 3600000 } })
+  async backfill(@Body() body: { limit?: number }) {
+    try {
+      return await this.scraperService.backfillIncompleteOpportunities(
+        body?.limit,
+      );
+    } catch (error: any) {
+      this.logger.error(`Backfill failed: ${error.message}`);
+      return {
+        success: false,
+        error: error.message || "Backfill failed",
       };
     }
   }
