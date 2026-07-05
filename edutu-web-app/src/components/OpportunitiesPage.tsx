@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   Calendar,
@@ -11,9 +18,16 @@ import {
 import { format } from "date-fns";
 import { useTranslation } from "react-i18next";
 import { useOpportunities } from "../hooks/useOpportunities";
+import { usePersonalization } from "../hooks/usePersonalization";
 import type { Opportunity } from "../types/opportunity";
+import type { MatchResult } from "../services/personalizedRecommendations";
+import { MatchScoreBadge, TopMatchReason } from "./opportunity/MatchInsights";
+import UrgencyPill from "./opportunity/UrgencyPill";
 import {
-  getOpportunityDaysLeft,
+  getDeadlineBadge,
+  urgencyTextClasses,
+} from "../services/deadlineUrgency";
+import {
   isOpportunityExpired,
   parseOpportunityDeadline,
 } from "../services/opportunities";
@@ -22,9 +36,8 @@ import PublicEditorialShell from "./PublicEditorialShell";
 import Seo from "./Seo";
 import { useToast } from "./ui/ToastProvider";
 import {
-  buildOpportunityShareText,
-  buildOpportunityShareUrl,
-  buildWhatsAppShareUrl,
+  shareOpportunity,
+  shareOutcomeMessage,
 } from "../services/opportunityShare";
 import { getDefaultSeoImage, toAbsoluteUrl } from "../lib/publicSite";
 
@@ -84,24 +97,43 @@ function opportunityMatchesCategory(opportunity: Opportunity, category: string) 
   );
 }
 
-const categoryFallbackImages: Record<string, string> = {
-  scholarships:
-    "https://images.pexels.com/photos/267885/pexels-photo-267885.jpeg",
-  fellowships:
-    "https://images.pexels.com/photos/1438072/pexels-photo-1438072.jpeg",
-  internships:
-    "https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg",
-  grants: "https://images.pexels.com/photos/2280571/pexels-photo-2280571.jpeg",
-  programs:
-    "https://images.pexels.com/photos/1181715/pexels-photo-1181715.jpeg",
-  general: "https://images.pexels.com/photos/5212329/pexels-photo-5212329.jpeg",
-};
+const categoryOrder = [
+  "scholarships",
+  "internships",
+  "fellowships",
+  "programs",
+] as const;
 
-function getOpportunityImage(opportunity: Opportunity): string {
-  if (opportunity.image) return opportunity.image;
+// Token-based search: every word in the query must appear somewhere in the
+// opportunity's searchable text. Beats a single `.includes()` for multi-word
+// queries like "remote data science" where the words are scattered across
+// fields.
+function buildSearchHaystack(opportunity: Opportunity): string {
+  return [
+    opportunity.title,
+    opportunity.organization,
+    opportunity.summary,
+    opportunity.description,
+    opportunity.location,
+    opportunity.category,
+    ...(Array.isArray(opportunity.tags) ? opportunity.tags : []),
+    ...(Array.isArray(opportunity.benefits) ? opportunity.benefits : []),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
 
-  const category = opportunity.category?.trim().toLowerCase() || "general";
-  return categoryFallbackImages[category] || categoryFallbackImages.general;
+function matchesSearchQuery(opportunity: Opportunity, query: string): boolean {
+  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+  const haystack = buildSearchHaystack(opportunity);
+  return tokens.every((token) => haystack.includes(token));
+}
+
+function isOpportunityRemote(opportunity: Opportunity): boolean {
+  if (opportunity.isRemote) return true;
+  return /remote|anywhere|online|virtual/i.test(opportunity.location || "");
 }
 
 function isRollingDeadline(deadline?: string | null): boolean {
@@ -115,17 +147,6 @@ function formatDeadline(deadline?: string | null): string {
   if (!parsed) return "Deadline not listed";
 
   return format(parsed, "d MMM yyyy");
-}
-
-function closingSoonClasses(daysLeft: number): string {
-  if (daysLeft <= 1) {
-    return "font-semibold text-rose-600 dark:text-rose-400";
-  }
-  return "font-semibold text-amber-600 dark:text-amber-400";
-}
-
-function formatDaysLeftLabel(daysLeft: number): string {
-  return `${daysLeft} day${daysLeft === 1 ? "" : "s"} left`;
 }
 
 function getCurrencySymbol(currency?: string | null): string {
@@ -156,6 +177,12 @@ function formatFunding(opportunity: Opportunity): string | null {
 type SortOption = "recommended" | "deadline" | "newest" | "funding";
 
 const PAGE_SIZE = 12;
+
+// Warm the detail-route chunk while the user is still deciding, so tapping a
+// card never waits on a JS download.
+function prefetchOpportunityDetail() {
+  void import("./OpportunityDetail").catch(() => {});
+}
 
 const sortOptions: { value: SortOption; labelKey: string }[] = [
   { value: "recommended", labelKey: "opportunities.sort.recommended" },
@@ -247,45 +274,58 @@ function OpportunityCard({
   isSharing,
   detailPath,
   expired,
+  match,
+  onOpen,
 }: {
   opportunity: Opportunity;
   onShare: (opportunity: Opportunity) => void;
   isSharing: boolean;
   detailPath: string;
   expired: boolean;
+  match?: MatchResult | null;
+  onOpen?: (opportunity: Opportunity) => void;
 }) {
   const funding = formatFunding(opportunity);
+  const deadlineBadge = getDeadlineBadge(opportunity.deadline);
   const deadlineDisplay = (() => {
-    const daysLeft = expired ? null : getOpportunityDaysLeft(opportunity.deadline);
-    if (daysLeft !== null && daysLeft <= 7) {
+    if (expired) {
+      return { text: formatDeadline(opportunity.deadline), className: "" };
+    }
+    if (deadlineBadge.isUrgent && deadlineBadge.date) {
       return {
-        text: `${formatDeadline(opportunity.deadline)} · ${formatDaysLeftLabel(daysLeft)}`,
-        className: closingSoonClasses(daysLeft),
+        text: `${deadlineBadge.date} · ${deadlineBadge.label}`,
+        className: urgencyTextClasses(deadlineBadge.level),
       };
     }
     return { text: formatDeadline(opportunity.deadline), className: "" };
   })();
 
   return (
-    <article className="group relative flex h-full flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-soft dark:border-white/10 dark:bg-slate-950">
-      <div className="relative aspect-[16/9] overflow-hidden bg-slate-100 dark:bg-slate-900">
+    <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-elevated">
+      <div className="relative aspect-[16/9] overflow-hidden bg-surface-elevated">
         <ImageWithFallback
-          src={getOpportunityImage(opportunity)}
+          src={opportunity.image}
           alt={`${opportunity.title} cover image`}
+          category={opportunity.category}
           className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
           fallbackClassName="flex h-full w-full items-center justify-center"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent" />
         {expired ? (
-          <span className="absolute left-3 top-3 inline-flex items-center rounded-md bg-slate-950/85 px-2.5 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur dark:bg-white/85 dark:text-slate-950">
+          <span className="absolute left-3 top-3 inline-flex items-center rounded-md bg-surface-elevated px-2.5 py-1 text-xs font-semibold text-text-secondary shadow-soft backdrop-blur">
             Expired
           </span>
-        ) : null}
+        ) : (
+          <UrgencyPill
+            badge={deadlineBadge}
+            className="absolute left-3 top-3 shadow-sm backdrop-blur"
+          />
+        )}
         <button
           type="button"
           onClick={() => onShare(opportunity)}
           disabled={isSharing}
-          className="absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-md bg-white/90 text-slate-700 shadow-sm backdrop-blur transition hover:bg-white hover:text-slate-900 disabled:cursor-wait disabled:opacity-60 dark:bg-white/15 dark:text-slate-200 dark:hover:bg-white/25 dark:hover:text-white"
+          className="absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-md bg-surface-layer text-text-secondary shadow-soft backdrop-blur transition hover:bg-surface-elevated hover:text-text-primary disabled:cursor-wait disabled:opacity-60"
           aria-label={`Share ${opportunity.title}`}
         >
           <Share2 size={15} />
@@ -294,36 +334,45 @@ function OpportunityCard({
 
       <div className="flex flex-1 flex-col p-4">
         <div className="mb-3 flex flex-wrap gap-2">
-          <span className="inline-flex items-center rounded-md border border-brand-500/20 bg-brand-500/10 px-2 py-1 text-xs font-semibold text-brand-700 dark:text-brand-300">
-            {opportunity.category || "General"}
-          </span>
+          <MatchScoreBadge score={match?.score} minScore={40} />
+          {opportunity.category ? (
+            <span className="inline-flex items-center rounded-md border border-brand/30 bg-brand/10 px-2 py-1 text-xs font-semibold text-brand">
+              {opportunity.category}
+            </span>
+          ) : null}
           {opportunity.difficulty ? (
-            <span className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+            <span className="inline-flex items-center rounded-md border border-subtle bg-surface-elevated px-2 py-1 text-xs font-semibold text-text-secondary">
               {opportunity.difficulty}
             </span>
           ) : null}
         </div>
 
-        <h2 className="text-lg font-semibold leading-snug text-slate-950 transition group-hover:text-brand-600 dark:text-white dark:group-hover:text-brand-300">
+        <h2 className="font-display text-lg font-semibold leading-snug tracking-tight text-text-primary transition group-hover:text-brand">
           {opportunity.title}
         </h2>
         {opportunity.organization ? (
-          <p className="mt-1 truncate text-sm text-slate-500 dark:text-slate-400">
+          <p className="mt-1 truncate text-sm text-text-muted">
             {opportunity.organization}
           </p>
         ) : null}
 
+        {match && match.score >= 40 ? (
+          <TopMatchReason reason={match.reasons[0]} />
+        ) : null}
+
         {funding ? (
-          <p className="mt-3 text-sm font-medium text-emerald-700 dark:text-emerald-300">
+          <p className="mt-3 text-sm font-medium text-success">
             {funding}
           </p>
         ) : null}
 
-        <div className="mt-4 flex flex-wrap gap-3 border-t border-slate-200 pt-3 text-sm text-slate-500 dark:border-white/10 dark:text-slate-400">
-          <span className="inline-flex items-center gap-1.5">
-            <MapPin size={14} />
-            {opportunity.location || "Remote"}
-          </span>
+        <div className="mt-4 flex flex-wrap gap-3 border-t border-subtle pt-3 text-sm text-text-muted">
+          {opportunity.location ? (
+            <span className="inline-flex items-center gap-1.5">
+              <MapPin size={14} />
+              {opportunity.location}
+            </span>
+          ) : null}
           <span
             className={`inline-flex items-center gap-1.5 ${deadlineDisplay.className}`}
           >
@@ -335,7 +384,11 @@ function OpportunityCard({
 
       <Link
         to={detailPath}
-        className="absolute inset-0 z-10 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950"
+        state={{ opportunity }}
+        onClick={() => onOpen?.(opportunity)}
+        onMouseEnter={prefetchOpportunityDetail}
+        onFocus={prefetchOpportunityDetail}
+        className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-2"
         aria-label={`View ${opportunity.title}`}
       />
     </article>
@@ -344,7 +397,7 @@ function OpportunityCard({
 
 function LoadingCard() {
   return (
-    <div className="min-h-[330px] animate-pulse rounded-lg bg-slate-200 dark:bg-white/5" />
+    <div className="min-h-[330px] animate-pulse rounded-2xl bg-surface-elevated" />
   );
 }
 
@@ -355,21 +408,31 @@ interface OpportunitiesPageProps {
 export default function OpportunitiesPage({ embedded = false }: OpportunitiesPageProps) {
   const { t } = useTranslation();
   const { data: opportunities, loading, error, refresh } = useOpportunities();
+  const { explainOpportunity, isPersonalized, trackInteraction } =
+    usePersonalization();
   const { success, error: showError } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
   const [sharingId, setSharingId] = useState<string | null>(null);
   const [showClosed, setShowClosed] = useState(false);
+  const [remoteOnly, setRemoteOnly] = useState(false);
   const [sortOption, setSortOption] = useState<SortOption>("recommended");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const selectedCategoryId = searchParams.get("category")?.toLowerCase() ?? "";
   const selectedCategory = categoryFilters[selectedCategoryId] ?? null;
 
+  // Defer the heavy filter/score pass so typing stays responsive on large lists.
+  const deferredSearchTerm = useDeferredValue(searchTerm);
+
   const filteredOpportunities = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
+    const term = deferredSearchTerm.trim();
 
     return opportunities.filter((opportunity) => {
       if (!showClosed && isOpportunityExpired(opportunity)) {
+        return false;
+      }
+
+      if (remoteOnly && !isOpportunityRemote(opportunity)) {
         return false;
       }
 
@@ -380,44 +443,71 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
         return false;
       }
 
-      if (!term) {
-        return true;
-      }
-
-      const haystack = [
-        opportunity.title,
-        opportunity.organization,
-        opportunity.description,
-        opportunity.location,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return haystack.includes(term);
+      return matchesSearchQuery(opportunity, term);
     });
   }, [
     opportunities,
-    searchTerm,
+    deferredSearchTerm,
     selectedCategoryId,
     showClosed,
+    remoteOnly,
   ]);
 
-  const sortedOpportunities = useMemo(
-    () => sortOpportunities(filteredOpportunities, sortOption),
-    [filteredOpportunities, sortOption],
-  );
+  const matchInsights = useMemo(() => {
+    if (!isPersonalized) return null;
+    const insights = new Map<string, MatchResult>();
+    filteredOpportunities.forEach((opportunity) => {
+      insights.set(opportunity.id, explainOpportunity(opportunity));
+    });
+    return insights;
+  }, [filteredOpportunities, isPersonalized, explainOpportunity]);
+
+  const sortedOpportunities = useMemo(() => {
+    if (sortOption === "recommended" && matchInsights) {
+      return [...filteredOpportunities].sort(
+        (a, b) =>
+          (matchInsights.get(b.id)?.score ?? 0) -
+          (matchInsights.get(a.id)?.score ?? 0),
+      );
+    }
+    return sortOpportunities(filteredOpportunities, sortOption);
+  }, [filteredOpportunities, sortOption, matchInsights]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
   }, [sortedOpportunities]);
 
   const visibleOpportunities = sortedOpportunities.slice(0, visibleCount);
+  const hasMoreToShow = visibleCount < sortedOpportunities.length;
+
+  // Auto-load the next page as the user approaches the end of the grid; the
+  // button stays as an accessible, observer-free fallback.
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+  const loadMore = useCallback(() => {
+    setVisibleCount((count) => count + PAGE_SIZE);
+  }, []);
+
+  useEffect(() => {
+    const sentinel = loadMoreSentinelRef.current;
+    if (!sentinel || !hasMoreToShow || typeof IntersectionObserver === "undefined") {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          loadMore();
+        }
+      },
+      { rootMargin: "600px 0px" },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMoreToShow, loadMore]);
 
   const hasActiveFilters = Boolean(
-    searchTerm.trim() ||
-      selectedCategoryId ||
-      showClosed,
+    searchTerm.trim() || selectedCategoryId || showClosed || remoteOnly,
   );
 
   const latestUpdatedAt = useMemo(
@@ -491,48 +581,31 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
     setSearchParams(nextParams, { replace: true });
   };
 
+  const selectCategory = (categoryId: string) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (!categoryId || categoryId === selectedCategoryId) {
+      nextParams.delete("category");
+    } else {
+      nextParams.set("category", categoryId);
+    }
+    setSearchParams(nextParams, { replace: true });
+  };
+
   const clearAllFilters = () => {
     setSearchTerm("");
     setShowClosed(false);
+    setRemoteOnly(false);
     setSearchParams(new URLSearchParams(), { replace: true });
   };
 
   const handleShareOpportunity = async (opportunity: Opportunity) => {
-    const shareUrl = buildOpportunityShareUrl(opportunity.id);
-    const shareText = buildOpportunityShareText(opportunity, shareUrl);
-
     setSharingId(opportunity.id);
-
+    trackInteraction(opportunity, "share");
     try {
-      if (navigator.share) {
-        await navigator.share({
-          title: opportunity.title,
-          text: shareText,
-          url: shareUrl,
-        });
-        success("Share link ready");
-        return;
-      }
-
-      await navigator.clipboard.writeText(`${shareText}\n\n${shareUrl}`);
-      success("Share link copied");
-    } catch (error) {
-      if (
-        error instanceof DOMException &&
-        (error.name === "AbortError" || error.name === "NotAllowedError")
-      ) {
-        return;
-      }
-
-      try {
-        window.open(
-          buildWhatsAppShareUrl(shareText),
-          "_blank",
-          "noopener,noreferrer",
-        );
-        success("Opened WhatsApp share");
-      } catch {
-        showError("Could not share this opportunity");
+      const outcome = await shareOpportunity(opportunity);
+      const toast = shareOutcomeMessage(outcome);
+      if (toast) {
+        (toast.type === "success" ? success : showError)(toast.message);
       }
     } finally {
       setSharingId(null);
@@ -542,23 +615,23 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   const content = (
     <>
         {selectedCategory ? (
-          <section className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950">
+          <section className="mb-4 rounded-2xl border border-subtle bg-surface-layer p-4 shadow-soft">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600 dark:text-brand-300">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
                   {t("navigation.explore")}
                 </p>
-                <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">
+                <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-text-primary">
                   {t(selectedCategory.labelKey)}
                 </h1>
-                <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
+                <p className="mt-1 text-sm leading-6 text-text-muted">
                   {t("opportunities.browseCategory", { label: t(selectedCategory.labelKey).toLowerCase() })}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={clearCategory}
-                className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+                className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-subtle bg-surface-layer px-3 text-xs font-semibold text-text-secondary shadow-soft transition hover:bg-surface-elevated"
               >
                 {t("common.all")}
                 <X size={14} />
@@ -567,23 +640,93 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
           </section>
         ) : null}
 
-        <section className={`sticky ${embedded ? "top-[72px]" : "top-[76px]"} z-20 rounded-lg border border-slate-200 bg-white/92 p-3 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/92`}>
+        <section className={`sticky ${embedded ? "top-[72px]" : "top-[76px]"} z-20 rounded-2xl border border-subtle bg-surface-layer p-3 shadow-soft backdrop-blur-xl`}>
+          <div className="mb-3 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <button
+              type="button"
+              onClick={() => selectCategory("")}
+              aria-pressed={!selectedCategoryId}
+              className={`inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-xs font-semibold transition ${
+                !selectedCategoryId
+                  ? "border-brand bg-brand text-white"
+                  : "border-subtle bg-surface-layer text-text-secondary hover:border-strong"
+              }`}
+            >
+              {t("common.all")}
+            </button>
+            {categoryOrder.map((categoryId) => {
+              const active = selectedCategoryId === categoryId;
+              return (
+                <button
+                  key={categoryId}
+                  type="button"
+                  onClick={() => selectCategory(categoryId)}
+                  aria-pressed={active}
+                  className={`inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-xs font-semibold transition ${
+                    active
+                      ? "border-brand bg-brand text-white"
+                      : "border-subtle bg-surface-layer text-text-secondary hover:border-strong"
+                  }`}
+                >
+                  {t(categoryFilters[categoryId].labelKey)}
+                </button>
+              );
+            })}
+            <span className="mx-1 h-5 w-px shrink-0 bg-border-subtle" />
+            <button
+              type="button"
+              onClick={() => setRemoteOnly((value) => !value)}
+              aria-pressed={remoteOnly}
+              className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition ${
+                remoteOnly
+                  ? "border-success bg-success text-white"
+                  : "border-subtle bg-surface-layer text-text-secondary hover:border-strong"
+              }`}
+            >
+              <MapPin size={13} />
+              Remote
+            </button>
+          </div>
+          <div className="relative mb-3 sm:hidden">
+            <Search
+              size={16}
+              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted"
+            />
+            <input
+              type="text"
+              aria-label="Search opportunities"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder={t("opportunities.searchPlaceholder")}
+              className="h-10 w-full rounded-md border border-subtle bg-surface-layer pl-10 pr-10 text-sm text-text-primary placeholder:text-text-muted focus:border-brand focus-visible:ring-2 focus-visible:ring-brand/40"
+            />
+            {searchTerm ? (
+              <button
+                type="button"
+                onClick={clearSearch}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-2 text-text-muted transition hover:text-text-primary"
+                aria-label="Clear search"
+              >
+                <X size={16} />
+              </button>
+            ) : null}
+          </div>
           <div className="flex items-center justify-between sm:hidden">
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-text-muted">
               {t("opportunities.showing.opportunities", {
                 shown: visibleOpportunities.length,
                 total: sortedOpportunities.length,
                 count: sortedOpportunities.length,
               })}
             </p>
-            <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+            <label className="inline-flex items-center gap-2 text-xs font-semibold text-text-secondary">
               {t("common.sort")}
               <select
                 value={sortOption}
                 onChange={(event) =>
                   setSortOption(event.target.value as SortOption)
                 }
-                className="h-8 rounded-md border border-slate-200 bg-white pl-2.5 pr-7 text-xs font-semibold text-slate-700 focus:border-brand-500 focus:outline-none dark:border-white/10 dark:bg-slate-950 dark:text-slate-200"
+                className="h-8 rounded-md border border-subtle bg-surface-layer pl-2.5 pr-7 text-xs font-semibold text-text-secondary focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
               >
                 {sortOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -598,7 +741,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
               <div className="relative flex-1">
               <Search
                 size={18}
-                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400"
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-text-muted"
               />
               <input
                 type="text"
@@ -606,32 +749,32 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder={t("opportunities.searchPlaceholder")}
-                className="h-11 w-full rounded-md border border-slate-200 bg-white pl-11 pr-11 text-sm text-slate-950 placeholder:text-slate-400 focus:border-brand-500 focus:bg-white dark:border-white/10 dark:bg-slate-950 dark:text-white dark:focus:bg-slate-950"
+                className="h-11 w-full rounded-md border border-subtle bg-surface-layer pl-11 pr-11 text-sm text-text-primary placeholder:text-text-muted focus:border-brand focus-visible:ring-2 focus-visible:ring-brand/40"
               />
               {searchTerm ? (
                 <button
                   type="button"
                   onClick={clearSearch}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-slate-500 transition hover:text-slate-700 dark:hover:text-white"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-text-muted transition hover:text-text-primary"
                   aria-label="Clear search"
                 >
                   <X size={16} />
                 </button>
               ) : null}
               </div>
-              <label className="inline-flex h-11 shrink-0 cursor-pointer select-none items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-600 dark:border-white/10 dark:bg-slate-950 dark:text-slate-300">
+              <label className="inline-flex h-11 shrink-0 cursor-pointer select-none items-center gap-2 rounded-md border border-subtle bg-surface-layer px-3 text-sm text-text-secondary">
                 <input
                   type="checkbox"
                   checked={showClosed}
                   onChange={(event) => setShowClosed(event.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 dark:border-white/20 dark:bg-slate-900"
+                  className="h-4 w-4 rounded border-subtle text-brand focus:ring-brand/40"
                 />
                 {t("opportunities.showClosed")}
               </label>
             </div>
 
-            <div className="flex flex-col gap-3 border-t border-slate-200 pt-3 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+            <div className="flex flex-col gap-3 border-t border-subtle pt-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-text-muted">
                 {t("opportunities.showing.opportunities", {
                   shown: visibleOpportunities.length,
                   total: sortedOpportunities.length,
@@ -639,14 +782,14 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                 })}
               </p>
               <div className="flex flex-wrap items-center gap-2">
-                <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                <label className="inline-flex items-center gap-2 text-xs font-semibold text-text-secondary">
                   {t("common.sort")}
                   <select
                     value={sortOption}
                     onChange={(event) =>
                       setSortOption(event.target.value as SortOption)
                     }
-                    className="h-8 rounded-md border border-slate-200 bg-white pl-2.5 pr-7 text-xs font-semibold text-slate-700 focus:border-brand-500 focus:outline-none dark:border-white/10 dark:bg-slate-950 dark:text-slate-200"
+                    className="h-8 rounded-md border border-subtle bg-surface-layer pl-2.5 pr-7 text-xs font-semibold text-text-secondary focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
                   >
                     {sortOptions.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -659,7 +802,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                   <button
                     type="button"
                     onClick={clearAllFilters}
-                    className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-white/20"
+                    className="inline-flex h-8 items-center gap-1 rounded-md border border-subtle bg-surface-layer px-2.5 text-xs font-semibold text-text-secondary transition hover:border-strong hover:bg-surface-elevated"
                   >
                     {t("opportunities.clearAll")}
                     <X size={12} />
@@ -671,17 +814,17 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
         </section>
 
         {error ? (
-          <section className="mt-5 rounded-lg border border-rose-200 bg-rose-50 p-5 text-rose-900 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-100">
-            <h2 className="text-lg font-semibold">
+          <section className="mt-5 rounded-2xl border border-danger/30 bg-danger/10 p-5 text-danger">
+            <h2 className="font-display text-lg font-semibold tracking-tight">
               {t("opportunities.errorTitle")}
             </h2>
-            <p className="mt-2 text-sm leading-6 text-rose-800/80 dark:text-rose-100/80">
+            <p className="mt-2 text-sm leading-6 text-danger/80">
               {error}
             </p>
             <button
               type="button"
               onClick={refresh}
-              className="mt-4 inline-flex items-center gap-2 rounded-md bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-700"
+              className="mt-4 inline-flex items-center gap-2 rounded-md bg-danger px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-danger/90"
             >
               <RefreshCw size={16} />
               {t("common.retry")}
@@ -706,15 +849,18 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                   isSharing={sharingId === opportunity.id}
                   detailPath={`${embedded ? "/app" : ""}/opportunity/${opportunity.id}`}
                   expired={isOpportunityExpired(opportunity)}
+                  match={matchInsights?.get(opportunity.id) ?? null}
+                  onOpen={(item) => trackInteraction(item, "view")}
                 />
               ))}
             </section>
-            {visibleCount < sortedOpportunities.length ? (
+            {hasMoreToShow ? (
               <div className="mt-6 flex flex-col items-center gap-3">
+                <div ref={loadMoreSentinelRef} aria-hidden="true" />
                 <button
                   type="button"
-                  onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
-                  className="inline-flex h-11 items-center gap-2 rounded-md border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-white/20 dark:hover:bg-white/5"
+                  onClick={loadMore}
+                  className="inline-flex h-11 items-center gap-2 rounded-md border border-subtle bg-surface-layer px-5 text-sm font-semibold text-text-secondary shadow-soft transition hover:border-strong hover:bg-surface-elevated"
                 >
                   {t("opportunities.loadMore")}
                 </button>
@@ -722,15 +868,15 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
             ) : null}
           </>
         ) : (
-          <section className="mt-5 rounded-lg border border-slate-200 bg-white p-8 text-center dark:border-white/10 dark:bg-slate-950">
-            <h2 className="text-2xl font-semibold">{t("opportunities.empty.title")}</h2>
-            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+          <section className="mt-5 rounded-2xl border border-subtle bg-surface-layer p-8 text-center">
+            <h2 className="font-display text-2xl font-semibold tracking-tight text-text-primary">{t("opportunities.empty.title")}</h2>
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-text-secondary">
               {t("opportunities.empty.description")}
             </p>
             <button
               type="button"
               onClick={clearAllFilters}
-              className="mt-5 inline-flex items-center gap-2 rounded-md bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+              className="mt-5 inline-flex items-center gap-2 rounded-md bg-brand px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700"
             >
               {t("opportunities.clearFilters")}
             </button>
@@ -740,35 +886,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   );
 
   return (
-    <div className="opportunities-force-light">
-      <style>{`
-        .opportunities-force-light {
-          color: #0f172a !important;
-          background-color: #f8fafc !important;
-        }
-        .opportunities-force-light [class*="dark\\:text-"] {
-          color: #0f172a !important;
-        }
-        .opportunities-force-light [class*="dark\\:text-brand"] {
-          color: #4338ca !important;
-        }
-        .opportunities-force-light [class*="dark\\:text-emerald"] {
-          color: #047857 !important;
-        }
-        .opportunities-force-light [class*="dark\\:text-rose"] {
-          color: #be123c !important;
-        }
-        .opportunities-force-light [class*="dark\\:text-amber"] {
-          color: #b45309 !important;
-        }
-        .opportunities-force-light .dark\\:bg-gray-950,
-        .opportunities-force-light [class*="dark\\:bg-"] {
-          background-color: #ffffff !important;
-        }
-        .opportunities-force-light [class*="dark\\:border-"] {
-          border-color: #e2e8f0 !important;
-        }
-      `}</style>
+    <div className="bg-surface-body">
       <Seo
         title={
           selectedCategory

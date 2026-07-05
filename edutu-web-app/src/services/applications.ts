@@ -1,8 +1,25 @@
 import type { Opportunity } from '../types/opportunity';
 import { productApiRequest } from './productApi';
 
-export type ApplicationStatus = 'draft' | 'submitted' | 'under_review' | 'accepted' | 'rejected';
-type DatabaseApplicationStatus = 'draft' | 'submitted' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
+// App-facing status now mirrors the backend pipeline 1:1 so the true
+// draft → submitted → interview → offer journey is preserved (previously
+// interview/offer were flattened into under_review/accepted).
+export type ApplicationStatus =
+  | 'draft'
+  | 'submitted'
+  | 'interview'
+  | 'offer'
+  | 'rejected'
+  | 'withdrawn';
+type DatabaseApplicationStatus = ApplicationStatus;
+
+/** The active pipeline stages, in order, for kanban-style rendering. */
+export const APPLICATION_PIPELINE: ApplicationStatus[] = [
+  'draft',
+  'submitted',
+  'interview',
+  'offer',
+];
 
 export interface ApplicationRecord {
   id: string;
@@ -69,17 +86,18 @@ function toAppStatus(status: string): ApplicationStatus {
     case 'applied':
       return 'submitted';
     case 'interviewing':
-    case 'interview':
-      return 'under_review';
+    case 'under_review':
+      return 'interview';
     case 'accepted':
-    case 'offer':
-      return 'accepted';
+      return 'offer';
     case 'archived':
-    case 'withdrawn':
-      return 'rejected';
+      return 'withdrawn';
     case 'draft':
     case 'submitted':
+    case 'interview':
+    case 'offer':
     case 'rejected':
+    case 'withdrawn':
       return status;
     default:
       return 'submitted';
@@ -87,18 +105,9 @@ function toAppStatus(status: string): ApplicationStatus {
 }
 
 function toProductStatus(status: ApplicationStatus): ProductApplicationStatus {
-  switch (status) {
-    case 'draft':
-      return 'draft';
-    case 'submitted':
-      return 'submitted';
-    case 'under_review':
-      return 'interview';
-    case 'accepted':
-      return 'offer';
-    case 'rejected':
-      return status;
-  }
+  // App and product statuses are now identical, so this is a pass-through
+  // that also keeps the type contract explicit.
+  return status;
 }
 
 function mapApiApplication(

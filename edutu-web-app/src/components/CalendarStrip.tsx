@@ -103,12 +103,12 @@ export default function CalendarStrip({
 
   return (
     <div
-      className={`rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950 ${
+      className={`rounded-2xl border border-subtle bg-surface-layer shadow-soft ${
         compact ? "p-3" : "p-4"
       }`}
     >
       <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-black">
+        <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-text-primary">
           <Calendar size={compact ? 15 : 17} />
           <span className="truncate">Upcoming activity</span>
         </div>
@@ -116,7 +116,7 @@ export default function CalendarStrip({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-black transition hover:bg-slate-100 hover:text-black dark:hover:bg-white/10 dark:hover:text-white"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-secondary transition hover:bg-surface-elevated hover:text-text-primary"
             aria-label="Close upcoming activity"
           >
             <X size={15} />
@@ -137,15 +137,15 @@ export default function CalendarStrip({
               }
               onEventClick?.(event);
             }}
-            className={`min-w-[138px] rounded-xl border border-slate-200 bg-slate-50 text-left transition hover:border-brand-300 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 ${
+            className={`min-w-[138px] rounded-xl border border-subtle bg-surface-elevated text-left transition hover:border-brand/40 hover:bg-surface-layer ${
               compact ? "p-2.5" : "p-3"
             }`}
           >
-            <span className="mb-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-black">
+            <span className="mb-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-text-muted">
               <Clock size={13} />
               {formatEventDate(event.date)}
             </span>
-            <span className="line-clamp-1 block text-xs font-semibold leading-5 text-black">
+            <span className="line-clamp-1 block text-xs font-semibold leading-5 text-text-primary">
               {event.title}
             </span>
           </button>

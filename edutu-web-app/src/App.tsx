@@ -28,6 +28,9 @@ const AuthScreen = lazy(() => import("./components/AuthScreen"));
 const AuthCallback = lazy(() => import("./components/AuthCallback"));
 const ApplicationsPage = lazy(() => import("./components/ApplicationsPage"));
 const Dashboard = lazy(() => import("./components/Dashboard"));
+const PersonalizationScreen = lazy(
+  () => import("./components/PersonalizationScreen"),
+);
 const LandingPageV3 = lazy(() => import("./components/LandingPageV3"));
 const OpportunitiesPage = lazy(() => import("./components/OpportunitiesPage"));
 const OpportunityDetailFetcher = lazy(
@@ -354,7 +357,10 @@ function UserDashboardPage() {
   const openOpportunity = useCallback(
     (opportunity: { id?: string }) => {
       if (!opportunity?.id) return;
-      navigate(`/app/opportunity/${opportunity.id}`);
+      // Hand the row to the detail route so it paints without refetching.
+      navigate(`/app/opportunity/${opportunity.id}`, {
+        state: { opportunity },
+      });
     },
     [navigate],
   );
@@ -412,6 +418,17 @@ function App() {
   const { signOut } = useAppAuth();
 
   useAbsoluteSessionTimeout(signOut);
+
+  useEffect(() => {
+    // Warm the opportunity cache at boot (dynamic import keeps the service
+    // out of the entry chunk) so the first feed screen paints from cache.
+    const warmup = window.setTimeout(() => {
+      void import("./services/opportunities")
+        .then((module) => module.fetchOpportunities())
+        .catch(() => {});
+    }, 300);
+    return () => window.clearTimeout(warmup);
+  }, []);
 
   const handleAuthSuccess = useCallback(
     (_userData: unknown) => {
@@ -557,6 +574,14 @@ function App() {
         element={
           <AppWorkspaceRoute>
             <ProfilePage />
+          </AppWorkspaceRoute>
+        }
+      />
+      <Route
+        path="/app/personalization"
+        element={
+          <AppWorkspaceRoute>
+            <PersonalizationScreen />
           </AppWorkspaceRoute>
         }
       />

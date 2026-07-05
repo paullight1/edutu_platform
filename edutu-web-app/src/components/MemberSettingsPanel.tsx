@@ -117,20 +117,20 @@ function Toggle({
       type="button"
       onClick={onChange}
       disabled={disabled}
-      className="flex w-full items-center justify-between gap-4 border-b border-slate-100 px-4 py-4 text-left transition last:border-b-0 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:hover:bg-white/10"
+      className="flex w-full items-center justify-between gap-4 border-b border-subtle px-4 py-4 text-left transition last:border-b-0 hover:bg-surface-elevated disabled:cursor-not-allowed disabled:opacity-60"
       aria-pressed={checked}
     >
       <span className="min-w-0">
-        <span className="block text-sm font-semibold text-slate-950 dark:text-white">
+        <span className="block text-sm font-semibold text-text-primary">
           {label}
         </span>
-        <span className="mt-1 block text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
+        <span className="mt-1 block text-xs font-semibold leading-5 text-text-muted">
           {description}
         </span>
       </span>
       <span
         className={`relative h-6 w-11 shrink-0 rounded-full transition ${
-          checked ? "bg-brand-500" : "bg-slate-200 dark:bg-white/15"
+          checked ? "bg-brand" : "bg-surface-elevated border border-subtle"
         }`}
       >
         <span
@@ -301,7 +301,7 @@ export default function MemberSettingsPanel({
         {Array.from({ length: 5 }).map((_, index) => (
           <div
             key={index}
-            className="h-16 animate-pulse rounded-2xl border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/5"
+            className="h-16 animate-pulse rounded-2xl border border-subtle bg-surface-elevated"
           />
         ))}
       </div>
@@ -314,8 +314,8 @@ export default function MemberSettingsPanel({
         <div
           className={`rounded-2xl border p-4 text-sm font-semibold ${
             error
-              ? "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300"
-              : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300"
+              ? "border-danger/30 bg-danger/10 text-danger"
+              : "border-success/30 bg-success/10 text-success"
           }`}
         >
           {error || status}
@@ -326,55 +326,55 @@ export default function MemberSettingsPanel({
         <button
           type="button"
           onClick={onOpenNotifications}
-          className="flex w-full items-center justify-between rounded-[22px] border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+          className="flex w-full items-center justify-between rounded-[22px] border border-subtle bg-surface-layer p-4 text-left shadow-soft transition hover:bg-surface-elevated"
         >
           <span className="flex min-w-0 items-center gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand/10 text-brand">
               <Bell size={19} />
             </span>
             <span className="min-w-0">
-              <span className="block text-sm font-semibold text-slate-950 dark:text-white">
+              <span className="block text-sm font-semibold text-text-primary">
                 Notifications
               </span>
-              <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-400">
+              <span className="mt-1 block text-xs font-semibold text-text-muted">
                 Inbox and reminders
               </span>
             </span>
           </span>
           <span className="flex shrink-0 items-center gap-2">
             {unreadCount > 0 ? (
-              <span className="rounded-full bg-brand-500/10 px-2 py-1 text-[11px] font-semibold text-brand-600 dark:text-brand-300">
+              <span className="rounded-full bg-brand/10 px-2 py-1 text-[11px] font-semibold text-brand">
                 {unreadCount}
               </span>
             ) : null}
-            <ChevronRight size={18} className="text-slate-400" />
+            <ChevronRight size={18} className="text-text-muted" />
           </span>
         </button>
       </section>
 
       <section className="space-y-2">
-        <div className="flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+        <div className="flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
           <ShieldCheck size={14} />
           Privacy
         </div>
-        <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/5">
-          <div className="border-b border-slate-100 dark:border-white/10">
+        <div className="overflow-hidden rounded-[22px] border border-subtle bg-surface-layer shadow-soft">
+          <div className="border-b border-subtle">
             <button
               type="button"
               onClick={() => setVisibilityPickerOpen(true)}
-              className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500 dark:hover:bg-white/10"
+              className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition hover:bg-surface-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
               aria-haspopup="dialog"
               aria-expanded={visibilityPickerOpen}
             >
               <span className="min-w-0">
-                <span className="block text-sm font-semibold text-slate-950 dark:text-white">
+                <span className="block text-sm font-semibold text-text-primary">
                   Profile visibility
                 </span>
-                <span className="mt-1 block text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
+                <span className="mt-1 block text-xs font-semibold leading-5 text-text-muted">
                   {selectedVisibility.label} · {selectedVisibility.description}
                 </span>
               </span>
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-elevated text-text-muted">
                 <ChevronDown size={18} />
               </span>
             </button>
@@ -396,7 +396,7 @@ export default function MemberSettingsPanel({
             type="button"
             onClick={savePrivacy}
             disabled={saving}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 text-sm font-semibold text-white shadow-soft transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : null}
             Save privacy changes
@@ -405,37 +405,37 @@ export default function MemberSettingsPanel({
       </section>
 
       <section className="space-y-2">
-        <div className="flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+        <div className="flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
           <Database size={14} />
           Account
         </div>
-        <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/5">
+        <div className="overflow-hidden rounded-[22px] border border-subtle bg-surface-layer shadow-soft">
           <button
             type="button"
             onClick={openAccountSecurity}
-            className="flex w-full items-center justify-between border-b border-slate-100 px-4 py-4 text-left transition hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/10"
+            className="flex w-full items-center justify-between border-b border-subtle px-4 py-4 text-left transition hover:bg-surface-elevated"
           >
             <span className="min-w-0">
-              <span className="block text-sm font-semibold text-slate-950 dark:text-white">
+              <span className="block text-sm font-semibold text-text-primary">
                 Sign-in security
               </span>
-              <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-400">
+              <span className="mt-1 block text-xs font-semibold text-text-muted">
                 Password, sessions, and authentication methods
               </span>
             </span>
-            <ShieldCheck size={18} className="shrink-0 text-slate-400" />
+            <ShieldCheck size={18} className="shrink-0 text-text-muted" />
           </button>
           <button
             type="button"
             onClick={exportData}
             disabled={exporting}
-            className="flex w-full items-center justify-between px-4 py-4 text-left transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-white/10"
+            className="flex w-full items-center justify-between px-4 py-4 text-left transition hover:bg-surface-elevated disabled:cursor-not-allowed disabled:opacity-60"
           >
             <span className="min-w-0">
-              <span className="block text-sm font-semibold text-slate-950 dark:text-white">
+              <span className="block text-sm font-semibold text-text-primary">
                 Export account data
               </span>
-              <span className="mt-1 block text-xs font-semibold text-slate-500 dark:text-slate-400">
+              <span className="mt-1 block text-xs font-semibold text-text-muted">
                 {settings?.security.lastDataDownload
                   ? `Last exported ${new Date(settings.security.lastDataDownload).toLocaleDateString()}`
                   : "No export recorded"}
@@ -444,13 +444,13 @@ export default function MemberSettingsPanel({
             {exporting ? (
               <Loader2 size={18} className="animate-spin" />
             ) : (
-              <Download size={18} className="shrink-0 text-slate-400" />
+              <Download size={18} className="shrink-0 text-text-muted" />
             )}
           </button>
         </div>
         {confirmDeletion ? (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-500/20 dark:bg-rose-500/10">
-            <p className="text-sm font-semibold text-rose-700 dark:text-rose-300">
+          <div className="rounded-2xl border border-danger/30 bg-danger/10 p-4">
+            <p className="text-sm font-semibold text-danger">
               Confirm deletion request
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -458,7 +458,7 @@ export default function MemberSettingsPanel({
                 type="button"
                 onClick={() => setConfirmDeletion(false)}
                 disabled={deleting}
-                className="h-10 rounded-xl border border-rose-200 bg-white text-sm font-semibold text-rose-700 disabled:opacity-60 dark:border-rose-500/20 dark:bg-white/10 dark:text-rose-200"
+                className="h-10 rounded-xl border border-danger/30 bg-surface-layer text-sm font-semibold text-danger disabled:opacity-60"
               >
                 Cancel
               </button>
@@ -466,7 +466,7 @@ export default function MemberSettingsPanel({
                 type="button"
                 onClick={requestDeletion}
                 disabled={deleting}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-rose-600 text-sm font-semibold text-white disabled:opacity-60"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-danger text-sm font-semibold text-white disabled:opacity-60"
               >
                 {deleting ? (
                   <Loader2 size={15} className="animate-spin" />
@@ -479,7 +479,7 @@ export default function MemberSettingsPanel({
           <button
             type="button"
             onClick={() => setConfirmDeletion(true)}
-            className="flex w-full items-center justify-between rounded-2xl border border-rose-200 bg-rose-50 p-4 text-left text-rose-700 transition hover:bg-rose-100 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/15"
+            className="flex w-full items-center justify-between rounded-2xl border border-danger/30 bg-danger/10 p-4 text-left text-danger transition hover:bg-danger/15"
           >
             <span className="text-sm font-semibold">Request account deletion</span>
             <Trash2 size={18} />
@@ -492,29 +492,29 @@ export default function MemberSettingsPanel({
           role="dialog"
           aria-modal="true"
           aria-labelledby="profile-visibility-title"
-          className="fixed inset-0 z-[80] flex items-end bg-slate-950/35 px-3 pb-3 backdrop-blur-sm sm:items-center sm:justify-center"
+          className="fixed inset-0 z-[80] flex items-end bg-surface-overlay px-3 pb-3 backdrop-blur-sm sm:items-center sm:justify-center"
           onClick={() => setVisibilityPickerOpen(false)}
         >
           <div
-            className="w-full rounded-[28px] border border-slate-200 bg-white p-4 shadow-2xl dark:border-white/10 dark:bg-gray-950 sm:max-w-md"
+            className="w-full rounded-[28px] border border-subtle bg-surface-layer p-4 shadow-elevated sm:max-w-md"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h2
                   id="profile-visibility-title"
-                  className="text-base font-semibold text-slate-950 dark:text-white"
+                  className="text-base font-display font-semibold tracking-tight text-text-primary"
                 >
                   Profile visibility
                 </h2>
-                <p className="mt-1 text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
+                <p className="mt-1 text-xs font-semibold leading-5 text-text-muted">
                   Choose who can see your Edutu member profile.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setVisibilityPickerOpen(false)}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/15"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-elevated text-text-secondary transition hover:text-text-primary"
                 aria-label="Close profile visibility picker"
               >
                 <X size={18} />
@@ -538,25 +538,25 @@ export default function MemberSettingsPanel({
                       updatePrivacy({ profileVisibility: option.value });
                       setVisibilityPickerOpen(false);
                     }}
-                    className={`flex min-h-[72px] w-full items-center justify-between gap-3 rounded-2xl border px-3.5 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+                    className={`flex min-h-[72px] w-full items-center justify-between gap-3 rounded-2xl border px-3.5 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
                       selected
-                        ? "border-brand-500 bg-brand-500/10 text-slate-950 dark:text-white"
-                        : "border-slate-200 bg-slate-50 text-slate-700 hover:border-brand-200 hover:bg-brand-500/5 dark:border-white/10 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/15"
+                        ? "border-brand bg-brand/10 text-text-primary"
+                        : "border-subtle bg-surface-elevated text-text-secondary hover:border-brand/40 hover:bg-brand/5"
                     }`}
                   >
                     <span className="min-w-0">
                       <span className="block text-sm font-semibold">
                         {option.label}
                       </span>
-                      <span className="mt-0.5 block text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
+                      <span className="mt-0.5 block text-xs font-semibold leading-5 text-text-muted">
                         {option.description}
                       </span>
                     </span>
                     <span
                       className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition ${
                         selected
-                          ? "border-brand-500 bg-brand-500 text-white"
-                          : "border-slate-300 bg-white dark:border-white/20 dark:bg-transparent"
+                          ? "border-brand bg-brand text-white"
+                          : "border-strong bg-surface-layer"
                       }`}
                     >
                       {selected ? <Check size={15} strokeWidth={3} /> : null}

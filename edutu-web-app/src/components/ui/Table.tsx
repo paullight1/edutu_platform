@@ -3,10 +3,10 @@ import { cn } from '../../lib/cn';
 
 export const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
-    <div className="w-full overflow-x-auto rounded-xl border border-gray-200">
+    <div className="w-full overflow-x-auto rounded-xl border border-subtle">
       <table
         ref={ref}
-        className={cn('w-full caption-bottom text-sm text-gray-700', className)}
+        className={cn('w-full caption-bottom text-sm text-text-secondary', className)}
         {...props}
       />
     </div>
@@ -21,7 +21,7 @@ export const TableHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <thead
     ref={ref}
-    className={cn('bg-gray-50 text-xs font-semibold tracking-wide text-gray-500', className)}
+    className={cn('bg-surface-elevated text-xs font-semibold tracking-wide text-text-muted', className)}
     {...props}
   />
 ));
@@ -34,7 +34,7 @@ export const TableBody = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <tbody
     ref={ref}
-    className={cn('divide-y divide-gray-100', className)}
+    className={cn('divide-y divide-border-subtle', className)}
     {...props}
   />
 ));
@@ -45,7 +45,7 @@ export const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttribut
   ({ className, ...props }, ref) => (
     <tr
       ref={ref}
-      className={cn('transition hover:bg-gray-50', className)}
+      className={cn('transition hover:bg-surface-elevated', className)}
       {...props}
     />
   )
@@ -57,7 +57,7 @@ export const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttr
   ({ className, ...props }, ref) => (
     <th
       ref={ref}
-      className={cn('px-4 py-3 text-left font-medium text-gray-600 first:rounded-tl-xl last:rounded-tr-xl', className)}
+      className={cn('px-4 py-3 text-left font-medium text-text-secondary first:rounded-tl-xl last:rounded-tr-xl', className)}
       {...props}
     />
   )
@@ -69,7 +69,7 @@ export const TableCell = React.forwardRef<HTMLTableCellElement, React.TdHTMLAttr
   ({ className, ...props }, ref) => (
     <td
       ref={ref}
-      className={cn('px-4 py-3 align-middle text-gray-700', className)}
+      className={cn('px-4 py-3 align-middle text-text-secondary', className)}
       {...props}
     />
   )

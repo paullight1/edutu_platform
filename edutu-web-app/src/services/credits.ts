@@ -75,59 +75,30 @@ export async function getTransactionHistory(
 }
 
 export async function spendCredits(
-  userId: string,
   amount: number,
-  description: string,
-  relatedId?: string,
-  relatedType?: string,
-): Promise<{ success: boolean; balance: number; error?: string }> {
+  reason: string,
+): Promise<{ success: boolean; error?: string }> {
+  // Atomic deduction scoped to the authenticated user (auth.uid()) — the
+  // user id is NEVER passed from the client. See migration 015. The RPC
+  // returns a boolean (true = spent, false = insufficient balance).
   const { data, error } = await supabase.rpc("spend_credits", {
-    p_user_id: userId,
     p_amount: amount,
-    p_description: description,
-    p_related_id: relatedId ?? null,
-    p_related_type: relatedType ?? null,
+    p_reason: reason,
   });
 
   if (error) {
     logger.error("spendCredits RPC error:", error);
-    return { success: false, balance: 0, error: error.message };
+    return { success: false, error: error.message };
   }
 
-  const result = data?.[0];
-  return {
-    success: result?.success ?? false,
-    balance: result?.balance ?? 0,
-    error: result?.error_message,
-  };
+  return data === true
+    ? { success: true }
+    : { success: false, error: "Insufficient credits" };
 }
 
-export async function addCredits(
-  userId: string,
-  amount: number,
-  description: string,
-  relatedId?: string,
-  relatedType?: string,
-): Promise<{ success: boolean; balance: number }> {
-  const { data, error } = await supabase.rpc("add_credits", {
-    p_user_id: userId,
-    p_amount: amount,
-    p_description: description,
-    p_related_id: relatedId ?? null,
-    p_related_type: relatedType ?? null,
-  });
-
-  if (error) {
-    logger.error("addCredits RPC error:", error);
-    return { success: false, balance: 0 };
-  }
-
-  const result = data?.[0];
-  return {
-    success: result?.success ?? false,
-    balance: result?.balance ?? 0,
-  };
-}
+// NOTE: client-side `addCredits` was removed. Credits can only be *earned*
+// server-side (award_engagement_credit / claim_daily_credit) or granted by
+// the service role (admin_add_credits) — a client can never mint credits.
 
 export async function hasEnoughCredits(
   userId: string,

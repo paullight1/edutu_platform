@@ -433,3 +433,125 @@ export function downloadBlob(blob: Blob, fileName: string): void {
   link.remove();
   URL.revokeObjectURL(href);
 }
+
+export type OpportunityShareOutcome =
+  | "shared-image"
+  | "shared-link"
+  | "downloaded"
+  | "copied"
+  | "whatsapp"
+  | "cancelled"
+  | "error";
+
+/**
+ * One share flow for the whole app: fetch the branded share-card image, then
+ * degrade gracefully — native share w/ image → native share link (+download
+ * image) → download image → clipboard → WhatsApp. Returns what actually
+ * happened so the caller can show the right toast. Pass `withImage: false` to
+ * skip the (network) card fetch for lightweight link-only shares.
+ */
+export async function shareOpportunity(
+  opportunity: Opportunity,
+  options: { withImage?: boolean } = {},
+): Promise<OpportunityShareOutcome> {
+  const { withImage = true } = options;
+  const shareUrl = buildOpportunityShareUrl(opportunity.id);
+  const shareText = buildOpportunityShareText(opportunity, shareUrl);
+
+  try {
+    const shareImage = withImage
+      ? await fetchOpportunityShareImageBlob(opportunity.id).catch(() => null)
+      : null;
+    const effectiveShareText = shareImage?.shareText || shareText;
+    const effectiveShareUrl = shareImage?.shareUrl || shareUrl;
+    const shareData = {
+      title: opportunity.title,
+      text: effectiveShareText,
+      url: effectiveShareUrl,
+    };
+
+    let imageDownloaded = false;
+    if (shareImage?.blob) {
+      const ext = shareImage.card.format === "svg" ? "svg" : "png";
+      const type =
+        shareImage.blob.type ||
+        (ext === "svg" ? "image/svg+xml" : "image/png");
+      const file = new File(
+        [shareImage.blob],
+        buildOpportunityShareFileName(opportunity, ext),
+        { type },
+      );
+
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ ...shareData, files: [file] });
+        return "shared-image";
+      }
+      if (navigator.share) {
+        await navigator.share(shareData);
+        downloadBlob(
+          shareImage.blob,
+          buildOpportunityShareFileName(opportunity, ext),
+        );
+        return "shared-link";
+      }
+      downloadBlob(
+        shareImage.blob,
+        buildOpportunityShareFileName(opportunity, ext),
+      );
+      imageDownloaded = true;
+    }
+
+    if (navigator.share) {
+      await navigator.share(shareData);
+      return "shared-link";
+    }
+    try {
+      await navigator.clipboard.writeText(
+        `${effectiveShareText}\n\n${effectiveShareUrl}`,
+      );
+      return imageDownloaded ? "downloaded" : "copied";
+    } catch {
+      window.open(
+        buildWhatsAppShareUrl(effectiveShareText),
+        "_blank",
+        "noopener,noreferrer",
+      );
+      return "whatsapp";
+    }
+  } catch (error) {
+    if (
+      error instanceof DOMException &&
+      (error.name === "AbortError" || error.name === "NotAllowedError")
+    ) {
+      return "cancelled";
+    }
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      return "copied";
+    } catch {
+      return "error";
+    }
+  }
+}
+
+/** A user-facing toast message for a share outcome (null = say nothing). */
+export function shareOutcomeMessage(
+  outcome: OpportunityShareOutcome,
+): { type: "success" | "error"; message: string } | null {
+  switch (outcome) {
+    case "shared-image":
+      return { type: "success", message: "Share card ready" };
+    case "shared-link":
+      return { type: "success", message: "Share link ready" };
+    case "downloaded":
+      return { type: "success", message: "Share card downloaded" };
+    case "copied":
+      return { type: "success", message: "Share link copied" };
+    case "whatsapp":
+      return { type: "success", message: "Opened WhatsApp share" };
+    case "cancelled":
+      return null;
+    default:
+      return { type: "error", message: "Could not share this opportunity" };
+  }
+}

@@ -8,6 +8,30 @@
     />
     <meta name="color-scheme" content="dark light" />
 
+    <!-- Apply the saved theme (mode + accent pack) before first paint to avoid
+         a flash of the wrong theme. Mirrors src/hooks/useTheme.tsx. -->
+    <script>
+      (function () {
+        try {
+          var root = document.documentElement;
+          var mode =
+            localStorage.getItem('edutu-theme-mode') ||
+            localStorage.getItem('edutu-theme') ||
+            'system';
+          var prefersDark =
+            window.matchMedia &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (mode === 'dark' || (mode === 'system' && prefersDark)) {
+            root.classList.add('dark');
+          }
+          var pack = localStorage.getItem('edutu-theme-pack');
+          if (pack && pack !== 'indigo') {
+            root.setAttribute('data-theme', pack);
+          }
+        } catch (e) {}
+      })();
+    </script>
+
     <!-- PWA Meta Tags -->
     <meta name="theme-color" content="#146ef5" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -89,6 +113,10 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- Warm the API + banner-image origins so first data/image requests skip DNS+TLS setup -->
+    <link rel="preconnect" href="https://edutu-platform.onrender.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.pexels.com" />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"

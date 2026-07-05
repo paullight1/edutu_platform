@@ -20,7 +20,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { EmptyState, ErrorState } from "./ui/EmptyState";
@@ -30,7 +30,9 @@ import MemberSettingsPanel from "./MemberSettingsPanel";
 import type { CalendarEvent } from "./CalendarStrip";
 import { useDarkMode } from "../hooks/useDarkMode";
 import { useOpportunities } from "../hooks/useOpportunities";
+import { useNavigate } from "react-router-dom";
 import { usePersonalizedOpportunities } from "../hooks/usePersonalizedOpportunities";
+import { usePersonalization } from "../hooks/usePersonalization";
 import { usePersistentState } from "../hooks/usePersistentState";
 import { usePWA } from "../hooks/usePWA";
 import { useToast } from "./ui/ToastProvider";
@@ -41,6 +43,17 @@ import { getApplications } from "../services/applications";
 import { getDeadlines, type Deadline } from "../services/deadlines";
 import { fetchBackendProfile, type BackendProfile } from "../services/profile";
 import type { UserProfileForRecommendations } from "../services/personalizedRecommendations";
+import type { Opportunity } from "../types/opportunity";
+import {
+  getDeadlineBadge,
+  urgencyTextClasses,
+} from "../services/deadlineUrgency";
+import {
+  shareOpportunity,
+  shareOutcomeMessage,
+} from "../services/opportunityShare";
+import { MatchScoreBadge, TopMatchReason } from "./opportunity/MatchInsights";
+import UrgencyPill from "./opportunity/UrgencyPill";
 
 import ImageWithFallback from "./ImageWithFallback";
 
@@ -190,12 +203,13 @@ interface DashboardOpportunityCardProps {
 }
 
 function formatOpportunityDeadline(deadline?: string) {
+  // No fabricated "Ongoing" label — when there is no deadline, show nothing.
   return deadline
     ? new Date(deadline).toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
       })
-    : "Ongoing";
+    : "";
 }
 
 const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
@@ -210,22 +224,31 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
   const openLabel = `Open ${opportunity?.title ?? "opportunity"}`;
   const bookmarkLabel = isBookmarked ? "Remove bookmark" : "Save opportunity";
 
-
+  const { explainOpportunity, isPersonalized } = usePersonalization();
+  const match = isPersonalized ? explainOpportunity(opportunity) : null;
+  const deadlineBadge = getDeadlineBadge(opportunity.deadline);
+  const deadlineText =
+    deadlineBadge.isUrgent ||
+    deadlineBadge.level === "today" ||
+    deadlineBadge.level === "tomorrow"
+      ? deadlineBadge.shortLabel
+      : formatOpportunityDeadline(opportunity.deadline);
+  const deadlineClass = urgencyTextClasses(deadlineBadge.level);
 
   if (variant === "list") {
     return (
       <article
-        className={`group relative grid w-full grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 border-b border-slate-100 p-3 text-left transition-colors last:border-b-0 hover:bg-slate-50`}
+        className={`group relative grid w-full grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 border-b border-subtle p-3 text-left transition-colors last:border-b-0 hover:bg-surface-elevated`}
       >
         <button
           type="button"
           onClick={() => onOpen(opportunity)}
-          className="absolute inset-0 z-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 dark:focus-visible:ring-offset-gray-950"
+          className="absolute inset-0 z-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           aria-label={openLabel}
         >
           <span className="sr-only">{openLabel}</span>
         </button>
-        <div className="pointer-events-none relative z-10 h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
+        <div className="pointer-events-none relative z-10 h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-surface-elevated">
           <ImageWithFallback
             src={opportunity.image}
             alt={
@@ -235,25 +258,31 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
             }
             className="w-full h-full object-cover"
             fallbackClassName="w-full h-full"
+            category={opportunity.category}
           />
         </div>
         <div className="pointer-events-none relative z-10 flex-1 min-w-0">
-          <div className="mb-1 flex items-center gap-2">
-            <span className="rounded-md bg-brand-500/10 px-2 py-0.5 text-xs font-semibold text-brand-600">
-              {opportunity.category || "Direct"}
-            </span>
-          </div>
-          <h3 className="text-sm font-semibold text-slate-900 transition-colors line-clamp-1 group-hover:text-primary text-slate-900">
+          {opportunity.category ? (
+            <div className="mb-1 flex items-center gap-2">
+              <span className="rounded-md bg-brand-500/10 px-2 py-0.5 text-xs font-semibold text-brand-600">
+                {opportunity.category}
+              </span>
+            </div>
+          ) : null}
+          <h3 className="text-sm font-semibold text-text-primary transition-colors line-clamp-1 group-hover:text-brand">
             {opportunity.title}
           </h3>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-            <span>{opportunity.location || "Remote"}</span>
-            <span>{formatOpportunityDeadline(opportunity.deadline)}</span>
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-text-muted">
+            {opportunity.location ? <span>{opportunity.location}</span> : null}
+            <span className={deadlineClass}>{deadlineText}</span>
+            {match && match.score >= 40 ? (
+              <MatchScoreBadge score={match.score} minScore={40} />
+            ) : null}
           </div>
         </div>
         <div className="pointer-events-auto relative z-10 flex shrink-0 items-center gap-1">
           <ChevronRight
-            className="pointer-events-none text-slate-300 group-hover:text-primary transition-colors"
+            className="pointer-events-none text-text-muted group-hover:text-brand transition-colors"
             size={18}
           />
         </div>
@@ -264,7 +293,7 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
   if (variant === "carousel") {
     return (
       <article
-        className={`mobile-personalized-card relative flex h-44 w-[62vw] max-w-[250px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-left transition active:scale-[0.98]`}
+        className={`mobile-personalized-card relative flex h-44 w-[62vw] max-w-[250px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-subtle bg-white text-left transition active:scale-[0.98]`}
       >
         <button
           type="button"
@@ -274,7 +303,7 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
         >
           <span className="sr-only">{openLabel}</span>
         </button>
-        <div className="pointer-events-none relative z-10 h-20 shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800">
+        <div className="pointer-events-none relative z-10 h-20 shrink-0 overflow-hidden bg-surface-elevated">
           <ImageWithFallback
             src={opportunity.image}
             alt={
@@ -284,20 +313,33 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
             }
             className="h-full w-full object-cover"
             fallbackClassName="h-full w-full"
+            category={opportunity.category}
           />
-          <span className="absolute left-2 top-2 max-w-[calc(100%-1rem)] truncate rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-brand-600 backdrop-blur">
-            {opportunity.category || "General"}
-          </span>
+          {opportunity.category ? (
+            <span className="absolute left-2 top-2 max-w-[calc(100%-1rem)] truncate rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-brand-600 backdrop-blur">
+              {opportunity.category}
+            </span>
+          ) : null}
+          <UrgencyPill
+            badge={deadlineBadge}
+            compact
+            className="absolute right-2 top-2 !px-1.5 !py-0.5 shadow-sm backdrop-blur"
+          />
         </div>
         <div className="pointer-events-none relative z-10 flex min-h-0 flex-1 flex-col p-3">
-          <h4 className="text-sm font-semibold leading-snug text-slate-950 line-clamp-2 text-slate-900">
+          <h4 className="text-sm font-semibold leading-snug text-text-primary line-clamp-2">
             {opportunity.title}
           </h4>
-          <div className="mt-auto flex items-center justify-between gap-2 pt-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-            <span className="truncate">{opportunity.location || "Remote"}</span>
-            <span className="shrink-0">
-              {formatOpportunityDeadline(opportunity.deadline)}
-            </span>
+          {match && match.score >= 40 ? (
+            <TopMatchReason reason={match.reasons[0]} />
+          ) : null}
+          <div className="mt-auto flex items-center justify-between gap-2 pt-2 text-[11px] font-semibold text-text-muted">
+            {opportunity.location ? (
+              <span className="truncate">{opportunity.location}</span>
+            ) : (
+              <span />
+            )}
+            <span className={`shrink-0 ${deadlineClass}`}>{deadlineText}</span>
           </div>
         </div>
       </article>
@@ -307,7 +349,7 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
   if (variant === "mobileGrid") {
     return (
       <article
-        className={`mobile-more-opportunity-card relative flex min-h-[188px] min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm transition active:scale-[0.98]`}
+        className={`mobile-more-opportunity-card relative flex min-h-[188px] min-w-0 flex-col overflow-hidden rounded-2xl border border-subtle bg-white text-left shadow-sm transition active:scale-[0.98]`}
         style={{ width: "100%", minWidth: 0, maxWidth: "100%" }}
       >
         <button
@@ -318,7 +360,7 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
         >
           <span className="sr-only">{openLabel}</span>
         </button>
-        <div className="mobile-more-opportunity-media pointer-events-none relative z-10 h-[76px] w-full shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800">
+        <div className="mobile-more-opportunity-media pointer-events-none relative z-10 h-[76px] w-full shrink-0 overflow-hidden bg-surface-elevated">
           <ImageWithFallback
             src={opportunity.image}
             alt={
@@ -328,20 +370,37 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
             }
             className="h-full w-full object-cover"
             fallbackClassName="h-full w-full"
+            category={opportunity.category}
+          />
+          <UrgencyPill
+            badge={deadlineBadge}
+            compact
+            className="absolute right-1.5 top-1.5 !px-1.5 !py-0.5 text-[10px] shadow-sm backdrop-blur"
           />
         </div>
         <div className="pointer-events-none relative z-10 flex min-h-0 min-w-0 flex-1 flex-col p-2.5">
-          <span className="mb-1 block truncate text-[10px] font-bold leading-4 text-brand-600">
-            {opportunity.category || "General"}
-          </span>
-          <span className="line-clamp-3 block min-w-0 break-words text-[13px] font-semibold leading-[1.16] text-slate-950 text-slate-900">
+          <div className="mb-1 flex flex-wrap items-center gap-1">
+            {opportunity.category ? (
+              <span className="block truncate text-[10px] font-bold leading-4 text-brand-600">
+                {opportunity.category}
+              </span>
+            ) : null}
+            {match && match.score >= 40 ? (
+              <MatchScoreBadge
+                score={match.score}
+                minScore={40}
+                className="!px-1.5 !py-0 !text-[10px]"
+              />
+            ) : null}
+          </div>
+          <span className="line-clamp-3 block min-w-0 break-words text-[13px] font-semibold leading-[1.16] text-text-primary">
             {opportunity.title}
           </span>
-          <div className="mt-auto flex min-w-0 flex-col gap-0.5 pt-2 text-[10px] font-semibold leading-4 text-slate-500 dark:text-slate-400">
-            <span className="truncate">{opportunity.location || "Remote"}</span>
-            <span className="truncate">
-              {formatOpportunityDeadline(opportunity.deadline)}
-            </span>
+          <div className="mt-auto flex min-w-0 flex-col gap-0.5 pt-2 text-[10px] font-semibold leading-4 text-text-muted">
+            {opportunity.location ? (
+              <span className="truncate">{opportunity.location}</span>
+            ) : null}
+            <span className={`truncate ${deadlineClass}`}>{deadlineText}</span>
           </div>
         </div>
       </article>
@@ -350,17 +409,17 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
 
   return (
     <article
-      className={`group relative flex min-h-[244px] flex-col overflow-hidden rounded-[20px] border border-slate-200 bg-white text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-xl hover:shadow-slate-200/70`}
+      className={`group relative flex min-h-[244px] flex-col overflow-hidden rounded-[20px] border border-subtle bg-white text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-strong hover:shadow-elevated`}
     >
       <button
         type="button"
         onClick={() => onOpen(opportunity)}
-        className="absolute inset-0 z-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950"
+        className="absolute inset-0 z-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         aria-label={openLabel}
       >
         <span className="sr-only">{openLabel}</span>
       </button>
-      <div className="pointer-events-none relative z-10 h-32 shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-800">
+      <div className="pointer-events-none relative z-10 h-32 shrink-0 overflow-hidden bg-surface-elevated">
         <ImageWithFallback
           src={opportunity.image}
           alt={
@@ -370,19 +429,39 @@ const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
           }
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
           fallbackClassName="w-full h-full"
+          category={opportunity.category}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/35 via-transparent to-transparent" />
-        <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-semibold text-brand-600 backdrop-blur">
-          {opportunity.category || "General"}
-        </span>
+        {opportunity.category ? (
+          <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-semibold text-brand-600 backdrop-blur">
+            {opportunity.category}
+          </span>
+        ) : null}
+        <UrgencyPill
+          badge={deadlineBadge}
+          compact
+          className="absolute right-3 top-3 shadow-sm backdrop-blur"
+        />
       </div>
       <div className="pointer-events-none relative z-10 flex flex-1 flex-col p-3 sm:p-4">
-        <h3 className="text-xs sm:text-sm font-semibold text-slate-900 transition-colors line-clamp-2 leading-snug group-hover:text-primary text-slate-900">
+        {match && match.score >= 40 ? (
+          <div className="mb-1.5">
+            <MatchScoreBadge score={match.score} minScore={40} />
+          </div>
+        ) : null}
+        <h3 className="text-xs sm:text-sm font-semibold text-text-primary transition-colors line-clamp-2 leading-snug group-hover:text-brand">
           {opportunity.title}
         </h3>
-        <div className="mt-auto flex flex-col gap-1 pt-4 text-[10px] font-medium text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <span className="truncate">{opportunity.location || "Remote"}</span>
-          <span>{formatOpportunityDeadline(opportunity.deadline)}</span>
+        {match && match.score >= 40 ? (
+          <TopMatchReason reason={match.reasons[0]} />
+        ) : null}
+        <div className="mt-auto flex flex-col gap-1 pt-4 text-[10px] font-medium text-text-muted sm:flex-row sm:items-center sm:justify-between">
+          {opportunity.location ? (
+            <span className="truncate">{opportunity.location}</span>
+          ) : (
+            <span />
+          )}
+          <span className={deadlineClass}>{deadlineText}</span>
         </div>
       </div>
     </article>
@@ -395,25 +474,36 @@ type BannerAd = {
   alt: string;
 };
 
+// Request a compressed, right-sized rendition instead of the multi-megabyte
+// Pexels original — the banner never renders wider than ~1200px.
 const DEFAULT_BANNERS: BannerAd[] = [
   {
-    image: "https://images.pexels.com/photos/267885/pexels-photo-267885.jpeg",
+    image:
+      "https://images.pexels.com/photos/267885/pexels-photo-267885.jpeg?auto=compress&cs=tinysrgb&w=1200",
     url: "https://edutu.org",
     alt: "Scholarship opportunities",
   },
   {
-    image: "https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg",
+    image:
+      "https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg?auto=compress&cs=tinysrgb&w=1200",
     url: "https://edutu.org",
     alt: "Study abroad programs",
   },
   {
-    image: "https://images.pexels.com/photos/1595391/pexels-photo-1595391.jpeg",
+    image:
+      "https://images.pexels.com/photos/1595391/pexels-photo-1595391.jpeg?auto=compress&cs=tinysrgb&w=1200",
     url: "https://edutu.org",
     alt: "Career development",
   },
 ];
 
-function BannerCarousel({ banners, mobileHeight }: { banners: BannerAd[]; mobileHeight?: string }) {
+const BannerCarousel = React.memo(function BannerCarousel({
+  banners,
+  mobileHeight,
+}: {
+  banners: BannerAd[];
+  mobileHeight?: string;
+}) {
   const [current, setCurrent] = useState(0);
 
   useEffect(() => {
@@ -424,11 +514,18 @@ function BannerCarousel({ banners, mobileHeight }: { banners: BannerAd[]; mobile
     return () => clearInterval(timer);
   }, [banners.length]);
 
+  useEffect(() => {
+    // Fetch the upcoming slide ahead of the rotation so it never flashes in.
+    if (banners.length <= 1) return;
+    const next = new Image();
+    next.src = banners[(current + 1) % banners.length].image;
+  }, [banners, current]);
+
   if (banners.length === 0) return null;
 
   return (
     <div
-      className="relative w-full overflow-hidden rounded-[20px] bg-slate-100"
+      className="relative w-full overflow-hidden rounded-[20px] bg-surface-elevated"
       style={
         mobileHeight
           ? { height: mobileHeight, maxWidth: '800px', margin: '0 auto' }
@@ -444,6 +541,8 @@ function BannerCarousel({ banners, mobileHeight }: { banners: BannerAd[]; mobile
           alt={banners[current].alt}
           className="h-full w-full object-cover"
           style={{ position: "absolute", inset: 0 }}
+          loading="lazy"
+          decoding="async"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/40 to-black/30" />
         <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
@@ -457,7 +556,7 @@ function BannerCarousel({ banners, mobileHeight }: { banners: BannerAd[]; mobile
       </div>
     </div>
   );
-}
+});
 
 interface DashboardProps {
   user: AppUser | null;
@@ -541,9 +640,18 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     const [activeDiscoveryCategory, setActiveDiscoveryCategory] =
       useState<DiscoveryCategoryId | null>(null);
     const { isDarkMode } = useDarkMode();
+    const prefersReducedMotion = useReducedMotion();
     const { t } = useTranslation();
     const { getToken } = useClerkAuth();
     const toast = useToast();
+    const routerNavigate = useNavigate();
+    const {
+      preferences: personalizationPreferences,
+      personalizeFeed,
+      trackInteraction,
+      isPersonalized,
+      ready: personalizationReady,
+    } = usePersonalization();
     const opportunitiesRefreshRef = useRef<() => void>();
     const homeFeedSentinelRef = useRef<HTMLDivElement | null>(null);
     const [bookmarks, setBookmarks] = useState<any[]>([]);
@@ -593,6 +701,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
             );
             const fresh = await getBookmarks(user.id, token);
             setBookmarks(fresh);
+            trackInteraction(opportunity, "bookmark");
             toast.success("Saved", "Added to your shortlist.");
           }
         } catch (err) {
@@ -600,35 +709,33 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           toast.error("Could not save", "Please try again in a moment.");
         }
       },
-      [bookmarks, getToken, toast, user?.id],
+      [bookmarks, getToken, toast, trackInteraction, user?.id],
     );
 
     const handleShareOpportunity = useCallback(
       async (opportunity: any, e: React.MouseEvent) => {
         e.stopPropagation();
         e.preventDefault();
-        const shareUrl = `${window.location.origin}/share/opportunity/${opportunity.id}`;
-        const text = `Check out this opportunity on Edutu: ${opportunity.title}`;
-        try {
-          if (navigator.share) {
-            await navigator.share({
-              title: opportunity.title,
-              text,
-              url: shareUrl,
-            });
-          } else {
-            await navigator.clipboard.writeText(`${text}\n\n${shareUrl}`);
-            toast.success("Link copied", "Share it with anyone you like.");
-          }
-        } catch (err) {
-          if (err instanceof DOMException && err.name === "AbortError") {
-            return;
-          }
-          console.error("Failed to share opportunity:", err);
-          toast.error("Could not share", "Please try again in a moment.");
+        trackInteraction(opportunity, "share");
+        const outcome = await shareOpportunity(opportunity);
+        const message = shareOutcomeMessage(outcome);
+        if (message) {
+          (message.type === "success" ? toast.success : toast.error)(
+            message.message,
+          );
         }
       },
-      [toast],
+      [toast, trackInteraction],
+    );
+
+    const handleOpenOpportunity = useCallback(
+      (opportunity: Opportunity) => {
+        if (opportunity?.id) {
+          trackInteraction(opportunity, "view");
+        }
+        onOpportunityClick(opportunity);
+      },
+      [onOpportunityClick, trackInteraction],
     );
     const [applications, setApplications] = useState<any[]>([]);
     const [dashboardDeadlines, setDashboardDeadlines] = useState<Deadline[]>(
@@ -760,6 +867,31 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     const onboardingRecommendationData = useMemo<
       Partial<UserProfileForRecommendations> | undefined
     >(() => {
+      // Preferences captured on the personalization screen take precedence;
+      // the legacy onboardingProfile prop is kept as a fallback.
+      if (
+        personalizationPreferences &&
+        (personalizationPreferences.interests.length > 0 ||
+          personalizationPreferences.careerGoals.length > 0)
+      ) {
+        const prefs = personalizationPreferences;
+        return {
+          ...(prefs.interests.length ? { interests: prefs.interests } : {}),
+          ...(prefs.preferredCategories.length
+            ? { preferredCategories: prefs.preferredCategories }
+            : {}),
+          ...(prefs.careerGoals.length
+            ? { careerGoals: prefs.careerGoals }
+            : {}),
+          ...(prefs.educationLevel
+            ? { educationLevel: prefs.educationLevel }
+            : {}),
+          ...(prefs.location ? { location: prefs.location } : {}),
+          ...(prefs.experienceLevel
+            ? { experienceLevel: prefs.experienceLevel }
+            : {}),
+        };
+      }
       if (!onboardingProfile) return undefined;
       return {
         courseOfStudy: onboardingProfile.courseOfStudy,
@@ -770,7 +902,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         location: onboardingProfile.location,
         experienceLevel: onboardingProfile.experience,
       };
-    }, [onboardingProfile]);
+    }, [onboardingProfile, personalizationPreferences]);
 
     useEffect(() => {
       if (!personalizedUserId) return;
@@ -848,9 +980,14 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       );
     }, [normalizedOpportunityFeed, selectedDiscoveryCategory]);
 
+    // Rank by personalization score; only same-score tiers rotate between
+    // visits so relevance survives while the feed still feels fresh.
     const shuffledOpportunityFeed = useMemo(
-      () => shuffleOpportunityFeed(filteredOpportunityFeed, homeShuffleSeed),
-      [filteredOpportunityFeed, homeShuffleSeed],
+      () =>
+        isPersonalized
+          ? personalizeFeed(filteredOpportunityFeed, { seed: homeShuffleSeed })
+          : shuffleOpportunityFeed(filteredOpportunityFeed, homeShuffleSeed),
+      [filteredOpportunityFeed, homeShuffleSeed, isPersonalized, personalizeFeed],
     );
 
     const visibleHomeOpportunities = useMemo(
@@ -1120,17 +1257,17 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       onClick: () => void,
     ) => (
       <div
-        className={`rounded-2xl border border-slate-200 bg-slate-50 p-5 text-center`}
+        className={`rounded-2xl border border-subtle bg-surface-elevated p-5 text-center`}
       >
         <div
-          className={`mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-500`}
+          className={`mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-text-muted`}
         >
           <Briefcase size={20} />
         </div>
-        <h3 className="mt-4 text-sm font-semibold text-slate-950 text-slate-900">
+        <h3 className="mt-4 text-sm font-semibold text-text-primary">
           {title}
         </h3>
-        <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
+        <p className="mt-2 text-sm leading-6 text-text-muted">
           {copy}
         </p>
         <button
@@ -1169,23 +1306,23 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     category: bookmark.opportunity_category,
                   })
                 }
-                className={`w-full rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm`}
+                className={`w-full rounded-2xl border border-subtle bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold leading-5 text-slate-950 text-slate-900">
+                    <p className="text-sm font-semibold leading-5 text-text-primary">
                       {bookmark.opportunity_title}
                     </p>
-                    <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    <p className="mt-1 text-xs font-semibold text-text-muted">
                       {bookmark.opportunity_category || "Opportunity"}
                     </p>
                   </div>
                   <ChevronRight
                     size={17}
-                    className="mt-1 shrink-0 text-slate-500"
+                    className="mt-1 shrink-0 text-text-muted"
                   />
                 </div>
-                <div className="mt-3 flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+                <div className="mt-3 flex items-center gap-2 text-xs font-medium text-text-muted">
                   <Calendar size={14} />
                   {formatPanelDate(bookmark.opportunity_deadline)}
                 </div>
@@ -1218,22 +1355,22 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     category: application.opportunity_category,
                   })
                 }
-                className={`w-full rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm`}
+                className={`w-full rounded-2xl border border-subtle bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold leading-5 text-slate-950 text-slate-900">
+                    <p className="text-sm font-semibold leading-5 text-text-primary">
                       {application.opportunity_title}
                     </p>
-                    <p className="mt-1 text-xs font-semibold capitalize text-slate-500 dark:text-slate-400">
+                    <p className="mt-1 text-xs font-semibold capitalize text-text-muted">
                       {application.status || "tracked"}
                     </p>
                   </div>
-                  <span className="rounded-lg bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-300">
+                  <span className="rounded-lg bg-success/10 px-2 py-1 text-[10px] font-semibold text-success">
                     Applied
                   </span>
                 </div>
-                <div className="mt-3 flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+                <div className="mt-3 flex items-center gap-2 text-xs font-medium text-text-muted">
                   <Clock size={14} />
                   {formatPanelDate(application.applied_at)}
                 </div>
@@ -1276,29 +1413,29 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         });
                       }
                     }}
-                    className={`w-full rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm`}
+                    className={`w-full rounded-2xl border border-subtle bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm`}
                   >
                     <div className="flex items-start gap-3">
                       <div
                         className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
                           item.daysUntil < 0
-                            ? "bg-rose-500/10 text-rose-500"
+                            ? "bg-danger/10 text-danger"
                             : item.daysUntil <= 7
-                              ? "bg-amber-500/10 text-amber-600"
-                              : "bg-brand-500/10 text-brand-600 dark:text-brand-300"
+                              ? "bg-warning/10 text-warning"
+                              : "bg-brand-500/10 text-brand-600"
                         }`}
                       >
                         <Calendar size={18} />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold leading-5 text-slate-950 text-slate-900">
+                        <p className="text-sm font-semibold leading-5 text-text-primary">
                           {item.title}
                         </p>
-                        <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                        <p className="mt-1 text-xs font-medium text-text-muted">
                           {formatPanelDate(item.date)}
                         </p>
                       </div>
-                      <span className="shrink-0 rounded-lg bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                      <span className="shrink-0 rounded-lg bg-surface-elevated px-2 py-1 text-[10px] font-semibold text-text-secondary">
                         {item.daysUntil < 0
                           ? "Past"
                           : item.daysUntil === 0
@@ -1318,17 +1455,17 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         return (
           <div className="space-y-4">
             <div
-              className={`rounded-2xl border border-slate-200 bg-white p-4`}
+              className={`rounded-2xl border border-subtle bg-white p-4`}
             >
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500 text-base font-semibold text-white">
                   {(user?.name || user?.email || "E").charAt(0).toUpperCase()}
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-950 text-slate-900">
+                  <p className="truncate text-sm font-semibold text-text-primary">
                     {user?.name || "Edutu learner"}
                   </p>
-                  <p className="truncate text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  <p className="truncate text-xs font-semibold text-text-muted">
                     {user?.email || "Signed in member"}
                   </p>
                 </div>
@@ -1336,23 +1473,23 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
             </div>
 
             <div
-              className={`rounded-2xl border border-slate-200 bg-white p-4`}
+              className={`rounded-2xl border border-subtle bg-white p-4`}
             >
               <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-slate-950 text-slate-900">
+                <p className="text-sm font-semibold text-text-primary">
                   Match readiness
                 </p>
-                <span className="text-sm font-semibold text-brand-600 dark:text-brand-300">
+                <span className="text-sm font-semibold text-brand-600">
                   {score}%
                 </span>
               </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-elevated">
                 <div
                   className="h-full rounded-full bg-brand-500 transition-all"
                   style={{ width: `${score}%` }}
                 />
               </div>
-              <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-slate-400">
+              <p className="mt-3 text-sm leading-6 text-text-muted">
                 {score >= 60
                   ? "Your profile has enough detail for ranked recommendations."
                   : "Add the missing details below so recommendations are less generic."}
@@ -1361,16 +1498,16 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
             {profileScore?.missingFields?.length ? (
               <div
-                className={`rounded-2xl border border-slate-200 bg-white p-4`}
+                className={`rounded-2xl border border-subtle bg-white p-4`}
               >
-                <p className="text-sm font-semibold text-slate-950 text-slate-900">
+                <p className="text-sm font-semibold text-text-primary">
                   Missing details
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {profileScore.missingFields.map((field) => (
                     <span
                       key={field}
-                      className="rounded-lg bg-amber-500/10 px-2.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-300"
+                      className="rounded-lg bg-warning/10 px-2.5 py-1 text-xs font-bold text-warning"
                     >
                       {field}
                     </span>
@@ -1381,8 +1518,18 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
             <button
               type="button"
-              onClick={onViewAllOpportunities}
+              onClick={() => {
+                setActivePanel(null);
+                routerNavigate("/app/profile");
+              }}
               className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-brand-500 px-4 text-sm font-semibold text-white transition hover:bg-brand-600"
+            >
+              Complete my profile
+            </button>
+            <button
+              type="button"
+              onClick={onViewAllOpportunities}
+              className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-subtle bg-white px-4 text-sm font-semibold text-text-secondary transition hover:bg-surface-elevated"
             >
               Browse matched opportunities
             </button>
@@ -1399,7 +1546,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
     return (
       <div
-        className={`min-h-screen bg-white text-slate-900 font-body transition-colors duration-500 overflow-x-hidden ${embeddedDesktopShell ? "pb-0 pt-0 lg:pb-12" : "pb-[calc(5rem+env(safe-area-inset-bottom))] pt-14 md:pt-16 lg:pb-12"}`}
+        className={`min-h-screen bg-surface-body text-text-primary font-body transition-colors duration-500 overflow-x-hidden ${embeddedDesktopShell ? "pb-0 pt-0 lg:pb-12" : "pb-[calc(5rem+env(safe-area-inset-bottom))] pt-14 md:pt-16 lg:pb-12"}`}
       >
         {/* Background Mesh Gradient */}
         <div className="fixed inset-0 pointer-events-none opacity-30 dark:opacity-20 mesh-gradient" />
@@ -1409,42 +1556,42 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
             <>
               <motion.button
                 type="button"
-                initial={{ opacity: 0 }}
+                initial={prefersReducedMotion ? false : { opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setActivePanel(null)}
-                className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[2px] lg:hidden"
+                className="fixed inset-0 z-40 bg-surface-overlay backdrop-blur-[2px] lg:hidden"
                 aria-label="Close dashboard panel"
               />
               <motion.aside
-                initial={{ opacity: 0, x: 28, y: 28 }}
+                initial={prefersReducedMotion ? false : { opacity: 0, x: 28, y: 28 }}
                 animate={{ opacity: 1, x: 0, y: 0 }}
                 exit={{ opacity: 0, x: 28, y: 28 }}
                 transition={{ duration: 0.22 }}
-                className={`fixed inset-x-0 bottom-0 z-50 max-h-[82dvh] overflow-hidden rounded-t-[24px] border-t border-slate-200 bg-white text-slate-950 shadow-2xl shadow-slate-300/70 lg:inset-x-auto lg:bottom-0 lg:right-0 lg:top-16 lg:h-[calc(100dvh-4rem)] lg:max-h-none lg:w-[390px] lg:rounded-none lg:border-l lg:border-t-0`}
+                className={`fixed inset-x-0 bottom-0 z-50 max-h-[82dvh] overflow-hidden rounded-t-[24px] border-t border-subtle bg-white text-text-primary shadow-elevated lg:inset-x-auto lg:bottom-0 lg:right-0 lg:top-16 lg:h-[calc(100dvh-4rem)] lg:max-h-none lg:w-[390px] lg:rounded-none lg:border-l lg:border-t-0`}
                 aria-label={`${PANEL_COPY[activePanel].title} panel`}
               >
                 <div
-                  className={`border-b border-slate-200 p-5`}
+                  className={`border-b border-subtle p-5`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p
-                        className={`text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500`}
+                        className={`text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted`}
                       >
                         Dashboard panel
                       </p>
-                      <h2 className="mt-1 text-lg font-semibold tracking-tight text-slate-950 text-slate-900">
+                      <h2 className="mt-1 text-lg font-semibold tracking-tight text-text-primary">
                         {PANEL_COPY[activePanel].title}
                       </h2>
-                      <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
+                      <p className="mt-1 text-sm leading-6 text-text-muted">
                         {PANEL_COPY[activePanel].subtitle}
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setActivePanel(null)}
-                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition hover:bg-slate-100`}
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition hover:bg-surface-elevated`}
                       aria-label="Close panel"
                     >
                       <X size={18} />
@@ -1464,19 +1611,19 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         >
           <main className="min-w-0 px-0 py-5 space-y-6">
             <motion.section
-              initial={{ opacity: 0, y: 8 }}
+              initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               className="space-y-3"
             >
               <div className="flex items-center justify-between gap-3">
-                <h2 className="text-base font-semibold tracking-tight text-slate-950 text-slate-900">
+                <h2 className="text-base font-semibold tracking-tight text-text-primary">
                   {t("dashboard.sections.exploreOpportunities")}
                 </h2>
                 {selectedDiscoveryCategory ? (
                   <button
                     type="button"
                     onClick={() => setActiveDiscoveryCategory(null)}
-                    className={`h-8 shrink-0 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 active:scale-[0.98]`}
+                    className={`h-8 shrink-0 rounded-full border border-subtle bg-white px-3 text-xs font-semibold text-text-secondary shadow-sm transition hover:bg-surface-elevated active:scale-[0.98]`}
                   >
                     {t("common.all")}
                   </button>
@@ -1494,7 +1641,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       onClick={() => handleDiscoveryCategoryClick(category)}
                       className={`group relative min-h-[88px] overflow-hidden rounded-[20px] border border-white/20 bg-slate-950 text-left text-white shadow-sm transition active:scale-[0.98] md:min-h-[112px] ${
                         active
-                          ? "ring-2 ring-brand-500 ring-offset-2 ring-offset-slate-50 dark:ring-offset-gray-950"
+                          ? "ring-2 ring-brand-500 ring-offset-2 ring-offset-surface-body"
                           : "hover:-translate-y-0.5"
                       }`}
                       aria-pressed={active}
@@ -1505,6 +1652,8 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         alt=""
                         className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
                         aria-hidden="true"
+                        loading="lazy"
+                        decoding="async"
                       />
                       <div
                         className={`absolute inset-0 transition ${
@@ -1532,25 +1681,25 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
             <AnimatePresence>
               {profileScore && profileScore.score < 100 && !dismissBanner && (
                 <motion.section
-                  initial={{ opacity: 0, y: -12 }}
+                  initial={prefersReducedMotion ? false : { opacity: 0, y: -12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: 100 }}
                   transition={{ duration: 0.3 }}
-                  className={`profile-completion-card rounded-[20px] border border-amber-200 bg-amber-50 p-5`}
+                  className={`profile-completion-card rounded-[20px] border border-warning/30 bg-warning/10 p-5`}
                 >
                   <div className="flex items-start gap-4">
                     <div
-                      className={`shrink-0 rounded-xl bg-amber-100 p-2.5 text-amber-600`}
+                      className={`shrink-0 rounded-xl bg-warning/20 p-2.5 text-warning`}
                     >
                       <UserCheck size={20} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <h3 className="text-sm font-semibold tracking-wider text-slate-900 text-slate-900 mb-1">
+                          <h3 className="text-sm font-semibold tracking-wider text-text-primary mb-1">
                             {t("dashboard.completeProfile")}
                           </h3>
-                          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                          <p className="text-xs font-medium text-text-muted">
                             {t("dashboard.profileBanner.unlock", { score: profileScore.score })}
                           </p>
                           {profileScore.missingFields.length > 0 && (
@@ -1560,13 +1709,13 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                 .map((field) => (
                                   <span
                                     key={field}
-                                    className={`rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-600`}
+                                    className={`rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-text-secondary`}
                                   >
                                     {field}
                                   </span>
                                 ))}
                               {profileScore.missingFields.length > 3 && (
-                                <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-300">
+                                <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-warning">
                                   {t("dashboard.moreCount", { count: profileScore.missingFields.length - 3 })}
                                 </span>
                               )}
@@ -1575,15 +1724,16 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         </div>
                         <button
                           onClick={() => setDismissBanner(true)}
-                          className={`rounded-lg p-1 text-slate-500 transition-colors hover:bg-slate-100`}
+                          aria-label="Dismiss profile banner"
+                          className={`rounded-lg p-1 text-text-muted transition-colors hover:bg-surface-elevated`}
                         >
                           <X size={16} />
                         </button>
                       </div>
                       <div className="mt-3 space-y-3">
-                        <div className="h-2 bg-slate-100 dark:bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-2 bg-surface-elevated rounded-full overflow-hidden">
                           <motion.div
-                            initial={{ width: 0 }}
+                            initial={prefersReducedMotion ? false : { width: 0 }}
                             animate={{ width: `${profileScore.score}%` }}
                             transition={{ duration: 0.8, ease: "easeOut" }}
                             className={`h-full rounded-full ${
@@ -1601,7 +1751,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             {t("dashboard.reviewProfile")}
                           </button>
                           {!profileScore.isMatchEnabled && (
-                            <span className="text-[10px] font-bold text-amber-500 tracking-wider">
+                            <span className="text-[10px] font-bold text-warning tracking-wider">
                               {t("dashboard.needForMatches")}
                             </span>
                           )}
@@ -1629,15 +1779,42 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
               </section>
             )}
 
+            {user?.id && personalizationReady && !isPersonalized && (
+              <section>
+                <button
+                  type="button"
+                  onClick={() => routerNavigate("/app/personalization")}
+                  className="group flex w-full items-center gap-4 rounded-[24px] border border-brand-200 bg-gradient-to-r from-brand-50 to-white p-4 text-left shadow-sm transition hover:border-brand-300 hover:shadow-md"
+                >
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">
+                    <Sparkles size={19} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-text-primary">
+                      Personalize your feed
+                    </span>
+                    <span className="mt-0.5 block text-xs font-medium leading-5 text-text-muted">
+                      Pick your interests and goals so every opportunity here
+                      is matched to you.
+                    </span>
+                  </span>
+                  <ChevronRight
+                    size={18}
+                    className="shrink-0 text-brand-500 transition group-hover:translate-x-0.5"
+                  />
+                </button>
+              </section>
+            )}
+
             {showHomeScreenPrompt ? (
               <section className="sm:hidden">
                 <div
-                  className={`relative overflow-hidden rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm`}
+                  className={`relative overflow-hidden rounded-[24px] border border-subtle bg-white p-4 shadow-sm`}
                 >
                   <button
                     type="button"
                     onClick={closeHomeScreenPrompt}
-                    className={`absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700`}
+                    className={`absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-text-muted transition hover:bg-surface-elevated hover:text-text-secondary`}
                     aria-label="Dismiss add to home screen prompt"
                   >
                     <X size={16} />
@@ -1647,10 +1824,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       {isInstallable ? <Download size={19} /> : <Share2 size={19} />}
                     </span>
                     <div className="min-w-0">
-                      <h2 className="text-sm font-semibold text-slate-950 text-slate-900">
+                      <h2 className="text-sm font-semibold text-text-primary">
                         Add Edutu to Home Screen
                       </h2>
-                      <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                      <p className="mt-1 text-xs font-semibold leading-5 text-text-muted">
                         Keep opportunities, saved picks, and deadlines one tap
                         away.
                       </p>
@@ -1674,7 +1851,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     <button
                       type="button"
                       onClick={closeHomeScreenPrompt}
-                      className={`h-10 rounded-2xl bg-slate-100 px-4 text-sm font-semibold text-slate-600 transition hover:bg-slate-200`}
+                      className={`h-10 rounded-2xl bg-surface-elevated px-4 text-sm font-semibold text-text-secondary transition hover:bg-surface-brand`}
                     >
                       Later
                     </button>
@@ -1697,15 +1874,15 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                   <div className="mb-4">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-success/10 text-success">
                           <Briefcase size={19} />
                         </div>
                         <div className="min-w-0">
-                          <h2 className="truncate text-lg font-semibold tracking-tight text-slate-950 text-slate-900">
+                          <h2 className="truncate text-lg font-semibold tracking-tight text-text-primary">
                             {t("dashboard.sections.recommendedPicks")}
                           </h2>
                           <p
-                            className={`truncate text-xs font-normal text-slate-500`}
+                            className={`truncate text-xs font-normal text-text-muted`}
                           >
                             {selectedDiscoveryCategory
                               ? selectedDiscoveryCategory.title
@@ -1715,7 +1892,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       </div>
                       <div className="flex shrink-0 items-center gap-1.5">
                         <div
-                          className={`hidden sm:flex items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm`}
+                          className={`hidden sm:flex items-center gap-1 rounded-2xl border border-subtle bg-white p-1 shadow-sm`}
                         >
                           <button
                             type="button"
@@ -1723,7 +1900,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             className={`h-9 w-9 rounded-xl flex items-center justify-center transition-all ${
                               viewMode === "grid"
                                 ? "bg-brand-500 text-white shadow-lg shadow-brand-500/20"
-                                : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                                : "text-text-muted hover:bg-surface-elevated hover:text-text-primary"
                             }`}
                             aria-label="Grid view"
                           >
@@ -1735,7 +1912,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             className={`h-9 w-9 rounded-xl flex items-center justify-center transition-all ${
                               viewMode === "list"
                                 ? "bg-brand-500 text-white shadow-lg shadow-brand-500/20"
-                                : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                                : "text-text-muted hover:bg-surface-elevated hover:text-text-primary"
                             }`}
                             aria-label="List view"
                           >
@@ -1745,7 +1922,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         <button
                           type="button"
                           onClick={handleShuffleOpportunities}
-                          className={`inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-slate-300 hover:text-slate-950 active:scale-[0.98] sm:w-auto sm:rounded-2xl sm:px-3`}
+                          className={`inline-flex h-10 w-10 items-center justify-center rounded-full border border-subtle bg-white text-xs font-semibold text-text-secondary shadow-sm transition-all hover:border-strong hover:text-text-primary active:scale-[0.98] sm:w-auto sm:rounded-2xl sm:px-3`}
                           aria-label="Shuffle recommended opportunities"
                           title={t("dashboard.shuffle")}
                         >
@@ -1755,7 +1932,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         <button
                           type="button"
                           onClick={onViewAllOpportunities}
-                          className={`inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-semibold text-slate-600 shadow-sm transition-all hover:border-slate-300 hover:text-slate-950 sm:w-auto sm:rounded-2xl sm:px-3`}
+                          className={`inline-flex h-10 w-10 items-center justify-center rounded-full border border-subtle bg-white text-xs font-semibold text-text-secondary shadow-sm transition-all hover:border-strong hover:text-text-primary sm:w-auto sm:rounded-2xl sm:px-3`}
                           aria-label="View all opportunities"
                           title={t("dashboard.viewMore")}
                         >
@@ -1772,13 +1949,13 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         {Array.from({ length: 3 }).map((_, i) => (
                           <div
                             key={i}
-                            className={`h-44 w-[62vw] max-w-[250px] shrink-0 animate-pulse rounded-2xl bg-slate-200`}
+                            className={`h-44 w-[62vw] max-w-[250px] shrink-0 animate-pulse rounded-2xl bg-surface-elevated`}
                           />
                         ))}
                       </div>
                     ) : feedErrorMessage && normalizedOpportunityFeed.length === 0 ? (
                       <div
-                        className={`rounded-2xl border border-slate-200 bg-white`}
+                        className={`rounded-2xl border border-subtle bg-white`}
                       >
                         <ErrorState
                           message={feedErrorMessage}
@@ -1787,7 +1964,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       </div>
                     ) : mobilePersonalizedOpportunities.length === 0 ? (
                       <div
-                        className={`rounded-2xl border border-slate-200 bg-white`}
+                        className={`rounded-2xl border border-subtle bg-white`}
                       >
                         <EmptyState
                           icon={<Briefcase size={28} />}
@@ -1815,7 +1992,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                   variant="carousel"
                                   isBookmarked={isOppBookmarked(opportunity.id)}
                                   isDarkMode={isDarkMode}
-                                  onOpen={onOpportunityClick}
+                                  onOpen={handleOpenOpportunity}
                                   onToggleBookmark={handleToggleBookmark}
                                   onShare={handleShareOpportunity}
                                 />
@@ -1828,11 +2005,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                   ? () => setActiveDiscoveryCategory(null)
                                   : onViewAllOpportunities
                               }
-                              className={`mobile-personalized-card flex h-44 w-28 shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-2xl border px-3 text-center text-xs font-semibold transition active:scale-[0.98] ${
-                                isDarkMode
-                                  ? "border-white/10 bg-white/5 text-slate-300"
-                                  : "border-slate-200 bg-slate-50 text-slate-600"
-                              }`}
+                              className="mobile-personalized-card flex h-44 w-28 shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-2xl border border-subtle bg-surface-elevated px-3 text-center text-xs font-semibold text-text-secondary transition active:scale-[0.98]"
                             >
                               {selectedDiscoveryCategory ? t("dashboard.empty.showAll") : t("dashboard.viewAll")}
                               <ChevronRight size={16} />
@@ -1841,12 +2014,12 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
                           <div className="mb-3 flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <h3 className="text-lg font-semibold tracking-tight text-slate-950 text-slate-900">
+                              <h3 className="text-lg font-semibold tracking-tight text-text-primary">
                                 {selectedDiscoveryCategory
                                   ? t("dashboard.categoryOpportunities", { category: selectedDiscoveryCategory.title })
                                   : t("dashboard.moreOpportunities")}
                               </h3>
-                              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                              <p className="text-xs font-medium text-text-muted">
                                 {selectedDiscoveryCategory
                                   ? t("dashboard.filteredBySelection")
                                   : t("dashboard.scrollDown")}
@@ -1855,11 +2028,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             <button
                               type="button"
                               onClick={onViewAllOpportunities}
-                              className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition active:scale-95 ${
-                                isDarkMode
-                                  ? "border-white/10 bg-white/5 text-white hover:bg-white/10"
-                                  : "border-slate-200 bg-white text-slate-700 shadow-sm hover:border-slate-300 hover:text-slate-950"
-                              }`}
+                              className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-subtle bg-white text-text-secondary shadow-sm transition hover:border-strong hover:text-text-primary active:scale-95"
                               aria-label="View more opportunities"
                             >
                               <ChevronRight size={18} strokeWidth={2.4} />
@@ -1888,7 +2057,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                                   variant="mobileGrid"
                                   isBookmarked={isOppBookmarked(opportunity.id)}
                                   isDarkMode={isDarkMode}
-                                  onOpen={onOpportunityClick}
+                                  onOpen={handleOpenOpportunity}
                                   onToggleBookmark={handleToggleBookmark}
                                   onShare={handleShareOpportunity}
                                 />
@@ -1898,11 +2067,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                           <button
                             type="button"
                             onClick={onViewAllOpportunities}
-                            className={`mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl border text-sm font-semibold transition active:scale-[0.99] ${
-                              isDarkMode
-                                ? "border-white/10 bg-white/5 text-white hover:bg-white/10"
-                                : "border-slate-200 bg-white text-slate-800 shadow-sm hover:border-slate-300 hover:bg-slate-50"
-                            }`}
+                            className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-subtle bg-white text-sm font-semibold text-text-secondary shadow-sm transition hover:border-strong hover:bg-surface-elevated active:scale-[0.99]"
                           >
                             {t("dashboard.viewMore")}
                             <ChevronRight size={17} strokeWidth={2.4} />
@@ -1925,21 +2090,21 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             className="min-h-[244px] overflow-hidden rounded-[20px] animate-pulse"
                           >
                             <div
-                              className={`h-32 bg-slate-200`}
+                              className={`h-32 bg-surface-elevated`}
                             />
                             <div className="p-4 space-y-3">
                               <div
-                                className={`h-3 w-1/2 rounded bg-slate-200`}
+                                className={`h-3 w-1/2 rounded bg-surface-elevated`}
                               />
                               <div
-                                className={`h-4 w-4/5 rounded bg-slate-200`}
+                                className={`h-4 w-4/5 rounded bg-surface-elevated`}
                               />
                             </div>
                           </div>
                         ))
                       ) : feedErrorMessage && normalizedOpportunityFeed.length === 0 ? (
                         <div
-                          className={`col-span-full rounded-[20px] border border-slate-200 bg-white`}
+                          className={`col-span-full rounded-[20px] border border-subtle bg-white`}
                         >
                           <ErrorState
                             message={feedErrorMessage}
@@ -1948,7 +2113,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         </div>
                       ) : homeFeedItems.length === 0 ? (
                         <div
-                          className={`col-span-full rounded-[20px] border border-slate-200 bg-white`}
+                          className={`col-span-full rounded-[20px] border border-subtle bg-white`}
                         >
                           <EmptyState
                             icon={<Briefcase size={32} />}
@@ -1978,7 +2143,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                               variant="grid"
                               isBookmarked={isOppBookmarked(opportunity.id)}
                               isDarkMode={isDarkMode}
-                              onOpen={onOpportunityClick}
+                              onOpen={handleOpenOpportunity}
                               onToggleBookmark={handleToggleBookmark}
                               onShare={handleShareOpportunity}
                             />
@@ -1988,21 +2153,18 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     </div>
                   ) : (
                     <div
-                      className={`hidden overflow-hidden rounded-2xl border border-slate-200 bg-white sm:block`}
+                      className={`hidden overflow-hidden rounded-2xl border border-subtle bg-white sm:block`}
                     >
                       {opportunitiesLoading ? (
                         Array.from({ length: 3 }).map((_, i) => (
                           <div
                             key={i}
-                            className="h-20 rounded-xl animate-pulse"
-                            style={{
-                              backgroundColor: "#f0f0f0",
-                            }}
+                            className="h-20 rounded-xl animate-pulse bg-surface-elevated"
                           />
                         ))
                       ) : feedErrorMessage && normalizedOpportunityFeed.length === 0 ? (
                         <div
-                          className={`rounded-[20px] border border-slate-200 bg-white`}
+                          className={`rounded-[20px] border border-subtle bg-white`}
                         >
                           <ErrorState
                             message={feedErrorMessage}
@@ -2011,7 +2173,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         </div>
                       ) : homeFeedItems.length === 0 ? (
                         <div
-                          className={`rounded-[20px] border border-slate-200 bg-white`}
+                          className={`rounded-[20px] border border-subtle bg-white`}
                         >
                           <EmptyState
                             icon={<Briefcase size={32} />}
@@ -2041,7 +2203,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                               variant="list"
                               isBookmarked={isOppBookmarked(opportunity.id)}
                               isDarkMode={isDarkMode}
-                              onOpen={onOpportunityClick}
+                              onOpen={handleOpenOpportunity}
                               onToggleBookmark={handleToggleBookmark}
                               onShare={handleShareOpportunity}
                             />
@@ -2061,18 +2223,18 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
               {recentActivity.length > 0 && (
                 <aside className="lg:col-span-4 space-y-6">
                   <section
-                    className={`relative overflow-hidden rounded-[20px] border border-slate-200 bg-white p-5 shadow-sm`}
+                    className={`relative overflow-hidden rounded-[20px] border border-subtle bg-white p-5 shadow-sm`}
                   >
                     <div className="flex items-center justify-between mb-6 relative">
                       <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500">
+                        <div className="p-2 rounded-xl bg-warning/10 text-warning">
                           <Sparkles size={18} />
                         </div>
                         <div>
                           <h2 className="text-base font-semibold">
                             {t("dashboard.sections.recentActivity")}
                           </h2>
-                          <p className="text-xs text-slate-500">
+                          <p className="text-xs text-text-muted">
                             {t("dashboard.latestActivity")}
                           </p>
                         </div>
@@ -2103,16 +2265,16 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       {recentActivity.map((win) => (
                         <div
                           key={win.id}
-                          className="flex gap-3 items-center group/win p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-white/5 transition-all"
+                          className="flex gap-3 items-center group/win p-3 rounded-2xl hover:bg-surface-elevated transition-all"
                         >
-                          <div className="h-9 w-9 shrink-0 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
+                          <div className="h-9 w-9 shrink-0 rounded-xl bg-success/10 text-success flex items-center justify-center">
                             {win.icon}
                           </div>
                           <div className="min-w-0">
                             <p className="text-xs font-medium truncate group-hover/win:text-brand-500 transition-colors">
                               {win.title}
                             </p>
-                            <p className="text-[10px] font-medium text-slate-500">
+                            <p className="text-[10px] font-medium text-text-muted">
                               {win.date}
                             </p>
                           </div>
@@ -2120,7 +2282,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       ))}
                     </div>
 
-                    <div className="mt-6 pt-4 border-t border-slate-100 dark:border-white/5 flex items-center justify-between text-[10px] font-medium text-slate-500 tracking-widest">
+                    <div className="mt-6 pt-4 border-t border-subtle flex items-center justify-between text-[10px] font-medium text-text-muted tracking-widest">
                       <span>{t("dashboard.savedCount", { count: bookmarks.length })}</span>
                       <span>{t("dashboard.applicationsCount", { count: applications.length })}</span>
                     </div>
@@ -2133,11 +2295,11 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
         {/* Footer with Dark Mode Toggle */}
         <footer
-          className={`mx-auto hidden max-w-7xl border-t border-slate-200 px-4 py-6 sm:px-6 lg:block lg:px-8`}
+          className={`mx-auto hidden max-w-7xl border-t border-subtle px-4 py-6 sm:px-6 lg:block lg:px-8`}
         >
           <div className="flex items-center justify-between">
             <p
-              className="text-xs text-slate-500"
+              className="text-xs text-text-muted"
             >
               © {new Date().getFullYear()} Edutu. All rights reserved.
             </p>
