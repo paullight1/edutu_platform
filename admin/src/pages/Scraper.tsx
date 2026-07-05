@@ -28,6 +28,8 @@ import {
     Filter,
     ArrowLeft,
 } from 'lucide-react';
+import ScrapeProgressModal from '../components/ScrapeProgressModal';
+import type { SourceResult, ScrapedOpportunity, ScrapeResult, ScrapeProgressItem } from '../types/scraper';
 
 interface ScrapeSource {
     id: number;
@@ -100,61 +102,6 @@ interface EngineStatus {
     error?: string;
 }
 
-interface SourceResult {
-    name: string;
-    url: string;
-    status: 'success' | 'failed' | 'skipped' | 'pending';
-    itemsFound: number;
-    itemsSaved: number;
-    error?: string;
-    duration?: number;
-}
-
-interface ScrapedOpportunity {
-    id?: string | number;
-    title: string;
-    organization?: string;
-    category?: string;
-    deadline?: string | null;
-    location?: string;
-    description?: string;
-    summary?: string;
-    applyUrl?: string;
-    apply_url?: string;
-    imageUrl?: string;
-    image_url?: string;
-    application_url?: string;
-    amount?: number | null;
-    source: string;
-    sourceUrl?: string;
-    source_url?: string;
-    requirements?: string[];
-    benefits?: string[];
-    application_process?: string[];
-    eligibility?: Record<string, unknown>;
-    funding_type?: string | null;
-    target_region?: string | null;
-    metadata?: {
-        extraction_quality_score?: number;
-        extraction_missing_fields?: string[];
-        needs_review?: boolean;
-        ai_improved_at?: string;
-        [key: string]: unknown;
-    };
-}
-
-interface ScrapeResult {
-    success: boolean;
-    sourcesScraped?: number;
-    totalResults?: number;
-    duration?: number;
-    jobId?: string;
-    sources?: string[];
-    error?: string;
-    sourceResults?: SourceResult[];
-    opportunities?: ScrapedOpportunity[];
-}
-
 interface Notification {
     id: number;
     message: string;
@@ -212,7 +159,7 @@ export default function ScraperDashboard() {
     const [showLoadingModal, setShowLoadingModal] = useState(false);
     const [showResultsModal, setShowResultsModal] = useState(false);
     const [currentStep, setCurrentStep] = useState(0);
-    const [scrapingProgress, setScrapingProgress] = useState<{ source: string; status: 'pending' | 'scraping' | 'completed' | 'failed'; progress: number }[]>([]);
+    const [scrapingProgress, setScrapingProgress] = useState<ScrapeProgressItem[]>([]);
     const [scrapingStartedAt, setScrapingStartedAt] = useState<number | null>(null);
     const [scrapingElapsedSeconds, setScrapingElapsedSeconds] = useState(0);
     const [selectedOpportunities, setSelectedOpportunities] = useState<Set<number>>(new Set());
@@ -682,7 +629,9 @@ export default function ScraperDashboard() {
                     switch (evt.type) {
                         case 'start': {
                             setCurrentStep(2);
-                            const names = Array.isArray(evt.sources) ? (evt.sources as string[]) : sourcesToScrape.map(s => s.name);
+                            const rawNames = Array.isArray(evt.sources) ? (evt.sources as string[]) : sourcesToScrape.map(s => s.name);
+                            // Dedupe by raw name — duplicates would collide in markSource's key match.
+                            const names = Array.from(new Set(rawNames.filter(Boolean)));
                             setScrapingProgress(names.map(n => ({ source: n, status: 'pending' as const, progress: 0 })));
                             break;
                         }
@@ -944,10 +893,6 @@ export default function ScraperDashboard() {
         return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
     };
 
-    const activeScrapeSources = scrapingProgress.filter(progress => progress.status === 'scraping').length;
-    const completedScrapeSources = scrapingProgress.filter(progress => progress.status === 'completed').length;
-    const failedScrapeSources = scrapingProgress.filter(progress => progress.status === 'failed').length;
-    const totalScrapeSources = scrapingProgress.length;
     const estimatedProgress = modalError
         ? 0
         : currentStep >= 4
@@ -2553,346 +2498,21 @@ export default function ScraperDashboard() {
                 )
             }
 
-            {/* Loading Modal - Step by Step */}
-            {
-                showLoadingModal && (
-                    <div style={{
-                        position: 'fixed',
-                        inset: 0,
-                        background: 'rgba(0, 0, 0, 0.6)',
-                        backdropFilter: 'blur(8px)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 1000,
-                        animation: 'fadeIn 0.2s ease',
-                    }}>
-                        <div style={{
-                            background: 'var(--bg-primary)',
-                            borderRadius: 20,
-                            padding: '40px',
-                            width: '90%',
-                            maxWidth: 600,
-                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-                            animation: 'slideUp 0.3s ease',
-                        }}>
-                            {/* Header */}
-                            <div style={{ textAlign: 'center', marginBottom: modalError ? 16 : 32 }}>
-                                <div style={{
-                                    width: 64,
-                                    height: 64,
-                                    borderRadius: 16,
-                                    background: modalError
-                                        ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
-                                        : 'linear-gradient(135deg, #146ef5 0%, #60a5fa 100%)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    margin: '0 auto 16px',
-                                    animation: currentStep < 4 && !modalError ? 'pulse 2s ease-in-out infinite' : 'none',
-                                }}>
-                                    {modalError ? (
-                                        <AlertCircle size={32} color="white" />
-                                    ) : currentStep === 4 ? (
-                                        <CheckCircle2 size={32} color="white" />
-                                    ) : (
-                                        <Loader2 size={32} color="white" className="animate-spin" />
-                                    )}
-                                </div>
-                                <h2 style={{
-                                    fontSize: 24,
-                                    fontWeight: 600,
-                                    color: modalError ? '#ff3b30' : 'var(--text-primary)',
-                                    margin: 0,
-                                }}>
-                                    {modalError ? 'Scraping Failed' : currentStep === 4 ? 'Scraping Complete!' : 'Scraping in Progress...'}
-                                </h2>
-                                <p style={{
-                                    color: 'var(--text-tertiary)',
-                                    marginTop: 8,
-                                    fontSize: 14,
-                                }}>
-                                    {modalError
-                                        ? 'An error occurred — see details below.'
-                                        : currentStep === 4
-                                            ? `Found ${scrapeResult?.totalResults || 0} opportunities from ${scrapeResult?.sourcesScraped || 0} sources`
-                                            : 'Please wait while we gather scholarship opportunities'
-                                    }
-                                </p>
-                            </div>
-
-                            {!modalError && (
-                                <div style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: 'repeat(4, 1fr)',
-                                    gap: 10,
-                                    marginBottom: 24,
-                                }}>
-                                    {[
-                                        { label: 'Progress', value: `${estimatedProgress}%` },
-                                        { label: 'Elapsed', value: formatElapsed(scrapingElapsedSeconds) },
-                                        { label: 'Sources', value: totalScrapeSources ? `${completedScrapeSources + failedScrapeSources}/${totalScrapeSources}` : '0/0' },
-                                        { label: 'Pages', value: `${maxPages} max` },
-                                    ].map((item) => (
-                                        <div
-                                            key={item.label}
-                                            style={{
-                                                padding: '12px 10px',
-                                                borderRadius: 12,
-                                                background: 'rgba(20, 110, 245, 0.08)',
-                                                border: '1px solid rgba(20, 110, 245, 0.18)',
-                                                textAlign: 'center',
-                                            }}
-                                        >
-                                            <div style={{
-                                                fontSize: 18,
-                                                fontWeight: 700,
-                                                color: item.label === 'Progress' ? '#60a5fa' : 'var(--text-primary)',
-                                                lineHeight: 1.1,
-                                            }}>
-                                                {item.value}
-                                            </div>
-                                            <div style={{
-                                                fontSize: 11,
-                                                color: 'var(--text-tertiary)',
-                                                marginTop: 5,
-                                                textTransform: 'uppercase',
-                                                letterSpacing: 0.5,
-                                            }}>
-                                                {item.label}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* Error Panel */}
-                            {modalError && (
-                                <div style={{
-                                    padding: '14px 16px',
-                                    borderRadius: 12,
-                                    background: 'rgba(255, 59, 48, 0.08)',
-                                    border: '1px solid rgba(255, 59, 48, 0.3)',
-                                    marginBottom: 24,
-                                    fontSize: 13,
-                                    color: '#ff3b30',
-                                    whiteSpace: 'pre-wrap',
-                                    wordBreak: 'break-word',
-                                    lineHeight: 1.6,
-                                }}>
-                                    <strong>Error:</strong> {modalError}
-                                </div>
-                            )}
-
-                            {/* Steps (hidden on error) */}
-                            {!modalError && (
-                                <div style={{ marginBottom: 32 }}>
-                                    {[
-                                        { step: 1, label: 'Connecting to sources', icon: Globe },
-                                        { step: 2, label: 'Scraping data', icon: Search },
-                                        { step: 3, label: 'Processing results', icon: Database },
-                                        { step: 4, label: 'Complete', icon: CheckCircle2 },
-                                    ].map(({ step, label, icon: Icon }) => {
-                                        const isActive = currentStep === step;
-                                        const isComplete = currentStep > step;
-                                        const isPending = currentStep < step;
-
-                                        return (
-                                            <div
-                                                key={step}
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: 16,
-                                                    padding: '16px',
-                                                    borderRadius: 12,
-                                                    marginBottom: 8,
-                                                    background: isActive ? 'rgba(20, 110, 245, 0.1)' : 'transparent',
-                                                    border: `1px solid ${isActive ? 'rgba(20, 110, 245, 0.3)' : 'transparent'}`,
-                                                    transition: 'all 0.3s ease',
-                                                    opacity: isPending ? 0.5 : 1,
-                                                }}
-                                            >
-                                                <div style={{
-                                                    width: 40,
-                                                    height: 40,
-                                                    borderRadius: 10,
-                                                    background: isComplete ? '#34c759' : isActive ? '#146ef5' : 'var(--bg-tertiary)',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    color: 'white',
-                                                }}>
-                                                    {isComplete ? (
-                                                        <CheckCircle2 size={20} />
-                                                    ) : (
-                                                        <Icon size={20} />
-                                                    )}
-                                                </div>
-                                                <div style={{ flex: 1 }}>
-                                                    <div style={{
-                                                        fontWeight: 500,
-                                                        color: isActive ? '#146ef5' : 'var(--text-primary)',
-                                                        fontSize: 15,
-                                                    }}>
-                                                        {label}
-                                                    </div>
-                                                    {isActive && step === 2 && scrapingProgress.length > 0 && (
-                                                        <div style={{ marginTop: 8 }}>
-                                                            <div style={{
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                justifyContent: 'space-between',
-                                                                marginBottom: 8,
-                                                                fontSize: 12,
-                                                                color: 'var(--text-tertiary)',
-                                                            }}>
-                                                                <span>{activeScrapeSources || totalScrapeSources} active source{(activeScrapeSources || totalScrapeSources) === 1 ? '' : 's'}</span>
-                                                                <span>{estimatedProgress}% • {formatElapsed(scrapingElapsedSeconds)}</span>
-                                                            </div>
-                                                            {scrapingProgress.map((progress, idx) => (
-                                                                <div key={idx} style={{
-                                                                    display: 'flex',
-                                                                    alignItems: 'center',
-                                                                    gap: 8,
-                                                                    marginTop: 6,
-                                                                    fontSize: 13,
-                                                                    color: 'var(--text-tertiary)',
-                                                                }}>
-                                                                    {progress.status === 'pending' && <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#ccc' }} />}
-                                                                    {progress.status === 'scraping' && <Loader2 size={12} className="animate-spin" />}
-                                                                    {progress.status === 'completed' && <CheckCircle2 size={12} color="#34c759" />}
-                                                                    {progress.status === 'failed' && <AlertCircle size={12} color="#ff3b30" />}
-                                                                    <span>{progress.source}</span>
-                                                                    <span style={{ marginLeft: 'auto' }}>
-                                                                        {progress.status === 'scraping' && `${estimatedProgress}%`}
-                                                                        {progress.status === 'completed' && `${progress.progress}%`}
-                                                                        {progress.status === 'failed' && 'Failed'}
-                                                                    </span>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                {isActive && step < 4 && (
-                                                    <Loader2 size={20} color="#146ef5" className="animate-spin" />
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-
-                            {/* Progress Bar (hidden on error) */}
-                            {!modalError && (
-                                <div style={{
-                                    height: 4,
-                                    background: 'var(--bg-tertiary)',
-                                    borderRadius: 2,
-                                    overflow: 'hidden',
-                                    marginBottom: 24,
-                                }}>
-                                    <div style={{
-                                        height: '100%',
-                                        width: `${estimatedProgress}%`,
-                                        background: 'linear-gradient(90deg, #146ef5 0%, #60a5fa 100%)',
-                                        borderRadius: 2,
-                                        transition: 'width 0.5s ease',
-                                    }} />
-                                </div>
-                            )}
-
-                            {/* Live opportunity count + per-item loading skeletons */}
-                            {!modalError && (
-                                <div style={{ marginBottom: 4 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                                            {currentStep === 4 ? 'Opportunities found' : 'Opportunities incoming'}
-                                        </span>
-                                        <span style={{ fontSize: 15, fontWeight: 700, color: '#146ef5', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                                            {currentStep === 4
-                                                ? liveFoundCount
-                                                : <><Loader2 size={13} className="animate-spin" /> scanning…</>}
-                                        </span>
-                                    </div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                                        {(scrapeResult?.opportunities ?? []).slice(0, 4).map((opp, i) => (
-                                            <div key={`opp-${i}`} style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', animation: 'fadeIn 0.3s ease' }}>
-                                                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opp.title}</div>
-                                                <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opp.organization || opp.source}</div>
-                                            </div>
-                                        ))}
-                                        {currentStep < 4 && Array.from({ length: Math.max(0, 4 - Math.min(4, scrapeResult?.opportunities?.length ?? 0)) }).map((_, i) => (
-                                            <div key={`sk-${i}`} style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border-light)' }}>
-                                                <div style={{ height: 10, width: '80%', borderRadius: 4, background: 'var(--bg-tertiary)', animation: 'pulse 1.5s ease-in-out infinite', animationDelay: `${i * 0.15}s` }} />
-                                                <div style={{ height: 8, width: '55%', borderRadius: 4, background: 'var(--bg-tertiary)', marginTop: 8, animation: 'pulse 1.5s ease-in-out infinite', animationDelay: `${i * 0.15 + 0.2}s` }} />
-                                            </div>
-                                        ))}
-                                    </div>
-                                    {currentStep === 4 && liveFoundCount > 4 && (
-                                        <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-tertiary)', textAlign: 'center' }}>
-                                            + {liveFoundCount - 4} more — click the run in Recent Scrapes to view all
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-            {/* Footer actions: minimize (keep running) vs cancel; Dismiss on error/complete */}
-                            <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 20 }}>
-                                {modalError || currentStep === 4 ? (
-                                    <button
-                                        onClick={stopScrape}
-                                        style={{
-                                            display: 'flex', alignItems: 'center', gap: 8,
-                                            padding: '10px 28px', background: 'var(--apple-blue)',
-                                            border: '1px solid transparent', borderRadius: 10,
-                                            color: 'white', fontSize: 14, fontWeight: 500, cursor: 'pointer',
-                                            transition: 'opacity 0.2s ease',
-                                        }}
-                                        onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
-                                        onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
-                                    >
-                                        <CheckCircle2 size={16} /> Dismiss
-                                    </button>
-                                ) : (
-                                    <>
-                                        <button
-                                            onClick={minimizeScrape}
-                                            title="Keep the scrape running and close this window"
-                                            style={{
-                                                display: 'flex', alignItems: 'center', gap: 8,
-                                                padding: '10px 24px', background: 'var(--apple-blue)',
-                                                border: '1px solid transparent', borderRadius: 10,
-                                                color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                                                transition: 'opacity 0.2s ease',
-                                            }}
-                                            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.88'; }}
-                                            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
-                                        >
-                                            <ArrowLeft size={16} /> Run in background
-                                        </button>
-                                        <button
-                                            onClick={stopScrape}
-                                            title="Abort this scrape"
-                                            style={{
-                                                display: 'flex', alignItems: 'center', gap: 8,
-                                                padding: '10px 24px', background: 'rgba(255, 59, 48, 0.1)',
-                                                border: '1px solid rgba(255, 59, 48, 0.3)', borderRadius: 10,
-                                                color: '#ff3b30', fontSize: 14, fontWeight: 500, cursor: 'pointer',
-                                                transition: 'opacity 0.2s ease',
-                                            }}
-                                            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
-                                            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
-                                        >
-                                            <X size={16} /> Cancel
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
+            {/* Live scrape-progress modal (extracted) */}
+            <ScrapeProgressModal
+                open={showLoadingModal}
+                modalError={modalError}
+                currentStep={currentStep}
+                estimatedProgress={estimatedProgress}
+                elapsedSeconds={scrapingElapsedSeconds}
+                formatElapsed={formatElapsed}
+                progress={scrapingProgress}
+                maxPages={maxPages}
+                scrapeResult={scrapeResult}
+                liveFoundCount={liveFoundCount}
+                onMinimize={minimizeScrape}
+                onStop={stopScrape}
+            />
 
             {/* Floating background-scrape pill (shown while minimized) */}
             {scraping && isBackground && !showLoadingModal && (
