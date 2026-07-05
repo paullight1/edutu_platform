@@ -5,6 +5,7 @@ import { CronJob } from "cron";
 import axios from "axios";
 import { z } from "zod";
 import * as cheerio from "cheerio";
+import { pool } from "../db";
 import { AiService } from "../ai";
 import { OpportunityShareCardService } from "../opportunities/opportunity-share-card.service";
 import { classifyOpportunity } from "../opportunities/opportunity-categorization";
@@ -40,6 +41,9 @@ interface RawItem {
   direct_apply_url?: string | null;
   /** og:image from the detail page */
   image_url?: string | null;
+  /** Original (pre-proxy) image URL — kept so duplicate site-default images
+   *  can be detected across items and runs. */
+  source_image_url?: string | null;
   description?: string;
   amount?: number | null;
   deadline?: string | null;
@@ -110,6 +114,11 @@ export interface ScrapeResult {
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
+
+// Fixed key for the scrape advisory lock. Any value works as long as it is
+// unique across advisory-lock users in this database; chosen from the private
+// range to avoid collisions with other subsystems.
+const SCRAPE_ADVISORY_LOCK_KEY = 918273645;
 
 const BROWSER_HEADERS = {
   "User-Agent":
@@ -205,6 +214,10 @@ const CATEGORY_MAP: Record<string, string[]> = {
 export class ScraperService implements OnModuleInit {
   private readonly logger = new Logger(ScraperService.name);
   private supabase: SupabaseClient;
+  /** Original image URL → apply_url that claimed it in the current run.
+   *  Detects aggregator site-default og:images (same banner on every post)
+   *  so each opportunity ends up with its own image or none. */
+  private readonly imageClaimsThisRun = new Map<string, string>();
 
   constructor(
     private schedulerRegistry: SchedulerRegistry,
@@ -509,9 +522,36 @@ export class ScraperService implements OnModuleInit {
 
   // ─── Public: run scraper ──────────────────────────────────────────────────
 
+  /**
+   * Kick off a scrape without blocking the caller. Returns immediately; the
+   * crawl runs in the background under the same advisory lock as runScraper,
+   * so a long crawl never ties up an HTTP worker past the gateway timeout.
+   * Clients poll GET /api/scraper/jobs for progress.
+   */
+  startScraperRun(options: ScrapeOptions): { started: boolean; error?: string } {
+    if (!this.supabase) {
+      return { started: false, error: "Scraper is not configured" };
+    }
+
+    void this.runScraper(options).catch((error) => {
+      this.logger.error(
+        `Background scrape failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    });
+
+    return { started: true };
+  }
+
+  /**
+   * Run a scrape guarded by a Postgres session-level advisory lock so that only
+   * one crawl executes at a time — across every instance and across cron +
+   * manual triggers. Without this, each replica's cron (and overlapping manual
+   * runs) would crawl concurrently, duplicating work and AI spend.
+   */
   async runScraper(options: ScrapeOptions): Promise<ScrapeResult> {
     const { sourceId, allSources, maxPages = 3 } = options;
-    const startTime = Date.now();
 
     this.logger.log(
       `Starting scrape: sourceId=${sourceId}, allSources=${allSources}, maxPages=${maxPages}`,
@@ -521,6 +561,68 @@ export class ScraperService implements OnModuleInit {
       this.logger.warn("No Supabase client — returning mock data");
       return this.mockScrape();
     }
+
+    const lock = await this.withScrapeLock(() =>
+      this.executeScraperRun(options),
+    );
+
+    if (!lock.acquired) {
+      this.logger.warn(
+        "Skipping scrape: another run is already in progress (advisory lock held).",
+      );
+      return { success: false, error: "A scrape run is already in progress" };
+    }
+
+    return lock.result;
+  }
+
+  /**
+   * Acquire the scrape advisory lock on a dedicated pooled connection, run the
+   * work, then release it. Session-level (not xact) so we don't hold an open
+   * transaction for the multi-minute crawl. Returns acquired:false immediately
+   * when another holder has the lock.
+   */
+  private async withScrapeLock<T>(
+    run: () => Promise<T>,
+  ): Promise<{ acquired: true; result: T } | { acquired: false }> {
+    const client = await pool.connect();
+    try {
+      const res = await client.query<{ locked: boolean }>(
+        "select pg_try_advisory_lock($1) as locked",
+        [SCRAPE_ADVISORY_LOCK_KEY],
+      );
+      if (!res.rows[0]?.locked) {
+        return { acquired: false };
+      }
+
+      try {
+        const result = await run();
+        return { acquired: true, result };
+      } finally {
+        await client
+          .query("select pg_advisory_unlock($1)", [SCRAPE_ADVISORY_LOCK_KEY])
+          .catch((error) =>
+            this.logger.warn(
+              `Failed to release scrape advisory lock: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            ),
+          );
+      }
+    } finally {
+      client.release();
+    }
+  }
+
+  private async executeScraperRun(
+    options: ScrapeOptions,
+  ): Promise<ScrapeResult> {
+    const { sourceId, allSources, maxPages = 3 } = options;
+    const startTime = Date.now();
+
+    // Fresh image-uniqueness ledger per run; cross-run duplicates are caught
+    // by the metadata.source_image_url check against the database.
+    this.imageClaimsThisRun.clear();
 
     const jobLogId = await this.startJobLog(options);
 
@@ -576,6 +678,173 @@ export class ScraperService implements OnModuleInit {
         error: error.message ?? "Unknown error occurred",
       };
     }
+  }
+
+  // ─── Public: backfill incomplete opportunities ────────────────────────────
+
+  /**
+   * Re-enriches stored opportunities that are missing an image or carry
+   * legacy generic fallback content ("Program Organizer", placeholder
+   * summaries). Re-runs the full deep-fetch + og:image + LLM pipeline and
+   * merges the results, never overwriting good data with worse.
+   */
+  async backfillIncompleteOpportunities(limit = 40): Promise<{
+    success: boolean;
+    scanned: number;
+    updated: number;
+    imagesAdded: number;
+    stillIncomplete: number;
+    error?: string;
+  }> {
+    const empty = {
+      scanned: 0,
+      updated: 0,
+      imagesAdded: 0,
+      stillIncomplete: 0,
+    };
+    if (!this.supabase) {
+      return { success: false, ...empty, error: "No database configured" };
+    }
+
+    // Backfill runs standalone (outside runScraper), so it needs its own
+    // fresh image-uniqueness ledger.
+    this.imageClaimsThisRun.clear();
+
+    const cappedLimit = Math.min(Math.max(Number(limit) || 40, 1), 200);
+    const { data, error } = await this.supabase
+      .from("opportunities")
+      .select(
+        "id, title, summary, description, organization, location, close_date, apply_url, application_url, source_url, image_url, eligibility, funding_type, target_region, metadata, source",
+      )
+      .eq("source", "scraper")
+      .or(
+        'image_url.is.null,organization.is.null,organization.eq."Program Organizer",summary.ilike."*being verified by Edutu*"',
+      )
+      .order("updated_at", { ascending: true })
+      .limit(cappedLimit);
+
+    if (error) {
+      return { success: false, ...empty, error: error.message };
+    }
+
+    const rows = data ?? [];
+    let updated = 0;
+    let imagesAdded = 0;
+    let stillIncomplete = 0;
+
+    for (let i = 0; i < rows.length; i += ENRICH_CONCURRENCY) {
+      const batch = rows.slice(i, i + ENRICH_CONCURRENCY);
+      await Promise.all(
+        batch.map(async (row) => {
+          try {
+            const meta = (row.metadata ?? {}) as Record<string, any>;
+            const applyUrl =
+              meta.detail_url ||
+              meta.aggregator_url ||
+              row.apply_url ||
+              row.source_url;
+            if (!applyUrl?.startsWith("http")) {
+              stillIncomplete++;
+              return;
+            }
+
+            const seed: RawItem = {
+              title: row.title,
+              apply_url: applyUrl,
+              direct_apply_url: row.application_url ?? null,
+              image_url: row.image_url ?? null,
+              description: row.description ?? undefined,
+              summary: /being verified by Edutu/i.test(row.summary ?? "")
+                ? undefined
+                : (row.summary ?? undefined),
+              location: row.location ?? undefined,
+              deadline: row.close_date ?? undefined,
+              requirements: this.normalizeStringList(meta.requirements),
+              benefits: this.normalizeStringList(meta.benefits),
+              application_process: this.normalizeStringList(
+                meta.application_process,
+              ),
+              eligibility:
+                (row.eligibility as Record<string, unknown>) ?? undefined,
+              funding_type: row.funding_type ?? undefined,
+              target_region: row.target_region ?? undefined,
+              source: meta.source_name || row.source || "scraper",
+              source_url: row.source_url || applyUrl,
+            };
+
+            // retry=0 bypasses the enrichment cache so stale rows are truly
+            // re-fetched instead of echoing their own incomplete data back.
+            const enriched = await this.enrichItem(seed, undefined, 0);
+            const record = this.transformToOpportunity(
+              enriched,
+              meta.scrape_job_id ?? null,
+            );
+            const previousOrganization =
+              row.organization === "Program Organizer"
+                ? null
+                : row.organization;
+
+            const update: Record<string, unknown> = {
+              summary: record.summary || row.summary,
+              description: record.description || row.description,
+              organization: record.organization ?? previousOrganization,
+              category: record.category,
+              canonical_category: record.canonical_category,
+              type: record.type,
+              is_remote: record.is_remote,
+              location: record.location ?? row.location,
+              deadline: record.deadline ?? row.close_date,
+              close_date: record.close_date ?? row.close_date,
+              image_url: record.image_url || row.image_url,
+              application_url: record.application_url || row.application_url,
+              quality_score: record.quality_score,
+              validation_status: record.validation_status,
+              status: record.status,
+              tags: record.tags,
+              ...((record.stipend as number | null) != null
+                ? { stipend: record.stipend, currency: record.currency }
+                : {}),
+              metadata: {
+                ...meta,
+                ...(record.metadata as Record<string, unknown>),
+                backfilled_at: new Date().toISOString(),
+              },
+              updated_at: new Date().toISOString(),
+            };
+
+            const { error: updateError } = await this.supabase
+              .from("opportunities")
+              .update(update)
+              .eq("id", row.id);
+            if (updateError) {
+              stillIncomplete++;
+              this.logger.warn(
+                `Backfill update failed for ${row.id}: ${updateError.message}`,
+              );
+              return;
+            }
+
+            updated++;
+            if (!row.image_url && update.image_url) imagesAdded++;
+            if (update.validation_status !== "valid") stillIncomplete++;
+          } catch (e: any) {
+            stillIncomplete++;
+            this.logger.warn(`Backfill failed for ${row.id}: ${e.message}`);
+          }
+        }),
+      );
+    }
+
+    this.logger.log(
+      `Backfill complete: scanned=${rows.length} updated=${updated} imagesAdded=${imagesAdded} stillIncomplete=${stillIncomplete}`,
+    );
+    return {
+      success: true,
+      scanned: rows.length,
+      updated,
+      imagesAdded,
+      stillIncomplete,
+    };
   }
 
   // ─── Job Logging ──────────────────────────────────────────────────────────
@@ -1055,7 +1324,16 @@ export class ScraperService implements OnModuleInit {
     sourceResults: SourceResult[],
     jobLogId: string | null,
   ): Promise<void> {
-    const rawRecords = results.map((item) =>
+    // Never persist items without a real title — there is nothing to review.
+    const titled = results.filter(
+      (item) => (item.title ?? "").trim().length >= 8,
+    );
+    if (titled.length < results.length) {
+      this.logger.warn(
+        `Dropped ${results.length - titled.length} item(s) with no usable title.`,
+      );
+    }
+    const rawRecords = titled.map((item) =>
       this.transformToOpportunity(item, jobLogId),
     );
 
@@ -1068,6 +1346,33 @@ export class ScraperService implements OnModuleInit {
         seenUrls.add(url);
         uniqueRecords.push(rec);
       }
+    }
+
+    // Last-line image guard: any source image appearing on more than one
+    // record in this batch is a site default — the first record keeps it,
+    // the rest fall back to the web app's branded category tile.
+    const seenImages = new Set<string>();
+    let strippedImages = 0;
+    for (const rec of uniqueRecords) {
+      const metadata = rec.metadata as Record<string, unknown> | null;
+      const sourceImage =
+        (metadata?.source_image_url as string | null) ??
+        (typeof rec.image_url === "string"
+          ? this.normalizeImageKey(rec.image_url)
+          : null);
+      if (!sourceImage || !rec.image_url) continue;
+      if (seenImages.has(sourceImage)) {
+        rec.image_url = null;
+        if (metadata) metadata.source_image_url = null;
+        strippedImages++;
+      } else {
+        seenImages.add(sourceImage);
+      }
+    }
+    if (strippedImages > 0) {
+      this.logger.warn(
+        `Stripped ${strippedImages} duplicate site-default image(s) from this batch.`,
+      );
     }
 
     const { data, error } = await this.supabase
@@ -1210,7 +1515,10 @@ export class ScraperService implements OnModuleInit {
         cachedDescription.trim().length >= 180 &&
         cachedRequirements.length > 0 &&
         cachedBenefits.length > 0 &&
-        cachedApplicationProcess.length > 0
+        cachedApplicationProcess.length > 0 &&
+        // A text-complete row without an image must still deep-fetch, or the
+        // image backfill can never repair it.
+        Boolean(existing?.image_url)
       ) {
         this.logger.log(`  ↳ Cache hit for ${item.apply_url}`);
         return {
@@ -1244,6 +1552,10 @@ export class ScraperService implements OnModuleInit {
             (existing?.description as string | undefined) ?? item.description,
           direct_apply_url: existing?.application_url ?? item.direct_apply_url,
           image_url: existing?.image_url ?? item.image_url,
+          source_image_url:
+            (cached?.source_image_url as string | undefined) ??
+            item.source_image_url ??
+            null,
         };
       }
     }
@@ -1257,7 +1569,42 @@ export class ScraperService implements OnModuleInit {
       const directApplyUrl =
         item.direct_apply_url ||
         this.extractApplyLink(html, sourceHost, item.apply_url);
-      let imageUrl = this.extractBestImageFromHTML(html, item.apply_url);
+      // Every opportunity must end up with its OWN image: candidates that are
+      // already used by another item (site-default banners) are skipped.
+      let sourceImageUrl = await this.claimUniqueImage(
+        this.extractImageCandidatesFromHTML(html, item.apply_url),
+        item.apply_url,
+      );
+      // Second pass: when the aggregator page has no unique image, try the
+      // organizer's own apply page for its og:image / twitter:image.
+      if (
+        !sourceImageUrl &&
+        directApplyUrl?.startsWith("http") &&
+        directApplyUrl !== item.apply_url
+      ) {
+        try {
+          const applyHtml = await this.fetchDeepHTML(directApplyUrl);
+          sourceImageUrl = await this.claimUniqueImage(
+            this.extractImageCandidatesFromHTML(applyHtml, directApplyUrl),
+            item.apply_url,
+          );
+          if (sourceImageUrl) {
+            this.logger.log(`    ↳ Image from apply page: ${directApplyUrl}`);
+          }
+        } catch {
+          // Best-effort second pass — continue without an image.
+        }
+      }
+      // Listing-provided image (e.g. WordPress featured media) is the last
+      // candidate — it must pass the same uniqueness claim.
+      if (!sourceImageUrl && item.image_url) {
+        sourceImageUrl = await this.claimUniqueImage(
+          [item.image_url],
+          item.apply_url,
+        );
+      }
+
+      let imageUrl: string | null = sourceImageUrl;
       if (imageUrl) {
         const proxiedUrl = await this.proxyImageToStorage(imageUrl);
         if (proxiedUrl) imageUrl = proxiedUrl;
@@ -1288,7 +1635,12 @@ export class ScraperService implements OnModuleInit {
       return {
         ...item,
         direct_apply_url: directApplyUrl ?? item.direct_apply_url,
-        image_url: imageUrl ?? item.image_url,
+        // No unique image → no image. Falling back to the (rejected) listing
+        // image here is exactly what produced batches of identical banners.
+        image_url: imageUrl,
+        source_image_url: sourceImageUrl
+          ? this.normalizeImageKey(sourceImageUrl)
+          : (item.source_image_url ?? null),
         summary: this.normalizeSummary(
           ai.summary || item.summary || fallbackDescription || "",
           ai.description || item.description || fallbackDescription || "",
@@ -1307,7 +1659,7 @@ export class ScraperService implements OnModuleInit {
         application_process: this.normalizeStringList(
           ai.application_process?.length
             ? ai.application_process
-            : (item.application_process ?? ["Online application"]),
+            : (item.application_process ?? []),
         ),
         eligibility: ai.eligibility ?? item.eligibility,
         funding_type: ai.funding_type ?? item.funding_type,
@@ -1996,29 +2348,114 @@ ${text}`;
     html: string,
     baseUrl: string,
   ): string | null {
+    return this.extractImageCandidatesFromHTML(html, baseUrl)[0] ?? null;
+  }
+
+  /**
+   * Ordered image candidates for a page: og/twitter meta image first, then the
+   * first few in-article images. Returning a list lets the caller skip a
+   * candidate that turns out to be a shared site-default banner.
+   */
+  private extractImageCandidatesFromHTML(
+    html: string,
+    baseUrl: string,
+  ): string[] {
     const $ = cheerio.load(html);
+    const candidates: string[] = [];
+    const push = (value: string | null) => {
+      if (value && !candidates.includes(value)) candidates.push(value);
+    };
+
     const og =
       $('meta[property="og:image"]').attr("content") ||
       $('meta[property="og:image:secure_url"]').attr("content") ||
       $('meta[name="og:image"]').attr("content") ||
       $('meta[name="twitter:image"]').attr("content") ||
       $('meta[property="twitter:image"]').attr("content");
+    push(this.extractImageCandidate(og, baseUrl));
 
-    const resolvedOg = this.extractImageCandidate(og, baseUrl);
-    if (resolvedOg) return resolvedOg;
-
-    let imgSrc: string | null = null;
     $("article img, .entry-content img, .post-content img, main img").each(
       (_, el) => {
-        if (imgSrc) return;
-        imgSrc =
+        if (candidates.length >= 5) return;
+        push(
           this.extractImageCandidate($(el).attr("src"), baseUrl) ||
-          this.extractImageCandidate($(el).attr("data-src"), baseUrl) ||
-          this.extractImageCandidate($(el).attr("srcset"), baseUrl) ||
-          this.extractImageCandidate($(el).attr("data-srcset"), baseUrl);
+            this.extractImageCandidate($(el).attr("data-src"), baseUrl) ||
+            this.extractImageCandidate($(el).attr("srcset"), baseUrl) ||
+            this.extractImageCandidate($(el).attr("data-srcset"), baseUrl),
+        );
       },
     );
-    return imgSrc;
+
+    return candidates;
+  }
+
+  private normalizeImageKey(url: string): string | null {
+    try {
+      const parsed = new URL(url);
+      parsed.hash = "";
+      return parsed.toString().toLowerCase();
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Pick the first candidate image not already used by a different
+   * opportunity — neither earlier in this run nor anywhere in the database.
+   * A site-default og:image repeated across posts fails the claim, and the
+   * caller falls through to in-article images or no image at all (the web
+   * app renders a branded category tile instead — never a duplicate photo).
+   */
+  private async claimUniqueImage(
+    candidates: Array<string | null | undefined>,
+    applyUrl: string,
+  ): Promise<string | null> {
+    for (const candidate of candidates) {
+      if (!candidate || !candidate.startsWith("http")) continue;
+      const key = this.normalizeImageKey(candidate);
+      if (!key) continue;
+
+      const claimedBy = this.imageClaimsThisRun.get(key);
+      if (claimedBy && claimedBy !== applyUrl) {
+        this.logger.log(
+          `    ↳ Skipping shared image (already used by ${claimedBy}): ${candidate}`,
+        );
+        continue;
+      }
+
+      if (!claimedBy && (await this.isImageUsedByOtherOpportunity(key, applyUrl))) {
+        // Remember the verdict so sibling items skip the DB round-trip.
+        this.imageClaimsThisRun.set(key, "__existing_opportunity__");
+        this.logger.log(
+          `    ↳ Skipping image already used by a stored opportunity: ${candidate}`,
+        );
+        continue;
+      }
+
+      this.imageClaimsThisRun.set(key, applyUrl);
+      return candidate;
+    }
+
+    return null;
+  }
+
+  private async isImageUsedByOtherOpportunity(
+    sourceImageKey: string,
+    applyUrl: string,
+  ): Promise<boolean> {
+    if (!this.supabase) return false;
+    try {
+      const { data } = await this.supabase
+        .from("opportunities")
+        .select("id")
+        .eq("metadata->>source_image_url", sourceImageKey)
+        .neq("apply_url", applyUrl)
+        .limit(1);
+      return Boolean(data && data.length > 0);
+    } catch {
+      // Fail open: an occasional duplicate beats dropping images on a DB blip.
+      return false;
+    }
   }
 
   // ─── Transform to DB Format ───────────────────────────────────────────────
@@ -2089,7 +2526,7 @@ ${text}`;
       : null;
     const canonicalUrl = this.normalizeUrl(application_url || detailUrl);
     const contentFingerprint = this.createContentFingerprint(
-      item.title || "Untitled Opportunity",
+      item.title,
       item.source,
       closeDate,
     );
@@ -2102,14 +2539,31 @@ ${text}`;
       classification.canonicalCategory,
     );
 
+    // Hard publish gate: a record may only go live when its core fields hold
+    // real scraped content — a passing score alone is not enough.
+    const hasCoreContent =
+      !quality.missingFields.includes("title") &&
+      !quality.missingFields.includes("description") &&
+      summary.length >= 60 &&
+      Boolean(organization);
+    const publishable =
+      quality.score >= MIN_PUBLISH_QUALITY_SCORE && hasCoreContent;
+
     return {
-      title: item.title || "Untitled Opportunity",
+      title: item.title,
       summary,
       organization,
-      category: this.categorize(item.title, item.description ?? ""),
+      category:
+        this.categorize(item.title, item.description ?? "") ??
+        this.displayCategoryFor(classification.canonicalCategory),
       canonical_category: classification.canonicalCategory,
       close_date: closeDate,
-      location: item.location || "Worldwide",
+      deadline: closeDate,
+      type: this.inferType(item.title, item.description ?? ""),
+      is_remote: item.location
+        ? /\b(remote|online|virtual|worldwide|global)\b/i.test(item.location)
+        : true,
+      location: item.location ?? null,
       eligibility: item.eligibility ?? {},
       funding_type: item.funding_type ?? null,
       target_region: item.target_region ?? null,
@@ -2120,8 +2574,7 @@ ${text}`;
       canonical_url: canonicalUrl,
       content_fingerprint: contentFingerprint,
       quality_score: quality.score,
-      validation_status:
-        quality.score >= MIN_PUBLISH_QUALITY_SCORE ? "valid" : "needs_review",
+      validation_status: publishable ? "valid" : "needs_review",
       image_url: item.image_url || null,
       stipend,
       currency,
@@ -2132,6 +2585,9 @@ ${text}`;
         aggregator_url: detailUrl,
         detail_url: detailUrl,
         direct_apply_url: directApplyUrl,
+        // Original (pre-proxy) image URL — the storage proxy renames files,
+        // so this is the only way to detect shared/default images later.
+        source_image_url: item.source_image_url ?? null,
         scrape_job_id: jobLogId,
         ai_enriched: (item.enrichment_confidence ?? 0) > 0,
         ai_feature: "scraper.extract",
@@ -2147,14 +2603,15 @@ ${text}`;
         extraction_quality_score: quality.score,
         extraction_missing_fields: quality.missingFields,
         description_length: item.description?.length ?? 0,
-        needs_review: quality.score < MIN_PUBLISH_QUALITY_SCORE,
+        needs_review: !publishable,
+        has_core_content: hasCoreContent,
         source_name: item.source,
         public_organization: organization,
         public_tags: publicTags,
         requirements: this.normalizeStringList(item.requirements ?? []),
         benefits: this.normalizeStringList(item.benefits ?? []),
         application_process: this.normalizeStringList(
-          item.application_process ?? ["Online application"],
+          item.application_process ?? [],
         ),
         eligibility: item.eligibility ?? {},
         funding_type: item.funding_type ?? null,
@@ -2164,22 +2621,44 @@ ${text}`;
       updated_at: now,
       last_seen_at: now,
       verification_next_check_at: now,
-      status:
-        quality.score >= MIN_PUBLISH_QUALITY_SCORE
-          ? "active"
-          : "pending_review",
+      status: publishable ? "active" : "pending_review",
     };
   }
 
+  private inferType(title = "", description = ""): string {
+    const t = `${title} ${description}`.toLowerCase();
+    if (/\bfellowship/.test(t)) return "fellowship";
+    if (/\binternship/.test(t)) return "internship";
+    if (/\bgrant/.test(t)) return "grant";
+    if (/\b(competition|challenge|contest|award|prize)\b/.test(t))
+      return "competition";
+    if (/\b(job|vacancy|hiring|recruitment)\b/.test(t)) return "job";
+    if (/\b(conference|workshop|training|bootcamp|summit|programme?)\b/.test(t))
+      return "program";
+    return "scholarship";
+  }
+
+  private displayCategoryFor(canonicalCategory: string): string {
+    const labels: Record<string, string> = {
+      scholarships: "Scholarship",
+      careers: "Career",
+      leadership: "Leadership",
+      global_programs: "Global Program",
+      training_conferences: "Training",
+    };
+    return labels[canonicalCategory] ?? "General";
+  }
+
   private createFallbackSummary(item: RawItem): string {
+    // Never fabricate copy: only assemble a summary from real scraped facts.
+    // When nothing real exists, return "" so the record fails the publish gate
+    // instead of shipping placeholder text.
     const parts = [
       item.title,
       item.location ? `for applicants in ${item.location}` : null,
       item.deadline ? `with deadline ${item.deadline}` : null,
     ].filter(Boolean);
-    const raw = parts.length
-      ? `${parts.join(" ")}.`
-      : "Scholarship opportunity details are being verified by Edutu.";
+    const raw = parts.length ? `${parts.join(" ")}.` : "";
     return this.normalizeSummary(raw, item.description || "", item.title);
   }
 
@@ -2218,10 +2697,9 @@ ${text}`;
       1200,
     );
     const fallback =
-      this.firstSentence(cleanedDescription) ||
-      this.cleanText(title, 220) ||
-      "Scholarship opportunity details are being verified by Edutu.";
+      this.firstSentence(cleanedDescription) || this.cleanText(title, 220);
     const candidate = cleanedSummary || fallback;
+    if (!candidate) return "";
     const words = candidate.split(/\s+/).filter(Boolean);
     const limited =
       words.length > 45 ? words.slice(0, 45).join(" ") : candidate;
@@ -2303,7 +2781,7 @@ ${text}`;
     return SCRAPER_ARTIFACT_RE.test(value) || SOURCE_BRAND_RE.test(value);
   }
 
-  private inferOrganizerName(item: RawItem): string {
+  private inferOrganizerName(item: RawItem): string | null {
     const title = this.scrubPublicText(item.title || "", 220);
     const titleLead = title.match(
       /^(.{3,90}?)\s+(?:fully\s+funded|funded|leadership|scholarships?|fellowships?|grants?|bootcamps?|programs?|programmes?|internships?|accelerators?)\b/i,
@@ -2330,7 +2808,9 @@ ${text}`;
       return cleaned;
     }
 
-    return "Program Organizer";
+    // No fabricated "Program Organizer" default — store null so the record is
+    // flagged for re-enrichment instead of shipping generic text.
+    return null;
   }
 
   private buildPublicTags(item: RawItem, canonicalCategory: string): string[] {
@@ -2572,19 +3052,22 @@ ${text}`;
     return null;
   }
 
-  private extractLocation(text: string): string {
+  private extractLocation(text: string): string | undefined {
     const m =
       text.match(/location[:\s]*([^\n,]{3,40})/i) ||
       text.match(/based\s+in[:\s]*([^\n,]{3,40})/i);
-    return m ? m[1].trim() : "Worldwide";
+    // No fabricated "Worldwide" default — unknown stays unknown.
+    return m ? m[1].trim() : undefined;
   }
 
-  private categorize(title = "", description = ""): string {
+  private categorize(title = "", description = ""): string | null {
     const t = `${title} ${description}`.toLowerCase();
     for (const [category, keywords] of Object.entries(CATEGORY_MAP)) {
       if (keywords.some((kw) => t.includes(kw))) return category;
     }
-    return "General";
+    // No keyword hit — let the caller derive a label from the canonical
+    // classification instead of defaulting to a generic "General".
+    return null;
   }
 
   // ─── Source Status ────────────────────────────────────────────────────────
@@ -2796,13 +3279,7 @@ ${text}`;
       },
     ];
 
-    if (this.supabase) {
-      const { error } = await this.supabase
-        .from("opportunities")
-        .upsert(mock, { onConflict: "canonical_url" });
-      if (error) this.logger.warn(`Mock save failed: ${error.message}`);
-    }
-
+    // Mock data is for connectivity smoke tests only — never write it to a DB.
     return {
       success: true,
       sourcesScraped: 1,
