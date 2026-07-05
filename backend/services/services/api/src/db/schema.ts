@@ -10,6 +10,7 @@ import {
   uniqueIndex,
   numeric,
   date,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 
 // Users table (mirrors Supabase auth.users mostly, but owned by us for app profiles)
@@ -1064,20 +1065,31 @@ export type MobileAppCampaign = typeof mobileAppCampaigns.$inferSelect;
 export type MobileFeatureFlag = typeof mobileFeatureFlags.$inferSelect;
 export type WidgetFeed = typeof widgetFeeds.$inferSelect;
 
-// --- Google Calendar two-way sync ---
-export const googleCalendarConnections = pgTable(
-  "google_calendar_connections",
+// --- Multi-provider calendar sync (google | outlook | apple_caldav) ---
+export const calendarConnections = pgTable(
+  "calendar_connections",
   {
-    userId: uuid("user_id").primaryKey(),
+    userId: uuid("user_id").notNull(),
+    provider: text("provider").notNull(),
+    // OAuth (google, outlook)
     accessToken: text("access_token"),
-    refreshToken: text("refresh_token").notNull(),
+    refreshToken: text("refresh_token"),
     expiryDate: timestamp("expiry_date"),
+    // google 'primary' | outlook calendar id | caldav calendar collection URL
     calendarId: text("calendar_id").notNull().default("primary"),
-    syncToken: text("sync_token"),
+    // google syncToken | outlook deltaLink | caldav sync-token/ctag
+    syncState: text("sync_state"),
+    // CalDAV (apple) app-specific-password auth
+    caldavUrl: text("caldav_url"),
+    caldavUsername: text("caldav_username"),
+    caldavPassword: text("caldav_password"),
     status: text("status").notNull().default("active"),
     connectedAt: timestamp("connected_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.provider] }),
+  ],
 );
 
 export const calendarEventLinks = pgTable(
@@ -1085,17 +1097,28 @@ export const calendarEventLinks = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     userId: uuid("user_id").notNull(),
+    provider: text("provider").notNull(),
     goalId: uuid("goal_id").notNull(),
-    googleEventId: text("google_event_id").notNull(),
+    externalEventId: text("external_event_id").notNull(),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
   (table) => [
     index("calendar_event_links_user_idx").on(table.userId),
-    uniqueIndex("calendar_event_links_goal_idx").on(table.goalId),
+    uniqueIndex("calendar_event_links_goal_provider_idx").on(
+      table.goalId,
+      table.provider,
+    ),
   ],
 );
 
-export type GoogleCalendarConnection =
-  typeof googleCalendarConnections.$inferSelect;
+// Per-user secret for the subscribable webcal (.ics) feed (Apple/Google/Outlook).
+export const calendarFeedTokens = pgTable("calendar_feed_tokens", {
+  userId: uuid("user_id").primaryKey(),
+  token: text("token").notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type CalendarConnection = typeof calendarConnections.$inferSelect;
 export type CalendarEventLink = typeof calendarEventLinks.$inferSelect;
+export type CalendarFeedToken = typeof calendarFeedTokens.$inferSelect;

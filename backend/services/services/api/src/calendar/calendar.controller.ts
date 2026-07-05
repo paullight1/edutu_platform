@@ -1,20 +1,46 @@
-import { Controller, Delete, Get, Post, Query, Res } from "@nestjs/common";
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Query,
+  Res,
+} from "@nestjs/common";
 import type { Response } from "express";
-import { GoogleCalendarService } from "./google-calendar.service";
+import {
+  CalendarSyncService,
+  type CalendarProvider,
+} from "./calendar-sync.service";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { Public } from "../auth/public.decorator";
 
-@Controller("calendar/google")
-export class CalendarController {
-  constructor(private readonly service: GoogleCalendarService) {}
+const OAUTH_PROVIDERS = new Set(["google", "outlook"]);
 
-  @Get("connect")
-  connect(@CurrentUser("id") userId: string) {
-    const url = this.service.getAuthUrl(userId);
+@Controller("calendar")
+export class CalendarController {
+  constructor(private readonly service: CalendarSyncService) {}
+
+  @Get("status")
+  status(@CurrentUser("id") userId: string) {
+    return this.service.getStatus(userId);
+  }
+
+  @Get("connect/:provider")
+  connect(
+    @CurrentUser("id") userId: string,
+    @Param("provider") provider: string,
+  ) {
+    if (!OAUTH_PROVIDERS.has(provider)) {
+      throw new BadRequestException("Unsupported OAuth provider");
+    }
+    const url = this.service.getAuthUrl(userId, provider as CalendarProvider);
     return { url, configured: Boolean(url) };
   }
 
-  // Google redirects the browser here (no auth header); the user is carried in state.
+  // OAuth redirect target — user carried in state as "<provider>:<userId>".
   @Public()
   @Get("callback")
   async callback(
@@ -26,25 +52,64 @@ export class CalendarController {
       process.env.APP_URL || process.env.WEB_APP_URL || "https://www.edutu.org";
     let ok = false;
     try {
-      ok = Boolean(code && state) && (await this.service.handleCallback(code, state));
+      const separator = state ? state.indexOf(":") : -1;
+      if (code && separator > 0) {
+        const provider = state.slice(0, separator) as CalendarProvider;
+        const userId = state.slice(separator + 1);
+        ok = await this.service.handleOAuthCallback(provider, code, userId);
+      }
     } catch {
       ok = false;
     }
     return res.redirect(`${appUrl}/goals?calendar=${ok ? "connected" : "error"}`);
   }
 
-  @Get("status")
-  status(@CurrentUser("id") userId: string) {
-    return this.service.getStatus(userId);
+  @Post("caldav/connect")
+  async connectCaldav(
+    @CurrentUser("id") userId: string,
+    @Body() body: { username?: string; appPassword?: string; calendarUrl?: string },
+  ) {
+    if (!body?.username || !body?.appPassword) {
+      throw new BadRequestException("Apple ID and app-specific password required");
+    }
+    const ok = await this.service.connectCaldav(
+      userId,
+      body.username,
+      body.appPassword,
+      body.calendarUrl,
+    );
+    return { success: ok };
   }
 
-  @Delete("disconnect")
-  disconnect(@CurrentUser("id") userId: string) {
-    return this.service.disconnect(userId);
+  @Post("feed")
+  ensureFeed(@CurrentUser("id") userId: string) {
+    return this.service.ensureFeedUrl(userId);
+  }
+
+  @Delete("disconnect/:provider")
+  disconnect(
+    @CurrentUser("id") userId: string,
+    @Param("provider") provider: string,
+  ) {
+    return this.service.disconnect(userId, provider as CalendarProvider);
   }
 
   @Post("sync")
   sync(@CurrentUser("id") userId: string) {
     return this.service.syncNow(userId);
+  }
+
+  // Subscribable webcal feed (Apple/Google/Outlook). Public, token-authed.
+  @Public()
+  @Get("feed/:file")
+  async feed(@Param("file") file: string, @Res() res: Response) {
+    const token = file.replace(/\.ics$/i, "");
+    const ics = await this.service.getFeedIcs(token, new Date());
+    if (!ics) {
+      res.status(404).send("Not found");
+      return;
+    }
+    res.set("Content-Type", "text/calendar; charset=utf-8");
+    res.send(ics);
   }
 }
