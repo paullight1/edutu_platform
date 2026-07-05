@@ -101,6 +101,21 @@ interface SourceResult {
   duration?: number;
 }
 
+/** Cleanliness report for one scrape run: how much of the output met the
+ *  publish contract (complete, verified details) vs. was held for review. */
+export interface RunOutcome {
+  saved: number;
+  published: number;
+  needsReview: number;
+  withDeadline: number;
+  withImage: number;
+  withOrganization: number;
+  withDirectApplyLink: number;
+  duplicateImagesStripped: number;
+  /** Field → count of records missing it (why records were held back). */
+  missingFieldCounts: Record<string, number>;
+}
+
 export interface ScrapeResult {
   success: boolean;
   sourcesScraped?: number;
@@ -111,6 +126,7 @@ export interface ScrapeResult {
   error?: string;
   sourceResults?: SourceResult[];
   opportunities?: RawItem[];
+  outcome?: RunOutcome | null;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -165,8 +181,24 @@ const GENERIC_LINK_TITLE_RE =
   /^(read\s+more|learn\s+more|continue\s+reading|view\s+(details|more)|more|apply(\s+(now|here|online))?|click\s+here|visit\s+site|official\s+link|submit)$/i;
 const ROUNDUP_TITLE_RE =
   /^(top|best)\s+\d+\b|\b(top|best)\s+\d+\s+(scholarships?|grants?|fellowships?|internships?|programs?|programmes?|opportunities?)\b|\b(list|collection|roundup)\s+of\b/i;
+// Mirror of the opportunities_type_check DB constraint — a value outside this
+// set fails the whole batch upsert.
+const ALLOWED_OPPORTUNITY_TYPES = new Set([
+  "internship",
+  "job",
+  "course",
+  "mentorship",
+  "competition",
+  "certification",
+  "fellowship",
+  "scholarship",
+  "bootcamp",
+]);
+
+// Taxonomy/listing segments anywhere in the path (a "/category/<slug>/" page
+// is a listing, never a post), plus utility pages at the end of the path.
 const NON_OPPORTUNITY_URL_RE =
-  /\/(category|tag|author|page|search|privacy-policy|terms|about|contact)\/?$/i;
+  /\/(category|tag|author|search)(\/|$)|\/(page(\/\d+)?|privacy-policy|terms|about|contact)\/?$/i;
 const NON_APPLY_URL_RE =
   /(facebook|twitter|x\.com|linkedin|instagram|youtube|tiktok|whatsapp|telegram|mailto:|tel:|\/feed\/|\/comments?\/|#respond)/i;
 const SCRAPER_ARTIFACT_RE =
@@ -635,7 +667,7 @@ export class ScraperService implements OnModuleInit {
       }
 
       this.logger.log(`Found ${sources.length} source(s) to scrape`);
-      const { results, sourceResults } = await this.crawlSources(
+      const { results, sourceResults, outcome } = await this.crawlSources(
         sources,
         maxPages,
         jobLogId,
@@ -646,6 +678,7 @@ export class ScraperService implements OnModuleInit {
         itemsFound: results.length,
         duration,
         sourceResults,
+        outcome,
       });
 
       // Fire-and-forget alerting. Read-only and wrapped so it can never break a
@@ -667,6 +700,7 @@ export class ScraperService implements OnModuleInit {
         sources: sources.map((s) => s.name),
         sourceResults,
         opportunities: results,
+        outcome,
       };
     } catch (error: any) {
       this.logger.error(`Scraper error: ${error.message}`, error.stack);
@@ -918,6 +952,7 @@ export class ScraperService implements OnModuleInit {
       duration?: number;
       sourceResults?: SourceResult[];
       errorMessage?: string;
+      outcome?: RunOutcome | null;
     },
   ): Promise<void> {
     if (!jobLogId) return;
@@ -932,7 +967,11 @@ export class ScraperService implements OnModuleInit {
             (sum, source) => sum + (source.itemsSaved || 0),
             0,
           ),
-          warnings: extra.sourceResults,
+          // Per-source results plus the run cleanliness report. Kept as an
+          // array so existing admin readers that iterate warnings still work.
+          warnings: extra.outcome
+            ? [...extra.sourceResults, { run_outcome: extra.outcome }]
+            : extra.sourceResults,
         }),
         ...(extra.duration != null && { duration_seconds: extra.duration }),
         ...(extra.errorMessage && {
@@ -1146,7 +1185,11 @@ export class ScraperService implements OnModuleInit {
     sources: ScrapeSource[],
     maxPages: number,
     jobLogId: string | null,
-  ): Promise<{ results: RawItem[]; sourceResults: SourceResult[] }> {
+  ): Promise<{
+    results: RawItem[];
+    sourceResults: SourceResult[];
+    outcome: RunOutcome | null;
+  }> {
     const allResults: RawItem[] = [];
     const sourceResults: SourceResult[] = [];
     const pagesToCrawl = Math.min(maxPages, MAX_PAGES_CAP);
@@ -1275,11 +1318,16 @@ export class ScraperService implements OnModuleInit {
       }
     }
 
+    let outcome: RunOutcome | null = null;
     if (allResults.length > 0) {
-      await this.persistOpportunities(allResults, sourceResults, jobLogId);
+      outcome = await this.persistOpportunities(
+        allResults,
+        sourceResults,
+        jobLogId,
+      );
     }
 
-    return { results: allResults, sourceResults };
+    return { results: allResults, sourceResults, outcome };
   }
 
   private async recordDiscoveredUrls(
@@ -1323,7 +1371,7 @@ export class ScraperService implements OnModuleInit {
     results: RawItem[],
     sourceResults: SourceResult[],
     jobLogId: string | null,
-  ): Promise<void> {
+  ): Promise<RunOutcome | null> {
     // Never persist items without a real title — there is nothing to review.
     const titled = results.filter(
       (item) => (item.title ?? "").trim().length >= 8,
@@ -1375,37 +1423,104 @@ export class ScraperService implements OnModuleInit {
       );
     }
 
+    const SELECT_COLUMNS =
+      "id, title, summary, description, organization, category, canonical_category, close_date, deadline, location, eligibility, funding_type, target_region, application_url, apply_url, canonical_url, image_url, stipend, currency, source, metadata";
+
     const { data, error } = await this.supabase
       .from("opportunities")
       .upsert(uniqueRecords, {
         onConflict: "canonical_url",
         ignoreDuplicates: false,
       })
-      .select(
-        "id, title, summary, description, organization, category, canonical_category, close_date, deadline, location, eligibility, funding_type, target_region, application_url, apply_url, canonical_url, image_url, stipend, currency, source, metadata",
-      );
+      .select(SELECT_COLUMNS);
 
+    let saved: Record<string, any>[] = (data as Record<string, any>[]) ?? [];
     if (error) {
-      this.logger.warn(`Could not save opportunities: ${error.message}`);
-    } else {
+      // The batch upsert is all-or-nothing: one bad row (e.g. a constraint
+      // violation) would zero the entire run. Retry records individually so
+      // only the genuinely broken ones are lost — and name them in the log.
+      this.logger.warn(
+        `Batch save failed (${error.message}) — retrying records individually.`,
+      );
+      saved = [];
+      for (const rec of uniqueRecords) {
+        const { data: row, error: rowError } = await this.supabase
+          .from("opportunities")
+          .upsert(rec, { onConflict: "canonical_url", ignoreDuplicates: false })
+          .select(SELECT_COLUMNS)
+          .maybeSingle();
+        if (rowError) {
+          this.logger.warn(
+            `  ✗ Could not save "${String(rec.title)}": ${rowError.message}`,
+          );
+        } else if (row) {
+          saved.push(row);
+        }
+      }
+    }
+
+    if (saved.length > 0) {
       this.logger.log(
-        `Saved/updated ${uniqueRecords.length} opportunities in database.`,
+        `Saved/updated ${saved.length}/${uniqueRecords.length} opportunities in database.`,
       );
       sourceResults.forEach((sr) => {
         if (sr.status !== "success") return;
-        sr.itemsSaved = uniqueRecords.filter((record) => {
+        sr.itemsSaved = saved.filter((record) => {
           const metadata = record.metadata as Record<string, unknown> | null;
           return metadata?.source_url === sr.url;
         }).length;
       });
-      await this.markProcessedUrls(data ?? []);
+      await this.markProcessedUrls(saved);
       await this.opportunityShareCardService.ensureShareCardsForOpportunities(
-        data ?? [],
+        saved,
       );
       await this.opportunityShareCardService.ensureSharePdfsForOpportunities(
-        data ?? [],
+        saved,
       );
+    } else {
+      this.logger.warn("No opportunities were saved in this run.");
     }
+
+    // Cleanliness report: exactly how much of this run met the publish
+    // contract, and which fields held the rest back.
+    const outcome: RunOutcome = {
+      saved: saved.length,
+      published: 0,
+      needsReview: 0,
+      withDeadline: 0,
+      withImage: 0,
+      withOrganization: 0,
+      withDirectApplyLink: 0,
+      duplicateImagesStripped: strippedImages,
+      missingFieldCounts: {},
+    };
+    for (const rec of uniqueRecords) {
+      const metadata = rec.metadata as Record<string, unknown> | null;
+      if (rec.status === "active") outcome.published++;
+      else outcome.needsReview++;
+      if (rec.close_date) outcome.withDeadline++;
+      if (rec.image_url) outcome.withImage++;
+      if (rec.organization) outcome.withOrganization++;
+      if (rec.application_url) outcome.withDirectApplyLink++;
+      const missing = Array.isArray(metadata?.extraction_missing_fields)
+        ? (metadata.extraction_missing_fields as string[])
+        : [];
+      for (const field of missing) {
+        outcome.missingFieldCounts[field] =
+          (outcome.missingFieldCounts[field] ?? 0) + 1;
+      }
+      if (metadata?.deadline_passed_at_scrape) {
+        outcome.missingFieldCounts.deadline_passed =
+          (outcome.missingFieldCounts.deadline_passed ?? 0) + 1;
+      }
+    }
+    this.logger.log(
+      `Run outcome: ${outcome.published} published, ${outcome.needsReview} held for review ` +
+        `(deadline ${outcome.withDeadline}/${outcome.saved}, image ${outcome.withImage}/${outcome.saved}, ` +
+        `organizer ${outcome.withOrganization}/${outcome.saved}, direct link ${outcome.withDirectApplyLink}/${outcome.saved})`,
+    );
+
+    return outcome;
   }
 
   private async markProcessedUrls(
@@ -2510,9 +2625,18 @@ ${text}`;
     item: RawItem,
     jobLogId: string | null,
   ): Record<string, unknown> {
+    // Users only ever see the cleaned title — CTA junk and aggregator
+    // suffixes are stripped before anything downstream touches it.
+    item = { ...item, title: this.cleanOpportunityTitle(item.title) };
     const now = new Date().toISOString();
     const { stipend, currency } = this.parseAmount(item.amount);
-    const closeDate = this.parseDate(item.deadline);
+    // A year in the title ("MIP 2026") anchors year-less deadline fragments
+    // ("Deadline: April 30") to the right edition instead of a guess.
+    const titleYear = item.title?.match(/\b(20\d{2})\b/)?.[1];
+    const closeDate = this.parseDeadlineDate(
+      item.deadline,
+      titleYear ? Number(titleYear) : null,
+    );
     const quality = this.evaluateOpportunityQuality(item);
     const summary = this.normalizeSummary(
       item.summary || this.createFallbackSummary(item),
@@ -2546,8 +2670,15 @@ ${text}`;
       !quality.missingFields.includes("description") &&
       summary.length >= 60 &&
       Boolean(organization);
+    // A deadline that already passed at scrape time means a stale post or a
+    // misparsed date — either way it would confuse users if published.
+    const deadlinePassed = Boolean(
+      closeDate && closeDate < now.split("T")[0],
+    );
     const publishable =
-      quality.score >= MIN_PUBLISH_QUALITY_SCORE && hasCoreContent;
+      quality.score >= MIN_PUBLISH_QUALITY_SCORE &&
+      hasCoreContent &&
+      !deadlinePassed;
 
     return {
       title: item.title,
@@ -2559,7 +2690,9 @@ ${text}`;
       canonical_category: classification.canonicalCategory,
       close_date: closeDate,
       deadline: closeDate,
-      type: this.inferType(item.title, item.description ?? ""),
+      type: this.toAllowedType(
+        this.inferType(item.title, item.description ?? ""),
+      ),
       is_remote: item.location
         ? /\b(remote|online|virtual|worldwide|global)\b/i.test(item.location)
         : true,
@@ -2602,6 +2735,7 @@ ${text}`;
         enrichment_notes: item.enrichment_notes ?? [],
         extraction_quality_score: quality.score,
         extraction_missing_fields: quality.missingFields,
+        deadline_passed_at_scrape: deadlinePassed,
         description_length: item.description?.length ?? 0,
         needs_review: !publishable,
         has_core_content: hasCoreContent,
@@ -2626,15 +2760,22 @@ ${text}`;
   }
 
   private inferType(title = "", description = ""): string {
+    // Must stay inside the opportunities_type_check constraint set — one
+    // out-of-set value fails the whole batch upsert (all-or-nothing).
     const t = `${title} ${description}`.toLowerCase();
     if (/\bfellowship/.test(t)) return "fellowship";
     if (/\binternship/.test(t)) return "internship";
-    if (/\bgrant/.test(t)) return "grant";
+    // No "grant" in the constraint; funding-style grants read as scholarships
+    // (canonical_category keeps the precise classification).
+    if (/\bgrant/.test(t)) return "scholarship";
     if (/\b(competition|challenge|contest|award|prize)\b/.test(t))
       return "competition";
     if (/\b(job|vacancy|hiring|recruitment)\b/.test(t)) return "job";
-    if (/\b(conference|workshop|training|bootcamp|summit|programme?)\b/.test(t))
-      return "program";
+    if (/\bmentorship\b/.test(t)) return "mentorship";
+    if (/\b(certification|certificate)\b/.test(t)) return "certification";
+    if (/\bboot\s?camp\b/.test(t)) return "bootcamp";
+    if (/\b(conference|workshop|training|summit|course|programme?)\b/.test(t))
+      return "course";
     return "scholarship";
   }
 
@@ -2786,12 +2927,14 @@ ${text}`;
     const titleLead = title.match(
       /^(.{3,90}?)\s+(?:fully\s+funded|funded|leadership|scholarships?|fellowships?|grants?|bootcamps?|programs?|programmes?|internships?|accelerators?)\b/i,
     )?.[1];
+    // NOTE: item.source (the scraping-source label, e.g. "CALL FOR
+    // APPLICATIONS") is deliberately NOT a candidate — it leaks category
+    // names into the user-facing organizer field. Null → re-enrichment.
     const candidates = [
       item.eligibility && typeof item.eligibility === "object"
         ? item.eligibility.organization
         : null,
       titleLead,
-      item.source,
     ];
 
     for (const candidate of candidates) {
@@ -2801,6 +2944,14 @@ ${text}`;
         /^(unknown|admin|edutu engine|scholarship|program|opportunity)$/i.test(
           cleaned,
         )
+      ) {
+        continue;
+      }
+      if (
+        /\b(call\s+for\s+applications?|applications?\s+open|category|opportunities)\b/i.test(
+          cleaned,
+        ) &&
+        cleaned.split(/\s+/).length <= 4
       ) {
         continue;
       }
@@ -3003,6 +3154,182 @@ ${text}`;
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Parse a scraped deadline into a trustworthy ISO date, or null.
+   *
+   * Scraped deadlines arrive as messy fragments ("Deadline: 15th March 2026
+   * at 11:59 PM GMT", "March 5"). `new Date(...)` on those either fails
+   * (losing a real deadline) or misparses ("March 5" → year 2001). This
+   * parser extracts explicit date patterns, infers the next occurrence when
+   * the year is omitted, and rejects implausible results — a wrong date is
+   * far more confusing to users than no date.
+   */
+  /** Clamp any inferred type into the DB constraint set. */
+  private toAllowedType(type: string): string {
+    return ALLOWED_OPPORTUNITY_TYPES.has(type) ? type : "scholarship";
+  }
+
+  private parseDeadlineDate(
+    raw: string | null | undefined,
+    contextYear: number | null = null,
+  ): string | null {
+    if (!raw) return null;
+    const text = String(raw).replace(/\s+/g, " ").trim();
+    if (!text) return null;
+    // Legitimate "no fixed deadline" phrasings — not a parse failure.
+    if (
+      /\b(rolling|ongoing|open\s+until\s+filled|no\s+deadline|continuous|year[-\s]round|always\s+open)\b/i.test(
+        text,
+      )
+    ) {
+      return null;
+    }
+
+    const cleaned = text.replace(/(\d{1,2})(?:st|nd|rd|th)\b/gi, "$1");
+    const MONTHS = [
+      "january",
+      "february",
+      "march",
+      "april",
+      "may",
+      "june",
+      "july",
+      "august",
+      "september",
+      "october",
+      "november",
+      "december",
+    ];
+    const monthIndex = (name: string) => {
+      const idx = MONTHS.findIndex((m) =>
+        m.startsWith(name.toLowerCase().slice(0, 3)),
+      );
+      return idx >= 0 ? idx : null;
+    };
+    const MONTH_NAME_RE = `${MONTH_PATTERN}|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept?|Oct|Nov|Dec`;
+
+    let year: number | null = null;
+    let month: number | null = null;
+    let day: number | null = null;
+
+    const iso = cleaned.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);
+    const dayFirst = cleaned.match(
+      new RegExp(
+        `\\b(\\d{1,2})\\s+(${MONTH_NAME_RE})\\.?(?:\\s*,?\\s+(20\\d{2}))?`,
+        "i",
+      ),
+    );
+    const monthFirst = cleaned.match(
+      new RegExp(
+        `\\b(${MONTH_NAME_RE})\\.?\\s+(\\d{1,2})(?:\\s*,?\\s+(20\\d{2}))?`,
+        "i",
+      ),
+    );
+    const numeric = cleaned.match(/\b(\d{1,2})[/.](\d{1,2})[/.](20\d{2})\b/);
+
+    if (iso) {
+      year = Number(iso[1]);
+      month = Number(iso[2]) - 1;
+      day = Number(iso[3]);
+    } else if (dayFirst) {
+      day = Number(dayFirst[1]);
+      month = monthIndex(dayFirst[2]);
+      year = dayFirst[3] ? Number(dayFirst[3]) : null;
+    } else if (monthFirst) {
+      month = monthIndex(monthFirst[1]);
+      day = Number(monthFirst[2]);
+      year = monthFirst[3] ? Number(monthFirst[3]) : null;
+    } else if (numeric) {
+      const a = Number(numeric[1]);
+      const b = Number(numeric[2]);
+      year = Number(numeric[3]);
+      // Disambiguate d/m vs m/d; when both are plausible, day-first — the
+      // engine's sources overwhelmingly use international date order.
+      if (a > 12) {
+        day = a;
+        month = b - 1;
+      } else if (b > 12) {
+        month = a - 1;
+        day = b;
+      } else {
+        day = a;
+        month = b - 1;
+      }
+    }
+
+    if (month === null || day === null || day < 1 || day > 31 || month > 11) {
+      return null;
+    }
+
+    const now = new Date();
+    if (year === null && contextYear && contextYear >= 2000) {
+      // The page names its edition year (e.g. in the title) — trust it. A
+      // passed deadline is then caught by the publish gate instead of being
+      // silently projected into next year.
+      year = contextYear;
+    }
+    if (year === null) {
+      // No year stated anywhere → the next occurrence of that day/month.
+      year = now.getUTCFullYear();
+      const candidate = new Date(Date.UTC(year, month, day));
+      if (candidate.getTime() < now.getTime() - 24 * 3600 * 1000) {
+        year += 1;
+      }
+    }
+
+    const parsed = new Date(Date.UTC(year, month, day));
+    if (
+      isNaN(parsed.getTime()) ||
+      parsed.getUTCMonth() !== month || // rejects overflow like 31 February
+      parsed.getUTCDate() !== day
+    ) {
+      return null;
+    }
+
+    // Plausibility window: older than a year or further out than three years
+    // is almost certainly a misparse or stale page — drop it.
+    const yearMs = 365 * 24 * 3600 * 1000;
+    if (
+      parsed.getTime() < now.getTime() - yearMs ||
+      parsed.getTime() > now.getTime() + 3 * yearMs
+    ) {
+      return null;
+    }
+
+    return parsed.toISOString().split("T")[0];
+  }
+
+  /**
+   * Strip call-to-action junk, trailing deadline fragments, and aggregator
+   * branding from a scraped title so users see only the opportunity's name.
+   */
+  private cleanOpportunityTitle(raw: string | null | undefined): string {
+    if (!raw) return "";
+    let title = String(raw).replace(/\s+/g, " ").trim();
+
+    title = title
+      .replace(/^(?:hot|new|urgent)\s*[:\-–—]\s*/i, "")
+      .replace(/^apply\s+now\s*[:\-–—]\s*/i, "")
+      .replace(
+        /\s*[-–—|:]\s*(?:apply\s+(?:now|here|today)|applications?\s+(?:are\s+)?(?:now\s+)?open|register\s+now|read\s+more|check\s+details).*$/i,
+        "",
+      )
+      .replace(/\s*\((?:apply\s+now|now\s+open|open|ongoing)\)\s*$/i, "")
+      .replace(/\s*[-–—|]\s*(?:deadline|closing\s+date|closes)\b.*$/i, "");
+
+    // Trailing "| SiteName" / "- SiteName" aggregator suffixes.
+    title = title.replace(
+      new RegExp(`\\s*[-–—|:]\\s*(?:${SOURCE_BRAND_RE.source})\\s*$`, "i"),
+      "",
+    );
+
+    return title
+      .replace(/^[\s\-–—|:]+/, "")
+      .replace(/[\s\-–—|:]+$/, "")
+      .slice(0, 200)
+      .trim();
   }
 
   private buildPageUrl(baseUrl: string, page: number): string {
