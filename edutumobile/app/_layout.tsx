@@ -10,11 +10,13 @@ import { OfflineBanner } from "../components/ui/OfflineBanner";
 import { ErrorBoundary } from "../components/ui/ErrorBoundary";
 import { useDeepLink } from "../hooks/useDeepLink";
 import { useAuth } from "@clerk/clerk-expo";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { AppState, type AppStateStatus } from "react-native";
 import { setSupabaseAccessTokenGetter } from "../packages/core/src/services/supabase";
 import { useInAppUpdatePrompt } from "../lib/updatePrompt";
 import { MobileCampaignHost } from "../components/mobile-control/MobileCampaignHost";
 import { syncAndUpdateOpportunityWidgetSnapshot } from "../lib/opportunityWidgetSync";
+import { registerWidgetBackgroundRefresh } from "../lib/widgetBackgroundTask";
 import { getConfig } from "../lib/config";
 import "../widgets/OpportunityWidget";
 import "../global.css";
@@ -44,6 +46,36 @@ function RootLayoutContent() {
 
     useEffect(() => {
         void syncAndUpdateOpportunityWidgetSnapshot({ userId: userId || undefined });
+    }, [userId]);
+
+    // Register the background task once so iOS keeps the widget fresh even when
+    // the app isn't opened. No-op in Expo Go / until the next native rebuild.
+    useEffect(() => {
+        void registerWidgetBackgroundRefresh();
+    }, []);
+
+    // Re-sync the home-screen widget every time the app returns to the
+    // foreground. Widget snapshots store pre-formatted deadline strings
+    // ("Closes today", "3 days left"); without this they'd freeze until the
+    // user happened to open Home/Discover, so a countdown could show stale
+    // — or a closed opportunity could linger — for days.
+    const appState = useRef(AppState.currentState);
+    useEffect(() => {
+        const subscription = AppState.addEventListener(
+            "change",
+            (nextState: AppStateStatus) => {
+                if (
+                    appState.current.match(/inactive|background/) &&
+                    nextState === "active"
+                ) {
+                    void syncAndUpdateOpportunityWidgetSnapshot({
+                        userId: userId || undefined,
+                    });
+                }
+                appState.current = nextState;
+            },
+        );
+        return () => subscription.remove();
     }, [userId]);
 
     return (

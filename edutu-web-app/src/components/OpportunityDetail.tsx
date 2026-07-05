@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@clerk/clerk-react";
+import { usePersonalization } from "../hooks/usePersonalization";
 import { useToast } from "./ui/ToastProvider";
 import type { Opportunity } from "../types/opportunity";
 import {
@@ -33,16 +34,15 @@ import {
   parseOpportunityDeadline,
 } from "../services/opportunities";
 import {
-  buildOpportunityShareFileName,
   buildOpportunityShareText,
   buildOpportunityShareUrl,
-  buildWhatsAppShareUrl,
-  downloadBlob,
-  fetchOpportunityShareImageBlob,
+  shareOpportunity,
+  shareOutcomeMessage,
 } from "../services/opportunityShare";
 import PublicEditorialShell from "./PublicEditorialShell";
 import Seo from "./Seo";
 import ImageWithFallback from "./ImageWithFallback";
+import { WhyThisMatches } from "./opportunity/MatchInsights";
 import { getDefaultSeoImage, toAbsoluteUrl } from "../lib/publicSite";
 
 const PUBLIC_TAG_BLOCKLIST = new Set([
@@ -197,31 +197,33 @@ function RelatedOpportunityCard({
   const expired = isOpportunityExpired(opportunity);
   const daysLeft = expired ? null : getOpportunityDaysLeft(opportunity.deadline);
   const deadlineClass =
-    daysLeft !== null && daysLeft <= 7
-      ? "font-semibold text-amber-600 dark:text-amber-400"
-      : "";
+    daysLeft !== null && daysLeft <= 7 ? "font-semibold text-warning" : "";
 
   return (
     <Link
       to={detailPath}
-      className="group relative flex h-full flex-col rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft dark:border-white/10 dark:bg-slate-950"
+      className="group relative flex h-full flex-col rounded-xl border border-subtle bg-surface-layer p-4 shadow-soft transition hover:-translate-y-0.5 hover:shadow-elevated"
     >
-      <span className="inline-flex w-fit items-center rounded-md border border-brand-500/20 bg-brand-500/10 px-2 py-0.5 text-xs font-semibold text-brand-700 dark:text-brand-300">
-        {opportunity.category || "General"}
-      </span>
-      <h3 className="mt-2 line-clamp-2 text-sm font-semibold leading-snug text-slate-950 transition group-hover:text-brand-600 dark:text-white dark:group-hover:text-brand-300">
+      {opportunity.category ? (
+        <span className="inline-flex w-fit items-center rounded-md border border-brand/20 bg-brand/10 px-2 py-0.5 text-xs font-semibold text-brand">
+          {opportunity.category}
+        </span>
+      ) : null}
+      <h3 className="mt-2 line-clamp-2 text-sm font-semibold leading-snug text-text-primary transition group-hover:text-brand">
         {opportunity.title}
       </h3>
       {opportunity.organization ? (
-        <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
+        <p className="mt-1 truncate text-xs text-text-muted">
           {opportunity.organization}
         </p>
       ) : null}
-      <div className="mt-auto flex flex-wrap gap-3 pt-3 text-xs text-slate-500 dark:text-slate-400">
-        <span className="inline-flex items-center gap-1">
-          <MapPin size={12} />
-          {opportunity.location || "Remote"}
-        </span>
+      <div className="mt-auto flex flex-wrap gap-3 pt-3 text-xs text-text-muted">
+        {opportunity.location ? (
+          <span className="inline-flex items-center gap-1">
+            <MapPin size={12} />
+            {opportunity.location}
+          </span>
+        ) : null}
         <span className={`inline-flex items-center gap-1 ${deadlineClass}`}>
           <CalendarDays size={12} />
           {formatCompactDeadline(opportunity.deadline)}
@@ -244,17 +246,29 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   const { userId, getToken } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { trackInteraction, scoreOpportunity, explainOpportunity, isPersonalized } =
+    usePersonalization();
+
+  // Full "why this matches you" breakdown, computed against the current
+  // profile. Falls back to any score the backend already attached.
+  const matchInsight = useMemo(
+    () => (isPersonalized ? explainOpportunity(opportunity) : null),
+    [isPersonalized, explainOpportunity, opportunity],
+  );
 
   const currencySymbol = getCurrencySymbol(opportunity.currency);
   const applyUrl = normalizeExternalUrl(opportunity.applyUrl) ?? null;
-  const matchPercentage = Math.round(opportunity.match ?? 0);
+  const matchPercentage = Math.round(
+    Math.max(matchInsight?.score ?? 0, opportunity.match ?? 0),
+  );
   const difficultyLabel = opportunity.difficulty ?? "Medium";
   const applicantsCopy = opportunity.applicants
     ? `${opportunity.applicants} applicants`
     : "Not published";
-  const fullDescription =
-    normaliseVisibleText(opportunity.description || opportunity.summary) ||
-    `${opportunity.title} is a ${opportunity.category.toLowerCase()} opportunity from ${opportunity.organization}. Review the public details, deadline, location, eligibility notes, benefits, and application link before applying.`;
+  // Only show real scraped content — never a synthesized filler paragraph.
+  const fullDescription = normaliseVisibleText(
+    opportunity.description || opportunity.summary,
+  );
   const descriptionParagraphs = fullDescription
     .split(/\n{2,}/)
     .map(normaliseVisibleText)
@@ -270,7 +284,11 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   const canonicalUrl = toAbsoluteUrl(canonicalPath);
   const seoDescription = truncateSeoText(
     normaliseSeoText(opportunity.summary || opportunity.description) ||
-      `${opportunity.title} from ${opportunity.organization}. See eligibility, benefits, deadline, and application link on Edutu.`,
+      `${[opportunity.title, opportunity.organization]
+        .filter(Boolean)
+        .join(
+          " from ",
+        )}. See eligibility, benefits, deadline, and application link on Edutu.`,
   );
   const seoImage = opportunity.image || getDefaultSeoImage();
   const seoJsonLd = useMemo(() => {
@@ -359,6 +377,14 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   const [relatedSource, setRelatedSource] = useState<Opportunity[]>([]);
 
   useEffect(() => {
+    if (opportunity?.id) {
+      trackInteraction(opportunity, "view");
+    }
+    // Track once per opportunity page view.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opportunity?.id]);
+
+  useEffect(() => {
     let isActive = true;
     fetchOpportunities()
       .then((opportunities) => {
@@ -398,10 +424,20 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
         return { item, score };
       })
       .filter((entry) => entry.score > 0)
-      .sort((a, b) => b.score - a.score)
+      .sort(
+        (a, b) =>
+          b.score - a.score ||
+          scoreOpportunity(b.item) - scoreOpportunity(a.item),
+      )
       .slice(0, 4)
       .map((entry) => entry.item);
-  }, [relatedSource, opportunity.id, opportunity.category, opportunity.tags]);
+  }, [
+    relatedSource,
+    opportunity.id,
+    opportunity.category,
+    opportunity.tags,
+    scoreOpportunity,
+  ]);
 
   useEffect(() => {
     let isActive = true;
@@ -481,6 +517,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
         success("Bookmark removed");
       } else if (!isBookmarkedState && result) {
         setIsBookmarkedState(true);
+        trackInteraction(opportunity, "bookmark");
         success("Opportunity saved");
       } else {
         showError("Sign in again to save this opportunity");
@@ -518,92 +555,16 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
 
   const handleShare = async () => {
     setIsSharing(true);
-
+    trackInteraction(opportunity, "share");
     try {
-      const shareImage = await fetchOpportunityShareImageBlob(opportunity.id);
-      const effectiveShareText = shareImage?.shareText || shareText;
-      const effectiveShareUrl = shareImage?.shareUrl || shareUrl;
-      const shareData = {
-        title: opportunity.title,
-        text: effectiveShareText,
-        url: effectiveShareUrl,
-      };
-
-      if (shareImage?.blob) {
-        const imageExtension = shareImage.card.format === "svg" ? "svg" : "png";
-        const imageType =
-          shareImage.blob.type ||
-          (imageExtension === "svg" ? "image/svg+xml" : "image/png");
-        const imageFile = new File(
-          [shareImage.blob],
-          buildOpportunityShareFileName(opportunity, imageExtension),
-          { type: imageType },
-        );
-
-        if (navigator.share && navigator.canShare?.({ files: [imageFile] })) {
-          await navigator.share({
-            ...shareData,
-            files: [imageFile],
-          });
-          setShareCopied(true);
-          success("Share image ready");
-          setTimeout(() => setShareCopied(false), 2000);
-          return;
-        }
-
-        if (navigator.share) {
-          await navigator.share(shareData);
-          downloadBlob(
-            shareImage.blob,
-            buildOpportunityShareFileName(opportunity, imageExtension),
-          );
-          setShareCopied(true);
-          success("Shared the link and downloaded the image");
-          setTimeout(() => setShareCopied(false), 2000);
-          return;
-        }
-
-        downloadBlob(
-          shareImage.blob,
-          buildOpportunityShareFileName(opportunity, imageExtension),
-        );
+      const outcome = await shareOpportunity(opportunity);
+      const toast = shareOutcomeMessage(outcome);
+      if (toast) {
+        (toast.type === "success" ? success : showError)(toast.message);
       }
-
-      if (navigator.share) {
-        await navigator.share(shareData);
+      if (outcome !== "cancelled" && outcome !== "error") {
         setShareCopied(true);
-        success("Share link ready");
-      } else {
-        try {
-          await navigator.clipboard.writeText(
-            `${effectiveShareText}\n\n${effectiveShareUrl}`,
-          );
-          success("Share link copied");
-        } catch {
-          window.open(
-            buildWhatsAppShareUrl(effectiveShareText),
-            "_blank",
-            "noopener,noreferrer",
-          );
-          success("Opened WhatsApp share");
-        }
-        setShareCopied(true);
-      }
-
-      setTimeout(() => setShareCopied(false), 2000);
-    } catch (error) {
-      if (
-        error instanceof DOMException &&
-        (error.name === "AbortError" || error.name === "NotAllowedError")
-      ) {
-        return;
-      }
-
-      try {
-        await navigator.clipboard.writeText(shareUrl);
-        success("Link copied to clipboard");
-      } catch {
-        showError("Could not share this opportunity");
+        setTimeout(() => setShareCopied(false), 2000);
       }
     } finally {
       setIsSharing(false);
@@ -616,6 +577,8 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
       navigate("/auth?mode=sign-in", { state: authState });
       return;
     }
+
+    trackInteraction(opportunity, "apply");
 
     void (async () => {
       const token = await getProductApiToken(getToken, { forceRefresh: true });
@@ -652,11 +615,15 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
       value: formatCompactDeadline(opportunity.deadline),
       icon: CalendarDays,
     },
-    {
-      label: "Location",
-      value: opportunity.location || "Worldwide",
-      icon: MapPin,
-    },
+    ...(opportunity.location
+      ? [
+          {
+            label: "Location",
+            value: opportunity.location,
+            icon: MapPin,
+          },
+        ]
+      : []),
     {
       label: "Applicants",
       value: applicantsCopy,
@@ -684,9 +651,9 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
         jsonLd={seoJsonLd}
       />
       {expired ? (
-        <div className="mb-5 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-100">
+        <div className="mb-5 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           <p className="font-semibold">This opportunity has closed</p>
-          <p className="mt-1 text-rose-800/80 dark:text-rose-100/80">
+          <p className="mt-1 text-danger/80">
             {opportunity.deadline
               ? `The deadline (${formatDeadline(opportunity.deadline)}) has passed.`
               : "The application deadline has passed."}{" "}
@@ -695,12 +662,12 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
         </div>
       ) : null}
       <section>
-        <div className="mb-5 flex flex-wrap items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
+        <div className="mb-5 flex flex-wrap items-center gap-3 text-sm text-text-muted">
           {!embedded ? (
             <button
               type="button"
               onClick={handleBack}
-              className="inline-flex items-center gap-2 border-b border-transparent pb-1 font-medium text-slate-700 transition-colors hover:border-slate-300 hover:text-brand-600 dark:text-slate-200 dark:hover:border-white/20"
+              className="inline-flex items-center gap-2 border-b border-transparent pb-1 font-medium text-text-secondary transition-colors hover:border-strong hover:text-brand"
             >
               Back to opportunities
             </button>
@@ -717,8 +684,8 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
 
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
           <article className="space-y-7">
-            <header className="space-y-4 border-b border-slate-200 pb-6 dark:border-white/10">
-              <div className="relative overflow-hidden rounded-[28px] border border-slate-200 bg-slate-100 shadow-sm dark:border-white/10 dark:bg-slate-900">
+            <header className="space-y-4 border-b border-subtle pb-6">
+              <div className="relative overflow-hidden rounded-[28px] border border-subtle bg-surface-elevated shadow-soft">
                 <ImageWithFallback
                   src={opportunity.image || seoImage}
                   alt={
@@ -726,29 +693,39 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                       ? `${opportunity.title} opportunity image`
                       : "Opportunity image"
                   }
+                  category={opportunity.category}
                   className="h-52 w-full object-cover sm:h-72"
                   fallbackClassName="h-52 w-full sm:h-72"
                 />
               </div>
-              <p className="text-sm font-semibold text-brand-600 dark:text-brand-300">
+              <p className="text-sm font-semibold text-brand">
                 Opportunity detail
               </p>
-              <h1 className="max-w-3xl text-3xl font-semibold text-slate-950 sm:text-4xl dark:text-white">
+              <h1 className="max-w-3xl font-display text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl">
                 {opportunity.title}
               </h1>
-              {!embedded ? (
-                <p className="max-w-3xl text-lg leading-8 text-slate-600 dark:text-slate-300">
+              {!embedded && opportunity.organization ? (
+                <p className="max-w-3xl text-lg leading-8 text-text-secondary">
                   {opportunity.organization}
                 </p>
               ) : null}
-              <div className="max-w-3xl space-y-3 text-base leading-7 text-slate-600 dark:text-slate-300">
-                {descriptionParagraphs.map((paragraph, index) => (
-                  <p key={`${paragraph.slice(0, 40)}-${index}`}>{paragraph}</p>
-                ))}
+              <div className="max-w-3xl space-y-3 text-base leading-7 text-text-secondary">
+                {descriptionParagraphs.length > 0 ? (
+                  descriptionParagraphs.map((paragraph, index) => (
+                    <p key={`${paragraph.slice(0, 40)}-${index}`}>
+                      {paragraph}
+                    </p>
+                  ))
+                ) : (
+                  <p className="text-text-muted">
+                    Full details are available on the official application
+                    page.
+                  </p>
+                )}
               </div>
             </header>
 
-            <section className="grid grid-cols-2 gap-x-5 gap-y-4 border-b border-slate-200 pb-6 dark:border-white/10 sm:grid-cols-3">
+            <section className="grid grid-cols-2 gap-x-5 gap-y-4 border-b border-subtle pb-6 sm:grid-cols-3">
               {factItems.map(({ label, value, icon: Icon }) => (
                 <div
                   key={label}
@@ -756,33 +733,43 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                   aria-label={`${label}: ${value}`}
                   className="flex min-w-0 items-center gap-2.5"
                 >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand">
                     <Icon size={17} />
                   </span>
                   <span className="sr-only">{label}</span>
-                  <span className="min-w-0 truncate text-sm font-semibold leading-snug text-slate-700 dark:text-slate-200">
+                  <span className="min-w-0 truncate text-sm font-semibold leading-snug text-text-secondary">
                     {value}
                   </span>
                 </div>
               ))}
             </section>
 
+            {matchInsight &&
+            (matchInsight.reasons.length > 0 ||
+              matchInsight.risks.length > 0) ? (
+              <WhyThisMatches
+                score={matchInsight.score}
+                reasons={matchInsight.reasons}
+                risks={matchInsight.risks}
+              />
+            ) : null}
+
             <section className="space-y-3">
-              <h2 className="text-xl font-semibold text-slate-950 dark:text-white">
+              <h2 className="font-display text-xl font-semibold tracking-tight text-text-primary">
                 Requirements
               </h2>
               {requirements.length > 0 ? (
-                <ul className="space-y-3 text-base leading-7 text-slate-600 dark:text-slate-300">
+                <ul className="space-y-3 text-base leading-7 text-text-secondary">
                   {requirements.map((item, index) => (
                     <li key={`${item}-${index}`} className="flex gap-3">
-                      <span className="mt-3 h-1.5 w-1.5 rounded-full bg-brand-500" />
+                      <span className="mt-3 h-1.5 w-1.5 rounded-full bg-brand" />
                       <span>{item}</span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
-                  <p className="font-medium text-slate-600 dark:text-slate-300">
+                <div className="rounded-xl border border-dashed border-subtle bg-surface-elevated px-4 py-4 text-sm leading-6 text-text-muted">
+                  <p className="font-medium text-text-secondary">
                     Requirements not provided
                   </p>
                   <p className="mt-1">
@@ -792,7 +779,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                         href={applyUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-semibold text-brand-600 underline-offset-2 hover:underline dark:text-brand-300"
+                        className="font-semibold text-brand underline-offset-2 hover:underline"
                       >
                         Check the official application page
                       </a>
@@ -806,13 +793,13 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
 
             {eligibilityItems.length > 0 ? (
               <section className="space-y-3">
-                <h2 className="text-xl font-semibold text-slate-950 dark:text-white">
+                <h2 className="font-display text-xl font-semibold tracking-tight text-text-primary">
                   Eligibility
                 </h2>
-                <ul className="space-y-3 text-base leading-7 text-slate-600 dark:text-slate-300">
+                <ul className="space-y-3 text-base leading-7 text-text-secondary">
                   {eligibilityItems.map((item, index) => (
                     <li key={`${item}-${index}`} className="flex gap-3">
-                      <span className="mt-3 h-1.5 w-1.5 rounded-full bg-slate-400" />
+                      <span className="mt-3 h-1.5 w-1.5 rounded-full bg-text-muted" />
                       <span>{item}</span>
                     </li>
                   ))}
@@ -821,21 +808,21 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
             ) : null}
 
             <section className="space-y-3">
-              <h2 className="text-xl font-semibold text-slate-950 dark:text-white">
+              <h2 className="font-display text-xl font-semibold tracking-tight text-text-primary">
                 Benefits
               </h2>
               {benefits.length > 0 ? (
-                <ul className="space-y-3 text-base leading-7 text-slate-600 dark:text-slate-300">
+                <ul className="space-y-3 text-base leading-7 text-text-secondary">
                   {benefits.map((item, index) => (
                     <li key={`${item}-${index}`} className="flex gap-3">
-                      <span className="mt-3 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      <span className="mt-3 h-1.5 w-1.5 rounded-full bg-success" />
                       <span>{item}</span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
-                  <p className="font-medium text-slate-600 dark:text-slate-300">
+                <div className="rounded-xl border border-dashed border-subtle bg-surface-elevated px-4 py-4 text-sm leading-6 text-text-muted">
+                  <p className="font-medium text-text-secondary">
                     Benefits not listed
                   </p>
                   <p className="mt-1">
@@ -845,7 +832,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                         href={applyUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-semibold text-brand-600 underline-offset-2 hover:underline dark:text-brand-300"
+                        className="font-semibold text-brand underline-offset-2 hover:underline"
                       >
                         Confirm what’s offered on the official application page
                       </a>
@@ -858,14 +845,14 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
             </section>
 
             <section className="space-y-3">
-              <h2 className="text-xl font-semibold text-slate-950 dark:text-white">
+              <h2 className="font-display text-xl font-semibold tracking-tight text-text-primary">
                 Application process
               </h2>
               {applicationSteps.length > 0 ? (
-                <ol className="space-y-3 text-base leading-7 text-slate-600 dark:text-slate-300">
+                <ol className="space-y-3 text-base leading-7 text-text-secondary">
                   {applicationSteps.map((item, index) => (
                     <li key={`${item}-${index}`} className="flex gap-4">
-                      <span className="mt-0.5 text-sm font-semibold text-brand-600 dark:text-brand-300">
+                      <span className="mt-0.5 text-sm font-semibold text-brand">
                         {String(index + 1).padStart(2, "0")}
                       </span>
                       <span>{item}</span>
@@ -873,8 +860,8 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                   ))}
                 </ol>
               ) : (
-                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
-                  <p className="font-medium text-slate-600 dark:text-slate-300">
+                <div className="rounded-xl border border-dashed border-subtle bg-surface-elevated px-4 py-4 text-sm leading-6 text-text-muted">
+                  <p className="font-medium text-text-secondary">
                     Application steps not published
                   </p>
                   <p className="mt-1">
@@ -883,7 +870,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                         href={applyUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-semibold text-brand-600 underline-offset-2 hover:underline dark:text-brand-300"
+                        className="font-semibold text-brand underline-offset-2 hover:underline"
                       >
                         Open the official application page
                       </a>
@@ -899,8 +886,8 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
             {opportunity.tags?.filter(
               (tag) => !PUBLIC_TAG_BLOCKLIST.has(tag.toLowerCase()),
             ).length ? (
-              <section className="space-y-3 border-t border-slate-200 pt-6 dark:border-white/10">
-                <h2 className="text-xl font-semibold text-slate-950 dark:text-white">
+              <section className="space-y-3 border-t border-subtle pt-6">
+                <h2 className="font-display text-xl font-semibold tracking-tight text-text-primary">
                   Tags
                 </h2>
                 <div className="flex flex-wrap gap-2">
@@ -911,7 +898,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                     .map((tag) => (
                       <span
                         key={tag}
-                        className="inline-flex items-center rounded-md border border-slate-200 px-3 py-1 text-sm text-slate-600 dark:border-white/10 dark:text-slate-300"
+                        className="inline-flex items-center rounded-md border border-subtle px-3 py-1 text-sm text-text-secondary"
                       >
                         {tag}
                       </span>
@@ -923,9 +910,9 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
 
           <aside className="space-y-5">
             <section
-              className={`${embedded ? "hidden lg:block" : ""} space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-950`}
+              className={`${embedded ? "hidden lg:block" : ""} space-y-4 rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft`}
             >
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              <p className="text-xs font-semibold text-text-muted">
                 Actions
               </p>
               <div className="flex flex-col gap-3">
@@ -935,7 +922,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={handleApply}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-md bg-brand-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white shadow-elevated transition-colors hover:bg-brand-700"
                   >
                     <ExternalLink size={16} />
                     Apply now
@@ -944,7 +931,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                   <button
                     type="button"
                     disabled
-                    className="inline-flex flex-1 cursor-not-allowed items-center justify-center gap-2 rounded-md bg-brand-600/60 px-4 py-3 text-sm font-semibold text-white"
+                    className="inline-flex flex-1 cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-brand/60 px-4 py-3 text-sm font-semibold text-white"
                   >
                     <ExternalLink size={16} />
                     Application link unavailable
@@ -954,7 +941,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                   type="button"
                   onClick={handleShare}
                   disabled={isSharing}
-                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-md border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-950 disabled:cursor-wait disabled:opacity-50 dark:border-white/15 dark:text-slate-200 dark:hover:text-white"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-subtle px-4 py-3 text-sm font-semibold text-text-secondary transition-colors hover:border-strong hover:text-text-primary disabled:cursor-wait disabled:opacity-50"
                 >
                   <Share2 size={16} />
                   {shareCopied ? "Link copied" : "Share link"}
@@ -963,10 +950,10 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                   type="button"
                   onClick={handleBookmark}
                   disabled={bookmarkLoading}
-                  className={`inline-flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-3 text-sm font-semibold transition-colors disabled:cursor-wait disabled:opacity-50 ${
+                  className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-colors disabled:cursor-wait disabled:opacity-50 ${
                     isBookmarkedState
-                      ? "bg-rose-500 text-white hover:bg-rose-600"
-                      : "border border-slate-300 text-slate-700 hover:border-slate-400 hover:text-slate-950 dark:border-white/15 dark:text-slate-200 dark:hover:text-white"
+                      ? "bg-danger text-white hover:bg-danger/90"
+                      : "border border-subtle text-text-secondary hover:border-strong hover:text-text-primary"
                   }`}
                 >
                   <Heart
@@ -985,8 +972,8 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
         </div>
       </section>
       {relatedOpportunities.length > 0 ? (
-        <section className="mt-10 border-t border-slate-200 pt-8 dark:border-white/10">
-          <h2 className="text-xl font-semibold text-slate-950 dark:text-white">
+        <section className="mt-10 border-t border-subtle pt-8">
+          <h2 className="font-display text-xl font-semibold tracking-tight text-text-primary">
             Related opportunities
           </h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -1001,7 +988,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
         </section>
       ) : null}
       {embedded ? (
-        <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-slate-200 bg-white/95 px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 shadow-[0_-18px_40px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/95 lg:hidden">
+        <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-subtle bg-surface-layer/95 px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 shadow-[0_-18px_40px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl lg:hidden">
           <div className="mx-auto flex max-w-3xl items-center gap-3">
             {applyUrl ? (
               <a
@@ -1009,7 +996,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={handleApply}
-                className="inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl bg-brand-600 px-4 text-sm font-semibold text-white transition active:scale-[0.98]"
+                className="inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl bg-brand px-4 text-sm font-semibold text-white shadow-elevated transition active:scale-[0.98]"
               >
                 <ExternalLink size={17} />
                 <span className="truncate">Apply now</span>
@@ -1018,7 +1005,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
               <button
                 type="button"
                 disabled
-                className="inline-flex h-12 min-w-0 flex-1 cursor-not-allowed items-center justify-center gap-2 rounded-2xl bg-brand-600/60 px-4 text-sm font-semibold text-white"
+                className="inline-flex h-12 min-w-0 flex-1 cursor-not-allowed items-center justify-center gap-2 rounded-2xl bg-brand/60 px-4 text-sm font-semibold text-white"
               >
                 <ExternalLink size={17} />
                 <span className="truncate">Application unavailable</span>
@@ -1028,7 +1015,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
               type="button"
               onClick={handleShare}
               disabled={isSharing}
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition active:scale-[0.96] disabled:cursor-wait disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-subtle bg-surface-layer text-text-secondary shadow-soft transition active:scale-[0.96] disabled:cursor-wait disabled:opacity-60"
               aria-label="Share opportunity"
             >
               <Share2 size={18} />
@@ -1039,8 +1026,8 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
               disabled={bookmarkLoading}
               className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border transition active:scale-[0.96] disabled:cursor-wait disabled:opacity-60 ${
                 isBookmarkedState
-                  ? "border-rose-500 bg-rose-500 text-white"
-                  : "border-slate-200 bg-white text-slate-700 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                  ? "border-danger bg-danger text-white"
+                  : "border-subtle bg-surface-layer text-text-secondary shadow-soft"
               }`}
               aria-label={
                 !userId
@@ -1061,45 +1048,14 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
     </>
   );
 
-  return (
-    <div className="opportunities-force-light">
-      <style>{`
-        .opportunities-force-light {
-          color: #0f172a !important;
-          background-color: #f8fafc !important;
-        }
-        .opportunities-force-light [class*="dark\\:text-"] {
-          color: #0f172a !important;
-        }
-        .opportunities-force-light [class*="dark\\:text-brand"] {
-          color: #4338ca !important;
-        }
-        .opportunities-force-light [class*="dark\\:text-emerald"] {
-          color: #047857 !important;
-        }
-        .opportunities-force-light [class*="dark\\:text-rose"] {
-          color: #be123c !important;
-        }
-        .opportunities-force-light [class*="dark\\:text-amber"] {
-          color: #b45309 !important;
-        }
-        .opportunities-force-light [class*="dark\\:bg-"] {
-          background-color: #ffffff !important;
-        }
-        .opportunities-force-light [class*="dark\\:border-"] {
-          border-color: #e2e8f0 !important;
-        }
-      `}</style>
-      {embedded ? (
-        <main className="mx-auto w-full max-w-6xl px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:py-6 lg:px-8">
-          {detailContent}
-        </main>
-      ) : (
-        <PublicEditorialShell mainClassName="max-w-6xl py-5 sm:py-6">
-          {detailContent}
-        </PublicEditorialShell>
-      )}
-    </div>
+  return embedded ? (
+    <main className="mx-auto w-full max-w-6xl px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:py-6 lg:px-8">
+      {detailContent}
+    </main>
+  ) : (
+    <PublicEditorialShell mainClassName="max-w-6xl py-5 sm:py-6">
+      {detailContent}
+    </PublicEditorialShell>
   );
 };
 

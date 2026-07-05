@@ -12,7 +12,6 @@ import {
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth as useAppAuth } from "../hooks/useAuth";
-import { useDarkMode } from "../hooks/useDarkMode";
 import PullToRefresh from "./ui/PullToRefresh";
 import {
   getBookmarks,
@@ -153,7 +152,6 @@ export default function DeadlinesPage() {
   const { pathname } = useLocation();
   const { getToken } = useClerkAuth();
   const { user } = useAppAuth();
-  const { isDarkMode } = useDarkMode();
   const [data, setData] = useState<DeadlinesResponse | null>(null);
   const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>([]);
   const [calendarMonth, setCalendarMonth] = useState(() => new Date());
@@ -287,28 +285,20 @@ export default function DeadlinesPage() {
     }
   };
 
-  const surfaceClass = isDarkMode
-    ? "border-white/10 bg-gray-900/70"
-    : "border-slate-200 bg-white shadow-sm";
-  const softSurfaceClass = isDarkMode
-    ? "border-white/10 bg-white/5"
-    : "border-slate-200 bg-slate-50";
+  const surfaceClass = "border-subtle bg-surface-layer shadow-soft";
+  const softSurfaceClass = "border-subtle bg-surface-elevated";
   const isSavedRoute = pathname === "/saved" || pathname.startsWith("/app/saved");
   const eyebrow = isSavedRoute ? "Saved workspace" : "Calendar";
   const pageTitle = isSavedRoute ? "Saved & deadlines" : "Deadlines";
 
   return (
-    <div
-      className={`min-h-[100dvh] ${isDarkMode ? "bg-gray-950 text-white" : "bg-slate-50 text-slate-950"}`}
-    >
-      <header
-        className={`sticky top-0 z-30 hidden border-b backdrop-blur-xl lg:block ${isDarkMode ? "border-white/10 bg-gray-950/90" : "border-slate-200 bg-white/90"}`}
-      >
+    <div className="min-h-[100dvh] bg-surface-body text-text-primary">
+      <header className="sticky top-0 z-30 hidden border-b border-subtle bg-surface-layer/90 backdrop-blur-xl lg:block">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10"
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-subtle px-3 text-sm font-bold text-text-secondary transition hover:bg-surface-elevated"
           >
             <ChevronLeft size={17} />
             Back
@@ -323,7 +313,7 @@ export default function DeadlinesPage() {
       >
         <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
           {error ? (
-            <div className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">
+            <div className="mb-5 rounded-2xl border border-danger/40 bg-danger/10 p-4 text-sm font-semibold text-danger">
               {error}
             </div>
           ) : null}
@@ -331,10 +321,10 @@ export default function DeadlinesPage() {
           <section className={`rounded-[20px] border p-4 sm:p-5 ${surfaceClass}`}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-600 dark:text-brand-300">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">
                   {eyebrow}
                 </p>
-                <h1 className="mt-1 text-xl font-semibold tracking-tight">
+                <h1 className="mt-1 text-xl font-display font-semibold tracking-tight">
                   {pageTitle}
                 </h1>
               </div>
@@ -342,7 +332,7 @@ export default function DeadlinesPage() {
                 type="button"
                 onClick={loadDeadlines}
                 disabled={loading}
-                className="hidden h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10 lg:inline-flex"
+                className="hidden h-10 items-center gap-2 rounded-xl border border-subtle px-3 text-sm font-bold text-text-secondary transition hover:bg-surface-elevated disabled:cursor-not-allowed disabled:opacity-60 lg:inline-flex"
               >
                 {loading ? (
                   <Loader2 size={15} className="animate-spin" />
@@ -359,7 +349,7 @@ export default function DeadlinesPage() {
                   key={label}
                   className={`rounded-2xl border px-3 py-2 ${softSurfaceClass}`}
                 >
-                  <p className="truncate text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                  <p className="truncate text-[11px] font-medium text-text-muted">
                     {label}
                   </p>
                   <p className="mt-1 text-lg font-semibold">{value}</p>
@@ -371,7 +361,7 @@ export default function DeadlinesPage() {
               <button
                 type="button"
                 onClick={() => moveMonth(-1)}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-subtle text-text-secondary transition hover:bg-surface-elevated"
                 aria-label="Previous month"
               >
                 <ChevronLeft size={18} />
@@ -380,14 +370,14 @@ export default function DeadlinesPage() {
               <button
                 type="button"
                 onClick={() => moveMonth(1)}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-subtle text-text-secondary transition hover:bg-surface-elevated"
                 aria-label="Next month"
               >
                 <ChevronRight size={18} />
               </button>
             </div>
 
-            <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+            <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">
               {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
                 <div key={`${day}-${index}`}>{day}</div>
               ))}
@@ -408,12 +398,10 @@ export default function DeadlinesPage() {
                     onClick={() => setSelectedDateKey(dateKey)}
                     className={`relative h-12 rounded-2xl text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
                       isSelected
-                        ? "bg-brand-500 text-white shadow-lg shadow-brand-500/20"
+                        ? "bg-brand text-white shadow-lg shadow-brand/20"
                         : isToday
-                          ? "bg-brand-500/10 text-brand-700 dark:text-brand-200"
-                          : isDarkMode
-                            ? "text-slate-200 hover:bg-white/10"
-                            : "text-slate-700 hover:bg-slate-100"
+                          ? "bg-brand/10 text-brand"
+                          : "text-text-secondary hover:bg-surface-elevated"
                     }`}
                     aria-label={`${formatDate(date.toISOString())}${dayItems.length ? `, ${dayItems.length} deadline${dayItems.length === 1 ? "" : "s"}` : ""}`}
                   >
@@ -421,7 +409,7 @@ export default function DeadlinesPage() {
                     {dayItems.length > 0 ? (
                       <span
                         className={`absolute bottom-1.5 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full ${
-                          isSelected ? "bg-white" : "bg-brand-500"
+                          isSelected ? "bg-white" : "bg-brand"
                         }`}
                       />
                     ) : null}
@@ -437,13 +425,13 @@ export default function DeadlinesPage() {
                     ? formatSelectedDate(selectedDateKey)
                     : "Selected day"}
                 </p>
-                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                <span className="text-xs font-medium text-text-muted">
                   {selectedItems.length} item{selectedItems.length === 1 ? "" : "s"}
                 </span>
               </div>
               <div className="mt-3 space-y-2">
                 {selectedItems.length === 0 ? (
-                  <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                  <p className="text-sm font-semibold text-text-muted">
                     No saved or tracked deadline on this date.
                   </p>
                 ) : (
@@ -452,14 +440,14 @@ export default function DeadlinesPage() {
                       key={item.key}
                       type="button"
                       onClick={() => openOpportunity(item.sourceId)}
-                      className="flex w-full items-center gap-3 rounded-xl bg-white p-3 text-left text-sm font-semibold shadow-sm transition hover:-translate-y-0.5 dark:bg-gray-950"
+                      className="flex w-full items-center gap-3 rounded-xl bg-surface-layer p-3 text-left text-sm font-semibold shadow-soft transition hover:-translate-y-0.5"
                     >
                       <CalendarDays
                         size={17}
-                        className="shrink-0 text-brand-500"
+                        className="shrink-0 text-brand"
                       />
                       <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                      <ChevronRight size={16} className="shrink-0 text-slate-400" />
+                      <ChevronRight size={16} className="shrink-0 text-text-muted" />
                     </button>
                   ))
                 )}
@@ -469,10 +457,10 @@ export default function DeadlinesPage() {
 
           <section className="mt-6">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold tracking-tight">
+              <h2 className="text-lg font-display font-semibold tracking-tight">
                 Upcoming deadlines
               </h2>
-              <span className="rounded-full bg-brand-500/10 px-3 py-1 text-xs font-semibold text-brand-700 dark:text-brand-200">
+              <span className="rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold text-brand">
                 {datedWorkItems.length}
               </span>
             </div>
@@ -482,19 +470,19 @@ export default function DeadlinesPage() {
                 {Array.from({ length: 4 }).map((_, index) => (
                   <div
                     key={index}
-                    className={`h-20 animate-pulse rounded-[20px] border ${isDarkMode ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}`}
+                    className="h-20 animate-pulse rounded-[20px] border border-subtle bg-surface-elevated"
                   />
                 ))}
               </div>
             ) : datedWorkItems.length === 0 ? (
               <div className={`mt-4 rounded-[20px] border p-5 ${surfaceClass}`}>
                 <div className="flex items-start gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand/10 text-brand">
                     <Clock size={20} />
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold">No dated deadlines yet</h3>
-                    <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
+                    <p className="mt-1 text-sm leading-6 text-text-muted">
                       Saved opportunities without deadlines are listed below so
                       you can still review them from this page.
                     </p>
@@ -513,31 +501,31 @@ export default function DeadlinesPage() {
                     <div
                       className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
                         (item.daysUntil ?? 1) < 0
-                          ? "bg-rose-500/10 text-rose-600 dark:text-rose-300"
+                          ? "bg-danger/10 text-danger"
                           : (item.daysUntil ?? 99) <= 7
-                            ? "bg-amber-500/10 text-amber-700 dark:text-amber-300"
-                            : "bg-brand-500/10 text-brand-600 dark:text-brand-300"
+                            ? "bg-warning/10 text-warning"
+                            : "bg-brand/10 text-brand"
                       }`}
                     >
                       <CalendarDays size={20} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+                        <span className="rounded-lg bg-surface-elevated px-2 py-1 text-[11px] font-semibold text-text-secondary">
                           {typeLabel(item.kind)}
                         </span>
-                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                        <span className="text-xs font-medium text-text-muted">
                           {formatDate(item.date)}
                         </span>
                       </div>
-                      <h3 className="mt-2 line-clamp-2 text-sm font-semibold text-slate-950 dark:text-white">
+                      <h3 className="mt-2 line-clamp-2 text-sm font-semibold text-text-primary">
                         {item.title}
                       </h3>
-                      <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                      <p className="mt-1 text-xs font-medium text-text-muted">
                         {item.category} · {deadlineStatus(item.daysUntil)}
                       </p>
                     </div>
-                    <ChevronRight size={18} className="shrink-0 text-slate-400" />
+                    <ChevronRight size={18} className="shrink-0 text-text-muted" />
                   </button>
                 ))}
               </div>
@@ -546,30 +534,30 @@ export default function DeadlinesPage() {
 
           <section className="mt-6 pb-28 lg:pb-8">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold tracking-tight">
+              <h2 className="text-lg font-display font-semibold tracking-tight">
                 Saved opportunities
               </h2>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+              <span className="rounded-full bg-surface-elevated px-3 py-1 text-xs font-semibold text-text-secondary">
                 {bookmarks.length}
               </span>
             </div>
 
             {loading ? null : bookmarks.length === 0 ? (
               <div className={`mt-4 rounded-[20px] border p-6 text-center ${surfaceClass}`}>
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-elevated text-text-muted">
                   <Briefcase size={22} />
                 </div>
                 <h3 className="mt-4 text-base font-semibold">
                   No saved opportunities yet
                 </h3>
-                <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">
+                <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-text-muted">
                   Save opportunities from the feed and they will appear here
                   with their deadline status.
                 </p>
                 <button
                   type="button"
                   onClick={() => navigate("/opportunities")}
-                  className="mt-5 inline-flex h-10 items-center justify-center rounded-xl bg-brand-500 px-4 text-sm font-bold text-white transition hover:bg-brand-600"
+                  className="mt-5 inline-flex h-10 items-center justify-center rounded-xl bg-brand px-4 text-sm font-bold text-white transition hover:bg-brand-700"
                 >
                   Browse opportunities
                 </button>
@@ -600,22 +588,22 @@ export default function DeadlinesPage() {
                         onClick={() => openOpportunity(bookmark.opportunity_id)}
                         className={`flex w-full items-center gap-3 rounded-[20px] border p-4 text-left transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${surfaceClass}`}
                       >
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand/10 text-brand">
                           <Bookmark size={20} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-600 dark:text-brand-300">
+                          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
                             {bookmark.opportunity_category || "Opportunity"}
                           </p>
-                          <h3 className="mt-1 line-clamp-2 text-sm font-semibold text-slate-950 dark:text-white">
+                          <h3 className="mt-1 line-clamp-2 text-sm font-semibold text-text-primary">
                             {bookmark.opportunity_title}
                           </h3>
-                          <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                          <p className="mt-1 text-xs font-medium text-text-muted">
                             {bookmark.opportunity_location || "Worldwide"} ·{" "}
                             {isUndated ? "No deadline" : deadlineStatus(days)}
                           </p>
                         </div>
-                        <ChevronRight size={18} className="shrink-0 text-slate-400" />
+                        <ChevronRight size={18} className="shrink-0 text-text-muted" />
                       </button>
                     );
                   })}

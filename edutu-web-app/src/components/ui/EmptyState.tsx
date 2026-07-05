@@ -44,16 +44,16 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     return (
         <div className={`flex min-h-[180px] flex-col items-center justify-center px-4 py-8 text-center ${className}`}>
             {icon && (
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-[#eaf3ff] text-[#146ef5] dark:bg-white/10 dark:text-brand-300">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-brand/10 text-brand">
                     {icon}
                 </div>
             )}
 
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+            <h3 className="text-base font-semibold text-text-primary">
                 {title}
             </h3>
 
-            <p className="mt-2 max-w-md text-sm leading-6 text-gray-500 dark:text-gray-400">
+            <p className="mt-2 max-w-md text-sm leading-6 text-text-secondary">
                 {description}
             </p>
 
@@ -220,20 +220,20 @@ export const ComingSoonState: React.FC<{ feature?: string }> = ({ feature = 'Thi
  * No Internet Connection Inline Banner
  */
 export const OfflineBanner: React.FC<{ onRetry?: () => void }> = ({ onRetry }) => (
-    <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
-        <WifiOff className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+    <div className="flex items-center gap-3 p-4 bg-warning/10 border border-warning/20 rounded-xl">
+        <WifiOff className="w-5 h-5 text-warning shrink-0" />
         <div className="flex-1">
-            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+            <p className="text-sm font-medium text-warning">
                 No internet connection
             </p>
-            <p className="text-xs text-amber-600 dark:text-amber-400">
+            <p className="text-xs text-warning/80">
                 Some features may be unavailable
             </p>
         </div>
         {onRetry && (
             <button
                 onClick={onRetry}
-                className="px-3 py-1.5 text-sm font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 rounded-lg transition-colors"
+                className="px-3 py-1.5 text-sm font-medium text-warning hover:bg-warning/10 rounded-lg transition-colors"
             >
                 Retry
             </button>

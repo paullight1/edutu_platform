@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { Opportunity, OpportunityDifficulty } from '../types/opportunity';
+import { MatchReason, Opportunity, OpportunityDifficulty } from '../types/opportunity';
 import { toSafeUUID } from '../utils/auth';
 import { categorizeOpportunity } from './opportunityCategorization';
 
@@ -152,16 +152,29 @@ function buildOpportunityContext(opportunity: any): string {
     .toLowerCase();
 }
 
-function calculateMatchScore(opportunity: any, profile: any): number {
-  if (!profile) return 0;
+export interface MatchResult {
+  score: number;
+  reasons: MatchReason[];
+  risks: string[];
+}
+
+/**
+ * Pure scoring: given a (normalised) profile and an opportunity row, returns the
+ * match score together with plain-English reasons and any risks worth flagging.
+ * Does NOT mutate the opportunity — callers assign the results explicitly.
+ */
+export function evaluateMatch(profile: any, opportunity: any): MatchResult {
+  const reasons: MatchReason[] = [];
+  const risks: string[] = [];
+
+  if (!profile) {
+    return { score: 0, reasons, risks };
+  }
 
   let score = 0;
   let criteriaCount = 0;
   const eligibility = opportunity.eligibility || {};
   const oppSearchText = buildOpportunityContext(opportunity);
-
-  // Track match details for reasons
-  const matchDetails: string[] = [];
 
   // 1. Field of Study / Major Match
   if (profile.field_of_study) {
@@ -171,10 +184,10 @@ function calculateMatchScore(opportunity: any, profile: any): number {
 
     if (oppField && userField === oppField) {
       score += 1.5;
-      matchDetails.push('Matches your field of study');
+      reasons.push({ kind: 'field', label: `Fits your field, ${profile.field_of_study}`, points: 1.5 });
     } else if (oppSearchText.includes(userField)) {
       score += 1.0;
-      matchDetails.push('Related to your field of study');
+      reasons.push({ kind: 'field', label: `Related to your field, ${profile.field_of_study}`, points: 1.0 });
     }
   }
 
@@ -189,9 +202,14 @@ function calculateMatchScore(opportunity: any, profile: any): number {
         matchedSkills.push(skill);
       }
     });
-    score += Math.min(1.5, hitCount / Math.max(1, profile.skills.length / 2));
+    const points = Math.min(1.5, hitCount / Math.max(1, profile.skills.length / 2));
+    score += points;
     if (matchedSkills.length > 0) {
-      matchDetails.push(`Matches ${matchedSkills.slice(0, 2).join(', ')}`);
+      reasons.push({
+        kind: 'experience',
+        label: `Uses your skills: ${matchedSkills.slice(0, 2).join(', ')}`,
+        points,
+      });
     }
   }
 
@@ -199,14 +217,21 @@ function calculateMatchScore(opportunity: any, profile: any): number {
   if (profile.interests && Array.isArray(profile.interests) && profile.interests.length > 0) {
     criteriaCount++;
     let hitCount = 0;
+    const matchedInterests: string[] = [];
     profile.interests.forEach((interest: string) => {
       if (oppSearchText.includes(interest.toLowerCase())) {
         hitCount++;
+        matchedInterests.push(interest);
       }
     });
-    score += Math.min(1.0, hitCount / Math.max(1, profile.interests.length / 2));
-    if (hitCount > 0) {
-      matchDetails.push('Aligns with your interests');
+    const points = Math.min(1.0, hitCount / Math.max(1, profile.interests.length / 2));
+    score += points;
+    if (matchedInterests.length > 0) {
+      reasons.push({
+        kind: 'interest',
+        label: `Matches your interest in ${matchedInterests[0]}`,
+        points,
+      });
     }
   }
 
@@ -214,14 +239,17 @@ function calculateMatchScore(opportunity: any, profile: any): number {
   if (profile.ambitions && Array.isArray(profile.ambitions) && profile.ambitions.length > 0) {
     criteriaCount++;
     let hitCount = 0;
+    const matchedGoals: string[] = [];
     profile.ambitions.forEach((ambition: string) => {
       if (oppSearchText.includes(ambition.toLowerCase())) {
         hitCount++;
+        matchedGoals.push(ambition);
       }
     });
-    score += Math.min(1.0, hitCount / Math.max(1, profile.ambitions.length));
-    if (hitCount > 0) {
-      matchDetails.push('Fits your career goals');
+    const points = Math.min(1.0, hitCount / Math.max(1, profile.ambitions.length));
+    score += points;
+    if (matchedGoals.length > 0) {
+      reasons.push({ kind: 'goal', label: `Supports your goal: ${matchedGoals[0]}`, points });
     }
   }
 
@@ -233,13 +261,15 @@ function calculateMatchScore(opportunity: any, profile: any): number {
     if (profile.country) {
       if (countries.includes(profile.country.toLowerCase())) {
         score += 1.0;
-        matchDetails.push('Available in your country');
+        reasons.push({ kind: 'location', label: `Open to your country, ${profile.country}`, points: 1.0 });
       } else {
-        return 0;
+        risks.push(`May not be open to applicants from ${profile.country}`);
+        return { score: 0, reasons, risks };
       }
     } else {
       // User has no country set, apply a partial penalty
       score += 0.3;
+      risks.push('Confirm this opportunity is open in your country');
     }
   } else {
     // Open to all countries
@@ -250,14 +280,17 @@ function calculateMatchScore(opportunity: any, profile: any): number {
   if (profile.preferredRegions && profile.preferredRegions.length > 0) {
     criteriaCount++;
     let hitCount = 0;
+    const matchedRegions: string[] = [];
     profile.preferredRegions.forEach((region: string) => {
       if (oppSearchText.includes(region.toLowerCase()) || opportunity.location?.toLowerCase().includes(region.toLowerCase())) {
         hitCount++;
+        matchedRegions.push(region);
       }
     });
-    score += Math.min(1.0, hitCount);
-    if (hitCount > 0) {
-      matchDetails.push('In your preferred region');
+    const points = Math.min(1.0, hitCount);
+    score += points;
+    if (matchedRegions.length > 0) {
+      reasons.push({ kind: 'location', label: `Open to your region, ${matchedRegions[0]}`, points });
     }
   }
 
@@ -266,9 +299,10 @@ function calculateMatchScore(opportunity: any, profile: any): number {
     criteriaCount++;
     if (opportunity.location?.toLowerCase().includes('remote') || opportunity.is_remote) {
       score += 1.5;
-      matchDetails.push('Remote opportunity');
+      reasons.push({ kind: 'remote', label: 'Remote — open to applicants anywhere', points: 1.5 });
     } else {
-      return 0;
+      risks.push('Not a remote opportunity');
+      return { score: 0, reasons, risks };
     }
   }
 
@@ -280,6 +314,9 @@ function calculateMatchScore(opportunity: any, profile: any): number {
     if (daysUntil > 0 && daysUntil <= 30) {
       score += 0.3;
     }
+    if (daysUntil >= 0 && daysUntil <= 3) {
+      risks.push('Deadline is very close — apply soon');
+    }
   }
 
   // 7. Featured bonus
@@ -287,20 +324,28 @@ function calculateMatchScore(opportunity: any, profile: any): number {
     score += 0.2;
   }
 
+  // Difficulty vs experience level risk (informational, does not affect score)
+  const difficulty = (opportunity.difficulty || '').toString().toLowerCase();
+  const level = (profile.experienceLevel || profile.level || '').toString().toLowerCase();
+  if (difficulty === 'hard' && /beginner|entry|student|junior/.test(level)) {
+    risks.push('This is an advanced opportunity for your level');
+  }
+
   // If no criteria could be evaluated, assign a low baseline score
-  if (criteriaCount === 0) return 15;
+  if (criteriaCount === 0) {
+    return { score: 15, reasons, risks };
+  }
 
   const maxPossibleScore = 9.5;
   const normalizedPercentage = (score / Math.min(criteriaCount * 1.5, maxPossibleScore)) * 100;
 
   const finalScore = Math.min(100, Math.round(normalizedPercentage));
 
-  // Store match reasons on the opportunity
-  if (matchDetails.length > 0) {
-    opportunity.matchReasons = matchDetails;
-  }
+  return { score: finalScore, reasons, risks };
+}
 
-  return finalScore;
+function calculateMatchScore(opportunity: any, profile: any): number {
+  return evaluateMatch(profile, opportunity).score;
 }
 
 export async function fetchOpportunities(options: FetchOptions): Promise<Opportunity[]> {
@@ -427,7 +472,17 @@ export async function fetchOpportunities(options: FetchOptions): Promise<Opportu
 
   let normalised = (opps || []).map(row => {
     const opt = normaliseOpportunity(row);
-    opt.match = calculateMatchScore(row, profile);
+    const result = evaluateMatch(profile, row);
+    opt.match = result.score;
+    // Prefer server-provided reasons; only fall back to local evaluation when
+    // the row didn't already carry any.
+    if (!opt.matchReasons || opt.matchReasons.length === 0) {
+      opt.matchReasons = result.reasons.map(r => r.label);
+      opt.matchReasonDetails = result.reasons;
+    }
+    if (!opt.matchRisks || opt.matchRisks.length === 0) {
+      opt.matchRisks = result.risks;
+    }
     return opt;
   });
 

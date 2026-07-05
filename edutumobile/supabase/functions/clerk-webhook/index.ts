@@ -55,9 +55,7 @@ serve(async (req) => {
     const { id, unsafe_metadata, first_name, last_name, email_addresses, image_url } = evt.data
     const eventType = evt.type
 
-    if (__DEV__) {
-        console.log(`Webhook received: ${eventType} for user ${id}`)
-    }
+    console.log(`Webhook received: ${eventType} for user ${id}`)
 
     if (eventType === "user.created" || eventType === "user.updated") {
         const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!)

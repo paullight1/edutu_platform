@@ -5,15 +5,26 @@
 import { supabase } from '../../lib/supabaseClient';
 import logger from '../../lib/logger';
 
+// Canonical ledger: payment_transactions (see services/credits.ts). `amount`
+// is signed; note it mixes money amounts (subscription_purchase) and credit
+// counts (credit_purchase/credit_spend/reward).
 export interface CreditTransaction {
   id: string;
   user_id: string;
-  type: 'purchase' | 'spend' | 'reward' | 'refund' | 'admin_grant' | 'creator_earning';
+  type:
+    | 'subscription_purchase'
+    | 'credit_purchase'
+    | 'credit_spend'
+    | 'reward'
+    | 'refund'
+    | 'payout'
+    | 'credit';
   amount: number;
   description: string | null;
-  related_id: string | null;
-  related_type: string | null;
-  metadata: Record<string, unknown>;
+  currency: string | null;
+  status: string | null;
+  transaction_id: string | null;
+  metadata: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -42,7 +53,7 @@ export interface TransactionFilters {
 
 export async function getTransactions(filters: TransactionFilters = {}): Promise<{ data: CreditTransaction[]; count: number }> {
   let query = supabase
-    .from('credit_transactions')
+    .from('payment_transactions')
     .select('*', { count: 'exact' })
     .order('created_at', { ascending: false });
 
@@ -71,7 +82,7 @@ export async function getTransactions(filters: TransactionFilters = {}): Promise
 
 export async function getUserTransactions(userId: string): Promise<CreditTransaction[]> {
   const { data, error } = await supabase
-    .from('credit_transactions')
+    .from('payment_transactions')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
@@ -173,26 +184,26 @@ export async function getPaymentsStats(): Promise<{
 }> {
   // Total purchase credits
   const { data: purchaseData } = await supabase
-    .from('credit_transactions')
+    .from('payment_transactions')
     .select('amount')
-    .eq('type', 'purchase');
+    .eq('type', 'credit_purchase');
 
-  // Total spent credits
+  // Total spent credits (credit_spend rows store a negative amount)
   const { data: spendData } = await supabase
-    .from('credit_transactions')
+    .from('payment_transactions')
     .select('amount')
-    .eq('type', 'spend');
+    .eq('type', 'credit_spend');
 
   // Total transactions
   const { count: totalCount } = await supabase
-    .from('credit_transactions')
+    .from('payment_transactions')
     .select('*', { count: 'exact', head: true });
 
   // Purchase count
   const { count: purchaseCount } = await supabase
-    .from('credit_transactions')
+    .from('payment_transactions')
     .select('*', { count: 'exact', head: true })
-    .eq('type', 'purchase');
+    .eq('type', 'credit_purchase');
 
   const totalRevenue = purchaseData?.reduce((sum, t) => sum + (t.amount || 0), 0) ?? 0;
   const totalCreditsSpent = spendData?.reduce((sum, t) => sum + Math.abs(t.amount || 0), 0) ?? 0;

@@ -7,6 +7,7 @@ import { Bookmark, Clock, Trash2, ExternalLink, Sparkles, AlertCircle } from "lu
 import { useTheme } from "../../../components/context/ThemeContext";
 import { supabase } from "../../../lib/supabase";
 import { fetchSavedOpportunities, unsaveOpportunity } from "../../../packages/core/src/services/bookmarks";
+import { getDeadlineBadge, urgencyColor } from "../../../packages/core/src/utils/deadline";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import { ErrorBoundary } from "../../../components/ui/ErrorBoundary";
@@ -105,21 +106,6 @@ export default function SavedScreen() {
         setRefreshing(true);
         fetchSaved();
     }, [fetchSaved]);
-
-    const getDeadlineColor = (days: number) => {
-        if (days <= 0) return '#EF4444';
-        if (days <= 3) return '#EF4444';
-        if (days <= 7) return '#F59E0B';
-        return '#10B981';
-    };
-
-    const getDeadlineText = (days: number) => {
-        if (days < 0) return 'Ended';
-        if (days === 0) return 'Today';
-        if (days === 1) return 'Tomorrow';
-        if (days <= 7) return `${days} days left`;
-        return `${days} days left`;
-    };
 
     if (loading) {
         return (
@@ -244,12 +230,18 @@ export default function SavedScreen() {
                                             </View>
 
                                             <View style={styles.oppDetails}>
-                                                <View style={styles.detailRow}>
-                                                    <Clock size={14} color={getDeadlineColor(opp.daysRemaining)} />
-                                                    <Text style={[styles.detailText, { color: getDeadlineColor(opp.daysRemaining) }]}>
-                                                        {getDeadlineText(opp.daysRemaining)}
-                                                    </Text>
-                                                </View>
+                                                {(() => {
+                                                    const badge = getDeadlineBadge(opp.deadline);
+                                                    const color = urgencyColor(badge.level);
+                                                    return (
+                                                        <View style={styles.detailRow}>
+                                                            <Clock size={14} color={color} />
+                                                            <Text style={[styles.detailText, { color }]}>
+                                                                {badge.label}
+                                                            </Text>
+                                                        </View>
+                                                    );
+                                                })()}
                                                 {opp.category && (
                                                     <Text style={[styles.categoryTag, { color: colors.accent }]}>
                                                         {opp.category}

@@ -104,8 +104,8 @@ const PullToRefresh: React.FC<PullToRefreshProps> = ({
                 <motion.div
                     className={`w-10 h-10 rounded-full flex items-center justify-center
             ${isRefreshing
-                            ? 'bg-brand-500 text-white'
-                            : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 shadow-lg border border-gray-200 dark:border-gray-700'
+                            ? 'bg-brand text-white'
+                            : 'bg-surface-layer text-text-secondary shadow-elevated border border-subtle'
                         }`}
                     style={{
                         scale,

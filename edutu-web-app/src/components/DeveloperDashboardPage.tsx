@@ -15,7 +15,7 @@ import {
   Trash2,
   type LucideIcon,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { useAuth } from "@clerk/clerk-react";
 import { createCheckout, type BillingTransaction } from "../services/billing";
 import { useBillingStatus } from "../hooks/useBillingStatus";
@@ -114,31 +114,31 @@ function statusTone(status: string) {
     case "active":
       return {
         label: "Active",
-        className: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20",
+        className: "bg-success/10 text-success border-success/30",
       };
     case "revoked":
       return {
         label: "Revoked",
-        className: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20",
+        className: "bg-danger/10 text-danger border-danger/30",
       };
     default:
       return {
         label: status,
-        className: "bg-slate-100 text-slate-600 border-slate-200 dark:bg-white/5 dark:text-slate-300 dark:border-white/10",
+        className: "bg-surface-elevated text-text-secondary border-subtle",
       };
   }
 }
 
 function statusColor(code: number | null) {
-  if (code === null) return "bg-slate-100 text-slate-700 dark:bg-white/5 dark:text-slate-300";
-  if (code >= 500) return "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300";
-  if (code >= 400) return "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300";
-  return "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300";
+  if (code === null) return "bg-surface-elevated text-text-secondary";
+  if (code >= 500) return "bg-danger/10 text-danger";
+  if (code >= 400) return "bg-warning/10 text-warning";
+  return "bg-success/10 text-success";
 }
 
 function ActivityBadge({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+    <div className="inline-flex items-center gap-2 rounded-full border border-subtle bg-white px-3 py-1 text-xs font-semibold text-text-secondary">
       <Icon size={13} />
       {label}
     </div>
@@ -147,6 +147,7 @@ function ActivityBadge({ icon: Icon, label }: { icon: LucideIcon; label: string 
 
 export default function DeveloperDashboardPage() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
+  const reduceMotion = useReducedMotion();
   const billing = useBillingStatus();
   const [dashboard, setDashboard] = useState<DeveloperDashboard | null>(null);
   const [loading, setLoading] = useState(true);
@@ -358,34 +359,36 @@ export default function DeveloperDashboardPage() {
     setGeneratedKey({ ...generatedKey, copied: true });
   };
 
-  const sectionAnimation = {
-    initial: { opacity: 0, y: 20 },
-    whileInView: { opacity: 1, y: 0 },
-    viewport: { once: true, margin: "-80px" },
-    transition: { duration: 0.5 },
-  };
+  const sectionAnimation = reduceMotion
+    ? {}
+    : {
+        initial: { opacity: 0, y: 20 },
+        whileInView: { opacity: 1, y: 0 },
+        viewport: { once: true, margin: "-80px" },
+        transition: { duration: 0.5 },
+      };
 
   return (
     <PublicEditorialShell>
       <div className="px-4 py-10 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-[1400px] space-y-8 lg:space-y-10">
           <motion.section
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
+            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
             transition={{ duration: 0.45 }}
             className="grid gap-6 lg:grid-cols-[1.06fr_0.94fr] lg:items-start"
           >
             <div className="space-y-6">
-              <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-bold uppercase tracking-[0.24em] text-[#146ef5] dark:border-blue-800/50 dark:bg-[#146ef5]/10">
+              <div className="inline-flex items-center gap-2 rounded-full border border-brand/30 bg-brand/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.24em] text-brand">
                 <Sparkles size={14} />
                 Scholarship Engine
               </div>
 
               <div className="space-y-4">
-                <h1 className="max-w-3xl text-[clamp(2.1rem,3.8vw,3.65rem)] font-medium leading-[1.04] tracking-[-0.06em] text-slate-950 dark:text-white">
+                <h1 className="max-w-3xl text-[clamp(2.1rem,3.8vw,3.65rem)] font-medium leading-[1.04] tracking-[-0.06em] text-text-primary">
                   Create projects, issue keys, and ship against the live scholarship graph.
                 </h1>
-                <p className="max-w-2xl text-base leading-[1.8] sm:text-lg text-slate-500 dark:text-gray-400">
+                <p className="max-w-2xl text-base leading-[1.8] sm:text-lg text-text-muted">
                   Your developer portal keeps API projects, metering, billing credits, and recent request logs
                   in one place. Generate a key once, rotate it when needed, and keep the whole integration
                   auditable.
@@ -395,56 +398,56 @@ export default function DeveloperDashboardPage() {
               <div className="flex flex-wrap gap-3">
                 <a
                   href={docsUrl}
-                  className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold no-underline bg-[#146ef5] text-white transition-all duration-300 hover:scale-[0.98] active:scale-[0.97]"
+                  className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold no-underline bg-brand text-white transition-all duration-300 hover:scale-[0.98] active:scale-[0.97]"
                 >
                   Open developer docs
                   <ArrowRight size={16} />
                 </a>
                 <a
                   href={apiSpecUrl}
-                  className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold no-underline border border-slate-200 bg-white text-slate-950 transition-all duration-300 hover:scale-[0.98] active:scale-[0.97] dark:border-white/10 dark:bg-gray-900 dark:text-white"
+                  className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold no-underline border border-subtle bg-white text-text-primary transition-all duration-300 hover:scale-[0.98] active:scale-[0.97]"
                 >
                   Open API spec
                 </a>
                 <a
                   href="#create-project"
-                  className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold no-underline border border-slate-200 bg-white text-slate-950 transition-all duration-300 hover:scale-[0.98] active:scale-[0.97] dark:border-white/10 dark:bg-gray-900 dark:text-white"
+                  className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold no-underline border border-subtle bg-white text-text-primary transition-all duration-300 hover:scale-[0.98] active:scale-[0.97]"
                 >
                   Create a project
                 </a>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
-                  <div className="mb-2 flex items-center gap-2 text-[#146ef5]">
+                <div className="rounded-2xl border border-subtle bg-white p-4">
+                  <div className="mb-2 flex items-center gap-2 text-brand">
                     <CheckCircle2 size={15} />
                     <span className="text-xs font-bold uppercase tracking-[0.22em]">
                       One-time key reveal
                     </span>
                   </div>
-                  <p className="text-sm leading-6 text-slate-500 dark:text-gray-400">
+                  <p className="text-sm leading-6 text-text-muted">
                     Raw keys are shown once at creation and stored hashed afterwards.
                   </p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
-                  <div className="mb-2 flex items-center gap-2 text-[#146ef5]">
+                <div className="rounded-2xl border border-subtle bg-white p-4">
+                  <div className="mb-2 flex items-center gap-2 text-brand">
                     <ShieldCheck size={15} />
                     <span className="text-xs font-bold uppercase tracking-[0.22em]">
                       Scoped access
                     </span>
                   </div>
-                  <p className="text-sm leading-6 text-slate-500 dark:text-gray-400">
+                  <p className="text-sm leading-6 text-text-muted">
                     Keep read, sync, usage, and event permissions separate per project.
                   </p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-gray-900">
-                  <div className="mb-2 flex items-center gap-2 text-[#146ef5]">
+                <div className="rounded-2xl border border-subtle bg-white p-4">
+                  <div className="mb-2 flex items-center gap-2 text-brand">
                     <CreditCard size={15} />
                     <span className="text-xs font-bold uppercase tracking-[0.22em]">
                       Billing aware
                     </span>
                   </div>
-                  <p className="text-sm leading-6 text-slate-500 dark:text-gray-400">
+                  <p className="text-sm leading-6 text-text-muted">
                     Credits and subscription status come from the same account dashboard.
                   </p>
                 </div>
@@ -452,54 +455,54 @@ export default function DeveloperDashboardPage() {
             </div>
 
             <motion.div
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={reduceMotion ? undefined : { opacity: 0, y: 18 }}
+              animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
               transition={{ duration: 0.45, delay: 0.05 }}
-              className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 dark:border-white/10 dark:bg-gray-900"
+              className="rounded-3xl border border-subtle bg-white p-4 sm:p-5"
             >
-              <div className="flex items-center justify-between gap-4 border-b border-slate-200 pb-4 dark:border-white/10">
+              <div className="flex items-center justify-between gap-4 border-b border-subtle pb-4">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#146ef5]">
+                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-brand">
                     Quickstart
                   </p>
-                  <h2 className="mt-1 text-xl font-semibold text-slate-950 dark:text-white">
+                  <h2 className="mt-1 text-xl font-semibold text-text-primary">
                     Call the API with your developer key
                   </h2>
                 </div>
                 <ActivityBadge icon={KeyRound} label="Bearer token" />
               </div>
-              <pre className="mt-4 overflow-x-auto rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs leading-6 text-slate-700 dark:border-white/10 dark:bg-gray-950 dark:text-slate-300">
+              <pre className="mt-4 overflow-x-auto rounded-2xl border border-subtle bg-surface-elevated p-4 text-xs leading-6 text-text-secondary">
 {`curl -X GET https://api.edutu.org/v1/opportunities?limit=10 \\
   -H "Authorization: Bearer edu_live_your_prefix_your_secret" \\
   -H "x-request-id: req_12345"`}
               </pre>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-gray-950">
-                  <div className="flex items-center gap-2 text-[#146ef5]">
+                <div className="rounded-2xl border border-subtle bg-white p-4">
+                  <div className="flex items-center gap-2 text-brand">
                     <Database size={15} />
                     <span className="text-xs font-bold uppercase tracking-[0.22em]">
                       Billing credits
                     </span>
                   </div>
-                  <p className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">
+                  <p className="mt-2 text-2xl font-semibold text-text-primary">
                     {billing.loading ? "…" : billing.status?.credits?.toLocaleString() ?? "0"}
                   </p>
-                  <p className="text-sm text-slate-500 dark:text-gray-400">
+                  <p className="text-sm text-text-muted">
                     {billing.status?.subscriptionStatus || "No subscription yet"}
                   </p>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-gray-950">
-                  <div className="flex items-center gap-2 text-[#146ef5]">
+                <div className="rounded-2xl border border-subtle bg-white p-4">
+                  <div className="flex items-center gap-2 text-brand">
                     <Terminal size={15} />
                     <span className="text-xs font-bold uppercase tracking-[0.22em]">
                       Current usage
                     </span>
                   </div>
-                  <p className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">
+                  <p className="mt-2 text-2xl font-semibold text-text-primary">
                     {loading ? "…" : dashboard?.summary.totalRequestsThisMonth.toLocaleString() ?? "0"}
                   </p>
-                  <p className="text-sm text-slate-500 dark:text-gray-400">
+                  <p className="text-sm text-text-muted">
                     {dashboard?.summary.latestActivityAt ? `Last request ${formatDate(dashboard.summary.latestActivityAt)}` : "No request activity yet"}
                   </p>
                 </div>
@@ -509,40 +512,40 @@ export default function DeveloperDashboardPage() {
 
           {generatedKey ? (
             <motion.section
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 sm:p-6 dark:border-emerald-500/20 dark:bg-emerald-500/10"
+              initial={reduceMotion ? undefined : { opacity: 0, y: 14 }}
+              animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+              className="rounded-3xl border border-success/30 bg-success/10 p-5 sm:p-6"
             >
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                  <div className="flex items-center gap-2 text-success">
                     <CheckCircle2 size={15} />
                     <span className="text-xs font-bold uppercase tracking-[0.22em]">
                       Key created
                     </span>
                   </div>
-                  <h2 className="mt-2 text-xl font-semibold text-slate-950 dark:text-white">
+                  <h2 className="mt-2 text-xl font-semibold text-text-primary">
                     Copy this key now. It will not be shown again after you leave this page.
                   </h2>
                 </div>
                 <button
                   type="button"
                   onClick={copyGeneratedKey}
-                  className="inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold bg-[#146ef5] text-white transition-all duration-300 hover:scale-[0.98] active:scale-[0.97]"
+                  className="inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold bg-brand text-white transition-all duration-300 hover:scale-[0.98] active:scale-[0.97]"
                 >
                   <Copy size={16} />
                   {generatedKey.copied ? "Copied" : "Copy key"}
                 </button>
               </div>
 
-              <div className="mt-4 rounded-2xl border border-emerald-200 bg-white px-4 py-3 font-mono text-sm tracking-[0.02em] text-slate-900 dark:border-emerald-500/20 dark:bg-gray-950 dark:text-white">
+              <div className="mt-4 rounded-2xl border border-success/30 bg-white px-4 py-3 font-mono text-sm tracking-[0.02em] text-text-primary">
                 {generatedKey.rawKey}
               </div>
             </motion.section>
           ) : null}
 
           {error ? (
-            <section className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">
+            <section className="rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
               {error}
             </section>
           ) : null}
@@ -551,21 +554,21 @@ export default function DeveloperDashboardPage() {
             {summaryCards.map((card) => {
               const Icon = card.icon;
               return (
-                <div key={card.label} className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-gray-900">
+                <div key={card.label} className="rounded-2xl border border-subtle bg-white p-5">
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#146ef5]">
+                      <p className="text-xs font-bold uppercase tracking-[0.22em] text-brand">
                         {card.label}
                       </p>
-                      <p className="mt-2 text-[clamp(1.8rem,2.8vw,2.4rem)] font-semibold tracking-[-0.05em] text-slate-950 dark:text-white">
+                      <p className="mt-2 text-[clamp(1.8rem,2.8vw,2.4rem)] font-semibold tracking-[-0.05em] text-text-primary">
                         {card.value}
                       </p>
                     </div>
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-[#146ef5] dark:border-white/10 dark:bg-white/5">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-subtle bg-surface-elevated text-brand">
                       <Icon size={18} />
                     </div>
                   </div>
-                  <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-gray-400">
+                  <p className="mt-3 text-sm leading-6 text-text-muted">
                     {card.note}
                   </p>
                 </div>
@@ -574,26 +577,26 @@ export default function DeveloperDashboardPage() {
           </motion.section>
 
           <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
+            whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
             transition={{ duration: 0.5 }}
             className="grid gap-6 xl:grid-cols-[1fr_1.06fr]"
           >
             <div
               id="create-project"
-              className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 dark:border-white/10 dark:bg-gray-900"
+              className="rounded-3xl border border-subtle bg-white p-5 sm:p-6"
             >
-              <div className="flex items-center gap-2 text-[#146ef5]">
+              <div className="flex items-center gap-2 text-brand">
                 <Sparkles size={15} />
                 <span className="text-xs font-bold uppercase tracking-[0.22em]">
                   Create project
                 </span>
               </div>
-              <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
+              <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-text-primary">
                 Set up your first API project
               </h2>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500 dark:text-gray-400">
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-text-muted">
                 Use a clear project name, pick an environment, and choose the scopes that your integration
                 actually needs. You can rotate or revoke the key at any time.
               </p>
@@ -601,7 +604,7 @@ export default function DeveloperDashboardPage() {
               <form className="mt-6 space-y-5" onSubmit={handleCreateProject}>
                 <div className="grid gap-4 lg:grid-cols-2">
                   <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-slate-950 dark:text-white">
+                    <label className="block text-sm font-semibold text-text-primary">
                       Project name
                     </label>
                     <input
@@ -611,13 +614,13 @@ export default function DeveloperDashboardPage() {
                       className="w-full rounded-xl border border-border-subtle bg-surface-body px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 transition-all outline-none"
                       required
                     />
-                    <p className="text-xs text-slate-500 dark:text-gray-400">
+                    <p className="text-xs text-text-muted">
                       Use the product or company name that will own this integration.
                     </p>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-slate-950 dark:text-white">
+                    <label className="block text-sm font-semibold text-text-primary">
                       Environment
                     </label>
                     <select
@@ -630,7 +633,7 @@ export default function DeveloperDashboardPage() {
                       <option value="live">Live</option>
                       <option value="test">Test</option>
                     </select>
-                    <p className="text-xs text-slate-500 dark:text-gray-400">
+                    <p className="text-xs text-text-muted">
                       Test keys are useful for integration work and QA.
                     </p>
                   </div>
@@ -638,7 +641,7 @@ export default function DeveloperDashboardPage() {
 
                 <div className="grid gap-4 lg:grid-cols-2">
                   <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-slate-950 dark:text-white">
+                    <label className="block text-sm font-semibold text-text-primary">
                       Monthly quota
                     </label>
                     <input
@@ -650,7 +653,7 @@ export default function DeveloperDashboardPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-slate-950 dark:text-white">
+                    <label className="block text-sm font-semibold text-text-primary">
                       Rate limit / minute
                     </label>
                     <input
@@ -665,10 +668,10 @@ export default function DeveloperDashboardPage() {
 
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm font-semibold text-slate-950 dark:text-white">
+                    <label className="block text-sm font-semibold text-text-primary">
                       Scopes
                     </label>
-                    <p className="text-xs text-slate-500 dark:text-gray-400">
+                    <p className="text-xs text-text-muted">
                       Select the smallest set of permissions your integration needs.
                     </p>
                   </div>
@@ -680,21 +683,21 @@ export default function DeveloperDashboardPage() {
                           key={scope.value}
                           className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition-all duration-200 ${
                             checked
-                              ? 'border-[#146ef5] bg-[#146ef5]/10 dark:bg-[#146ef5]/20'
-                              : 'border-slate-200 bg-white hover:-translate-y-[1px] dark:border-white/10 dark:bg-gray-900'
+                              ? 'border-brand bg-brand/10'
+                              : 'border-subtle bg-white hover:-translate-y-[1px]'
                           }`}
                         >
                           <input
                             type="checkbox"
                             checked={checked}
                             onChange={() => toggleScope(scope.value)}
-                            className="mt-1 h-4 w-4 rounded border-slate-300 text-[#146ef5] focus:ring-[#146ef5]"
+                            className="mt-1 h-4 w-4 rounded border-subtle text-brand focus:ring-brand"
                           />
                           <span>
-                            <span className="block text-sm font-semibold text-slate-950 dark:text-white">
+                            <span className="block text-sm font-semibold text-text-primary">
                               {scope.label}
                             </span>
-                            <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-gray-400">
+                            <span className="mt-1 block text-xs leading-5 text-text-muted">
                               {scope.description}
                             </span>
                           </span>
@@ -708,35 +711,35 @@ export default function DeveloperDashboardPage() {
                   <button
                     type="submit"
                     disabled={creating}
-                    className="inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold bg-[#146ef5] text-white transition-all duration-300 hover:scale-[0.98] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-70"
+                    className="inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold bg-brand text-white transition-all duration-300 hover:scale-[0.98] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     {creating ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />}
                     {creating ? "Creating..." : "Create project"}
                   </button>
-                  <p className="text-xs text-slate-500 dark:text-gray-400">
+                  <p className="text-xs text-text-muted">
                     The raw API key will only be visible immediately after creation.
                   </p>
                 </div>
               </form>
             </div>
 
-            <div className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 dark:border-white/10 dark:bg-gray-900">
+            <div className="rounded-3xl border border-subtle bg-white p-5 sm:p-6">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <div className="flex items-center gap-2 text-[#146ef5]">
+                  <div className="flex items-center gap-2 text-brand">
                     <Database size={15} />
                     <span className="text-xs font-bold uppercase tracking-[0.22em]">
                       Projects
                     </span>
                   </div>
-                  <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
+                  <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-text-primary">
                     Manage keys and usage
                   </h2>
                 </div>
                 <button
                   type="button"
                   onClick={() => void refresh()}
-                  className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold border border-slate-200 bg-white text-slate-950 transition-all duration-300 hover:scale-[0.98] active:scale-[0.97] dark:border-white/10 dark:bg-gray-900 dark:text-white"
+                  className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold border border-subtle bg-white text-text-primary transition-all duration-300 hover:scale-[0.98] active:scale-[0.97]"
                 >
                   <RefreshCw size={15} />
                   Refresh
@@ -745,12 +748,12 @@ export default function DeveloperDashboardPage() {
 
               <div className="mt-6 space-y-4">
                 {loading ? (
-                  <div className="rounded-2xl border border-slate-200 p-5 dark:border-white/10">
-                    <div className="h-5 w-32 animate-pulse rounded-full bg-slate-200/60 dark:bg-white/10" />
+                  <div className="rounded-2xl border border-subtle p-5">
+                    <div className="h-5 w-32 animate-pulse rounded-full bg-surface-elevated" />
                     <div className="mt-4 space-y-3">
-                      <div className="h-4 animate-pulse rounded-full bg-slate-200/50 dark:bg-white/5" />
-                      <div className="h-4 w-5/6 animate-pulse rounded-full bg-slate-200/50 dark:bg-white/5" />
-                      <div className="h-4 w-3/4 animate-pulse rounded-full bg-slate-200/50 dark:bg-white/5" />
+                      <div className="h-4 animate-pulse rounded-full bg-surface-elevated" />
+                      <div className="h-4 w-5/6 animate-pulse rounded-full bg-surface-elevated" />
+                      <div className="h-4 w-3/4 animate-pulse rounded-full bg-surface-elevated" />
                     </div>
                   </div>
                 ) : dashboard?.projects.length ? (
@@ -767,29 +770,29 @@ export default function DeveloperDashboardPage() {
                     return (
                       <div
                         key={project.id}
-                        className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-gray-900"
+                        className="rounded-2xl border border-subtle bg-white p-5"
                       >
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                           <div className="space-y-3">
                             <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="text-lg font-semibold text-slate-950 dark:text-white">
+                              <h3 className="text-lg font-semibold text-text-primary">
                                 {project.name}
                               </h3>
                               <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${tone.className}`}>
                                 {tone.label}
                               </span>
-                              <span className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 dark:border-white/10 dark:text-slate-300">
+                              <span className="rounded-full border border-subtle px-3 py-1 text-xs font-semibold text-text-secondary">
                                 {project.environment}
                               </span>
                             </div>
-                            <p className="text-sm text-slate-500 dark:text-gray-400">
+                            <p className="text-sm text-text-muted">
                               <span className="font-mono">{project.keyPrefix}</span> · {project.plan} · {project.contactEmail ?? "No contact email"}
                             </p>
                             <div className="flex flex-wrap gap-2">
                               {project.scopes.map((scope) => (
                                 <span
                                   key={scope}
-                                  className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 dark:border-white/10 dark:bg-gray-950 dark:text-slate-300"
+                                  className="rounded-full border border-subtle bg-surface-elevated px-3 py-1 text-xs font-medium text-text-secondary"
                                 >
                                   {scope}
                                 </span>
@@ -802,7 +805,7 @@ export default function DeveloperDashboardPage() {
                               type="button"
                               onClick={() => void handleRotate(project)}
                               disabled={mutatingProjectId === project.id || project.status !== "active"}
-                              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-950 transition-all duration-300 hover:scale-[0.98] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-gray-900 dark:text-white"
+                              className="inline-flex items-center gap-2 rounded-full border border-subtle bg-white px-4 py-2 text-sm font-semibold text-text-primary transition-all duration-300 hover:scale-[0.98] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               {mutatingProjectId === project.id ? (
                                 <Loader2 size={15} className="animate-spin" />
@@ -815,7 +818,7 @@ export default function DeveloperDashboardPage() {
                               type="button"
                               onClick={() => void handleRevoke(project)}
                               disabled={mutatingProjectId === project.id || project.status !== "active"}
-                              className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition-all duration-300 hover:scale-[0.98] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300"
+                              className="inline-flex items-center gap-2 rounded-full border border-danger/30 bg-danger/10 px-4 py-2 text-sm font-semibold text-danger transition-all duration-300 hover:scale-[0.98] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               <Trash2 size={15} />
                               Revoke
@@ -824,47 +827,47 @@ export default function DeveloperDashboardPage() {
                         </div>
 
                         <div className="mt-4 grid gap-3 md:grid-cols-3">
-                          <div className="rounded-2xl border border-slate-200 p-4 dark:border-white/10">
-                            <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#146ef5]">
+                          <div className="rounded-2xl border border-subtle p-4">
+                            <p className="text-xs font-bold uppercase tracking-[0.22em] text-brand">
                               Usage
                             </p>
-                            <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">
+                            <p className="mt-2 text-lg font-semibold text-text-primary">
                               {project.requestCount.toLocaleString()} requests
                             </p>
-                            <p className="text-xs text-slate-500 dark:text-gray-400">
+                            <p className="text-xs text-text-muted">
                               This month
                             </p>
                           </div>
 
-                          <div className="rounded-2xl border border-slate-200 p-4 dark:border-white/10">
-                            <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#146ef5]">
+                          <div className="rounded-2xl border border-subtle p-4">
+                            <p className="text-xs font-bold uppercase tracking-[0.22em] text-brand">
                               Quota
                             </p>
-                            <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">
+                            <p className="mt-2 text-lg font-semibold text-text-primary">
                               {formatNumber(project.remainingQuota)} left
                             </p>
-                            <p className="text-xs text-slate-500 dark:text-gray-400">
+                            <p className="text-xs text-text-muted">
                               {formatNumber(project.monthlyQuota)} monthly limit
                             </p>
                           </div>
 
-                          <div className="rounded-2xl border border-slate-200 p-4 dark:border-white/10">
-                            <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#146ef5]">
+                          <div className="rounded-2xl border border-subtle p-4">
+                            <p className="text-xs font-bold uppercase tracking-[0.22em] text-brand">
                               Last used
                             </p>
-                            <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">
+                            <p className="mt-2 text-lg font-semibold text-text-primary">
                               {formatDate(project.lastUsedAt)}
                             </p>
-                            <p className="text-xs text-slate-500 dark:text-gray-400">
+                            <p className="text-xs text-text-muted">
                               {project.revokedAt ? `Revoked ${formatDate(project.revokedAt)}` : "Still active"}
                             </p>
                           </div>
                         </div>
 
                         <div className="mt-4">
-                          <div className="h-2 rounded-full bg-slate-200/70 dark:bg-white/10">
+                          <div className="h-2 rounded-full bg-surface-elevated">
                             <div
-                              className="h-full rounded-full bg-[#146ef5]"
+                              className="h-full rounded-full bg-brand"
                               style={{ width: `${quotaPercent}%` }}
                             />
                           </div>
@@ -873,16 +876,16 @@ export default function DeveloperDashboardPage() {
                     );
                   })
                 ) : (
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-white/10 dark:bg-gray-900">
+                  <div className="rounded-2xl border border-subtle bg-surface-elevated p-5">
                     <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#146ef5]/10 text-[#146ef5]">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand/10 text-brand">
                         <Database size={18} />
                       </div>
                       <div>
-                        <h3 className="text-lg font-semibold text-slate-950 dark:text-white">
+                        <h3 className="text-lg font-semibold text-text-primary">
                           No projects yet
                         </h3>
-                        <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-gray-400">
+                        <p className="mt-2 text-sm leading-6 text-text-muted">
                           Create a project on the left to generate a key and start tracking usage.
                         </p>
                       </div>
@@ -894,65 +897,65 @@ export default function DeveloperDashboardPage() {
           </motion.section>
 
           <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
+            whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
             transition={{ duration: 0.5 }}
             className="grid gap-6 xl:grid-cols-[1.06fr_0.94fr]"
           >
-            <div className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 dark:border-white/10 dark:bg-gray-900">
-              <div className="flex items-center gap-2 text-[#146ef5]">
+            <div className="rounded-3xl border border-subtle bg-white p-5 sm:p-6">
+              <div className="flex items-center gap-2 text-brand">
                 <Terminal size={15} />
                 <span className="text-xs font-bold uppercase tracking-[0.22em]">
                   Request history
                 </span>
               </div>
-              <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
+              <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-text-primary">
                 Recent API activity
               </h2>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500 dark:text-gray-400">
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-text-muted">
                 Use this table to verify live traffic, debug integrations, and spot quota spikes before they
                 become support issues.
               </p>
 
-              <div className="mt-6 overflow-x-auto rounded-2xl border border-slate-200 dark:border-white/10">
-                <table className="min-w-full divide-y divide-slate-200 dark:divide-white/10">
-                  <thead className="bg-slate-50 dark:bg-white/5">
+              <div className="mt-6 overflow-x-auto rounded-2xl border border-subtle">
+                <table className="min-w-full divide-y divide-border-subtle">
+                  <thead className="bg-surface-elevated">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-gray-400">
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
                         Request
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-gray-400">
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
                         Endpoint
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-gray-400">
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
                         Status
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-gray-400">
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
                         Latency
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-gray-400">
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
                         Time
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-white/10">
+                  <tbody className="divide-y divide-border-subtle">
                     {loading ? (
                       <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-500 dark:text-gray-400">
+                        <td colSpan={5} className="px-4 py-8 text-center text-sm text-text-muted">
                           Loading request history...
                         </td>
                       </tr>
                     ) : dashboard?.recentRequests.length ? (
                       dashboard.recentRequests.map((request) => (
                         <tr key={request.id}>
-                          <td className="px-4 py-4 text-sm font-medium text-slate-950 dark:text-white">
+                          <td className="px-4 py-4 text-sm font-medium text-text-primary">
                             {request.requestId || request.id.slice(0, 8)}
-                            <div className="mt-1 text-xs text-slate-500 dark:text-gray-400">
+                            <div className="mt-1 text-xs text-text-muted">
                               {request.consumerName}
                             </div>
                           </td>
-                          <td className="px-4 py-4 text-sm text-slate-950 dark:text-white">
+                          <td className="px-4 py-4 text-sm text-text-primary">
                             {request.method} {request.endpoint}
                           </td>
                           <td className="px-4 py-4">
@@ -960,17 +963,17 @@ export default function DeveloperDashboardPage() {
                               {request.statusCode ?? "n/a"}
                             </span>
                           </td>
-                          <td className="px-4 py-4 text-sm text-slate-950 dark:text-white">
+                          <td className="px-4 py-4 text-sm text-text-primary">
                             {request.latencyMs ?? "n/a"} ms
                           </td>
-                          <td className="px-4 py-4 text-sm text-slate-500 dark:text-gray-400">
+                          <td className="px-4 py-4 text-sm text-text-muted">
                             {formatDate(request.createdAt)}
                           </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-500 dark:text-gray-400">
+                        <td colSpan={5} className="px-4 py-8 text-center text-sm text-text-muted">
                           No activity yet. The next authenticated API request will appear here.
                         </td>
                       </tr>
@@ -980,30 +983,30 @@ export default function DeveloperDashboardPage() {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 dark:border-white/10 dark:bg-gray-900">
-              <div className="flex items-center gap-2 text-[#146ef5]">
+            <div className="rounded-3xl border border-subtle bg-white p-5 sm:p-6">
+              <div className="flex items-center gap-2 text-brand">
                 <ShieldCheck size={15} />
                 <span className="text-xs font-bold uppercase tracking-[0.22em]">
                   Onboarding
                 </span>
               </div>
-              <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
+              <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-text-primary">
                 What to do next
               </h2>
               <div className="mt-6 space-y-4">
                 {dashboard?.onboarding?.map((step, index) => (
                   <div
                     key={step.title}
-                    className="flex gap-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-gray-900"
+                    className="flex gap-4 rounded-2xl border border-subtle bg-white p-4"
                   >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[#146ef5]/10 text-sm font-bold text-[#146ef5]">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-brand/10 text-sm font-bold text-brand">
                       {index + 1}
                     </div>
                     <div>
-                      <h3 className="text-sm font-semibold text-slate-950 dark:text-white">
+                      <h3 className="text-sm font-semibold text-text-primary">
                         {step.title}
                       </h3>
-                      <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-gray-400">
+                      <p className="mt-1 text-sm leading-6 text-text-muted">
                         {step.description}
                       </p>
                     </div>
@@ -1011,8 +1014,8 @@ export default function DeveloperDashboardPage() {
                 ))}
               </div>
 
-              <div className="mt-6 rounded-2xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800/50 dark:bg-[#146ef5]/10">
-                <div className="flex items-center gap-2 text-[#146ef5]">
+              <div className="mt-6 rounded-2xl border border-brand/30 bg-brand/10 p-4">
+                <div className="flex items-center gap-2 text-brand">
                   <CreditCard size={15} />
                   <span className="text-xs font-bold uppercase tracking-[0.22em]">
                     Billing snapshot
@@ -1020,23 +1023,23 @@ export default function DeveloperDashboardPage() {
                 </div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500 dark:text-gray-400">
+                    <p className="text-xs uppercase tracking-[0.16em] text-text-muted">
                       Credits
                     </p>
-                    <p className="mt-1 text-lg font-semibold text-slate-950 dark:text-white">
+                    <p className="mt-1 text-lg font-semibold text-text-primary">
                       {billing.loading ? "…" : billing.status?.credits?.toLocaleString() ?? "0"}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500 dark:text-gray-400">
+                    <p className="text-xs uppercase tracking-[0.16em] text-text-muted">
                       Subscription
                     </p>
-                    <p className="mt-1 text-lg font-semibold text-slate-950 dark:text-white">
+                    <p className="mt-1 text-lg font-semibold text-text-primary">
                       {billing.status?.subscriptionStatus ?? "Inactive"}
                     </p>
                   </div>
                 </div>
-                <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-gray-400">
+                <p className="mt-3 text-sm leading-6 text-text-muted">
                   {billing.status?.proExpiresAt
                     ? `Renews or expires ${formatDate(billing.status.proExpiresAt)}`
                     : "Top up credits or start a billing plan to keep access active."}
@@ -1046,7 +1049,7 @@ export default function DeveloperDashboardPage() {
                     type="button"
                     onClick={() => void handleTopUpCredits()}
                     disabled={checkoutLoading}
-                    className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold bg-[#146ef5] text-white transition-all duration-300 hover:scale-[0.98] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-70"
+                    className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold bg-brand text-white transition-all duration-300 hover:scale-[0.98] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     {checkoutLoading ? (
                       <Loader2 size={15} className="animate-spin" />
@@ -1057,17 +1060,17 @@ export default function DeveloperDashboardPage() {
                   </button>
                 </div>
 
-                <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-gray-950">
+                <div className="mt-5 rounded-2xl border border-subtle bg-white p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#146ef5]">
+                      <p className="text-xs font-bold uppercase tracking-[0.22em] text-brand">
                         Invoices & payments
                       </p>
-                      <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">
+                      <p className="mt-1 text-sm text-text-muted">
                         Recent Paystack receipts and subscription records.
                       </p>
                     </div>
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 dark:border-white/10 dark:bg-gray-900 dark:text-slate-300">
+                    <span className="rounded-full border border-subtle bg-surface-elevated px-3 py-1 text-xs font-semibold text-text-secondary">
                       {billing.status?.transactions?.length ?? 0} records
                     </span>
                   </div>
@@ -1077,23 +1080,23 @@ export default function DeveloperDashboardPage() {
                       billing.status!.transactions.map((transaction) => (
                         <div
                           key={transaction.id}
-                          className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-gray-900"
+                          className="rounded-xl border border-subtle bg-surface-elevated px-4 py-3"
                         >
                           <div className="flex items-start justify-between gap-4">
                             <div>
-                              <p className="text-sm font-semibold text-slate-950 dark:text-white">
+                              <p className="text-sm font-semibold text-text-primary">
                                 {billingTransactionLabel(transaction)}
                               </p>
-                              <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">
+                              <p className="mt-1 text-xs text-text-muted">
                                 {transaction.providerReference || "No reference"} ·{" "}
                                 {formatDate(transaction.createdAt)}
                               </p>
                             </div>
                             <div className="text-right">
-                              <p className="text-sm font-semibold text-slate-950 dark:text-white">
+                              <p className="text-sm font-semibold text-text-primary">
                                 {formatBillingAmount(transaction)}
                               </p>
-                              <p className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-[#146ef5]">
+                              <p className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-brand">
                                 {transaction.status}
                               </p>
                             </div>
@@ -1101,7 +1104,7 @@ export default function DeveloperDashboardPage() {
                         </div>
                       ))
                     ) : (
-                      <p className="rounded-xl border border-dashed border-slate-200 px-4 py-4 text-sm leading-6 text-slate-500 dark:border-white/10 dark:text-gray-400">
+                      <p className="rounded-xl border border-dashed border-subtle px-4 py-4 text-sm leading-6 text-text-muted">
                         No invoice history yet. Paystack receipts and API credit top-ups will appear here
                         after the first successful payment.
                       </p>
@@ -1113,34 +1116,34 @@ export default function DeveloperDashboardPage() {
           </motion.section>
 
           <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
+            whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
             transition={{ duration: 0.5 }}
-            className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 dark:border-white/10 dark:bg-gray-900"
+            className="rounded-3xl border border-subtle bg-white p-5 sm:p-6"
           >
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <div className="flex items-center gap-2 text-[#146ef5]">
+                <div className="flex items-center gap-2 text-brand">
                   <KeyRound size={15} />
                   <span className="text-xs font-bold uppercase tracking-[0.22em]">
                     Docs & support
                   </span>
                 </div>
-                <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">
+                <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-text-primary">
                   Keep the docs and dashboard one click away
                 </h2>
               </div>
               <div className="flex flex-wrap gap-3">
                 <a
                   href={docsUrl}
-                  className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold no-underline bg-[#146ef5] text-white transition-all duration-300 hover:scale-[0.98] active:scale-[0.97]"
+                  className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold no-underline bg-brand text-white transition-all duration-300 hover:scale-[0.98] active:scale-[0.97]"
                 >
                   Read docs
                 </a>
                 <Link
                   to="/scholarship-engine"
-                  className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold no-underline border border-slate-200 bg-white text-slate-950 transition-all duration-300 hover:scale-[0.98] active:scale-[0.97] dark:border-white/10 dark:bg-gray-900 dark:text-white"
+                  className="inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold no-underline border border-subtle bg-white text-text-primary transition-all duration-300 hover:scale-[0.98] active:scale-[0.97]"
                 >
                   View marketing page
                 </Link>

@@ -1,28 +1,111 @@
 import React, { useState } from 'react';
-import { Globe, Building2 } from 'lucide-react';
+import {
+  Award,
+  BookOpen,
+  Briefcase,
+  Building2,
+  Coins,
+  Globe,
+  GraduationCap,
+  Layers,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 interface ImageWithFallbackProps {
-  src: string;
+  src: string | null | undefined;
   alt: string;
   className?: string;
   fallbackIcon?: 'globe' | 'building';
   fallbackClassName?: string;
+  /**
+   * Opportunity category. When provided, a missing/broken image renders a
+   * branded gradient tile with a category icon instead of a bare icon —
+   * never a generic stock photo.
+   */
+  category?: string | null;
 }
+
+const CATEGORY_FALLBACKS: Array<{
+  pattern: RegExp;
+  icon: LucideIcon;
+  classes: string;
+}> = [
+  {
+    pattern: /scholar/i,
+    icon: GraduationCap,
+    classes:
+      'from-brand-500/25 via-brand-500/10 to-sky-500/20 text-brand-600 dark:text-brand-300',
+  },
+  {
+    pattern: /fellow/i,
+    icon: Award,
+    classes:
+      'from-violet-500/25 via-violet-500/10 to-fuchsia-500/20 text-violet-600 dark:text-violet-300',
+  },
+  {
+    pattern: /intern|career|job/i,
+    icon: Briefcase,
+    classes:
+      'from-emerald-500/25 via-emerald-500/10 to-teal-500/20 text-emerald-600 dark:text-emerald-300',
+  },
+  {
+    pattern: /grant|fund/i,
+    icon: Coins,
+    classes:
+      'from-amber-500/25 via-amber-500/10 to-orange-500/20 text-amber-600 dark:text-amber-300',
+  },
+  {
+    pattern: /training|conference|course/i,
+    icon: BookOpen,
+    classes:
+      'from-sky-500/25 via-sky-500/10 to-cyan-500/20 text-sky-600 dark:text-sky-300',
+  },
+  {
+    pattern: /program|leader/i,
+    icon: Layers,
+    classes:
+      'from-indigo-500/25 via-indigo-500/10 to-blue-500/20 text-indigo-600 dark:text-indigo-300',
+  },
+];
+
+const DEFAULT_CATEGORY_FALLBACK = {
+  icon: Globe,
+  classes:
+    'from-slate-400/25 via-slate-400/10 to-slate-500/20 text-slate-500 dark:text-slate-300',
+};
 
 const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
   src,
   alt,
   className = '',
   fallbackIcon = 'globe',
-  fallbackClassName = ''
+  fallbackClassName = '',
+  category,
 }) => {
   const [hasError, setHasError] = useState(false);
 
   if (hasError || !src) {
+    if (category !== undefined) {
+      const match =
+        (category
+          ? CATEGORY_FALLBACKS.find((entry) => entry.pattern.test(category))
+          : undefined) ?? DEFAULT_CATEGORY_FALLBACK;
+      const Icon = match.icon;
+      return (
+        <div
+          className={`flex items-center justify-center bg-gradient-to-br ${match.classes} ${fallbackClassName}`}
+          role="img"
+          aria-label={alt}
+        >
+          <Icon size={36} strokeWidth={1.5} />
+        </div>
+      );
+    }
+
     const Icon = fallbackIcon === 'building' ? Building2 : Globe;
     return (
       <div className={`flex items-center justify-center ${fallbackClassName}`}>
-        <Icon size={32} className="text-slate-300" />
+        <Icon size={32} className="text-text-muted" />
       </div>
     );
   }
@@ -34,6 +117,10 @@ const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
       className={className}
       onError={() => setHasError(true)}
       loading="lazy"
+      decoding="async"
+      // Scraped og:image URLs often sit behind hotlink protection that keys on
+      // the Referer header; omitting it lets far more source images load.
+      referrerPolicy="no-referrer"
     />
   );
 };

@@ -11,7 +11,7 @@ export default function PublicEditorialShell({
   mainClassName = "max-w-6xl py-6 sm:py-8",
 }: PublicEditorialShellProps) {
   return (
-    <div className="min-h-[100dvh] bg-slate-50 text-slate-950 dark:bg-gray-950 dark:text-white">
+    <div className="min-h-[100dvh] bg-surface-body text-text-primary">
       <PublicHeader />
       <main className={`mx-auto w-full px-4 sm:px-6 lg:px-8 ${mainClassName}`}>
         {children}

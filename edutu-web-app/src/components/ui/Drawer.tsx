@@ -79,14 +79,14 @@ export const DrawerContent: React.FC<
   return createPortal(
     <div className="fixed inset-0 z-40 flex">
       <div
-        className="flex-1 bg-gray-900/50 backdrop-blur-sm"
+        className="flex-1 bg-black/50 backdrop-blur-sm"
         onClick={() => onOpenChange?.(false)}
         aria-hidden="true"
       />
       <div
         ref={containerRef}
         className={cn(
-          'relative flex h-full w-full max-w-lg flex-col overflow-y-auto bg-white p-6 shadow-2xl dark:bg-gray-800',
+          'relative flex h-full w-full max-w-lg flex-col overflow-y-auto border-subtle bg-surface-layer p-6 shadow-elevated',
           side === 'right' ? 'ml-auto' : 'mr-auto',
           !reducedMotion && 'animate-fade-in',
           className
@@ -112,10 +112,10 @@ export const DrawerFooter: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ c
 );
 
 export const DrawerTitle: React.FC<React.HTMLAttributes<HTMLHeadingElement>> = ({ className, ...props }) => (
-  <h2 className={cn('text-lg font-semibold text-gray-900 dark:text-white', className)} {...props} />
+  <h2 className={cn('text-lg font-semibold text-text-primary', className)} {...props} />
 );
 
 export const DrawerDescription: React.FC<React.HTMLAttributes<HTMLParagraphElement>> = ({
   className,
   ...props
-}) => <p className={cn('text-sm text-gray-500', className)} {...props} />;
+}) => <p className={cn('text-sm text-text-secondary', className)} {...props} />;
