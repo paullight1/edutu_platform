@@ -1,22 +1,75 @@
-import { useState, useEffect, createContext, useContext } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  createContext,
+  useContext,
+} from "react";
 
 interface ThemeColors {
   accent: string;
   background: string;
 }
 
+export type ThemeMode = "light" | "dark" | "system";
+export type ThemePackId =
+  | "indigo"
+  | "violet"
+  | "emerald"
+  | "rose"
+  | "amber"
+  | "sky";
+
+export interface ThemePack {
+  id: ThemePackId;
+  label: string;
+  /** Representative accent used for the picker swatch in light mode. */
+  swatch: string;
+  /** Lighter accent shown for the swatch when dark mode is active. */
+  swatchDark: string;
+}
+
+/**
+ * Accent "theme packs". `indigo` is the product default and is served by the
+ * base tokens in index.css; the rest override `--color-brand-*` via a
+ * `[data-theme="…"]` block (see index.css). Add a pack here + a matching CSS
+ * block to ship a new palette.
+ */
+export const THEME_PACKS: ThemePack[] = [
+  { id: "indigo", label: "Indigo", swatch: "#6366f1", swatchDark: "#818cf8" },
+  { id: "violet", label: "Violet", swatch: "#8b5cf6", swatchDark: "#a78bfa" },
+  { id: "emerald", label: "Emerald", swatch: "#10b981", swatchDark: "#34d399" },
+  { id: "rose", label: "Rose", swatch: "#f43f5e", swatchDark: "#fb7185" },
+  { id: "amber", label: "Amber", swatch: "#f59e0b", swatchDark: "#fbbf24" },
+  { id: "sky", label: "Sky", swatch: "#0ea5e9", swatchDark: "#38bdf8" },
+];
+
+const THEME_PACK_IDS = new Set(THEME_PACKS.map((pack) => pack.id));
+
 interface ThemeContextType {
+  // -- Light / dark ---------------------------------------------------------
+  /** Resolved boolean: true when the dark palette is active right now. */
   isDarkMode: boolean;
+  /** User's explicit choice: light, dark, or follow the OS ("system"). */
+  mode: ThemeMode;
+  setMode: (mode: ThemeMode) => void;
   toggleDarkMode: () => void;
   setDarkMode: (value: boolean) => void;
+  // -- Theme packs (accent palettes) ---------------------------------------
+  themePack: ThemePackId;
+  setThemePack: (pack: ThemePackId) => void;
+  themePacks: ThemePack[];
+  // -- Legacy accent customization (kept for backwards compatibility) -------
   lightTheme: ThemeColors;
   darkTheme: ThemeColors;
   updateTheme: (mode: "light" | "dark", updates: Partial<ThemeColors>) => void;
   resetTheme: () => void;
 }
 
-const THEME_STORAGE_KEY = "edutu-theme";
-type ThemePreference = "light" | "dark" | null;
+const MODE_STORAGE_KEY = "edutu-theme-mode";
+const LEGACY_MODE_STORAGE_KEY = "edutu-theme";
+const PACK_STORAGE_KEY = "edutu-theme-pack";
 
 const defaultLightTheme: ThemeColors = {
   accent: "99 102 241", // Indigo 500
@@ -38,43 +91,38 @@ const systemPrefersDark = (): boolean => {
   return false;
 };
 
-const readStoredPreference = (): ThemePreference => {
+const readStoredMode = (): ThemeMode => {
   if (typeof window === "undefined") {
-    return null;
+    return "system";
   }
   try {
-    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-    if (stored === "light" || stored === "dark") {
+    const stored =
+      window.localStorage.getItem(MODE_STORAGE_KEY) ??
+      window.localStorage.getItem(LEGACY_MODE_STORAGE_KEY);
+    if (stored === "light" || stored === "dark" || stored === "system") {
       return stored;
     }
-    return null;
+    return "system";
   } catch (error) {
-    console.warn("Failed to read theme preference.", error);
-    return null;
+    console.warn("Failed to read theme mode.", error);
+    return "system";
   }
 };
 
-const writeStoredPreference = (value: ThemePreference): void => {
+const readStoredPack = (): ThemePackId => {
   if (typeof window === "undefined") {
-    return;
+    return "indigo";
   }
   try {
-    if (value === null) {
-      window.localStorage.removeItem(THEME_STORAGE_KEY);
-    } else {
-      window.localStorage.setItem(THEME_STORAGE_KEY, value);
+    const stored = window.localStorage.getItem(PACK_STORAGE_KEY);
+    if (stored && THEME_PACK_IDS.has(stored as ThemePackId)) {
+      return stored as ThemePackId;
     }
   } catch (error) {
-    console.warn("Failed to persist theme preference.", error);
+    console.warn("Failed to read theme pack.", error);
   }
+  return "indigo";
 };
-
-const darken = (rgb: string, factor = 0.88): string =>
-  rgb
-    .trim()
-    .split(/\s+/)
-    .map((channel) => Math.round(Number(channel) * factor))
-    .join(" ");
 
 const readStoredColors = (
   key: string,
@@ -97,11 +145,10 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [preference, setPreference] = useState<ThemePreference>(
-    readStoredPreference,
-  );
+  const [mode, setModeState] = useState<ThemeMode>(readStoredMode);
   const [systemPrefersDarkMode, setSystemPrefersDarkMode] =
     useState<boolean>(systemPrefersDark);
+  const [themePack, setThemePackState] = useState<ThemePackId>(readStoredPack);
 
   const [lightTheme, setLightTheme] = useState<ThemeColors>(() =>
     readStoredColors("lightTheme", defaultLightTheme),
@@ -110,12 +157,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
     readStoredColors("darkTheme", defaultDarkTheme),
   );
 
-  // Dark mode has been removed from the product. This is forced to false so
-  // every `isDarkMode ? dark : light` branch resolves to light, the `.dark`
-  // class is never applied to <html>, and light theme CSS variables are used.
-  const isDarkMode = false;
+  const isDarkMode =
+    mode === "dark" || (mode === "system" && systemPrefersDarkMode);
 
-  // Reflect the active mode on <html> via the `.dark` class.
+  // Reflect the active mode on <html> via the `.dark` class (class strategy,
+  // matched by tailwind darkMode:'class' and the index.css `.dark` tokens).
   useEffect(() => {
     if (typeof document === "undefined") {
       return;
@@ -123,11 +169,36 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
     document.documentElement.classList.toggle("dark", isDarkMode);
   }, [isDarkMode]);
 
-  // Follow the OS color-scheme query only while no explicit choice exists.
+  // Reflect the active accent pack on <html> via `data-theme`. Indigo is the
+  // base palette, so it carries no attribute (keeps the DOM clean + avoids an
+  // extra CSS match).
   useEffect(() => {
-    if (preference !== null) {
+    if (typeof document === "undefined") {
       return;
     }
+    const root = document.documentElement;
+    if (themePack === "indigo") {
+      root.removeAttribute("data-theme");
+    } else {
+      root.setAttribute("data-theme", themePack);
+    }
+  }, [themePack]);
+
+  // Keep the browser chrome (address bar / status bar) in step with the theme.
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+    const meta = document.querySelector<HTMLMetaElement>(
+      'meta[name="theme-color"]',
+    );
+    if (!meta) return;
+    meta.setAttribute("content", isDarkMode ? "#0c0f1a" : "#f8fafc");
+  }, [isDarkMode]);
+
+  // Follow the OS color-scheme query (always tracked; only *used* while the
+  // mode is "system").
+  useEffect(() => {
     if (
       typeof window === "undefined" ||
       typeof window.matchMedia !== "function"
@@ -144,14 +215,30 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
     }
     mql.addListener(handleChange);
     return () => mql.removeListener(handleChange);
-  }, [preference]);
+  }, []);
 
-  // Persist the explicit preference (null means "follow system").
+  // Persist the explicit mode + pack choices.
   useEffect(() => {
-    writeStoredPreference(preference);
-  }, [preference]);
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(MODE_STORAGE_KEY, mode);
+      // Keep the legacy key in step so an older bundle in another tab agrees.
+      window.localStorage.setItem(LEGACY_MODE_STORAGE_KEY, mode);
+    } catch (error) {
+      console.warn("Failed to persist theme mode.", error);
+    }
+  }, [mode]);
 
-  // Persist user-customized accent/background palettes.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(PACK_STORAGE_KEY, themePack);
+    } catch (error) {
+      console.warn("Failed to persist theme pack.", error);
+    }
+  }, [themePack]);
+
+  // Persist user-customized accent/background palettes (legacy feature).
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -164,70 +251,76 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [lightTheme, darkTheme]);
 
-  // Apply accent customization only when a non-default accent is chosen.
-  // brand-500 and brand-600 are kept distinct so the gradient ramp survives.
-  useEffect(() => {
-    if (typeof document === "undefined") {
-      return;
+  const setMode = useCallback((next: ThemeMode) => setModeState(next), []);
+
+  const setThemePack = useCallback((pack: ThemePackId) => {
+    if (THEME_PACK_IDS.has(pack)) {
+      setThemePackState(pack);
     }
-    const root = document.documentElement;
-    const active = isDarkMode ? darkTheme : lightTheme;
-    const defaults = isDarkMode ? defaultDarkTheme : defaultLightTheme;
+  }, []);
 
-    if (active.accent !== defaults.accent) {
-      root.style.setProperty("--color-brand-500", active.accent);
-      root.style.setProperty("--color-brand-600", darken(active.accent));
-    } else {
-      root.style.removeProperty("--color-brand-500");
-      root.style.removeProperty("--color-brand-600");
-    }
+  const toggleDarkMode = useCallback(() => {
+    setModeState((prev) => {
+      const resolvedDark =
+        prev === "dark" || (prev === "system" && systemPrefersDark());
+      return resolvedDark ? "light" : "dark";
+    });
+  }, []);
 
-    if (active.background !== defaults.background) {
-      root.style.setProperty("--surface-body", active.background);
-    } else {
-      root.style.removeProperty("--surface-body");
-    }
-  }, [isDarkMode, lightTheme, darkTheme]);
+  const setDarkMode = useCallback((value: boolean) => {
+    setModeState(value ? "dark" : "light");
+  }, []);
 
-  const toggleDarkMode = () => {
-    setPreference(isDarkMode ? "light" : "dark");
-  };
+  const updateTheme = useCallback(
+    (target: "light" | "dark", updates: Partial<ThemeColors>) => {
+      if (target === "light") {
+        setLightTheme((prev) => ({ ...prev, ...updates }));
+      } else {
+        setDarkTheme((prev) => ({ ...prev, ...updates }));
+      }
+    },
+    [],
+  );
 
-  const setDarkMode = (value: boolean) => {
-    setPreference(value ? "dark" : "light");
-  };
-
-  const updateTheme = (
-    mode: "light" | "dark",
-    updates: Partial<ThemeColors>,
-  ) => {
-    if (mode === "light") {
-      setLightTheme((prev) => ({ ...prev, ...updates }));
-    } else {
-      setDarkTheme((prev) => ({ ...prev, ...updates }));
-    }
-  };
-
-  const resetTheme = () => {
+  const resetTheme = useCallback(() => {
     setLightTheme(defaultLightTheme);
     setDarkTheme(defaultDarkTheme);
-    setPreference(null);
-  };
+    setThemePackState("indigo");
+    setModeState("system");
+  }, []);
+
+  const value = useMemo<ThemeContextType>(
+    () => ({
+      isDarkMode,
+      mode,
+      setMode,
+      toggleDarkMode,
+      setDarkMode,
+      themePack,
+      setThemePack,
+      themePacks: THEME_PACKS,
+      lightTheme,
+      darkTheme,
+      updateTheme,
+      resetTheme,
+    }),
+    [
+      isDarkMode,
+      mode,
+      setMode,
+      toggleDarkMode,
+      setDarkMode,
+      themePack,
+      setThemePack,
+      lightTheme,
+      darkTheme,
+      updateTheme,
+      resetTheme,
+    ],
+  );
 
   return (
-    <ThemeContext.Provider
-      value={{
-        isDarkMode,
-        toggleDarkMode,
-        setDarkMode,
-        lightTheme,
-        darkTheme,
-        updateTheme,
-        resetTheme,
-      }}
-    >
-      {children}
-    </ThemeContext.Provider>
+    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
   );
 };
 

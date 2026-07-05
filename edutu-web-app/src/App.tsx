@@ -18,8 +18,10 @@ import { ArrowLeft, ShieldAlert } from "lucide-react";
 import AppWorkspaceShell from "./components/AppWorkspaceShell";
 import PublicEditorialShell from "./components/PublicEditorialShell";
 import GoogleOneTapGate from "./components/GoogleOneTapGate";
+import DeadlineReminders from "./components/DeadlineReminders";
 import PageSuspense from "./components/PageSuspense";
 import { consumePostAuthRedirect } from "./lib/auth";
+import { initializeCapacitor } from "./lib/capacitor";
 import { verifyAdminAccess } from "./lib/adminAccess";
 import { useAuth as useAppAuth } from "./hooks/useAuth";
 import { useAbsoluteSessionTimeout } from "./hooks/useAbsoluteSessionTimeout";
@@ -28,6 +30,9 @@ const AuthScreen = lazy(() => import("./components/AuthScreen"));
 const AuthCallback = lazy(() => import("./components/AuthCallback"));
 const ApplicationsPage = lazy(() => import("./components/ApplicationsPage"));
 const Dashboard = lazy(() => import("./components/Dashboard"));
+const PersonalizationScreen = lazy(
+  () => import("./components/PersonalizationScreen"),
+);
 const LandingPageV3 = lazy(() => import("./components/LandingPageV3"));
 const OpportunitiesPage = lazy(() => import("./components/OpportunitiesPage"));
 const OpportunityDetailFetcher = lazy(
@@ -50,7 +55,9 @@ const DeveloperDashboardPage = lazy(
   () => import("./components/DeveloperDashboardPage"),
 );
 const DeadlinesPage = lazy(() => import("./components/DeadlinesPage"));
+const GoalsPage = lazy(() => import("./components/GoalsPage"));
 const ProfilePage = lazy(() => import("./components/ProfilePage"));
+const RoadmapsPage = lazy(() => import("./components/RoadmapsPage"));
 const SavedPage = lazy(() => import("./components/SavedPage"));
 const SettingsPage = lazy(() => import("./components/SettingsPage"));
 
@@ -354,7 +361,10 @@ function UserDashboardPage() {
   const openOpportunity = useCallback(
     (opportunity: { id?: string }) => {
       if (!opportunity?.id) return;
-      navigate(`/app/opportunity/${opportunity.id}`);
+      // Hand the row to the detail route so it paints without refetching.
+      navigate(`/app/opportunity/${opportunity.id}`, {
+        state: { opportunity },
+      });
     },
     [navigate],
   );
@@ -413,6 +423,43 @@ function App() {
 
   useAbsoluteSessionTimeout(signOut);
 
+  useEffect(() => {
+    // Warm the opportunity cache at boot (dynamic import keeps the service
+    // out of the entry chunk) so the first feed screen paints from cache.
+    const warmup = window.setTimeout(() => {
+      void import("./services/opportunities")
+        .then((module) => module.fetchOpportunities())
+        .catch(() => {});
+    }, 300);
+    return () => window.clearTimeout(warmup);
+  }, []);
+
+  // Route native deep links / notification taps (Capacitor appUrlOpen) into
+  // the SPA. No-op on web — initializeCapacitor returns early off-native.
+  useEffect(() => {
+    let disposed = false;
+    void initializeCapacitor({
+      isDarkMode:
+        typeof document !== "undefined" &&
+        document.documentElement.classList.contains("dark"),
+      onDeepLink: (url) => {
+        try {
+          const parsed = new URL(url);
+          const path =
+            parsed.pathname && parsed.pathname !== "/"
+              ? `${parsed.pathname}${parsed.search}${parsed.hash}`
+              : "/dashboard";
+          if (!disposed) navigate(path);
+        } catch {
+          // Malformed deep link — ignore rather than crash.
+        }
+      },
+    });
+    return () => {
+      disposed = true;
+    };
+  }, [navigate]);
+
   const handleAuthSuccess = useCallback(
     (_userData: unknown) => {
       navigate(consumePostAuthRedirect("/dashboard"), { replace: true });
@@ -427,6 +474,7 @@ function App() {
   return (
     <>
       <GoogleOneTapGate />
+      {isSignedIn ? <DeadlineReminders /> : null}
       <Suspense fallback={<PageSuspense />}>
         <Routes>
       <Route
@@ -498,9 +546,23 @@ function App() {
       <Route path="/app/coach" element={<Navigate to="/dashboard" replace />} />
       <Route path="/cv" element={<Navigate to="/dashboard" replace />} />
       <Route path="/app/cv" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/roadmaps" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/roadmaps/:id" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/app/roadmaps" element={<Navigate to="/dashboard" replace />} />
+      <Route
+        path="/roadmaps"
+        element={
+          <AppWorkspaceRoute>
+            <RoadmapsPage />
+          </AppWorkspaceRoute>
+        }
+      />
+      <Route path="/roadmaps/:id" element={<Navigate to="/roadmaps" replace />} />
+      <Route
+        path="/app/roadmaps"
+        element={
+          <AppWorkspaceRoute>
+            <RoadmapsPage />
+          </AppWorkspaceRoute>
+        }
+      />
       <Route path="/roadmap-templates" element={<Navigate to="/dashboard" replace />} />
       <Route path="/templates" element={<Navigate to="/dashboard" replace />} />
       <Route path="/app/roadmap-templates" element={<Navigate to="/dashboard" replace />} />
@@ -561,6 +623,14 @@ function App() {
         }
       />
       <Route
+        path="/app/personalization"
+        element={
+          <AppWorkspaceRoute>
+            <PersonalizationScreen />
+          </AppWorkspaceRoute>
+        }
+      />
+      <Route
         path="/settings"
         element={
           <AppWorkspaceRoute>
@@ -592,8 +662,22 @@ function App() {
           </AppWorkspaceRoute>
         }
       />
-      <Route path="/goals" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/app/goals" element={<Navigate to="/dashboard" replace />} />
+      <Route
+        path="/goals"
+        element={
+          <AppWorkspaceRoute>
+            <GoalsPage />
+          </AppWorkspaceRoute>
+        }
+      />
+      <Route
+        path="/app/goals"
+        element={
+          <AppWorkspaceRoute>
+            <GoalsPage />
+          </AppWorkspaceRoute>
+        }
+      />
       <Route path="/wallet" element={<Navigate to="/dashboard" replace />} />
       <Route path="/premium" element={<Navigate to="/dashboard" replace />} />
       <Route path="/app/wallet" element={<Navigate to="/dashboard" replace />} />
