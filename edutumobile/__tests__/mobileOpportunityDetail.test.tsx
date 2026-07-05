@@ -443,6 +443,7 @@ describe('mobile opportunity detail route', () => {
       expect(mockSpendCredits).toHaveBeenCalledWith(10, 'AI Roadmap: Global Fellowship');
       expect(mockGenerateRoadmap).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'opp-1', title: 'Global Fellowship' }),
+        expect.any(Object),
       );
     } finally {
       (global as any).requestAnimationFrame = originalRequestAnimationFrame;
