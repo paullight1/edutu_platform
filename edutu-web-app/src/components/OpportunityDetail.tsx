@@ -624,11 +624,15 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
           },
         ]
       : []),
-    {
-      label: "Applicants",
-      value: applicantsCopy,
-      icon: UsersRound,
-    },
+    ...(opportunity.applicants
+      ? [
+          {
+            label: "Applicants",
+            value: applicantsCopy,
+            icon: UsersRound,
+          },
+        ]
+      : []),
     ...(opportunity.stipend !== undefined && opportunity.stipend !== null
       ? [
           {
@@ -754,11 +758,11 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
               />
             ) : null}
 
-            <section className="space-y-3">
-              <h2 className="font-display text-xl font-semibold tracking-tight text-text-primary">
-                Requirements
-              </h2>
-              {requirements.length > 0 ? (
+            {requirements.length > 0 ? (
+              <section className="space-y-3">
+                <h2 className="font-display text-xl font-semibold tracking-tight text-text-primary">
+                  Requirements
+                </h2>
                 <ul className="space-y-3 text-base leading-7 text-text-secondary">
                   {requirements.map((item, index) => (
                     <li key={`${item}-${index}`} className="flex gap-3">
@@ -767,29 +771,8 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                     </li>
                   ))}
                 </ul>
-              ) : (
-                <div className="rounded-xl border border-dashed border-subtle bg-surface-elevated px-4 py-4 text-sm leading-6 text-text-muted">
-                  <p className="font-medium text-text-secondary">
-                    Requirements not provided
-                  </p>
-                  <p className="mt-1">
-                    Eligibility details aren’t published for this opportunity.{" "}
-                    {applyUrl ? (
-                      <a
-                        href={applyUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-brand underline-offset-2 hover:underline"
-                      >
-                        Check the official application page
-                      </a>
-                    ) : (
-                      "Check the official organizer page when available."
-                    )}
-                  </p>
-                </div>
-              )}
-            </section>
+              </section>
+            ) : null}
 
             {eligibilityItems.length > 0 ? (
               <section className="space-y-3">
@@ -807,11 +790,11 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
               </section>
             ) : null}
 
-            <section className="space-y-3">
-              <h2 className="font-display text-xl font-semibold tracking-tight text-text-primary">
-                Benefits
-              </h2>
-              {benefits.length > 0 ? (
+            {benefits.length > 0 ? (
+              <section className="space-y-3">
+                <h2 className="font-display text-xl font-semibold tracking-tight text-text-primary">
+                  Benefits
+                </h2>
                 <ul className="space-y-3 text-base leading-7 text-text-secondary">
                   {benefits.map((item, index) => (
                     <li key={`${item}-${index}`} className="flex gap-3">
@@ -820,35 +803,14 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                     </li>
                   ))}
                 </ul>
-              ) : (
-                <div className="rounded-xl border border-dashed border-subtle bg-surface-elevated px-4 py-4 text-sm leading-6 text-text-muted">
-                  <p className="font-medium text-text-secondary">
-                    Benefits not listed
-                  </p>
-                  <p className="mt-1">
-                    Benefits aren’t published for this opportunity.{" "}
-                    {applyUrl ? (
-                      <a
-                        href={applyUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-brand underline-offset-2 hover:underline"
-                      >
-                        Confirm what’s offered on the official application page
-                      </a>
-                    ) : (
-                      "Confirm what’s offered on the official organizer page when available."
-                    )}
-                  </p>
-                </div>
-              )}
-            </section>
+              </section>
+            ) : null}
 
-            <section className="space-y-3">
-              <h2 className="font-display text-xl font-semibold tracking-tight text-text-primary">
-                Application process
-              </h2>
-              {applicationSteps.length > 0 ? (
+            {applicationSteps.length > 0 ? (
+              <section className="space-y-3">
+                <h2 className="font-display text-xl font-semibold tracking-tight text-text-primary">
+                  Application process
+                </h2>
                 <ol className="space-y-3 text-base leading-7 text-text-secondary">
                   {applicationSteps.map((item, index) => (
                     <li key={`${item}-${index}`} className="flex gap-4">
@@ -859,29 +821,8 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
                     </li>
                   ))}
                 </ol>
-              ) : (
-                <div className="rounded-xl border border-dashed border-subtle bg-surface-elevated px-4 py-4 text-sm leading-6 text-text-muted">
-                  <p className="font-medium text-text-secondary">
-                    Application steps not published
-                  </p>
-                  <p className="mt-1">
-                    {applyUrl ? (
-                      <a
-                        href={applyUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-brand underline-offset-2 hover:underline"
-                      >
-                        Open the official application page
-                      </a>
-                    ) : (
-                      "Open the official application page when available"
-                    )}{" "}
-                    to follow the organizer’s steps.
-                  </p>
-                </div>
-              )}
-            </section>
+              </section>
+            ) : null}
 
             {opportunity.tags?.filter(
               (tag) => !PUBLIC_TAG_BLOCKLIST.has(tag.toLowerCase()),

@@ -1,5 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { ArrowLeft, Briefcase, RefreshCw, RotateCcw } from 'lucide-react';
+import { Briefcase, RefreshCw } from 'lucide-react';
 import { captureException } from '../lib/sentry';
 
 interface Props {
@@ -56,10 +56,6 @@ class ErrorBoundary extends Component<Props, State> {
         });
     };
 
-    handleReload = (): void => {
-        window.location.reload();
-    };
-
     render() {
         if (this.state.hasError) {
             // Custom fallback UI provided
@@ -81,7 +77,7 @@ class ErrorBoundary extends Component<Props, State> {
                             We could not load this page. Try again, or go back to the opportunities feed.
                         </p>
 
-                        <div className="mt-6 flex flex-col gap-2">
+                        <div className="mt-6 flex flex-col items-center gap-3">
                             <button
                                 type="button"
                                 onClick={this.handleRetry}
@@ -93,19 +89,9 @@ class ErrorBoundary extends Component<Props, State> {
 
                             <button
                                 type="button"
-                                onClick={this.handleReload}
-                                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-subtle bg-white px-4 text-sm font-semibold text-text-secondary transition-colors hover:bg-surface-elevated"
-                            >
-                                <RotateCcw className="h-4 w-4" />
-                                Reload page
-                            </button>
-
-                            <button
-                                type="button"
                                 onClick={this.handleGoHome}
-                                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-subtle bg-white px-4 text-sm font-semibold text-text-secondary transition-colors hover:bg-surface-elevated"
+                                className="text-sm font-semibold text-text-muted transition-colors hover:text-brand"
                             >
-                                <ArrowLeft className="h-4 w-4" />
                                 Back to opportunities
                             </button>
                         </div>

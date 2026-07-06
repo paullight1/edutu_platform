@@ -8,10 +8,15 @@ import {
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
 import {
+  Bookmark,
   Briefcase,
+  ChevronRight,
   Loader2,
+  LogOut,
   PencilLine,
   Save,
+  Send,
+  Settings,
   Sparkles,
   UserCheck,
 } from "lucide-react";
@@ -108,7 +113,8 @@ const SKILLS_TEXTAREA_CLASS_NAME =
 export default function ProfilePage() {
   const navigate = useNavigate();
   const { getToken } = useClerkAuth();
-  const { user } = useAppAuth();
+  const { user, signOut } = useAppAuth();
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const [profile, setProfile] = useState<BackendProfile | null>(null);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -230,6 +236,17 @@ export default function ProfilePage() {
   const completeness = profile?.completeness;
   const completenessPercent = completeness?.percent ?? 0;
 
+  const handleSignOut = async () => {
+    if (isSigningOut) return;
+    setIsSigningOut(true);
+    try {
+      await signOut();
+      navigate("/");
+    } finally {
+      setIsSigningOut(false);
+    }
+  };
+
   const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSaving(true);
@@ -326,6 +343,19 @@ export default function ProfilePage() {
                     {formatDate(profile?.updatedAt || profile?.updated_at)}
                   </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => void handleSignOut()}
+                  disabled={isSigningOut}
+                  className="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-danger/30 bg-danger/5 px-4 text-sm font-semibold text-danger transition hover:bg-danger/10 disabled:cursor-wait disabled:opacity-60"
+                >
+                  {isSigningOut ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <LogOut size={16} />
+                  )}
+                  {isSigningOut ? "Signing out…" : "Log out"}
+                </button>
               </div>
             </div>
           </section>
@@ -642,6 +672,61 @@ export default function ProfilePage() {
             </form>
 
             <aside className="space-y-5">
+              <div className="rounded-[20px] border border-subtle bg-surface-layer p-3 shadow-soft">
+                <p className="px-2 pb-1 pt-2 text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">
+                  Account
+                </p>
+                <nav className="mt-1 space-y-1">
+                  {(
+                    [
+                      { label: "Settings", icon: Settings, to: "/app/settings" },
+                      {
+                        label: "Saved opportunities",
+                        icon: Bookmark,
+                        to: "/app/saved",
+                      },
+                      {
+                        label: "My applications",
+                        icon: Send,
+                        to: "/app/applications",
+                      },
+                    ] as const
+                  ).map(({ label, icon: Icon, to }) => (
+                    <button
+                      key={to}
+                      type="button"
+                      onClick={() => navigate(to)}
+                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-text-secondary transition hover:bg-surface-elevated hover:text-text-primary"
+                    >
+                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-elevated text-text-secondary">
+                        <Icon size={17} />
+                      </span>
+                      <span className="flex-1 truncate">{label}</span>
+                      <ChevronRight size={16} className="text-text-muted" />
+                    </button>
+                  ))}
+                </nav>
+                <div className="mt-1 border-t border-subtle pt-1">
+                  <button
+                    type="button"
+                    onClick={() => void handleSignOut()}
+                    disabled={isSigningOut}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-danger transition hover:bg-danger/10 disabled:cursor-wait disabled:opacity-60"
+                  >
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-danger/10 text-danger">
+                      {isSigningOut ? (
+                        <Loader2 size={17} className="animate-spin" />
+                      ) : (
+                        <LogOut size={17} />
+                      )}
+                    </span>
+                    <span className="flex-1 truncate">
+                      {isSigningOut ? "Signing out…" : "Log out"}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
               <div
                 className="rounded-[20px] border border-subtle bg-surface-layer p-5 shadow-soft"
               >

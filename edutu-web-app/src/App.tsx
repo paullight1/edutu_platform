@@ -56,6 +56,7 @@ const DeveloperDashboardPage = lazy(
 );
 const DeadlinesPage = lazy(() => import("./components/DeadlinesPage"));
 const ProfilePage = lazy(() => import("./components/ProfilePage"));
+const NotificationsPage = lazy(() => import("./components/NotificationsPage"));
 const SavedPage = lazy(() => import("./components/SavedPage"));
 const SettingsPage = lazy(() => import("./components/SettingsPage"));
 
@@ -589,6 +590,22 @@ function App() {
       <Route
         path="/app/applied"
         element={<Navigate to="/app/applications" replace />}
+      />
+      <Route
+        path="/notifications"
+        element={
+          <AppWorkspaceRoute>
+            <NotificationsPage />
+          </AppWorkspaceRoute>
+        }
+      />
+      <Route
+        path="/app/notifications"
+        element={
+          <AppWorkspaceRoute>
+            <NotificationsPage />
+          </AppWorkspaceRoute>
+        }
       />
       <Route
         path="/profile"

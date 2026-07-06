@@ -9,14 +9,20 @@ import {
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import {
+  ArrowUpRight,
+  Award,
   Bookmark,
+  Briefcase,
   Calendar,
+  GraduationCap,
   MapPin,
   RefreshCw,
+  Rocket,
   Search,
   Share2,
   X,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { format } from "date-fns";
 import { useTranslation } from "react-i18next";
 import { useOpportunities } from "../hooks/useOpportunities";
@@ -105,12 +111,102 @@ function opportunityMatchesCategory(opportunity: Opportunity, category: string) 
   );
 }
 
-const categoryOrder = [
-  "scholarships",
-  "internships",
-  "fellowships",
-  "programs",
-] as const;
+// Colourful "collection" cards shown at the top of the page. Each one links to
+// a filtered view (`?category=`) so tapping a card navigates to a dedicated
+// page listing just those opportunities.
+type Collection = {
+  key: string;
+  categoryId: string;
+  labelKey: string;
+  Icon: LucideIcon;
+  card: string;
+  chip: string;
+  accentText: string;
+};
+
+const COLLECTIONS: Collection[] = [
+  {
+    key: "scholarships",
+    categoryId: "scholarships",
+    labelKey: "opportunities.categories.scholarships",
+    Icon: GraduationCap,
+    card: "border-amber-500/20 bg-amber-500/[0.07] hover:border-amber-500/50 hover:bg-amber-500/[0.12] dark:border-amber-400/20 dark:bg-amber-400/[0.08]",
+    chip: "bg-amber-500/15 text-amber-600 dark:text-amber-300",
+    accentText: "text-amber-600 dark:text-amber-300",
+  },
+  {
+    key: "internships",
+    categoryId: "internships",
+    labelKey: "opportunities.categories.internships",
+    Icon: Briefcase,
+    card: "border-blue-500/20 bg-blue-500/[0.07] hover:border-blue-500/50 hover:bg-blue-500/[0.12] dark:border-blue-400/20 dark:bg-blue-400/[0.08]",
+    chip: "bg-blue-500/15 text-blue-600 dark:text-blue-300",
+    accentText: "text-blue-600 dark:text-blue-300",
+  },
+  {
+    key: "fellowships",
+    categoryId: "fellowships",
+    labelKey: "opportunities.categories.fellowships",
+    Icon: Award,
+    card: "border-violet-500/20 bg-violet-500/[0.07] hover:border-violet-500/50 hover:bg-violet-500/[0.12] dark:border-violet-400/20 dark:bg-violet-400/[0.08]",
+    chip: "bg-violet-500/15 text-violet-600 dark:text-violet-300",
+    accentText: "text-violet-600 dark:text-violet-300",
+  },
+  {
+    key: "programs",
+    categoryId: "programs",
+    labelKey: "opportunities.categories.programs",
+    Icon: Rocket,
+    card: "border-emerald-500/20 bg-emerald-500/[0.07] hover:border-emerald-500/50 hover:bg-emerald-500/[0.12] dark:border-emerald-400/20 dark:bg-emerald-400/[0.08]",
+    chip: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
+    accentText: "text-emerald-600 dark:text-emerald-300",
+  },
+];
+
+function CollectionCard({
+  to,
+  label,
+  count,
+  Icon,
+  card,
+  chip,
+  accentText,
+}: {
+  to: string;
+  label: string;
+  count: number;
+  Icon: LucideIcon;
+  card: string;
+  chip: string;
+  accentText: string;
+}) {
+  return (
+    <Link
+      to={to}
+      className={`group relative flex flex-col justify-between gap-5 overflow-hidden rounded-2xl border p-4 shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 sm:gap-6 sm:p-5 ${card}`}
+    >
+      <div className="flex items-start justify-between">
+        <span
+          className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${chip}`}
+        >
+          <Icon size={18} />
+        </span>
+        <ArrowUpRight
+          size={16}
+          className={`translate-y-0.5 opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100 ${accentText}`}
+        />
+      </div>
+      <div>
+        <h3 className="font-display text-sm font-semibold leading-tight tracking-tight text-text-primary sm:text-base">
+          {label}
+        </h3>
+        <p className={`mt-1 text-xs font-semibold ${accentText}`}>
+          {count} open
+        </p>
+      </div>
+    </Link>
+  );
+}
 
 // Token-based search: every word in the query must appear somewhere in the
 // opportunity's searchable text. Beats a single `.includes()` for multi-word
@@ -137,11 +233,6 @@ function matchesSearchQuery(opportunity: Opportunity, query: string): boolean {
   if (tokens.length === 0) return true;
   const haystack = buildSearchHaystack(opportunity);
   return tokens.every((token) => haystack.includes(token));
-}
-
-function isOpportunityRemote(opportunity: Opportunity): boolean {
-  if (opportunity.isRemote) return true;
-  return /remote|anywhere|online|virtual/i.test(opportunity.location || "");
 }
 
 function isRollingDeadline(deadline?: string | null): boolean {
@@ -453,7 +544,6 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
   const [bookmarkingId, setBookmarkingId] = useState<string | null>(null);
   const [showClosed, setShowClosed] = useState(false);
-  const [remoteOnly, setRemoteOnly] = useState(false);
   const [sortOption, setSortOption] = useState<SortOption>("recommended");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
@@ -547,6 +637,37 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   const selectedCategoryId = searchParams.get("category")?.toLowerCase() ?? "";
   const selectedCategory = categoryFilters[selectedCategoryId] ?? null;
 
+  const basePath = embedded ? "/app" : "";
+  const collectionPath = useCallback(
+    (collection: Collection) =>
+      `${basePath}/opportunities?category=${collection.categoryId}`,
+    [basePath],
+  );
+
+  // Live counts for each collection card, so users see how many open listings
+  // sit behind a card before tapping it. Respects the "show closed" toggle.
+  const collectionCounts = useMemo(() => {
+    const pool = showClosed
+      ? opportunities
+      : opportunities.filter((o) => !isOpportunityExpired(o));
+    const counts: Record<string, number> = {};
+    for (const collection of COLLECTIONS) {
+      counts[collection.key] = pool.filter((o) =>
+        opportunityMatchesCategory(o, collection.categoryId),
+      ).length;
+    }
+    return counts;
+  }, [opportunities, showClosed]);
+
+  const activeCollection = selectedCategory
+    ? {
+        title: t(selectedCategory.labelKey),
+        description: t("opportunities.browseCategory", {
+          label: t(selectedCategory.labelKey).toLowerCase(),
+        }),
+      }
+    : null;
+
   // Defer the heavy filter/score pass so typing stays responsive on large lists.
   const deferredSearchTerm = useDeferredValue(searchTerm);
 
@@ -555,10 +676,6 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
 
     return opportunities.filter((opportunity) => {
       if (!showClosed && isOpportunityExpired(opportunity)) {
-        return false;
-      }
-
-      if (remoteOnly && !isOpportunityRemote(opportunity)) {
         return false;
       }
 
@@ -576,7 +693,6 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
     deferredSearchTerm,
     selectedCategoryId,
     showClosed,
-    remoteOnly,
   ]);
 
   const matchInsights = useMemo(() => {
@@ -633,7 +749,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   }, [hasMoreToShow, loadMore]);
 
   const hasActiveFilters = Boolean(
-    searchTerm.trim() || selectedCategoryId || showClosed || remoteOnly,
+    searchTerm.trim() || selectedCategoryId || showClosed,
   );
 
   const latestUpdatedAt = useMemo(
@@ -701,27 +817,18 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
     setSearchTerm("");
   };
 
-  const clearCategory = () => {
+  // Return to the browse landing (the colourful collection cards) by dropping
+  // the collection filters from the URL.
+  const clearCollection = () => {
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete("category");
-    setSearchParams(nextParams, { replace: true });
-  };
-
-  const selectCategory = (categoryId: string) => {
-    const nextParams = new URLSearchParams(searchParams);
-    if (!categoryId || categoryId === selectedCategoryId) {
-      nextParams.delete("category");
-    } else {
-      nextParams.set("category", categoryId);
-    }
-    setSearchParams(nextParams, { replace: true });
+    setSearchParams(nextParams);
   };
 
   const clearAllFilters = () => {
     setSearchTerm("");
     setShowClosed(false);
-    setRemoteOnly(false);
-    setSearchParams(new URLSearchParams(), { replace: true });
+    setSearchParams(new URLSearchParams());
   };
 
   const handleShareOpportunity = async (opportunity: Opportunity) => {
@@ -740,7 +847,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
 
   const content = (
     <>
-        {selectedCategory ? (
+        {activeCollection ? (
           <section className="mb-4 rounded-2xl border border-subtle bg-surface-layer p-4 shadow-soft">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -748,15 +855,15 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                   {t("navigation.explore")}
                 </p>
                 <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-text-primary">
-                  {t(selectedCategory.labelKey)}
+                  {activeCollection.title}
                 </h1>
                 <p className="mt-1 text-sm leading-6 text-text-muted">
-                  {t("opportunities.browseCategory", { label: t(selectedCategory.labelKey).toLowerCase() })}
+                  {activeCollection.description}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={clearCategory}
+                onClick={clearCollection}
                 className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-subtle bg-surface-layer px-3 text-xs font-semibold text-text-secondary shadow-soft transition hover:bg-surface-elevated"
               >
                 {t("common.all")}
@@ -764,54 +871,44 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
               </button>
             </div>
           </section>
-        ) : null}
+        ) : (
+          <section className="mb-5">
+            <div className="mb-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+                {t("navigation.explore")}
+              </p>
+              <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-text-primary">
+                Browse by category
+              </h1>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              {COLLECTIONS.map((collection) => (
+                <CollectionCard
+                  key={collection.key}
+                  to={collectionPath(collection)}
+                  label={t(collection.labelKey)}
+                  count={collectionCounts[collection.key] ?? 0}
+                  Icon={collection.Icon}
+                  card={collection.card}
+                  chip={collection.chip}
+                  accentText={collection.accentText}
+                />
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className={`sticky ${embedded ? "top-[72px]" : "top-[76px]"} z-20 rounded-2xl border border-subtle bg-surface-layer p-3 shadow-soft backdrop-blur-xl`}>
           <div className="mb-3 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <button
-              type="button"
-              onClick={() => selectCategory("")}
-              aria-pressed={!selectedCategoryId}
-              className={`inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-xs font-semibold transition ${
-                !selectedCategoryId
-                  ? "border-brand bg-brand text-white"
-                  : "border-subtle bg-surface-layer text-text-secondary hover:border-strong"
-              }`}
-            >
-              {t("common.all")}
-            </button>
-            {categoryOrder.map((categoryId) => {
-              const active = selectedCategoryId === categoryId;
-              return (
-                <button
-                  key={categoryId}
-                  type="button"
-                  onClick={() => selectCategory(categoryId)}
-                  aria-pressed={active}
-                  className={`inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-xs font-semibold transition ${
-                    active
-                      ? "border-brand bg-brand text-white"
-                      : "border-subtle bg-surface-layer text-text-secondary hover:border-strong"
-                  }`}
-                >
-                  {t(categoryFilters[categoryId].labelKey)}
-                </button>
-              );
-            })}
-            <span className="mx-1 h-5 w-px shrink-0 bg-border-subtle" />
-            <button
-              type="button"
-              onClick={() => setRemoteOnly((value) => !value)}
-              aria-pressed={remoteOnly}
-              className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition ${
-                remoteOnly
-                  ? "border-success bg-success text-white"
-                  : "border-subtle bg-surface-layer text-text-secondary hover:border-strong"
-              }`}
-            >
-              <MapPin size={13} />
-              Remote
-            </button>
+            <label className="inline-flex h-8 shrink-0 cursor-pointer select-none items-center gap-2 rounded-full border border-subtle bg-surface-layer px-3 text-xs font-semibold text-text-secondary transition hover:border-strong">
+              <input
+                type="checkbox"
+                checked={showClosed}
+                onChange={(event) => setShowClosed(event.target.checked)}
+                className="h-3.5 w-3.5 rounded border-subtle text-brand focus:ring-brand/40"
+              />
+              {t("opportunities.showClosed")}
+            </label>
           </div>
           <div className="relative mb-3 sm:hidden">
             <Search
@@ -888,15 +985,6 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                 </button>
               ) : null}
               </div>
-              <label className="inline-flex h-11 shrink-0 cursor-pointer select-none items-center gap-2 rounded-md border border-subtle bg-surface-layer px-3 text-sm text-text-secondary">
-                <input
-                  type="checkbox"
-                  checked={showClosed}
-                  onChange={(event) => setShowClosed(event.target.checked)}
-                  className="h-4 w-4 rounded border-subtle text-brand focus:ring-brand/40"
-                />
-                {t("opportunities.showClosed")}
-              </label>
             </div>
 
             <div className="flex flex-col gap-3 border-t border-subtle pt-3 sm:flex-row sm:items-center sm:justify-between">
