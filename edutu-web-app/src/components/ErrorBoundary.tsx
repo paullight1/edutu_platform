@@ -65,7 +65,7 @@ class ErrorBoundary extends Component<Props, State> {
 
             return (
                 <div className="flex min-h-[100dvh] items-center justify-center bg-surface-body px-5 py-10 text-text-primary">
-                    <section className="w-full max-w-sm rounded-2xl border border-subtle bg-white p-6 text-center shadow-soft">
+                    <section className="w-full max-w-sm rounded-2xl border border-subtle bg-surface-layer p-6 text-center shadow-soft">
                         <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl bg-brand/10 text-brand">
                             <Briefcase className="h-8 w-8" />
                         </div>

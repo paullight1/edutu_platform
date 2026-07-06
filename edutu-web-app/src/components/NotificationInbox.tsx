@@ -229,7 +229,7 @@ export default function NotificationInbox({
               ))}
             </div>
             {preferenceError ? (
-              <p className="mt-3 rounded-xl bg-danger/100/10 px-3 py-2 text-xs font-semibold text-danger">
+              <p className="mt-3 rounded-xl bg-danger/10 px-3 py-2 text-xs font-semibold text-danger">
                 {preferenceError}
               </p>
             ) : null}

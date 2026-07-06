@@ -45,7 +45,7 @@ import { stripInternalOpportunityFieldsBatch } from "./public-opportunity-projec
 
 // Caps for the anonymous/learner public feed. The paid API (/v1) is uncapped
 // and returns the full normalized DTO; this surface only powers browse UI.
-const PUBLIC_FEED_MAX_LIMIT = 24;
+const PUBLIC_FEED_MAX_LIMIT = 60;
 const PUBLIC_FEED_MAX_OFFSET = 480;
 
 @Controller("opportunities")
@@ -57,7 +57,11 @@ export class OpportunitiesController {
   ) {}
 
   @Public()
-  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  // The browse UI walks this feed page-by-page (each page is hard-capped at
+  // PUBLIC_FEED_MAX_LIMIT rows), so a single full-catalog load fans out into
+  // ~10-15 requests. Keep the ceiling high enough for one paginated load plus
+  // a background revalidation, while still bounding scraping.
+  @Throttle({ default: { limit: 80, ttl: 60000 } })
   @Get()
   async findAll(
     @Res({ passthrough: true }) response: Response,

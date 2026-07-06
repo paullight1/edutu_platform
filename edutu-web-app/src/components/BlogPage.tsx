@@ -1,91 +1,61 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Calendar, Clock, User, Search, ChevronRight, BookOpen, TrendingUp, Lightbulb } from 'lucide-react';
 import PublicHeader from './PublicHeader';
-
-interface BlogPost {
-  id: string;
-  title: string;
-  excerpt: string;
-  author: string;
-  date: string;
-  readTime: string;
-  category: string;
-  image?: string;
-  featured?: boolean;
-}
-
-const BLOG_POSTS: BlogPost[] = [
-  {
-    id: '1',
-    title: 'How to Win Scholarships in 2026: AI-Powered Strategies',
-    excerpt: 'Discover how AI is transforming the way students find and apply for scholarships worldwide. Learn the top strategies that successful applicants use.',
-    author: 'Paul Adeyemi',
-    date: 'May 5, 2026',
-    readTime: '5 min read',
-    category: 'Scholarships',
-    featured: true,
-  },
-  {
-    id: '2',
-    title: 'Building a Strong Opportunity Search Routine',
-    excerpt: 'Learn how to organize weekly discovery, deadlines, and applications around the opportunities available in your field.',
-    author: 'Sarah Chen',
-    date: 'Apr 28, 2026',
-    readTime: '7 min read',
-    category: 'Career',
-  },
-  {
-    id: '3',
-    title: 'Top 10 Fellowships for African Students in 2026',
-    excerpt: 'A curated list of the most prestigious fellowship programs open to African students, with application tips and deadlines.',
-    author: 'James Okafor',
-    date: 'Apr 20, 2026',
-    readTime: '6 min read',
-    category: 'Fellowships',
-  },
-  {
-    id: '4',
-    title: 'How to Write a Winning Personal Statement',
-    excerpt: 'Master the art of writing compelling personal statements that make admissions committees take notice.',
-    author: 'Maria Santos',
-    date: 'Apr 12, 2026',
-    readTime: '8 min read',
-    category: 'Applications',
-  },
-  {
-    id: '5',
-    title: 'Navigating Study Abroad: Visa, Funding & Culture',
-    excerpt: 'Everything you need to know about studying abroad — from visa applications to cultural adaptation and financial planning.',
-    author: 'Paul Adeyemi',
-    date: 'Apr 5, 2026',
-    readTime: '10 min read',
-    category: 'Study Abroad',
-  },
-  {
-    id: '6',
-    title: 'Leveraging AI for Job Search: Tools That Actually Work',
-    excerpt: 'From resume optimization to interview prep, explore the AI tools that are giving job seekers a real competitive edge.',
-    author: 'Sarah Chen',
-    date: 'Mar 28, 2026',
-    readTime: '6 min read',
-    category: 'Career',
-  },
-];
+import {
+  fetchPublishedPosts,
+  formatPostDate,
+  readingTime,
+  type BlogPost,
+} from '../services/blog';
 
 const BlogPage: React.FC = () => {
   const reduceMotion = useReducedMotion();
   const [searchQuery, setSearchQuery] = useState('');
+  const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  const filteredPosts = BLOG_POSTS.filter((post) => {
-    const matchesSearch = searchQuery === '' ||
-      post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      post.excerpt.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSearch;
-  });
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setError(false);
+    fetchPublishedPosts({ limit: 60, signal: controller.signal })
+      .then((rows) => setPosts(rows))
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        console.error('Failed to load blog posts:', err);
+        setError(true);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, []);
 
-  const featuredPost = BLOG_POSTS.find((p) => p.featured);
+  const filteredPosts = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return posts;
+    return posts.filter((post) => {
+      const excerpt = post.excerpt ?? '';
+      return (
+        post.title.toLowerCase().includes(query) ||
+        excerpt.toLowerCase().includes(query) ||
+        (post.category ?? '').toLowerCase().includes(query)
+      );
+    });
+  }, [posts, searchQuery]);
+
+  const featuredPost = useMemo(
+    () => posts.find((p) => p.featured) ?? null,
+    [posts],
+  );
+
+  const showFeatured = featuredPost && searchQuery === '';
+  const gridPosts = filteredPosts.filter(
+    (post) => !showFeatured || post.id !== featuredPost?.id,
+  );
 
   return (
     <div className="min-h-[100dvh] overflow-x-hidden bg-surface-body font-body text-text-primary">
@@ -125,88 +95,148 @@ const BlogPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Loading state */}
+          {loading && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-64 rounded-2xl border border-subtle bg-surface-layer animate-pulse"
+                />
+              ))}
+            </div>
+          )}
+
           {/* Featured Post */}
-          {featuredPost && searchQuery === '' && (
+          {!loading && showFeatured && featuredPost && (
             <motion.div
               initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
               animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
-              className="mb-12 p-8 rounded-2xl cursor-pointer border border-subtle bg-surface-layer shadow-soft transition-all hover:-translate-y-1 hover:border-brand/40 hover:shadow-elevated"
+              className="mb-12"
             >
-              <div className="flex items-center gap-2 mb-4">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-brand/10 text-brand">
-                  <BookOpen size={12} /> Featured
-                </span>
-                <span className="text-xs font-medium text-text-muted">{featuredPost.category}</span>
-              </div>
-              <h2 className="font-display text-xl md:text-2xl font-semibold tracking-tight mb-3 text-text-primary">
-                {featuredPost.title}
-              </h2>
-              <p className="text-base leading-[1.6] mb-6 text-text-secondary">
-                {featuredPost.excerpt}
-              </p>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-text-muted">
-                <span className="inline-flex items-center gap-2">
-                  <User size={14} />{featuredPost.author}
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <Calendar size={14} />{featuredPost.date}
-                </span>
-                <span className="inline-flex items-center gap-2">
-                  <Clock size={14} />{featuredPost.readTime}
-                </span>
-              </div>
+              <Link
+                to={`/blog/${featuredPost.slug}`}
+                className="block no-underline p-8 rounded-2xl border border-subtle bg-surface-layer shadow-soft transition-all hover:-translate-y-1 hover:border-brand/40 hover:shadow-elevated"
+              >
+                {featuredPost.coverImage && (
+                  <div className="mb-6 overflow-hidden rounded-xl">
+                    <img
+                      src={featuredPost.coverImage}
+                      alt={featuredPost.title}
+                      loading="lazy"
+                      className="h-56 w-full object-cover"
+                    />
+                  </div>
+                )}
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-brand/10 text-brand">
+                    <BookOpen size={12} /> Featured
+                  </span>
+                  {featuredPost.category && (
+                    <span className="text-xs font-medium text-text-muted capitalize">{featuredPost.category}</span>
+                  )}
+                </div>
+                <h2 className="font-display text-xl md:text-2xl font-semibold tracking-tight mb-3 text-text-primary">
+                  {featuredPost.title}
+                </h2>
+                {featuredPost.excerpt && (
+                  <p className="text-base leading-[1.6] mb-6 text-text-secondary">
+                    {featuredPost.excerpt}
+                  </p>
+                )}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-text-muted">
+                  <span className="inline-flex items-center gap-2">
+                    <User size={14} />{featuredPost.authorName}
+                  </span>
+                  {formatPostDate(featuredPost.publishedAt) && (
+                    <span className="inline-flex items-center gap-2">
+                      <Calendar size={14} />{formatPostDate(featuredPost.publishedAt)}
+                    </span>
+                  )}
+                  <span className="inline-flex items-center gap-2">
+                    <Clock size={14} />{readingTime(featuredPost.content)}
+                  </span>
+                </div>
+              </Link>
             </motion.div>
           )}
 
           {/* Blog Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredPosts
-              .filter((p) => !p.featured || searchQuery !== '')
-              .map((post, index) => (
+          {!loading && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {gridPosts.map((post, index) => (
                 <motion.article
                   key={post.id}
                   initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
                   animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: index * 0.05 }}
-                  className="group flex flex-col p-6 rounded-2xl cursor-pointer border border-subtle bg-surface-layer shadow-soft transition-all hover:-translate-y-1 hover:border-brand/40 hover:shadow-elevated"
                 >
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-brand/10 text-brand">
-                      {post.category}
-                    </span>
-                  </div>
-                  <h3 className="font-display text-lg font-semibold tracking-tight mb-2 line-clamp-2 text-text-primary">
-                    {post.title}
-                  </h3>
-                  <p className="text-sm leading-[1.6] mb-4 line-clamp-3 text-text-secondary">
-                    {post.excerpt}
-                  </p>
-                  <div className="mt-auto flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1">
-                        <User size={12} className="text-text-muted" />
-                        <span className="text-xs text-text-muted">{post.author}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Clock size={12} className="text-text-muted" />
-                        <span className="text-xs text-text-muted">{post.readTime}</span>
+                  <Link
+                    to={`/blog/${post.slug}`}
+                    className="group flex h-full flex-col rounded-2xl no-underline overflow-hidden border border-subtle bg-surface-layer shadow-soft transition-all hover:-translate-y-1 hover:border-brand/40 hover:shadow-elevated"
+                  >
+                    {post.coverImage && (
+                      <img
+                        src={post.coverImage}
+                        alt={post.title}
+                        loading="lazy"
+                        className="h-40 w-full object-cover"
+                      />
+                    )}
+                    <div className="flex flex-1 flex-col p-6">
+                      {post.category && (
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="px-3 py-1 rounded-full text-xs font-semibold bg-brand/10 text-brand capitalize">
+                            {post.category}
+                          </span>
+                        </div>
+                      )}
+                      <h3 className="font-display text-lg font-semibold tracking-tight mb-2 line-clamp-2 text-text-primary">
+                        {post.title}
+                      </h3>
+                      {post.excerpt && (
+                        <p className="text-sm leading-[1.6] mb-4 line-clamp-3 text-text-secondary">
+                          {post.excerpt}
+                        </p>
+                      )}
+                      <div className="mt-auto flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-1">
+                            <User size={12} className="text-text-muted" />
+                            <span className="text-xs text-text-muted">{post.authorName}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock size={12} className="text-text-muted" />
+                            <span className="text-xs text-text-muted">{readingTime(post.content)}</span>
+                          </div>
+                        </div>
+                        <ChevronRight size={16} className="text-brand transition-transform group-hover:translate-x-1" />
                       </div>
                     </div>
-                    <ChevronRight size={16} className="text-brand transition-transform group-hover:translate-x-1" />
-                  </div>
+                  </Link>
                 </motion.article>
               ))}
-          </div>
+            </div>
+          )}
 
-          {filteredPosts.length === 0 && (
+          {/* Empty / error state */}
+          {!loading && gridPosts.length === 0 && !showFeatured && (
             <div className="text-center py-16">
               <Lightbulb size={48} className="mx-auto mb-4 text-text-muted" />
               <h3 className="font-display text-xl font-semibold tracking-tight mb-2 text-text-primary">
-                No articles found
+                {error
+                  ? 'Unable to load articles'
+                  : searchQuery
+                    ? 'No articles found'
+                    : 'No articles yet'}
               </h3>
               <p className="text-text-muted">
-                Try a different search term or category.
+                {error
+                  ? 'Please try again in a moment.'
+                  : searchQuery
+                    ? 'Try a different search term or category.'
+                    : 'Check back soon for new insights and resources.'}
               </p>
             </div>
           )}

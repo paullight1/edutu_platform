@@ -553,7 +553,16 @@ async function requestStaticOpportunitySnapshot(
   return rows.map(normaliseOpportunity);
 }
 
-async function requestOpportunityList(
+// The backend public feed caps each page (PUBLIC_FEED_PAGE_SIZE = 60) and caps
+// offset depth (PUBLIC_FEED_MAX_OFFSET = 480) as an anti-harvest measure. A
+// single request therefore never returns more than 60 rows, so to browse the
+// full active catalog we pull the pages until a short/empty page or the cap.
+// Must match the backend's page size — a page shorter than this marks the end
+// of the catalog and stops the pagination walk.
+const PUBLIC_FEED_PAGE_SIZE = 60;
+const PUBLIC_FEED_MAX_OFFSET = 480;
+
+async function requestOpportunityPage(
   options: FetchOptions = {},
 ): Promise<Opportunity[]> {
   const params = new URLSearchParams();
@@ -593,6 +602,70 @@ async function requestOpportunityList(
   const rows = extractOpportunityRows(payload);
 
   return rows.map(normaliseOpportunity);
+}
+
+async function requestOpportunityList(
+  options: FetchOptions = {},
+): Promise<Opportunity[]> {
+  // Callers that ask for an explicit single page (limit/offset) get exactly
+  // that page. The default browse feed pulls every page so the UI shows the
+  // whole active catalog instead of just the first capped page.
+  if (
+    (typeof options.limit === "number" && options.limit > 0) ||
+    (typeof options.offset === "number" && options.offset > 0)
+  ) {
+    return requestOpportunityPage(options);
+  }
+
+  const aggregated: Opportunity[] = [];
+  const seen = new Set<string>();
+
+  const pushPage = (page: Opportunity[]) => {
+    for (const opportunity of page) {
+      const key = String(opportunity.id ?? "");
+      if (key && seen.has(key)) continue;
+      if (key) seen.add(key);
+      aggregated.push(opportunity);
+    }
+  };
+
+  // Fetch the first page up front: it both establishes the catalog exists and
+  // tells us whether there's more to pull. Failing here fails the whole feed.
+  const firstPage = await requestOpportunityPage({ ...options, offset: 0 });
+  pushPage(firstPage);
+
+  // A short first page means the catalog fits in one request — no walk needed.
+  if (firstPage.length >= PUBLIC_FEED_PAGE_SIZE) {
+    // Fire the remaining pages concurrently instead of walking them serially.
+    // Against a cold-start Render host this collapses up to ~8 sequential
+    // round-trips into a single parallel batch, the biggest cold-feed win.
+    const offsets: number[] = [];
+    for (
+      let offset = PUBLIC_FEED_PAGE_SIZE;
+      offset <= PUBLIC_FEED_MAX_OFFSET;
+      offset += PUBLIC_FEED_PAGE_SIZE
+    ) {
+      offsets.push(offset);
+    }
+
+    const results = await Promise.allSettled(
+      offsets.map((offset) => requestOpportunityPage({ ...options, offset })),
+    );
+
+    // Aggregate in offset order and stop at the first short/empty page — that
+    // marks the end of the catalog, so anything past it is padding we ignore.
+    for (const result of results) {
+      if (result.status === "rejected") {
+        // Keep the rows we already have rather than failing the whole feed.
+        console.warn("Opportunity page fetch failed:", result.reason);
+        break;
+      }
+      pushPage(result.value);
+      if (result.value.length < PUBLIC_FEED_PAGE_SIZE) break;
+    }
+  }
+
+  return aggregated;
 }
 
 function revalidateOpportunitiesInBackground(options: FetchOptions) {

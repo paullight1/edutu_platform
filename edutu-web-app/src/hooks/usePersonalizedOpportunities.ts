@@ -33,6 +33,20 @@ interface RecommendationCacheEntry {
 let recommendationMemoryCache: RecommendationCacheEntry | null = null;
 
 /**
+ * Drop the cached recommendation run. Call this after onboarding or any
+ * preference change so the next feed load refetches instead of serving the
+ * stale (pre-personalization) cached run for up to RECO_FRESH_MS.
+ */
+export function clearRecommendationCache() {
+  recommendationMemoryCache = null;
+  try {
+    window.sessionStorage.removeItem(RECO_CACHE_KEY);
+  } catch {
+    // Session storage unavailable — the in-memory copy is already cleared.
+  }
+}
+
+/**
  * Push server-computed scores into the shared match store so badges and
  * "why this matches" panels across the app read the authoritative numbers.
  */

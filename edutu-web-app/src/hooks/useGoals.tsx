@@ -47,6 +47,7 @@ export type GoalUpdate = Partial<Omit<Goal, 'id' | 'user_id' | 'created_at'>>;
 interface GoalsContextValue {
   goals: Goal[];
   isLoading: boolean;
+  error: string | null;
   refreshGoals: () => Promise<void>;
   createGoal: (goal: GoalInput) => Promise<Goal>;
   updateGoal: (id: string, updates: GoalUpdate) => Promise<void>;
@@ -60,7 +61,14 @@ type GoalsAction =
   | { type: 'UPDATE_GOAL'; payload: { id: string; updates: GoalUpdate } }
   | { type: 'DELETE_GOAL'; payload: { id: string } }
   | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'CLEAR_GOALS' };
+
+interface GoalsState {
+  goals: Goal[];
+  isLoading: boolean;
+  error: string | null;
+}
 
 const GoalsContext = createContext<GoalsContextValue | undefined>(undefined);
 
@@ -149,10 +157,10 @@ async function requireProductApiToken(getToken: () => Promise<string | null>): P
   return token;
 }
 
-function goalsReducer(state: { goals: Goal[], isLoading: boolean }, action: GoalsAction): { goals: Goal[], isLoading: boolean } {
+function goalsReducer(state: GoalsState, action: GoalsAction): GoalsState {
   switch (action.type) {
     case 'SET_GOALS':
-      return { ...state, goals: action.payload };
+      return { ...state, goals: action.payload, error: null };
     case 'ADD_GOAL':
       return { ...state, goals: [action.payload, ...state.goals] };
     case 'UPDATE_GOAL':
@@ -187,6 +195,8 @@ function goalsReducer(state: { goals: Goal[], isLoading: boolean }, action: Goal
       return { ...state, goals: state.goals.filter((goal) => goal.id !== action.payload.id) };
     case 'SET_LOADING':
       return { ...state, isLoading: action.payload };
+    case 'SET_ERROR':
+      return { ...state, error: action.payload };
     case 'CLEAR_GOALS':
       return { ...state, goals: [] };
     default:
@@ -195,7 +205,7 @@ function goalsReducer(state: { goals: Goal[], isLoading: boolean }, action: Goal
 }
 
 export const GoalsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [state, dispatch] = useReducer(goalsReducer, { goals: [], isLoading: true });
+  const [state, dispatch] = useReducer(goalsReducer, { goals: [], isLoading: true, error: null });
   const { isSignedIn, userId, getToken } = useAuth();
 
   const syncGoalAggregate = useCallback(
@@ -219,6 +229,7 @@ export const GoalsProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const loadGoals = useCallback(async (uid: string) => {
     dispatch({ type: 'SET_LOADING', payload: true });
+    dispatch({ type: 'SET_ERROR', payload: null });
 
     try {
       const token = await requireProductApiToken(getToken);
@@ -229,6 +240,15 @@ export const GoalsProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       syncGoalAggregate(goals);
     } catch (error) {
       console.error('Error loading goals:', error);
+      // Surface the failure so the UI can show a retry instead of an empty
+      // state — an API error must not read as "you have no goals".
+      dispatch({
+        type: 'SET_ERROR',
+        payload:
+          error instanceof Error
+            ? error.message
+            : 'Could not load your goals. Please try again.',
+      });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
@@ -354,13 +374,14 @@ export const GoalsProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     () => ({
       goals: state.goals,
       isLoading: state.isLoading,
+      error: state.error,
       refreshGoals,
       createGoal,
       updateGoal,
       deleteGoal,
       clearGoals
     }),
-    [state.goals, state.isLoading, refreshGoals, createGoal, updateGoal, deleteGoal, clearGoals]
+    [state.goals, state.isLoading, state.error, refreshGoals, createGoal, updateGoal, deleteGoal, clearGoals]
   );
 
   return <GoalsContext.Provider value={contextValue}>{children}</GoalsContext.Provider>;

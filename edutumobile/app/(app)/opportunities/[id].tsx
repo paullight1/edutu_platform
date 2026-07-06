@@ -69,7 +69,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import ViewShot, { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import { File, Paths } from "expo-file-system";
-import { EdutuLogo } from "../../../components/branding/EdutuLogo";
 import { getConfig } from "../../../lib/config";
 import {
   generateRoadmap,
@@ -967,19 +966,42 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
       : "Open this opportunity in Edutu and follow the application link.",
     3,
   );
-  const shareFacts = [
-    { label: "Reward", value: getShareFunding(opportunity) },
-    { label: "Category", value: opportunity.category || "General" },
-    { label: "Eligible Applicants", value: getShareEligibility(opportunity) },
-    { label: "Deadline", value: formatShareDeadline(opportunity.deadline) },
-    { label: "Location", value: opportunity.location || "Worldwide" },
+  const shareStatus = isClosed
+    ? { label: "CLOSED", dot: "#F87171", valueColor: "#DC2626" }
+    : daysUntilDeadline !== null && daysUntilDeadline <= 7
+      ? {
+          label: `${daysUntilDeadline}D LEFT`,
+          dot: "#FBBF24",
+          valueColor: "#D97706",
+        }
+      : { label: "ACTIVE", dot: "#34D399", valueColor: "#0F172A" };
+  const shareTiles = [
+    { label: "Reward", value: getShareFunding(opportunity), color: "#0F172A" },
     {
-      label: "Match",
-      value: opportunity.match
-        ? `${opportunity.match}% fit`
-        : "Personalized in Edutu",
+      label: "Deadline",
+      value: formatShareDeadline(opportunity.deadline),
+      color: shareStatus.valueColor,
+    },
+    {
+      label: "Eligibility",
+      value: getShareEligibility(opportunity),
+      color: "#0F172A",
+    },
+    {
+      label: "Location",
+      value: opportunity.location || "Worldwide",
+      color: "#0F172A",
     },
   ];
+  const providerInitials =
+    (opportunity.organization || "Edutu")
+      .replace(/[^A-Za-z0-9 ]/g, "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((word) => word[0])
+      .join("")
+      .toUpperCase() || "ED";
 
   return (
     <SafeAreaView
@@ -1241,6 +1263,35 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                       ]}
                     >
                       {reason}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </>
+          )}
+
+          {/* Match Risks / Eligibility Warnings */}
+          {opportunity.matchRisks && opportunity.matchRisks.length > 0 && (
+            <>
+              <Text style={[styles.sectionTitle, { color: textPrimary }]}>
+                Things to Check
+              </Text>
+              <View
+                style={[
+                  styles.listCard,
+                  { backgroundColor: "#F59E0B10", borderColor: "#F59E0B30" },
+                ]}
+              >
+                {opportunity.matchRisks.map((risk, index) => (
+                  <View key={index} style={styles.listItem}>
+                    <AlertCircle size={16} color="#F59E0B" />
+                    <Text
+                      style={[
+                        styles.listText,
+                        { color: isDark ? "#FBBF24" : "#B45309", marginLeft: 12 },
+                      ]}
+                    >
+                      {risk}
                     </Text>
                   </View>
                 ))}
@@ -2717,83 +2768,161 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
         <View pointerEvents="none" style={styles.shareCanvas}>
           <ViewShot ref={shareCardRef} options={{ format: "png", quality: 1 }}>
             <View style={styles.shareSheet}>
+              {/* Header band */}
               <LinearGradient
-                colors={["#F8FBFF", "#EEF6FF", "#FFFFFF"]}
-                style={StyleSheet.absoluteFill}
-              />
-              <View style={styles.sharePatternCircleOne} />
-              <View style={styles.sharePatternCircleTwo} />
-              <View style={styles.sharePatternBar} />
-              <View style={styles.shareHeader}>
-                <View style={styles.shareBrand}>
-                  <EdutuLogo size={36} frameless />
-                  <View>
-                    <Text style={styles.shareBrandTitle}>Edutu</Text>
-                    <Text style={styles.shareBrandSubtitle}>
-                      OPPORTUNITY BRIEF
-                    </Text>
-                  </View>
-                </View>
-                <Text style={styles.shareSite}>Visit edutu.ai</Text>
-              </View>
-              <View style={styles.shareTitleRow}>
-                <View style={styles.shareTitleBlock}>
-                  <Text style={styles.shareTitle}>{opportunity.title}</Text>
-                </View>
-                <View style={styles.shareOrgWrap}>
-                  {opportunity.image ? (
-                    <Image
-                      source={{ uri: opportunity.image }}
-                      style={styles.shareOrgImage}
-                      resizeMode="contain"
-                    />
-                  ) : (
-                    <View style={styles.shareOrgFallback}>
-                      <Building2 size={44} color={categoryColor} />
+                colors={["#0B1E45", "#173C82", "#2563EB"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.shareHeaderBand}
+              >
+                <View style={styles.shareHeaderRow}>
+                  <View style={styles.shareBrand}>
+                    <View style={styles.shareLogoMark}>
+                      <Text style={styles.shareLogoLetter}>E</Text>
                     </View>
-                  )}
-                  <Text style={styles.shareOrgName}>
-                    {opportunity.organization}
-                  </Text>
-                </View>
-              </View>
-              <Text style={styles.shareSummary}>{shareSummary}</Text>
-              <View style={styles.shareMetaGrid}>
-                {shareFacts.map((fact) => (
-                  <View key={fact.label} style={styles.shareMetaItem}>
-                    <Text style={styles.shareMetaLabel}>{fact.label}:</Text>
-                    <Text style={styles.shareMetaValue}>
-                      {clampShareText(cleanShareText(fact.value), 58)}
+                    <View>
+                      <Text style={styles.shareBrandTitle}>Edutu</Text>
+                      <Text style={styles.shareBrandSubtitle}>
+                        OPPORTUNITY BRIEF
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.shareStatusPill}>
+                    <View
+                      style={[
+                        styles.shareStatusDot,
+                        { backgroundColor: shareStatus.dot },
+                      ]}
+                    />
+                    <Text style={styles.shareStatusText}>
+                      {shareStatus.label}
                     </Text>
                   </View>
-                ))}
-              </View>
-              <View style={styles.shareSection}>
-                <Text style={styles.shareSectionTitle}>
-                  Scholarship Reward / Benefits
+                </View>
+                <View style={styles.shareCategoryChip}>
+                  <Text style={styles.shareCategoryText}>
+                    {(opportunity.category || "Opportunity").toUpperCase()}
+                  </Text>
+                </View>
+                <Text style={styles.shareTitle} numberOfLines={3}>
+                  {opportunity.title}
                 </Text>
-                {shareBenefits.map((item, index) => (
-                  <Text key={`benefit-${index}`} style={styles.shareBullet}>
-                    • {item}
-                  </Text>
-                ))}
+                <View style={styles.shareProviderRow}>
+                  <View style={styles.shareAvatar}>
+                    {opportunity.image ? (
+                      <Image
+                        source={{ uri: opportunity.image }}
+                        style={styles.shareAvatarImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Text style={styles.shareAvatarText}>
+                        {providerInitials}
+                      </Text>
+                    )}
+                  </View>
+                  <View style={styles.shareProviderText}>
+                    <Text style={styles.shareProviderName} numberOfLines={1}>
+                      {opportunity.organization || "Opportunity provider"}
+                    </Text>
+                    <Text style={styles.shareProviderSub} numberOfLines={1}>
+                      {opportunity.location || "Global opportunity"}
+                    </Text>
+                  </View>
+                </View>
+              </LinearGradient>
+
+              {/* Body */}
+              <View style={styles.shareBody}>
+                <Text style={styles.shareSummary} numberOfLines={2}>
+                  {shareSummary}
+                </Text>
+
+                <View style={styles.shareTileGrid}>
+                  {shareTiles.map((tile) => (
+                    <View key={tile.label} style={styles.shareTile}>
+                      <Text style={styles.shareTileLabel}>
+                        {tile.label.toUpperCase()}
+                      </Text>
+                      <Text
+                        style={[styles.shareTileValue, { color: tile.color }]}
+                        numberOfLines={1}
+                      >
+                        {clampShareText(cleanShareText(tile.value), 26)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+
+                {shareBenefits.length > 0 && (
+                  <>
+                    <Text style={styles.shareSectionTitle}>Benefits</Text>
+                    {shareBenefits.slice(0, 3).map((item, index) => (
+                      <View key={`benefit-${index}`} style={styles.shareBulletRow}>
+                        <View style={styles.shareCheck}>
+                          <Check size={16} color="#16A34A" strokeWidth={3} />
+                        </View>
+                        <Text style={styles.shareBulletText} numberOfLines={2}>
+                          {item}
+                        </Text>
+                      </View>
+                    ))}
+                  </>
+                )}
+
+                {shareRequirements.length > 0 && (
+                  <>
+                    <Text style={[styles.shareSectionTitle, { marginTop: 26 }]}>
+                      Requirements
+                    </Text>
+                    {shareRequirements.slice(0, 2).map((item, index) => (
+                      <View
+                        key={`requirement-${index}`}
+                        style={styles.shareBulletRow}
+                      >
+                        <View style={styles.shareDot} />
+                        <Text style={styles.shareBulletText} numberOfLines={2}>
+                          {item}
+                        </Text>
+                      </View>
+                    ))}
+                  </>
+                )}
+
+                <View style={styles.shareApplyBox}>
+                  <Text style={styles.shareApplyTitle}>HOW TO APPLY</Text>
+                  {shareApplicationSteps.slice(0, 2).map((item, index) => (
+                    <Text
+                      key={`apply-${index}`}
+                      style={styles.shareApplyText}
+                      numberOfLines={2}
+                    >
+                      {index + 1}.{"  "}
+                      {clampShareText(item, SHARE_TEXT_LIMITS.apply)}
+                    </Text>
+                  ))}
+                </View>
               </View>
-              <View style={styles.shareSection}>
-                <Text style={styles.shareSectionTitle}>Requirements</Text>
-                {shareRequirements.map((item, index) => (
-                  <Text key={`requirement-${index}`} style={styles.shareBullet}>
-                    • {item}
+
+              {/* Footer */}
+              <LinearGradient
+                colors={["#0B1E45", "#1D4ED8"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.shareFooter}
+              >
+                <View style={styles.shareFooterTextWrap}>
+                  <Text style={styles.shareFooterTitle}>
+                    Discover more opportunities
                   </Text>
-                ))}
-              </View>
-              <View style={styles.shareApplyBox}>
-                <Text style={styles.shareSectionTitle}>How To Apply</Text>
-                {shareApplicationSteps.map((item, index) => (
-                  <Text key={`apply-${index}`} style={styles.shareApplyText}>
-                    {index + 1}. {clampShareText(item, SHARE_TEXT_LIMITS.apply)}
+                  <Text style={styles.shareFooterSub}>
+                    Personalized matches, roadmaps &amp; deadline reminders
                   </Text>
-                ))}
-              </View>
+                </View>
+                <View style={styles.shareFooterBadge}>
+                  <Text style={styles.shareFooterBadgeText}>edutu.ai</Text>
+                </View>
+              </LinearGradient>
             </View>
           </ViewShot>
         </View>
@@ -3036,151 +3165,219 @@ const styles = StyleSheet.create({
   shareCanvas: { position: "absolute", left: -9999, top: 0, opacity: 0 },
   shareSheet: {
     width: 1080,
-    minHeight: 1680,
-    backgroundColor: "#F8FBFF",
-    paddingHorizontal: 78,
-    paddingTop: 58,
-    paddingBottom: 70,
+    minHeight: 1350, // Instagram feed portrait (4:5)
+    backgroundColor: "#FFFFFF",
     overflow: "hidden",
   },
-  sharePatternCircleOne: {
-    position: "absolute",
-    width: 360,
-    height: 360,
-    borderRadius: 180,
-    backgroundColor: "rgba(59,130,246,0.08)",
-    left: -135,
-    top: 210,
+  shareHeaderBand: {
+    paddingHorizontal: 72,
+    paddingTop: 58,
+    paddingBottom: 42,
   },
-  sharePatternCircleTwo: {
-    position: "absolute",
-    width: 430,
-    height: 430,
-    borderRadius: 215,
-    backgroundColor: "rgba(14,165,233,0.10)",
-    right: -160,
-    bottom: -150,
-  },
-  sharePatternBar: {
-    position: "absolute",
-    height: 18,
-    left: 78,
-    right: 78,
-    bottom: 42,
-    borderRadius: 999,
-    backgroundColor: "#2F80ED",
-  },
-  shareHeader: {
+  shareHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 58,
   },
-  shareBrand: { flexDirection: "row", alignItems: "center", gap: 12 },
-  shareBrandTitle: { fontSize: 34, fontWeight: "900", color: "#0B2F6B" },
+  shareBrand: { flexDirection: "row", alignItems: "center", gap: 16 },
+  shareLogoMark: {
+    width: 54,
+    height: 54,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shareLogoLetter: { fontSize: 34, fontWeight: "900", color: "#123C82" },
+  shareBrandTitle: { fontSize: 30, fontWeight: "800", color: "#FFFFFF" },
   shareBrandSubtitle: {
     fontSize: 13,
-    fontWeight: "800",
-    letterSpacing: 3,
-    color: "#5B7CFA",
+    fontWeight: "700",
+    letterSpacing: 3.5,
+    color: "#8FB4FF",
     marginTop: 2,
   },
-  shareSite: {
-    fontSize: 21,
-    fontWeight: "800",
-    color: "#2563EB",
-    marginTop: 8,
-  },
-  shareTitleRow: {
+  shareStatusPill: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 26,
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 20,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.3)",
   },
-  shareTitleBlock: { flex: 1, paddingRight: 34 },
+  shareStatusDot: { width: 14, height: 14, borderRadius: 7 },
+  shareStatusText: {
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: 1.4,
+    color: "#FFFFFF",
+  },
+  shareCategoryChip: {
+    alignSelf: "flex-start",
+    marginTop: 34,
+    paddingHorizontal: 22,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    justifyContent: "center",
+  },
+  shareCategoryText: {
+    fontSize: 19,
+    fontWeight: "800",
+    letterSpacing: 2.5,
+    color: "#DBEAFE",
+  },
   shareTitle: {
-    fontSize: 63,
-    lineHeight: 75,
-    fontWeight: "900",
-    color: "#0A1020",
+    marginTop: 18,
+    fontSize: 50,
+    lineHeight: 60,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    color: "#FFFFFF",
   },
+  shareProviderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 22,
+    marginTop: 28,
+  },
+  shareAvatar: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  shareAvatarImage: { width: 68, height: 68 },
+  shareAvatarText: { fontSize: 26, fontWeight: "900", color: "#123C82" },
+  shareProviderText: { flex: 1 },
+  shareProviderName: { fontSize: 27, fontWeight: "800", color: "#FFFFFF" },
+  shareProviderSub: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#AFC7FF",
+    marginTop: 4,
+  },
+  shareBody: { flex: 1, paddingHorizontal: 72, paddingTop: 42 },
   shareSummary: {
-    marginBottom: 34,
-    width: "72%",
-    fontSize: 27,
+    fontSize: 26,
     lineHeight: 37,
-    color: "#172033",
     fontWeight: "500",
+    color: "#475569",
   },
-  shareOrgWrap: { width: 255, alignItems: "center", paddingTop: 6 },
-  shareOrgImage: { width: 156, height: 118, marginBottom: 14 },
-  shareOrgFallback: {
-    width: 126,
-    height: 126,
+  shareTileGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 24,
+    marginTop: 26,
+  },
+  shareTile: {
+    width: (1080 - 72 * 2 - 24) / 2,
+    paddingHorizontal: 28,
+    paddingVertical: 20,
+    borderRadius: 20,
+    backgroundColor: "#F4F8FF",
+    borderWidth: 1.5,
+    borderColor: "#E1EAFF",
+  },
+  shareTileLabel: {
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 1.8,
+    color: "#2563EB",
+  },
+  shareTileValue: { fontSize: 26, fontWeight: "800", marginTop: 10 },
+  shareSectionTitle: {
+    marginTop: 26,
+    fontSize: 24,
+    fontWeight: "900",
+    letterSpacing: 0.3,
+    color: "#0B1E45",
+    marginBottom: 12,
+  },
+  shareBulletRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 16,
+    marginBottom: 8,
+  },
+  shareCheck: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#DCFCE7",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  shareDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#2563EB",
+    marginTop: 12,
+    marginLeft: 6,
+    marginRight: 6,
+  },
+  shareBulletText: {
+    flex: 1,
+    fontSize: 23,
+    lineHeight: 32,
+    fontWeight: "500",
+    color: "#1E293B",
+  },
+  shareApplyBox: {
+    marginTop: 26,
+    padding: 30,
+    borderRadius: 26,
+    backgroundColor: "#EEF4FF",
+    borderWidth: 1.5,
+    borderColor: "#D6E4FF",
+  },
+  shareApplyTitle: {
+    fontSize: 22,
+    fontWeight: "900",
+    letterSpacing: 2,
+    color: "#2563EB",
+    marginBottom: 16,
+  },
+  shareApplyText: {
+    fontSize: 22,
+    lineHeight: 32,
+    fontWeight: "600",
+    color: "#1E293B",
+    marginBottom: 8,
+  },
+  shareFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 72,
+    height: 124,
+    marginTop: 28,
+  },
+  shareFooterTextWrap: { flex: 1, paddingRight: 24 },
+  shareFooterTitle: { fontSize: 24, fontWeight: "800", color: "#FFFFFF" },
+  shareFooterSub: {
+    fontSize: 19,
+    fontWeight: "600",
+    color: "#AFC7FF",
+    marginTop: 6,
+  },
+  shareFooterBadge: {
+    paddingHorizontal: 28,
+    height: 52,
     borderRadius: 26,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: "#D6E8FF",
   },
-  shareOrgName: {
-    fontSize: 24,
-    lineHeight: 30,
-    textAlign: "center",
-    fontWeight: "900",
-    color: "#0B2F6B",
-    textTransform: "uppercase",
-  },
-  shareMetaGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    rowGap: 20,
-    columnGap: 28,
-    marginBottom: 34,
-  },
-  shareMetaItem: { width: "30%", minWidth: 275 },
-  shareMetaLabel: {
-    fontSize: 19,
-    fontWeight: "900",
-    color: "#2563EB",
-    marginBottom: 4,
-  },
-  shareMetaValue: {
-    fontSize: 25,
-    lineHeight: 31,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  shareSection: { marginTop: 18 },
-  shareSectionTitle: {
-    fontSize: 25,
-    lineHeight: 31,
-    fontWeight: "900",
-    color: "#2563EB",
-    marginBottom: 8,
-  },
-  shareBullet: {
-    fontSize: 23,
-    lineHeight: 31,
-    color: "#0F172A",
-    marginLeft: 16,
-    marginBottom: 3,
-  },
-  shareApplyBox: {
-    marginTop: 20,
-    paddingTop: 16,
-    borderTopWidth: 2,
-    borderTopColor: "rgba(37,99,235,0.14)",
-  },
-  shareApplyText: {
-    fontSize: 22,
-    lineHeight: 30,
-    color: "#0F172A",
-    fontWeight: "600",
-    marginBottom: 4,
-  },
+  shareFooterBadgeText: { fontSize: 22, fontWeight: "900", color: "#123C82" },
 
   // Modal Styles
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },

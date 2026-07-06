@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { fetchOpportunities, getCachedOpportunitiesSnapshot } from '../services/opportunities';
+import { getDismissedOpportunityIds } from '../services/dismissedOpportunities';
 import { Opportunity } from '../types/opportunity';
 import { anchorFeedOrder } from '../utils/feedAnchor';
 
@@ -50,17 +51,26 @@ export function useOpportunities(options: UseOpportunitiesOptions) {
     error: null
   });
   const [refreshIndex, setRefreshIndex] = useState(0);
+  /** Locally-dismissed opportunity ids, hydrated from storage per userId. */
+  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const getAuthTokenRef = useRef(getAuthToken);
   const profileOverrideRef = useRef(profileOverride);
-  const excludeOpportunityIdsRef = useRef(excludeOpportunityIds);
   const onSyncSnapshotRef = useRef(onSyncSnapshot);
   const onUpdateN8nRef = useRef(onUpdateN8n);
   /** Timestamp of the first time cached data was painted into state. */
   const firstPaintAtRef = useRef<number | null>(null);
   const profileOverrideKey = useMemo(() => getProfileKey(profileOverride), [profileOverride]);
+  // Merge caller-supplied exclusions with the user's stored dismissals so
+  // dismissed opportunities drop out of the feed. De-duped + sorted so the
+  // effect key stays stable regardless of source ordering.
+  const mergedExcludeOpportunityIds = useMemo(
+    () => Array.from(new Set([...(excludeOpportunityIds ?? []), ...dismissedIds])).sort(),
+    [excludeOpportunityIds, dismissedIds]
+  );
+  const excludeOpportunityIdsRef = useRef(mergedExcludeOpportunityIds);
   const excludeOpportunityIdsKey = useMemo(
-    () => [...(excludeOpportunityIds ?? [])].sort().join(','),
-    [excludeOpportunityIds]
+    () => mergedExcludeOpportunityIds.join(','),
+    [mergedExcludeOpportunityIds]
   );
 
   useEffect(() => {

@@ -731,9 +731,12 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
     return sortOpportunities(filteredOpportunities, sortOption);
   }, [filteredOpportunities, sortOption, matchInsights]);
 
+  // Reset pagination only when the user changes what they're browsing —
+  // NOT when server match scores hydrate and re-sort the list, which would
+  // otherwise snap a mid-scroll user back to the first page.
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [sortedOpportunities]);
+  }, [searchTerm, selectedCategoryId, showClosed, sortOption]);
 
   const visibleOpportunities = sortedOpportunities.slice(0, visibleCount);
   const hasMoreToShow = visibleCount < sortedOpportunities.length;

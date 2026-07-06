@@ -221,26 +221,6 @@ function pickMeaningfulKeywords(values: Array<string | null | undefined>, limit 
   return uniq(tokens).slice(0, limit);
 }
 
-function buildExperienceHighlights(skills: string[], goals: string[]) {
-  const combined = uniq([...skills, ...goals]).slice(0, 6);
-  return combined.length ? combined : ['Execution', 'Research', 'Communication'];
-}
-
-function buildProjectIdea(profile: any, prompt?: string) {
-  const focus = cleanText(prompt || profile?.interests?.[0] || profile?.field_of_study || 'career growth');
-  return {
-    id: createId('proj'),
-    name: `${sentenceCase(focus)} project`,
-    description: `A focused project that demonstrates measurable progress toward ${focus}.`,
-    technologies: uniq([
-      ...(Array.isArray(profile?.skills) ? profile.skills : []),
-      ...(Array.isArray(profile?.interests) ? profile.interests.slice(0, 2) : []),
-    ]).slice(0, 4),
-    start_date: '',
-    end_date: '',
-  };
-}
-
 async function fetchProfile(supabase: SupabaseClient, userId: string) {
   const safeId = toSafeUUID(userId);
   const { data } = await supabase
@@ -555,17 +535,22 @@ export async function generateAICVDraft(
     .filter(Boolean)
     .join(' ');
 
+  // Integrity: NEVER fabricate employers, roles, or descriptions the user did not
+  // provide. Reuse only the experience the user has actually entered; otherwise emit
+  // a single, clearly-labeled placeholder the user must fill in themselves.
   const experience = current.experience?.length
     ? current.experience
-    : goalTitles.slice(0, 2).map((goal, index) => ({
-      id: createId('exp'),
-      company: 'Edutu Experience',
-      role: goal ? sentenceCase(goal) : 'Student Project',
-      start_date: '',
-      end_date: '',
-      description: `Built momentum around ${goal || 'career growth'} with a focus on execution, learning, and measurable outcomes.`,
-      highlights: buildExperienceHighlights(mergedSkills.slice(index * 2, index * 2 + 3), goalTitles.slice(index, index + 2)),
-    }));
+    : [
+      {
+        id: createId('exp'),
+        company: '',
+        role: '',
+        start_date: '',
+        end_date: '',
+        description: '[Add your experience here] — replace this with a real role, internship, or volunteer position, including what you actually did.',
+        highlights: [],
+      },
+    ];
 
   const education = current.education?.length
     ? current.education
@@ -599,15 +584,32 @@ export async function generateAICVDraft(
     skills: mergedSkills,
     experience,
     education,
+    // Integrity: never invent awards/accomplishments. Keep only what the user
+    // entered; otherwise a single clearly-labeled placeholder they must edit.
     achievements:
       current.achievements?.length
         ? current.achievements
-        : goalTitles.slice(0, 3).map((goal) => ({
-          id: createId('ach'),
-          title: sentenceCase(goal),
-          description: `Pursued ${goal} through consistent planning, skill development, and steady progress.`,
-        })),
-    projects: current.projects?.length ? current.projects : [buildProjectIdea(profile, summaryPrompt)],
+        : [
+          {
+            id: createId('ach'),
+            title: '',
+            description: '[Add an achievement here] — list a real award, certification, or accomplishment you have earned.',
+          },
+        ],
+    // Integrity: never invent project work the user did not do. Keep only real
+    // entries; otherwise a single clearly-labeled placeholder they must edit.
+    projects: current.projects?.length
+      ? current.projects
+      : [
+        {
+          id: createId('proj'),
+          name: '',
+          description: '[Add a project here] — describe a real project you built or contributed to, and what you did.',
+          technologies: [],
+          start_date: '',
+          end_date: '',
+        },
+      ],
   };
 }
 

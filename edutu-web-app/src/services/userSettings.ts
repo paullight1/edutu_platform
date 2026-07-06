@@ -61,21 +61,20 @@ function requireToken(token?: string | null): string {
 
 export async function getUserSettings(
   token?: string | null,
-): Promise<UserSettings | null> {
-  try {
-    const data = await productApiRequest<UserSettings>(
-      "/profile/settings",
-      requireToken(token),
-    );
-    return {
-      privacy: { ...DEFAULT_PRIVACY, ...(data.privacy || {}) },
-      security: { ...DEFAULT_SECURITY, ...(data.security || {}) },
-      updatedAt: data.updatedAt || new Date().toISOString(),
-    };
-  } catch (error) {
-    logger.error("Failed to fetch user settings:", error);
-    return null;
-  }
+): Promise<UserSettings> {
+  // Let failures propagate: previously this swallowed the error and returned
+  // null, which the panel rendered as DEFAULT privacy (analytics ON) — so a
+  // transient load failure silently reset the user's shown privacy choices.
+  // The caller catches and shows an error/retry instead.
+  const data = await productApiRequest<UserSettings>(
+    "/profile/settings",
+    requireToken(token),
+  );
+  return {
+    privacy: { ...DEFAULT_PRIVACY, ...(data.privacy || {}) },
+    security: { ...DEFAULT_SECURITY, ...(data.security || {}) },
+    updatedAt: data.updatedAt || new Date().toISOString(),
+  };
 }
 
 export async function savePrivacySettings(
