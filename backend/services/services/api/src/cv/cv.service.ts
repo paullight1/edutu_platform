@@ -6,9 +6,12 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { AiService } from "../ai";
 import { toDatabaseUserId } from "../common/user-id";
+import { db } from "../db";
+import { goals as goalsTable, profiles } from "../db/schema";
 import {
   CVDataDto,
   CVGoalContextDto,
@@ -95,6 +98,26 @@ const CV_RECORD_SELECT = [
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/**
+ * LLMs regularly emit `null` for fields they have no value for, which Zod's
+ * `.optional()` rejects. Drop nulls recursively before validating.
+ */
+function stripNulls<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item) => item !== null && item !== undefined)
+      .map((item) => stripNulls(item)) as unknown as T;
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, v]) => v !== null && v !== undefined)
+        .map(([k, v]) => [k, stripNulls(v)]),
+    ) as T;
+  }
+  return value;
+}
+
 const CVDataSchema = z.object({
   header: z
     .object({
@@ -132,7 +155,7 @@ const CVDataSchema = z.object({
         field: z.string().optional(),
         start_date: z.string().optional(),
         end_date: z.string().optional(),
-        gpa: z.number().optional(),
+        gpa: z.coerce.number().optional(),
         highlights: z.array(z.string()).optional(),
       }),
     )
@@ -171,7 +194,7 @@ const DraftResponseSchema = z.object({
 
 const TailorResponseSchema = z.object({
   tailored_cv: CVDataSchema,
-  match_score: z.number().min(0).max(100),
+  match_score: z.coerce.number().min(0).max(100),
   improvements: z.array(z.string()).default([]),
   matched_keywords: z.array(z.string()).default([]),
   missing_keywords: z.array(z.string()).default([]),
@@ -259,17 +282,21 @@ export class CvService {
   }
 
   async generateDraft(userId: string, dto: GenerateCVDraftDto) {
+    // Mobile/web clients often can't read profile/goals directly (RLS), so
+    // fill in any missing context from the database before prompting.
+    const enriched = await this.withServerContext(userId, dto);
+
     try {
       const parsed = await this.aiService.generateJson({
         feature: "cv.draft",
-        prompt: this.buildDraftPrompt(userId, dto),
+        prompt: this.buildDraftPrompt(userId, enriched),
         responseMimeType: "application/json",
         temperature: 0.2,
         metadata: { userId },
       });
 
       if (parsed) {
-        return DraftResponseSchema.parse(parsed);
+        return DraftResponseSchema.parse(stripNulls(parsed));
       }
     } catch (error) {
       this.logger.warn(
@@ -278,11 +305,11 @@ export class CvService {
     }
 
     const fallbackCv = this.buildFallbackDraft(
-      dto.profile,
-      dto.goals || [],
-      dto.currentCV,
-      dto.prompt,
-      dto.linkedInUrl,
+      enriched.profile,
+      enriched.goals || [],
+      enriched.currentCV,
+      enriched.prompt,
+      enriched.linkedInUrl,
     );
     return {
       cv: fallbackCv,
@@ -305,7 +332,7 @@ export class CvService {
       });
 
       if (parsed) {
-        return TailorResponseSchema.parse(parsed);
+        return TailorResponseSchema.parse(stripNulls(parsed));
       }
     } catch (error) {
       this.logger.warn(
@@ -314,6 +341,69 @@ export class CvService {
     }
 
     return this.buildFallbackTailor(dto);
+  }
+
+  /**
+   * Merges server-side profile and goals into the draft request when the
+   * client didn't (or couldn't) provide them.
+   */
+  private async withServerContext(
+    userId: string,
+    dto: GenerateCVDraftDto,
+  ): Promise<GenerateCVDraftDto> {
+    const needsProfile = !dto.profile || !Object.keys(dto.profile).length;
+    const needsGoals = !dto.goals?.length;
+    if (!needsProfile && !needsGoals) return dto;
+
+    const dbUserId = toDatabaseUserId(userId);
+    if (!dbUserId) return dto;
+
+    const enriched: GenerateCVDraftDto = { ...dto };
+
+    try {
+      if (needsProfile) {
+        const [row] = await db
+          .select()
+          .from(profiles)
+          .where(eq(profiles.userId, dbUserId))
+          .limit(1)
+          .execute();
+
+        if (row) {
+          enriched.profile = {
+            full_name: row.fullName ?? undefined,
+            email: row.email ?? undefined,
+            country: row.country ?? undefined,
+            institution: row.school ?? undefined,
+            field_of_study: row.major ?? undefined,
+            education_level: row.degree ?? undefined,
+            interests: row.interests ?? undefined,
+            skills: row.skills ?? undefined,
+          };
+        }
+      }
+
+      if (needsGoals) {
+        const rows = await db
+          .select()
+          .from(goalsTable)
+          .where(eq(goalsTable.userId, dbUserId))
+          .limit(5)
+          .execute();
+
+        enriched.goals = rows.map((row) => ({
+          title: row.title,
+          description: row.description ?? undefined,
+          progress: row.progress ?? undefined,
+        }));
+      }
+    } catch (error) {
+      this.logger.warn(
+        `CV draft context enrichment skipped: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
+    return enriched;
   }
 
   private buildDraftPrompt(userId: string, dto: GenerateCVDraftDto) {

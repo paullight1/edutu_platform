@@ -15,15 +15,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useUser } from '@clerk/clerk-expo';
+import { useAuth, useUser } from '@clerk/clerk-expo';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
-import { Plus, ChevronLeft, Eye, Crown, ChevronRight } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Plus, ChevronLeft, Eye, Crown, ChevronRight, FilePlus, Import, Target } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { BrandedLoader } from '../../../components/ui/BrandedLoader';
 import { supabase } from '../../../lib/supabase';
 import { useTheme } from '../../../components/context/ThemeContext';
 import { CVTemplate, UserCV } from '@edutu/core/src/types/cv';
 import * as cvService from '@edutu/core/src/services/cv';
+import { exportCVAsPdf } from '../../../lib/exportCv';
 import { Opportunity } from '@edutu/core/src/types/opportunity';
 import { fetchOpportunities } from '@edutu/core/src/services/opportunities';
 
@@ -36,12 +38,6 @@ import { ProUpgradeModal } from '../../../components/cv/ProUpgradeModal';
 import { AITailorModal } from '../../../components/cv/AITailorModal';
 
 type CVSection = 'templates' | 'editor' | 'preview';
-
-const QUICK_ACTION_IMAGES = {
-    create: 'https://img.freepik.com/free-vector/white-abstract-background_23-2148810113.jpg?w=2000',
-    linkedin: 'https://img.freepik.com/free-photo/group-people-working-out-business-plan-office_1303-15773.jpg',
-    tailor: 'https://img.freepik.com/free-photo/still-life-books-versus-technology_23-2150063046.jpg',
-};
 
 const SAMPLE_BY_CATEGORY = {
     academic: {
@@ -87,32 +83,69 @@ function getTemplatePreviewImage(template?: CVTemplate | null) {
 function QuickActionCard({
     title,
     subtitle,
-    image,
+    icon: Icon,
+    accent,
+    colors,
+    isDark,
     onPress,
 }: {
     title: string;
     subtitle: string;
-    image: string;
+    icon: React.ComponentType<{ size: number; color: string; strokeWidth?: number }>;
+    accent: string;
+    colors: any;
+    isDark: boolean;
     onPress: () => void;
 }) {
     return (
-        <TouchableOpacity style={styles.quickActionCard} onPress={onPress} activeOpacity={0.88}>
-            <ImageBackground source={{ uri: image }} style={styles.quickActionImage} imageStyle={styles.quickActionImageInner}>
-                <View style={styles.quickActionScrim} />
-                <View style={styles.quickActionCopy}>
-                    <Text style={styles.quickActionCardTitle}>{title}</Text>
-                    <Text style={styles.quickActionCardSubtitle}>{subtitle}</Text>
-                </View>
-                <View style={styles.quickActionArrow}>
-                    <ChevronRight size={20} color="#0F172A" />
-                </View>
-            </ImageBackground>
+        <TouchableOpacity
+            style={[
+                styles.quickActionCard,
+                {
+                    backgroundColor: colors.card,
+                    borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.07)',
+                },
+            ]}
+            onPress={onPress}
+            activeOpacity={0.85}
+        >
+            {/* Subtle accent wash so each card stays dark and on-theme */}
+            <LinearGradient
+                colors={[`${accent}26`, `${accent}0D`, 'transparent']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+            />
+            <View style={[styles.quickActionIcon, { backgroundColor: `${accent}24` }]}>
+                <Icon size={22} color={accent} strokeWidth={2.2} />
+            </View>
+            <View style={styles.quickActionCopy}>
+                <Text style={[styles.quickActionCardTitle, { color: colors.foreground }]} numberOfLines={1}>
+                    {title}
+                </Text>
+                <Text
+                    style={[styles.quickActionCardSubtitle, { color: isDark ? '#94A3B8' : '#64748B' }]}
+                    numberOfLines={2}
+                >
+                    {subtitle}
+                </Text>
+            </View>
+            <View
+                style={[
+                    styles.quickActionArrow,
+                    { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.05)' },
+                ]}
+            >
+                <ChevronRight size={18} color={isDark ? '#E2E8F0' : '#0F172A'} />
+            </View>
         </TouchableOpacity>
     );
 }
 
 export default function CVBuilderScreen() {
     const { user } = useUser();
+    const { getToken } = useAuth();
     const router = useRouter();
     const { colors, isDark } = useTheme();
 
@@ -131,6 +164,8 @@ export default function CVBuilderScreen() {
     const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
     const [opportunitiesLoaded, setOpportunitiesLoaded] = useState(false);
     const [isTailoring, setIsTailoring] = useState(false);
+    const [isImprovingSummary, setIsImprovingSummary] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
 
     // Modals
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -145,24 +180,57 @@ export default function CVBuilderScreen() {
         if (!linkedInUrl || !user) return;
         setIsLinkedInImporting(true);
         try {
-            const draft = await cvService.generateAICVDraft(supabase, user.id, {
+            const result = await cvService.generateCVDraftWithAI(supabase, user.id, {
                 linkedInUrl,
                 currentData: currentCV.data_json,
                 prompt: 'scholarships, internships, and early-career opportunities',
+                getToken,
             });
             setCurrentCV((prev: Partial<UserCV>) => ({
                 ...prev,
                 name: prev.name || 'AI Draft CV',
-                data_json: draft,
+                data_json: result.cv,
             }));
             setIsLinkedInImporting(false);
             setShowLinkedInModal(false);
             setActiveSection('editor');
-            Alert.alert('Success', 'Your CV draft has been generated from your profile context.');
+            const suggestionText = result.suggestions.slice(0, 3).map((s) => `• ${s}`).join('\n');
+            Alert.alert(
+                result.source === 'ai' ? 'AI draft ready' : 'Draft ready (offline mode)',
+                suggestionText
+                    ? `Your CV draft is in the editor. Suggested next steps:\n${suggestionText}`
+                    : 'Your CV draft has been generated from your profile context.',
+            );
         } catch (error) {
             console.error('AI CV generation error:', error);
             setIsLinkedInImporting(false);
             Alert.alert('Error', 'Failed to generate CV draft.');
+        }
+    };
+
+    // Rewrite just the summary with the backend LLM (falls back locally).
+    const handleImproveSummary = async () => {
+        if (!user || isImprovingSummary) return;
+        setIsImprovingSummary(true);
+        try {
+            const result = await cvService.improveCVSummaryWithAI(
+                supabase,
+                user.id,
+                currentCV.data_json || {},
+                getToken,
+            );
+            setCurrentCV((prev: Partial<UserCV>) => ({
+                ...prev,
+                data_json: { ...prev.data_json, summary: result.summary },
+            }));
+            if (result.source === 'local') {
+                Alert.alert('Summary updated', 'Improved offline from your existing details. Connect to the internet for the full AI rewrite.');
+            }
+        } catch (error) {
+            console.error('Error improving summary:', error);
+            Alert.alert('Error', 'Could not improve the summary right now.');
+        } finally {
+            setIsImprovingSummary(false);
         }
     };
 
@@ -174,9 +242,6 @@ export default function CVBuilderScreen() {
 
     useEffect(() => {
         const urls = [
-            QUICK_ACTION_IMAGES.create,
-            QUICK_ACTION_IMAGES.linkedin,
-            QUICK_ACTION_IMAGES.tailor,
             'https://img.freepik.com/free-photo/still-life-books-versus-technology_23-2150063046.jpg',
             'https://img.freepik.com/free-photo/meeting-with-business-partners_1098-17048.jpg',
             'https://img.freepik.com/free-photo/businesswoman-posing_23-2148142829.jpg',
@@ -244,7 +309,8 @@ export default function CVBuilderScreen() {
     const handleCreateNewCV = () => {
         setSelectedTemplate(null);
         setCurrentCV({ name: 'Untitled CV', data_json: {} });
-        setActiveSection('templates');
+        // Straight into a blank editor — picking a template stays optional.
+        setActiveSection('editor');
     };
 
     const handleEditCV = (cv: UserCV) => {
@@ -263,13 +329,30 @@ export default function CVBuilderScreen() {
     const handleSaveCV = async () => {
         if (!user) return;
 
-        // Check for premium features before saving
         setIsSaving(true);
         try {
-            if (currentCV.id) {
-                await cvService.updateUserCV(supabase, currentCV.id, currentCV);
+            // Drop empty highlight lines the editor keeps around while typing.
+            const cleanList = (items?: any[]) =>
+                (items || []).map((item) => ({
+                    ...item,
+                    ...(Array.isArray(item.highlights)
+                        ? { highlights: item.highlights.map((h: string) => h.trim()).filter(Boolean) }
+                        : {}),
+                }));
+            const cvToSave: Partial<UserCV> = {
+                ...currentCV,
+                name: currentCV.name?.trim() || 'Untitled CV',
+                data_json: {
+                    ...currentCV.data_json,
+                    experience: cleanList(currentCV.data_json?.experience),
+                    education: cleanList(currentCV.data_json?.education),
+                },
+            };
+
+            if (cvToSave.id) {
+                await cvService.updateUserCV(supabase, cvToSave.id, cvToSave);
             } else {
-                const newCV = await cvService.createUserCV(supabase, user.id, currentCV);
+                const newCV = await cvService.createUserCV(supabase, user.id, cvToSave);
                 setCurrentCV((prev: Partial<UserCV>) => ({ ...prev, id: newCV.id }));
             }
             await loadData();
@@ -306,11 +389,18 @@ export default function CVBuilderScreen() {
     };
 
     const handleExport = async () => {
+        if (isExporting) return;
+        setIsExporting(true);
         try {
-            await cvService.shareCV(currentCV);
+            const mode = await exportCVAsPdf(currentCV);
+            if (mode === 'text') {
+                Alert.alert('Shared as text', 'PDF export was unavailable, so the CV was shared as text instead.');
+            }
         } catch (error) {
-            console.error('Error sharing CV:', error);
-            Alert.alert('Error', 'Failed to share CV');
+            console.error('Error exporting CV:', error);
+            Alert.alert('Error', 'Failed to export CV');
+        } finally {
+            setIsExporting(false);
         }
     };
 
@@ -329,6 +419,7 @@ export default function CVBuilderScreen() {
                 userId: user.id,
                 currentCVData: currentCV.data_json || {},
                 opportunityId,
+                getToken,
             });
             setCurrentCV((prev: Partial<UserCV>) => ({
                 ...prev,
@@ -336,8 +427,12 @@ export default function CVBuilderScreen() {
                 match_score: result.match_score,
                 target_opportunity_id: opportunityId,
             }));
+            setShowAIModal(false);
             setActiveSection('editor');
-            Alert.alert('CV Tailored', result.improvements.join('\n'));
+            Alert.alert(
+                `CV tailored — ${result.match_score}% match`,
+                result.improvements.slice(0, 4).map((i) => `• ${i}`).join('\n'),
+            );
         } catch (error) {
             console.error('Error tailoring CV:', error);
             Alert.alert('Error', 'Failed to tailor CV for this opportunity.');
@@ -398,19 +493,28 @@ export default function CVBuilderScreen() {
                         <QuickActionCard
                             title="Create a fresh CV"
                             subtitle="Start with a structured editor and choose a template after previewing samples."
-                            image={QUICK_ACTION_IMAGES.create}
+                            icon={FilePlus}
+                            accent="#6366F1"
+                            colors={colors}
+                            isDark={isDark}
                             onPress={handleCreateNewCV}
                         />
                         <QuickActionCard
                             title="Import from LinkedIn"
                             subtitle="Use your profile context to draft a stronger first version with AI."
-                            image={QUICK_ACTION_IMAGES.linkedin}
+                            icon={Import}
+                            accent="#0A66C2"
+                            colors={colors}
+                            isDark={isDark}
                             onPress={() => setShowLinkedInModal(true)}
                         />
                         <QuickActionCard
                             title="Tailor to an opportunity"
                             subtitle="Match your CV against scholarships, internships, and programs in your bank."
-                            image={QUICK_ACTION_IMAGES.tailor}
+                            icon={Target}
+                            accent="#8B5CF6"
+                            colors={colors}
+                            isDark={isDark}
                             onPress={handleAITailor}
                         />
                     </Animated.View>
@@ -488,9 +592,12 @@ export default function CVBuilderScreen() {
                     setCurrentCV={setCurrentCV}
                     isPro={isPro}
                     isSaving={isSaving}
+                    isExporting={isExporting}
+                    isImprovingSummary={isImprovingSummary}
                     onSave={handleSaveCV}
                     onExport={handleExport}
                     onAITailor={handleAITailor}
+                    onImproveSummary={handleImproveSummary}
                     onUpgradeFeature={(feature) => {
                         setUpgradeFeature(feature);
                         setShowUpgradeModal(true);
@@ -499,7 +606,12 @@ export default function CVBuilderScreen() {
             )}
 
             {activeSection === 'preview' && (
-                <CVPreview currentCV={currentCV} onBack={() => setActiveSection('editor')} />
+                <CVPreview
+                    currentCV={currentCV}
+                    onBack={() => setActiveSection('editor')}
+                    onExport={handleExport}
+                    isExporting={isExporting}
+                />
             )}
 
             {/* Modals */}
@@ -662,57 +774,46 @@ const styles = StyleSheet.create({
         marginBottom: 14,
     },
     quickActionCard: {
-        height: 138,
-        borderRadius: 22,
+        minHeight: 92,
+        borderRadius: 20,
         overflow: 'hidden',
         marginBottom: 12,
-        backgroundColor: '#0F172A',
+        padding: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+        borderWidth: 1,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.12,
-        shadowRadius: 16,
-        elevation: 5,
+        shadowOpacity: 0.10,
+        shadowRadius: 14,
+        elevation: 4,
     },
-    quickActionImage: {
-        flex: 1,
-        padding: 16,
-        justifyContent: 'center',
+    quickActionIcon: {
+        width: 48,
+        height: 48,
+        borderRadius: 14,
         alignItems: 'center',
-    },
-    quickActionImageInner: {
-        borderRadius: 22,
-    },
-    quickActionScrim: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(15,23,42,0.72)',
+        justifyContent: 'center',
     },
     quickActionCopy: {
-        paddingHorizontal: 22,
-        alignItems: 'center',
+        flex: 1,
     },
     quickActionCardTitle: {
-        color: '#FFFFFF',
-        fontSize: 19,
-        lineHeight: 24,
+        fontSize: 16,
+        lineHeight: 21,
         fontWeight: '800',
-        textAlign: 'center',
     },
     quickActionCardSubtitle: {
-        color: 'rgba(255,255,255,0.78)',
-        fontSize: 13,
-        lineHeight: 18,
-        marginTop: 5,
+        fontSize: 12.5,
+        lineHeight: 17,
+        marginTop: 3,
         fontWeight: '600',
-        textAlign: 'center',
     },
     quickActionArrow: {
-        position: 'absolute',
-        right: 16,
-        bottom: 16,
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#FFFFFF',
+        width: 34,
+        height: 34,
+        borderRadius: 17,
         alignItems: 'center',
         justifyContent: 'center',
     },

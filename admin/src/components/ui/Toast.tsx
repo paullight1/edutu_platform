@@ -94,7 +94,7 @@ function ToastItem({ toast: t, onDismiss }: { toast: Toast; onDismiss: (id: stri
               t.undoAction?.();
               onDismiss(t.id);
             }}
-            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+            className="text-xs font-semibold text-blue-600 hover:text-blue-800"
           >
             {t.undoLabel || 'Undo'}
           </button>

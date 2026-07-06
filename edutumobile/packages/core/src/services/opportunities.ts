@@ -15,6 +15,8 @@ interface FetchOptions {
   userId?: string;
   getAuthToken?: () => Promise<string | null | undefined>;
   profileOverride?: Record<string, unknown> | null;
+  /** Opportunity ids the user dismissed — excluded server-side (and locally on fallback). */
+  excludeOpportunityIds?: string[];
   onSyncSnapshot?: (opportunities: Opportunity[]) => Promise<void>;
   onUpdateN8n?: (opportunities: Opportunity[], userId: string) => Promise<void>;
 }
@@ -70,10 +72,54 @@ async function syncExternalSnapshot(
   });
 }
 
+/**
+ * Forward-compat coercion: recommendation endpoints historically returned
+ * `match_reasons` as plain strings, but newer engine responses may send
+ * `{ kind, label, points }` objects. Always surface plain labels for UI lists.
+ */
+function toReasonLabels(value: any): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item: any) => {
+      if (typeof item === 'string') {
+        return item;
+      }
+      if (item && typeof item === 'object' && typeof item.label === 'string') {
+        return item.label;
+      }
+      return null;
+    })
+    .filter((label: string | null): label is string => Boolean(label));
+}
+
+function toReasonDetails(value: any): MatchReason[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item: any) => item && typeof item === 'object' && typeof item.label === 'string')
+    .map((item: any) => ({
+      kind: (item.kind || 'interest') as MatchReason['kind'],
+      label: item.label,
+      points: typeof item.points === 'number' ? item.points : 0,
+    }));
+}
+
 function normaliseOpportunity(row: any): Opportunity {
   const meta = row.metadata || {};
   const shareCard = meta.share_card || {};
   const canonicalCategory = categorizeOpportunity(row);
+  const rawReasons = row.matchReasons ?? row.match_reasons ?? [];
+  const rawRisks = row.matchRisks ?? row.match_risks ?? [];
+  // Prefer the explicit additive field; fall back to object-shaped match_reasons.
+  const rawReasonDetails = row.match_reason_details ?? row.matchReasonDetails;
+  const matchReasonDetails = toReasonDetails(
+    Array.isArray(rawReasonDetails) ? rawReasonDetails : rawReasons,
+  );
   return {
     id: row.id,
     title: row.title,
@@ -96,8 +142,9 @@ function normaliseOpportunity(row: any): Opportunity {
     difficulty: (row.difficulty as OpportunityDifficulty) || 'Medium',
     featured: row.is_featured || row.isFeatured || false,
     aiSummary: row.aiSummary || row.ai_summary || row.refined_summary || null,
-    matchReasons: row.matchReasons || row.match_reasons || [],
-    matchRisks: row.matchRisks || row.match_risks || [],
+    matchReasons: toReasonLabels(rawReasons),
+    matchRisks: toReasonLabels(rawRisks),
+    matchReasonDetails: matchReasonDetails.length > 0 ? matchReasonDetails : undefined,
     aiTags: row.aiTags || row.ai_tags || row.tags || [],
     stipend: row.stipend || null,
     currency: row.currency || null,
@@ -349,7 +396,8 @@ function calculateMatchScore(opportunity: any, profile: any): number {
 }
 
 export async function fetchOpportunities(options: FetchOptions): Promise<Opportunity[]> {
-  const { supabase, force, userId, getAuthToken, profileOverride, signal, onSyncSnapshot } = options;
+  const { supabase, force, userId, getAuthToken, profileOverride, signal, onSyncSnapshot, excludeOpportunityIds } = options;
+  const hasExclusions = Array.isArray(excludeOpportunityIds) && excludeOpportunityIds.length > 0;
 
   if (!force && cachedOpportunities && !userId) {
     return cachedOpportunities;
@@ -405,8 +453,9 @@ export async function fetchOpportunities(options: FetchOptions): Promise<Opportu
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            limit: 50,
+            limit: 300,
             minMatchScore: 0,
+            ...(hasExclusions ? { excludeOpportunityIds } : {}),
           }),
           signal,
         });
@@ -436,8 +485,9 @@ export async function fetchOpportunities(options: FetchOptions): Promise<Opportu
         },
         body: JSON.stringify({
           profile,
-          limit: 50,
+          limit: 300,
           minMatchScore: userId ? 0 : 30,
+          ...(hasExclusions ? { excludeOpportunityIds } : {}),
         }),
         signal,
       });
@@ -470,7 +520,16 @@ export async function fetchOpportunities(options: FetchOptions): Promise<Opportu
 
   if (oppError) throw oppError;
 
-  let normalised = (opps || []).map(row => {
+  const excludedSet = new Set(excludeOpportunityIds ?? []);
+
+  // LOCKED SEMANTICS — OFFLINE-ONLY SCORING BELOW.
+  // The local evaluateMatch (including its hard-zero country / remote-only
+  // rules) only ever runs on this Supabase/offline fallback path. Server
+  // recommendation responses flow through normaliseOpportunity untouched and
+  // must NEVER be re-scored or filtered by this local heuristic.
+  let normalised = (opps || [])
+    .filter((row: any) => !excludedSet.has(row.id))
+    .map(row => {
     const opt = normaliseOpportunity(row);
     const result = evaluateMatch(profile, row);
     opt.match = result.score;

@@ -69,7 +69,7 @@ export const RecommendationQuerySchema = z.object({
     .nullable()
     .optional(),
   message: z.string().max(4000).nullable().optional(),
-  limit: z.number().int().min(1).max(50).optional(),
+  limit: z.number().int().min(1).max(300).optional(),
   minMatchScore: z.number().min(0).max(100).optional(),
   excludeOpportunityIds: z.array(z.string().uuid()).max(200).optional(),
   // Opt-in LLM re-rank refinement. Off by default so the heuristic ranking

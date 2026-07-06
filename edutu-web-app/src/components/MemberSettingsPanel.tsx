@@ -11,6 +11,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { useNotifications } from "../hooks/useNotifications";
 import {
@@ -22,9 +23,6 @@ import {
   type UserSettings,
 } from "../services/userSettings";
 
-interface MemberSettingsPanelProps {
-  onOpenNotifications: () => void;
-}
 
 const visibilityOptions: Array<{
   value: PrivacySettings["profileVisibility"];
@@ -143,9 +141,7 @@ function Toggle({
   );
 }
 
-export default function MemberSettingsPanel({
-  onOpenNotifications,
-}: MemberSettingsPanelProps) {
+export default function MemberSettingsPanel() {
   const { getToken } = useClerkAuth();
   const { unreadCount } = useNotifications();
   const [settings, setSettings] = useState<UserSettings | null>(null);
@@ -323,9 +319,8 @@ export default function MemberSettingsPanel({
       )}
 
       <section>
-        <button
-          type="button"
-          onClick={onOpenNotifications}
+        <Link
+          to="/app/notifications"
           className="flex w-full items-center justify-between rounded-[22px] border border-subtle bg-surface-layer p-4 text-left shadow-soft transition hover:bg-surface-elevated"
         >
           <span className="flex min-w-0 items-center gap-3">
@@ -349,7 +344,7 @@ export default function MemberSettingsPanel({
             ) : null}
             <ChevronRight size={18} className="text-text-muted" />
           </span>
-        </button>
+        </Link>
       </section>
 
       <section className="space-y-2">

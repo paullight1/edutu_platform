@@ -8,6 +8,7 @@ import * as cheerio from "cheerio";
 import { pool } from "../db";
 import { AiService } from "../ai";
 import { OpportunityShareCardService } from "../opportunities/opportunity-share-card.service";
+import { OpportunityEmbeddingService } from "../opportunities/opportunity-embedding.service";
 import { classifyOpportunity } from "../opportunities/opportunity-categorization";
 import { ScraperAlertsService } from "./scraper-alerts.service";
 import { RobotsChecker } from "./robots-checker";
@@ -72,6 +73,8 @@ interface RawItem {
   benefits?: string[];
   application_process?: string[];
   summary?: string;
+  skills?: string[];
+  eligibility_criteria?: string | null;
   eligibility?: Record<string, unknown>;
   funding_type?: string;
   target_region?: string;
@@ -101,6 +104,8 @@ const DeepSeekExtractionSchema = z.object({
   benefits: z.array(z.string().trim().min(2)).optional().default([]),
   deadline: z.string().nullable().optional(),
   application_process: z.array(z.string().trim().min(2)).optional().default([]),
+  skills: z.array(z.string().trim().min(2)).max(12).optional().default([]),
+  eligibility_criteria: boundedString(800),
   eligibility: z.record(z.string(), z.unknown()).optional().default({}),
   funding_type: boundedString(120),
   target_region: boundedString(120),
@@ -275,6 +280,7 @@ export class ScraperService implements OnModuleInit {
     private schedulerRegistry: SchedulerRegistry,
     private readonly aiService: AiService,
     private readonly opportunityShareCardService: OpportunityShareCardService,
+    private readonly embeddingService: OpportunityEmbeddingService,
     private readonly scraperAlertsService: ScraperAlertsService,
     private readonly robotsChecker: RobotsChecker,
   ) {
@@ -830,7 +836,7 @@ export class ScraperService implements OnModuleInit {
     const { data, error } = await this.supabase
       .from("opportunities")
       .select(
-        "id, title, summary, description, organization, location, close_date, apply_url, application_url, source_url, image_url, eligibility, funding_type, target_region, metadata, source",
+        "id, title, summary, description, organization, location, close_date, apply_url, application_url, source_url, image_url, skills, eligibility_criteria, eligibility, funding_type, target_region, metadata, source",
       )
       .eq("source", "scraper")
       .or(
@@ -880,6 +886,8 @@ export class ScraperService implements OnModuleInit {
               application_process: this.normalizeStringList(
                 meta.application_process,
               ),
+              skills: Array.isArray(row.skills) ? row.skills : undefined,
+              eligibility_criteria: row.eligibility_criteria ?? null,
               eligibility:
                 (row.eligibility as Record<string, unknown>) ?? undefined,
               funding_type: row.funding_type ?? undefined,
@@ -920,6 +928,12 @@ export class ScraperService implements OnModuleInit {
               ...((record.stipend as number | null) != null
                 ? { stipend: record.stipend, currency: record.currency }
                 : {}),
+              ...((record.skills as string[] | undefined)?.length
+                ? { skills: record.skills }
+                : {}),
+              ...(record.eligibility_criteria
+                ? { eligibility_criteria: record.eligibility_criteria }
+                : {}),
               metadata: {
                 ...meta,
                 ...(record.metadata as Record<string, unknown>),
@@ -941,6 +955,7 @@ export class ScraperService implements OnModuleInit {
             }
 
             updated++;
+            void this.embeddingService.embedOpportunity(row.id);
             if (!row.image_url && update.image_url) imagesAdded++;
             if (update.validation_status !== "valid") stillIncomplete++;
           } catch (e: any) {
@@ -1572,6 +1587,11 @@ export class ScraperService implements OnModuleInit {
         }).length;
       });
       await this.markProcessedUrls(saved);
+      // Fire-and-forget: embed each saved row for semantic recommendations.
+      // embedOpportunity never throws and degrades to a no-op without a key.
+      for (const record of saved) {
+        if (record.id) void this.embeddingService.embedOpportunity(record.id);
+      }
       await this.opportunityShareCardService.ensureShareCardsForOpportunities(
         saved,
       );
@@ -1877,6 +1897,9 @@ export class ScraperService implements OnModuleInit {
             ? ai.application_process
             : (item.application_process ?? []),
         ),
+        skills: ai.skills?.length ? ai.skills : (item.skills ?? []),
+        eligibility_criteria:
+          ai.eligibility_criteria ?? item.eligibility_criteria ?? null,
         eligibility: ai.eligibility ?? item.eligibility,
         funding_type: ai.funding_type ?? item.funding_type,
         target_region: ai.target_region ?? item.target_region,
@@ -2042,6 +2065,8 @@ export class ScraperService implements OnModuleInit {
       requirements: [],
       benefits: [],
       application_process: [],
+      skills: [],
+      eligibility_criteria: undefined,
       eligibility: {},
       funding_type: undefined,
       target_region: undefined,
@@ -2060,6 +2085,8 @@ Return ONLY valid JSON matching this schema exactly:
   "benefits": ["string"],
   "deadline": "YYYY-MM-DD or short readable date, or null",
   "application_process": ["step"],
+  "skills": ["5-12 concrete skills or competencies this opportunity develops or requires — empty array if the text doesn't state any"],
+  "eligibility_criteria": "2-4 sentence plain-text eligibility summary, only from facts in the text",
   "eligibility": {
     "level": "string if stated",
     "nationality": "string if stated",
@@ -2096,6 +2123,8 @@ ${text}`;
             benefits: { type: "array", items: { type: "string" } },
             deadline: { type: ["string", "null"] },
             application_process: { type: "array", items: { type: "string" } },
+            skills: { type: "array", items: { type: "string" } },
+            eligibility_criteria: { type: ["string", "null"] },
             eligibility: { type: "object" },
             funding_type: { type: ["string", "null"] },
             target_region: { type: ["string", "null"] },
@@ -2109,6 +2138,8 @@ ${text}`;
             "benefits",
             "deadline",
             "application_process",
+            "skills",
+            "eligibility_criteria",
             "eligibility",
             "funding_type",
             "target_region",
@@ -2763,6 +2794,9 @@ ${text}`;
       item,
       classification.canonicalCategory,
     );
+    const requirementsList = this.normalizeStringList(item.requirements ?? []);
+    const eligibilityCriteria =
+      item.eligibility_criteria || requirementsList.join("\n") || null;
 
     // Hard publish gate: a record may only go live when its core fields hold
     // real scraped content — a passing score alone is not enough.
@@ -2798,6 +2832,8 @@ ${text}`;
         ? /\b(remote|online|virtual|worldwide|global)\b/i.test(item.location)
         : true,
       location: item.location ?? null,
+      skills: item.skills ?? [],
+      eligibility_criteria: eligibilityCriteria,
       eligibility: item.eligibility ?? {},
       funding_type: item.funding_type ?? null,
       target_region: item.target_region ?? null,
@@ -2843,7 +2879,7 @@ ${text}`;
         source_name: item.source,
         public_organization: organization,
         public_tags: publicTags,
-        requirements: this.normalizeStringList(item.requirements ?? []),
+        requirements: requirementsList,
         benefits: this.normalizeStringList(item.benefits ?? []),
         application_process: this.normalizeStringList(
           item.application_process ?? [],

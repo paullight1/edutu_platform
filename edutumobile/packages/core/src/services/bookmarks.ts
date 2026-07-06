@@ -86,15 +86,18 @@ export async function fetchSavedOpportunities(
   );
   const oppIds = uniqueBookmarks.map(b => b.opportunity_id);
 
+  // Hydrate opportunity details. Use select('*') so a missing column never
+  // errors the whole query, and never drop the bookmarks if hydration fails —
+  // show them with whatever data we have rather than an empty screen.
   const { data: opportunities } = await supabase
     .from('opportunities')
-    .select('id, title, organization, deadline, close_date, category, location, image_url, image, match_score')
+    .select('*')
     .in('id', oppIds);
 
-  if (!opportunities) return [];
+  const opportunityList = opportunities ?? [];
 
   return uniqueBookmarks.map(bookmark => {
-    const opp = opportunities.find(o => o.id === bookmark.opportunity_id);
+    const opp = opportunityList.find(o => o.id === bookmark.opportunity_id);
     return {
       id: bookmark.id,
       opportunity_id: bookmark.opportunity_id,

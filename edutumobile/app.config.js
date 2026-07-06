@@ -63,6 +63,7 @@ export default {
     ios: {
       supportsTablet: true,
       buildNumber: "1",
+      deploymentTarget: "16.4",
       ...(enableAssociatedDomains ? { associatedDomains: ["applinks:edutu.org"] } : {}),
       config: {
         usesNonExemptEncryption: false
@@ -115,6 +116,12 @@ export default {
           "icon": "./assets/icon.png",
           "color": "#171a4f",
           "sounds": []
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Allow Edutu to add your opportunity milestones and application deadlines to your calendar."
         }
       ],
       [

@@ -64,7 +64,7 @@ const CATEGORY_FALLBACKS: Array<{
     pattern: /program|leader/i,
     icon: Layers,
     classes:
-      'from-indigo-500/25 via-indigo-500/10 to-blue-500/20 text-indigo-600 dark:text-indigo-300',
+      'from-blue-500/25 via-blue-500/10 to-blue-500/20 text-blue-600 dark:text-blue-300',
   },
 ];
 

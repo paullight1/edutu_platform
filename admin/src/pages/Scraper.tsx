@@ -241,6 +241,14 @@ export default function ScraperDashboard() {
     const [enhancingIndexes, setEnhancingIndexes] = useState<Set<number>>(new Set());
     const [detailsOpportunity, setDetailsOpportunity] = useState<ScrapedOpportunity | null>(null);
     const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
+    const [expandedJobGroups, setExpandedJobGroups] = useState<Set<string>>(new Set());
+    const toggleJobGroup = (key: string) => {
+        setExpandedJobGroups(prev => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key); else next.add(key);
+            return next;
+        });
+    };
     const abortControllerRef = useRef<AbortController | null>(null);
     // Mirrors isBackground for the async scrape closure (state would be stale).
     const isBackgroundRef = useRef(false);
@@ -367,6 +375,66 @@ export default function ScraperDashboard() {
         } finally {
             setIsLoadingInspect(false);
         }
+    };
+
+    const [isSavingInspect, setIsSavingInspect] = useState(false);
+    const [isImprovingInspect, setIsImprovingInspect] = useState(false);
+
+    // Save every opportunity from the inspected job into the live catalogue.
+    const saveInspectOpportunities = async () => {
+        if (inspectOpportunities.length === 0) return;
+        setIsSavingInspect(true);
+        const items = inspectOpportunities.map(opp => {
+            const sourceUrl = opp.sourceUrl || opp.source_url || opp.applyUrl || opp.apply_url || '';
+            const applyUrl = opp.applyUrl || opp.apply_url || opp.application_url || sourceUrl;
+            if (!sourceUrl) return null;
+            return {
+                title: opp.title, summary: opp.summary || undefined, description: opp.description || undefined,
+                category: opp.category || undefined, organization: opp.organization || undefined, location: opp.location || undefined,
+                type: 'scholarship', eligibilityCriteria: opp.requirements?.length ? opp.requirements.join('\n') : undefined,
+                fundingType: opp.funding_type || undefined, targetRegion: opp.target_region || undefined,
+                deadline: opp.deadline || undefined, sourceUrl, applyUrl,
+                imageUrl: opp.imageUrl || opp.image_url || undefined, eligibility: opp.eligibility || undefined,
+                isFeatured: false, isRemote: true, status: 'pending', tags: [] as string[],
+            };
+        }).filter((i): i is NonNullable<typeof i> => Boolean(i));
+        if (items.length === 0) { setIsSavingInspect(false); showNotification('No valid opportunities to save', 'warning'); return; }
+        let inserted = 0, skipped = 0;
+        for (let i = 0; i < items.length; i += 100) {
+            try {
+                const result = await backendFetchJson<{ success: boolean; inserted?: number; skipped?: number }>(
+                    `/opportunities/admin/bulk-import`,
+                    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: items.slice(i, i + 100) }) },
+                );
+                inserted += result.inserted || 0; skipped += result.skipped || 0;
+            } catch (e) { console.error('inspect save batch failed', e); }
+        }
+        setIsSavingInspect(false);
+        await loadRecentOpportunities(); await loadData();
+        showNotification(`Saved ${inserted} opportunities${skipped ? `, skipped ${skipped}` : ''}`, 'success');
+    };
+
+    // Improve every opportunity in the inspected job with AI (updates the list live).
+    const improveInspectOpportunities = async () => {
+        if (inspectOpportunities.length === 0) return;
+        setIsImprovingInspect(true);
+        const updated = [...inspectOpportunities];
+        for (let i = 0; i < updated.length; i++) {
+            try {
+                const response = await fetch(`${API_URL}/enhance-preview`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
+                    body: JSON.stringify(updated[i]),
+                });
+                const result = await response.json();
+                if (response.ok && result.success && result.opportunity) {
+                    updated[i] = result.opportunity;
+                    setInspectOpportunities([...updated]);
+                }
+            } catch (e) { console.warn('AI improve failed for item', i, e); }
+        }
+        setIsImprovingInspect(false);
+        showNotification('AI improvement complete', 'success');
     };
 
     const handleDeleteJob = async (id: string) => {
@@ -1272,6 +1340,85 @@ export default function ScraperDashboard() {
 
 
 
+    // Compact source card (grid layout) — replaces the wide table rows.
+    const renderSourceCard = (source: ScrapeSource, depth: number = 0): React.ReactNode => {
+        const children = getChildren(source.id);
+        const isExpanded = expandedGroups.has(source.id);
+        const hasChildren = children.length > 0 || source.is_group;
+        const successRate = source.total_scraped + source.total_failed > 0
+            ? Math.round((source.total_scraped / (source.total_scraped + source.total_failed)) * 100)
+            : null;
+        return (
+            <React.Fragment key={source.id}>
+                <div style={{
+                    background: source.is_group ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
+                    border: `1px solid ${depth > 0 ? 'var(--apple-blue)' : 'var(--border-light)'}`,
+                    borderLeft: depth > 0 ? '3px solid var(--apple-blue)' : undefined,
+                    borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10,
+                    transition: 'border-color 0.15s ease',
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                        <div style={{ minWidth: 0 }}>
+                            <div
+                                onClick={() => hasChildren && toggleGroup(source.id)}
+                                style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: hasChildren ? 'pointer' : 'default' }}
+                            >
+                                {hasChildren && (
+                                    <ChevronRight size={14} style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s', color: 'var(--text-tertiary)', flexShrink: 0 }} />
+                                )}
+                                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {source.name}
+                                </span>
+                            </div>
+                            {source.is_group
+                                ? <span style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', fontWeight: 600 }}>Group · {children.length} sources</span>
+                                : source.url && (
+                                    <a href={source.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                                        style={{ fontSize: 11, color: 'var(--link-blue)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {source.url.replace(/^https?:\/\//, '').slice(0, 34)}<ExternalLink size={9} />
+                                    </a>
+                                )}
+                        </div>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); toggleSource(source); }}
+                            title={source.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable'}
+                            style={{
+                                flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 6,
+                                fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer',
+                                background: source.enabled ? 'rgba(52, 199, 89, 0.12)' : 'var(--bg-tertiary)',
+                                color: source.enabled ? '#34c759' : 'var(--text-tertiary)',
+                            }}
+                        >
+                            {source.enabled ? <CheckCircle2 size={11} /> : <Pause size={11} />}
+                            {source.enabled ? 'Active' : 'Off'}
+                        </button>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 11, color: 'var(--text-tertiary)' }}>
+                        <span>{source.last_scraped ? formatDate(source.last_scraped) : 'Never scraped'}</span>
+                        <span>{successRate !== null ? `${successRate}% success` : '—'}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                            onClick={() => { if (source.is_group) showNotification(`Starting scrape for all ${source.name} sources`, 'info'); startScrape(source.id); }}
+                            title={source.is_group ? 'Scrape all in group' : 'Scrape this source'}
+                            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '7px 10px', borderRadius: 8, border: '1px solid rgba(0,113,227,0.3)', background: 'rgba(0,113,227,0.08)', color: '#0071e3', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                        >
+                            <Play size={13} /> {source.is_group ? 'Run all' : 'Run'}
+                        </button>
+                        <button
+                            onClick={() => deleteSource(source.id)}
+                            title="Delete source"
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '7px 10px', borderRadius: 8, border: '1px solid rgba(255,59,48,0.25)', background: 'transparent', color: '#ff3b30', cursor: 'pointer' }}
+                        >
+                            <Trash2 size={13} />
+                        </button>
+                    </div>
+                </div>
+                {isExpanded && children.map(child => renderSourceCard(child, depth + 1))}
+            </React.Fragment>
+        );
+    };
+
     const enabledSourcesCount = sources.filter(s => s.enabled).length;
 
     const mainStats = [
@@ -1682,34 +1829,23 @@ export default function ScraperDashboard() {
                         </button>
                     </div>
                 </div>
-                <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                            <tr style={{ background: 'var(--bg-tertiary)' }}>
-                                <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Source</th>
-                                <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Status</th>
-                                <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Last Scraped</th>
-                                <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Success Rate</th>
-                                <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {rootSources.length === 0 ? (
-                                <tr>
-                                    <td colSpan={5} style={{ padding: '48px 24px', textAlign: 'center' }}>
-                                        <AlertCircle size={32} style={{ color: 'var(--text-tertiary)', margin: '0 auto 12px' }} />
-                                        <p style={{ color: 'var(--text-tertiary)', fontSize: 14 }}>
-                                            No sources found matching your frequency/filter.
-                                        </p>
-                                    </td>
-                                </tr>
-                            ) : (
-                                rootSources.map(source => renderSourceRow(source))
-                            )}
-                        </tbody>
-
-                    </table>
-                </div>
+                {rootSources.length === 0 ? (
+                    <div style={{ padding: '48px 24px', textAlign: 'center' }}>
+                        <AlertCircle size={32} style={{ color: 'var(--text-tertiary)', margin: '0 auto 12px' }} />
+                        <p style={{ color: 'var(--text-tertiary)', fontSize: 14 }}>
+                            No sources found matching your filter.
+                        </p>
+                    </div>
+                ) : (
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                        gap: 12,
+                        padding: '16px 24px 24px',
+                    }}>
+                        {rootSources.map(source => renderSourceCard(source))}
+                    </div>
+                )}
             </div>
 
             {/* Automation Settings */}
@@ -1962,6 +2098,10 @@ export default function ScraperDashboard() {
                                 {visibleJobGroups.map(group => {
                                     const latestJob = group.jobs[0];
                                     const statusColor = getStatusColor(latestJob.status);
+                                    const isExpanded = expandedJobGroups.has(group.displayName);
+                                    const totalFound = group.jobs.reduce((s, j) => s + getJobFoundCount(j), 0);
+                                    const totalSaved = group.jobs.reduce((s, j) => s + getJobSavedCount(j), 0);
+                                    const latestRunning = latestJob.status === 'running' || latestJob.status === 'in_progress';
 
                                     return (
                                         <div
@@ -2024,48 +2164,67 @@ export default function ScraperDashboard() {
                                                 </span>
                                             </div>
 
-                                            <div style={{
-                                                display: 'flex',
-                                                gap: 8,
-                                                flexWrap: 'wrap',
-                                                marginBottom: 12,
-                                            }}>
-                                                <span style={{
-                                                    padding: '4px 8px',
-                                                    borderRadius: 999,
-                                                    background: 'rgba(0, 113, 227, 0.08)',
-                                                    color: 'var(--text-primary)',
-                                                    fontSize: 11,
-                                                    fontWeight: 600,
-                                                }}>
-                                                    {getJobFoundCount(latestJob)} opportunities found
+                                            {/* Total outcomes across all runs in this group */}
+                                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                                                <span style={{ padding: '4px 8px', borderRadius: 999, background: 'rgba(0, 113, 227, 0.08)', color: 'var(--text-primary)', fontSize: 11, fontWeight: 600 }}>
+                                                    {totalFound} found
                                                 </span>
-                                                <span style={{
-                                                    padding: '4px 8px',
-                                                    borderRadius: 999,
-                                                    background: 'rgba(52, 199, 89, 0.1)',
-                                                    color: '#34c759',
-                                                    fontSize: 11,
-                                                    fontWeight: 600,
-                                                }}>
-                                                    {getJobSavedCount(latestJob)} saved
+                                                <span style={{ padding: '4px 8px', borderRadius: 999, background: 'rgba(52, 199, 89, 0.1)', color: '#34c759', fontSize: 11, fontWeight: 600 }}>
+                                                    {totalSaved} saved
                                                 </span>
-                                                <span style={{
-                                                    padding: '4px 8px',
-                                                    borderRadius: 999,
-                                                    background: 'var(--bg-tertiary)',
-                                                    color: 'var(--text-secondary)',
-                                                    fontSize: 11,
-                                                    fontWeight: 600,
-                                                }}>
-                                                    {latestJob.duration_seconds}s
+                                                <span style={{ padding: '4px 8px', borderRadius: 999, background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontSize: 11, fontWeight: 600 }}>
+                                                    {group.jobs.length} run{group.jobs.length === 1 ? '' : 's'}
                                                 </span>
                                             </div>
 
+                                            {/* Live progress for the active run */}
+                                            {latestRunning && scraping && (
+                                                <div style={{ marginBottom: 12 }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
+                                                        <span>{isPaused ? 'Paused' : 'Scraping'} · {liveFoundCount} found</span>
+                                                        <span>{estimatedProgress}%</span>
+                                                    </div>
+                                                    <div style={{ height: 4, background: 'var(--bg-tertiary)', borderRadius: 2, overflow: 'hidden' }}>
+                                                        <div style={{ height: '100%', width: `${estimatedProgress}%`, background: 'linear-gradient(90deg,#146ef5,#60a5fa)', borderRadius: 2, transition: 'width 0.5s ease' }} />
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Actions: View & Save · (running) pause/stop · expand runs */}
+                                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                <button
+                                                    onClick={() => handleInspectJob(latestJob)}
+                                                    title="View this run's opportunities — save them or improve with AI"
+                                                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 10px', borderRadius: 8, border: '1px solid rgba(0,113,227,0.25)', background: 'rgba(0,113,227,0.08)', color: 'var(--primary)', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}
+                                                >
+                                                    <Save size={13} /> View &amp; Save
+                                                </button>
+                                                {latestRunning && scraping && (
+                                                    <>
+                                                        <button onClick={isPaused ? resumeScrape : pauseScrape} title={isPaused ? 'Resume' : 'Pause'}
+                                                            style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid var(--border-medium)', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                            {isPaused ? <Play size={14} /> : <Pause size={14} />}
+                                                        </button>
+                                                        <button onClick={requestStopScrape} title="Stop"
+                                                            style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid rgba(255,59,48,0.3)', background: 'rgba(255,59,48,0.1)', color: '#ff3b30', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                            <X size={14} />
+                                                        </button>
+                                                    </>
+                                                )}
+                                                <button onClick={() => toggleJobGroup(group.displayName)} title={isExpanded ? 'Hide runs' : 'Show runs'}
+                                                    style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid var(--border-medium)', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <ChevronRight size={16} style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+                                                </button>
+                                            </div>
+
+                                            {isExpanded && (
                                             <div style={{
                                                 display: 'flex',
                                                 flexDirection: 'column',
                                                 gap: 8,
+                                                marginTop: 12,
+                                                borderTop: '1px solid var(--border-light)',
+                                                paddingTop: 12,
                                             }}>
                                                 {group.jobs.slice(0, showAllJobs ? group.jobs.length : 3).map(job => {
                                                     const jobStatus = getStatusColor(job.status);
@@ -2186,6 +2345,7 @@ export default function ScraperDashboard() {
                                                     );
                                                 })}
                                             </div>
+                                            )}
                                         </div>
                                     );
                                 })}
@@ -3757,22 +3917,34 @@ export default function ScraperDashboard() {
                             )}
                         </div>
 
-                        <div style={{ padding: '20px 32px', background: 'var(--bg-tertiary)', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end' }}>
-                            <button
-                                onClick={() => setInspectJobDetails(null)}
-                                style={{
-                                    padding: '10px 24px',
-                                    background: 'var(--text-primary)',
-                                    color: 'var(--bg-primary)',
-                                    border: 'none',
-                                    borderRadius: 10,
-                                    fontSize: 14,
-                                    fontWeight: 600,
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                Close
-                            </button>
+                        <div style={{ padding: '20px 32px', background: 'var(--bg-tertiary)', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
+                                {inspectOpportunities.length} opportunit{inspectOpportunities.length === 1 ? 'y' : 'ies'} in this run
+                            </span>
+                            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                <button
+                                    onClick={improveInspectOpportunities}
+                                    disabled={isImprovingInspect || isSavingInspect || inspectOpportunities.length === 0}
+                                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: 'rgba(122,61,255,0.1)', color: '#7a3dff', border: '1px solid rgba(122,61,255,0.3)', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: (isImprovingInspect || inspectOpportunities.length === 0) ? 'not-allowed' : 'pointer', opacity: (isImprovingInspect || inspectOpportunities.length === 0) ? 0.6 : 1 }}
+                                >
+                                    {isImprovingInspect ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+                                    {isImprovingInspect ? 'Improving…' : 'Improve with AI'}
+                                </button>
+                                <button
+                                    onClick={saveInspectOpportunities}
+                                    disabled={isSavingInspect || isImprovingInspect || inspectOpportunities.length === 0}
+                                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: 'var(--apple-blue)', color: 'white', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: (isSavingInspect || inspectOpportunities.length === 0) ? 'not-allowed' : 'pointer', opacity: (isSavingInspect || inspectOpportunities.length === 0) ? 0.6 : 1 }}
+                                >
+                                    {isSavingInspect ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                    {isSavingInspect ? 'Saving…' : `Save all${inspectOpportunities.length ? ` (${inspectOpportunities.length})` : ''}`}
+                                </button>
+                                <button
+                                    onClick={() => setInspectJobDetails(null)}
+                                    style={{ padding: '10px 20px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-medium)', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+                                >
+                                    Close
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -9,7 +9,10 @@ export function getDiscoveryCategoryIconSource(type: DiscoveryCategoryIcon): Ima
     case 'leadership':
       return require('../assets/icons8/document.png');
     case 'training':
-      return require('../assets/icons8/training.png');
+      // No dedicated training.png asset ships in assets/icons8; reuse the
+      // document icon so the bundle resolves. The primary UI uses the SVG
+      // variant from getDiscoveryCategoryIconXml('training').
+      return require('../assets/icons8/document.png');
     default:
       return require('../assets/icons8/certificate.png');
   }

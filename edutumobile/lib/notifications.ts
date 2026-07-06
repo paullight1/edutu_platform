@@ -9,7 +9,7 @@ const PUSH_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
 let lastPushSyncKey: string | null = null;
 let pushSyncInFlight: Promise<void> | null = null;
 let pushSyncDisabledUntil = 0;
-let hasLoggedPushSyncNetworkError = false;
+let hasLoggedPushSyncError = false;
 
 function isNetworkError(error: unknown): boolean {
     return error instanceof TypeError && error.message === 'Network request failed';
@@ -45,17 +45,21 @@ async function syncPushToken(userId: string, authToken: string, token: string): 
             }
 
             lastPushSyncKey = syncKey;
-            hasLoggedPushSyncNetworkError = false;
+            hasLoggedPushSyncError = false;
         } catch (error) {
+            // Push-token sync is best-effort background work. Any failure
+            // (offline, 401/auth, endpoint unavailable) must degrade quietly —
+            // never surface as a fatal error. Back off and warn once in dev.
             pushSyncDisabledUntil = Date.now() + PUSH_SYNC_COOLDOWN_MS;
-            if (isNetworkError(error)) {
-                if (__DEV__ && !hasLoggedPushSyncNetworkError) {
-                    console.warn('Push token sync skipped: API is not reachable');
-                    hasLoggedPushSyncNetworkError = true;
-                }
-                return;
+            if (__DEV__ && !hasLoggedPushSyncError) {
+                const reason = isNetworkError(error)
+                    ? 'API is not reachable'
+                    : error instanceof Error
+                        ? error.message
+                        : String(error);
+                console.warn(`Push token sync skipped: ${reason}`);
+                hasLoggedPushSyncError = true;
             }
-            console.error('Error syncing push token:', error);
         } finally {
             pushSyncInFlight = null;
         }

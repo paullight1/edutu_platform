@@ -1,9 +1,8 @@
-import { View, Text, ScrollView, StyleSheet, Dimensions, Image, RefreshControl, TouchableOpacity } from "react-native";
+import { View, Text, ScrollView, StyleSheet, Dimensions, Image, ImageBackground, RefreshControl, TouchableOpacity } from "react-native";
 import React, { useCallback, useEffect, useState, useMemo } from "react";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useRouter } from "expo-router";
-import { SvgXml } from "react-native-svg";
 import {
     Sparkles,
     ChevronRight,
@@ -26,7 +25,7 @@ import { getDeadlineBadge, urgencyColor } from "@edutu/core/src/utils/deadline";
 import { AnimatedPressable } from "../../components/ui/AnimatedPressable";
 import { ShimmerCard } from "../../components/ui/Shimmer";
 import { syncAndUpdateOpportunityWidgetSnapshot } from "../../lib/opportunityWidgetSync";
-import { getDiscoveryCategoryIconSource, getDiscoveryCategoryIconXml, type DiscoveryCategoryIcon } from "../../lib/discoveryCategoryIcons";
+import { type DiscoveryCategoryIcon } from "../../lib/discoveryCategoryIcons";
 
 const { width } = Dimensions.get('window');
 const CARD_GAP = 12;
@@ -52,6 +51,7 @@ const DISCOVERY_CATEGORIES = [
     {
         id: 'scholarships',
         title: 'Scholarships',
+        description: 'Tuition funding & awards',
         icon: 'scholarship',
         colors: ['rgba(239,68,35,0.94)', 'rgba(153,27,27,0.82)'] as [string, string],
         accent: '#EF4423',
@@ -60,6 +60,7 @@ const DISCOVERY_CATEGORIES = [
     {
         id: 'internships',
         title: 'Internships',
+        description: 'Hands-on early-career roles',
         icon: 'career',
         colors: ['rgba(37,99,235,0.92)', 'rgba(30,64,175,0.82)'] as [string, string],
         accent: '#2563EB',
@@ -68,6 +69,7 @@ const DISCOVERY_CATEGORIES = [
     {
         id: 'grants',
         title: 'Programs',
+        description: 'Funded programs & grants',
         icon: 'grant',
         colors: ['rgba(16,185,129,0.92)', 'rgba(4,120,87,0.82)'] as [string, string],
         accent: '#10B981',
@@ -76,22 +78,16 @@ const DISCOVERY_CATEGORIES = [
     {
         id: 'fellowships',
         title: 'Fellowships',
+        description: 'Fellowships & leadership tracks',
         icon: 'leadership',
         colors: ['rgba(249,115,22,0.94)', 'rgba(194,65,12,0.82)'] as [string, string],
         accent: '#F97316',
         image: DISCOVERY_BACKGROUNDS.fellowships,
     },
-    {
-        id: 'training_conferences',
-        title: 'Training & Conferences',
-        icon: 'training',
-        colors: ['rgba(139,92,246,0.92)', 'rgba(109,40,217,0.82)'] as [string, string],
-        accent: '#8B5CF6',
-        image: DISCOVERY_BACKGROUNDS.training_conferences,
-    },
 ] satisfies Array<{
     id: string;
     title: string;
+    description: string;
     icon: DiscoveryCategoryIcon;
     colors: [string, string];
     accent: string;
@@ -100,22 +96,6 @@ const DISCOVERY_CATEGORIES = [
 
 function getUserLookupIds(userId: string): string[] {
     return Array.from(new Set([userId, toSafeUUID(userId)]));
-}
-
-function DiscoverySvgIcon({ type }: { type: DiscoveryCategoryIcon }) {
-    const xml = getDiscoveryCategoryIconXml(type);
-
-    if (xml) {
-        return <SvgXml xml={xml} width={40} height={40} />;
-    }
-
-    return (
-        <Image
-            source={getDiscoveryCategoryIconSource(type)}
-            style={{ width: 40, height: 40 }}
-            resizeMode="contain"
-        />
-    );
 }
 
 function DiscoveryCategoryGrid({ router }: { router: any }) {
@@ -130,15 +110,17 @@ function DiscoveryCategoryGrid({ router }: { router: any }) {
                     hapticFeedback="medium"
                     scaleTo={0.96}
                 >
-                    <Image source={item.image} style={styles.discoveryImage} resizeMode="cover" />
-                    <View style={styles.discoveryContent}>
-                        <View style={styles.discoveryIcon}>
-                            <DiscoverySvgIcon type={item.icon} />
-                        </View>
-                        <Text style={styles.discoveryTitle} numberOfLines={2}>
+                    <ImageBackground
+                        source={item.image}
+                        style={styles.discoveryImageBg}
+                        imageStyle={styles.discoveryImageRadius}
+                        resizeMode="cover"
+                    >
+                        <View style={styles.discoveryTint} />
+                        <Text style={styles.discoveryTitle} numberOfLines={1}>
                             {item.title}
                         </Text>
-                    </View>
+                    </ImageBackground>
                 </AnimatedPressable>
             ))}
         </View>
@@ -193,6 +175,18 @@ function OpportunityCard({ item, isDark, textPrimary, textSecondary, onPress, on
     const topMatchReason = item.matchReasons?.[0];
     const showMatchReason = Boolean(topMatchReason) && (item.match ?? 0) >= 40;
 
+    // The org field often mirrors the title; only show the pill when it adds
+    // something new, so the title isn't duplicated on the card.
+    const orgLabel = (item.organization ?? "").trim();
+    const titleLabel = (item.title ?? "").trim();
+    const org = orgLabel.toLowerCase();
+    const title = titleLabel.toLowerCase();
+    const showOrg =
+        orgLabel.length > 0 &&
+        org !== title &&
+        !title.startsWith(org) &&
+        !org.startsWith(title);
+
     return (
         <AnimatedPressable
             onPress={onPress}
@@ -210,9 +204,13 @@ function OpportunityCard({ item, isDark, textPrimary, textSecondary, onPress, on
             )}
             <View style={styles.oppCardContent}>
                 <View style={styles.oppCardTop}>
-                    <View style={[styles.oppOrgBadge, { backgroundColor: isDark ? "rgba(99,102,241,0.15)" : "#F0F0FF" }]}>
-                        <Text style={styles.oppOrgText}>{item.organization}</Text>
-                    </View>
+                    {showOrg ? (
+                        <View style={[styles.oppOrgBadge, { backgroundColor: isDark ? "rgba(99,102,241,0.15)" : "#F0F0FF" }]}>
+                            <Text style={styles.oppOrgText} numberOfLines={1}>{orgLabel}</Text>
+                        </View>
+                    ) : (
+                        <View style={{ flex: 1 }} />
+                    )}
                     <View style={styles.oppCardActions}>
                         {onShare && (
                             <TouchableOpacity
@@ -641,45 +639,36 @@ const styles = StyleSheet.create({
     },
     discoveryCard: {
         width: CARD_WIDTH,
-        minHeight: 88,
-        borderRadius: 20,
+        height: 72,
+        borderRadius: 16,
         overflow: 'hidden',
         backgroundColor: '#0F172A',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.14)',
-        elevation: 4,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 8,
     },
-    discoveryImage: {
-        ...StyleSheet.absoluteFillObject,
-        width: '100%',
-        height: '100%',
-    },
-    discoveryContent: {
-        minHeight: 88,
-        paddingHorizontal: 14,
-        paddingVertical: 12,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    discoveryIcon: {
-        width: 46,
-        height: 46,
+    discoveryImageBg: {
+        flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        flexShrink: 0,
+        paddingHorizontal: 10,
+    },
+    discoveryImageRadius: {
+        borderRadius: 16,
+    },
+    discoveryTint: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(2,6,23,0.30)',
     },
     discoveryTitle: {
-        flex: 1,
-        minWidth: 0,
         color: '#FFFFFF',
-        fontSize: 13,
-        lineHeight: 16,
-        fontWeight: '900',
+        fontSize: 16,
+        lineHeight: 20,
+        fontWeight: '800',
+        letterSpacing: 0.3,
+        textAlign: 'center',
+        textShadowColor: 'rgba(0,0,0,0.7)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 5,
     },
     sectionHeader: {
         flexDirection: 'row',

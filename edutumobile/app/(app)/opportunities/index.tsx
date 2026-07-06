@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react'
 import {
   FlatList,
   Image,
+  ImageBackground,
   Linking,
   Pressable,
   RefreshControl,
@@ -108,13 +109,6 @@ const DISCOVERY_CARDS = [
     colors: ['rgba(249,115,22,0.94)', 'rgba(194,65,12,0.82)'] as const,
     image: DISCOVERY_BACKGROUNDS.fellowships,
   },
-  {
-    id: 'training_conferences',
-    label: 'Training & Conferences',
-    icon: 'training',
-    colors: ['rgba(139,92,246,0.92)', 'rgba(109,40,217,0.82)'] as const,
-    image: DISCOVERY_BACKGROUNDS.training_conferences,
-  },
 ] satisfies Array<{
   id: DiscoveryCategoryId;
   label: string;
@@ -131,14 +125,6 @@ const OTHER_FEATURES = [
     icon: FileText,
     route: '/cv',
     gradient: ['#2563EB', '#4F46E5'] as const,
-  },
-  {
-    id: 'ai',
-    title: 'Edutu AI',
-    desc: 'Ask for guidance and next steps',
-    icon: MessageCircle,
-    route: '/chat',
-    gradient: ['#3b82f6', '#6366F1'] as const,
   },
   {
     id: 'discussion',
@@ -366,15 +352,15 @@ function DiscoveryCard({
 }) {
   return (
     <Pressable onPress={onPress} style={[styles.discoveryCard, active && styles.discoveryCardActive]}>
-      <Image source={item.image} style={styles.discoveryImage} resizeMode="cover" />
-      <View style={styles.discoveryContent}>
-        <View style={styles.discoveryIcon}>
-          <DiscoveryCategorySvgIcon type={item.icon} />
-        </View>
-        <View style={styles.discoveryText}>
-          <Text style={styles.discoveryTitle} numberOfLines={2}>{item.label}</Text>
-        </View>
-      </View>
+      <ImageBackground
+        source={item.image}
+        style={styles.discoveryImageBg}
+        imageStyle={styles.discoveryImageRadius}
+        resizeMode="cover"
+      >
+        <View style={styles.discoveryTint} />
+        <Text style={styles.discoveryTitle} numberOfLines={1}>{item.label}</Text>
+      </ImageBackground>
     </Pressable>
   );
 }
@@ -425,20 +411,20 @@ function DiscoveryCategorySvgIcon({ type }: { type: DiscoveryCategoryIcon }) {
 }
 
 // ─── Featured Card (For You horizontal scroll) ──────────────────────────────
-function FeaturedCard({ item, onPress, onShare, colors, isDark }: { item: Opportunity; onPress: () => void; onShare: (item: Opportunity) => void; colors: any; isDark: boolean }) {
+function FeaturedCard({ item, onPress, onShare, colors, isDark, cardStyle }: { item: Opportunity; onPress: () => void; onShare: (item: Opportunity) => void; colors: any; isDark: boolean; cardStyle?: any }) {
   const accent = getAccent(item);
   const deadline = getDeadlineText(item.deadline);
   const CategoryIcon = getCategoryIcon(item.category);
 
   return (
-    <Pressable onPress={onPress} style={[styles.featuredCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <Pressable onPress={onPress} style={[styles.featuredCard, cardStyle, { backgroundColor: colors.card, borderColor: colors.border }]}>
       {item.image ? (
         <>
           <Image source={{ uri: item.image }} style={styles.featuredBgImage} resizeMode="cover" />
-          <LinearGradient colors={['rgba(2,6,23,0.05)', 'rgba(2,6,23,0.18)', 'rgba(2,6,23,0.88)']} style={StyleSheet.absoluteFill} />
+          <LinearGradient colors={['rgba(2,6,23,0.05)', 'rgba(2,6,23,0.18)', 'rgba(2,6,23,0.88)']} style={styles.featuredBgImage} />
         </>
       ) : (
-        <LinearGradient colors={[`${accent}65`, `${accent}25`, '#0F172A']} style={StyleSheet.absoluteFill} />
+        <LinearGradient colors={[`${accent}`, `${accent}80`, '#0B1220']} style={styles.featuredBgImage} />
       )}
 
       <View style={styles.featuredTop}>
@@ -812,6 +798,15 @@ export default function OpportunitiesScreen() {
 
   const shouldShowChooser = !showForYouOnly && !isCategoryPage;
 
+  // Warm the image cache for the opportunities most likely to be seen next so
+  // their remote banners appear instantly instead of popping in during scroll.
+  useEffect(() => {
+    const uris = new Set<string>();
+    forYou.slice(0, 4).forEach((item) => item.image && uris.add(item.image));
+    explore.slice(0, 16).forEach((item) => item.image && uris.add(item.image));
+    uris.forEach((uri) => void Image.prefetch(uri).catch(() => undefined));
+  }, [forYou, explore]);
+
   const openOpportunity = (opportunityId: string, context: string) => {
     void recordOpportunitySignal({
       opportunityId,
@@ -1037,32 +1032,33 @@ export default function OpportunitiesScreen() {
                   </Pressable>
                 </View>
 
-                <FlatList
-                  horizontal
-                  data={forYou}
-                  keyExtractor={(item) => `for-you-${item.id}`}
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.forYouRail}
-                  snapToInterval={166}
-                  snapToAlignment="start"
-                  decelerationRate="fast"
-                  renderItem={({ item }) => (
-                    <FeaturedCard item={item} colors={colors} isDark={isDark} onShare={handleShareOpportunity} onPress={() => openOpportunity(item.id, 'for_you_featured_open')} />
-                  )}
-                  ListEmptyComponent={
-                    <View style={[styles.emptyRail, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                      <Sparkles color={colors.accent} size={24} />
-                      <Text style={[styles.emptyRailTitle, { color: colors.foreground }]}>
-                        {hasPersonalizationDetails ? 'Building your matches' : 'Complete your profile'}
-                      </Text>
-                      <Text style={[styles.emptyRailBody, { color: colors.textSecondary }]}>
-                        {hasPersonalizationDetails
-                          ? 'We\'re ranking opportunities based on your profile.'
-                          : 'Add more profile details for personalized recommendations.'}
-                      </Text>
-                    </View>
-                  }
-                />
+                {forYou.length > 0 ? (
+                  <View style={styles.forYouGrid}>
+                    {forYou.slice(0, 4).map((item) => (
+                      <FeaturedCard
+                        key={`for-you-${item.id}`}
+                        item={item}
+                        colors={colors}
+                        isDark={isDark}
+                        onShare={handleShareOpportunity}
+                        onPress={() => openOpportunity(item.id, 'for_you_featured_open')}
+                        cardStyle={styles.forYouGridCard}
+                      />
+                    ))}
+                  </View>
+                ) : (
+                  <View style={[styles.emptyRail, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <Sparkles color={colors.accent} size={24} />
+                    <Text style={[styles.emptyRailTitle, { color: colors.foreground }]}>
+                      {hasPersonalizationDetails ? 'Building your matches' : 'Complete your profile'}
+                    </Text>
+                    <Text style={[styles.emptyRailBody, { color: colors.textSecondary }]}>
+                      {hasPersonalizationDetails
+                        ? 'We\'re ranking opportunities based on your profile.'
+                        : 'Add more profile details for personalized recommendations.'}
+                    </Text>
+                  </View>
+                )}
 
                 <View style={styles.featureHubWrap}>
                   <View style={styles.sectionHeader}>
@@ -1308,14 +1304,17 @@ const styles = StyleSheet.create({
   discoveryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    // Keep each tile at its own height — without this the row can stretch its
+    // children to fill the FlatList header, blowing the cards up full-screen.
+    alignItems: 'flex-start',
     gap: 10,
     marginTop: 16,
     marginBottom: 18,
   },
   discoveryCard: {
     width: CARD_WIDTH,
-    minHeight: 76,
-    borderRadius: 18,
+    height: 72,
+    borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#0F172A',
     borderWidth: 1,
@@ -1329,35 +1328,29 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 5,
   },
-  discoveryImage: {
-    ...StyleSheet.absoluteFillObject,
-    width: '100%',
-    height: '100%',
-  },
-  discoveryContent: {
-    minHeight: 76,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  discoveryIcon: {
-    width: 46,
-    height: 46,
+  discoveryImageBg: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    flexShrink: 0,
+    paddingHorizontal: 10,
   },
-  discoveryText: {
-    flex: 1,
-    minWidth: 0,
+  discoveryImageRadius: {
+    borderRadius: 16,
+  },
+  discoveryTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(2,6,23,0.30)',
   },
   discoveryTitle: {
     color: '#FFFFFF',
-    fontSize: 13,
-    lineHeight: 16,
-    fontWeight: '900',
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.7)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 5,
   },
   viewModeWrapper: { flexDirection: 'row', borderRadius: 12, borderWidth: 1, padding: 3, gap: 4 },
   viewModeBtn: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: 10 },
@@ -1373,6 +1366,8 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontWeight: '800' },
   viewMoreText: { fontSize: 13, fontWeight: '800' },
   forYouRail: { paddingBottom: 10, gap: 12, paddingRight: 4 },
+  forYouGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  forYouGridCard: { width: CARD_WIDTH, height: 224, marginRight: 0 },
   importedAdWrap: {
     marginTop: 22,
     marginBottom: 26,
@@ -1380,7 +1375,7 @@ const styles = StyleSheet.create({
 
   // Featured Card
   featuredCard: { width: 154, height: 224, borderRadius: 18, borderWidth: 1, overflow: 'hidden', marginRight: 10, justifyContent: 'space-between' },
-  featuredBgImage: { ...StyleSheet.absoluteFillObject },
+  featuredBgImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
   featuredTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', padding: 9, zIndex: 1, gap: 6 },
   featuredMatchBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
   featuredMatchText: { fontSize: 9, fontWeight: '800' },

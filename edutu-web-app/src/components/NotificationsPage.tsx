@@ -8,7 +8,12 @@ import Seo from "./Seo";
 export default function NotificationsPage() {
   return (
     <>
-      <Seo title="Notifications | Edutu" path="/app/notifications" noindex />
+      <Seo
+        title="Notifications | Edutu"
+        description="Your Edutu notification inbox: deadline reminders, application updates and personalized opportunity alerts."
+        path="/app/notifications"
+        noindex
+      />
       <NotificationInbox variant="page" />
     </>
   );

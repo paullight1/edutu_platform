@@ -14,7 +14,7 @@ interface ThemeColors {
 
 export type ThemeMode = "light" | "dark" | "system";
 export type ThemePackId =
-  | "indigo"
+  | "blue"
   | "violet"
   | "emerald"
   | "rose"
@@ -31,13 +31,13 @@ export interface ThemePack {
 }
 
 /**
- * Accent "theme packs". `indigo` is the product default and is served by the
+ * Accent "theme packs". `blue` is the product default and is served by the
  * base tokens in index.css; the rest override `--color-brand-*` via a
  * `[data-theme="…"]` block (see index.css). Add a pack here + a matching CSS
  * block to ship a new palette.
  */
 export const THEME_PACKS: ThemePack[] = [
-  { id: "indigo", label: "Indigo", swatch: "#6366f1", swatchDark: "#818cf8" },
+  { id: "blue", label: "Blue", swatch: "#3b82f6", swatchDark: "#60a5fa" },
   { id: "violet", label: "Violet", swatch: "#8b5cf6", swatchDark: "#a78bfa" },
   { id: "emerald", label: "Emerald", swatch: "#10b981", swatchDark: "#34d399" },
   { id: "rose", label: "Rose", swatch: "#f43f5e", swatchDark: "#fb7185" },
@@ -72,12 +72,12 @@ const LEGACY_MODE_STORAGE_KEY = "edutu-theme";
 const PACK_STORAGE_KEY = "edutu-theme-pack";
 
 const defaultLightTheme: ThemeColors = {
-  accent: "99 102 241", // Indigo 500
+  accent: "59 130 246", // Blue 500
   background: "248 250 252", // Slate 50
 };
 
 const defaultDarkTheme: ThemeColors = {
-  accent: "129 140 248", // Indigo 400
+  accent: "96 165 250", // Blue 400
   background: "12 15 26", // Custom dark
 };
 
@@ -111,7 +111,7 @@ const readStoredMode = (): ThemeMode => {
 
 const readStoredPack = (): ThemePackId => {
   if (typeof window === "undefined") {
-    return "indigo";
+    return "blue";
   }
   try {
     const stored = window.localStorage.getItem(PACK_STORAGE_KEY);
@@ -121,7 +121,7 @@ const readStoredPack = (): ThemePackId => {
   } catch (error) {
     console.warn("Failed to read theme pack.", error);
   }
-  return "indigo";
+  return "blue";
 };
 
 const readStoredColors = (
@@ -169,7 +169,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
     document.documentElement.classList.toggle("dark", isDarkMode);
   }, [isDarkMode]);
 
-  // Reflect the active accent pack on <html> via `data-theme`. Indigo is the
+  // Reflect the active accent pack on <html> via `data-theme`. Blue is the
   // base palette, so it carries no attribute (keeps the DOM clean + avoids an
   // extra CSS match).
   useEffect(() => {
@@ -177,7 +177,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
       return;
     }
     const root = document.documentElement;
-    if (themePack === "indigo") {
+    if (themePack === "blue") {
       root.removeAttribute("data-theme");
     } else {
       root.setAttribute("data-theme", themePack);
@@ -285,7 +285,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
   const resetTheme = useCallback(() => {
     setLightTheme(defaultLightTheme);
     setDarkTheme(defaultDarkTheme);
-    setThemePackState("indigo");
+    setThemePackState("blue");
     setModeState("system");
   }, []);
 

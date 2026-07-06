@@ -19,6 +19,7 @@ import AppWorkspaceShell from "./components/AppWorkspaceShell";
 import PublicEditorialShell from "./components/PublicEditorialShell";
 import GoogleOneTapGate from "./components/GoogleOneTapGate";
 import DeadlineReminders from "./components/DeadlineReminders";
+import InstallAppPrompt from "./components/InstallAppPrompt";
 import PageSuspense from "./components/PageSuspense";
 import { consumePostAuthRedirect } from "./lib/auth";
 import { initializeCapacitor } from "./lib/capacitor";
@@ -45,6 +46,10 @@ const EventsPage = lazy(() => import("./components/EventsPage"));
 const EventDetailPage = lazy(() => import("./components/EventDetailPage"));
 const AboutPage = lazy(() => import("./components/AboutPage"));
 const BlogPage = lazy(() => import("./components/BlogPage"));
+const PrivacyPolicyPage = lazy(() => import("./components/PrivacyPolicyPage"));
+const TermsPage = lazy(() => import("./components/TermsPage"));
+const CareersPage = lazy(() => import("./components/CareersPage"));
+const HelpCenterPage = lazy(() => import("./components/HelpCenterPage"));
 const MentorPage = lazy(() => import("./components/MentorPage"));
 const DownloadPage = lazy(() => import("./components/DownloadPage"));
 const ScholarshipApiPage = lazy(() => import("./components/ScholarshipApiPage"));
@@ -510,6 +515,11 @@ function App() {
       <Route path="/mentor" element={<MentorPage />} />
       <Route path="/about" element={<AboutPage />} />
       <Route path="/blog" element={<BlogPage />} />
+      <Route path="/privacy" element={<PrivacyPolicyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/careers" element={<CareersPage />} />
+      <Route path="/help" element={<HelpCenterPage />} />
+      <Route path="/app/help" element={<Navigate to="/help" replace />} />
       <Route path="/download" element={<DownloadPage />} />
       <Route path="/docs" element={<DocsRedirect />} />
       <Route
@@ -703,6 +713,7 @@ function App() {
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
       </Suspense>
+      <InstallAppPrompt />
     </>
   );
 }

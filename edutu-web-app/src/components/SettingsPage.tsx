@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { ChevronRight, Sparkles } from "lucide-react";
@@ -6,12 +5,10 @@ import AppearanceSettings from "./AppearanceSettings";
 import ReminderSettings from "./ReminderSettings";
 import LanguageSwitcher from "./LanguageSwitcher";
 import MemberSettingsPanel from "./MemberSettingsPanel";
-import NotificationInbox from "./NotificationInbox";
 import { usePersonalization } from "../hooks/usePersonalization";
 
 export default function SettingsPage() {
   const { t } = useTranslation();
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { preferences } = usePersonalization();
   const selectionCount =
     (preferences?.interests.length ?? 0) +
@@ -59,15 +56,8 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        <MemberSettingsPanel
-          onOpenNotifications={() => setNotificationsOpen(true)}
-        />
+        <MemberSettingsPanel />
       </main>
-
-      <NotificationInbox
-        isOpen={notificationsOpen}
-        onClose={() => setNotificationsOpen(false)}
-      />
     </>
   );
 }

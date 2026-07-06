@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import {
   fetchOpportunities,
@@ -10,10 +10,15 @@ import {
   isInvalidOrExpiredTokenError,
 } from "../lib/clerkToken";
 import {
+  evaluateMatch,
   formatUserProfileForRecommendations,
-  getPersonalizedOpportunities,
   type UserProfileForRecommendations,
 } from "../services/personalizedRecommendations";
+import {
+  primeServerMatches,
+  toMatchReasons,
+} from "../services/serverMatchStore";
+import { anchorFeedOrder } from "../services/feedAnchor";
 import type { AppUser } from "../types/user";
 
 const RECO_CACHE_KEY = "edutu:recommendations:v1";
@@ -26,6 +31,25 @@ interface RecommendationCacheEntry {
 }
 
 let recommendationMemoryCache: RecommendationCacheEntry | null = null;
+
+/**
+ * Push server-computed scores into the shared match store so badges and
+ * "why this matches" panels across the app read the authoritative numbers.
+ */
+function primeServerMatchesFromRecommendations(
+  userKey: string,
+  recommendations: PersonalizedOpportunity[],
+) {
+  primeServerMatches(
+    userKey,
+    recommendations.map((item) => ({
+      id: item.opportunity.id,
+      score: item.matchScore,
+      reasons: toMatchReasons(item),
+      risks: item.matchRisks,
+    })),
+  );
+}
 
 // The recommendations endpoint is keyed by the authenticated user only (the
 // request body carries no preferences), so a short-lived per-user cache makes
@@ -112,6 +136,11 @@ export function usePersonalizedOpportunities(): UsePersonalizedOpportunitiesResu
   const [refreshIndex, setRefreshIndex] = useState(0);
   const { getToken, isSignedIn } = useClerkAuth();
 
+  // Latest rendered feed, readable inside the async fetch without adding
+  // `data` to the effect deps (which would retrigger the load).
+  const dataRef = useRef(data);
+  dataRef.current = data;
+
   useEffect(() => {
     let isActive = true;
 
@@ -132,6 +161,7 @@ export function usePersonalizedOpportunities(): UsePersonalizedOpportunitiesResu
     if (refreshIndex === 0) {
       const cachedRecommendations = readRecommendationCache(cacheKey);
       if (cachedRecommendations) {
+        primeServerMatchesFromRecommendations(cacheKey, cachedRecommendations);
         setState({
           data: cachedRecommendations,
           loading: false,
@@ -186,9 +216,24 @@ export function usePersonalizedOpportunities(): UsePersonalizedOpportunitiesResu
           }
 
           if (recommendations && recommendations.length > 0) {
-            writeRecommendationCache(cacheKey, recommendations);
+            primeServerMatchesFromRecommendations(cacheKey, recommendations);
+
+            // Background revalidate over an already-rendered feed: keep the
+            // user's current card order stable (adopting fresh data) instead
+            // of reshuffling under them. Explicit refresh uses server order.
+            const previousData = dataRef.current;
+            const nextData =
+              refreshIndex === 0 && previousData.length > 0
+                ? anchorFeedOrder(
+                    previousData,
+                    recommendations,
+                    (item) => item.opportunity.id,
+                  )
+                : recommendations;
+
+            writeRecommendationCache(cacheKey, nextData);
             setState({
-              data: recommendations,
+              data: nextData,
               loading: false,
               error: null,
               userPreferences: activePreferences,
@@ -214,16 +259,25 @@ export function usePersonalizedOpportunities(): UsePersonalizedOpportunitiesResu
           return;
         }
 
-        const personalizedOpportunities = getPersonalizedOpportunities(
-          activePreferences,
-          opportunities,
-        ).map((item) => ({
-          ...item,
-          matchReasons: [],
-          matchRisks: [],
-          aiSummary: null,
-          aiTags: [],
-        }));
+        // Local heuristic fallback: real scores AND real reasons/risks via
+        // evaluateMatch, so match badges stay meaningful when the backend
+        // recommender is unreachable. Never primes the server match store —
+        // these are not server-computed numbers.
+        const personalizedOpportunities: PersonalizedOpportunity[] =
+          opportunities
+            .map((opportunity) => {
+              const match = evaluateMatch(activePreferences, opportunity);
+              return {
+                opportunity: { ...opportunity, match: match.score },
+                matchScore: match.score,
+                matchReasons: match.reasons.map((reason) => reason.label),
+                matchReasonDetails: match.reasons,
+                matchRisks: match.risks,
+                aiSummary: null,
+                aiTags: [],
+              };
+            })
+            .sort((a, b) => b.matchScore - a.matchScore);
 
         setState({
           data: personalizedOpportunities,
