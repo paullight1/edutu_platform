@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
+import { useNotifications } from "../hooks/useNotifications";
 import { cn } from "../lib/cn";
 import OfflineBanner from "./OfflineBanner";
 
@@ -99,6 +100,7 @@ function getWorkspaceTitleKey(pathname: string): string | null {
   if (pathname.startsWith("/app/deadlines") || pathname === "/deadlines") return "navigation.deadlines";
   if (pathname.startsWith("/app/saved") || pathname === "/saved") return "navigation.saved";
   if (pathname.startsWith("/app/applications") || pathname === "/applications") return "navigation.applications";
+  if (pathname.startsWith("/app/notifications") || pathname === "/notifications") return "navigation.notifications";
   if (pathname.startsWith("/app/profile") || pathname === "/profile") return "navigation.profile";
   if (pathname.startsWith("/app/settings") || pathname === "/settings") return "navigation.settings";
   return "common.appName";
@@ -107,6 +109,7 @@ function getWorkspaceTitleKey(pathname: string): string | null {
 export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) {
   const { t } = useTranslation();
   const { user, signOut } = useAuth();
+  const { unreadCount } = useNotifications();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const swipeStartRef = useRef<{ x: number; y: number; time: number } | null>(
@@ -258,27 +261,35 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
                 </p>
               </div>
             ) : null}
-            {isSidebarOpen ? (
-              <NavLink
-                to="/app/settings"
-                aria-label="Notifications"
-                className={cn(
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-subtle bg-surface-layer text-text-secondary transition hover:bg-surface-elevated",
-                )}
-              >
-                <Bell size={17} />
-              </NavLink>
-            ) : (
-              <NavLink
-                to="/app/settings"
-                aria-label="Notifications"
-                className={cn(
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-text-secondary transition hover:bg-surface-elevated",
-                )}
-              >
-                <Bell size={17} />
-              </NavLink>
-            )}
+            <NavLink
+              to="/app/notifications"
+              aria-label={
+                unreadCount > 0
+                  ? `Notifications, ${unreadCount} unread`
+                  : "Notifications"
+              }
+              className={({ isActive }) =>
+                cn(
+                  "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition",
+                  isSidebarOpen
+                    ? "border border-subtle bg-surface-layer hover:bg-surface-elevated"
+                    : "hover:bg-surface-elevated",
+                  isActive
+                    ? "text-brand"
+                    : "text-text-secondary",
+                )
+              }
+            >
+              <Bell size={17} />
+              {unreadCount > 0 ? (
+                <span
+                  className="absolute -right-0.5 -top-0.5 flex min-w-[16px] items-center justify-center rounded-full border-2 border-surface-layer bg-danger px-1 text-[9px] font-bold leading-none text-white"
+                  aria-hidden="true"
+                >
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              ) : null}
+            </NavLink>
           </div>
 
           <nav className="space-y-1" aria-label="Primary workspace pages">
@@ -422,13 +433,30 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <NavLink
-                to="/app/settings"
-                aria-label="Notifications"
-                className={cn(
-                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-subtle bg-surface-layer text-text-secondary shadow-sm transition hover:bg-surface-elevated",
-                )}
+                to="/app/notifications"
+                aria-label={
+                  unreadCount > 0
+                    ? `Notifications, ${unreadCount} unread`
+                    : "Notifications"
+                }
+                className={({ isActive }) =>
+                  cn(
+                    "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border shadow-sm transition",
+                    isActive
+                      ? "border-brand/40 bg-brand/10 text-brand"
+                      : "border-subtle bg-surface-layer text-text-secondary hover:bg-surface-elevated",
+                  )
+                }
               >
                 <Bell size={20} />
+                {unreadCount > 0 ? (
+                  <span
+                    className="absolute -right-0.5 -top-0.5 flex min-w-[18px] items-center justify-center rounded-full border-2 border-surface-layer bg-danger px-1 text-[10px] font-bold leading-none text-white"
+                    aria-hidden="true"
+                  >
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                ) : null}
               </NavLink>
               <NavLink
                 to="/app/profile"
@@ -442,6 +470,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
         </header>
         <OfflineBanner />
 
+        <div className="min-w-0">{children}</div>
       </div>
 
       {isMobileMoreOpen ? (
@@ -597,13 +626,22 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
       ) : null}
 
       {!isOpportunityDetailRoute ? (
-        <nav
+        <div
           aria-hidden={isMobileMoreOpen}
-          className={cn(
-            "fixed inset-x-0 bottom-0 z-50 border-t border-subtle bg-surface-layer/90 px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 backdrop-blur-xl lg:hidden",
-          )}
-          aria-label="Mobile app navigation"
+          className="pointer-events-none fixed inset-x-0 bottom-0 z-50 lg:hidden"
         >
+          {/* Scrim: fade scrolling content (incl. dark cover images) into the
+              bar so the labels stay legible no matter what's behind them. */}
+          <div
+            className="pointer-events-none h-8 bg-gradient-to-t from-surface-body to-transparent"
+            aria-hidden="true"
+          />
+          <nav
+            className={cn(
+              "pointer-events-auto border-t border-subtle bg-surface-layer px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 shadow-[0_-10px_30px_-14px_rgba(2,6,23,0.35)]",
+            )}
+            aria-label="Mobile app navigation"
+          >
           <div className="grid grid-cols-4">
             {mobileNavItems.map((item) => {
               const Icon = item.icon;
@@ -660,7 +698,8 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
               <span className="truncate">{t("navigation.more")}</span>
             </button>
           </div>
-        </nav>
+          </nav>
+        </div>
       ) : null}
     </div>
   );

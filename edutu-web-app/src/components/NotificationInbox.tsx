@@ -21,8 +21,13 @@ import type {
 } from "../types/notification";
 
 interface NotificationInboxProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
+  /**
+   * "modal" (default) renders the slide-over dialog used from the dashboard.
+   * "page" renders the same content as a full route (used by /app/notifications).
+   */
+  variant?: "modal" | "page";
 }
 
 const severityClasses: Record<NotificationSeverity, string> = {
@@ -65,8 +70,9 @@ function formatKind(kind: AppNotification["kind"]) {
 }
 
 export default function NotificationInbox({
-  isOpen,
+  isOpen = true,
   onClose,
+  variant = "modal",
 }: NotificationInboxProps) {
   const {
     notifications,
@@ -121,24 +127,12 @@ export default function NotificationInbox({
     );
   };
 
-  if (!isOpen) {
+  if (variant === "modal" && !isOpen) {
     return null;
   }
 
-  return (
-    <div className="fixed inset-0 z-50 px-4 py-6">
-      <button
-        type="button"
-        className="absolute inset-0 bg-surface-overlay backdrop-blur-sm"
-        onClick={onClose}
-        aria-label="Close notifications"
-      />
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="notification-inbox-title"
-        className="relative ml-auto flex h-full w-full max-w-md flex-col overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-elevated"
-      >
+  const body = (
+    <>
         <div className="border-b border-subtle px-4 py-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -161,14 +155,16 @@ export default function NotificationInbox({
                 </div>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-text-muted transition hover:bg-surface-elevated hover:text-text-primary"
-              aria-label="Close notifications"
-            >
-              <X size={17} />
-            </button>
+            {variant === "modal" ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-text-muted transition hover:bg-surface-elevated hover:text-text-primary"
+                aria-label="Close notifications"
+              >
+                <X size={17} />
+              </button>
+            ) : null}
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -375,6 +371,36 @@ export default function NotificationInbox({
             </div>
           ) : null}
         </div>
+    </>
+  );
+
+  if (variant === "page") {
+    return (
+      <div className="min-h-[100dvh] bg-surface-body">
+        <div className="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-2xl flex-col px-4 py-5 sm:px-6">
+          <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-soft">
+            {body}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 px-4 py-6">
+      <button
+        type="button"
+        className="absolute inset-0 bg-surface-overlay backdrop-blur-sm"
+        onClick={onClose}
+        aria-label="Close notifications"
+      />
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="notification-inbox-title"
+        className="relative ml-auto flex h-full w-full max-w-md flex-col overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-elevated"
+      >
+        {body}
       </aside>
     </div>
   );
