@@ -1,11 +1,16 @@
 import { Injectable } from "@nestjs/common";
 import {
+  AiEmbedOptions,
+  AiEmbedResult,
   AiGenerateOptions,
   AiGenerateResult,
   AiProviderAdapter,
   AiRouteConfig,
 } from "../ai.types";
 import { aiFetch } from "./ai-http";
+
+// Gemini batchEmbedContents accepts at most 100 inputs per request.
+const GEMINI_EMBED_BATCH_LIMIT = 100;
 
 const DEEPSEEK_API_URL =
   process.env.DEEPSEEK_API_URL || "https://api.deepseek.com/chat/completions";
@@ -24,6 +29,19 @@ export class DeepSeekAdapter implements AiProviderAdapter {
     if (!config.apiKey) {
       throw new Error("DeepSeek API key is not configured");
     }
+
+    // DeepSeek rejects response_format json_object unless the prompt itself
+    // mentions "json", so guarantee the word is present.
+    const wantsJson =
+      config.responseMimeType === "application/json" ||
+      options.responseMimeType === "application/json";
+    const promptText =
+      wantsJson &&
+      !/json/i.test(
+        `${config.systemPrompt || options.systemInstruction || ""} ${options.prompt}`,
+      )
+        ? `${options.prompt}\n\nRespond with valid JSON only.`
+        : options.prompt;
 
     const response = await aiFetch(
       DEEPSEEK_API_URL,
@@ -44,7 +62,7 @@ export class DeepSeekAdapter implements AiProviderAdapter {
                 },
               ]
             : []),
-          { role: "user", content: options.prompt },
+          { role: "user", content: promptText },
         ],
         stream: false,
         ...(typeof config.temperature === "number" ||
@@ -173,5 +191,68 @@ export class GeminiAdapter implements AiProviderAdapter {
         totalTokens: payload?.usageMetadata?.totalTokenCount,
       },
     };
+  }
+
+  async generateEmbedding(
+    config: AiRouteConfig,
+    options: AiEmbedOptions,
+  ): Promise<AiEmbedResult> {
+    if (!config.apiKey) {
+      throw new Error("Gemini API key is not configured");
+    }
+
+    const model = config.model || "text-embedding-004";
+    const inputs = Array.isArray(options.input)
+      ? options.input
+      : [options.input];
+    if (inputs.length === 0) {
+      return { embeddings: [], provider: this.provider, model };
+    }
+
+    const embeddings: number[][] = [];
+    for (let i = 0; i < inputs.length; i += GEMINI_EMBED_BATCH_LIMIT) {
+      const chunk = inputs.slice(i, i + GEMINI_EMBED_BATCH_LIMIT);
+      const endpoint = `${GEMINI_API_URL_BASE}/models/${encodeURIComponent(model)}:batchEmbedContents?key=${encodeURIComponent(config.apiKey)}`;
+      const response = await aiFetch(
+        endpoint,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            requests: chunk.map((text) => ({
+              model: `models/${model}`,
+              content: { parts: [{ text }] },
+              ...(options.taskType ? { taskType: options.taskType } : {}),
+              ...(options.dimensions
+                ? { outputDimensionality: options.dimensions }
+                : {}),
+            })),
+          }),
+        },
+        { label: "Gemini embeddings" },
+      );
+
+      if (!response.ok) {
+        const failureText = await response.text();
+        throw new Error(
+          `Gemini embeddings request failed: ${response.status} ${failureText}`,
+        );
+      }
+
+      const payload = await response.json();
+      const chunkEmbeddings: number[][] = (payload?.embeddings || []).map(
+        (item: { values?: number[] }) => item?.values || [],
+      );
+      if (chunkEmbeddings.length !== chunk.length) {
+        throw new Error(
+          `Gemini embeddings count mismatch: sent ${chunk.length}, got ${chunkEmbeddings.length}`,
+        );
+      }
+      embeddings.push(...chunkEmbeddings);
+    }
+
+    return { embeddings, provider: this.provider, model };
   }
 }

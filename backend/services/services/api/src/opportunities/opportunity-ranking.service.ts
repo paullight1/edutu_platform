@@ -16,6 +16,29 @@ import {
   UserRecommendationRequestDto,
 } from "./dto/personalization.dto";
 import { AiService } from "../ai";
+import { OpportunityEmbeddingService } from "./opportunity-embedding.service";
+import {
+  BlendWeights,
+  ScoreComponents,
+  behaviorFromSignals,
+  blendScore,
+  deriveMatchReasons,
+  freshnessScore,
+  loadWeightsFromEnv,
+  normalizeSemantic,
+} from "./recommendation-blender";
+import { TtlCache } from "../common/cache/ttl-cache";
+
+// Rollout flag: "hybrid" (embeddings + signals + rules) or "heuristic"
+// (legacy behavior only). Lets the new engine ship dark and flip via env.
+const RECS_ENGINE = (process.env.RECS_ENGINE || "hybrid").toLowerCase();
+const RECS_ANN_CANDIDATES = (() => {
+  const parsed = Number(process.env.RECS_ANN_CANDIDATES);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 1000) : 300;
+})();
+// Anonymous /recommendations/query embeds the request profile inline; cap the
+// wait so the public endpoint never blocks on the embedding provider.
+const PUBLIC_QUERY_EMBED_TIMEOUT_MS = 400;
 
 type OpportunityRow = typeof opportunities.$inferSelect;
 type PreferenceRow = typeof userOpportunityPreferences.$inferSelect;
@@ -45,6 +68,18 @@ type RankedOpportunity = RecommendationOpportunity & {
   matchRisks: string[];
   aiSummary: string | null;
   aiTags: string[];
+  matchComponents?: {
+    semantic: number | null;
+    behavior: number;
+    profile_fit: number;
+    freshness: number;
+  };
+};
+
+type ProfileFit = {
+  fit01: number;
+  reasons: string[];
+  risks: string[];
 };
 
 type SignalScore = {
@@ -58,8 +93,29 @@ type SignalScore = {
 export class OpportunityRankingService {
   private readonly logger = new Logger(OpportunityRankingService.name);
   private readonly supabase: SupabaseClient | null = null;
+  private readonly weights: BlendWeights = loadWeightsFromEnv();
+  // Anonymous-query profile embeddings keyed by profile hash (30 min).
+  private readonly queryEmbeddingCache = new TtlCache<number[]>(
+    30 * 60 * 1000,
+    300,
+  );
+  // Short per-user response cache for the authed feed. Keyed by user+params;
+  // per-user key tracking lets a dismiss signal invalidate immediately.
+  private readonly responseCache = new TtlCache<
+    Awaited<ReturnType<OpportunityRankingService["queryRecommendations"]>>
+  >(
+    (() => {
+      const parsed = Number(process.env.RECS_CACHE_TTL_MS);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : 45_000;
+    })(),
+    300,
+  );
+  private readonly responseCacheKeysByUser = new Map<string, Set<string>>();
 
-  constructor(private readonly aiService: AiService) {
+  constructor(
+    private readonly aiService: AiService,
+    private readonly embeddingService: OpportunityEmbeddingService,
+  ) {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -109,10 +165,20 @@ export class OpportunityRankingService {
       .returning()
       .execute();
 
+    // Preferences shape the profile embedding — warm the new vector so the
+    // next feed request retrieves semantically. Fire-and-forget by design.
+    this.embeddingService.refreshProfileEmbedding(userId);
+
     return updated;
   }
 
   async recordSignal(userId: string, input: OpportunitySignalDto) {
+    // Dismiss visibly reshapes the feed — drop this user's cached responses
+    // so the item disappears on the next fetch instead of after the TTL.
+    if (input.signalType === "dismiss") {
+      this.invalidateUserResponseCache(userId);
+    }
+
     const [signal] = await db
       .insert(userOpportunitySignals)
       .values({
@@ -159,13 +225,29 @@ export class OpportunityRankingService {
     userId: string,
     request: UserRecommendationRequestDto = {},
   ) {
+    // Conversational queries (message) are never cached; plain feed requests
+    // are cached briefly per user+params to absorb refresh bursts.
+    const cacheKey = request.message
+      ? null
+      : `${userId}:${JSON.stringify({
+          limit: request.limit ?? null,
+          minMatchScore: request.minMatchScore ?? null,
+          excludeOpportunityIds: request.excludeOpportunityIds ?? [],
+          aiRerank: request.aiRerank ?? false,
+        })}`;
+
+    if (cacheKey) {
+      const cached = this.responseCache.get(cacheKey);
+      if (cached) return cached;
+    }
+
     const [profile, preference, userGoals] = await Promise.all([
       this.getUserProfile(userId),
       this.getUserPreferences(userId),
       this.getUserGoals(userId),
     ]);
 
-    return this.queryRecommendations({
+    const response = await this.queryRecommendations({
       profile,
       preferences: this.toPreferenceDto(preference),
       goals: userGoals,
@@ -176,25 +258,68 @@ export class OpportunityRankingService {
       aiRerank: request.aiRerank,
       userId,
     });
+
+    if (cacheKey) {
+      this.responseCache.set(cacheKey, response);
+      const keys = this.responseCacheKeysByUser.get(userId) ?? new Set();
+      keys.add(cacheKey);
+      this.responseCacheKeysByUser.set(userId, keys);
+    }
+
+    return response;
+  }
+
+  /** Drops every cached feed for a user (called on feed-shaping signals). */
+  private invalidateUserResponseCache(userId: string) {
+    const keys = this.responseCacheKeysByUser.get(userId);
+    if (!keys) return;
+    for (const key of keys) this.responseCache.delete(key);
+    this.responseCacheKeysByUser.delete(userId);
   }
 
   async queryRecommendations(
     request: RecommendationQueryDto & { userId?: string },
   ) {
-    const limit = Math.min(Math.max(request.limit || 10, 1), 50);
+    const startedAt = Date.now();
+    const limit = Math.min(Math.max(request.limit || 10, 1), 300);
     const minMatchScore = request.minMatchScore ?? 0;
     const excludeIds = request.excludeOpportunityIds || [];
-    const rows = await this.fetchCandidateOpportunities(excludeIds);
-    const dismissedIds = request.userId
-      ? await this.getDismissedOpportunityIds(request.userId)
-      : [];
-    const signalScores = request.userId
-      ? await this.getUserSignalScores(request.userId)
-      : new Map<string, SignalScore>();
 
     const profile = request.profile || null;
     const preferences = request.preferences || null;
     const goals = request.goals || [];
+
+    // Semantic retrieval needs the profile embedding first; everything else
+    // parallelizes behind it. Null embedding = heuristic floor (no key, cold
+    // profile, engine flag off) — the request always succeeds.
+    let profileEmbedding: number[] | null = null;
+    if (RECS_ENGINE === "hybrid") {
+      profileEmbedding = request.userId
+        ? await this.embeddingService.getProfileEmbedding(
+            request.userId,
+            profile,
+            preferences,
+          )
+        : await this.resolveQueryEmbedding(profile, preferences);
+    }
+
+    const [rows, dismissedIds, signalScores, categoryAffinities] =
+      await Promise.all([
+        profileEmbedding
+          ? this.fetchCandidatesSemantic(profileEmbedding, excludeIds)
+          : this.fetchCandidateOpportunities(excludeIds),
+        request.userId
+          ? this.getDismissedOpportunityIds(request.userId)
+          : Promise.resolve([] as string[]),
+        request.userId
+          ? this.getUserSignalScores(request.userId)
+          : Promise.resolve(new Map<string, SignalScore>()),
+        request.userId
+          ? this.getUserCategoryAffinities(request.userId)
+          : Promise.resolve(new Map<string, number>()),
+      ]);
+
+    const engine = profileEmbedding ? "hybrid_v2" : "heuristic_v1";
 
     // O(1) membership instead of Array.includes per candidate (was O(n·m)).
     const dismissedIdSet = new Set(dismissedIds);
@@ -202,22 +327,23 @@ export class OpportunityRankingService {
     let ranked = rows
       .filter((row) => !dismissedIdSet.has(row.id))
       .map((row) =>
-        this.scoreOpportunity(
-          row,
+        this.rankCandidate(row, {
           profile,
           preferences,
           goals,
-          request.message || "",
-          signalScores.get(row.id),
-        ),
+          message: request.message || "",
+          signalScore: signalScores.get(row.id),
+          categoryAffinities,
+          useBlender: Boolean(profileEmbedding),
+        }),
       )
       .filter((row) => row.match >= minMatchScore)
       .sort((a, b) => b.match - a.match)
       .slice(0, limit * 2);
 
-    // The heuristic ranking above serves every request. The LLM re-rank is an
-    // optional refinement that costs a provider round-trip, so it is gated:
-    // opt-in via aiRerank AND only for authenticated callers. This keeps the
+    // The ranking above serves every request. The LLM re-rank is an optional
+    // refinement that costs a provider round-trip, so it is gated: opt-in via
+    // aiRerank AND only for authenticated callers. This keeps the
     // public/anonymous endpoint from driving unbounded LLM spend.
     if (request.aiRerank && request.userId) {
       ranked = await this.rerankWithDeepSeek(
@@ -238,14 +364,264 @@ export class OpportunityRankingService {
       match_risks: row.matchRisks,
       ai_summary: row.aiSummary,
       ai_tags: row.aiTags,
+      // Additive contract extensions (clients may ignore them safely).
+      match_components: row.matchComponents ?? null,
+      match_reason_details: this.toReasonDetails(row),
+      engine,
     }));
+
+    this.logger.log(
+      `recs engine=${engine} user=${request.userId || "anon"} candidates=${rows.length} returned=${opportunitiesWithShape.length} ms=${Date.now() - startedAt}`,
+    );
 
     return {
       opportunities: opportunitiesWithShape,
       profile,
       preferences,
       count: opportunitiesWithShape.length,
+      engine,
     };
+  }
+
+  /**
+   * Scores a specific set of opportunities for a user through the same
+   * pipeline as the feed (for client-side badge hydration).
+   */
+  async scoreOpportunitiesForUser(userId: string, opportunityIds: string[]) {
+    const ids = Array.from(new Set(opportunityIds)).slice(0, 50);
+    if (!ids.length) return { scores: [], count: 0 };
+
+    const [profile, preference, userGoals] = await Promise.all([
+      this.getUserProfile(userId),
+      this.getUserPreferences(userId),
+      this.getUserGoals(userId),
+    ]);
+    const preferences = this.toPreferenceDto(preference);
+
+    const profileEmbedding =
+      RECS_ENGINE === "hybrid"
+        ? await this.embeddingService.getProfileEmbedding(
+            userId,
+            profile,
+            preferences,
+          )
+        : null;
+
+    const [rows, signalScores, categoryAffinities] = await Promise.all([
+      this.fetchOpportunitiesByIds(ids, profileEmbedding),
+      this.getUserSignalScores(userId),
+      this.getUserCategoryAffinities(userId),
+    ]);
+
+    const engine = profileEmbedding ? "hybrid_v2" : "heuristic_v1";
+    const scores = rows.map((row) => {
+      const ranked = this.rankCandidate(row, {
+        profile,
+        preferences,
+        goals: userGoals,
+        message: "",
+        signalScore: signalScores.get(row.id),
+        categoryAffinities,
+        useBlender: Boolean(profileEmbedding),
+      });
+      return {
+        id: row.id,
+        match_score: ranked.match,
+        match_reasons: ranked.matchReasons,
+        match_risks: ranked.matchRisks,
+        match_reason_details: this.toReasonDetails(ranked),
+        match_components: ranked.matchComponents ?? null,
+        engine,
+      };
+    });
+
+    return { scores, count: scores.length, engine };
+  }
+
+  /**
+   * Anonymous-query embedding: hash-cached, and raced against a short timeout
+   * so the throttled public endpoint never blocks on the provider.
+   */
+  private async resolveQueryEmbedding(
+    profile: RecommendationQueryDto["profile"],
+    preferences: OpportunityPreferenceDto | null,
+  ): Promise<number[] | null> {
+    const text = this.embeddingService.buildProfileText(
+      profile as Record<string, unknown> | null,
+      preferences as Record<string, unknown> | null,
+    );
+    if (!text) return null;
+
+    const hash = this.embeddingService.profileHash(
+      profile as Record<string, unknown> | null,
+      preferences as Record<string, unknown> | null,
+    );
+    const cached = this.queryEmbeddingCache.get(hash);
+    if (cached) return cached;
+
+    const timeout = new Promise<null>((resolve) =>
+      setTimeout(() => resolve(null), PUBLIC_QUERY_EMBED_TIMEOUT_MS),
+    );
+    const embed = (async () => {
+      const result = await this.aiService.embed({
+        feature: "embeddings.query",
+        input: text,
+        taskType: "RETRIEVAL_QUERY",
+        dimensions: 768,
+      });
+      return result?.embeddings?.[0] ?? null;
+    })();
+
+    const embedding = await Promise.race([embed, timeout]);
+    if (embedding?.length) {
+      this.queryEmbeddingCache.set(hash, embedding);
+      return embedding;
+    }
+
+    // If the provider answers after the race, cache for the next request.
+    void embed.then((late) => {
+      if (late?.length) this.queryEmbeddingCache.set(hash, late);
+    });
+    return null;
+  }
+
+  /**
+   * Semantic candidate retrieval: ANN top-N by profile-embedding similarity,
+   * UNION'd with recent unembedded rows so brand-new opportunities still
+   * surface before their embedding lands. Raw SQL over the pg pool because
+   * supabase-js cannot express the `<=>` operator.
+   */
+  private async fetchCandidatesSemantic(
+    profileEmbedding: number[],
+    excludeIds: string[],
+  ): Promise<RecommendationOpportunity[]> {
+    const vectorLiteral = `[${profileEmbedding.join(",")}]`;
+    const exclude = excludeIds.length ? excludeIds : null;
+
+    try {
+      const result = await db.execute(sql`
+        (
+          select o.*, 1 - (o.embedding <=> ${vectorLiteral}::vector) as semantic_similarity
+          from opportunities o
+          where o.status = 'active'
+            and (o.close_date is null or o.close_date >= current_date)
+            and o.embedding is not null
+            ${exclude ? sql`and not (o.id = any(${exclude}::uuid[]))` : sql``}
+          order by o.embedding <=> ${vectorLiteral}::vector
+          limit ${RECS_ANN_CANDIDATES}
+        )
+        union all
+        (
+          select o.*, null as semantic_similarity
+          from opportunities o
+          where o.status = 'active'
+            and (o.close_date is null or o.close_date >= current_date)
+            and o.embedding is null
+            ${exclude ? sql`and not (o.id = any(${exclude}::uuid[]))` : sql``}
+          order by o.updated_at desc
+          limit 100
+        )
+      `);
+
+      const rows =
+        ((result as { rows?: Record<string, unknown>[] }).rows ?? []).map(
+          (row) => this.normalizeCanonicalRow(row),
+        );
+      return rows;
+    } catch (error) {
+      this.logger.warn(
+        `Semantic candidate query failed, falling back to heuristic fetch: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return this.fetchCandidateOpportunities(excludeIds);
+    }
+  }
+
+  /** Fetches specific active rows (for match-scores), with similarity when possible. */
+  private async fetchOpportunitiesByIds(
+    ids: string[],
+    profileEmbedding: number[] | null,
+  ): Promise<RecommendationOpportunity[]> {
+    try {
+      const similarity = profileEmbedding
+        ? sql`case when o.embedding is null then null else 1 - (o.embedding <=> ${`[${profileEmbedding.join(",")}]`}::vector) end`
+        : sql`null`;
+      const result = await db.execute(sql`
+        select o.*, ${similarity} as semantic_similarity
+        from opportunities o
+        where o.id = any(${ids}::uuid[])
+      `);
+      return (
+        (result as { rows?: Record<string, unknown>[] }).rows ?? []
+      ).map((row) => this.normalizeCanonicalRow(row));
+    } catch (error) {
+      this.logger.warn(
+        `fetchOpportunitiesByIds failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Category affinity 0..1 per canonical category, from the same weighted
+   * signal aggregation as per-opportunity scores. Generalizes engagement to
+   * items the user has never seen.
+   */
+  private async getUserCategoryAffinities(
+    userId: string,
+  ): Promise<Map<string, number>> {
+    try {
+      const result = await db.execute(sql`
+        select o.canonical_category as category,
+               sum(
+                 (case s.signal_type
+                    when 'view' then 2
+                    when 'click' then 5
+                    when 'save' then 12
+                    when 'apply' then 18
+                    when 'chat_like' then 8
+                    when 'chat_dislike' then -12
+                    when 'recommended_in_chat' then 1
+                    when 'dismiss' then -100
+                    else 0
+                  end) * coalesce(s.signal_value, 1)
+               ) as raw_score
+        from user_opportunity_signals s
+        join opportunities o on o.id = s.opportunity_id
+        where s.user_id = ${userId}
+          and o.canonical_category is not null
+        group by o.canonical_category
+      `);
+
+      const rows =
+        (result as unknown as {
+          rows?: Array<{ category: string; raw_score: unknown }>;
+        }).rows ?? [];
+      const positives = rows
+        .map((row) => Number(row.raw_score) || 0)
+        .filter((score) => score > 0);
+      const max = positives.length ? Math.max(...positives) : 0;
+
+      const affinities = new Map<string, number>();
+      for (const row of rows) {
+        const raw = Number(row.raw_score) || 0;
+        affinities.set(
+          row.category,
+          max > 0 ? Math.max(0, Math.min(1, raw / max)) : 0,
+        );
+      }
+      return affinities;
+    } catch (error) {
+      this.logger.warn(
+        `Category affinity query failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return new Map();
+    }
   }
 
   private async fetchCandidateOpportunities(excludeIds: string[]) {
@@ -297,6 +673,9 @@ export class OpportunityRankingService {
   private normalizeCanonicalRow(
     row: Record<string, any>,
   ): RecommendationOpportunity {
+    // NEVER let the raw embedding (768 floats) flow into API payloads.
+    if ("embedding" in row) delete row.embedding;
+    if ("embedding_model" in row) delete row.embedding_model;
     const metadata = row.metadata || {};
     const requirements = Array.isArray(metadata.requirements)
       ? metadata.requirements
@@ -467,14 +846,162 @@ export class OpportunityRankingService {
     };
   }
 
-  private scoreOpportunity(
+  /**
+   * Ranks one candidate. Hybrid mode blends semantic/behavior/profile-fit/
+   * freshness; heuristic mode reproduces the legacy additive score exactly
+   * (rule score + clamped signal delta) so RECS_ENGINE=heuristic is a true
+   * kill switch back to pre-refactor behavior.
+   */
+  private rankCandidate(
+    opportunity: RecommendationOpportunity,
+    context: {
+      profile: RecommendationQueryDto["profile"];
+      preferences: OpportunityPreferenceDto | null;
+      goals: RecommendationQueryDto["goals"];
+      message: string;
+      signalScore?: SignalScore;
+      categoryAffinities: Map<string, number>;
+      useBlender: boolean;
+    },
+  ): RankedOpportunity {
+    const fit = this.computeProfileFit(
+      opportunity,
+      context.profile,
+      context.preferences,
+      context.goals,
+      context.message,
+    );
+
+    const reasons = [...fit.reasons];
+    const risks = [...fit.risks];
+    const signal = context.signalScore;
+    if (signal?.score) {
+      if (signal.positive > signal.negative) {
+        reasons.push("User behavior suggests interest in this opportunity.");
+      } else if (signal.negative > signal.positive) {
+        risks.push("User behavior suggests this may be less relevant.");
+      }
+    }
+
+    const canonicalCategory = String(
+      (opportunity as Record<string, unknown>).canonicalCategory ??
+        opportunity.category ??
+        "",
+    );
+    const affinity = context.categoryAffinities.get(canonicalCategory) ?? 0;
+
+    const deadline =
+      opportunity.deadline instanceof Date
+        ? opportunity.deadline
+        : opportunity.deadline
+          ? new Date(opportunity.deadline)
+          : null;
+    const updatedAt =
+      opportunity.updatedAt instanceof Date
+        ? opportunity.updatedAt
+        : opportunity.updatedAt
+          ? new Date(opportunity.updatedAt)
+          : null;
+    const daysToDeadline =
+      deadline && !Number.isNaN(deadline.getTime())
+        ? (deadline.getTime() - Date.now()) / (24 * 60 * 60 * 1000)
+        : null;
+
+    const semanticRaw = (opportunity as Record<string, unknown>)
+      .semantic_similarity;
+    const semantic =
+      typeof semanticRaw === "number" && Number.isFinite(semanticRaw)
+        ? normalizeSemantic(semanticRaw)
+        : null;
+
+    let match: number;
+    let matchComponents: RankedOpportunity["matchComponents"];
+    let finalReasons: string[];
+
+    if (context.useBlender) {
+      const components: ScoreComponents = {
+        semantic,
+        behavior: behaviorFromSignals(signal?.score ?? 0, affinity),
+        profileFit: fit.fit01,
+        freshness: freshnessScore(updatedAt, deadline),
+      };
+      match = blendScore(components, this.weights);
+      matchComponents = {
+        semantic: components.semantic,
+        behavior: components.behavior,
+        profile_fit: components.profileFit,
+        freshness: components.freshness,
+      };
+      finalReasons = deriveMatchReasons(components, reasons, {
+        topCategory: canonicalCategory || null,
+        daysToDeadline,
+        categoryAffinity: affinity,
+      });
+    } else {
+      // Legacy path: additive rule score + clamped signal delta.
+      match = Math.max(
+        0,
+        Math.min(100, fit.rawScore + (signal?.score ?? 0)),
+      );
+      matchComponents = undefined;
+      finalReasons = reasons.slice(0, 4);
+    }
+
+    const row = { ...opportunity } as Record<string, unknown>;
+    delete row.embedding;
+    delete row.embedding_model;
+    delete row.semantic_similarity;
+
+    return {
+      ...(row as RecommendationOpportunity),
+      match,
+      matchReasons: finalReasons,
+      matchRisks: risks.slice(0, 3),
+      // Honest fields: summary is LLM-written at ingestion; tags come from
+      // enrichment. Fall back to derived values only when the row lacks them.
+      aiSummary:
+        (typeof (opportunity as Record<string, unknown>).summary === "string" &&
+        ((opportunity as Record<string, unknown>).summary as string).trim()
+          ? ((opportunity as Record<string, unknown>).summary as string)
+          : null) ?? this.buildSummary(opportunity),
+      aiTags:
+        Array.isArray((opportunity as Record<string, unknown>).tags) &&
+        ((opportunity as Record<string, unknown>).tags as string[]).length
+          ? ((opportunity as Record<string, unknown>).tags as string[])
+          : this.extractTags(opportunity),
+      matchComponents,
+    };
+  }
+
+  /** Structured reasons for clients that render icons per reason kind. */
+  private toReasonDetails(row: RankedOpportunity) {
+    return row.matchReasons.map((label, index) => {
+      let kind = "category";
+      if (label.startsWith("Strong fit") || label.startsWith("Good overall")) {
+        kind = "semantic";
+      } else if (label.startsWith("Because you engaged")) {
+        kind = "behavior";
+      } else if (label.startsWith("Deadline in")) {
+        kind = "deadline";
+      } else if (label.includes("behavior suggests")) {
+        kind = "behavior";
+      }
+      return { kind, label, points: row.matchReasons.length - index };
+    });
+  }
+
+  /**
+   * Rule-based profile fit (the legacy heuristic). rawScore keeps the exact
+   * legacy additive scale (base 20) for the kill-switch path; fit01 is the
+   * same rules normalized 0..1 for the blender.
+   */
+  private computeProfileFit(
     opportunity: RecommendationOpportunity,
     profile: RecommendationQueryDto["profile"],
     preferences: OpportunityPreferenceDto | null,
     userGoals: RecommendationQueryDto["goals"],
     message: string,
-    signalScore?: SignalScore,
-  ): RankedOpportunity {
+  ): ProfileFit & { rawScore: number } {
     const reasons: string[] = [];
     const risks: string[] = [];
     let score = 20;
@@ -659,22 +1186,11 @@ export class OpportunityRankingService {
       score -= 10;
     }
 
-    if (signalScore?.score) {
-      score += signalScore.score;
-      if (signalScore.positive > signalScore.negative) {
-        reasons.push("User behavior suggests interest in this opportunity.");
-      } else if (signalScore.negative > signalScore.positive) {
-        risks.push("User behavior suggests this may be less relevant.");
-      }
-    }
-
     return {
-      ...opportunity,
-      match: Math.max(0, Math.min(100, score)),
-      matchReasons: reasons.slice(0, 4),
-      matchRisks: risks.slice(0, 3),
-      aiSummary: this.buildSummary(opportunity),
-      aiTags: this.extractTags(opportunity),
+      rawScore: score,
+      fit01: Math.max(0, Math.min(1, score / 100)),
+      reasons: reasons.slice(0, 4),
+      risks: risks.slice(0, 3),
     };
   }
 

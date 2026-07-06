@@ -21,6 +21,15 @@ import {
   type UserProfileForRecommendations,
 } from "../services/personalizedRecommendations";
 import { trackOpportunityClick } from "../services/personalizationService";
+import {
+  mapInteractionToSignal,
+  recordOpportunitySignal,
+} from "../services/opportunitySignals";
+import {
+  clearServerMatches,
+  getServerMatch,
+  subscribeServerMatches,
+} from "../services/serverMatchStore";
 import type { Opportunity } from "../types/opportunity";
 
 // ================================
@@ -38,6 +47,13 @@ export interface PersonalizationPreferences {
 }
 
 export type InteractionType = "view" | "apply" | "bookmark" | "share";
+
+export interface TrackInteractionOptions {
+  /** Signal weight override (e.g. bookmark removal passes -1). */
+  value?: number;
+  /** Where the interaction happened: 'detail' | 'card_open' | 'unsave' | … */
+  context?: string;
+}
 
 interface BehaviorWeights {
   categories: Record<string, number>;
@@ -72,7 +88,11 @@ interface PersonalizationContextValue {
     options?: { seed?: number; tierSize?: number },
   ) => T[];
   /** Record an implicit signal (view/save/apply/share) for learning */
-  trackInteraction: (opportunity: Opportunity, type: InteractionType) => void;
+  trackInteraction: (
+    opportunity: Opportunity,
+    type: InteractionType,
+    options?: TrackInteractionOptions,
+  ) => void;
   /** Persist explicit preferences (localStorage + backend profile) */
   savePreferences: (
     preferences: Partial<PersonalizationPreferences>,
@@ -300,6 +320,8 @@ export const PersonalizationProvider: React.FC<{
       setBehavior(emptyBehavior());
       setBackendProfile(null);
       setReady(false);
+      // Server-computed match scores are strictly per-user.
+      clearServerMatches();
       return;
     }
     setPreferences(
@@ -407,8 +429,32 @@ export const PersonalizationProvider: React.FC<{
   const behaviorRef = useRef(behavior);
   behaviorRef.current = behavior;
 
+  // Bumped whenever the server match store primes/clears so consumers of
+  // explainOpportunity/personalizeFeed re-render with the fresh scores.
+  const [matchVersion, setMatchVersion] = useState(0);
+  useEffect(
+    () => subscribeServerMatches(() => setMatchVersion((v) => v + 1)),
+    [],
+  );
+
   const explainOpportunity = useCallback(
     (opportunity: Opportunity): MatchResult => {
+      // matchVersion invalidates this callback when server scores arrive.
+      void matchVersion;
+
+      // Server-computed scores win outright: the hybrid engine already folds
+      // in behaviour signals, so no local boost is layered on top.
+      if (userId) {
+        const serverMatch = getServerMatch(userId, opportunity.id);
+        if (serverMatch) {
+          return {
+            score: serverMatch.score,
+            reasons: serverMatch.reasons,
+            risks: serverMatch.risks,
+          };
+        }
+      }
+
       const base: MatchResult = recommendationProfile
         ? evaluateMatch(recommendationProfile, opportunity)
         : { score: 0, reasons: [], risks: [] };
@@ -442,7 +488,7 @@ export const PersonalizationProvider: React.FC<{
         risks: base.risks,
       };
     },
-    [recommendationProfile],
+    [recommendationProfile, userId, matchVersion],
   );
 
   const scoreOpportunity = useCallback(
@@ -491,7 +537,11 @@ export const PersonalizationProvider: React.FC<{
   );
 
   const trackInteraction = useCallback(
-    (opportunity: Opportunity, type: InteractionType) => {
+    (
+      opportunity: Opportunity,
+      type: InteractionType,
+      options?: TrackInteractionOptions,
+    ) => {
       if (!opportunity?.id) return;
       const weight = INTERACTION_WEIGHTS[type] ?? 1;
 
@@ -528,11 +578,29 @@ export const PersonalizationProvider: React.FC<{
 
       // Fire-and-forget analytics write; user_id column expects a Supabase
       // auth UUID which Clerk IDs are not, so identity travels in metadata.
+      // TODO: retire once backend exposes engagement analytics (admin views
+      // still read this Supabase table).
       void trackOpportunityClick(opportunity.id, type, undefined, "web-app").catch(
         () => undefined,
       );
+
+      // Mirror the signal to the backend recommender (hybrid engine input).
+      if (isSignedIn) {
+        const signal = mapInteractionToSignal(type, options);
+        if (signal) {
+          void recordOpportunitySignal(
+            {
+              opportunityId: opportunity.id,
+              signalType: signal.signalType,
+              signalValue: signal.signalValue,
+              ...(options?.context ? { context: options.context } : {}),
+            },
+            getToken,
+          );
+        }
+      }
     },
-    [behaviorKey],
+    [behaviorKey, isSignedIn, getToken],
   );
 
   const savePreferences = useCallback(

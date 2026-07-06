@@ -1,7 +1,16 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import MemberSettingsPanel from "../../components/MemberSettingsPanel";
 import type { UserSettings } from "../../services/userSettings";
+
+function renderPanel() {
+  return render(
+    <MemoryRouter>
+      <MemberSettingsPanel />
+    </MemoryRouter>,
+  );
+}
 
 const settingsFixture: UserSettings = {
   privacy: {
@@ -66,7 +75,7 @@ describe("MemberSettingsPanel", () => {
   });
 
   it("loads privacy settings and saves profile visibility changes", async () => {
-    render(<MemberSettingsPanel onOpenNotifications={vi.fn()} />);
+    renderPanel();
 
     fireEvent.click(await screen.findByRole("button", { name: /profile visibility/i }));
     fireEvent.click(await screen.findByRole("radio", { name: /private/i }));
@@ -84,24 +93,21 @@ describe("MemberSettingsPanel", () => {
     });
   });
 
-  it("opens the notification panel from settings", async () => {
-    const openNotifications = vi.fn();
-
-    render(<MemberSettingsPanel onOpenNotifications={openNotifications} />);
+  it("links to the notifications page from settings", async () => {
+    renderPanel();
 
     await screen.findByText("Inbox and reminders");
-    fireEvent.click(
-      screen.getByRole("button", { name: /inbox and reminders/i }),
-    );
 
-    expect(openNotifications).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByRole("link", { name: /inbox and reminders/i }),
+    ).toHaveAttribute("href", "/app/notifications");
   });
 
   it("opens sign-in security from settings", async () => {
     const openUserProfile = vi.fn();
     window.Clerk = { openUserProfile };
 
-    render(<MemberSettingsPanel onOpenNotifications={vi.fn()} />);
+    renderPanel();
 
     await screen.findByText("Inbox and reminders");
     fireEvent.click(

@@ -37,6 +37,7 @@ import {
   type UserRecommendationRequestDto,
 } from "./dto/personalization.dto";
 import { OpportunitiesService } from "./opportunities.service";
+import { OpportunityEmbeddingService } from "./opportunity-embedding.service";
 import { OpportunityVerificationService } from "./opportunity-verification.service";
 import { CurrentUser, Public, AdminGuard } from "../auth";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
@@ -52,6 +53,7 @@ export class OpportunitiesController {
   constructor(
     private readonly opportunitiesService: OpportunitiesService,
     private readonly opportunityVerificationService: OpportunityVerificationService,
+    private readonly opportunityEmbeddingService: OpportunityEmbeddingService,
   ) {}
 
   @Public()
@@ -114,6 +116,19 @@ export class OpportunitiesController {
       userId,
       body || {},
     );
+  }
+
+  @Post("match-scores")
+  // Batch scoring for client badge hydration: same pipeline as the feed,
+  // applied to specific ids (browse page, detail deep links). Capped at 50.
+  getMatchScores(
+    @CurrentUser("id") userId: string,
+    @Body() body: { opportunityIds?: string[] },
+  ) {
+    const ids = Array.isArray(body?.opportunityIds)
+      ? body.opportunityIds.filter((id) => typeof id === "string").slice(0, 50)
+      : [];
+    return this.opportunitiesService.scoreOpportunitiesForUser(userId, ids);
   }
 
   @Get("preferences")
@@ -235,6 +250,22 @@ export class OpportunitiesController {
       runType: "manual",
       createdBy: userId,
     });
+  }
+
+  @Post("admin/embeddings/backfill")
+  @UseGuards(AdminGuard)
+  adminEmbeddingsBackfill(
+    @Body() body: { limit?: number; reembed?: boolean },
+  ) {
+    return this.opportunityEmbeddingService.backfillOpportunityEmbeddings(
+      body ?? {},
+    );
+  }
+
+  @Post("admin/enrichment/backfill")
+  @UseGuards(AdminGuard)
+  adminEnrichmentBackfill(@Body() body: { limit?: number }) {
+    return this.opportunitiesService.backfillEnrichment(body ?? {});
   }
 
   @Post("admin/verification/:id")

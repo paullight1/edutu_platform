@@ -10,7 +10,9 @@ import { getApiBaseUrl } from "../lib/apiBaseUrl";
 import { normalizeExternalUrl } from "../lib/externalUrl";
 import { syncOpportunityInventorySnapshot } from "./analyticsAggregator";
 import { updateOpportunitiesInN8n } from "./n8nIntegration";
-import { productApiRequest } from "./productApi";
+import { productApiRequest, isProductApiUnavailableError } from "./productApi";
+import { toMatchReasons } from "./serverMatchStore";
+import type { MatchReason } from "./personalizedRecommendations";
 
 let cachedOpportunities: Opportunity[] | null = null;
 let cachedOpportunitiesAt = 0;
@@ -186,6 +188,8 @@ export interface PersonalizedOpportunity {
   opportunity: Opportunity;
   matchScore: number;
   matchReasons: string[];
+  /** Structured reasons from the server engine (kind/label/points). */
+  matchReasonDetails?: MatchReason[];
   matchRisks: string[];
   aiSummary: string | null;
   aiTags: string[];
@@ -201,6 +205,27 @@ function normaliseStringArray(value: unknown): string[] {
   return value
     .filter((item): item is string => typeof item === "string")
     .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Reason lists may arrive as plain strings or {kind,label,points} objects —
+ * always reduce to display labels so nothing renders "[object Object]".
+ */
+function coerceReasonLabels(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      if (typeof item === "string") return item.trim();
+      if (item && typeof item === "object") {
+        const label = (item as { label?: unknown }).label;
+        if (typeof label === "string") return label.trim();
+      }
+      return "";
+    })
     .filter(Boolean);
 }
 
@@ -708,7 +733,8 @@ export async function fetchOpportunityRecommendations(
     return {
       opportunity,
       matchScore: opportunity.match,
-      matchReasons: normaliseStringArray(row.match_reasons ?? row.matchReasons),
+      matchReasons: coerceReasonLabels(row.match_reasons ?? row.matchReasons),
+      matchReasonDetails: toMatchReasons(row),
       matchRisks: normaliseStringArray(row.match_risks ?? row.matchRisks),
       aiSummary:
         typeof row.ai_summary === "string"
@@ -719,6 +745,74 @@ export async function fetchOpportunityRecommendations(
       aiTags: cleanPublicTags(row.ai_tags, row.aiTags),
     };
   });
+}
+
+export interface OpportunityMatchScore {
+  id: string;
+  matchScore: number;
+  matchReasons: string[];
+  matchReasonDetails: MatchReason[];
+  matchRisks: string[];
+}
+
+const MATCH_SCORES_CHUNK_SIZE = 50;
+
+/**
+ * Fetch server-computed match scores for arbitrary opportunity ids
+ * (POST /opportunities/match-scores, Clerk-authed). Requests are chunked to
+ * the API's 50-id limit and flattened. When the route is missing (older
+ * deploys) this degrades silently to whatever was already collected.
+ */
+export async function fetchOpportunityMatchScores(
+  token: string,
+  ids: string[],
+): Promise<OpportunityMatchScore[]> {
+  const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+  const results: OpportunityMatchScore[] = [];
+
+  for (let index = 0; index < uniqueIds.length; index += MATCH_SCORES_CHUNK_SIZE) {
+    const chunk = uniqueIds.slice(index, index + MATCH_SCORES_CHUNK_SIZE);
+
+    let payload: unknown;
+    try {
+      payload = await productApiRequest<unknown>(
+        "/opportunities/match-scores",
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({ opportunityIds: chunk }),
+        },
+      );
+    } catch (error) {
+      if (isProductApiUnavailableError(error)) {
+        // Endpoint not deployed yet — badges fall back to local scoring.
+        return results;
+      }
+      throw error;
+    }
+
+    const rawScores =
+      payload && typeof payload === "object"
+        ? (payload as Record<string, unknown>).scores
+        : null;
+    const scores = Array.isArray(rawScores)
+      ? (rawScores as BackendOpportunityRow[])
+      : [];
+
+    for (const row of scores) {
+      if (!row || row.id === undefined || row.id === null) continue;
+      const rawScore = row.match_score ?? row.matchScore ?? row.match ?? 0;
+      results.push({
+        id: String(row.id),
+        matchScore: Number.isFinite(Number(rawScore)) ? Number(rawScore) : 0,
+        matchReasons: coerceReasonLabels(row.match_reasons ?? row.matchReasons),
+        matchReasonDetails: toMatchReasons(row),
+        matchRisks: normaliseStringArray(row.match_risks ?? row.matchRisks),
+      });
+    }
+  }
+
+  return results;
 }
 
 /**

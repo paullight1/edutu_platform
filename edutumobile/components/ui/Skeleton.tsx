@@ -1,11 +1,14 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Animated, StyleSheet, DimensionValue } from 'react-native';
+import { useTheme } from '../context/ThemeContext';
 
 interface SkeletonProps {
   width?: DimensionValue;
   height?: number;
   borderRadius?: number;
   variant?: 'text' | 'card' | 'circle' | 'rect';
+  /** Override the placeholder colour; defaults to the theme's muted tone. */
+  color?: string;
   style?: View['props']['style'];
 }
 
@@ -14,8 +17,10 @@ export function Skeleton({
   height = 16,
   borderRadius = 8,
   variant = 'rect',
+  color,
   style,
 }: SkeletonProps) {
+  const { colors } = useTheme();
   const shimmer = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -66,7 +71,7 @@ export function Skeleton({
           width: resolved.width,
           height: resolved.height,
           borderRadius: resolved.borderRadius,
-          backgroundColor: '#E2E8F0',
+          backgroundColor: color ?? colors.muted,
           opacity,
         },
         style,
@@ -78,8 +83,9 @@ export function Skeleton({
 // ── Pre-built skeleton compositions ─────────────────────────────────────
 
 export function OpportunityCardSkeleton() {
+  const { colors } = useTheme();
   return (
-    <View style={skeletonStyles.card}>
+    <View style={[skeletonStyles.card, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
       <Skeleton variant="rect" height={140} borderRadius={12} />
       <View style={skeletonStyles.cardBody}>
         <Skeleton width="60%" height={18} />
@@ -94,8 +100,9 @@ export function OpportunityCardSkeleton() {
 }
 
 export function GoalCardSkeleton() {
+  const { colors } = useTheme();
   return (
-    <View style={skeletonStyles.card}>
+    <View style={[skeletonStyles.card, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
       <View style={skeletonStyles.row}>
         <Skeleton variant="circle" height={40} />
         <View style={{ flex: 1, marginLeft: 12 }}>

@@ -10,15 +10,16 @@ import {
     Award,
     Users,
     Lightbulb,
-    Twitter,
-    Linkedin,
-    Github,
     BookOpen,
     Zap,
+    Search,
+    ShieldCheck,
+    Rocket,
     type LucideIcon,
 } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import PublicHeader from './PublicHeader';
+import SiteFooter from './SiteFooter';
 
 const fadeUp = {
     hidden: { opacity: 0, y: 30 },
@@ -58,6 +59,18 @@ const stats: Stat[] = [
 
 const founderImage = 'https://www.top100afl.com/team/Paul%20light.jpg.png';
 const northStarImage = 'https://images.pexels.com/photos/3183186/pexels-photo-3183186.jpeg?auto=compress&cs=tinysrgb&w=1200';
+
+interface Pillar {
+    icon: LucideIcon;
+    title: string;
+    desc: string;
+}
+
+const northStarPillars: Pillar[] = [
+    { icon: Search, title: 'Find', desc: 'Curate scholarships, internships, and fellowships into one clear, searchable place.' },
+    { icon: ShieldCheck, title: 'Trust', desc: 'Keep every listing accurate, fast to read, and easy to act on with confidence.' },
+    { icon: Rocket, title: 'Act', desc: 'Give learners the clarity they need to move from discovery to a submitted application.' },
+];
 
 interface Value {
     icon: LucideIcon;
@@ -134,77 +147,88 @@ const AboutPage: React.FC = () => {
                 </section>
 
                 <section className="py-24 px-4 sm:px-6 border-t border-subtle">
-                    <div className="max-w-7xl mx-auto lg:flex items-center gap-20">
-                        <motion.div {...reveal} className="lg:w-1/2">
+                    <div className="max-w-7xl mx-auto grid gap-12 lg:grid-cols-2 lg:gap-20 lg:items-center">
+                        <motion.div {...reveal}>
                             <Eyebrow>Our Story</Eyebrow>
                             <h2 className="font-display text-3xl sm:text-4xl font-semibold tracking-tight leading-[1.1] mt-4 mb-8 text-text-primary">
                                 From Frustration to <span className="text-brand">Mission</span>
                             </h2>
-                            <p className="text-lg leading-relaxed mb-6 text-text-secondary">
-                                Edutu came from a real problem: talented African students kept missing life-changing opportunities because the information was scattered, the deadlines were hidden, and the application steps were hard to follow.
-                            </p>
-                            <p className="text-lg leading-relaxed mb-6 text-text-secondary">
-                                We realized that talent is everywhere, but access is not. Edutu closes that gap with AI, simple design, and a system that brings global opportunities into one place.
-                            </p>
-                            <p className="text-lg leading-relaxed text-text-secondary">
-                                Today, we are focused on making global opportunities easier to reach for African learners, especially those with less access, less time, and less support.
-                            </p>
+                            <div className="space-y-6">
+                                <p className="text-lg leading-relaxed text-text-secondary">
+                                    Edutu came from a real problem: talented African students kept missing life-changing opportunities because the information was scattered, the deadlines were hidden, and the application steps were hard to follow.
+                                </p>
+                                <p className="text-lg leading-relaxed text-text-secondary">
+                                    We realized that talent is everywhere, but access is not. Edutu closes that gap with AI, simple design, and a system that brings global opportunities into one place.
+                                </p>
+                                <p className="text-lg leading-relaxed text-text-secondary">
+                                    Today, we are focused on making global opportunities easier to reach for African learners, especially those with less access, less time, and less support.
+                                </p>
+                            </div>
                         </motion.div>
 
                         <motion.div
                             {...reveal}
-                            transition={reduceMotion ? undefined : { delay: 0.2 }}
-                            className="lg:w-1/2 mt-16 lg:mt-0"
+                            transition={reduceMotion ? undefined : { delay: 0.15 }}
                         >
-                            <div className="grid grid-cols-1 md:grid-cols-[1.02fr_0.98fr] overflow-hidden rounded-3xl border border-subtle bg-surface-layer shadow-soft">
-                                <div className="relative min-h-[280px] md:min-h-[420px]">
-                                    <img
-                                        src={northStarImage}
-                                        alt="African learners collaborating"
-                                        className="h-full w-full object-cover"
-                                        loading="lazy"
-                                        decoding="async"
-                                    />
-                                    <div className="absolute inset-0 bg-gradient-to-br from-black/25 via-transparent to-brand/15" />
-                                    <div className="absolute left-5 bottom-5 inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-xs font-semibold tracking-wider text-gray-900 shadow-lg backdrop-blur-sm dark:bg-gray-800/90 dark:text-white">
-                                        <Target size={14} className="text-brand" />
-                                        GLOBAL ACCESS
-                                    </div>
+                            <div className="relative overflow-hidden rounded-[28px] border border-subtle shadow-elevated aspect-[4/3] sm:aspect-[16/10] lg:aspect-[4/5]">
+                                <img
+                                    src={northStarImage}
+                                    alt="African learners collaborating over their applications"
+                                    className="h-full w-full object-cover"
+                                    loading="lazy"
+                                    decoding="async"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+                                <div className="absolute left-5 top-5 inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-xs font-semibold tracking-wider text-gray-900 shadow-lg backdrop-blur-sm dark:bg-gray-800/90 dark:text-white">
+                                    <Target size={14} className="text-brand" />
+                                    GLOBAL ACCESS
                                 </div>
-
-                                <div className="flex flex-col justify-center gap-4 p-8 sm:p-10 lg:p-12">
-                                    <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-brand/10 border border-brand/20 w-fit">
-                                        <Target size={14} className="text-brand" />
-                                        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">
-                                            Our North Star
-                                        </span>
-                                    </div>
-                                    <div className="font-display text-2xl font-semibold tracking-tight leading-[1.1] text-text-primary">
-                                        Global opportunities, made easy to reach.
-                                    </div>
-                                    <div className="text-base leading-relaxed text-text-secondary">
-                                        Edutu exists to make global opportunities easy to find, easy to trust, and easy to act on for every African learner, no matter where they live.
-                                    </div>
-                                    <div className="grid gap-3 pt-2">
-                                        <div className="rounded-2xl border border-subtle bg-surface-elevated px-4 py-4">
-                                            <div className="text-xs font-semibold tracking-wider uppercase mb-1 text-brand">
-                                                Find
-                                            </div>
-                                            <div className="text-sm leading-relaxed text-text-secondary">
-                                                Curate scholarships, internships, and fellowships in one place.
-                                            </div>
-                                        </div>
-                                        <div className="rounded-2xl border border-subtle bg-surface-elevated px-4 py-4">
-                                            <div className="text-xs font-semibold tracking-wider uppercase mb-1 text-brand">
-                                                Act
-                                            </div>
-                                            <div className="text-sm leading-relaxed text-text-secondary">
-                                                Give learners the clarity they need to move from discovery to application.
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                                <p className="absolute inset-x-6 bottom-6 font-display text-xl sm:text-2xl font-semibold leading-snug text-white">
+                                    &ldquo;Talent is everywhere, but access is not.&rdquo;
+                                </p>
                             </div>
+                        </motion.div>
+                    </div>
+                </section>
+
+                <section className="py-24 px-4 sm:px-6 border-t border-subtle bg-surface-elevated">
+                    <div className="max-w-5xl mx-auto text-center">
+                        <motion.div {...reveal} className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-brand/10 border border-brand/20">
+                            <Target size={14} className="text-brand" />
+                            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">
+                                Our North Star
+                            </span>
+                        </motion.div>
+                        <motion.h2
+                            {...reveal}
+                            className="font-display text-3xl sm:text-4xl md:text-5xl font-semibold tracking-tight leading-[1.08] mt-6 mb-6 text-text-primary"
+                        >
+                            Global opportunities,{' '}
+                            <span className="text-brand">made easy to reach.</span>
+                        </motion.h2>
+                        <motion.p
+                            {...reveal}
+                            className="max-w-[640px] mx-auto text-lg leading-relaxed text-text-secondary"
+                        >
+                            Edutu exists to make global opportunities easy to find, easy to trust, and easy to act on for every African learner, no matter where they live.
+                        </motion.p>
+
+                        <motion.div {...stagger} className="grid gap-6 sm:grid-cols-3 mt-14 text-left">
+                            {northStarPillars.map((pillar) => (
+                                <motion.div
+                                    key={pillar.title}
+                                    variants={childVariants}
+                                    className="rounded-2xl border border-subtle bg-surface-layer p-6 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:border-brand/40 hover:shadow-elevated"
+                                >
+                                    <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-brand/10">
+                                        <pillar.icon size={20} className="text-brand" />
+                                    </div>
+                                    <div className="mb-2 text-sm font-semibold uppercase tracking-wider text-brand">
+                                        {pillar.title}
+                                    </div>
+                                    <p className="text-base leading-relaxed text-text-secondary">{pillar.desc}</p>
+                                </motion.div>
+                            ))}
                         </motion.div>
                     </div>
                 </section>
@@ -467,37 +491,7 @@ const AboutPage: React.FC = () => {
                 </section>
             </main>
 
-            <footer className="py-16 px-4 sm:px-6 border-t border-subtle">
-                <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start gap-12">
-                    <div className="max-w-[300px]">
-                        <Link to="/" className="flex items-center gap-2 mb-4">
-                            <img src="/edutu-logo.png" alt="Edutu" className="h-8 w-8 object-contain" loading="lazy" decoding="async" />
-                            <span className="font-display font-bold text-xl tracking-tight text-text-primary">
-                                edutu
-                            </span>
-                        </Link>
-                        <p className="text-base leading-relaxed text-text-secondary">
-                            Global opportunities at your fingertips for African learners, one step at a time.
-                        </p>
-                    </div>
-
-                    <div className="flex items-center gap-6">
-                        <a href="https://twitter.com/edutu" target="_blank" rel="noopener noreferrer" className="p-2 text-text-muted transition-colors hover:text-brand">
-                            <Twitter size={20} />
-                        </a>
-                        <a href="https://linkedin.com/company/edutu" target="_blank" rel="noopener noreferrer" className="p-2 text-text-muted transition-colors hover:text-brand">
-                            <Linkedin size={20} />
-                        </a>
-                        <a href="https://github.com/edutu" target="_blank" rel="noopener noreferrer" className="p-2 text-text-muted transition-colors hover:text-brand">
-                            <Github size={20} />
-                        </a>
-                    </div>
-                </div>
-                <div className="max-w-7xl mx-auto mt-12 pt-8 flex justify-between items-center border-t border-subtle">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">&copy; {new Date().getFullYear()} Edutu Inc.</span>
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">v3.0.4-beta</span>
-                </div>
-            </footer>
+            <SiteFooter />
         </div>
     );
 };

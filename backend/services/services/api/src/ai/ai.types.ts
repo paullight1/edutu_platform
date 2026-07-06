@@ -13,6 +13,9 @@ export type AiFeature =
   | "opportunities.enhance"
   | "opportunities.extract"
   | "opportunities.rerank"
+  | "embeddings.opportunity"
+  | "embeddings.profile"
+  | "embeddings.query"
   | "cv.draft"
   | "cv.tailor"
   | "roadmaps.questions"
@@ -58,10 +61,38 @@ export interface AiGenerateResult {
   };
 }
 
+export interface AiEmbedOptions {
+  feature: AiFeature;
+  /** One text or a batch; result order matches input order. */
+  input: string | string[];
+  /** Gemini task-type hint: documents for the corpus, queries for lookups. */
+  taskType?: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY";
+  /** Output dimensionality; must match the DB vector column (default 768). */
+  dimensions?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AiEmbedResult {
+  embeddings: number[][];
+  provider: AiProvider;
+  model: string;
+  usage?: {
+    totalTokens?: number;
+  };
+}
+
 export interface AiProviderAdapter {
   readonly provider: AiProvider;
   generateText(
     config: AiRouteConfig,
     options: AiGenerateOptions,
   ): Promise<AiGenerateResult>;
+  /**
+   * Optional: not every provider offers embeddings (DeepSeek does not).
+   * AiService.embed() degrades to null when the routed adapter lacks this.
+   */
+  generateEmbedding?(
+    config: AiRouteConfig,
+    options: AiEmbedOptions,
+  ): Promise<AiEmbedResult>;
 }

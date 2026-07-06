@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { fetchOpportunities, getCachedOpportunitiesSnapshot } from '../services/opportunities';
 import { Opportunity } from '../types/opportunity';
+import { anchorFeedOrder } from '../utils/feedAnchor';
 
 interface UseOpportunitiesOptions {
   supabase: SupabaseClient;
   userId?: string;
   getAuthToken?: () => Promise<string | null | undefined>;
   profileOverride?: Record<string, unknown> | null;
+  excludeOpportunityIds?: string[];
   onSyncSnapshot?: (opportunities: Opportunity[]) => Promise<void>;
   onUpdateN8n?: (opportunities: Opportunity[], userId: string) => Promise<void>;
 }
@@ -34,8 +36,14 @@ function getProfileKey(profileOverride?: Record<string, unknown> | null) {
   }
 }
 
+/**
+ * Anchoring window: background revalidates that land after this many ms of the
+ * user seeing cached data merge via anchorFeedOrder instead of reshuffling.
+ */
+const FEED_ANCHOR_WINDOW_MS = 2500;
+
 export function useOpportunities(options: UseOpportunitiesOptions) {
-  const { supabase, userId, getAuthToken, profileOverride, onSyncSnapshot, onUpdateN8n } = options;
+  const { supabase, userId, getAuthToken, profileOverride, excludeOpportunityIds, onSyncSnapshot, onUpdateN8n } = options;
   const [{ data, loading, error }, setState] = useState<UseOpportunitiesState>({
     data: [],
     loading: true,
@@ -44,9 +52,16 @@ export function useOpportunities(options: UseOpportunitiesOptions) {
   const [refreshIndex, setRefreshIndex] = useState(0);
   const getAuthTokenRef = useRef(getAuthToken);
   const profileOverrideRef = useRef(profileOverride);
+  const excludeOpportunityIdsRef = useRef(excludeOpportunityIds);
   const onSyncSnapshotRef = useRef(onSyncSnapshot);
   const onUpdateN8nRef = useRef(onUpdateN8n);
+  /** Timestamp of the first time cached data was painted into state. */
+  const firstPaintAtRef = useRef<number | null>(null);
   const profileOverrideKey = useMemo(() => getProfileKey(profileOverride), [profileOverride]);
+  const excludeOpportunityIdsKey = useMemo(
+    () => [...(excludeOpportunityIds ?? [])].sort().join(','),
+    [excludeOpportunityIds]
+  );
 
   useEffect(() => {
     getAuthTokenRef.current = getAuthToken;
@@ -55,6 +70,10 @@ export function useOpportunities(options: UseOpportunitiesOptions) {
   useEffect(() => {
     profileOverrideRef.current = profileOverride;
   }, [profileOverride]);
+
+  useEffect(() => {
+    excludeOpportunityIdsRef.current = excludeOpportunityIds;
+  }, [excludeOpportunityIds]);
 
   useEffect(() => {
     onSyncSnapshotRef.current = onSyncSnapshot;
@@ -70,6 +89,10 @@ export function useOpportunities(options: UseOpportunitiesOptions) {
     void getCachedOpportunitiesSnapshot(userId).then((cached) => {
       if (!isActive || cached.length === 0) {
         return;
+      }
+
+      if (firstPaintAtRef.current === null) {
+        firstPaintAtRef.current = Date.now();
       }
 
       setState((prev) => {
@@ -108,12 +131,18 @@ export function useOpportunities(options: UseOpportunitiesOptions) {
       };
     });
 
-    fetchOpportunities({ 
-      supabase, 
-      force: refreshIndex > 0,
+    // Pull-to-refresh drives refreshIndex, which is the same signal we forward
+    // to fetchOpportunities as `force`. Forced refreshes always adopt the
+    // server order verbatim; only background revalidates get anchored.
+    const isForceRefresh = refreshIndex > 0;
+
+    fetchOpportunities({
+      supabase,
+      force: isForceRefresh,
       userId,
       getAuthToken: getAuthTokenRef.current,
       profileOverride: profileOverrideRef.current,
+      excludeOpportunityIds: excludeOpportunityIdsRef.current,
       onSyncSnapshot: onSyncSnapshotRef.current,
       onUpdateN8n: onUpdateN8nRef.current
     })
@@ -122,10 +151,21 @@ export function useOpportunities(options: UseOpportunitiesOptions) {
           return;
         }
 
-        setState({
-          data: opportunities,
-          loading: false,
-          error: null
+        setState((prev) => {
+          const firstPaintAt = firstPaintAtRef.current;
+          const cachedWasRendered = firstPaintAt !== null && prev.data.length > 0;
+          const shouldAnchor =
+            !isForceRefresh &&
+            cachedWasRendered &&
+            Date.now() - (firstPaintAt as number) > FEED_ANCHOR_WINDOW_MS;
+
+          return {
+            data: shouldAnchor
+              ? anchorFeedOrder(prev.data, opportunities, (o) => o.id)
+              : opportunities,
+            loading: false,
+            error: null
+          };
         });
       })
       .catch((err: unknown) => {
@@ -146,7 +186,7 @@ export function useOpportunities(options: UseOpportunitiesOptions) {
     return () => {
       isActive = false;
     };
-  }, [profileOverrideKey, refreshIndex, supabase, userId]);
+  }, [excludeOpportunityIdsKey, profileOverrideKey, refreshIndex, supabase, userId]);
 
   const refresh = useCallback(() => {
     setRefreshIndex((value) => value + 1);

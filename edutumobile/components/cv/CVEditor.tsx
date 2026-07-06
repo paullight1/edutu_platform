@@ -7,6 +7,7 @@ import {
     StyleSheet,
     ActivityIndicator,
     ScrollView,
+    Switch,
 } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Check, Download, Sparkles, Target, ChevronRight, Plus, Trash2 } from 'lucide-react-native';
@@ -42,9 +43,12 @@ interface Props {
     setCurrentCV: React.Dispatch<React.SetStateAction<Partial<UserCV>>>;
     isPro: boolean;
     isSaving: boolean;
+    isExporting?: boolean;
+    isImprovingSummary?: boolean;
     onSave: () => void;
     onExport: () => void;
     onAITailor: () => void;
+    onImproveSummary?: () => void;
     onUpgradeFeature: (feature: string) => void;
 }
 
@@ -57,9 +61,12 @@ export function CVEditor({
     setCurrentCV,
     isPro,
     isSaving,
+    isExporting,
+    isImprovingSummary,
     onSave,
     onExport,
     onAITailor,
+    onImproveSummary,
     onUpgradeFeature,
 }: Props) {
     const { colors, isDark } = useTheme();
@@ -208,11 +215,22 @@ export function CVEditor({
                         }
                     />
                     <TouchableOpacity
-                        style={[styles.aiGenerateBtn, { backgroundColor: colors.primary }]}
-                        onPress={isPro ? onAITailor : () => onUpgradeFeature('AI Summary Generator')}
+                        style={[styles.aiGenerateBtn, { backgroundColor: colors.primary, opacity: isImprovingSummary ? 0.7 : 1 }]}
+                        onPress={
+                            isPro
+                                ? (onImproveSummary ?? onAITailor)
+                                : () => onUpgradeFeature('AI Summary Generator')
+                        }
+                        disabled={isImprovingSummary}
                     >
-                        <Sparkles size={16} color="#FFFFFF" />
-                        <Text style={styles.aiGenerateText}>{isPro ? 'Improve with AI' : 'Unlock AI Assist'}</Text>
+                        {isImprovingSummary ? (
+                            <ActivityIndicator color="#FFFFFF" size="small" />
+                        ) : (
+                            <Sparkles size={16} color="#FFFFFF" />
+                        )}
+                        <Text style={styles.aiGenerateText}>
+                            {isImprovingSummary ? 'Improving…' : isPro ? 'Improve with AI' : 'Unlock AI Assist'}
+                        </Text>
                     </TouchableOpacity>
                 </View>
             </Animated.View>
@@ -264,10 +282,22 @@ export function CVEditor({
                             onChangeText={(text) => updateArrayItem('experience', item.id, 'location', text)} />
                         <Field label="Start Date" value={item.start_date} placeholder="2024-01" muted={muted} colors={colors}
                             onChangeText={(text) => updateArrayItem('experience', item.id, 'start_date', text)} />
-                        <Field label="End Date" value={item.end_date || ''} placeholder="2025-01" muted={muted} colors={colors}
-                            onChangeText={(text) => updateArrayItem('experience', item.id, 'end_date', text)} />
+                        {!item.current && (
+                            <Field label="End Date" value={item.end_date || ''} placeholder="2025-01" muted={muted} colors={colors}
+                                onChangeText={(text) => updateArrayItem('experience', item.id, 'end_date', text)} />
+                        )}
+                        <View style={styles.switchRow}>
+                            <Text style={[styles.inputLabel, { color: muted, marginBottom: 0 }]}>I currently work here</Text>
+                            <Switch
+                                value={Boolean(item.current)}
+                                onValueChange={(value) => updateArrayItem('experience', item.id, 'current', value)}
+                                trackColor={{ true: colors.primary }}
+                            />
+                        </View>
                         <Field label="Description" value={item.description} placeholder="Describe what you did" muted={muted} colors={colors}
                             multiline onChangeText={(text) => updateArrayItem('experience', item.id, 'description', text)} />
+                        <Field label="Highlights (one per line)" value={(item.highlights || []).join('\n')} placeholder={'Increased sign-ups by 30%\nLed a team of 4'} muted={muted} colors={colors}
+                            multiline onChangeText={(text) => updateArrayItem('experience', item.id, 'highlights', text.split('\n'))} />
                     </View>
                 ))}
             </Animated.View>
@@ -287,6 +317,10 @@ export function CVEditor({
                             onChangeText={(text) => updateArrayItem('education', item.id, 'degree', text)} />
                         <Field label="Field" value={item.field || ''} placeholder="Computer Science" muted={muted} colors={colors}
                             onChangeText={(text) => updateArrayItem('education', item.id, 'field', text)} />
+                        <Field label="Start Date" value={item.start_date || ''} placeholder="2021-09" muted={muted} colors={colors}
+                            onChangeText={(text) => updateArrayItem('education', item.id, 'start_date', text)} />
+                        <Field label="End Date" value={item.end_date || ''} placeholder="2025-06 (or expected)" muted={muted} colors={colors}
+                            onChangeText={(text) => updateArrayItem('education', item.id, 'end_date', text)} />
                     </View>
                 ))}
             </Animated.View>
@@ -362,11 +396,18 @@ export function CVEditor({
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                    style={[styles.exportBtn, { borderColor: colors.border }]}
+                    style={[styles.exportBtn, { borderColor: colors.border, opacity: isExporting ? 0.7 : 1 }]}
                     onPress={onExport}
+                    disabled={isExporting}
                 >
-                    <Download size={20} color={colors.primary} />
-                    <Text style={[styles.exportBtnText, { color: colors.primary }]}>Share CV</Text>
+                    {isExporting ? (
+                        <ActivityIndicator color={colors.primary} size="small" />
+                    ) : (
+                        <Download size={20} color={colors.primary} />
+                    )}
+                    <Text style={[styles.exportBtnText, { color: colors.primary }]}>
+                        {isExporting ? 'Preparing…' : 'Download PDF'}
+                    </Text>
                 </TouchableOpacity>
             </Animated.View>
         </ScrollView>
@@ -464,6 +505,12 @@ const styles = StyleSheet.create({
         borderWidth: 1,
     },
     inputRow: {
+        marginBottom: 12,
+    },
+    switchRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
         marginBottom: 12,
     },
     inputLabel: {

@@ -24,7 +24,6 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { EmptyState, ErrorState } from "./ui/EmptyState";
-import NotificationInbox from "./NotificationInbox";
 import CalendarStrip from "./CalendarStrip";
 import MemberSettingsPanel from "./MemberSettingsPanel";
 import type { CalendarEvent } from "./CalendarStrip";
@@ -472,6 +471,8 @@ type BannerAd = {
   image: string;
   url: string;
   alt: string;
+  title: string;
+  subtitle: string;
 };
 
 // Request a compressed, right-sized rendition instead of the multi-megabyte
@@ -482,18 +483,24 @@ const DEFAULT_BANNERS: BannerAd[] = [
       "https://images.pexels.com/photos/267885/pexels-photo-267885.jpeg?auto=compress&cs=tinysrgb&w=1200",
     url: "https://edutu.org",
     alt: "Scholarship opportunities",
+    title: "Scholarships that fit you",
+    subtitle: "Funded opportunities matched to your profile and goals.",
   },
   {
     image:
       "https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg?auto=compress&cs=tinysrgb&w=1200",
     url: "https://edutu.org",
     alt: "Study abroad programs",
+    title: "Study abroad programs",
+    subtitle: "Explore global universities and exchange programs.",
   },
   {
     image:
       "https://images.pexels.com/photos/1595391/pexels-photo-1595391.jpeg?auto=compress&cs=tinysrgb&w=1200",
     url: "https://edutu.org",
     alt: "Career development",
+    title: "Grow your career",
+    subtitle: "Internships, fellowships, and skills to level up.",
   },
 ];
 
@@ -547,10 +554,10 @@ const BannerCarousel = React.memo(function BannerCarousel({
         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/40 to-black/30" />
         <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
           <span className="text-lg font-bold tracking-tight text-white drop-shadow-sm sm:text-2xl">
-            Welcome to Edutu
+            {banners[current].title}
           </span>
           <span className="mt-1 text-xs font-medium text-white/80 drop-shadow-sm sm:text-sm">
-            Discover global opportunities, scholarships, and career growth
+            {banners[current].subtitle}
           </span>
         </div>
       </div>
@@ -615,7 +622,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     },
     ref,
   ) {
-    const [showNotifications, setShowNotifications] = useState(false);
     const [activePanel, setActivePanel] = useState<DashboardPanel | null>(null);
     const [dismissBanner, setDismissBanner] = usePersistentState<boolean>(
       "edutu_dashboard_banner_dismissed",
@@ -686,6 +692,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
             setBookmarks((prev: any[]) =>
               prev.filter((b: any) => b.id !== saved.id),
             );
+            trackInteraction(opportunity, "bookmark", {
+              value: -1,
+              context: "unsave",
+            });
             toast.success("Removed from saved");
           } else {
             await addBookmark(
@@ -731,7 +741,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     const handleOpenOpportunity = useCallback(
       (opportunity: Opportunity) => {
         if (opportunity?.id) {
-          trackInteraction(opportunity, "view");
+          trackInteraction(opportunity, "view", { context: "card_open" });
         }
         onOpportunityClick(opportunity);
       },
@@ -1106,49 +1116,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         .sort((a, b) => b.timestamp - a.timestamp)
         .slice(0, 5);
     }, [applications, bookmarks]);
-
-    function openDashboardDestination(id: string) {
-      if (id === "home") {
-        setActivePanel(null);
-        return;
-      }
-
-      if (id === "opportunities") {
-        setActivePanel(null);
-        onViewAllOpportunities();
-        return;
-      }
-
-      if (id === "notifications") {
-        setShowNotifications(true);
-        return;
-      }
-
-      if (
-        id === "deadlines"
-      ) {
-        setActivePanel(null);
-        onNavigate?.(id);
-        return;
-      }
-
-      if (
-        id === "saved" ||
-        id === "applied" ||
-        id === "profile"
-      ) {
-        setActivePanel(null);
-        onNavigate?.(id);
-        return;
-      }
-
-      if (id === "settings") {
-        setActivePanel(id);
-        return;
-      }
-
-      onNavigate?.(id);
-    }
 
     function handleShuffleOpportunities() {
       setHomeShuffleSeed(createOpportunityShuffleSeed());
@@ -1537,11 +1504,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         );
       }
 
-      return (
-        <MemberSettingsPanel
-          onOpenNotifications={() => openDashboardDestination("notifications")}
-        />
-      );
+      return <MemberSettingsPanel />;
     };
 
     return (
@@ -1568,7 +1531,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                 animate={{ opacity: 1, x: 0, y: 0 }}
                 exit={{ opacity: 0, x: 28, y: 28 }}
                 transition={{ duration: 0.22 }}
-                className={`fixed inset-x-0 bottom-0 z-50 max-h-[82dvh] overflow-hidden rounded-t-[24px] border-t border-subtle bg-white text-text-primary shadow-elevated lg:inset-x-auto lg:bottom-0 lg:right-0 lg:top-16 lg:h-[calc(100dvh-4rem)] lg:max-h-none lg:w-[390px] lg:rounded-none lg:border-l lg:border-t-0`}
+                className={`fixed inset-x-0 bottom-0 z-50 max-h-[82dvh] overflow-hidden rounded-t-[24px] border-t border-subtle bg-surface-layer text-text-primary shadow-elevated lg:inset-x-auto lg:bottom-0 lg:right-0 lg:top-0 lg:h-[100dvh] lg:max-h-none lg:w-[390px] lg:rounded-none lg:border-l lg:border-t-0`}
                 aria-label={`${PANEL_COPY[activePanel].title} panel`}
               >
                 <div
@@ -1598,7 +1561,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                     </button>
                   </div>
                 </div>
-                <div className="max-h-[calc(82dvh-116px)] overflow-y-auto p-5 lg:max-h-[calc(100dvh-11.25rem)]">
+                <div className="max-h-[calc(82dvh-116px)] overflow-y-auto p-5 lg:max-h-[calc(100dvh-7.25rem)]">
                   {renderDashboardPanel()}
                 </div>
               </motion.aside>
@@ -1607,7 +1570,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
         </AnimatePresence>
 
         <div
-          className={`mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-8 transition-[padding] duration-300 ${embeddedDesktopShell ? "lg:pl-8" : ""} ${activePanel ? "xl:pr-[420px]" : "xl:pr-8"}`}
+          className={`mx-auto w-full max-w-[1500px] px-4 sm:px-6 lg:px-8 transition-[padding] duration-300 ${activePanel ? "lg:pr-[420px]" : "lg:pr-8"}`}
         >
           <main className="min-w-0 px-0 py-5 space-y-6">
             <motion.section
@@ -1779,7 +1742,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
               </section>
             )}
 
-            {user?.id && personalizationReady && !isPersonalized && (
+            {user?.id &&
+              personalizationReady &&
+              !isPersonalized &&
+              !(profileScore && profileScore.score < 100 && !dismissBanner) && (
               <section>
                 <button
                   type="button"
@@ -1922,7 +1888,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         <button
                           type="button"
                           onClick={handleShuffleOpportunities}
-                          className={`inline-flex h-10 w-10 items-center justify-center rounded-full border border-subtle bg-white text-xs font-semibold text-text-secondary shadow-sm transition-all hover:border-strong hover:text-text-primary active:scale-[0.98] sm:w-auto sm:rounded-2xl sm:px-3`}
+                          className={`inline-flex h-11 w-11 items-center justify-center rounded-full border border-subtle bg-white text-xs font-semibold text-text-secondary shadow-sm transition-all hover:border-strong hover:text-text-primary active:scale-[0.98] sm:h-10 sm:w-auto sm:rounded-2xl sm:px-3`}
                           aria-label="Shuffle recommended opportunities"
                           title={t("dashboard.shuffle")}
                         >
@@ -1932,7 +1898,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                         <button
                           type="button"
                           onClick={onViewAllOpportunities}
-                          className={`inline-flex h-10 w-10 items-center justify-center rounded-full border border-subtle bg-white text-xs font-semibold text-text-secondary shadow-sm transition-all hover:border-strong hover:text-text-primary sm:w-auto sm:rounded-2xl sm:px-3`}
+                          className={`inline-flex h-11 w-11 items-center justify-center rounded-full border border-subtle bg-white text-xs font-semibold text-text-secondary shadow-sm transition-all hover:border-strong hover:text-text-primary sm:h-10 sm:w-auto sm:rounded-2xl sm:px-3`}
                           aria-label="View all opportunities"
                           title={t("dashboard.viewMore")}
                         >
@@ -1977,7 +1943,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                       <>
                         <div>
                           <div
-                            className="mobile-personalized-carousel -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-scroll overscroll-x-contain px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                            className="mobile-personalized-carousel -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                             aria-label="Personalized opportunities carousel"
                           >
                             {mobilePersonalizedOpportunities.map(
@@ -2012,41 +1978,19 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             </button>
                           </div>
 
-                          <div className="mb-3 flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <h3 className="text-lg font-semibold tracking-tight text-text-primary">
-                                {selectedDiscoveryCategory
-                                  ? t("dashboard.categoryOpportunities", { category: selectedDiscoveryCategory.title })
-                                  : t("dashboard.moreOpportunities")}
-                              </h3>
-                              <p className="text-xs font-medium text-text-muted">
-                                {selectedDiscoveryCategory
-                                  ? t("dashboard.filteredBySelection")
-                                  : t("dashboard.scrollDown")}
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={onViewAllOpportunities}
-                              className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-subtle bg-white text-text-secondary shadow-sm transition hover:border-strong hover:text-text-primary active:scale-95"
-                              aria-label="View more opportunities"
-                            >
-                              <ChevronRight size={18} strokeWidth={2.4} />
-                            </button>
+                          <div className="mb-3 min-w-0">
+                            <h3 className="text-lg font-semibold tracking-tight text-text-primary">
+                              {selectedDiscoveryCategory
+                                ? t("dashboard.categoryOpportunities", { category: selectedDiscoveryCategory.title })
+                                : t("dashboard.moreOpportunities")}
+                            </h3>
+                            <p className="text-xs font-medium text-text-muted">
+                              {selectedDiscoveryCategory
+                                ? t("dashboard.filteredBySelection")
+                                : t("dashboard.scrollDown")}
+                            </p>
                           </div>
-                          <div
-                            className="mobile-more-opportunities-grid"
-                            style={{
-                              display: "grid",
-                              gridTemplateColumns:
-                                "repeat(2, minmax(0, calc((100vw - 2.75rem) / 2)))",
-                              gap: "0.75rem",
-                              width: "calc(100vw - 2rem)",
-                              maxWidth: "calc(100vw - 2rem)",
-                              alignItems: "stretch",
-                              overflow: "hidden",
-                            }}
-                          >
+                          <div className="mobile-more-opportunities-grid grid w-full grid-cols-2 items-stretch gap-3 overflow-hidden">
                             {mobileMoreOpportunityItems.map((item) => {
                               const { opportunity } = item;
 
@@ -2221,7 +2165,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
               </div>
 
               {recentActivity.length > 0 && (
-                <aside className="lg:col-span-4 space-y-6">
+                <aside className="lg:col-span-4 space-y-6 lg:sticky lg:top-6 lg:self-start">
                   <section
                     className={`relative overflow-hidden rounded-[20px] border border-subtle bg-white p-5 shadow-sm`}
                   >
@@ -2295,7 +2239,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
 
         {/* Footer with Dark Mode Toggle */}
         <footer
-          className={`mx-auto hidden max-w-7xl border-t border-subtle px-4 py-6 sm:px-6 lg:block lg:px-8`}
+          className={`mx-auto hidden max-w-[1500px] border-t border-subtle px-4 py-6 sm:px-6 lg:block lg:px-8`}
         >
           <div className="flex items-center justify-between">
             <p
@@ -2305,11 +2249,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
             </p>
           </div>
         </footer>
-
-        <NotificationInbox
-          isOpen={showNotifications}
-          onClose={() => setShowNotifications(false)}
-        />
       </div>
     );
   },

@@ -27,6 +27,7 @@ import { format } from "date-fns";
 import { useTranslation } from "react-i18next";
 import { useOpportunities } from "../hooks/useOpportunities";
 import { usePersonalization } from "../hooks/usePersonalization";
+import { useServerMatchHydration } from "../hooks/useServerMatchHydration";
 import type { Opportunity } from "../types/opportunity";
 import type { MatchResult } from "../services/personalizedRecommendations";
 import { MatchScoreBadge, TopMatchReason } from "./opportunity/MatchInsights";
@@ -594,6 +595,10 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
         if (!token) throw new Error("no-token");
         if (alreadySaved) {
           await removeBookmark(userId, opportunity.id, token);
+          trackInteraction(opportunity, "bookmark", {
+            value: -1,
+            context: "unsave",
+          });
           success("Removed from saved");
         } else {
           await addBookmark(
@@ -694,6 +699,17 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
     selectedCategoryId,
     showClosed,
   ]);
+
+  // Pull authoritative server-computed match scores for what's on screen;
+  // explainOpportunity reads them synchronously once the store is primed.
+  const hydrationIds = useMemo(
+    () =>
+      filteredOpportunities
+        .slice(0, 100)
+        .map((opportunity) => opportunity.id),
+    [filteredOpportunities],
+  );
+  useServerMatchHydration(hydrationIds);
 
   const matchInsights = useMemo(() => {
     if (!isPersonalized) return null;
@@ -1067,7 +1083,9 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                   detailPath={`${embedded ? "/app" : ""}/opportunity/${opportunity.id}`}
                   expired={isOpportunityExpired(opportunity)}
                   match={matchInsights?.get(opportunity.id) ?? null}
-                  onOpen={(item) => trackInteraction(item, "view")}
+                  onOpen={(item) =>
+                    trackInteraction(item, "view", { context: "card_open" })
+                  }
                 />
               ))}
             </section>

@@ -735,6 +735,9 @@ Then suggest a roadmap with 4-8 steps tailored to "${topic}".
     milestones: Array<{ id: string; title: string; description: string }>;
     checklist: string[];
     supportActions: string[];
+    requirementActions: Array<{ requirement: string; action: string }>;
+    profileGaps: Array<{ gap: string; action: string }>;
+    bestPractices: string[];
     generatedBy: "ai" | "fallback";
   }> {
     const scaffold =
@@ -752,24 +755,56 @@ Then suggest a roadmap with 4-8 steps tailored to "${topic}".
       .filter(Boolean)
       .join(" ");
 
-    const prompt = `You are Edutu's opportunity coach for ambitious young Africans. Build a concrete, personalized preparation plan for this specific opportunity.
+    const profile = dto.profile;
+    const profileLines = profile
+      ? [
+          profile.country ? `Country: ${profile.country}.` : "",
+          profile.pursuit ? `Field of study/pursuit: ${profile.pursuit}.` : "",
+          profile.gradeLevel ? `Education level: ${profile.gradeLevel}.` : "",
+          profile.schoolName ? `Institution: ${profile.schoolName}.` : "",
+          typeof profile.isGraduate === "boolean"
+            ? `Graduate: ${profile.isGraduate ? "yes" : "no"}.`
+            : "",
+          profile.interests?.length
+            ? `Interests: ${profile.interests.slice(0, 10).join(", ")}.`
+            : "",
+          profile.ambitions?.length
+            ? `Ambitions: ${profile.ambitions.slice(0, 10).join(", ")}.`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" ")
+      : "";
+
+    const requirementLines = dto.requirements?.length
+      ? `\nListed requirements:\n${dto.requirements
+          .slice(0, 15)
+          .map((r, i) => `${i + 1}. ${r.slice(0, 300)}`)
+          .join("\n")}`
+      : "";
+
+    const prompt = `You are Edutu's opportunity coach for ambitious young Africans. Build a concrete, personalized preparation plan that maximizes this applicant's chance of WINNING this specific opportunity.
 
 Opportunity: "${dto.title}"${dto.organization ? ` by ${dto.organization}` : ""}${dto.category ? ` (category: ${dto.category})` : ""}.
 ${dto.description ? `Details: ${dto.description.slice(0, 800)}` : ""}
 ${constraints}
+${profileLines ? `\nApplicant profile: ${profileLines}` : ""}${requirementLines}
 
-Rewrite each of these milestones with specific, actionable guidance for THIS opportunity. Keep the same id and order:
+Rewrite each of these milestones with specific, actionable guidance for THIS opportunity${profileLines ? " and THIS applicant" : ""}. Keep the same id and order:
 ${scaffold.map((m, i) => `${i + 1}. [${m.id}] ${m.title}`).join("\n")}
 
 Return ONLY valid JSON with this exact structure:
 {
-  "summary": "2-3 sentence motivating overview specific to this opportunity",
+  "summary": "2-3 sentence motivating overview specific to this opportunity${profileLines ? " and applicant" : ""}",
   "winningStrategy": "3-4 sentences on how to genuinely stand out for this specific opportunity",
   "milestones": [ { "id": "<same id>", "title": "<refined title>", "description": "<specific, concrete guidance in 1-2 sentences>" } ],
   "checklist": ["specific document or task", "..."],
-  "supportActions": ["concrete support step", "..."]
+  "supportActions": ["concrete support step", "..."],
+  "requirementActions": [ { "requirement": "<requirement, verbatim or condensed>", "action": "<exactly how this applicant satisfies or evidences it>" } ],
+  "profileGaps": [ { "gap": "<what is missing or weak in the applicant's profile for this opportunity>", "action": "<concrete step to close the gap before the deadline>" } ],
+  "bestPractices": ["what past winners of this kind of opportunity did, one concrete tactic per item"]
 }
-Provide 6-10 checklist items and 3-5 support actions.`;
+Provide 6-10 checklist items, 3-5 support actions, one requirementActions entry per listed requirement (max 15), 2-4 profileGaps (empty array if the profile is unknown), and 3-6 bestPractices.`;
 
     try {
       const parsed = await this.aiService.generateJson<any>({
@@ -804,6 +839,9 @@ Provide 6-10 checklist items and 3-5 support actions.`;
     milestones: Array<{ id: string; title: string; description: string }>;
     checklist: string[];
     supportActions: string[];
+    requirementActions: Array<{ requirement: string; action: string }>;
+    profileGaps: Array<{ gap: string; action: string }>;
+    bestPractices: string[];
   } | null {
     if (!parsed || typeof parsed !== "object") return null;
 
@@ -853,6 +891,25 @@ Provide 6-10 checklist items and 3-5 support actions.`;
         : "";
     if (!summary || !winningStrategy) return null;
 
+    // Pair-shaped extras ({requirement,action} / {gap,action}) are optional —
+    // an older or partial AI response must never invalidate the whole plan.
+    const toPairList = (
+      value: any,
+      keyA: string,
+      keyB: string,
+    ): Array<Record<string, string>> =>
+      Array.isArray(value)
+        ? value
+            .map((item) => {
+              const a =
+                item && typeof item[keyA] === "string" ? item[keyA].trim() : "";
+              const b =
+                item && typeof item[keyB] === "string" ? item[keyB].trim() : "";
+              return a && b ? { [keyA]: a, [keyB]: b } : null;
+            })
+            .filter((item): item is Record<string, string> => item !== null)
+        : [];
+
     return {
       summary,
       winningStrategy,
@@ -863,6 +920,16 @@ Provide 6-10 checklist items and 3-5 support actions.`;
       }>,
       checklist: toStringList(parsed.checklist),
       supportActions: toStringList(parsed.supportActions),
+      requirementActions: toPairList(
+        parsed.requirementActions,
+        "requirement",
+        "action",
+      ) as Array<{ requirement: string; action: string }>,
+      profileGaps: toPairList(parsed.profileGaps, "gap", "action") as Array<{
+        gap: string;
+        action: string;
+      }>,
+      bestPractices: toStringList(parsed.bestPractices).slice(0, 8),
     };
   }
 
@@ -875,11 +942,53 @@ Provide 6-10 checklist items and 3-5 support actions.`;
     milestones: Array<{ id: string; title: string; description: string }>;
     checklist: string[];
     supportActions: string[];
+    requirementActions: Array<{ requirement: string; action: string }>;
+    profileGaps: Array<{ gap: string; action: string }>;
+    bestPractices: string[];
   } {
     const org = dto.organization || "the organization";
     const isScholarship = /scholar|fellow|grant/i.test(
       `${dto.category || ""} ${dto.title}`,
     );
+
+    const requirementActions = (dto.requirements || [])
+      .slice(0, 15)
+      .map((requirement) => ({
+        requirement,
+        action: `Gather or produce the evidence that proves you meet this, and file it in your application folder.`,
+      }));
+
+    const profileGaps: Array<{ gap: string; action: string }> = [];
+    if (dto.profile) {
+      if (!dto.profile.pursuit) {
+        profileGaps.push({
+          gap: "Your field of study is missing from your profile.",
+          action:
+            "Add your field of study so applications can speak to your academic direction.",
+        });
+      }
+      if (!dto.profile.ambitions?.length) {
+        profileGaps.push({
+          gap: "No stated career ambitions on your profile.",
+          action:
+            "Write 2-3 sentences on your long-term goal — selectors reward clear direction.",
+        });
+      }
+    }
+
+    const bestPractices = isScholarship
+      ? [
+          "Winners submit 3-5 days early — portals crash near deadlines.",
+          "Tie every essay paragraph to one proof point (award, project, result).",
+          "Brief your referees with your CV and the program's criteria before they write.",
+          "Mirror the program's own language when describing your impact.",
+        ]
+      : [
+          "Tailor your CV to the listed requirements — one line of proof per requirement.",
+          "Research the organization's recent work and reference it in your motivation.",
+          "Submit early and confirm receipt; follow up politely if no confirmation.",
+          "Prepare a 60-second story of your best result for interviews.",
+        ];
 
     const guidance: Record<string, string> = {
       "milestone-1": `Confirm the deadline, eligibility, required documents, and what ${org} rewards in strong applicants for ${dto.title}.`,
@@ -917,6 +1026,9 @@ Provide 6-10 checklist items and 3-5 support actions.`;
         "Keep one evidence folder for transcripts, certificates, ID, and letters.",
         "Book two feedback checkpoints: after the first draft and before submission.",
       ],
+      requirementActions,
+      profileGaps,
+      bestPractices,
     };
   }
 

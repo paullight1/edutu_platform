@@ -24,7 +24,7 @@ describe("OpportunitiesService public app URL", () => {
     delete process.env.FRONTEND_URL;
     delete process.env.APP_URL;
 
-    const service = new OpportunitiesService({} as any, {} as any, {} as any);
+    const service = new OpportunitiesService({} as any, {} as any, {} as any, {} as any);
 
     expect(service.getPublicAppBaseUrl()).toBe("https://www.edutu.org");
   });
@@ -32,7 +32,7 @@ describe("OpportunitiesService public app URL", () => {
   it("respects the configured public app url", () => {
     process.env.EDUTU_PUBLIC_APP_URL = "https://app.edutu.org/";
 
-    const service = new OpportunitiesService({} as any, {} as any, {} as any);
+    const service = new OpportunitiesService({} as any, {} as any, {} as any, {} as any);
 
     expect(service.getPublicAppBaseUrl()).toBe("https://app.edutu.org");
   });

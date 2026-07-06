@@ -378,7 +378,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
 
   useEffect(() => {
     if (opportunity?.id) {
-      trackInteraction(opportunity, "view");
+      trackInteraction(opportunity, "view", { context: "detail" });
     }
     // Track once per opportunity page view.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -514,6 +514,10 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
 
       if (isBookmarkedState && result) {
         setIsBookmarkedState(false);
+        trackInteraction(opportunity, "bookmark", {
+          value: -1,
+          context: "unsave",
+        });
         success("Bookmark removed");
       } else if (!isBookmarkedState && result) {
         setIsBookmarkedState(true);
@@ -529,12 +533,17 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
 
           if (isBookmarkedState && result) {
             setIsBookmarkedState(false);
+            trackInteraction(opportunity, "bookmark", {
+              value: -1,
+              context: "unsave",
+            });
             success("Bookmark removed");
             return;
           }
 
           if (!isBookmarkedState && result) {
             setIsBookmarkedState(true);
+            trackInteraction(opportunity, "bookmark");
             success("Opportunity saved");
             return;
           }

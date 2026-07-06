@@ -189,7 +189,7 @@ export const PWAInstallBanner: React.FC<PWABannerProps> = ({ className = '' }) =
                         <div className="flex gap-2 mt-3">
                             <button
                                 onClick={applyUpdate}
-                                className="px-3 py-1.5 bg-white text-indigo-600 text-sm font-medium rounded-lg hover:bg-white/90 transition-colors"
+                                className="px-3 py-1.5 bg-white text-blue-600 text-sm font-medium rounded-lg hover:bg-white/90 transition-colors"
                             >
                                 Update Now
                             </button>
@@ -228,7 +228,7 @@ export const PWAInstallBanner: React.FC<PWABannerProps> = ({ className = '' }) =
                         <div className="flex gap-2 mt-3">
                             <button
                                 onClick={promptInstall}
-                                className="px-3 py-1.5 bg-white text-indigo-600 text-sm font-medium rounded-lg hover:bg-white/90 transition-colors"
+                                className="px-3 py-1.5 bg-white text-blue-600 text-sm font-medium rounded-lg hover:bg-white/90 transition-colors"
                             >
                                 Install
                             </button>

@@ -3,6 +3,7 @@ import { ScraperService } from "./scraper.service";
 import { SchedulerRegistry } from "@nestjs/schedule";
 import { AiService } from "../ai";
 import { OpportunityShareCardService } from "../opportunities/opportunity-share-card.service";
+import { OpportunityEmbeddingService } from "../opportunities/opportunity-embedding.service";
 import { ScraperAlertsService } from "./scraper-alerts.service";
 import { RobotsChecker } from "./robots-checker";
 
@@ -53,6 +54,10 @@ describe("ScraperService", () => {
         {
           provide: RobotsChecker,
           useValue: mockRobotsChecker,
+        },
+        {
+          provide: OpportunityEmbeddingService,
+          useValue: { embedOpportunity: jest.fn().mockResolvedValue(false) },
         },
       ],
     }).compile();

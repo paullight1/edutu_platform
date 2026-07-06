@@ -9,6 +9,7 @@ import {
 } from "../db/schema";
 import { toDatabaseUserId } from "../common/user-id";
 import { MeService } from "../me/me.service";
+import { OpportunityEmbeddingService } from "../opportunities/opportunity-embedding.service";
 import type {
   UpdateMemberSettingsDto,
   UpdateProfileDto,
@@ -28,7 +29,10 @@ export interface AuthenticatedProfileUser {
 export class ProfileService {
   private readonly logger = new Logger(ProfileService.name);
 
-  constructor(private readonly meService: MeService) {}
+  constructor(
+    private readonly meService: MeService,
+    private readonly embeddingService: OpportunityEmbeddingService,
+  ) {}
 
   async getProfile(user: AuthenticatedProfileUser) {
     const dbUserId = toDatabaseUserId(user.id);
@@ -50,6 +54,10 @@ export class ProfileService {
     if (!updated) {
       throw new NotFoundException("Profile not found");
     }
+
+    // Profile fields feed the recommendation profile embedding — warm the new
+    // vector so the next feed request retrieves semantically (fire-and-forget).
+    this.embeddingService.refreshProfileEmbedding(dbUserId);
 
     return this.withCompleteness(updated);
   }

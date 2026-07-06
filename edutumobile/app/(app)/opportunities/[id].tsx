@@ -75,8 +75,10 @@ import { getConfig } from "../../../lib/config";
 import {
   generateRoadmap,
   AIGeneratedRoadmap,
+  ApplicantProfile,
 } from "@edutu/core/src/services/aiRoadmapGenerator";
 import { notificationService } from "../../../lib/notifications";
+import { syncRoadmapToCalendar } from "../../../lib/calendarSync";
 import { AnimatedPressable } from "../../../components/ui/AnimatedPressable";
 import { FadeInDown } from "react-native-reanimated";
 import Reanimated from "react-native-reanimated";
@@ -575,16 +577,36 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
     setRoadmapStep("overview");
 
     try {
+      // Applicant snapshot personalizes both the local plan and the AI prompt.
+      const metadata = (user?.unsafeMetadata || {}) as Record<string, unknown>;
+      const profile: ApplicantProfile | undefined =
+        Object.keys(metadata).length > 0
+          ? {
+              country: typeof metadata.country === "string" ? metadata.country : undefined,
+              pursuit: typeof metadata.pursuit === "string" ? metadata.pursuit : undefined,
+              gradeLevel: typeof metadata.gradeLevel === "string" ? metadata.gradeLevel : undefined,
+              schoolName: typeof metadata.schoolName === "string" ? metadata.schoolName : undefined,
+              isGraduate:
+                typeof metadata.isGraduate === "boolean"
+                  ? metadata.isGraduate
+                  : metadata.isGraduate === "true"
+                    ? true
+                    : undefined,
+              interests: Array.isArray(metadata.interests) ? (metadata.interests as string[]) : undefined,
+              ambitions: Array.isArray(metadata.ambitions) ? (metadata.ambitions as string[]) : undefined,
+            }
+          : undefined;
+
       // Real generation: deterministic dated scaffold + backend LLM enrichment.
       // Falls back to the offline scaffold automatically if the API is unreachable.
-      const roadmap = await generateRoadmap(opportunity);
+      const roadmap = await generateRoadmap(opportunity, { profile });
       setGeneratedRoadmap(roadmap);
       setCustomMilestones(roadmap.milestones);
       setSelectedChecklistItems(roadmap.checklist.map((c) => c.id));
     } finally {
       setGeneratingRoadmap(false);
     }
-  }, [opportunity, isPro, credits, spendCredits, router]);
+  }, [opportunity, isPro, credits, spendCredits, router, user?.unsafeMetadata]);
 
   const handleTrackWithRoadmap = useCallback(async () => {
     if (!user || !opportunity || !generatedRoadmap) return;
@@ -638,6 +660,14 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
             i === customMilestones.length - 1
               ? ("high" as const)
               : ("medium" as const),
+        })),
+        // Profile gaps become early, high-priority goals — closing them is what
+        // turns a generic application into a winning one.
+        ...generatedRoadmap.profileGaps.map((gapItem) => ({
+          title: `Close gap: ${gapItem.gap.slice(0, 80)}`,
+          description: gapItem.action,
+          deadline: customMilestones[1]?.date || generatedRoadmap.submissionTargetDate,
+          priority: "high" as const,
         })),
         ...generatedRoadmap.dailyPlan.map((day) => ({
           title: day.title,
@@ -698,6 +728,26 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
         "AI Roadmap Created!",
         `${createdGoals.length} goals, daily actions, checklist items, and reminders have been added to your Goals page.`,
         [
+          {
+            text: "Add to Calendar",
+            onPress: async () => {
+              const result = await syncRoadmapToCalendar(
+                opportunity.title,
+                generatedRoadmap,
+              );
+              if (result.ok) {
+                Alert.alert(
+                  "Calendar Synced",
+                  `${result.eventCount} milestone and deadline events were added to your "Edutu Opportunities" calendar.`,
+                );
+              } else {
+                Alert.alert(
+                  "Calendar Sync Failed",
+                  result.reason || "Could not add events to your calendar.",
+                );
+              }
+            },
+          },
           { text: "View Goals", onPress: () => router.push("/goals") },
           { text: "Stay Here", style: "cancel" },
         ],
@@ -1880,6 +1930,90 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                         {generatedRoadmap.winningStrategy}
                       </Text>
                     </View>
+
+                    {generatedRoadmap.requirementActions.length > 0 && (
+                      <View
+                        style={[
+                          styles.strategyCard,
+                          { backgroundColor: cardBg, borderColor },
+                        ]}
+                      >
+                        <Text
+                          style={[styles.strategyLabel, { color: colors.accent }]}
+                        >
+                          Requirements → your moves
+                        </Text>
+                        {generatedRoadmap.requirementActions
+                          .slice(0, 8)
+                          .map((item, i) => (
+                            <View key={`req-${i}`} style={{ marginTop: i === 0 ? 4 : 12 }}>
+                              <Text
+                                style={[styles.resourceTitle, { color: textPrimary }]}
+                              >
+                                {item.requirement}
+                              </Text>
+                              <Text
+                                style={[styles.resourceDesc, { color: textSecondary }]}
+                              >
+                                → {item.action}
+                              </Text>
+                            </View>
+                          ))}
+                      </View>
+                    )}
+
+                    {generatedRoadmap.profileGaps.length > 0 && (
+                      <View
+                        style={[
+                          styles.strategyCard,
+                          { backgroundColor: cardBg, borderColor: "#F59E0B55" },
+                        ]}
+                      >
+                        <Text style={[styles.strategyLabel, { color: "#F59E0B" }]}>
+                          Close these gaps to win
+                        </Text>
+                        {generatedRoadmap.profileGaps.map((item, i) => (
+                          <View key={`gap-${i}`} style={{ marginTop: i === 0 ? 4 : 12 }}>
+                            <Text
+                              style={[styles.resourceTitle, { color: textPrimary }]}
+                            >
+                              {item.gap}
+                            </Text>
+                            <Text
+                              style={[styles.resourceDesc, { color: textSecondary }]}
+                            >
+                              → {item.action}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {generatedRoadmap.bestPractices.length > 0 && (
+                      <View
+                        style={[
+                          styles.strategyCard,
+                          { backgroundColor: cardBg, borderColor },
+                        ]}
+                      >
+                        <Text
+                          style={[styles.strategyLabel, { color: colors.accent }]}
+                        >
+                          What winners do
+                        </Text>
+                        {generatedRoadmap.bestPractices.slice(0, 6).map((tip, i) => (
+                          <Text
+                            key={`bp-${i}`}
+                            style={[
+                              styles.resourceDesc,
+                              { color: textSecondary, marginTop: i === 0 ? 4 : 8 },
+                            ]}
+                          >
+                            •  {tip}
+                          </Text>
+                        ))}
+                      </View>
+                    )}
 
                     <View
                       style={[

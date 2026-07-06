@@ -39,11 +39,21 @@ export default function SavedScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [filter, setFilter] = useState<'all' | 'urgent' | 'upcoming'>('all');
 
+    // Clerk's getToken / user references change on every render. Keep getToken
+    // in a ref so it never destabilizes fetchSaved (which must only re-create
+    // when the signed-in user id changes) — otherwise the effect loops forever.
+    const getTokenRef = React.useRef(getToken);
+    getTokenRef.current = getToken;
+    const userId = user?.id;
+
     const fetchSaved = useCallback(async () => {
-        if (!user) return;
+        if (!userId) {
+            setLoading(false);
+            return;
+        }
         try {
             setLoading(true);
-            const saved = await fetchSavedOpportunities(supabase, user.id, getToken);
+            const saved = await fetchSavedOpportunities(supabase, userId, getTokenRef.current);
             const mapped: SavedOpportunity[] = saved.map((bookmark) => {
                 const deadline = bookmark.deadline;
                 const daysRemaining = deadline
@@ -72,7 +82,7 @@ export default function SavedScreen() {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [getToken, user]);
+    }, [userId]);
 
     useEffect(() => {
         fetchSaved();
@@ -111,11 +121,15 @@ export default function SavedScreen() {
         return (
             <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'left', 'right']}>
                 <ScreenHeader title="Saved Opportunities" showBack />
-                <View style={styles.loadingContainer}>
+                <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={styles.loadingContainer}
+                    showsVerticalScrollIndicator={false}
+                >
                     {Array.from({ length: 4 }).map((_, i) => (
                         <OpportunityCardSkeleton key={i} />
                     ))}
-                </View>
+                </ScrollView>
             </SafeAreaView>
         );
     }
@@ -285,9 +299,9 @@ const styles = StyleSheet.create({
         paddingTop: 16,
     },
     loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingTop: 16,
+        paddingBottom: 40,
     },
     loadingText: {
         marginTop: 12,

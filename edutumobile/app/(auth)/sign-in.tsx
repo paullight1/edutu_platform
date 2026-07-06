@@ -3,7 +3,7 @@ import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-nativ
 import { Link, useRouter } from 'expo-router';
 import { useAuth, useOAuth, useSignIn, useUser } from '@clerk/clerk-expo';
 import * as WebBrowser from 'expo-web-browser';
-import { ArrowRight, Eye, EyeOff, Lock, LogIn, Mail } from 'lucide-react-native';
+import { ArrowRight, Eye, EyeOff, Lock, LogIn, Mail, ShieldCheck } from 'lucide-react-native';
 import { AuthShell } from '../../components/auth/AuthShell';
 import { useTheme } from '../../components/context/ThemeContext';
 
@@ -18,8 +18,57 @@ const PASSWORD_ERROR_CODES = new Set([
   'form_param_format_invalid',
 ]);
 
+type SecondFactorStrategy = 'email_code' | 'phone_code' | 'totp' | 'backup_code';
+
+interface SecondFactor {
+  strategy: SecondFactorStrategy;
+  phoneNumberId?: string;
+  emailAddressId?: string;
+  safeIdentifier?: string;
+}
+
+interface TwoFactorState {
+  strategy: SecondFactorStrategy;
+  hint: string;
+  /** Delivered codes (email/SMS) can be re-sent; TOTP and backup codes cannot. */
+  deliverable: boolean;
+  phoneNumberId?: string;
+  emailAddressId?: string;
+}
+
 function normalizeEmailAddress(email: string) {
   return email.trim().toLowerCase();
+}
+
+function pickSecondFactor(attempt: any): SecondFactor | null {
+  const factors: any[] = attempt?.supportedSecondFactors ?? [];
+  const byStrategy = (strategy: SecondFactorStrategy) => factors.find((f) => f?.strategy === strategy);
+  // Prefer a delivered one-time code (email, then SMS) since most accounts have
+  // no authenticator app; fall back to TOTP, then a backup code.
+  const preferred =
+    byStrategy('email_code') ??
+    byStrategy('phone_code') ??
+    byStrategy('totp') ??
+    byStrategy('backup_code') ??
+    factors[0];
+  return preferred ?? null;
+}
+
+function isDeliverable(strategy: SecondFactorStrategy) {
+  return strategy === 'email_code' || strategy === 'phone_code';
+}
+
+function secondFactorHint(strategy: SecondFactorStrategy, safeIdentifier?: string) {
+  if (strategy === 'email_code') {
+    return `Enter the 6-digit code we emailed to ${safeIdentifier ?? 'your email'}.`;
+  }
+  if (strategy === 'phone_code') {
+    return `Enter the 6-digit code we texted to ${safeIdentifier ?? 'your phone'}.`;
+  }
+  if (strategy === 'backup_code') {
+    return 'Enter one of your saved backup codes.';
+  }
+  return 'Enter the 6-digit code from your authenticator app.';
 }
 
 function isPasswordSignInError(error: any) {
@@ -75,7 +124,20 @@ export default function SignInPage() {
   const [oauthLoading, setOauthLoading] = React.useState<'google' | 'apple' | null>(null);
   const [failedEmail, setFailedEmail] = React.useState('');
   const [failedAttempts, setFailedAttempts] = React.useState(0);
+  const [twoFactor, setTwoFactor] = React.useState<TwoFactorState | null>(null);
+  const [code, setCode] = React.useState('');
+  const [resendIn, setResendIn] = React.useState(0);
   const shouldShowPasswordRecovery = failedAttempts > 0 && Boolean(normalizeEmailAddress(emailAddress));
+  const isBackupCode = twoFactor?.strategy === 'backup_code';
+  const canVerify = isBackupCode ? code.trim().length >= 4 : code.trim().length === 6;
+
+  React.useEffect(() => {
+    if (resendIn <= 0) {
+      return;
+    }
+    const timer = setInterval(() => setResendIn((seconds) => Math.max(0, seconds - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [resendIn]);
 
   const continueExistingSession = () => {
     const destination = user && !user.unsafeMetadata?.onboardingComplete ? '/onboarding' : '/(app)';
@@ -135,7 +197,9 @@ export default function SignInPage() {
         setFailedAttempts(0);
         await setActive({ session: signInAttempt.createdSessionId });
       } else if (signInAttempt.status === 'needs_second_factor') {
-        setError('Two-factor authentication is required for this account.');
+        setFailedEmail('');
+        setFailedAttempts(0);
+        await beginSecondFactor(signInAttempt);
       } else {
         setError('Sign in could not be completed. Try again.');
       }
@@ -163,6 +227,110 @@ export default function SignInPage() {
     }
   };
 
+  const beginSecondFactor = async (attempt: any) => {
+    if (!signIn) {
+      return;
+    }
+
+    const factor = pickSecondFactor(attempt);
+
+    if (!factor) {
+      setError('This account needs two-factor authentication, but no verification method is set up. Contact support.');
+      return;
+    }
+
+    // Delivered codes (email / SMS) must be requested before they can be
+    // entered; TOTP and backup codes are already available on the device.
+    const delivered = isDeliverable(factor.strategy);
+    if (delivered) {
+      const sent = await sendSecondFactorCode(factor.strategy, factor.phoneNumberId, factor.emailAddressId);
+      if (!sent) {
+        return;
+      }
+    }
+
+    setCode('');
+    setError('');
+    setResendIn(delivered ? 30 : 0);
+    setTwoFactor({
+      strategy: factor.strategy,
+      hint: secondFactorHint(factor.strategy, factor.safeIdentifier),
+      deliverable: delivered,
+      phoneNumberId: factor.phoneNumberId,
+      emailAddressId: factor.emailAddressId,
+    });
+  };
+
+  const sendSecondFactorCode = async (
+    strategy: SecondFactorStrategy,
+    phoneNumberId?: string,
+    emailAddressId?: string,
+  ) => {
+    if (!signIn) {
+      return false;
+    }
+
+    try {
+      if (strategy === 'phone_code') {
+        await signIn.prepareSecondFactor({ strategy: 'phone_code', phoneNumberId });
+      } else if (strategy === 'email_code') {
+        await signIn.prepareSecondFactor({ strategy: 'email_code', emailAddressId });
+      }
+      return true;
+    } catch (err: any) {
+      setError(err?.errors?.[0]?.message || 'We could not send your verification code. Try again.');
+      return false;
+    }
+  };
+
+  const resendSecondFactorCode = async () => {
+    if (!twoFactor || !twoFactor.deliverable || resendIn > 0 || loading) {
+      return;
+    }
+
+    const sent = await sendSecondFactorCode(twoFactor.strategy, twoFactor.phoneNumberId, twoFactor.emailAddressId);
+    if (sent) {
+      setError('');
+      setResendIn(30);
+    }
+  };
+
+  const onVerifyTwoFactor = async () => {
+    if (!isLoaded || !twoFactor || loading) {
+      return;
+    }
+
+    setError('');
+    setLoading(true);
+
+    try {
+      const result = await signIn.attemptSecondFactor({
+        strategy: twoFactor.strategy,
+        code: code.trim(),
+      });
+
+      if (result.status === 'complete') {
+        setTwoFactor(null);
+        setCode('');
+        await setActive({ session: result.createdSessionId });
+      } else {
+        setError('That code was not accepted. Try again.');
+      }
+    } catch (err: any) {
+      setError(err?.errors?.[0]?.message || 'That code is invalid or expired. Try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancelTwoFactor = () => {
+    setTwoFactor(null);
+    setCode('');
+    setError('');
+    setPassword('');
+    setResendIn(0);
+  };
+
   const handleForgotPassword = () => {
     if (!emailAddress.trim()) {
       Alert.alert('Email required', 'Enter your email address first.');
@@ -175,121 +343,200 @@ export default function SignInPage() {
     });
   };
 
+  const errorBanner = error ? (
+    <View style={styles.errorStack}>
+      <View
+        style={[
+          styles.errorBox,
+          {
+            backgroundColor: isDark ? 'rgba(127, 29, 29, 0.28)' : 'rgba(254, 226, 226, 0.92)',
+            borderColor: isDark ? 'rgba(248, 113, 113, 0.28)' : '#FECACA',
+          },
+        ]}
+      >
+        <Text style={[styles.errorText, { color: isDark ? '#FECACA' : '#B91C1C' }]}>{error}</Text>
+      </View>
+    </View>
+  ) : null;
+
   return (
     <AuthShell
-      title="Welcome back"
-      subtitle="Continue where you left off and jump straight into your next opportunity."
-      icon={LogIn}
+      title={twoFactor ? "Verify it's you" : 'Welcome back'}
+      subtitle={
+        twoFactor
+          ? 'Two-factor authentication protects your account. Enter your code to finish signing in.'
+          : 'Continue where you left off and jump straight into your next opportunity.'
+      }
+      icon={twoFactor ? ShieldCheck : LogIn}
     >
       <View style={styles.formStack}>
-        <View style={styles.oauthRow}>
-        <Pressable
-          style={[styles.oauthButton, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={() => handleOAuth('google')}
-          disabled={oauthLoading !== null}
-        >
-          <View style={styles.oauthIconWrap}>
-            <Text style={styles.oauthG}>G</Text>
-          </View>
-          <Text style={[styles.oauthLabel, { color: colors.foreground }]}>
-            {oauthLoading === 'google' ? 'Connecting...' : 'Google'}
-          </Text>
-        </Pressable>
+        {twoFactor ? (
+          <>
+            <View
+              style={[
+                styles.infoBox,
+                {
+                  backgroundColor: isDark ? 'rgba(37, 99, 235, 0.16)' : 'rgba(219, 234, 254, 0.9)',
+                  borderColor: isDark ? 'rgba(96, 165, 250, 0.32)' : '#BFDBFE',
+                },
+              ]}
+            >
+              <ShieldCheck color="#3B82F6" size={20} />
+              <Text style={[styles.infoText, { color: colors.foreground }]}>{twoFactor.hint}</Text>
+            </View>
 
-        <Pressable
-          style={[styles.oauthButton, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={() => handleOAuth('apple')}
-          disabled={oauthLoading !== null}
-        >
-          <AppleIcon size={20} color={colors.foreground} />
-          <Text style={[styles.oauthLabel, { color: colors.foreground }]}>
-            {oauthLoading === 'apple' ? 'Connecting...' : 'Apple'}
-          </Text>
-        </Pressable>
-      </View>
+            {errorBanner}
 
-      <View style={styles.dividerRow}>
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
-        <Text style={[styles.dividerText, { color: colors.textSecondary }]}>or continue with email</Text>
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
-      </View>
+            <View style={[styles.inputPill, styles.codePill, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <TextInput
+                autoFocus
+                keyboardType={isBackupCode ? 'default' : 'number-pad'}
+                autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="oneTimeCode"
+                autoComplete="one-time-code"
+                placeholder={isBackupCode ? 'Backup code' : '••••••'}
+                placeholderTextColor={colors.textSecondary}
+                value={code}
+                onChangeText={(text) =>
+                  setCode(isBackupCode ? text.trim() : text.replace(/[^0-9]/g, '').slice(0, 6))
+                }
+                maxLength={isBackupCode ? 16 : 6}
+                returnKeyType="done"
+                onSubmitEditing={onVerifyTwoFactor}
+                style={[styles.codeInput, { color: colors.foreground }]}
+              />
+            </View>
 
-      {error ? (
-        <View style={styles.errorStack}>
-          <View
-            style={[
-              styles.errorBox,
-              {
-                backgroundColor: isDark ? 'rgba(127, 29, 29, 0.28)' : 'rgba(254, 226, 226, 0.92)',
-                borderColor: isDark ? 'rgba(248, 113, 113, 0.28)' : '#FECACA',
-              },
-            ]}
-          >
-            <Text style={[styles.errorText, { color: isDark ? '#FECACA' : '#B91C1C' }]}>{error}</Text>
-          </View>
-        </View>
-      ) : null}
+            <Pressable
+              onPress={onVerifyTwoFactor}
+              disabled={loading || !canVerify}
+              style={[
+                styles.signInButton,
+                { backgroundColor: '#2563EB', marginTop: 4 },
+                (loading || !canVerify) && styles.buttonDisabled,
+              ]}
+            >
+              <ShieldCheck color="#FFFFFF" size={18} />
+              <Text style={styles.signInButtonText}>{loading ? 'Verifying...' : 'Verify & sign in'}</Text>
+            </Pressable>
 
-      <View style={styles.inputContainer}>
-        <View style={[styles.inputPill, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Mail color={colors.textSecondary} size={18} />
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            placeholder="you@example.com"
-            placeholderTextColor={colors.textSecondary}
-            value={emailAddress}
-            onChangeText={setEmailAddress}
-            style={[styles.pillInput, { color: colors.foreground }]}
-          />
-        </View>
+            {twoFactor.deliverable ? (
+              <Pressable
+                onPress={resendSecondFactorCode}
+                disabled={resendIn > 0 || loading}
+                style={styles.forgotLink}
+              >
+                <Text style={[styles.footerLink, { color: resendIn > 0 ? colors.textSecondary : '#2563EB' }]}>
+                  {resendIn > 0 ? `Resend code in ${resendIn}s` : 'Resend code'}
+                </Text>
+              </Pressable>
+            ) : null}
 
-        <View style={[styles.inputPill, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Lock color={colors.textSecondary} size={18} />
-          <TextInput
-            placeholder="Enter password"
-            placeholderTextColor={colors.textSecondary}
-            secureTextEntry={!showPassword}
-            value={password}
-            onChangeText={setPassword}
-            style={[styles.pillInput, { color: colors.foreground }]}
-          />
-          <Pressable
-            onPress={() => setShowPassword(!showPassword)}
-            style={styles.eyeButton}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            {showPassword ? (
-              <EyeOff color={colors.textSecondary} size={18} />
-            ) : (
-              <Eye color={colors.textSecondary} size={18} />
-            )}
-          </Pressable>
-        </View>
-      </View>
+            <Pressable onPress={cancelTwoFactor} style={styles.forgotLink}>
+              <Text style={[styles.footerLink, { color: colors.textSecondary }]}>Use a different account</Text>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <View style={styles.oauthRow}>
+              <Pressable
+                style={[styles.oauthButton, { backgroundColor: colors.card, borderColor: colors.border }]}
+                onPress={() => handleOAuth('google')}
+                disabled={oauthLoading !== null}
+              >
+                <View style={styles.oauthIconWrap}>
+                  <Text style={styles.oauthG}>G</Text>
+                </View>
+                <Text style={[styles.oauthLabel, { color: colors.foreground }]}>
+                  {oauthLoading === 'google' ? 'Connecting...' : 'Google'}
+                </Text>
+              </Pressable>
 
-      <Pressable
-        onPress={onSignInPress}
-        disabled={loading}
-        style={[styles.signInButton, { backgroundColor: '#2563EB' }, loading && styles.buttonDisabled]}
-      >
-        <ArrowRight color="#FFFFFF" size={18} />
-        <Text style={styles.signInButtonText}>{loading ? 'Signing in...' : 'Sign in'}</Text>
-      </Pressable>
+              <Pressable
+                style={[styles.oauthButton, { backgroundColor: colors.card, borderColor: colors.border }]}
+                onPress={() => handleOAuth('apple')}
+                disabled={oauthLoading !== null}
+              >
+                <AppleIcon size={20} color={colors.foreground} />
+                <Text style={[styles.oauthLabel, { color: colors.foreground }]}>
+                  {oauthLoading === 'apple' ? 'Connecting...' : 'Apple'}
+                </Text>
+              </Pressable>
+            </View>
 
-      <Pressable onPress={handleForgotPassword} style={styles.forgotLink}>
-        <Text style={[styles.footerLink, { color: '#2563EB' }]}>
-          {shouldShowPasswordRecovery ? 'Forgot password? Reset it here' : 'Forgot password?'}
-        </Text>
-      </Pressable>
+            <View style={styles.dividerRow}>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              <Text style={[styles.dividerText, { color: colors.textSecondary }]}>or continue with email</Text>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            </View>
 
-      <View style={styles.footerRow}>
-        <Text style={[styles.footerText, { color: colors.textSecondary }]}>New to Edutu?</Text>
-        <Link href="/(auth)/sign-up">
-          <Text style={[styles.footerLink, { color: '#2563EB' }]}>Create account</Text>
-        </Link>
-      </View>
+            {errorBanner}
+
+            <View style={styles.inputContainer}>
+              <View style={[styles.inputPill, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Mail color={colors.textSecondary} size={18} />
+                <TextInput
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  placeholder="you@example.com"
+                  placeholderTextColor={colors.textSecondary}
+                  value={emailAddress}
+                  onChangeText={setEmailAddress}
+                  style={[styles.pillInput, { color: colors.foreground }]}
+                />
+              </View>
+
+              <View style={[styles.inputPill, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Lock color={colors.textSecondary} size={18} />
+                <TextInput
+                  placeholder="Enter password"
+                  placeholderTextColor={colors.textSecondary}
+                  secureTextEntry={!showPassword}
+                  value={password}
+                  onChangeText={setPassword}
+                  onSubmitEditing={onSignInPress}
+                  returnKeyType="go"
+                  style={[styles.pillInput, { color: colors.foreground }]}
+                />
+                <Pressable
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.eyeButton}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  {showPassword ? (
+                    <EyeOff color={colors.textSecondary} size={18} />
+                  ) : (
+                    <Eye color={colors.textSecondary} size={18} />
+                  )}
+                </Pressable>
+              </View>
+            </View>
+
+            <Pressable
+              onPress={onSignInPress}
+              disabled={loading}
+              style={[styles.signInButton, { backgroundColor: '#2563EB' }, loading && styles.buttonDisabled]}
+            >
+              <ArrowRight color="#FFFFFF" size={18} />
+              <Text style={styles.signInButtonText}>{loading ? 'Signing in...' : 'Sign in'}</Text>
+            </Pressable>
+
+            <Pressable onPress={handleForgotPassword} style={styles.forgotLink}>
+              <Text style={[styles.footerLink, { color: '#2563EB' }]}>
+                {shouldShowPasswordRecovery ? 'Forgot password? Reset it here' : 'Forgot password?'}
+              </Text>
+            </Pressable>
+
+            <View style={styles.footerRow}>
+              <Text style={[styles.footerText, { color: colors.textSecondary }]}>New to Edutu?</Text>
+              <Link href="/(auth)/sign-up">
+                <Text style={[styles.footerLink, { color: '#2563EB' }]}>Create account</Text>
+              </Link>
+            </View>
+          </>
+        )}
       </View>
     </AuthShell>
   );
@@ -388,6 +635,32 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '600',
+  },
+  codePill: {
+    justifyContent: 'center',
+  },
+  codeInput: {
+    flex: 1,
+    fontSize: 24,
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: 8,
     paddingVertical: 12,
   },
   errorStack: {

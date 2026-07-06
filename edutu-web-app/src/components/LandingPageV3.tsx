@@ -4,10 +4,7 @@ import {
     Calendar,
     Clock,
     User,
-    Twitter,
-    Linkedin,
     Sparkles,
-    Github,
     Users,
     BarChart3,
     ChevronDown,
@@ -19,8 +16,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useOpportunities } from '../hooks/useOpportunities';
 import BentoBenefits from './BentoBenefits';
 import PublicHeader from './PublicHeader';
-
-const docsUrl = import.meta.env.VITE_DOCS_URL || 'https://docs.edutu.org';
+import SiteFooter from './SiteFooter';
 
 interface LandingPageProps {
     onGetStarted: () => void;
@@ -133,13 +129,6 @@ const landingBlogArticles: LandingArticle[] = [
     },
 ];
 
-interface HeroStat {
-    label: string;
-    value: number;
-    suffix: string;
-    valueClass: string;
-}
-
 interface AboutFeature {
     title: string;
     desc: string;
@@ -154,50 +143,6 @@ const testimonials = [
     { quote: 'I went from confused about where to apply to having a focused list of real opportunities.', name: 'Fatima B.', role: 'MSc Candidate', country: 'Nigeria', avatar: 'https://images.pexels.com/photos/762020/pexels-photo-762020.jpeg?auto=compress&cs=tinysrgb&w=160' },
 ];
 
-const AnimatedStatValue: React.FC<{ value: number; suffix: string; valueClass?: string; delayMs?: number }> = ({
-    value,
-    suffix,
-    valueClass,
-    delayMs = 0,
-}) => {
-    const reduceMotion = useReducedMotion();
-    const [displayValue, setDisplayValue] = useState(reduceMotion ? value : 0);
-
-    useEffect(() => {
-        if (reduceMotion) {
-            setDisplayValue(value);
-            return;
-        }
-
-        let frame = 0;
-        const duration = 1250;
-        const startAt = performance.now() + delayMs;
-
-        const tick = (now: number) => {
-            if (now < startAt) {
-                frame = window.requestAnimationFrame(tick);
-                return;
-            }
-            const progress = Math.min((now - startAt) / duration, 1);
-            const eased = 1 - Math.pow(1 - progress, 3);
-            setDisplayValue(Math.round(value * eased));
-            if (progress < 1) {
-                frame = window.requestAnimationFrame(tick);
-            }
-        };
-
-        frame = window.requestAnimationFrame(tick);
-        return () => window.cancelAnimationFrame(frame);
-    }, [delayMs, reduceMotion, value]);
-
-    return (
-        <span className={valueClass}>
-            {displayValue}
-            {suffix}
-        </span>
-    );
-};
-
 const SectionEyebrow: React.FC<{ children: React.ReactNode }> = ({ children }) => (
     <span className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">
         {children}
@@ -210,12 +155,6 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     const [openFAQ, setOpenFAQ] = useState<number | null>(null);
     const [heroWordIndex, setHeroWordIndex] = useState(0);
     const latestOpportunities = opportunities.slice(0, 3);
-
-    const heroStats: HeroStat[] = [
-        { label: 'ACTIVE LEARNERS', value: 50, suffix: 'K+', valueClass: 'text-brand' },
-        { label: 'OPPORTUNITIES', value: 12, suffix: 'K+', valueClass: 'text-accent' },
-        { label: 'COUNTRIES', value: 80, suffix: '+', valueClass: 'text-success' },
-    ];
 
     const aboutFeatures: AboutFeature[] = [
         { title: 'Opportunity Matching', desc: 'Relevant scholarships, fellowships, internships, and programs in one feed.', icon: Sparkles, accentClass: 'text-brand', tintClass: 'bg-brand/10' },
@@ -334,30 +273,6 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             >
                                 Browse opportunities
                             </Link>
-                        </motion.div>
-
-                        {/* Trust stats */}
-                        <motion.div
-                            initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
-                            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                            transition={{ duration: 0.6, delay: 0.4 }}
-                            className="landing-hero-stats mt-14 grid w-full max-w-[560px] grid-cols-3 gap-4"
-                        >
-                            {heroStats.map((stat, i) => (
-                                <div key={stat.label} className="landing-hero-stat-card text-center">
-                                    <div className="landing-hero-stat-value font-display text-[28px] font-bold leading-none sm:text-[34px]">
-                                        <AnimatedStatValue
-                                            value={stat.value}
-                                            suffix={stat.suffix}
-                                            valueClass={stat.valueClass}
-                                            delayMs={200 + i * 120}
-                                        />
-                                    </div>
-                                    <div className="landing-hero-stat-label mt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
-                                        {stat.label}
-                                    </div>
-                                </div>
-                            ))}
                         </motion.div>
 
                         {/* Flag trust row */}
@@ -822,64 +737,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
             </main>
 
             {/* ─── Footer ───────────────────────────────────────────────── */}
-            <footer className="border-t border-subtle px-4 py-10 sm:px-6 sm:py-16">
-                <div className="mx-auto max-w-[1200px]">
-                    <div className="mb-10 grid grid-cols-2 gap-x-6 gap-y-8 md:mb-16 md:grid-cols-4 md:gap-12">
-                        <div className="col-span-2 md:col-span-1">
-                            <div className="mb-3 flex items-center gap-2">
-                                <img src="/edutu-logo.png" alt="Edutu" className="h-8 w-8 object-contain" />
-                                <span className="font-display text-xl font-bold tracking-tight text-text-primary">edutu</span>
-                            </div>
-                            <p className="max-w-[20rem] text-[13px] leading-[1.5] text-text-muted md:text-[14px] md:leading-[1.7]">
-                                Find scholarships, jobs, and programs from around the world. We help
-                                you plan your next big step.
-                            </p>
-                        </div>
-
-                        <div>
-                            <h4 className="mb-3 text-[11px] font-bold uppercase tracking-widest text-text-primary md:mb-4 md:text-[12px]">Product</h4>
-                            <div className="space-y-2 md:space-y-3">
-                                <Link to="/opportunities" className="block text-[13px] text-text-secondary no-underline transition hover:text-brand md:text-[14px]">Opportunities</Link>
-                                <a href="#platform" className="block text-[13px] text-text-secondary no-underline transition hover:text-brand md:text-[14px]">Platform</a>
-                                <Link to="/mentor" className="block text-[13px] text-text-secondary no-underline transition hover:text-brand md:text-[14px]">Become a Mentor</Link>
-                                <a href="#faq" className="block text-[13px] text-text-secondary no-underline transition hover:text-brand md:text-[14px]">FAQ</a>
-                            </div>
-                        </div>
-
-                        <div>
-                            <h4 className="mb-3 text-[11px] font-bold uppercase tracking-widest text-text-primary md:mb-4 md:text-[12px]">Company</h4>
-                            <div className="space-y-2 md:space-y-3">
-                                <Link to="/about" className="block text-[13px] text-text-secondary no-underline transition hover:text-brand md:text-[14px]">About</Link>
-                                <Link to="/mentor" className="block text-[13px] text-text-secondary no-underline transition hover:text-brand md:text-[14px]">Become a Mentor</Link>
-                                <Link to="/blog" className="block text-[13px] text-text-secondary no-underline transition hover:text-brand md:text-[14px]">Blog</Link>
-                                <Link to="/about" className="block text-[13px] text-text-secondary no-underline transition hover:text-brand md:text-[14px]">Careers</Link>
-                            </div>
-                        </div>
-
-                        <div>
-                            <h4 className="mb-3 text-[11px] font-bold uppercase tracking-widest text-text-primary md:mb-4 md:text-[12px]">Resources</h4>
-                            <div className="space-y-2 md:space-y-3">
-                                <Link to="/app/help" className="block text-[13px] text-text-secondary no-underline transition hover:text-brand md:text-[14px]">Help Center</Link>
-                                <a href={docsUrl} className="block text-[13px] text-text-secondary no-underline transition hover:text-brand md:text-[14px]">Developer Docs</a>
-                                <Link to="/scholarship-engine" className="block text-[13px] text-text-secondary no-underline transition hover:text-brand md:text-[14px]">Scholarship Engine</Link>
-                                <Link to="/about" className="block text-[13px] text-text-secondary no-underline transition hover:text-brand md:text-[14px]">Privacy Policy</Link>
-                                <Link to="/about" className="block text-[13px] text-text-secondary no-underline transition hover:text-brand md:text-[14px]">Terms of Service</Link>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col items-center justify-between border-t border-subtle pt-6 md:flex-row md:pt-8">
-                        <span className="text-[11px] text-text-muted md:text-[12px]">
-                            © {new Date().getFullYear()} Edutu Inc. All rights reserved. v0.1.2
-                        </span>
-                        <div className="mt-3 flex items-center gap-4 md:mt-0 md:gap-6">
-                            <a href="https://twitter.com/edutu" target="_blank" rel="noopener noreferrer" aria-label="Edutu on X" className="p-1.5 text-text-muted transition hover:text-brand md:p-2"><Twitter size={18} /></a>
-                            <a href="https://linkedin.com/company/edutu" target="_blank" rel="noopener noreferrer" aria-label="Edutu on LinkedIn" className="p-1.5 text-text-muted transition hover:text-brand md:p-2"><Linkedin size={18} /></a>
-                            <a href="https://github.com/edutu" target="_blank" rel="noopener noreferrer" aria-label="Edutu on GitHub" className="p-1.5 text-text-muted transition hover:text-brand md:p-2"><Github size={18} /></a>
-                        </div>
-                    </div>
-                </div>
-            </footer>
+            <SiteFooter />
         </div>
     );
 };

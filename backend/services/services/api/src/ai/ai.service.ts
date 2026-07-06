@@ -4,6 +4,8 @@ import { db } from "../db";
 import { aiProviderKeys, aiRoutes, aiUsageLogs } from "../db/schema";
 import { AiEncryptionService } from "./ai-encryption.service";
 import {
+  AiEmbedOptions,
+  AiEmbedResult,
   AiGenerateOptions,
   AiGenerateResult,
   AiProvider,
@@ -112,10 +114,35 @@ const DEFAULT_ROUTES: Record<
     responseMimeType: "application/json",
     isEnabled: true,
   },
+  "roadmaps.opportunity_plan": {
+    provider: "deepseek",
+    model: "deepseek-chat",
+    temperature: 0.4,
+    responseMimeType: "application/json",
+    isEnabled: true,
+  },
   "quiz.generate": {
     provider: "deepseek",
     model: "deepseek-chat",
     responseMimeType: "application/json",
+    isEnabled: true,
+  },
+  // Embeddings power semantic recommendation retrieval. DeepSeek has no
+  // embeddings API, so these route to Gemini; the engine degrades to the
+  // heuristic ranker when the key/route is unavailable (embed() -> null).
+  "embeddings.opportunity": {
+    provider: "gemini",
+    model: "text-embedding-004",
+    isEnabled: true,
+  },
+  "embeddings.profile": {
+    provider: "gemini",
+    model: "text-embedding-004",
+    isEnabled: true,
+  },
+  "embeddings.query": {
+    provider: "gemini",
+    model: "text-embedding-004",
     isEnabled: true,
   },
 };
@@ -206,6 +233,94 @@ export class AiService {
       }
 
       throw error;
+    }
+  }
+
+  /**
+   * Generates embeddings for one or many texts via the routed provider.
+   *
+   * Graceful-degradation contract: returns `null` — never throws — when the
+   * route is disabled, the provider has no embeddings support (e.g. DeepSeek),
+   * the API key is missing, or the request fails. Callers must treat `null`
+   * as "semantic signal unavailable" and fall back to heuristics.
+   */
+  async embed(options: AiEmbedOptions): Promise<AiEmbedResult | null> {
+    const startedAt = Date.now();
+    let route: AiRouteConfig;
+    try {
+      route = await this.resolveRoute({ feature: options.feature, prompt: "" });
+    } catch (error) {
+      this.logger.warn(
+        `Embedding route resolution failed for ${options.feature}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return null;
+    }
+
+    // resolveRoute's generic model fallback prefers the provider default chat
+    // model (e.g. gemini-2.0-flash); embeddings need an embedding model. Only
+    // honor the resolved model when it plausibly is one; otherwise pin the
+    // feature's default. Admins can still override via ai_routes with a real
+    // embedding model.
+    if (!/embedding/i.test(route.model)) {
+      route = {
+        ...route,
+        model: DEFAULT_ROUTES[options.feature]?.model || "text-embedding-004",
+      };
+    }
+
+    if (!route.isEnabled) {
+      this.logger.warn(`Embedding feature ${options.feature} is disabled`);
+      return null;
+    }
+
+    const adapter = this.adapters.get(route.provider);
+    if (!adapter?.generateEmbedding) {
+      this.logger.warn(
+        `Provider ${route.provider} has no embeddings support (feature ${options.feature})`,
+      );
+      return null;
+    }
+
+    if (!route.apiKey) {
+      this.logger.warn(
+        `No API key for embeddings provider ${route.provider} (feature ${options.feature}) — semantic scoring degraded`,
+      );
+      return null;
+    }
+
+    const logOptions: AiGenerateOptions = {
+      feature: options.feature,
+      prompt: "",
+      metadata: options.metadata,
+    };
+
+    try {
+      const result = await adapter.generateEmbedding(route, {
+        dimensions: 768,
+        ...options,
+      });
+      void this.logUsage(
+        logOptions,
+        route,
+        {
+          text: "",
+          provider: result.provider,
+          model: result.model,
+          usage: { totalTokens: result.usage?.totalTokens },
+        },
+        Date.now() - startedAt,
+      );
+      return result;
+    } catch (error) {
+      void this.logUsage(logOptions, route, null, Date.now() - startedAt, error);
+      this.logger.warn(
+        `Embedding request failed for ${options.feature}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return null;
     }
   }
 
