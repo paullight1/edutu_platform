@@ -218,6 +218,20 @@ const Layout = () => {
             </div>
           </NavLink>
 
+          {/* Theme toggle (moved off the top header into the sidebar) */}
+          <button
+            className="nav-link"
+            onClick={toggleTheme}
+            title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            {isDark ? (
+              <Sun size={18} strokeWidth={1.5} />
+            ) : (
+              <Moon size={18} strokeWidth={1.5} />
+            )}
+            <span className="nav-label">{isDark ? "Light Mode" : "Dark Mode"}</span>
+          </button>
+
           {/* Sign Out */}
           <button
             className="nav-link sign-out-link"
@@ -233,36 +247,16 @@ const Layout = () => {
         </div>
       </aside>
 
-      {/* Main Content */}
+      {/* Main Content — no top header; content gets the full height */}
       <div className="main-content">
-        <header className="header">
-          <div className="header-left">
-            {/* Mobile Menu Button */}
-            <button
-              className="mobile-menu-btn"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
-            >
-              {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-            </button>
-
-            {/* Logo */}
-            <div className="header-logo">
-              <img src="/logo.png" alt="Edutu" />
-              <span className="logo-text">edutu</span>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <button
-              className="theme-toggle"
-              onClick={toggleTheme}
-              title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-            >
-              {isDark ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
-          </div>
-        </header>
+        {/* Floating menu button (mobile only) since the top header is removed */}
+        <button
+          className="mobile-menu-btn floating"
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
+        >
+          {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
 
         <main className="page-content animate-fade-in">
           <Outlet />
@@ -299,13 +293,21 @@ const Layout = () => {
           display: none;
           align-items: center;
           justify-content: center;
-          width: 36px;
-          height: 36px;
-          border: none;
-          background: var(--bg-tertiary);
+          width: 40px;
+          height: 40px;
+          border: 1px solid var(--border-light);
+          background: var(--bg-secondary);
           color: var(--text-secondary);
-          border-radius: 8px;
+          border-radius: 10px;
           cursor: pointer;
+        }
+
+        .mobile-menu-btn.floating {
+          position: fixed;
+          top: 12px;
+          left: 12px;
+          z-index: 45;
+          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
         }
 
         /* Sidebar Styles */
@@ -584,9 +586,10 @@ const Layout = () => {
           .sidebar-toggle {
             display: none !important;
           }
-          
-          .header {
-            padding: 0 16px;
+
+          /* Clear space for the floating menu button now that there's no header. */
+          .page-content {
+            padding-top: 64px;
           }
         }
 

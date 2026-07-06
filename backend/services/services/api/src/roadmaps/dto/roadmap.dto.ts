@@ -97,6 +97,35 @@ export const AIAssistDtoSchema = z.object({
   additionalContext: z.string().optional(),
 });
 
+export const OpportunityPlanDtoSchema = z.object({
+  title: z.string().min(3),
+  organization: z.string().optional(),
+  category: z.string().optional(),
+  deadline: z.string().optional(),
+  description: z.string().max(4000).optional(),
+  hoursPerWeek: z.number().int().positive().max(168).optional(),
+  currentLevel: z.enum(["beginner", "intermediate", "advanced"]).optional(),
+  milestones: z
+    .array(z.object({ id: z.string(), title: z.string().min(1) }))
+    .max(12)
+    .optional(),
+  // Verbatim requirement lines from the listing — the plan maps each one to a
+  // concrete action so the applicant can prove they satisfy it.
+  requirements: z.array(z.string().max(500)).max(30).optional(),
+  // Applicant snapshot used to personalize the plan and surface profile gaps.
+  profile: z
+    .object({
+      country: z.string().max(120).optional(),
+      pursuit: z.string().max(200).optional(),
+      gradeLevel: z.string().max(120).optional(),
+      schoolName: z.string().max(200).optional(),
+      isGraduate: z.boolean().optional(),
+      interests: z.array(z.string().max(120)).max(20).optional(),
+      ambitions: z.array(z.string().max(200)).max(20).optional(),
+    })
+    .optional(),
+});
+
 export const AdoptRoadmapDtoSchema = z.object({
   opportunityId: z.string().optional(),
   targetOpportunityId: z.string().optional(),
@@ -115,6 +144,7 @@ export type UpdateRoadmapDto = z.infer<typeof UpdateRoadmapDtoSchema>;
 export type RoadmapIntentDto = z.infer<typeof RoadmapIntentDtoSchema>;
 export type RoadmapFeedbackDto = z.infer<typeof RoadmapFeedbackDtoSchema>;
 export type AIAssistDto = z.infer<typeof AIAssistDtoSchema>;
+export type OpportunityPlanDto = z.infer<typeof OpportunityPlanDtoSchema>;
 export type AdoptRoadmapDto = z.infer<typeof AdoptRoadmapDtoSchema>;
 export type UpdateRoadmapProgressDto = z.infer<
   typeof UpdateRoadmapProgressSchema

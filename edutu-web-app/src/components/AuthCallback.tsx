@@ -38,10 +38,10 @@ const AuthCallback: React.FC = () => {
       <PublicEditorialShell mainClassName="max-w-3xl py-8">
         <div className="flex min-h-[calc(100dvh-220px)] items-center justify-center text-center">
           <div className="p-8">
-            <p className="text-red-400 mb-4">{error}</p>
+            <p className="text-danger mb-4">{error}</p>
             <button
               onClick={() => navigate("/auth")}
-              className="rounded-md bg-slate-950 px-6 py-3 font-medium text-white dark:bg-white dark:text-slate-950"
+              className="rounded-md bg-brand px-6 py-3 font-medium text-white shadow-soft transition hover:bg-brand-700"
             >
               Back to Sign In
             </button>
@@ -57,9 +57,9 @@ const AuthCallback: React.FC = () => {
         <div>
           <Loader2
             size={40}
-            className="mx-auto mb-4 animate-spin text-brand-600"
+            className="mx-auto mb-4 animate-spin text-brand"
           />
-          <p className="text-slate-500 dark:text-slate-300">
+          <p className="text-text-secondary">
             Completing sign in...
           </p>
         </div>

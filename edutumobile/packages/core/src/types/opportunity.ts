@@ -2,6 +2,24 @@ export type OpportunityDifficulty = 'Easy' | 'Medium' | 'Hard';
 export type OpportunitySource = 'admin' | 'n8n' | 'manual' | 'import';
 export type OpportunityCanonicalCategory = 'scholarships' | 'careers' | 'leadership' | 'global_programs' | 'training_conferences' | 'other';
 
+export type MatchReasonKind =
+  | 'field'
+  | 'interest'
+  | 'category'
+  | 'location'
+  | 'remote'
+  | 'experience'
+  | 'goal'
+  | 'education';
+
+export interface MatchReason {
+  kind: MatchReasonKind;
+  /** Plain-English explanation shown to the user, e.g. "Matches your interest in AI". */
+  label: string;
+  /** Contribution this reason made to the raw match score. */
+  points: number;
+}
+
 export interface Opportunity {
   id: string;
   title: string;
@@ -25,6 +43,7 @@ export interface Opportunity {
   aiSummary?: string;
   matchReasons?: string[];
   matchRisks?: string[];
+  matchReasonDetails?: MatchReason[];
   aiTags?: string[];
 
   // Admin-relevant fields

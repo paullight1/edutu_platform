@@ -9,7 +9,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png', 'icons/*.png'],
+      includeAssets: ['favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png', 'icons/*.png', 'data/opportunities.json'],
       manifest: {
         name: 'Edutu | AI Opportunity Coach',
         short_name: 'Edutu',
@@ -36,7 +36,52 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Adds notificationclick + push handlers on top of the generated SW.
+        importScripts: ['sw-custom.js'],
         runtimeCaching: [
+          {
+            // Product API (opportunities, recommendations, profile, deadlines…).
+            // Network-first so signed-in users get fresh data online, but fall
+            // back to the last successful response when the network is gone.
+            urlPattern: /^https:\/\/edutu-platform\.onrender\.com\/.*/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'edutu-api',
+              networkTimeoutSeconds: 5,
+              expiration: {
+                maxEntries: 80,
+                maxAgeSeconds: 60 * 60 * 24, // 1 day
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            // Static opportunities snapshot used as the offline fallback feed.
+            urlPattern: ({ url }) => url.pathname === '/data/opportunities.json',
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'edutu-snapshot',
+              expiration: {
+                maxEntries: 4,
+                maxAgeSeconds: 60 * 60 * 24 * 7, // 1 week
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            // Opportunity banner imagery — cache so cards keep their images
+            // offline and on repeat visits.
+            urlPattern: /^https:\/\/images\.(pexels|unsplash)\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'edutu-images',
+              expiration: {
+                maxEntries: 120,
+                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',

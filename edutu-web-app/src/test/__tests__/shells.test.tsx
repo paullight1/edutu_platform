@@ -39,6 +39,10 @@ vi.mock("../../hooks/useDarkMode", () => ({
   useDarkMode: () => ({ isDarkMode: false }),
 }));
 
+vi.mock("../../hooks/useNotifications", () => ({
+  useNotifications: () => ({ unreadCount: 0 }),
+}));
+
 beforeEach(() => {
   clerkMocks.isSignedIn = false;
   clerkMocks.user = null;

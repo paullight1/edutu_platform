@@ -15,7 +15,7 @@ import {
     Workflow,
     type LucideIcon,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import PublicEditorialShell from './PublicEditorialShell';
 
 const apiSpecUrl = import.meta.env.VITE_API_OPENAPI_URL || 'https://api.edutu.org/v1/openapi.json';
@@ -36,7 +36,8 @@ type PlatformCard = {
     icon: LucideIcon;
     title: string;
     subtitle: string;
-    accent: string;
+    accentClass: string;
+    tintClass: string;
     items: string[];
 };
 
@@ -88,7 +89,8 @@ const platformCards: PlatformCard[] = [
         icon: Globe,
         title: 'Web app',
         subtitle: 'Public feed + SEO',
-        accent: '#146ef5',
+        accentClass: 'text-brand',
+        tintClass: 'bg-brand/10',
         items: [
             'Use `VITE_API_URL` or `VITE_BACKEND_URL` for the live feed',
             'Render the same normalized contract on list and detail pages',
@@ -99,7 +101,8 @@ const platformCards: PlatformCard[] = [
         icon: Smartphone,
         title: 'Mobile app',
         subtitle: 'Expo client',
-        accent: '#7a3dff',
+        accentClass: 'text-accent',
+        tintClass: 'bg-accent/10',
         items: [
             '`EXPO_PUBLIC_API_URL` keeps mobile on the same source of truth',
             '`EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` handles auth',
@@ -110,7 +113,8 @@ const platformCards: PlatformCard[] = [
         icon: Server,
         title: 'Admin panel',
         subtitle: 'Ingestion + review',
-        accent: '#00b86b',
+        accentClass: 'text-success',
+        tintClass: 'bg-success/10',
         items: [
             '`VITE_API_URL`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_ANON_KEY` keep the review surface connected',
             'Manual edits and scraper imports merge into the same inventory',
@@ -197,6 +201,8 @@ const quickRefs = [
 ];
 
 const DeveloperDocsPage: React.FC = () => {
+    const reduceMotion = useReducedMotion();
+
     return (
         <PublicEditorialShell>
             <div className="min-h-[100dvh] overflow-x-hidden bg-surface-body">
@@ -204,7 +210,7 @@ const DeveloperDocsPage: React.FC = () => {
                     <div className="grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)_240px]">
                         <aside className="hidden lg:block">
                             <div className="sticky top-24 rounded-2xl border border-subtle bg-surface-layer p-4 shadow-soft">
-                                <div className="mb-4 flex items-center gap-2 text-brand-500">
+                                <div className="mb-4 flex items-center gap-2 text-brand">
                                     <BookOpen size={16} />
                                     <span className="text-[11px] font-bold uppercase tracking-[0.24em]">On this page</span>
                                 </div>
@@ -213,7 +219,7 @@ const DeveloperDocsPage: React.FC = () => {
                                         <a
                                             key={link.href}
                                             href={link.href}
-                                            className="block rounded-xl px-3 py-2 text-sm font-medium text-soft transition-colors hover:bg-surface-elevated"
+                                            className="block rounded-xl px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-surface-elevated"
                                         >
                                             {link.label}
                                         </a>
@@ -221,11 +227,11 @@ const DeveloperDocsPage: React.FC = () => {
                                 </nav>
 
                                 <div className="mt-5 rounded-xl border border-subtle bg-surface-layer p-4">
-                                    <div className="flex items-center gap-2 text-brand-500">
+                                    <div className="flex items-center gap-2 text-brand">
                                         <ShieldCheck size={14} />
                                         <span className="text-[10px] font-bold uppercase tracking-[0.22em]">Quick ref</span>
                                     </div>
-                                    <p className="mt-3 text-sm leading-6 text-muted">
+                                    <p className="mt-3 text-sm leading-6 text-text-muted">
                                         The Edutu API powers the public app, the Expo mobile client, and the admin ingest flow.
                                     </p>
                                 </div>
@@ -235,20 +241,20 @@ const DeveloperDocsPage: React.FC = () => {
                         <div className="min-w-0">
                             <section id="overview" className="scroll-mt-28 border-b border-subtle pb-10 sm:pb-12">
                                 <motion.div
-                                    initial={{ opacity: 0, y: 16 }}
-                                    animate={{ opacity: 1, y: 0 }}
+                                    initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
+                                    animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                                     transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
                                 >
-                                    <div className="inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.26em] text-brand-500">
+                                    <div className="inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.26em] text-brand">
                                         <Code2 size={14} />
                                         edutu-api
                                     </div>
 
                                     <div className="mt-6 max-w-4xl space-y-5">
-                                        <h1 className="text-[clamp(2rem,3.5vw,3.4rem)] font-medium leading-[1.06] tracking-[-0.05em] text-strong">
+                                        <h1 className="text-[clamp(2rem,3.5vw,3.4rem)] font-display font-semibold leading-[1.06] tracking-[-0.05em] text-text-primary">
                                             Integrate Edutu with a clean, predictable API contract.
                                         </h1>
-                                        <p className="max-w-3xl text-[16px] leading-[1.8] sm:text-[18px] text-soft">
+                                        <p className="max-w-3xl text-[16px] leading-[1.8] sm:text-[18px] text-text-secondary">
                                             The same scholarship and global opportunities data powers the public web feed, the mobile client, and the admin ingestion pipeline. Start with the live feed, then layer on SEO pages, mobile views, and sync tooling.
                                         </p>
                                     </div>
@@ -257,12 +263,12 @@ const DeveloperDocsPage: React.FC = () => {
                                         {quickRefs.map((item) => (
                                             <div
                                                 key={item.title}
-                                                className="rounded-xl border border-subtle bg-surface-layer p-4 shadow-soft transition-colors duration-300 hover:border-brand-500/20"
+                                                className="rounded-xl border border-subtle bg-surface-layer p-4 shadow-soft transition-colors duration-300 hover:border-brand/40"
                                             >
-                                                <p className="text-[12px] font-bold uppercase tracking-[0.18em] text-brand-500">
+                                                <p className="text-[12px] font-bold uppercase tracking-[0.18em] text-brand">
                                                     {item.title}
                                                 </p>
-                                                <p className="mt-2 text-sm leading-6 text-soft">
+                                                <p className="mt-2 text-sm leading-6 text-text-secondary">
                                                     {item.text}
                                                 </p>
                                             </div>
@@ -276,10 +282,10 @@ const DeveloperDocsPage: React.FC = () => {
                                 className="scroll-mt-28 py-10 sm:py-12"
                             >
                                 <div className="max-w-3xl">
-                                    <h2 className="text-[clamp(1.6rem,2.4vw,2.35rem)] font-medium leading-[1.05] tracking-[-0.045em] text-strong">
+                                    <h2 className="text-[clamp(1.6rem,2.4vw,2.35rem)] font-display font-semibold leading-[1.05] tracking-[-0.045em] text-text-primary">
                                         Scholarship and global opportunities endpoints.
                                     </h2>
-                                    <p className="mt-4 text-[15px] leading-[1.75] text-soft">
+                                    <p className="mt-4 text-[15px] leading-[1.75] text-text-secondary">
                                         Build against the backend once, then let every surface consume the same normalized opportunity object. That keeps lists, share pages, detail pages, and admin tools aligned.
                                     </p>
                                 </div>
@@ -288,37 +294,37 @@ const DeveloperDocsPage: React.FC = () => {
                                     {endpointGroups.map((endpoint, index) => (
                                         <motion.article
                                             key={endpoint.path}
-                                            initial={{ opacity: 0, y: 14 }}
-                                            whileInView={{ opacity: 1, y: 0 }}
+                                            initial={reduceMotion ? undefined : { opacity: 0, y: 14 }}
+                                            whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                                             viewport={{ once: true, margin: '-40px' }}
                                             transition={{ duration: 0.35, delay: index * 0.05, ease: [0.16, 1, 0.3, 1] }}
-                                            className="rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft transition-colors duration-300 hover:border-brand-500/20 grid gap-4 sm:grid-cols-[160px_minmax(0,1fr)] sm:items-start"
+                                            className="rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft transition-colors duration-300 hover:border-brand/40 grid gap-4 sm:grid-cols-[160px_minmax(0,1fr)] sm:items-start"
                                         >
                                             <div className="flex items-center gap-3">
                                                 <div
-                                                    className="flex h-12 w-12 items-center justify-center rounded-2xl"
-                                                    style={{
-                                                        backgroundColor: endpoint.method === 'GET' ? 'rgba(20,110,245,0.12)' : 'rgba(0,184,107,0.12)',
-                                                        color: endpoint.method === 'GET' ? '#146ef5' : '#00b86b',
-                                                    }}
+                                                    className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
+                                                        endpoint.method === 'GET'
+                                                            ? 'bg-brand/10 text-brand'
+                                                            : 'bg-success/10 text-success'
+                                                    }`}
                                                 >
                                                     <Terminal size={18} />
                                                 </div>
                                                 <div>
-                                                    <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-brand-500">
+                                                    <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-brand">
                                                         {endpoint.method}
                                                     </div>
-                                                    <div className="mt-1 font-mono text-[13px] text-soft">
+                                                    <div className="mt-1 font-mono text-[13px] text-text-secondary">
                                                         {endpoint.path}
                                                     </div>
                                                 </div>
                                             </div>
 
                                             <div>
-                                                <h3 className="text-lg font-semibold tracking-[-0.02em] text-strong">
+                                                <h3 className="text-lg font-semibold tracking-[-0.02em] text-text-primary">
                                                     {endpoint.title}
                                                 </h3>
-                                                <p className="mt-2 max-w-3xl text-[15px] leading-[1.75] text-soft">
+                                                <p className="mt-2 max-w-3xl text-[15px] leading-[1.75] text-text-secondary">
                                                     {endpoint.description}
                                                 </p>
                                             </div>
@@ -329,17 +335,17 @@ const DeveloperDocsPage: React.FC = () => {
 
                             <motion.section
                                 id="platform-setup"
-                                initial={{ opacity: 0, y: 24 }}
-                                whileInView={{ opacity: 1, y: 0 }}
+                                initial={reduceMotion ? undefined : { opacity: 0, y: 24 }}
+                                whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                                 viewport={{ once: true, margin: '-60px' }}
                                 transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                                 className="scroll-mt-28 border-y border-subtle py-10 sm:py-12"
                             >
                                 <div className="max-w-3xl">
-                                    <h2 className="text-[clamp(1.6rem,2.4vw,2.35rem)] font-medium leading-[1.05] tracking-[-0.045em] text-strong">
+                                    <h2 className="text-[clamp(1.6rem,2.4vw,2.35rem)] font-display font-semibold leading-[1.05] tracking-[-0.045em] text-text-primary">
                                         One opportunity source, three clients.
                                     </h2>
-                                    <p className="mt-4 text-[15px] leading-[1.75] text-soft">
+                                    <p className="mt-4 text-[15px] leading-[1.75] text-text-secondary">
                                         The web app, Expo mobile app, and admin panel all point at the same contract. That is the simplest way to keep scholarship data, editorial pages, and sync jobs in agreement.
                                     </p>
                                 </div>
@@ -348,28 +354,27 @@ const DeveloperDocsPage: React.FC = () => {
                                     {platformCards.map((card, index) => (
                                         <motion.article
                                             key={card.title}
-                                            initial={{ opacity: 0, y: 14 }}
-                                            whileInView={{ opacity: 1, y: 0 }}
+                                            initial={reduceMotion ? undefined : { opacity: 0, y: 14 }}
+                                            whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                                             viewport={{ once: true, margin: '-40px' }}
                                             transition={{ duration: 0.35, delay: index * 0.05, ease: [0.16, 1, 0.3, 1] }}
-                                            className="rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft transition-colors duration-300 hover:border-brand-500/20"
+                                            className="rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft transition-colors duration-300 hover:border-brand/40"
                                         >
                                             <div
-                                                className="flex h-11 w-11 items-center justify-center rounded-2xl"
-                                                style={{ backgroundColor: `${card.accent}12`, color: card.accent }}
+                                                className={`flex h-11 w-11 items-center justify-center rounded-2xl ${card.tintClass}`}
                                             >
-                                                <card.icon size={20} />
+                                                <card.icon size={20} className={card.accentClass} />
                                             </div>
-                                            <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.24em]" style={{ color: card.accent }}>
+                                            <p className={`mt-4 text-[11px] font-bold uppercase tracking-[0.24em] ${card.accentClass}`}>
                                                 {card.subtitle}
                                             </p>
-                                            <h3 className="mt-2 text-xl font-semibold tracking-[-0.03em] text-strong">
+                                            <h3 className="mt-2 text-xl font-semibold tracking-[-0.03em] text-text-primary">
                                                 {card.title}
                                             </h3>
                                             <ul className="mt-4 space-y-2">
                                                 {card.items.map((item) => (
-                                                    <li key={item} className="flex items-start gap-2 text-sm leading-6 text-soft">
-                                                        <CheckCircle size={15} className="mt-0.5 shrink-0" style={{ color: card.accent }} />
+                                                    <li key={item} className="flex items-start gap-2 text-sm leading-6 text-text-secondary">
+                                                        <CheckCircle size={15} className={`mt-0.5 shrink-0 ${card.accentClass}`} />
                                                         <span>{item}</span>
                                                     </li>
                                                 ))}
@@ -381,24 +386,24 @@ const DeveloperDocsPage: React.FC = () => {
 
                             <motion.section
                                 id="seo-pages"
-                                initial={{ opacity: 0, y: 24 }}
-                                whileInView={{ opacity: 1, y: 0 }}
+                                initial={reduceMotion ? undefined : { opacity: 0, y: 24 }}
+                                whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                                 viewport={{ once: true, margin: '-60px' }}
                                 transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                                 className="scroll-mt-28 py-10 sm:py-12"
                             >
                                 <div className="max-w-3xl">
-                                    <h2 className="text-[clamp(1.6rem,2.4vw,2.35rem)] font-medium leading-[1.05] tracking-[-0.045em] text-strong">
+                                    <h2 className="text-[clamp(1.6rem,2.4vw,2.35rem)] font-display font-semibold leading-[1.05] tracking-[-0.045em] text-text-primary">
                                         Make public pages readable, crawlable, and useful.
                                     </h2>
-                                    <p className="mt-4 text-[15px] leading-[1.75] text-soft">
+                                    <p className="mt-4 text-[15px] leading-[1.75] text-text-secondary">
                                         Opportunity share pages should read like a concise article: descriptive title, plain summary, source details, deadline, and a clear action. That structure helps scholarship pages rank and makes previews look trustworthy when shared.
                                     </p>
                                 </div>
 
                                 <div className="mt-6 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-                                    <div className="rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft transition-colors duration-300 hover:border-brand-500/20">
-                                        <div className="flex items-center gap-2 text-brand-500">
+                                    <div className="rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft transition-colors duration-300 hover:border-brand/40">
+                                        <div className="flex items-center gap-2 text-brand">
                                             <Globe size={16} />
                                             <span className="text-[11px] font-bold uppercase tracking-[0.24em]">Public routes</span>
                                         </div>
@@ -411,10 +416,10 @@ const DeveloperDocsPage: React.FC = () => {
                                             ].map((item) => (
                                                 <div
                                                     key={item.route}
-                                                    className="rounded-xl border border-subtle bg-surface-layer px-4 py-3"
+                                                    className="rounded-xl border border-subtle bg-surface-elevated px-4 py-3"
                                                 >
-                                                    <p className="font-mono text-[12px] text-brand-500">{item.route}</p>
-                                                    <p className="mt-1 text-sm leading-6 text-soft">
+                                                    <p className="font-mono text-[12px] text-brand">{item.route}</p>
+                                                    <p className="mt-1 text-sm leading-6 text-text-secondary">
                                                         {item.text}
                                                     </p>
                                                 </div>
@@ -422,12 +427,12 @@ const DeveloperDocsPage: React.FC = () => {
                                         </div>
                                     </div>
 
-                                    <div className="rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft transition-colors duration-300 hover:border-brand-500/20">
-                                        <div className="flex items-center gap-2 text-brand-500">
+                                    <div className="rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft transition-colors duration-300 hover:border-brand/40">
+                                        <div className="flex items-center gap-2 text-brand">
                                             <Database size={16} />
                                             <span className="text-[11px] font-bold uppercase tracking-[0.24em]">Metadata tips</span>
                                         </div>
-                                        <ul className="mt-4 space-y-3 text-sm leading-6 text-soft">
+                                        <ul className="mt-4 space-y-3 text-sm leading-6 text-text-secondary">
                                             <li>• Keep title, summary, organization, and location visible in the first screen.</li>
                                             <li>• Use descriptive headings and consistent field names across pages.</li>
                                             <li>• Treat the share page as a public article, not a dense dashboard card.</li>
@@ -438,17 +443,17 @@ const DeveloperDocsPage: React.FC = () => {
 
                             <motion.section
                                 id="data-contract"
-                                initial={{ opacity: 0, y: 24 }}
-                                whileInView={{ opacity: 1, y: 0 }}
+                                initial={reduceMotion ? undefined : { opacity: 0, y: 24 }}
+                                whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                                 viewport={{ once: true, margin: '-60px' }}
                                 transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                                 className="scroll-mt-28 border-y border-subtle py-10 sm:py-12"
                             >
                                 <div className="max-w-3xl">
-                                    <h2 className="text-[clamp(1.6rem,2.4vw,2.35rem)] font-medium leading-[1.05] tracking-[-0.045em] text-strong">
+                                    <h2 className="text-[clamp(1.6rem,2.4vw,2.35rem)] font-display font-semibold leading-[1.05] tracking-[-0.045em] text-text-primary">
                                         The same normalized fields power every surface.
                                     </h2>
-                                    <p className="mt-4 text-[15px] leading-[1.75] text-soft">
+                                    <p className="mt-4 text-[15px] leading-[1.75] text-text-secondary">
                                         Once an opportunity is normalized, the public web app, the mobile app, and the admin panel all read the same keys without extra mapping layers.
                                     </p>
                                 </div>
@@ -457,7 +462,7 @@ const DeveloperDocsPage: React.FC = () => {
                                     {opportunityFields.map((field) => (
                                         <span
                                             key={field}
-                                            className="rounded-full border border-subtle bg-surface-layer px-3 py-1 text-[12px] font-medium text-soft"
+                                            className="rounded-full border border-subtle bg-surface-elevated px-3 py-1 text-[12px] font-medium text-text-secondary"
                                         >
                                             {field}
                                         </span>
@@ -467,14 +472,14 @@ const DeveloperDocsPage: React.FC = () => {
 
                             <motion.section
                                 id="examples"
-                                initial={{ opacity: 0, y: 24 }}
-                                whileInView={{ opacity: 1, y: 0 }}
+                                initial={reduceMotion ? undefined : { opacity: 0, y: 24 }}
+                                whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                                 viewport={{ once: true, margin: '-60px' }}
                                 transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                                 className="scroll-mt-28 py-10 sm:py-12"
                             >
                                 <div className="max-w-3xl">
-                                    <h2 className="text-[clamp(1.6rem,2.4vw,2.35rem)] font-medium leading-[1.05] tracking-[-0.045em] text-strong">
+                                    <h2 className="text-[clamp(1.6rem,2.4vw,2.35rem)] font-display font-semibold leading-[1.05] tracking-[-0.045em] text-text-primary">
                                         Copy-paste starts for web, mobile, and admin.
                                     </h2>
                                 </div>
@@ -483,16 +488,17 @@ const DeveloperDocsPage: React.FC = () => {
                                     {codeSamples.map((sample) => (
                                         <div
                                             key={sample.label}
-                                            className="rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft transition-colors duration-300 hover:border-brand-500/20"
+                                            className="rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft transition-colors duration-300 hover:border-brand/40"
                                         >
-                                            <div className="flex items-center gap-2 text-brand-500">
+                                            <div className="flex items-center gap-2 text-brand">
                                                 <Layers3 size={14} />
                                                 <span className="text-[10px] font-bold uppercase tracking-[0.24em]">{sample.label}</span>
                                             </div>
-                                            <h3 className="mt-2 text-lg font-semibold tracking-[-0.02em] text-strong">
+                                            <h3 className="mt-2 text-lg font-semibold tracking-[-0.02em] text-text-primary">
                                                 {sample.title}
                                             </h3>
-                                            <pre className="mt-4 overflow-x-auto rounded-xl border border-subtle bg-surface-layer p-4 text-[12px] leading-[1.7] whitespace-pre-wrap text-soft">
+                                            {/* Intentional dark code panel — fixed palette in light and dark */}
+                                            <pre className="mt-4 overflow-x-auto rounded-xl border border-white/10 bg-slate-950 p-4 text-[12px] leading-[1.7] whitespace-pre-wrap text-slate-100">
 {sample.code}
                                             </pre>
                                         </div>
@@ -502,31 +508,31 @@ const DeveloperDocsPage: React.FC = () => {
 
                             <motion.section
                                 id="support"
-                                initial={{ opacity: 0, y: 24 }}
-                                whileInView={{ opacity: 1, y: 0 }}
+                                initial={reduceMotion ? undefined : { opacity: 0, y: 24 }}
+                                whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                                 viewport={{ once: true, margin: '-60px' }}
                                 transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                                 className="scroll-mt-28 py-10 sm:py-12"
                             >
-                                <div className="rounded-2xl border border-subtle bg-gradient-to-br from-brand-500/[0.06] to-surface p-6 shadow-soft sm:p-8">
-                                    <h2 className="text-[clamp(1.6rem,2.4vw,2.25rem)] font-medium leading-[1.08] tracking-[-0.04em] text-strong">
+                                <div className="rounded-2xl border border-subtle bg-gradient-to-br from-brand/[0.06] to-surface p-6 shadow-soft sm:p-8">
+                                    <h2 className="text-[clamp(1.6rem,2.4vw,2.25rem)] font-display font-semibold leading-[1.08] tracking-[-0.04em] text-text-primary">
                                         Build with Edutu, then ship faster with one opportunity engine.
                                     </h2>
-                                    <p className="mt-4 max-w-3xl text-[15px] leading-[1.75] text-soft">
+                                    <p className="mt-4 max-w-3xl text-[15px] leading-[1.75] text-text-secondary">
                                         If you are wiring Edutu into a school portal, a scholarship directory, or a community platform, keep every surface pointed at the same backend and the same opportunity schema.
                                     </p>
 
                                     <div className="mt-6 flex flex-wrap gap-3">
                                         <Link
                                             to="/scholarship-engine"
-                                            className="inline-flex items-center gap-2 rounded-full bg-brand-500 px-6 py-3 text-sm font-semibold text-white no-underline transition-all duration-300 hover:scale-[0.98] active:scale-[0.97]"
+                                            className="inline-flex items-center gap-2 rounded-full bg-brand px-6 py-3 text-sm font-semibold text-white no-underline transition-all duration-300 hover:bg-brand-700 hover:scale-[0.98] active:scale-[0.97]"
                                         >
                                             Open Scholarship Engine
                                             <ArrowRight size={16} />
                                         </Link>
                                         <Link
                                             to="/dashboard/developer"
-                                            className="inline-flex items-center gap-2 rounded-full border border-subtle bg-surface-layer px-6 py-3 text-sm font-semibold text-strong no-underline transition-all duration-300 hover:scale-[0.98] active:scale-[0.97]"
+                                            className="inline-flex items-center gap-2 rounded-full border border-strong bg-surface-layer px-6 py-3 text-sm font-semibold text-text-primary no-underline transition-all duration-300 hover:scale-[0.98] active:scale-[0.97]"
                                         >
                                             Open dashboard
                                         </Link>
@@ -538,32 +544,32 @@ const DeveloperDocsPage: React.FC = () => {
                         <aside className="hidden xl:block">
                             <div className="sticky top-24 space-y-4">
                                 <div className="rounded-2xl border border-subtle bg-surface-layer p-4 shadow-soft">
-                                    <div className="flex items-center gap-2 text-brand-500">
+                                    <div className="flex items-center gap-2 text-brand">
                                         <Workflow size={15} />
                                         <span className="text-[11px] font-bold uppercase tracking-[0.24em]">Quick refs</span>
                                     </div>
                                     <div className="mt-4 space-y-3">
-                                        <div className="rounded-xl border border-subtle bg-surface-layer px-3 py-3">
-                                            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand-500">
+                                        <div className="rounded-xl border border-subtle bg-surface-elevated px-3 py-3">
+                                            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand">
                                                 Base URL
                                             </p>
-                                            <p className="mt-1 font-mono text-[13px] text-strong">
+                                            <p className="mt-1 font-mono text-[13px] text-text-primary">
                                                 http://localhost:3000
                                             </p>
                                         </div>
-                                        <div className="rounded-xl border border-subtle bg-surface-layer px-3 py-3">
-                                            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand-500">
+                                        <div className="rounded-xl border border-subtle bg-surface-elevated px-3 py-3">
+                                            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand">
                                                 Public pages
                                             </p>
-                                            <p className="mt-1 text-sm leading-6 text-soft">
+                                            <p className="mt-1 text-sm leading-6 text-text-secondary">
                                                 `share/opportunity/:id`, `/opportunities`, `/blog`
                                             </p>
                                         </div>
-                                        <div className="rounded-xl border border-subtle bg-surface-layer px-3 py-3">
-                                            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand-500">
+                                        <div className="rounded-xl border border-subtle bg-surface-elevated px-3 py-3">
+                                            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand">
                                                 Integrations
                                             </p>
-                                            <p className="mt-1 text-sm leading-6 text-soft">
+                                            <p className="mt-1 text-sm leading-6 text-text-secondary">
                                                 Web, Expo mobile, admin sync, and scraper ingestion all read the same contract.
                                             </p>
                                         </div>

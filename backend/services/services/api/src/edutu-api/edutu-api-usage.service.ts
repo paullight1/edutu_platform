@@ -28,6 +28,10 @@ interface RateWindow {
 const RATE_WINDOW_MS = 60_000;
 const MAX_TRACKED_CONSUMERS = 10_000;
 
+// Sentinel used to roll back the credit-reservation transaction when the owner
+// has no credits left. Caught in reserveRequestCredit and mapped to null.
+class InsufficientCreditsError extends Error {}
+
 @Injectable()
 export class EdutuApiUsageService {
   private readonly logger = new Logger(EdutuApiUsageService.name);
@@ -222,44 +226,76 @@ export class EdutuApiUsageService {
       return this.readCreditBalance(consumer.ownerUserId ?? null);
     }
 
-    try {
-      const [updated] = await db
-        .update(profiles)
-        .set({
-          creditsBalance: sql`${profiles.creditsBalance} - 1`,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(profiles.userId, consumer.ownerUserId),
-            gt(profiles.creditsBalance, 0),
-          ),
-        )
-        .returning({
-          creditsBalance: profiles.creditsBalance,
-        })
-        .execute();
+    const ownerUserId = consumer.ownerUserId;
+    const requestId = consumer.requestId ?? null;
 
-      if (!updated) {
+    try {
+      return await db.transaction(async (tx) => {
+        // Claim the request by inserting its ledger row first. The unique index
+        // on (type, reference_id) makes a retry of the same requestId a no-op,
+        // so we never charge twice for one request.
+        let claimed = true;
+        if (requestId) {
+          const claim = await tx.execute(sql`
+            insert into transactions (user_id, amount, type, status, reference_id, description)
+            values (
+              ${ownerUserId}::uuid, -1, 'api_request', 'completed',
+              ${requestId}, ${`Edutu API request: ${endpoint}`}
+            )
+            on conflict (type, reference_id) where reference_id is not null
+            do nothing
+            returning id
+          `);
+          claimed = this.rowCount(claim) > 0;
+        } else {
+          await tx.insert(transactions).values({
+            userId: ownerUserId,
+            amount: -1,
+            type: "api_request",
+            status: "completed",
+            referenceId: null,
+            description: `Edutu API request: ${endpoint}`,
+          });
+        }
+
+        // Duplicate delivery of an already-charged request: report the current
+        // balance without charging again.
+        if (!claimed) {
+          const [profile] = await tx
+            .select({ creditsBalance: profiles.creditsBalance })
+            .from(profiles)
+            .where(eq(profiles.userId, ownerUserId))
+            .limit(1);
+          return Number(profile?.creditsBalance ?? 0);
+        }
+
+        // Atomically decrement, but only while credits remain.
+        const [updated] = await tx
+          .update(profiles)
+          .set({
+            creditsBalance: sql`${profiles.creditsBalance} - 1`,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(profiles.userId, ownerUserId),
+              gt(profiles.creditsBalance, 0),
+            ),
+          )
+          .returning({ creditsBalance: profiles.creditsBalance });
+
+        // Insufficient credits: roll back the ledger insert so no charge is
+        // recorded, and signal exhaustion to the caller.
+        if (!updated) {
+          throw new InsufficientCreditsError();
+        }
+
+        return Number(updated.creditsBalance ?? 0);
+      });
+    } catch (error) {
+      if (error instanceof InsufficientCreditsError) {
         return null;
       }
-
-      const remaining = Number(updated.creditsBalance ?? 0);
-
-      await db
-        .insert(transactions)
-        .values({
-          userId: consumer.ownerUserId,
-          amount: -1,
-          type: "api_request",
-          status: "completed",
-          referenceId: consumer.requestId ?? null,
-          description: `Edutu API request: ${endpoint}`,
-        })
-        .execute();
-
-      return remaining;
-    } catch (error) {
       this.logger.warn(
         `Unable to reserve API credit: ${
           error instanceof Error ? error.message : "unknown error"
@@ -267,6 +303,14 @@ export class EdutuApiUsageService {
       );
       return null;
     }
+  }
+
+  private rowCount(result: unknown): number {
+    const asObj = result as { rowCount?: number; rows?: unknown[] };
+    if (typeof asObj?.rowCount === "number") return asObj.rowCount;
+    if (Array.isArray(asObj?.rows)) return asObj.rows.length;
+    if (Array.isArray(result)) return result.length;
+    return 0;
   }
 
   private exhaustedReservation(

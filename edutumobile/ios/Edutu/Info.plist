@@ -61,6 +61,12 @@
 	<array>
 		<string>_expo._tcp</string>
 	</array>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Allow Edutu to add your opportunity milestones and application deadlines to your calendar.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Allow Edutu to add your opportunity milestones and application deadlines to your calendar.</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>Allow Edutu to add your opportunity milestones and application deadlines to your calendar.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Allow Edutu to access your camera to take photos for your profile.</string>
 	<key>NSLocalNetworkUsageDescription</key>
@@ -81,10 +87,15 @@
 	</array>
 	<key>RCTNewArchEnabled</key>
 	<true/>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.expo.modules.backgroundtask.processing</string>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
 		<string>remote-notification</string>
+		<string>processing</string>
 	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>SplashScreen</string>

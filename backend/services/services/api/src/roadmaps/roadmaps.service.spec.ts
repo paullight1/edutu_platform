@@ -157,4 +157,63 @@ describe("RoadmapsService", () => {
     expect(mockedDb.select).not.toHaveBeenCalled();
     expect(mockedDb.update).not.toHaveBeenCalled();
   });
+
+  describe("generateOpportunityPlan", () => {
+    it("returns AI-enriched content aligned to the provided milestone scaffold", async () => {
+      aiService.generateJson.mockResolvedValue({
+        summary: "Win the Chevening scholarship with a focused plan.",
+        winningStrategy: "Lead with measurable impact and a clear study plan.",
+        milestones: [
+          { id: "m2", title: "Gather your evidence", description: "Collect transcripts and references early." },
+          { id: "m1", title: "Understand the criteria", description: "Map exactly what the panel rewards." },
+        ],
+        checklist: ["Transcripts", "Two references", "", 42],
+        supportActions: ["Find an alumnus to review your essays"],
+      });
+
+      const result = await service.generateOpportunityPlan({
+        title: "Chevening Scholarship",
+        organization: "UK Government",
+        category: "scholarship",
+        milestones: [
+          { id: "m1", title: "Confirm fit" },
+          { id: "m2", title: "Collect proof" },
+        ],
+      });
+
+      expect(result.generatedBy).toBe("ai");
+      // Realigned to scaffold order by id, not the AI response order.
+      expect(result.milestones.map((m) => m.id)).toEqual(["m1", "m2"]);
+      expect(result.milestones[0].description).toContain("panel rewards");
+      // Non-string / empty checklist entries are filtered out.
+      expect(result.checklist).toEqual(["Transcripts", "Two references"]);
+    });
+
+    it("falls back to a deterministic plan when the AI response is unusable", async () => {
+      aiService.generateJson.mockResolvedValue({ summary: "", milestones: [] });
+
+      const result = await service.generateOpportunityPlan({
+        title: "MTN Foundation Scholarship",
+        category: "scholarship",
+        deadline: "2026-09-01",
+      });
+
+      expect(result.generatedBy).toBe("fallback");
+      expect(result.milestones).toHaveLength(5);
+      expect(result.winningStrategy).toContain("deadline");
+      expect(result.checklist.length).toBeGreaterThan(0);
+    });
+
+    it("falls back when the AI provider throws", async () => {
+      aiService.generateJson.mockRejectedValue(new Error("provider down"));
+
+      const result = await service.generateOpportunityPlan({
+        title: "Google Internship",
+        category: "tech",
+      });
+
+      expect(result.generatedBy).toBe("fallback");
+      expect(result.milestones).toHaveLength(5);
+    });
+  });
 });

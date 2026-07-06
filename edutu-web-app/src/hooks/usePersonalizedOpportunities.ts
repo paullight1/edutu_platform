@@ -1,17 +1,109 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import {
   fetchOpportunities,
   fetchOpportunityRecommendations,
   type PersonalizedOpportunity,
 } from "../services/opportunities";
-import { getProductApiToken } from "../lib/clerkToken";
 import {
+  getProductApiToken,
+  isInvalidOrExpiredTokenError,
+} from "../lib/clerkToken";
+import {
+  evaluateMatch,
   formatUserProfileForRecommendations,
-  getPersonalizedOpportunities,
   type UserProfileForRecommendations,
 } from "../services/personalizedRecommendations";
+import {
+  primeServerMatches,
+  toMatchReasons,
+} from "../services/serverMatchStore";
+import { anchorFeedOrder } from "../services/feedAnchor";
 import type { AppUser } from "../types/user";
+
+const RECO_CACHE_KEY = "edutu:recommendations:v1";
+const RECO_FRESH_MS = 10 * 60 * 1000;
+
+interface RecommendationCacheEntry {
+  userKey: string;
+  savedAt: number;
+  data: PersonalizedOpportunity[];
+}
+
+let recommendationMemoryCache: RecommendationCacheEntry | null = null;
+
+/**
+ * Push server-computed scores into the shared match store so badges and
+ * "why this matches" panels across the app read the authoritative numbers.
+ */
+function primeServerMatchesFromRecommendations(
+  userKey: string,
+  recommendations: PersonalizedOpportunity[],
+) {
+  primeServerMatches(
+    userKey,
+    recommendations.map((item) => ({
+      id: item.opportunity.id,
+      score: item.matchScore,
+      reasons: toMatchReasons(item),
+      risks: item.matchRisks,
+    })),
+  );
+}
+
+// The recommendations endpoint is keyed by the authenticated user only (the
+// request body carries no preferences), so a short-lived per-user cache makes
+// dashboard revisits instant without changing what the user would see.
+function readRecommendationCache(
+  userKey: string,
+): PersonalizedOpportunity[] | null {
+  const now = Date.now();
+
+  if (
+    recommendationMemoryCache &&
+    recommendationMemoryCache.userKey === userKey &&
+    now - recommendationMemoryCache.savedAt < RECO_FRESH_MS
+  ) {
+    return recommendationMemoryCache.data;
+  }
+
+  try {
+    const raw = window.sessionStorage.getItem(RECO_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as RecommendationCacheEntry;
+    if (
+      parsed?.userKey === userKey &&
+      typeof parsed.savedAt === "number" &&
+      now - parsed.savedAt < RECO_FRESH_MS &&
+      Array.isArray(parsed.data) &&
+      parsed.data.length > 0
+    ) {
+      recommendationMemoryCache = parsed;
+      return parsed.data;
+    }
+  } catch {
+    // Session storage unavailable — memory cache already checked.
+  }
+
+  return null;
+}
+
+function writeRecommendationCache(
+  userKey: string,
+  data: PersonalizedOpportunity[],
+) {
+  const entry: RecommendationCacheEntry = {
+    userKey,
+    savedAt: Date.now(),
+    data,
+  };
+  recommendationMemoryCache = entry;
+  try {
+    window.sessionStorage.setItem(RECO_CACHE_KEY, JSON.stringify(entry));
+  } catch {
+    // Best effort — the in-memory copy still serves this session.
+  }
+}
 
 interface UsePersonalizedOpportunitiesState {
   data: PersonalizedOpportunity[];
@@ -44,6 +136,11 @@ export function usePersonalizedOpportunities(): UsePersonalizedOpportunitiesResu
   const [refreshIndex, setRefreshIndex] = useState(0);
   const { getToken, isSignedIn } = useClerkAuth();
 
+  // Latest rendered feed, readable inside the async fetch without adding
+  // `data` to the effect deps (which would retrigger the load).
+  const dataRef = useRef(data);
+  dataRef.current = data;
+
   useEffect(() => {
     let isActive = true;
 
@@ -57,51 +154,98 @@ export function usePersonalizedOpportunities(): UsePersonalizedOpportunitiesResu
       return;
     }
     const activePreferences = userPreferences;
+    const cacheKey = activePreferences.id || "anonymous";
+
+    // Serve a fresh cached run instantly — no token round-trip, no skeleton
+    // flash when the dashboard remounts or the profile object is re-derived.
+    if (refreshIndex === 0) {
+      const cachedRecommendations = readRecommendationCache(cacheKey);
+      if (cachedRecommendations) {
+        primeServerMatchesFromRecommendations(cacheKey, cachedRecommendations);
+        setState({
+          data: cachedRecommendations,
+          loading: false,
+          error: null,
+          userPreferences: activePreferences,
+        });
+        return;
+      }
+    }
 
     setState((prev) => ({
       ...prev,
-      loading: true,
+      loading: prev.data.length === 0,
       error: refreshIndex === 0 ? null : prev.error,
     }));
+
+    async function requestRecommendationsWithRetry() {
+      // Use the cached Clerk token first; only force a refresh when the API
+      // rejects it. Saves a Clerk round-trip on every feed load.
+      const token = await getProductApiToken(getToken);
+      if (!token) return null;
+
+      try {
+        return await fetchOpportunityRecommendations(token, {
+          limit: 48,
+          minMatchScore: 0,
+        });
+      } catch (err) {
+        if (!isInvalidOrExpiredTokenError(err)) {
+          throw err;
+        }
+        const freshToken = await getProductApiToken(getToken, {
+          forceRefresh: true,
+        });
+        if (!freshToken) throw err;
+        return fetchOpportunityRecommendations(freshToken, {
+          limit: 48,
+          minMatchScore: 0,
+        });
+      }
+    }
 
     async function loadPersonalizedOpportunities() {
       let backendError: unknown = null;
 
       if (isSignedIn) {
-        const token = await getProductApiToken(getToken, {
-          forceRefresh: true,
-        });
+        try {
+          const recommendations = await requestRecommendationsWithRetry();
 
-        if (token) {
-          try {
-            const recommendations = await fetchOpportunityRecommendations(
-              token,
-              {
-                limit: 48,
-                minMatchScore: 0,
-              },
-            );
-
-            if (!isActive) {
-              return;
-            }
-
-            if (recommendations.length > 0) {
-              setState({
-                data: recommendations,
-                loading: false,
-                error: null,
-                userPreferences: activePreferences,
-              });
-              return;
-            }
-          } catch (err) {
-            backendError = err;
-            console.warn(
-              "AI opportunity recommendations unavailable, using local personalization fallback:",
-              err,
-            );
+          if (!isActive) {
+            return;
           }
+
+          if (recommendations && recommendations.length > 0) {
+            primeServerMatchesFromRecommendations(cacheKey, recommendations);
+
+            // Background revalidate over an already-rendered feed: keep the
+            // user's current card order stable (adopting fresh data) instead
+            // of reshuffling under them. Explicit refresh uses server order.
+            const previousData = dataRef.current;
+            const nextData =
+              refreshIndex === 0 && previousData.length > 0
+                ? anchorFeedOrder(
+                    previousData,
+                    recommendations,
+                    (item) => item.opportunity.id,
+                  )
+                : recommendations;
+
+            writeRecommendationCache(cacheKey, nextData);
+            setState({
+              data: nextData,
+              loading: false,
+              error: null,
+              userPreferences: activePreferences,
+            });
+            return;
+          }
+        } catch (err) {
+          backendError = err;
+          console.warn(
+            "AI opportunity recommendations unavailable, using local personalization fallback:",
+            err,
+          );
         }
       }
 
@@ -115,16 +259,25 @@ export function usePersonalizedOpportunities(): UsePersonalizedOpportunitiesResu
           return;
         }
 
-        const personalizedOpportunities = getPersonalizedOpportunities(
-          activePreferences,
-          opportunities,
-        ).map((item) => ({
-          ...item,
-          matchReasons: [],
-          matchRisks: [],
-          aiSummary: null,
-          aiTags: [],
-        }));
+        // Local heuristic fallback: real scores AND real reasons/risks via
+        // evaluateMatch, so match badges stay meaningful when the backend
+        // recommender is unreachable. Never primes the server match store —
+        // these are not server-computed numbers.
+        const personalizedOpportunities: PersonalizedOpportunity[] =
+          opportunities
+            .map((opportunity) => {
+              const match = evaluateMatch(activePreferences, opportunity);
+              return {
+                opportunity: { ...opportunity, match: match.score },
+                matchScore: match.score,
+                matchReasons: match.reasons.map((reason) => reason.label),
+                matchReasonDetails: match.reasons,
+                matchRisks: match.risks,
+                aiSummary: null,
+                aiTags: [],
+              };
+            })
+            .sort((a, b) => b.matchScore - a.matchScore);
 
         setState({
           data: personalizedOpportunities,

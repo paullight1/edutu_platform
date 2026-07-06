@@ -18,8 +18,11 @@ import { ArrowLeft, ShieldAlert } from "lucide-react";
 import AppWorkspaceShell from "./components/AppWorkspaceShell";
 import PublicEditorialShell from "./components/PublicEditorialShell";
 import GoogleOneTapGate from "./components/GoogleOneTapGate";
+import DeadlineReminders from "./components/DeadlineReminders";
+import InstallAppPrompt from "./components/InstallAppPrompt";
 import PageSuspense from "./components/PageSuspense";
 import { consumePostAuthRedirect } from "./lib/auth";
+import { initializeCapacitor } from "./lib/capacitor";
 import { verifyAdminAccess } from "./lib/adminAccess";
 import { useAuth as useAppAuth } from "./hooks/useAuth";
 import { useAbsoluteSessionTimeout } from "./hooks/useAbsoluteSessionTimeout";
@@ -28,6 +31,9 @@ const AuthScreen = lazy(() => import("./components/AuthScreen"));
 const AuthCallback = lazy(() => import("./components/AuthCallback"));
 const ApplicationsPage = lazy(() => import("./components/ApplicationsPage"));
 const Dashboard = lazy(() => import("./components/Dashboard"));
+const PersonalizationScreen = lazy(
+  () => import("./components/PersonalizationScreen"),
+);
 const LandingPageV3 = lazy(() => import("./components/LandingPageV3"));
 const OpportunitiesPage = lazy(() => import("./components/OpportunitiesPage"));
 const OpportunityDetailFetcher = lazy(
@@ -40,6 +46,10 @@ const EventsPage = lazy(() => import("./components/EventsPage"));
 const EventDetailPage = lazy(() => import("./components/EventDetailPage"));
 const AboutPage = lazy(() => import("./components/AboutPage"));
 const BlogPage = lazy(() => import("./components/BlogPage"));
+const PrivacyPolicyPage = lazy(() => import("./components/PrivacyPolicyPage"));
+const TermsPage = lazy(() => import("./components/TermsPage"));
+const CareersPage = lazy(() => import("./components/CareersPage"));
+const HelpCenterPage = lazy(() => import("./components/HelpCenterPage"));
 const MentorPage = lazy(() => import("./components/MentorPage"));
 const DownloadPage = lazy(() => import("./components/DownloadPage"));
 const ScholarshipApiPage = lazy(() => import("./components/ScholarshipApiPage"));
@@ -51,6 +61,7 @@ const DeveloperDashboardPage = lazy(
 );
 const DeadlinesPage = lazy(() => import("./components/DeadlinesPage"));
 const ProfilePage = lazy(() => import("./components/ProfilePage"));
+const NotificationsPage = lazy(() => import("./components/NotificationsPage"));
 const SavedPage = lazy(() => import("./components/SavedPage"));
 const SettingsPage = lazy(() => import("./components/SettingsPage"));
 
@@ -354,7 +365,10 @@ function UserDashboardPage() {
   const openOpportunity = useCallback(
     (opportunity: { id?: string }) => {
       if (!opportunity?.id) return;
-      navigate(`/app/opportunity/${opportunity.id}`);
+      // Hand the row to the detail route so it paints without refetching.
+      navigate(`/app/opportunity/${opportunity.id}`, {
+        state: { opportunity },
+      });
     },
     [navigate],
   );
@@ -413,6 +427,43 @@ function App() {
 
   useAbsoluteSessionTimeout(signOut);
 
+  useEffect(() => {
+    // Warm the opportunity cache at boot (dynamic import keeps the service
+    // out of the entry chunk) so the first feed screen paints from cache.
+    const warmup = window.setTimeout(() => {
+      void import("./services/opportunities")
+        .then((module) => module.fetchOpportunities())
+        .catch(() => {});
+    }, 300);
+    return () => window.clearTimeout(warmup);
+  }, []);
+
+  // Route native deep links / notification taps (Capacitor appUrlOpen) into
+  // the SPA. No-op on web — initializeCapacitor returns early off-native.
+  useEffect(() => {
+    let disposed = false;
+    void initializeCapacitor({
+      isDarkMode:
+        typeof document !== "undefined" &&
+        document.documentElement.classList.contains("dark"),
+      onDeepLink: (url) => {
+        try {
+          const parsed = new URL(url);
+          const path =
+            parsed.pathname && parsed.pathname !== "/"
+              ? `${parsed.pathname}${parsed.search}${parsed.hash}`
+              : "/dashboard";
+          if (!disposed) navigate(path);
+        } catch {
+          // Malformed deep link — ignore rather than crash.
+        }
+      },
+    });
+    return () => {
+      disposed = true;
+    };
+  }, [navigate]);
+
   const handleAuthSuccess = useCallback(
     (_userData: unknown) => {
       navigate(consumePostAuthRedirect("/dashboard"), { replace: true });
@@ -427,6 +478,7 @@ function App() {
   return (
     <>
       <GoogleOneTapGate />
+      {isSignedIn ? <DeadlineReminders /> : null}
       <Suspense fallback={<PageSuspense />}>
         <Routes>
       <Route
@@ -463,6 +515,11 @@ function App() {
       <Route path="/mentor" element={<MentorPage />} />
       <Route path="/about" element={<AboutPage />} />
       <Route path="/blog" element={<BlogPage />} />
+      <Route path="/privacy" element={<PrivacyPolicyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/careers" element={<CareersPage />} />
+      <Route path="/help" element={<HelpCenterPage />} />
+      <Route path="/app/help" element={<Navigate to="/help" replace />} />
       <Route path="/download" element={<DownloadPage />} />
       <Route path="/docs" element={<DocsRedirect />} />
       <Route
@@ -545,6 +602,22 @@ function App() {
         element={<Navigate to="/app/applications" replace />}
       />
       <Route
+        path="/notifications"
+        element={
+          <AppWorkspaceRoute>
+            <NotificationsPage />
+          </AppWorkspaceRoute>
+        }
+      />
+      <Route
+        path="/app/notifications"
+        element={
+          <AppWorkspaceRoute>
+            <NotificationsPage />
+          </AppWorkspaceRoute>
+        }
+      />
+      <Route
         path="/profile"
         element={
           <AppWorkspaceRoute>
@@ -557,6 +630,14 @@ function App() {
         element={
           <AppWorkspaceRoute>
             <ProfilePage />
+          </AppWorkspaceRoute>
+        }
+      />
+      <Route
+        path="/app/personalization"
+        element={
+          <AppWorkspaceRoute>
+            <PersonalizationScreen />
           </AppWorkspaceRoute>
         }
       />
@@ -632,6 +713,7 @@ function App() {
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
       </Suspense>
+      <InstallAppPrompt />
     </>
   );
 }

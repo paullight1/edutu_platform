@@ -1,6 +1,6 @@
-import { Alert, View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Image } from "react-native";
+import { Alert, View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Image, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Calendar, ChevronRight, Clock, Globe } from "lucide-react-native";
+import { Calendar, ChevronRight, Clock, Globe, ArrowRight } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTheme } from "../../components/context/ThemeContext";
 import { useRouter } from "expo-router";
@@ -8,14 +8,21 @@ import { supabase } from "../../lib/supabase";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import {
+  APPLICATION_PIPELINE,
   ApplicationStatus,
   AppliedOpportunity,
   fetchTrackedApplications,
+  getNextApplicationStage,
   updateTrackedApplicationStatus,
 } from "../../packages/core/src/services/applications";
+import { getDeadlineBadge } from "../../packages/core/src/utils/deadline";
 import { BrandedLoader } from "../../components/ui/BrandedLoader";
 
-const STATUS_OPTIONS: ApplicationStatus[] = ['submitted', 'interview', 'offer', 'rejected', 'withdrawn'];
+const STATUS_OPTIONS: ApplicationStatus[] = ['draft', 'submitted', 'interview', 'offer', 'rejected', 'withdrawn'];
+
+// Stat-board / filter keys: the forward stages plus "all" and a combined
+// terminal bucket ("closed" = rejected + withdrawn).
+type StatFilter = 'all' | ApplicationStatus | 'closed';
 
 function formatStatus(value: ApplicationStatus) {
   if (value === 'offer') return 'Offer';
@@ -51,14 +58,31 @@ function formatDate(value?: string | null) {
 }
 
 function formatDeadline(value?: string | null) {
-  if (!value) return 'Rolling';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Rolling';
-  const days = Math.ceil((date.getTime() - Date.now()) / 86400000);
-  if (days < 0) return 'Closed';
-  if (days === 0) return 'Due today';
-  if (days === 1) return 'Tomorrow';
-  return `${days} days left`;
+  return getDeadlineBadge(value).label;
+}
+
+// Compact 4-segment stepper mirroring the forward pipeline
+// (draft -> submitted -> interview -> offer). Segments fill up to the current
+// stage; 'offer' fills green, terminal states render muted/red.
+function PipelineStepper({ status, inactiveColor }: { status: ApplicationStatus; inactiveColor: string }) {
+  const stageIndex = APPLICATION_PIPELINE.indexOf(status);
+  const isRejected = status === 'rejected';
+  const isWithdrawn = status === 'withdrawn';
+  const isTerminal = isRejected || isWithdrawn;
+
+  return (
+    <View style={styles.stepper}>
+      {APPLICATION_PIPELINE.map((stage, index) => {
+        let color = inactiveColor;
+        if (isTerminal) {
+          color = isRejected ? 'rgba(239,68,68,0.55)' : 'rgba(100,116,139,0.45)';
+        } else if (index <= stageIndex) {
+          color = status === 'offer' ? '#10B981' : getStatusColor(status);
+        }
+        return <View key={stage} style={[styles.stepSegment, { backgroundColor: color }]} />;
+      })}
+    </View>
+  );
 }
 
 export default function AppliedPage() {
@@ -69,12 +93,14 @@ export default function AppliedPage() {
   const [applications, setApplications] = useState<AppliedOpportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<StatFilter>('all');
 
   const textPrimary = colors.foreground;
   const textSecondary = isDark ? '#94A3B8' : '#64748B';
   const cardBg = colors.card;
   const borderColor = colors.border;
   const accentColor = colors.accent;
+  const stepInactiveColor = isDark ? 'rgba(255,255,255,0.10)' : '#E2E8F0';
 
   const loadApplications = useCallback(async () => {
     if (!user?.id) {
@@ -118,6 +144,48 @@ export default function AppliedPage() {
       Alert.alert('Status not updated', 'Please try again in a moment.');
     }
   }, [getToken, user?.id]);
+
+  const advanceStatus = useCallback((application: AppliedOpportunity) => {
+    const next = getNextApplicationStage(application.status);
+    if (!next) return;
+    updateStatus(application.id, next);
+  }, [updateStatus]);
+
+  const stats = useMemo(() => {
+    const counts: Record<ApplicationStatus, number> = {
+      draft: 0,
+      submitted: 0,
+      interview: 0,
+      offer: 0,
+      rejected: 0,
+      withdrawn: 0,
+    };
+    applications.forEach((application) => {
+      counts[application.status] += 1;
+    });
+    return counts;
+  }, [applications]);
+
+  const statTiles = useMemo(() => ([
+    { key: 'all' as StatFilter, label: 'Total', count: applications.length, color: accentColor },
+    { key: 'draft' as StatFilter, label: 'Draft', count: stats.draft, color: getStatusColor('draft') },
+    { key: 'submitted' as StatFilter, label: 'Submitted', count: stats.submitted, color: getStatusColor('submitted') },
+    { key: 'interview' as StatFilter, label: 'Interview', count: stats.interview, color: getStatusColor('interview') },
+    { key: 'offer' as StatFilter, label: 'Offer', count: stats.offer, color: '#10B981' },
+    { key: 'closed' as StatFilter, label: 'Closed', count: stats.rejected + stats.withdrawn, color: '#EF4444' },
+  ]), [applications.length, stats, accentColor]);
+
+  const filteredApplications = useMemo(() => {
+    if (activeFilter === 'all') return applications;
+    if (activeFilter === 'closed') {
+      return applications.filter((item) => item.status === 'rejected' || item.status === 'withdrawn');
+    }
+    return applications.filter((item) => item.status === activeFilter);
+  }, [applications, activeFilter]);
+
+  const handleTilePress = useCallback((key: StatFilter) => {
+    setActiveFilter((current) => (key === 'all' || current === key ? 'all' : key));
+  }, []);
 
   const openStatusPicker = useCallback((application: AppliedOpportunity) => {
     Alert.alert(
@@ -174,10 +242,57 @@ export default function AppliedPage() {
             <Text style={[styles.metaText, { color: textSecondary }]}>{formatDeadline(item.deadline)}</Text>
           </View>
         </View>
+        <View style={styles.pipelineRow}>
+          <PipelineStepper status={item.status} inactiveColor={stepInactiveColor} />
+          {getNextApplicationStage(item.status) ? (
+            <TouchableOpacity
+              onPress={() => advanceStatus(item)}
+              style={[styles.advanceButton, { backgroundColor: `${accentColor}1A`, borderColor: `${accentColor}40` }]}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.advanceText, { color: accentColor }]}>
+                {`Advance to ${formatStatus(getNextApplicationStage(item.status)!)}`}
+              </Text>
+              <ArrowRight size={12} color={accentColor} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
       <ChevronRight size={18} color={textSecondary} />
     </TouchableOpacity>
-  ), [accentColor, cardBg, borderColor, isDark, openStatusPicker, router, textPrimary, textSecondary]);
+  ), [accentColor, advanceStatus, cardBg, borderColor, isDark, openStatusPicker, router, stepInactiveColor, textPrimary, textSecondary]);
+
+  const renderStatBoard = () => {
+    if (applications.length === 0) return null;
+    return (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.statBoard}
+      >
+        {statTiles.map((tile) => {
+          const active = activeFilter === tile.key;
+          return (
+            <TouchableOpacity
+              key={tile.key}
+              onPress={() => handleTilePress(tile.key)}
+              activeOpacity={0.8}
+              style={[
+                styles.statTile,
+                { backgroundColor: cardBg, borderColor: active ? tile.color : borderColor },
+                active && { backgroundColor: `${tile.color}14` },
+              ]}
+            >
+              <Text style={[styles.statCount, { color: tile.color }]}>{tile.count}</Text>
+              <Text style={[styles.statLabel, { color: active ? tile.color : textSecondary }]} numberOfLines={1}>
+                {tile.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    );
+  };
 
   const renderEmpty = () => (
     <View style={styles.emptyState}>
@@ -200,10 +315,17 @@ export default function AppliedPage() {
       <ScreenHeader title="My Applications" showBack subtitle={headerSubtitle} />
 
       <FlatList
-        data={applications}
+        data={filteredApplications}
         keyExtractor={(item) => item.id}
         renderItem={renderApplication}
-        ListEmptyComponent={loading ? null : renderEmpty}
+        ListHeaderComponent={renderStatBoard}
+        ListEmptyComponent={loading ? null : (applications.length > 0 ? (
+          <View style={styles.filterEmpty}>
+            <Text style={[styles.emptySubtitle, { color: textSecondary }]}>
+              No applications in this stage.
+            </Text>
+          </View>
+        ) : renderEmpty())}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -296,6 +418,68 @@ const styles = StyleSheet.create({
   metaText: {
     fontSize: 10,
     fontWeight: '500',
+  },
+  statBoard: {
+    gap: 10,
+    paddingBottom: 16,
+    paddingRight: 4,
+  },
+  statTile: {
+    minWidth: 78,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  statCount: {
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  statLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  pipelineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginTop: 10,
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
+  },
+  stepSegment: {
+    flex: 1,
+    height: 5,
+    borderRadius: 3,
+  },
+  advanceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  advanceText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  filterEmpty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 40,
   },
   emptyState: {
     alignItems: 'center',

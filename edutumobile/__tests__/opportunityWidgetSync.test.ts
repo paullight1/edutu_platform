@@ -55,19 +55,22 @@ describe('opportunity widget sync bridge', () => {
     expect(getOpportunityWidgetProps(baseSnapshot)).toEqual({
       title: 'Global Fellowship',
       provider: 'Edutu',
-      deadline: 'Jun 1',
+      // Far-future deadline → show the date, not a giant "N days left".
+      deadline: '1 Jun 2099',
       category: 'Scholarship',
       location: 'Remote',
       match: undefined,
+      urgent: false,
       deepLink: 'edutu://opportunity/opp-1',
       items: [
         {
           title: 'Global Fellowship',
           provider: 'Edutu',
-          deadline: 'Jun 1',
+          deadline: '1 Jun 2099',
           category: 'Scholarship',
           location: 'Remote',
           match: undefined,
+          urgent: false,
           deepLink: 'edutu://opportunity/opp-1',
         },
       ],

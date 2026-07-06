@@ -26,3 +26,8 @@
 
 # Tool scratch output
 **/.playwright-cli/
+
+# Local agent / IDE settings (may contain embedded keys)
+.claude/
+**/*.tmp.*
+**/*.tmp.*

@@ -21,15 +21,20 @@ import type {
 } from "../types/notification";
 
 interface NotificationInboxProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
+  /**
+   * "modal" (default) renders the slide-over dialog used from the dashboard.
+   * "page" renders the same content as a full route (used by /app/notifications).
+   */
+  variant?: "modal" | "page";
 }
 
 const severityClasses: Record<NotificationSeverity, string> = {
-  info: "bg-blue-500/10 text-blue-600 dark:text-blue-300",
-  success: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
-  warning: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
-  critical: "bg-rose-500/10 text-rose-600 dark:text-rose-300",
+  info: "bg-info/10 text-info",
+  success: "bg-success/10 text-success",
+  warning: "bg-warning/10 text-warning",
+  critical: "bg-danger/10 text-danger",
 };
 
 function SeverityIcon({ severity }: { severity: NotificationSeverity }) {
@@ -65,8 +70,9 @@ function formatKind(kind: AppNotification["kind"]) {
 }
 
 export default function NotificationInbox({
-  isOpen,
+  isOpen = true,
   onClose,
+  variant = "modal",
 }: NotificationInboxProps) {
   const {
     notifications,
@@ -121,39 +127,27 @@ export default function NotificationInbox({
     );
   };
 
-  if (!isOpen) {
+  if (variant === "modal" && !isOpen) {
     return null;
   }
 
-  return (
-    <div className="fixed inset-0 z-50 px-4 py-6">
-      <button
-        type="button"
-        className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
-        onClick={onClose}
-        aria-label="Close notifications"
-      />
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="notification-inbox-title"
-        className="relative ml-auto flex h-full w-full max-w-md flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-950"
-      >
-        <div className="border-b border-slate-200 px-4 py-4 dark:border-white/10">
+  const body = (
+    <>
+        <div className="border-b border-subtle px-4 py-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand/10 text-brand">
                   <BellRing size={17} />
                 </span>
                 <div>
                   <h2
                     id="notification-inbox-title"
-                    className="text-base font-semibold text-slate-950 dark:text-white"
+                    className="text-base font-semibold text-text-primary"
                   >
                     Notifications
                   </h2>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                  <p className="text-sm text-text-muted">
                     {unreadCount > 0
                       ? `${unreadCount} unread alert${unreadCount === 1 ? "" : "s"}`
                       : "You are all caught up"}
@@ -161,14 +155,16 @@ export default function NotificationInbox({
                 </div>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"
-              aria-label="Close notifications"
-            >
-              <X size={17} />
-            </button>
+            {variant === "modal" ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-text-muted transition hover:bg-surface-elevated hover:text-text-primary"
+                aria-label="Close notifications"
+              >
+                <X size={17} />
+              </button>
+            ) : null}
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -176,7 +172,7 @@ export default function NotificationInbox({
               type="button"
               onClick={() => runAction("refresh", refresh)}
               disabled={busyAction === "refresh"}
-              className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10"
+              className="inline-flex h-9 items-center gap-2 rounded-xl border border-subtle px-3 text-xs font-bold text-text-secondary transition hover:bg-surface-elevated disabled:cursor-not-allowed disabled:opacity-60"
             >
               {busyAction === "refresh" ? (
                 <Loader2 size={14} className="animate-spin" />
@@ -189,7 +185,7 @@ export default function NotificationInbox({
               type="button"
               onClick={() => runAction("mark-all", markAllAsRead)}
               disabled={unreadCount === 0 || busyAction === "mark-all"}
-              className="inline-flex h-9 items-center gap-2 rounded-xl bg-brand-500 px-3 text-xs font-bold text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-9 items-center gap-2 rounded-xl bg-brand px-3 text-xs font-bold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {busyAction === "mark-all" ? (
                 <Loader2 size={14} className="animate-spin" />
@@ -202,8 +198,8 @@ export default function NotificationInbox({
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          <section className="border-b border-slate-200 p-4 dark:border-white/10">
-            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-950 dark:text-white">
+          <section className="border-b border-subtle p-4">
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-text-primary">
               <Settings size={16} />
               Reminder settings
             </div>
@@ -217,7 +213,7 @@ export default function NotificationInbox({
               ).map(([key, label]) => (
                 <label
                   key={key}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                  className="flex items-center justify-between gap-3 rounded-xl border border-subtle bg-surface-elevated px-3 py-2 text-sm font-semibold text-text-secondary"
                 >
                   <span>{label}</span>
                   <input
@@ -227,13 +223,13 @@ export default function NotificationInbox({
                       !preferences || busyAction === `preference-${key}`
                     }
                     onChange={() => updatePreference(key)}
-                    className="h-4 w-4 rounded border-slate-300 text-brand-500 focus:ring-brand-500"
+                    className="h-4 w-4 rounded border-subtle text-brand focus:ring-brand"
                   />
                 </label>
               ))}
             </div>
             {preferenceError ? (
-              <p className="mt-3 rounded-xl bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-300">
+              <p className="mt-3 rounded-xl bg-danger/100/10 px-3 py-2 text-xs font-semibold text-danger">
                 {preferenceError}
               </p>
             ) : null}
@@ -244,23 +240,23 @@ export default function NotificationInbox({
               {Array.from({ length: 4 }).map((_, index) => (
                 <div
                   key={index}
-                  className="animate-pulse rounded-2xl border border-slate-200 p-4 dark:border-white/10"
+                  className="animate-pulse rounded-2xl border border-subtle p-4"
                 >
-                  <div className="h-3 w-1/3 rounded bg-slate-200 dark:bg-white/10" />
-                  <div className="mt-3 h-3 w-5/6 rounded bg-slate-200 dark:bg-white/10" />
-                  <div className="mt-2 h-3 w-2/3 rounded bg-slate-200 dark:bg-white/10" />
+                  <div className="h-3 w-1/3 rounded bg-surface-elevated" />
+                  <div className="mt-3 h-3 w-5/6 rounded bg-surface-elevated" />
+                  <div className="mt-2 h-3 w-2/3 rounded bg-surface-elevated" />
                 </div>
               ))}
             </div>
           ) : error ? (
             <div className="p-4">
-              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">
+              <div className="rounded-2xl border border-danger/30 bg-danger/10 p-4 text-sm text-danger">
                 <p className="font-semibold">Could not load notifications</p>
                 <p className="mt-1 leading-6">{error}</p>
                 <button
                   type="button"
                   onClick={() => runAction("refresh-error", refresh)}
-                  className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl bg-rose-600 px-3 text-xs font-bold text-white transition hover:bg-rose-700"
+                  className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl bg-danger px-3 text-xs font-bold text-white transition hover:bg-danger/90"
                 >
                   <RefreshCcw size={14} />
                   Try again
@@ -269,24 +265,24 @@ export default function NotificationInbox({
             </div>
           ) : sortedNotifications.length === 0 ? (
             <div className="flex min-h-[260px] flex-col items-center justify-center p-6 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-elevated text-text-muted">
                 <Bell size={22} />
               </div>
-              <h3 className="mt-4 text-sm font-semibold text-slate-950 dark:text-white">
+              <h3 className="mt-4 text-sm font-semibold text-text-primary">
                 No notifications yet
               </h3>
-              <p className="mt-2 max-w-xs text-sm leading-6 text-slate-500 dark:text-slate-400">
+              <p className="mt-2 max-w-xs text-sm leading-6 text-text-muted">
                 Deadline reminders and opportunity alerts will appear here.
               </p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-200 dark:divide-white/10">
+            <div className="divide-y divide-border-subtle">
               {sortedNotifications.map((notification) => {
                 const isUnread = !notification.readAt;
                 return (
                   <article
                     key={notification.id}
-                    className={`p-4 ${isUnread ? "bg-brand-500/[0.04]" : ""}`}
+                    className={`p-4 ${isUnread ? "bg-brand/5" : ""}`}
                   >
                     <div className="flex gap-3">
                       <div
@@ -297,18 +293,24 @@ export default function NotificationInbox({
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
                               {formatKind(notification.kind)}
                             </p>
-                            <h3 className="mt-1 text-sm font-semibold leading-5 text-slate-950 dark:text-white">
+                            <h3 className="mt-1 text-sm font-semibold leading-5 text-text-primary">
                               {notification.title}
                             </h3>
                           </div>
-                          <span className="shrink-0 text-xs font-semibold text-slate-400">
+                          <span className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-text-muted">
+                            {isUnread ? (
+                              <span
+                                className="h-2 w-2 shrink-0 rounded-full bg-brand"
+                                aria-hidden="true"
+                              />
+                            ) : null}
                             {formatNotificationTime(notification.createdAt)}
                           </span>
                         </div>
-                        <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                        <p className="mt-2 text-sm leading-6 text-text-secondary">
                           {notification.body}
                         </p>
                         <div className="mt-3 flex flex-wrap gap-2">
@@ -323,7 +325,7 @@ export default function NotificationInbox({
                               disabled={
                                 busyAction === `read-${notification.id}`
                               }
-                              className="inline-flex h-8 items-center gap-2 rounded-lg border border-slate-200 px-2.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10"
+                              className="inline-flex h-8 items-center gap-2 rounded-lg border border-subtle px-2.5 text-xs font-bold text-text-secondary transition hover:bg-surface-elevated disabled:opacity-60"
                             >
                               <Check size={13} />
                               Mark read
@@ -339,7 +341,7 @@ export default function NotificationInbox({
                             disabled={
                               busyAction === `delete-${notification.id}`
                             }
-                            className="inline-flex h-8 items-center gap-2 rounded-lg border border-slate-200 px-2.5 text-xs font-bold text-slate-500 transition hover:bg-slate-50 hover:text-rose-600 disabled:opacity-60 dark:border-white/10 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-rose-300"
+                            className="inline-flex h-8 items-center gap-2 rounded-lg border border-subtle px-2.5 text-xs font-bold text-text-muted transition hover:bg-surface-elevated hover:text-danger disabled:opacity-60"
                           >
                             <Trash2 size={13} />
                             Delete
@@ -359,7 +361,7 @@ export default function NotificationInbox({
                 type="button"
                 onClick={() => runAction("fetch-more", fetchMore)}
                 disabled={busyAction === "fetch-more"}
-                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10"
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-subtle text-sm font-bold text-text-secondary transition hover:bg-surface-elevated disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {busyAction === "fetch-more" ? (
                   <Loader2 size={15} className="animate-spin" />
@@ -369,6 +371,36 @@ export default function NotificationInbox({
             </div>
           ) : null}
         </div>
+    </>
+  );
+
+  if (variant === "page") {
+    return (
+      <div className="min-h-[100dvh] bg-surface-body">
+        <div className="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-2xl flex-col px-4 py-5 sm:px-6">
+          <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-soft">
+            {body}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 px-4 py-6">
+      <button
+        type="button"
+        className="absolute inset-0 bg-surface-overlay backdrop-blur-sm"
+        onClick={onClose}
+        aria-label="Close notifications"
+      />
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="notification-inbox-title"
+        className="relative ml-auto flex h-full w-full max-w-md flex-col overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-elevated"
+      >
+        {body}
       </aside>
     </div>
   );

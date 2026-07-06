@@ -11,6 +11,8 @@ import { eq, or, and, sql, lt, isNull, desc } from "drizzle-orm";
 import * as path from "path";
 import { z } from "zod";
 import { OpportunityRankingService } from "./opportunity-ranking.service";
+import { OpportunityEmbeddingService } from "./opportunity-embedding.service";
+import { TtlCache } from "../common/cache/ttl-cache";
 import {
   OpportunityPreferenceDto,
   OpportunitySignalDto,
@@ -77,6 +79,7 @@ const ProcessedItemSchema = z.object({
   requirements: z.array(z.string()).optional().default([]),
   benefits: z.array(z.string()).optional().default([]),
   applicationProcess: z.array(z.string()).optional().default([]),
+  skills: z.array(z.string()).max(12).optional().default([]),
   deadline: z.string().optional().nullable(),
   sourceUrl: z.string().optional().nullable(),
   applyUrl: z.string().optional().nullable(),
@@ -102,6 +105,7 @@ const OpportunityEnhancementSchema = z.object({
   benefits: z.array(z.string()).optional().default([]),
   applicationProcess: z.array(z.string()).optional().default([]),
   application_process: z.array(z.string()).optional().default([]),
+  skills: z.array(z.string()).max(12).optional().default([]),
   eligibility: z.record(z.string(), z.unknown()).optional().default({}),
   tags: z.array(z.string()).optional().default([]),
   confidence: z.number().min(0).max(1).optional().default(0),
@@ -125,6 +129,7 @@ const AI_ENRICHMENT_SCHEMA = {
     requirements: { type: "array", items: { type: "string" } },
     benefits: { type: "array", items: { type: "string" } },
     applicationProcess: { type: "array", items: { type: "string" } },
+    skills: { type: "array", items: { type: "string" } },
     eligibility: { type: "object" },
     tags: { type: "array", items: { type: "string" } },
     confidence: { type: "number" },
@@ -141,6 +146,7 @@ const AI_ENRICHMENT_SCHEMA = {
     "requirements",
     "benefits",
     "applicationProcess",
+    "skills",
     "eligibility",
     "tags",
     "confidence",
@@ -410,15 +416,35 @@ async function loadStaticOpportunitySnapshot(): Promise<
   }
 }
 
+const OPPORTUNITY_READ_CACHE_TTL_MS = Number(
+  process.env.OPPORTUNITY_READ_CACHE_TTL_MS ?? 60_000,
+);
+
 @Injectable()
 export class OpportunitiesService {
   private readonly logger = new Logger(OpportunitiesService.name);
   private readonly supabase: SupabaseClient | null = null;
 
+  // Read-through caches for the near-static catalog. Invalidated on every write
+  // (create/update/status/remove/import/enhance/purge/sync). See TtlCache note
+  // re: multi-instance staleness.
+  private readonly listCache = new TtlCache<Record<string, any>[]>(
+    OPPORTUNITY_READ_CACHE_TTL_MS,
+  );
+  private readonly detailCache = new TtlCache<Record<string, any> | null>(
+    OPPORTUNITY_READ_CACHE_TTL_MS,
+  );
+
+  private invalidateReadCaches(): void {
+    this.listCache.clear();
+    this.detailCache.clear();
+  }
+
   constructor(
     private readonly opportunityRankingService: OpportunityRankingService,
     private readonly aiService: AiService,
     private readonly opportunityShareCardService: OpportunityShareCardService,
+    private readonly embeddingService: OpportunityEmbeddingService,
   ) {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -440,6 +466,28 @@ export class OpportunitiesService {
     const cappedLimit = Math.min(Number(limit) || 20, 100);
     const normalizedOffset = Number(offset) || 0;
 
+    const cacheKey = `${statusFilter}|${category ?? ""}|${cappedLimit}|${normalizedOffset}`;
+    const cached = this.listCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const rows = await this.loadOpportunityList(
+      statusFilter,
+      category,
+      cappedLimit,
+      normalizedOffset,
+    );
+    this.listCache.set(cacheKey, rows);
+    return rows;
+  }
+
+  private async loadOpportunityList(
+    statusFilter: string,
+    category: string | undefined,
+    cappedLimit: number,
+    normalizedOffset: number,
+  ): Promise<Record<string, any>[]> {
     try {
       if (this.supabase) {
         let request = this.supabase
@@ -480,14 +528,14 @@ export class OpportunitiesService {
             )
             .limit(cappedLimit)
             .offset(normalizedOffset)
-            .orderBy(opportunities.createdAt)
+            .orderBy(desc(opportunities.createdAt))
         : db
             .select()
             .from(opportunities)
             .where(eq(opportunities.status, statusFilter))
             .limit(cappedLimit)
             .offset(normalizedOffset)
-            .orderBy(opportunities.createdAt);
+            .orderBy(desc(opportunities.createdAt));
 
       const rows = await query.execute();
       if (rows.length > 0) {
@@ -598,6 +646,17 @@ export class OpportunitiesService {
   }
 
   async findOne(id: string) {
+    const cached = this.detailCache.get(id);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const result = await this.loadOpportunityDetail(id);
+    this.detailCache.set(id, result);
+    return result;
+  }
+
+  private async loadOpportunityDetail(id: string) {
     try {
       if (this.supabase) {
         const { data, error } = await this.supabase
@@ -837,6 +896,7 @@ export class OpportunitiesService {
     olderThanDays?: number | null;
     missingImagesOnly?: boolean;
   }) {
+    this.invalidateReadCaches();
     const hasMissingImagesFilter = Boolean(options.missingImagesOnly);
     const hasAgeFilter =
       typeof options.olderThanDays === "number" &&
@@ -879,6 +939,9 @@ export class OpportunitiesService {
 
     const limit = Math.min(Math.max(Number(options.limit) || 200, 1), 1000);
     const dryRun = Boolean(options.dryRun);
+    if (!dryRun) {
+      this.invalidateReadCaches();
+    }
     const { data, error } = await this.supabase
       .from("opportunities")
       .select("*")
@@ -952,6 +1015,7 @@ export class OpportunitiesService {
   }
 
   async create(dto: CreateOpportunityDto) {
+    this.invalidateReadCaches();
     if (this.supabase) {
       const { data, error } = await this.supabase
         .from("opportunities")
@@ -960,6 +1024,7 @@ export class OpportunitiesService {
         .single();
 
       if (!error) {
+        if (data?.id) void this.embeddingService.embedOpportunity(data.id);
         return withOpportunityUrlAliases(data as Record<string, any>);
       }
 
@@ -994,12 +1059,17 @@ export class OpportunitiesService {
       .returning()
       .execute();
 
+    if (result[0]?.id) {
+      void this.embeddingService.embedOpportunity(result[0].id);
+    }
+
     return result[0]
       ? withOpportunityUrlAliases(result[0] as Record<string, any>)
       : result[0];
   }
 
   async update(id: string, data: Partial<CreateOpportunityDto>) {
+    this.invalidateReadCaches();
     if (this.supabase) {
       const { data: updated, error } = await this.supabase
         .from("opportunities")
@@ -1039,6 +1109,7 @@ export class OpportunitiesService {
   }
 
   async updateStatus(id: string, status: string) {
+    this.invalidateReadCaches();
     if (this.supabase) {
       const { error } = await this.supabase
         .from("opportunities")
@@ -1046,6 +1117,11 @@ export class OpportunitiesService {
         .eq("id", id);
 
       if (!error) {
+        // Approval makes the row visible to recommendations — make sure it
+        // carries an embedding. Fire-and-forget; never throws.
+        if (status === "active") {
+          void this.embeddingService.embedOpportunity(id);
+        }
         return this.findOne(id);
       }
 
@@ -1059,6 +1135,9 @@ export class OpportunitiesService {
       .set({ status, updatedAt: new Date() })
       .where(eq(opportunities.id, id))
       .execute();
+    if (status === "active") {
+      void this.embeddingService.embedOpportunity(id);
+    }
     return this.findOne(id);
   }
 
@@ -1153,11 +1232,24 @@ export class OpportunitiesService {
       deadline: closeDate,
     });
 
+    const skills = this.normalizeStringList(
+      Array.isArray(aiData?.skills) && aiData.skills.length
+        ? aiData.skills
+        : opportunity.skills,
+    );
+    const eligibilityCriteria =
+      this.cleanOptionalText(aiData?.eligibilityCriteria, 800) ||
+      this.cleanOptionalText(opportunity.eligibility_criteria, 800) ||
+      this.cleanOptionalText(metadata.eligibility_criteria, 800) ||
+      null;
+
     const updatePayload = {
       summary,
       description,
       organization: organization || undefined,
       close_date: closeDate || undefined,
+      skills,
+      eligibility_criteria: eligibilityCriteria,
       funding_type:
         aiData?.fundingType || opportunity.funding_type || undefined,
       target_region:
@@ -1184,6 +1276,10 @@ export class OpportunitiesService {
       updated_at: new Date().toISOString(),
     };
 
+    // findOne() above populated the caches with the pre-enhancement row; clear
+    // them now (just before the write) so post-enhancement reads are fresh.
+    this.invalidateReadCaches();
+
     if (this.supabase) {
       const { data, error } = await this.supabase
         .from("opportunities")
@@ -1193,6 +1289,9 @@ export class OpportunitiesService {
         .single();
 
       if (!error) {
+        // Fire-and-forget: refresh the semantic embedding with the enriched
+        // content. Never throws; degrades to a no-op without an API key.
+        void this.embeddingService.embedOpportunity(id);
         await this.opportunityShareCardService.ensureShareCardForOpportunity(
           data,
           { force: true },
@@ -1258,7 +1357,64 @@ export class OpportunitiesService {
     }
   }
 
+  /**
+   * Admin backfill: re-run the single-row enhancement path over ACTIVE rows
+   * that have no skills yet (the marker that they predate skills extraction),
+   * newest first. Sequential with a small delay between rows to respect
+   * provider rate limits. Per-row failures are counted, never thrown.
+   */
+  async backfillEnrichment(
+    options: { limit?: number } = {},
+  ): Promise<{ processed: number; enhanced: number; failed: number }> {
+    const limit = Math.min(Math.max(Number(options.limit) || 25, 1), 200);
+    const rows = await db
+      .select({ id: opportunities.id })
+      .from(opportunities)
+      .where(
+        and(
+          eq(opportunities.status, "active"),
+          sql`coalesce(cardinality(${opportunities.skills}), 0) = 0`,
+        ),
+      )
+      .orderBy(desc(opportunities.updatedAt))
+      .limit(limit)
+      .execute();
+
+    const result = { processed: 0, enhanced: 0, failed: 0 };
+    for (let i = 0; i < rows.length; i += 1) {
+      const { id } = rows[i];
+      result.processed += 1;
+      try {
+        const outcome = await this.enhanceOpportunity(id);
+        if (outcome && (outcome as { success?: boolean }).success !== false) {
+          result.enhanced += 1;
+          // enhanceOpportunity already refreshes the embedding on success;
+          // this direct call covers rows whose content did not change.
+          void this.embeddingService.embedOpportunity(id);
+        } else {
+          result.failed += 1;
+        }
+      } catch (error) {
+        result.failed += 1;
+        this.logger.warn(
+          `Enrichment backfill failed for ${id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+      if (i < rows.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+    }
+
+    this.logger.log(
+      `Enrichment backfill: processed=${result.processed} enhanced=${result.enhanced} failed=${result.failed}`,
+    );
+    return result;
+  }
+
   async remove(id: string) {
+    this.invalidateReadCaches();
     if (this.supabase) {
       const { error } = await this.supabase
         .from("opportunities")
@@ -1347,6 +1503,15 @@ export class OpportunitiesService {
       location: input.location || input.targetRegion,
       is_remote: input.isRemote,
       close_date: input.deadline || undefined,
+      // Real columns (not just metadata) so ranking/embedding can read them.
+      skills: Array.isArray(record.skills)
+        ? this.normalizeStringList(record.skills)
+        : undefined,
+      eligibility_criteria:
+        input.eligibilityCriteria !== undefined
+          ? input.eligibilityCriteria
+          : ((record.eligibility_criteria as string | null | undefined) ??
+            undefined),
       eligibility,
       funding_type: input.fundingType,
       target_region: input.targetRegion || input.location,
@@ -1537,6 +1702,7 @@ export class OpportunitiesService {
       requirements,
       benefits,
       applicationProcess,
+      skills: this.normalizeStringList(aiData?.skills || item.skills),
       eligibility:
         (aiData?.eligibility as Record<string, unknown>) ||
         item.eligibility ||
@@ -1601,6 +1767,7 @@ Return ONLY valid JSON matching this schema:
   "requirements": ["specific requirement or document"],
   "benefits": ["specific award, funding, access, mentorship, or other benefit"],
   "applicationProcess": ["specific application step"],
+  "skills": ["5-12 concrete skills or competencies this opportunity develops or requires — empty array if the text doesn't state any"],
   "eligibility": { "level": "if stated", "nationality": "if stated", "field": "if stated" },
   "tags": ["3-6 concise tags"],
   "confidence": 0.0,
@@ -1765,10 +1932,9 @@ ${sourceText || "No source page text was available. Improve wording only from st
     const cleanedSummary = this.cleanOptionalText(summary, 420);
     const cleanedDescription = this.cleanText(String(description || ""), 1200);
     const fallback =
-      this.firstSentence(cleanedDescription) ||
-      this.cleanText(title, 220) ||
-      "Scholarship opportunity details are being verified by Edutu.";
+      this.firstSentence(cleanedDescription) || this.cleanText(title, 220);
     const candidate = cleanedSummary || fallback;
+    if (!candidate) return "";
     const words = candidate.split(/\s+/).filter(Boolean);
     const limited =
       words.length > 45 ? words.slice(0, 45).join(" ") : candidate;
@@ -1882,6 +2048,13 @@ ${sourceText || "No source page text was available. Improve wording only from st
     return this.opportunityRankingService.queryRecommendations(input);
   }
 
+  async scoreOpportunitiesForUser(userId: string, opportunityIds: string[]) {
+    return this.opportunityRankingService.scoreOpportunitiesForUser(
+      userId,
+      opportunityIds,
+    );
+  }
+
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async handleCronSync() {
     this.logger.log(
@@ -1989,6 +2162,7 @@ ${sourceText || "No source page text was available. Improve wording only from st
 
   // Save opportunities to database
   async saveOpportunities(items: any[]) {
+    this.invalidateReadCaches();
     let inserted = 0;
     let skipped = 0;
 
@@ -2071,6 +2245,7 @@ ${sourceText || "No source page text was available. Improve wording only from st
             requirements,
             benefits,
             applicationProcess,
+            skills: this.normalizeStringList(item.skills),
             qualityScore: qualityScore.score,
             validationStatus:
               qualityScore.score >= 70 ? "complete" : "needs_review",
@@ -2134,6 +2309,11 @@ ${sourceText || "No source page text was available. Improve wording only from st
 
       inserted = saved.length;
       skipped += validItems.length - uniqueRecords.length;
+      // Fire-and-forget: embed each new row for semantic recommendations.
+      for (const record of saved) {
+        const savedId = (record as Record<string, unknown>).id;
+        if (savedId) void this.embeddingService.embedOpportunity(String(savedId));
+      }
       await this.prewarmShareAssets(saved);
       return { inserted, skipped, opportunities: saved };
     }
@@ -2176,6 +2356,7 @@ ${sourceText || "No source page text was available. Improve wording only from st
         fundingType: item.fundingType || null,
         targetRegion: item.targetRegion || null,
         eligibility,
+        skills: this.normalizeStringList(item.skills),
         deadline: item.deadline ? new Date(item.deadline) : null,
         sourceUrl:
           item.sourceUrl ||
@@ -2230,6 +2411,9 @@ ${sourceText || "No source page text was available. Improve wording only from st
       this.logger.log(
         `Saved ${inserted} opportunities, skipped ${skipped} duplicates (batch insert)`,
       );
+      for (const row of result) {
+        if (row.id) void this.embeddingService.embedOpportunity(row.id);
+      }
       await this.prewarmShareAssets(result);
       return { inserted, skipped, opportunities: result };
     } catch (dbErr) {
@@ -2252,6 +2436,7 @@ ${sourceText || "No source page text was available. Improve wording only from st
               eligibilityCriteria: item.eligibilityCriteria || null,
               fundingType: item.fundingType || null,
               targetRegion: item.targetRegion || null,
+              skills: this.normalizeStringList(item.skills),
               deadline: item.deadline ? new Date(item.deadline) : null,
               sourceUrl:
                 item.sourceUrl ||
@@ -2279,6 +2464,9 @@ ${sourceText || "No source page text was available. Improve wording only from st
 
           if (result[0]) {
             inserted++;
+            if (result[0].id) {
+              void this.embeddingService.embedOpportunity(result[0].id);
+            }
             savedOpportunities.push(
               withOpportunityUrlAliases(result[0] as Record<string, any>),
             );

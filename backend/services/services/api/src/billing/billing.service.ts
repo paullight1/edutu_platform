@@ -71,11 +71,40 @@ export class BillingService {
     let recentTransactions: BillingTransactionSummary[] = [];
 
     if (supabase) {
-      const profileResult = await supabase
-        .from("profiles")
-        .select("is_pro, pro_since, pro_expires_at, credits, credits_balance")
-        .eq("user_id", userId)
-        .maybeSingle();
+      // These four reads are independent — fetch them concurrently instead of
+      // serially (was 4 sequential round-trips on a hot status endpoint).
+      const [
+        profileResult,
+        entitlementResult,
+        subscriptionResult,
+        transactionResult,
+      ] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("is_pro, pro_since, pro_expires_at, credits, credits_balance")
+          .eq("user_id", userId)
+          .maybeSingle(),
+        supabase
+          .from("billing_entitlements")
+          .select("feature_key, expires_at, status")
+          .eq("user_id", userId)
+          .eq("status", "active"),
+        supabase
+          .from("billing_subscriptions")
+          .select("status, current_period_end")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("billing_transactions")
+          .select(
+            "id, provider, provider_reference, type, amount, currency, status, metadata, created_at",
+          )
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(5),
+      ]);
 
       if (profileResult.error) {
         this.logger.warn(
@@ -85,12 +114,6 @@ export class BillingService {
         profile = profileResult.data;
       }
 
-      const entitlementResult = await supabase
-        .from("billing_entitlements")
-        .select("feature_key, expires_at, status")
-        .eq("user_id", userId)
-        .eq("status", "active");
-
       if (!entitlementResult.error) {
         const now = Date.now();
         activeEntitlements = (entitlementResult.data ?? []).filter((item) => {
@@ -98,26 +121,9 @@ export class BillingService {
         });
       }
 
-      const subscriptionResult = await supabase
-        .from("billing_subscriptions")
-        .select("status, current_period_end")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
       if (!subscriptionResult.error) {
         activeSubscription = subscriptionResult.data;
       }
-
-      const transactionResult = await supabase
-        .from("billing_transactions")
-        .select(
-          "id, provider, provider_reference, type, amount, currency, status, metadata, created_at",
-        )
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(5);
 
       if (!transactionResult.error) {
         recentTransactions = this.mapBillingTransactionRows(
@@ -441,26 +447,41 @@ export class BillingService {
       { onConflict: "provider,provider_reference" },
     );
 
-    await db
-      .update(profiles)
-      .set({
-        creditsBalance: sql`${profiles.creditsBalance} + ${input.credits}`,
-        updatedAt: new Date(),
-      })
-      .where(eq(profiles.userId, input.userId))
-      .execute();
+    // Paystack retries webhooks, so the credit grant must be idempotent. Insert
+    // the ledger row keyed by (type, reference_id) first; only credit the
+    // profile when this delivery actually inserted the row. Both writes share
+    // one transaction so a partial failure cannot grant credits without a
+    // ledger record (or vice-versa).
+    await db.transaction(async (tx) => {
+      const inserted = await tx
+        .insert(transactions)
+        .values({
+          userId: input.userId,
+          amount: input.credits,
+          type: "credit_topup",
+          status: "completed",
+          referenceId: input.reference,
+          description: `API credit top-up: +${input.credits}`,
+        })
+        .onConflictDoNothing({
+          target: [transactions.type, transactions.referenceId],
+          where: sql`reference_id is not null`,
+        })
+        .returning({ id: transactions.id });
 
-    await db
-      .insert(transactions)
-      .values({
-        userId: input.userId,
-        amount: input.credits,
-        type: "credit_topup",
-        status: "completed",
-        referenceId: input.reference,
-        description: `API credit top-up: +${input.credits}`,
-      })
-      .execute();
+      if (inserted.length === 0) {
+        // Webhook redelivery — credits were already granted for this reference.
+        return;
+      }
+
+      await tx
+        .update(profiles)
+        .set({
+          creditsBalance: sql`${profiles.creditsBalance} + ${input.credits}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(profiles.userId, input.userId));
+    });
   }
 
   private mapBillingTransactionRows(

@@ -18,68 +18,124 @@ type BrandedLoaderProps = {
 };
 
 export function BrandedLoader({
-  label = 'Loading...',
-  size = 72,
+  label = 'Loading…',
+  size = 76,
   style,
 }: BrandedLoaderProps) {
   const { colors } = useTheme();
-  const rotation = useRef(new Animated.Value(0)).current;
+  const spin = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const spin = Animated.loop(
-      Animated.timing(rotation, {
+    const spinAnim = Animated.loop(
+      Animated.timing(spin, {
         toValue: 1,
-        duration: 1800,
+        duration: 1100,
         easing: Easing.linear,
         useNativeDriver: true,
       }),
     );
+    const pulseAnim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 850,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 850,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
 
-    spin.start();
+    spinAnim.start();
+    pulseAnim.start();
 
     return () => {
-      spin.stop();
+      spinAnim.stop();
+      pulseAnim.stop();
     };
-  }, [rotation]);
+  }, [spin, pulse]);
 
-  const rotate = rotation.interpolate({
+  const rotate = spin.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
   });
+  const logoScale = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.92, 1.05],
+  });
+  const haloOpacity = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.18, 0.42],
+  });
+
+  const ring = size * 1.42;
 
   return (
     <View style={[styles.container, style]}>
       <View
-        style={[
-          styles.logoFrame,
-          {
-            width: size,
-            height: size,
-          },
-        ]}
+        style={[styles.stage, { width: ring, height: ring }]}
+        pointerEvents="none"
       >
-        <Image
+        {/* Faint full-circle track */}
+        <View
+          style={[
+            styles.track,
+            {
+              width: ring,
+              height: ring,
+              borderRadius: ring / 2,
+              borderColor: colors.border,
+            },
+          ]}
+        />
+
+        {/* Spinning accent arc */}
+        <Animated.View
+          style={[
+            styles.arc,
+            {
+              width: ring,
+              height: ring,
+              borderRadius: ring / 2,
+              borderTopColor: colors.accent,
+              borderRightColor: colors.accent,
+              transform: [{ rotate }],
+            },
+          ]}
+        />
+
+        {/* Soft glowing halo behind the logo */}
+        <Animated.View
+          style={[
+            styles.halo,
+            {
+              width: size * 0.92,
+              height: size * 0.92,
+              borderRadius: size,
+              backgroundColor: colors.accent,
+              opacity: haloOpacity,
+              transform: [{ scale: logoScale }],
+            },
+          ]}
+        />
+
+        {/* Logo with a gentle breathing pulse */}
+        <Animated.Image
           source={require('../../assets/logo1.png')}
           resizeMode="contain"
-          style={{ width: size * 0.66, height: size * 0.66 }}
+          style={{
+            width: size * 0.58,
+            height: size * 0.58,
+            transform: [{ scale: logoScale }],
+          }}
         />
       </View>
-
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.orbit,
-          {
-            width: size * 1.16,
-            height: size * 1.16,
-            borderRadius: size * 0.58,
-            borderColor: colors.accent,
-            borderRightColor: 'transparent',
-            borderBottomColor: 'transparent',
-            transform: [{ rotate }],
-          },
-        ]}
-      />
 
       {label ? (
         <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text>
@@ -92,20 +148,30 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 150,
+    minHeight: 160,
   },
-  logoFrame: {
+  stage: {
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
   },
-  orbit: {
+  track: {
     position: 'absolute',
-    borderWidth: 2,
+    borderWidth: 3,
+    opacity: 0.4,
+  },
+  arc: {
+    position: 'absolute',
+    borderWidth: 3,
+    borderBottomColor: 'transparent',
+    borderLeftColor: 'transparent',
+  },
+  halo: {
+    position: 'absolute',
   },
   label: {
-    marginTop: 18,
-    fontSize: 13,
+    marginTop: 22,
+    fontSize: 14,
     fontWeight: '600',
+    letterSpacing: 0.3,
   },
 });

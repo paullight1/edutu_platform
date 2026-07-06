@@ -1,4 +1,6 @@
 import { Injectable } from "@nestjs/common";
+import { db } from "../../db";
+import { adminAuditLogs } from "../../db/schema";
 
 export interface AuditEntry {
   action: string;
@@ -44,11 +46,25 @@ export class AuditService {
 
     try {
       this.logFn(entry);
-      // TODO: When database write access is available, insert into admin_audit_logs:
-      // await this.db.insert(adminAuditLogs).values(entry);
     } catch (error) {
       // Audit failures must never break the main flow
       console.error("Audit log write failed:", error);
+    }
+
+    // Persist to admin_audit_logs, best-effort. A DB failure (or the table not
+    // yet existing in some environment) must never break the audited action.
+    try {
+      const resourceId =
+        typeof metadata?.resourceId === "string" ? metadata.resourceId : null;
+      await db.insert(adminAuditLogs).values({
+        action,
+        actorUserId: userId,
+        resource,
+        resourceId,
+        metadata: metadata ?? {},
+      });
+    } catch (error) {
+      console.error("Audit DB write failed:", error);
     }
   }
 

@@ -15,6 +15,7 @@ import { SkipLink } from './lib/accessibility';
 import { BrowserRouter } from 'react-router-dom';
 import { ClerkProvider } from '@clerk/clerk-react';
 import { AuthProvider } from './hooks/useAuth';
+import { PersonalizationProvider } from './hooks/usePersonalization';
 import { GoalsProvider } from './hooks/useGoals';
 import { NotificationsProvider } from './hooks/useNotifications';
 import { AnalyticsProvider } from './hooks/useAnalytics';
@@ -36,7 +37,7 @@ initSentry();
 const LoadingScreen = () => (
   <div className="min-h-screen bg-[#0c0f1a] flex items-center justify-center">
     <div className="text-center">
-      <div className="w-12 h-12 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin mx-auto mb-4" />
+      <div className="w-12 h-12 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto mb-4" />
       <p className="text-white/60">Loading opportunities...</p>
     </div>
   </div>
@@ -54,13 +55,15 @@ root.render(
             <ToastProvider>
               <ThemeProvider>
                 <AuthProvider>
-                  <AnalyticsProvider>
-                    <NotificationsProvider>
-                      <GoalsProvider>
-                        <App />
-                      </GoalsProvider>
-                    </NotificationsProvider>
-                  </AnalyticsProvider>
+                  <PersonalizationProvider>
+                    <AnalyticsProvider>
+                      <NotificationsProvider>
+                        <GoalsProvider>
+                          <App />
+                        </GoalsProvider>
+                      </NotificationsProvider>
+                    </AnalyticsProvider>
+                  </PersonalizationProvider>
                 </AuthProvider>
               </ThemeProvider>
             </ToastProvider>

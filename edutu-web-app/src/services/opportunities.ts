@@ -10,9 +10,99 @@ import { getApiBaseUrl } from "../lib/apiBaseUrl";
 import { normalizeExternalUrl } from "../lib/externalUrl";
 import { syncOpportunityInventorySnapshot } from "./analyticsAggregator";
 import { updateOpportunitiesInN8n } from "./n8nIntegration";
-import { productApiRequest } from "./productApi";
+import { productApiRequest, isProductApiUnavailableError } from "./productApi";
+import { toMatchReasons } from "./serverMatchStore";
+import type { MatchReason } from "./personalizedRecommendations";
 
 let cachedOpportunities: Opportunity[] | null = null;
+let cachedOpportunitiesAt = 0;
+let revalidatePromise: Promise<void> | null = null;
+
+const SNAPSHOT_STORAGE_KEY = "edutu:opportunities:snapshot:v1";
+const SNAPSHOT_FRESH_MS = 10 * 60 * 1000;
+
+type OpportunitiesListener = (opportunities: Opportunity[]) => void;
+const opportunityListeners = new Set<OpportunitiesListener>();
+
+/**
+ * Subscribe to cache updates so hooks can reflect background revalidations
+ * (stale-while-revalidate) without refetching themselves.
+ */
+export function subscribeToOpportunities(
+  listener: OpportunitiesListener,
+): () => void {
+  opportunityListeners.add(listener);
+  return () => {
+    opportunityListeners.delete(listener);
+  };
+}
+
+function notifyOpportunityListeners(rows: Opportunity[]) {
+  opportunityListeners.forEach((listener) => {
+    try {
+      listener(rows);
+    } catch {
+      // A broken listener must not take down the cache pipeline.
+    }
+  });
+}
+
+function persistSnapshot(rows: Opportunity[], savedAt = Date.now()) {
+  try {
+    window.localStorage.setItem(
+      SNAPSHOT_STORAGE_KEY,
+      JSON.stringify({ savedAt, rows }),
+    );
+  } catch {
+    // Storage may be full or unavailable (private mode) — cache is optional.
+  }
+}
+
+function readSnapshot(): { savedAt: number; rows: Opportunity[] } | null {
+  try {
+    const raw = window.localStorage.getItem(SNAPSHOT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      !parsed ||
+      typeof parsed.savedAt !== "number" ||
+      !Array.isArray(parsed.rows) ||
+      parsed.rows.length === 0
+    ) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function setOpportunityCache(rows: Opportunity[], persistedAt = Date.now()) {
+  cachedOpportunities = rows;
+  cachedOpportunitiesAt = persistedAt;
+  persistSnapshot(rows);
+  notifyOpportunityListeners(rows);
+}
+
+/**
+ * Synchronously return the best known opportunity list (memory first, then the
+ * localStorage snapshot). Lets screens paint instantly while fresh data loads.
+ */
+export function getCachedOpportunitiesSync(): Opportunity[] | null {
+  if (cachedOpportunities) {
+    return cachedOpportunities;
+  }
+
+  const snapshot = readSnapshot();
+  if (snapshot) {
+    cachedOpportunities = snapshot.rows;
+    cachedOpportunitiesAt = snapshot.savedAt;
+    return snapshot.rows;
+  }
+
+  return null;
+}
+
 const SOURCE_BRAND_RE =
   /\b(?:dixcoverhubx|dixcover\s*hubx|opportunities\s*circle|oya\s*opportunities|scholars4dev|global\s*scholar\s*desk|scholarship\s*portal|jobs\.smartyacad\.com)\b/i;
 const SCRAPER_ARTIFACT_RE =
@@ -98,6 +188,8 @@ export interface PersonalizedOpportunity {
   opportunity: Opportunity;
   matchScore: number;
   matchReasons: string[];
+  /** Structured reasons from the server engine (kind/label/points). */
+  matchReasonDetails?: MatchReason[];
   matchRisks: string[];
   aiSummary: string | null;
   aiTags: string[];
@@ -113,6 +205,27 @@ function normaliseStringArray(value: unknown): string[] {
   return value
     .filter((item): item is string => typeof item === "string")
     .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Reason lists may arrive as plain strings or {kind,label,points} objects —
+ * always reduce to display labels so nothing renders "[object Object]".
+ */
+function coerceReasonLabels(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      if (typeof item === "string") return item.trim();
+      if (item && typeof item === "object") {
+        const label = (item as { label?: unknown }).label;
+        if (typeof label === "string") return label.trim();
+      }
+      return "";
+    })
     .filter(Boolean);
 }
 
@@ -216,37 +329,39 @@ function pickLongestStringValue(
 }
 
 function formatCategoryLabel(value: string): string {
-  return (
-    value
-      .split(/[\s_-]+/)
-      .filter(Boolean)
-      .map(
-        (part) =>
-          `${part.charAt(0).toUpperCase()}${part.slice(1).toLowerCase()}`,
-      )
-      .join(" ") || "General"
-  );
+  return value
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map(
+      (part) => `${part.charAt(0).toUpperCase()}${part.slice(1).toLowerCase()}`,
+    )
+    .join(" ");
 }
 
 function pickCategory(
   row: BackendOpportunityRow,
   metadata: Record<string, any>,
 ): string {
+  // Returns "" when no real category exists so the UI can omit the chip
+  // instead of rendering a generic "General" label. Generic values like
+  // "general"/"other" are treated as unknown and replaced by the canonical
+  // classification when one exists.
   const rawCategory = pickStringValue(
-    "General",
+    "",
     row.category,
     row.canonical_category,
     metadata.canonical_category,
   );
 
-  if (rawCategory.toLowerCase() === "general") {
-    return formatCategoryLabel(
-      pickStringValue(
-        rawCategory,
-        row.canonical_category,
-        metadata.canonical_category,
-      ),
+  if (/^(general|other)$/i.test(rawCategory)) {
+    const canonical = pickStringValue(
+      "",
+      row.canonical_category,
+      metadata.canonical_category,
     );
+    return /^(general|other)$/i.test(canonical)
+      ? ""
+      : formatCategoryLabel(canonical);
   }
 
   return formatCategoryLabel(rawCategory);
@@ -300,8 +415,10 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
     row.qualityScore ??
     0;
   const title = pickStringValue("Untitled opportunity", row.title, row.name);
+  // Never fabricate data: when a field is missing we return an empty string
+  // and let the UI omit it, rather than rendering generic filler text.
   const organization = pickPublicStringValue(
-    "Program Organizer",
+    "",
     metadata.public_organization,
     row.organization,
     row.provider,
@@ -313,9 +430,8 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
     row.summary,
     metadata.summary,
   );
-  const fallbackDescription = `${title} from ${organization}. Review ${category.toLowerCase()} details, deadline, benefits, and the application link on Edutu.`;
   const description = pickLongestStringValue(
-    fallbackDescription,
+    "",
     metadata.full_description,
     metadata.fullDescription,
     metadata.long_description,
@@ -337,12 +453,7 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
     category,
     deadline:
       row.close_date ?? row.deadline ?? row.application_deadline ?? null,
-    location: pickStringValue(
-      row.is_remote ? "Remote" : "Worldwide",
-      row.location,
-      row.target_region,
-      row.is_remote ? "Remote" : "",
-    ),
+    location: pickStringValue("", row.location, row.target_region),
     summary,
     description,
     requirements: cleanPublicStringArray(
@@ -484,13 +595,40 @@ async function requestOpportunityList(
   return rows.map(normaliseOpportunity);
 }
 
+function revalidateOpportunitiesInBackground(options: FetchOptions) {
+  if (revalidatePromise) {
+    return;
+  }
+
+  revalidatePromise = (async () => {
+    try {
+      const { signal: _signal, ...rest } = options;
+      const rows = await requestOpportunityList(rest);
+      if (rows.length > 0) {
+        setOpportunityCache(rows);
+      }
+    } catch (error) {
+      console.warn("Background opportunity refresh failed:", error);
+    } finally {
+      revalidatePromise = null;
+    }
+  })();
+}
+
 export async function fetchOpportunities(
   options: FetchOptions = {},
 ): Promise<Opportunity[]> {
   const { force } = options;
 
-  if (!force && cachedOpportunities) {
-    return cachedOpportunities;
+  if (!force) {
+    const cached = getCachedOpportunitiesSync();
+    if (cached) {
+      // Stale-while-revalidate: serve instantly, refresh quietly when stale.
+      if (Date.now() - cachedOpportunitiesAt > SNAPSHOT_FRESH_MS) {
+        revalidateOpportunitiesInBackground(options);
+      }
+      return cached;
+    }
   }
 
   try {
@@ -499,7 +637,9 @@ export async function fetchOpportunities(
       normalised.length > 0
         ? normalised
         : await requestStaticOpportunitySnapshot(options);
-    cachedOpportunities = resolvedOpportunities;
+    if (resolvedOpportunities.length > 0 || !cachedOpportunities) {
+      setOpportunityCache(resolvedOpportunities);
+    }
 
     if (resolvedOpportunities.length > 0) {
       void (async () => {
@@ -527,8 +667,10 @@ export async function fetchOpportunities(
     try {
       const snapshotOpportunities =
         await requestStaticOpportunitySnapshot(options);
-      cachedOpportunities = snapshotOpportunities;
-      return snapshotOpportunities;
+      if (snapshotOpportunities.length > 0) {
+        setOpportunityCache(snapshotOpportunities);
+        return snapshotOpportunities;
+      }
     } catch (snapshotError) {
       console.error(
         "Error loading static opportunity snapshot:",
@@ -536,8 +678,10 @@ export async function fetchOpportunities(
       );
     }
 
-    if (cachedOpportunities) {
-      return cachedOpportunities;
+    // Last resort: any stale local snapshot beats a blank feed.
+    const staleCache = getCachedOpportunitiesSync();
+    if (staleCache) {
+      return staleCache;
     }
 
     throw error;
@@ -591,7 +735,8 @@ export async function fetchOpportunityRecommendations(
     return {
       opportunity,
       matchScore: opportunity.match,
-      matchReasons: normaliseStringArray(row.match_reasons ?? row.matchReasons),
+      matchReasons: coerceReasonLabels(row.match_reasons ?? row.matchReasons),
+      matchReasonDetails: toMatchReasons(row),
       matchRisks: normaliseStringArray(row.match_risks ?? row.matchRisks),
       aiSummary:
         typeof row.ai_summary === "string"
@@ -604,14 +749,87 @@ export async function fetchOpportunityRecommendations(
   });
 }
 
-export async function getOpportunity(id: string): Promise<Opportunity | null> {
-  if (cachedOpportunities) {
-    const cached = cachedOpportunities.find(
-      (opportunity) => opportunity.id === id,
-    );
-    if (cached) {
-      return cached;
+export interface OpportunityMatchScore {
+  id: string;
+  matchScore: number;
+  matchReasons: string[];
+  matchReasonDetails: MatchReason[];
+  matchRisks: string[];
+}
+
+const MATCH_SCORES_CHUNK_SIZE = 50;
+
+/**
+ * Fetch server-computed match scores for arbitrary opportunity ids
+ * (POST /opportunities/match-scores, Clerk-authed). Requests are chunked to
+ * the API's 50-id limit and flattened. When the route is missing (older
+ * deploys) this degrades silently to whatever was already collected.
+ */
+export async function fetchOpportunityMatchScores(
+  token: string,
+  ids: string[],
+): Promise<OpportunityMatchScore[]> {
+  const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+  const results: OpportunityMatchScore[] = [];
+
+  for (let index = 0; index < uniqueIds.length; index += MATCH_SCORES_CHUNK_SIZE) {
+    const chunk = uniqueIds.slice(index, index + MATCH_SCORES_CHUNK_SIZE);
+
+    let payload: unknown;
+    try {
+      payload = await productApiRequest<unknown>(
+        "/opportunities/match-scores",
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({ opportunityIds: chunk }),
+        },
+      );
+    } catch (error) {
+      if (isProductApiUnavailableError(error)) {
+        // Endpoint not deployed yet — badges fall back to local scoring.
+        return results;
+      }
+      throw error;
     }
+
+    const rawScores =
+      payload && typeof payload === "object"
+        ? (payload as Record<string, unknown>).scores
+        : null;
+    const scores = Array.isArray(rawScores)
+      ? (rawScores as BackendOpportunityRow[])
+      : [];
+
+    for (const row of scores) {
+      if (!row || row.id === undefined || row.id === null) continue;
+      const rawScore = row.match_score ?? row.matchScore ?? row.match ?? 0;
+      results.push({
+        id: String(row.id),
+        matchScore: Number.isFinite(Number(rawScore)) ? Number(rawScore) : 0,
+        matchReasons: coerceReasonLabels(row.match_reasons ?? row.matchReasons),
+        matchReasonDetails: toMatchReasons(row),
+        matchRisks: normaliseStringArray(row.match_risks ?? row.matchRisks),
+      });
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Synchronous cache lookup for a single opportunity (memory or local
+ * snapshot). Used to render detail pages instantly on in-app navigation.
+ */
+export function getCachedOpportunitySync(id: string): Opportunity | null {
+  const cached = getCachedOpportunitiesSync();
+  return cached?.find((opportunity) => opportunity.id === id) ?? null;
+}
+
+export async function getOpportunity(id: string): Promise<Opportunity | null> {
+  const cached = getCachedOpportunitySync(id);
+  if (cached) {
+    return cached;
   }
 
   let response: Response;
@@ -647,15 +865,28 @@ export async function getOpportunity(id: string): Promise<Opportunity | null> {
   }
 
   const opportunity = normaliseOpportunity(row as BackendOpportunityRow);
-  cachedOpportunities = cachedOpportunities
-    ? cachedOpportunities.map((item) =>
-        item.id === opportunity.id ? opportunity : item,
-      )
+  const existing = getCachedOpportunitiesSync();
+  const merged = existing
+    ? existing.some((item) => item.id === opportunity.id)
+      ? existing.map((item) =>
+          item.id === opportunity.id ? opportunity : item,
+        )
+      : [opportunity, ...existing]
     : [opportunity];
+  // Merge without refreshing the list timestamp — one row isn't a full sync.
+  cachedOpportunities = merged;
+  persistSnapshot(merged, cachedOpportunitiesAt || Date.now());
+  notifyOpportunityListeners(merged);
 
   return opportunity;
 }
 
 export function clearOpportunitiesCache() {
   cachedOpportunities = null;
+  cachedOpportunitiesAt = 0;
+  try {
+    window.localStorage.removeItem(SNAPSHOT_STORAGE_KEY);
+  } catch {
+    // Storage unavailable — in-memory cache is already cleared.
+  }
 }

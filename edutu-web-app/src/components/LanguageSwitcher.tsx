@@ -16,7 +16,7 @@ export default function LanguageSwitcher() {
       value={active}
       onChange={(event) => changeLanguage(event.target.value as SupportedLanguage)}
       aria-label={t("settings.language.title")}
-      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200"
+      className="h-11 w-full rounded-xl border border-subtle bg-white px-3 text-sm font-semibold text-text-secondary outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
     >
       {supportedLanguages.map((lang) => (
         <option key={lang.code} value={lang.code}>

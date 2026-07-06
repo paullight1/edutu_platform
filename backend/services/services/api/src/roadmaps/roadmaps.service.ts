@@ -13,13 +13,23 @@ import {
   roadmapFeedback,
   profiles,
 } from "../db/schema";
-import { eq, and, or, ilike, desc, gte, sql } from "drizzle-orm";
+import {
+  eq,
+  and,
+  or,
+  ilike,
+  desc,
+  gte,
+  sql,
+  getTableColumns,
+} from "drizzle-orm";
 import {
   CreateRoadmapDto,
   UpdateRoadmapDto,
   RoadmapIntentDto,
   RoadmapFeedbackDto,
   AIAssistDto,
+  OpportunityPlanDto,
   AdoptRoadmapDto,
 } from "./dto/roadmap.dto";
 import { AiService } from "../ai";
@@ -298,42 +308,43 @@ export class RoadmapsService {
   async enroll(userId: string, roadmapId: string) {
     await this.findPublishedById(roadmapId);
 
-    const [existing] = await db
-      .select()
-      .from(roadmapEnrollments)
-      .where(
-        and(
-          eq(roadmapEnrollments.userId, userId),
-          eq(roadmapEnrollments.roadmapId, roadmapId),
-        ),
-      );
-
-    const [enrollment] = await db
-      .insert(roadmapEnrollments)
-      .values({
-        userId,
-        roadmapId,
-        status: "enrolled",
-        progress: 0,
-        currentStep: 0,
-        completedSteps: [],
-      })
-      .onConflictDoUpdate({
-        target: [roadmapEnrollments.userId, roadmapEnrollments.roadmapId],
-        set: {
+    // Upsert and bump the counter in one transaction. `xmax = 0` is true only
+    // when THIS statement inserted the row (not on the conflict-update path),
+    // so the enrollment_count increment happens exactly once even when two
+    // first-time enrolls race — no separate SELECT, no lost/double count.
+    const enrollment = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(roadmapEnrollments)
+        .values({
+          userId,
+          roadmapId,
           status: "enrolled",
-          enrolledAt: new Date(),
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
+          progress: 0,
+          currentStep: 0,
+          completedSteps: [],
+        })
+        .onConflictDoUpdate({
+          target: [roadmapEnrollments.userId, roadmapEnrollments.roadmapId],
+          set: {
+            status: "enrolled",
+            enrolledAt: new Date(),
+            updatedAt: new Date(),
+          },
+        })
+        .returning({
+          ...getTableColumns(roadmapEnrollments),
+          inserted: sql<boolean>`(xmax = 0)`,
+        });
 
-    if (!existing) {
-      await db
-        .update(roadmaps)
-        .set({ enrollmentCount: sql`${roadmaps.enrollmentCount} + 1` })
-        .where(eq(roadmaps.id, roadmapId));
-    }
+      const { inserted, ...enrollment } = row;
+      if (inserted) {
+        await tx
+          .update(roadmaps)
+          .set({ enrollmentCount: sql`${roadmaps.enrollmentCount} + 1` })
+          .where(eq(roadmaps.id, roadmapId));
+      }
+      return enrollment;
+    });
 
     return this.serializeEnrollment(enrollment);
   }
@@ -355,51 +366,52 @@ export class RoadmapsService {
       calendarSyncEnabled,
     );
 
-    const [existing] = await db
-      .select()
-      .from(roadmapEnrollments)
-      .where(
-        and(
-          eq(roadmapEnrollments.userId, userId),
-          eq(roadmapEnrollments.roadmapId, roadmapId),
-        ),
-      );
-
-    const [enrollment] = await db
-      .insert(roadmapEnrollments)
-      .values({
-        userId,
-        roadmapId,
-        status: "enrolled",
-        progress: existing?.progress || 0,
-        currentStep: existing?.currentStep || 0,
-        completedSteps: existing?.completedSteps || [],
-        targetOpportunityId,
-        targetDeadline,
-        calendarSyncEnabled,
-        adoptedPlan,
-        enrolledAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: [roadmapEnrollments.userId, roadmapEnrollments.roadmapId],
-        set: {
+    // On the conflict path the SET clause preserves the row's existing
+    // progress/currentStep/completedSteps (it only touches the adopt fields),
+    // and on the insert path there is no prior row — so the values() below use
+    // fresh defaults. `xmax = 0` gates the counter bump to true first inserts.
+    const enrollment = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(roadmapEnrollments)
+        .values({
+          userId,
+          roadmapId,
           status: "enrolled",
+          progress: 0,
+          currentStep: 0,
+          completedSteps: [],
           targetOpportunityId,
           targetDeadline,
           calendarSyncEnabled,
           adoptedPlan,
+          enrolledAt: new Date(),
           updatedAt: new Date(),
-        },
-      })
-      .returning();
+        })
+        .onConflictDoUpdate({
+          target: [roadmapEnrollments.userId, roadmapEnrollments.roadmapId],
+          set: {
+            status: "enrolled",
+            targetOpportunityId,
+            targetDeadline,
+            calendarSyncEnabled,
+            adoptedPlan,
+            updatedAt: new Date(),
+          },
+        })
+        .returning({
+          ...getTableColumns(roadmapEnrollments),
+          inserted: sql<boolean>`(xmax = 0)`,
+        });
 
-    if (!existing) {
-      await db
-        .update(roadmaps)
-        .set({ enrollmentCount: sql`${roadmaps.enrollmentCount} + 1` })
-        .where(eq(roadmaps.id, roadmapId));
-    }
+      const { inserted, ...enrollment } = row;
+      if (inserted) {
+        await tx
+          .update(roadmaps)
+          .set({ enrollmentCount: sql`${roadmaps.enrollmentCount} + 1` })
+          .where(eq(roadmaps.id, roadmapId));
+      }
+      return enrollment;
+    });
 
     return this.serializeEnrollment(enrollment, roadmap);
   }
@@ -456,48 +468,55 @@ export class RoadmapsService {
     completed: boolean,
   ) {
     const roadmap = await this.findPublishedById(roadmapId);
-
-    const [enrollment] = await db
-      .select()
-      .from(roadmapEnrollments)
-      .where(
-        and(
-          eq(roadmapEnrollments.userId, userId),
-          eq(roadmapEnrollments.roadmapId, roadmapId),
-        ),
-      );
-
-    if (!enrollment) throw new NotFoundException("Enrollment not found");
-
     const steps = roadmap.steps as Array<{ id: string }>;
     const stepIndex = steps.findIndex((s) => s.id === stepId);
 
-    let completedSteps = (enrollment.completedSteps as string[]) || [];
+    // Read-modify-write on the completedSteps array under a row lock, so two
+    // concurrent step toggles serialize instead of clobbering each other
+    // (last-write-wins would silently drop a completed step).
+    const updated = await db.transaction(async (tx) => {
+      const [enrollment] = await tx
+        .select()
+        .from(roadmapEnrollments)
+        .where(
+          and(
+            eq(roadmapEnrollments.userId, userId),
+            eq(roadmapEnrollments.roadmapId, roadmapId),
+          ),
+        )
+        .for("update");
 
-    if (completed) {
-      if (!completedSteps.includes(stepId)) {
-        completedSteps.push(stepId);
+      if (!enrollment) throw new NotFoundException("Enrollment not found");
+
+      let completedSteps = (enrollment.completedSteps as string[]) || [];
+
+      if (completed) {
+        if (!completedSteps.includes(stepId)) {
+          completedSteps.push(stepId);
+        }
+      } else {
+        completedSteps = completedSteps.filter((id) => id !== stepId);
       }
-    } else {
-      completedSteps = completedSteps.filter((id) => id !== stepId);
-    }
 
-    const progress =
-      steps.length > 0
-        ? Math.round((completedSteps.length / steps.length) * 100)
-        : 0;
+      const progress =
+        steps.length > 0
+          ? Math.round((completedSteps.length / steps.length) * 100)
+          : 0;
 
-    const [updated] = await db
-      .update(roadmapEnrollments)
-      .set({
-        progress,
-        currentStep: stepIndex,
-        completedSteps,
-        completedAt: progress === 100 ? new Date() : null,
-        updatedAt: new Date(),
-      })
-      .where(eq(roadmapEnrollments.id, enrollment.id))
-      .returning();
+      const [row] = await tx
+        .update(roadmapEnrollments)
+        .set({
+          progress,
+          currentStep: stepIndex,
+          completedSteps,
+          completedAt: progress === 100 ? new Date() : null,
+          updatedAt: new Date(),
+        })
+        .where(eq(roadmapEnrollments.id, enrollment.id))
+        .returning();
+
+      return row;
+    });
 
     return this.serializeEnrollment(updated);
   }
@@ -568,22 +587,27 @@ export class RoadmapsService {
   }
 
   async submitFeedback(userId: string, dto: RoadmapFeedbackDto) {
-    const [feedback] = await db
-      .insert(roadmapFeedback)
-      .values({
-        userId,
-        roadmapId: dto.roadmapId,
-        satisfactionScore: dto.satisfactionScore,
-        metExpectations: dto.metExpectations,
-        whatWorked: dto.whatWorked,
-        whatImproved: dto.whatImproved,
-        wouldRecommend: dto.wouldRecommend,
-      })
-      .returning();
+    // Insert the feedback and roll the rating aggregate forward atomically, so
+    // a failure can't leave feedback recorded with a stale rating (or vice
+    // versa).
+    return db.transaction(async (tx) => {
+      const [feedback] = await tx
+        .insert(roadmapFeedback)
+        .values({
+          userId,
+          roadmapId: dto.roadmapId,
+          satisfactionScore: dto.satisfactionScore,
+          metExpectations: dto.metExpectations,
+          whatWorked: dto.whatWorked,
+          whatImproved: dto.whatImproved,
+          wouldRecommend: dto.wouldRecommend,
+        })
+        .returning();
 
-    await this.updateRoadmapRating(dto.roadmapId, dto.satisfactionScore);
+      await this.updateRoadmapRating(dto.roadmapId, dto.satisfactionScore, tx);
 
-    return feedback;
+      return feedback;
+    });
   }
 
   async getStats() {
@@ -692,6 +716,320 @@ Then suggest a roadmap with 4-8 steps tailored to "${topic}".
       );
       return this.getDefaultMatchQuestions(topic);
     }
+  }
+
+  // The default preparation milestones — kept id-aligned with the mobile roadmap
+  // scaffold so the client can merge AI enrichment back onto its dated plan.
+  private readonly defaultPlanMilestones: Array<{ id: string; title: string }> =
+    [
+      { id: "milestone-1", title: "Confirm fit and requirements" },
+      { id: "milestone-2", title: "Collect proof and references" },
+      { id: "milestone-3", title: "Draft SOP and essays" },
+      { id: "milestone-4", title: "Feedback and final polish" },
+      { id: "milestone-5", title: "Submit before deadline" },
+    ];
+
+  async generateOpportunityPlan(dto: OpportunityPlanDto): Promise<{
+    summary: string;
+    winningStrategy: string;
+    milestones: Array<{ id: string; title: string; description: string }>;
+    checklist: string[];
+    supportActions: string[];
+    requirementActions: Array<{ requirement: string; action: string }>;
+    profileGaps: Array<{ gap: string; action: string }>;
+    bestPractices: string[];
+    generatedBy: "ai" | "fallback";
+  }> {
+    const scaffold =
+      dto.milestones && dto.milestones.length > 0
+        ? dto.milestones
+        : this.defaultPlanMilestones;
+
+    const constraints = [
+      dto.currentLevel ? `Current level: ${dto.currentLevel}.` : "",
+      dto.hoursPerWeek
+        ? `Available time: about ${dto.hoursPerWeek} hours per week.`
+        : "",
+      dto.deadline ? `Application deadline: ${dto.deadline}.` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    const profile = dto.profile;
+    const profileLines = profile
+      ? [
+          profile.country ? `Country: ${profile.country}.` : "",
+          profile.pursuit ? `Field of study/pursuit: ${profile.pursuit}.` : "",
+          profile.gradeLevel ? `Education level: ${profile.gradeLevel}.` : "",
+          profile.schoolName ? `Institution: ${profile.schoolName}.` : "",
+          typeof profile.isGraduate === "boolean"
+            ? `Graduate: ${profile.isGraduate ? "yes" : "no"}.`
+            : "",
+          profile.interests?.length
+            ? `Interests: ${profile.interests.slice(0, 10).join(", ")}.`
+            : "",
+          profile.ambitions?.length
+            ? `Ambitions: ${profile.ambitions.slice(0, 10).join(", ")}.`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" ")
+      : "";
+
+    const requirementLines = dto.requirements?.length
+      ? `\nListed requirements:\n${dto.requirements
+          .slice(0, 15)
+          .map((r, i) => `${i + 1}. ${r.slice(0, 300)}`)
+          .join("\n")}`
+      : "";
+
+    const prompt = `You are Edutu's opportunity coach for ambitious young Africans. Build a concrete, personalized preparation plan that maximizes this applicant's chance of WINNING this specific opportunity.
+
+Opportunity: "${dto.title}"${dto.organization ? ` by ${dto.organization}` : ""}${dto.category ? ` (category: ${dto.category})` : ""}.
+${dto.description ? `Details: ${dto.description.slice(0, 800)}` : ""}
+${constraints}
+${profileLines ? `\nApplicant profile: ${profileLines}` : ""}${requirementLines}
+
+Rewrite each of these milestones with specific, actionable guidance for THIS opportunity${profileLines ? " and THIS applicant" : ""}. Keep the same id and order:
+${scaffold.map((m, i) => `${i + 1}. [${m.id}] ${m.title}`).join("\n")}
+
+Return ONLY valid JSON with this exact structure:
+{
+  "summary": "2-3 sentence motivating overview specific to this opportunity${profileLines ? " and applicant" : ""}",
+  "winningStrategy": "3-4 sentences on how to genuinely stand out for this specific opportunity",
+  "milestones": [ { "id": "<same id>", "title": "<refined title>", "description": "<specific, concrete guidance in 1-2 sentences>" } ],
+  "checklist": ["specific document or task", "..."],
+  "supportActions": ["concrete support step", "..."],
+  "requirementActions": [ { "requirement": "<requirement, verbatim or condensed>", "action": "<exactly how this applicant satisfies or evidences it>" } ],
+  "profileGaps": [ { "gap": "<what is missing or weak in the applicant's profile for this opportunity>", "action": "<concrete step to close the gap before the deadline>" } ],
+  "bestPractices": ["what past winners of this kind of opportunity did, one concrete tactic per item"]
+}
+Provide 6-10 checklist items, 3-5 support actions, one requirementActions entry per listed requirement (max 15), 2-4 profileGaps (empty array if the profile is unknown), and 3-6 bestPractices.`;
+
+    try {
+      const parsed = await this.aiService.generateJson<any>({
+        feature: "roadmaps.opportunity_plan",
+        prompt,
+        responseMimeType: "application/json",
+        temperature: 0.4,
+        metadata: { title: dto.title, category: dto.category },
+      });
+
+      const normalized = this.normalizeOpportunityPlan(parsed, scaffold);
+      if (normalized) return { ...normalized, generatedBy: "ai" };
+    } catch (e) {
+      this.logger.warn(
+        "AI opportunity plan generation failed",
+        e instanceof Error ? e.message : String(e),
+      );
+    }
+
+    return {
+      ...this.fallbackOpportunityPlan(dto, scaffold),
+      generatedBy: "fallback",
+    };
+  }
+
+  private normalizeOpportunityPlan(
+    parsed: any,
+    scaffold: Array<{ id: string; title: string }>,
+  ): {
+    summary: string;
+    winningStrategy: string;
+    milestones: Array<{ id: string; title: string; description: string }>;
+    checklist: string[];
+    supportActions: string[];
+    requirementActions: Array<{ requirement: string; action: string }>;
+    profileGaps: Array<{ gap: string; action: string }>;
+    bestPractices: string[];
+  } | null {
+    if (!parsed || typeof parsed !== "object") return null;
+
+    const aiMilestones: any[] = Array.isArray(parsed.milestones)
+      ? parsed.milestones
+      : [];
+    if (aiMilestones.length === 0) return null;
+
+    const byId = new Map<string, any>();
+    aiMilestones.forEach((m) => {
+      if (m && typeof m.id === "string") byId.set(m.id, m);
+    });
+
+    // Align AI output to the scaffold by id (falling back to positional order),
+    // so a partial or reordered AI response can never drop a milestone.
+    const milestones = scaffold.map((base, index) => {
+      const match = byId.get(base.id) || aiMilestones[index] || {};
+      const description =
+        typeof match.description === "string" && match.description.trim()
+          ? match.description.trim()
+          : "";
+      if (!description) return null;
+      return {
+        id: base.id,
+        title:
+          typeof match.title === "string" && match.title.trim()
+            ? match.title.trim()
+            : base.title,
+        description,
+      };
+    });
+
+    if (milestones.some((m) => m === null)) return null;
+
+    const toStringList = (value: any): string[] =>
+      Array.isArray(value)
+        ? value
+            .map((item) => (typeof item === "string" ? item.trim() : ""))
+            .filter(Boolean)
+        : [];
+
+    const summary =
+      typeof parsed.summary === "string" ? parsed.summary.trim() : "";
+    const winningStrategy =
+      typeof parsed.winningStrategy === "string"
+        ? parsed.winningStrategy.trim()
+        : "";
+    if (!summary || !winningStrategy) return null;
+
+    // Pair-shaped extras ({requirement,action} / {gap,action}) are optional —
+    // an older or partial AI response must never invalidate the whole plan.
+    const toPairList = (
+      value: any,
+      keyA: string,
+      keyB: string,
+    ): Array<Record<string, string>> =>
+      Array.isArray(value)
+        ? value
+            .map((item) => {
+              const a =
+                item && typeof item[keyA] === "string" ? item[keyA].trim() : "";
+              const b =
+                item && typeof item[keyB] === "string" ? item[keyB].trim() : "";
+              return a && b ? { [keyA]: a, [keyB]: b } : null;
+            })
+            .filter((item): item is Record<string, string> => item !== null)
+        : [];
+
+    return {
+      summary,
+      winningStrategy,
+      milestones: milestones as Array<{
+        id: string;
+        title: string;
+        description: string;
+      }>,
+      checklist: toStringList(parsed.checklist),
+      supportActions: toStringList(parsed.supportActions),
+      requirementActions: toPairList(
+        parsed.requirementActions,
+        "requirement",
+        "action",
+      ) as Array<{ requirement: string; action: string }>,
+      profileGaps: toPairList(parsed.profileGaps, "gap", "action") as Array<{
+        gap: string;
+        action: string;
+      }>,
+      bestPractices: toStringList(parsed.bestPractices).slice(0, 8),
+    };
+  }
+
+  private fallbackOpportunityPlan(
+    dto: OpportunityPlanDto,
+    scaffold: Array<{ id: string; title: string }>,
+  ): {
+    summary: string;
+    winningStrategy: string;
+    milestones: Array<{ id: string; title: string; description: string }>;
+    checklist: string[];
+    supportActions: string[];
+    requirementActions: Array<{ requirement: string; action: string }>;
+    profileGaps: Array<{ gap: string; action: string }>;
+    bestPractices: string[];
+  } {
+    const org = dto.organization || "the organization";
+    const isScholarship = /scholar|fellow|grant/i.test(
+      `${dto.category || ""} ${dto.title}`,
+    );
+
+    const requirementActions = (dto.requirements || [])
+      .slice(0, 15)
+      .map((requirement) => ({
+        requirement,
+        action: `Gather or produce the evidence that proves you meet this, and file it in your application folder.`,
+      }));
+
+    const profileGaps: Array<{ gap: string; action: string }> = [];
+    if (dto.profile) {
+      if (!dto.profile.pursuit) {
+        profileGaps.push({
+          gap: "Your field of study is missing from your profile.",
+          action:
+            "Add your field of study so applications can speak to your academic direction.",
+        });
+      }
+      if (!dto.profile.ambitions?.length) {
+        profileGaps.push({
+          gap: "No stated career ambitions on your profile.",
+          action:
+            "Write 2-3 sentences on your long-term goal — selectors reward clear direction.",
+        });
+      }
+    }
+
+    const bestPractices = isScholarship
+      ? [
+          "Winners submit 3-5 days early — portals crash near deadlines.",
+          "Tie every essay paragraph to one proof point (award, project, result).",
+          "Brief your referees with your CV and the program's criteria before they write.",
+          "Mirror the program's own language when describing your impact.",
+        ]
+      : [
+          "Tailor your CV to the listed requirements — one line of proof per requirement.",
+          "Research the organization's recent work and reference it in your motivation.",
+          "Submit early and confirm receipt; follow up politely if no confirmation.",
+          "Prepare a 60-second story of your best result for interviews.",
+        ];
+
+    const guidance: Record<string, string> = {
+      "milestone-1": `Confirm the deadline, eligibility, required documents, and what ${org} rewards in strong applicants for ${dto.title}.`,
+      "milestone-2": `Gather transcripts, certificates, ID, and an updated CV, and request recommendation letters early.`,
+      "milestone-3": `Write a focused story covering impact, leadership, and why ${dto.title} is the right next step for you.`,
+      "milestone-4": `Get mentor feedback, tighten weak claims, proofread, and confirm every portal requirement.`,
+      "milestone-5": `Submit ahead of the deadline${dto.deadline ? ` (${dto.deadline})` : ""} and save confirmations and reference numbers.`,
+    };
+
+    return {
+      summary: `A step-by-step plan to prepare a competitive application for ${dto.title}${dto.organization ? ` at ${dto.organization}` : ""}. Turn each milestone into concrete assets — documents, essays, and reviews — and submit with time to spare.`,
+      winningStrategy: `Aim to submit a few days before the deadline. Use every task to produce one asset that proves ${isScholarship ? "academic strength, leadership, service, and long-term impact" : "fit, proof of skill, and motivation"}. Get a mentor to review your CV and statement before the final week.`,
+      milestones: scaffold.map((m) => ({
+        id: m.id,
+        title: m.title,
+        description:
+          guidance[m.id] ||
+          `Complete "${m.title}" for ${dto.title} and update your progress.`,
+      })),
+      checklist: [
+        "Official academic transcripts",
+        "Updated CV/Resume",
+        "Proof of identity (passport/national ID)",
+        "Academic certificates and awards",
+        isScholarship
+          ? "Recommendation letters (2-3)"
+          : "Professional references",
+        "Compelling personal statement / essays",
+        "Completed online application form",
+        "Final review before submission",
+      ],
+      supportActions: [
+        `Search for a recent applicant or alumni community for ${org}.`,
+        "Find one mentor to review your CV and statement before the final week.",
+        "Keep one evidence folder for transcripts, certificates, ID, and letters.",
+        "Book two feedback checkpoints: after the first draft and before submission.",
+      ],
+      requirementActions,
+      profileGaps,
+      bestPractices,
+    };
   }
 
   private getDefaultMatchQuestions(topic: string): {
@@ -1128,8 +1466,12 @@ ${roadmapsList.map((r) => `- ID: ${r.id}, Title: ${r.title}, Category: ${r.categ
     };
   }
 
-  private async updateRoadmapRating(roadmapId: string, score: number) {
-    await db
+  private async updateRoadmapRating(
+    roadmapId: string,
+    score: number,
+    executor: Pick<typeof db, "update"> = db,
+  ) {
+    await executor
       .update(roadmaps)
       .set({
         ratingAvg: sql`((${roadmaps.ratingAvg} * ${roadmaps.ratingCount}) + ${score}) / (${roadmaps.ratingCount} + 1)`,

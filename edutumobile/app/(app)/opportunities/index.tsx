@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react'
 import {
   FlatList,
   Image,
+  ImageBackground,
   Linking,
   Pressable,
   RefreshControl,
@@ -41,6 +42,8 @@ import {
   RefreshCw,
   Settings,
   Inbox,
+  Share2,
+  ArrowDownWideNarrow,
 } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { useTheme } from '../../../components/context/ThemeContext';
@@ -48,10 +51,20 @@ import { supabase } from '../../../lib/supabase';
 import { useOpportunities } from '@edutu/core/src/hooks/useOpportunities';
 import { Opportunity } from '@edutu/core/src/types/opportunity';
 import { recordOpportunitySignal } from '@edutu/core/src/services/opportunitySignals';
+import { getDeadlineBadge, urgencyColor } from '@edutu/core/src/utils/deadline';
 import { LinearGradient } from 'expo-linear-gradient';
 import { syncAndUpdateOpportunityWidgetSnapshot } from '../../../lib/opportunityWidgetSync';
 import { AdBanner, BANNER_PRESETS } from '../../../components/ui/AdBanner';
 import { DiscoveryCategoryIcon, getDiscoveryCategoryIconSource, getDiscoveryCategoryIconXml } from '../../../lib/discoveryCategoryIcons';
+import { shareOpportunity } from '../../../lib/shareOpportunity';
+
+type SortMode = 'recommended' | 'deadline' | 'newest';
+
+const SORT_OPTIONS: Array<{ id: SortMode; label: string }> = [
+  { id: 'recommended', label: 'Recommended' },
+  { id: 'deadline', label: 'Deadline' },
+  { id: 'newest', label: 'Newest' },
+];
 
 const { width } = Dimensions.get('window');
 const FOR_YOU_THRESHOLD = 35;
@@ -96,13 +109,6 @@ const DISCOVERY_CARDS = [
     colors: ['rgba(249,115,22,0.94)', 'rgba(194,65,12,0.82)'] as const,
     image: DISCOVERY_BACKGROUNDS.fellowships,
   },
-  {
-    id: 'training_conferences',
-    label: 'Training & Conferences',
-    icon: 'training',
-    colors: ['rgba(139,92,246,0.92)', 'rgba(109,40,217,0.82)'] as const,
-    image: DISCOVERY_BACKGROUNDS.training_conferences,
-  },
 ] satisfies Array<{
   id: DiscoveryCategoryId;
   label: string;
@@ -119,14 +125,6 @@ const OTHER_FEATURES = [
     icon: FileText,
     route: '/cv',
     gradient: ['#2563EB', '#4F46E5'] as const,
-  },
-  {
-    id: 'ai',
-    title: 'Edutu AI',
-    desc: 'Ask for guidance and next steps',
-    icon: MessageCircle,
-    route: '/chat',
-    gradient: ['#3b82f6', '#6366F1'] as const,
   },
   {
     id: 'discussion',
@@ -216,14 +214,8 @@ function getAccent(opportunity: Opportunity): string {
 }
 
 function getDeadlineText(deadline?: string | null): { text: string; color: string; days: number | null } {
-  if (!deadline) return { text: 'Rolling', color: '#10B981', days: null };
-  const difference = Math.ceil((new Date(deadline).getTime() - Date.now()) / 86400000);
-  if (difference < 0) return { text: 'Closed', color: '#64748B', days: difference };
-  if (difference === 0) return { text: 'Closes today', color: '#EF4444', days: 0 };
-  if (difference === 1) return { text: 'Tomorrow', color: '#EF4444', days: 1 };
-  if (difference <= 7) return { text: `${difference}d left`, color: '#F59E0B', days: difference };
-  if (difference <= 30) return { text: `${difference}d left`, color: '#10B981', days: difference };
-  return { text: `${Math.floor(difference / 7)}w left`, color: '#64748B', days: difference };
+  const badge = getDeadlineBadge(deadline);
+  return { text: badge.shortLabel, color: urgencyColor(badge.level), days: badge.daysLeft };
 }
 
 function getCategoryIcon(category: string) {
@@ -247,12 +239,39 @@ function shuffleOpportunities(items: Opportunity[], seed: number): Opportunity[]
   return copy;
 }
 
+// Soonest deadline first; expired after active; rolling/none always last.
+function deadlineSortKey(opportunity: Opportunity): number {
+  const days = getDeadlineBadge(opportunity.deadline).daysLeft;
+  if (days === null) return Number.POSITIVE_INFINITY;
+  if (days < 0) return Number.MAX_SAFE_INTEGER;
+  return days;
+}
+
+function newestSortKey(opportunity: Partial<Opportunity> & Record<string, any>): number {
+  const raw = opportunity.createdAt || opportunity.created_at || opportunity.lastUpdated || opportunity.last_updated;
+  const time = raw ? new Date(raw).getTime() : NaN;
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function sortOpportunities(list: Opportunity[], mode: SortMode, seed: number): Opportunity[] {
+  if (mode === 'deadline') {
+    return [...list].sort((a, b) => deadlineSortKey(a) - deadlineSortKey(b));
+  }
+  if (mode === 'newest') {
+    return [...list].sort((a, b) => newestSortKey(b) - newestSortKey(a));
+  }
+  // Recommended: match desc, but shuffle within same-score tiers so equal
+  // matches don't always show in the same order (stable sort preserves shuffle).
+  return shuffleOpportunities(list, seed).sort((a, b) => (b.match || 0) - (a.match || 0));
+}
+
 function getDiscoveryLabel(id: DiscoveryCategoryId): string {
   return DISCOVERY_CARDS.find((category) => category.id === id)?.label || id;
 }
 
 function getDiscoveryPageTitle(id: DiscoveryCategoryId): string {
-  if (id === 'grants') return 'Global Programs';
+  // Keep the page title identical to the card label on every surface
+  // (home grid + discover cards). "grants" is the internal id for Programs.
   return getDiscoveryLabel(id);
 }
 
@@ -333,15 +352,15 @@ function DiscoveryCard({
 }) {
   return (
     <Pressable onPress={onPress} style={[styles.discoveryCard, active && styles.discoveryCardActive]}>
-      <Image source={item.image} style={styles.discoveryImage} resizeMode="cover" />
-      <View style={styles.discoveryContent}>
-        <View style={styles.discoveryIcon}>
-          <DiscoveryCategorySvgIcon type={item.icon} />
-        </View>
-        <View style={styles.discoveryText}>
-          <Text style={styles.discoveryTitle} numberOfLines={2}>{item.label}</Text>
-        </View>
-      </View>
+      <ImageBackground
+        source={item.image}
+        style={styles.discoveryImageBg}
+        imageStyle={styles.discoveryImageRadius}
+        resizeMode="cover"
+      >
+        <View style={styles.discoveryTint} />
+        <Text style={styles.discoveryTitle} numberOfLines={1}>{item.label}</Text>
+      </ImageBackground>
     </Pressable>
   );
 }
@@ -392,20 +411,20 @@ function DiscoveryCategorySvgIcon({ type }: { type: DiscoveryCategoryIcon }) {
 }
 
 // ─── Featured Card (For You horizontal scroll) ──────────────────────────────
-function FeaturedCard({ item, onPress, colors, isDark }: { item: Opportunity; onPress: () => void; colors: any; isDark: boolean }) {
+function FeaturedCard({ item, onPress, onShare, colors, isDark, cardStyle }: { item: Opportunity; onPress: () => void; onShare: (item: Opportunity) => void; colors: any; isDark: boolean; cardStyle?: any }) {
   const accent = getAccent(item);
   const deadline = getDeadlineText(item.deadline);
   const CategoryIcon = getCategoryIcon(item.category);
 
   return (
-    <Pressable onPress={onPress} style={[styles.featuredCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <Pressable onPress={onPress} style={[styles.featuredCard, cardStyle, { backgroundColor: colors.card, borderColor: colors.border }]}>
       {item.image ? (
         <>
           <Image source={{ uri: item.image }} style={styles.featuredBgImage} resizeMode="cover" />
-          <LinearGradient colors={['rgba(2,6,23,0.05)', 'rgba(2,6,23,0.18)', 'rgba(2,6,23,0.88)']} style={StyleSheet.absoluteFill} />
+          <LinearGradient colors={['rgba(2,6,23,0.05)', 'rgba(2,6,23,0.18)', 'rgba(2,6,23,0.88)']} style={styles.featuredBgImage} />
         </>
       ) : (
-        <LinearGradient colors={[`${accent}65`, `${accent}25`, '#0F172A']} style={StyleSheet.absoluteFill} />
+        <LinearGradient colors={[`${accent}`, `${accent}80`, '#0B1220']} style={styles.featuredBgImage} />
       )}
 
       <View style={styles.featuredTop}>
@@ -436,12 +455,6 @@ function FeaturedCard({ item, onPress, colors, isDark }: { item: Opportunity; on
               {item.isRemote ? 'Remote' : item.location || 'Worldwide'}
             </Text>
           </View>
-          <View style={styles.featuredMetaPill}>
-            <Clock size={10} color="rgba(255,255,255,0.75)" />
-            <Text style={styles.featuredMetaPillText} numberOfLines={1}>
-              {deadline.text}
-            </Text>
-          </View>
         </View>
         <Text style={[styles.featuredTitle, { color: colors.foreground }]} numberOfLines={2}>{item.title}</Text>
         <Text style={[styles.featuredOrg, { color: 'rgba(255,255,255,0.7)' }]} numberOfLines={1}>{item.organization}</Text>
@@ -452,8 +465,20 @@ function FeaturedCard({ item, onPress, colors, isDark }: { item: Opportunity; on
           <Clock size={10} color={deadline.color} />
           <Text style={[styles.featuredDeadlineText, { color: deadline.color }]}>{deadline.text}</Text>
         </View>
-        <View style={[styles.featuredArrowBtn, { backgroundColor: 'rgba(255,255,255,0.14)' }]}>
-          <ChevronRight size={14} color="#FFFFFF" />
+        <View style={styles.featuredFooterActions}>
+          <Pressable
+            onPress={(event) => {
+              event.stopPropagation();
+              onShare(item);
+            }}
+            hitSlop={8}
+            style={[styles.featuredArrowBtn, { backgroundColor: 'rgba(255,255,255,0.14)' }]}
+          >
+            <Share2 size={13} color="#FFFFFF" />
+          </Pressable>
+          <View style={[styles.featuredArrowBtn, { backgroundColor: 'rgba(255,255,255,0.14)' }]}>
+            <ChevronRight size={14} color="#FFFFFF" />
+          </View>
         </View>
       </View>
     </Pressable>
@@ -461,7 +486,7 @@ function FeaturedCard({ item, onPress, colors, isDark }: { item: Opportunity; on
 }
 
 // ─── Detail Card (Grid view for explore) ─────────────────────────────────────
-function DetailCard({ item, onPress, colors, isDark }: { item: Opportunity; onPress: () => void; colors: any; isDark: boolean }) {
+function DetailCard({ item, onPress, onShare, colors, isDark }: { item: Opportunity; onPress: () => void; onShare: (item: Opportunity) => void; colors: any; isDark: boolean }) {
   const accent = getAccent(item);
   const deadline = getDeadlineText(item.deadline);
   const CategoryIcon = getCategoryIcon(item.category);
@@ -506,6 +531,12 @@ function DetailCard({ item, onPress, colors, isDark }: { item: Opportunity; onPr
           {item.organization}
         </Text>
 
+        {item.matchReasons?.[0] && (item.match || 0) >= 40 && (
+          <Text style={styles.detailMatchReason} numberOfLines={1}>
+            {item.matchReasons[0]}
+          </Text>
+        )}
+
         {/* Meta Info */}
         <View style={styles.detailCardMeta}>
           <View style={styles.detailMetaItem}>
@@ -534,8 +565,20 @@ function DetailCard({ item, onPress, colors, isDark }: { item: Opportunity; onPr
               <Text style={[styles.detailFreeText, { color: colors.textSecondary }]}>Open</Text>
             </View>
           )}
-          <View style={[styles.detailArrow, { backgroundColor: `${accent}12` }]}>
-            <ChevronRight size={16} color={accent} />
+          <View style={styles.detailFooterActions}>
+            <Pressable
+              onPress={(event) => {
+                event.stopPropagation();
+                onShare(item);
+              }}
+              hitSlop={8}
+              style={[styles.detailShareBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9' }]}
+            >
+              <Share2 size={15} color={colors.textSecondary} />
+            </Pressable>
+            <View style={[styles.detailArrow, { backgroundColor: `${accent}12` }]}>
+              <ChevronRight size={16} color={accent} />
+            </View>
           </View>
         </View>
       </View>
@@ -544,7 +587,7 @@ function DetailCard({ item, onPress, colors, isDark }: { item: Opportunity; onPr
 }
 
 // ─── List Row (for list view) ────────────────────────────────────────────────
-function ListRow({ item, onPress, colors, isDark }: { item: Opportunity; onPress: () => void; colors: any; isDark: boolean }) {
+function ListRow({ item, onPress, onShare, colors, isDark }: { item: Opportunity; onPress: () => void; onShare: (item: Opportunity) => void; colors: any; isDark: boolean }) {
   const accent = getAccent(item);
   const deadline = getDeadlineText(item.deadline);
   const CategoryIcon = getCategoryIcon(item.category);
@@ -588,6 +631,16 @@ function ListRow({ item, onPress, colors, isDark }: { item: Opportunity; onPress
         </View>
       </View>
 
+      <Pressable
+        onPress={(event) => {
+          event.stopPropagation();
+          onShare(item);
+        }}
+        hitSlop={8}
+        style={styles.listShareBtn}
+      >
+        <Share2 size={16} color={colors.textSecondary} />
+      </Pressable>
       <ChevronRight size={18} color={colors.textSecondary} />
     </Pressable>
   );
@@ -605,12 +658,20 @@ export default function OpportunitiesScreen() {
   const scrollY = useRef(new Animated.Value(0)).current;
   const { colors, isDark } = useTheme();
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [sortMode, setSortMode] = useState<SortMode>('recommended');
   const [showSearch, setShowSearch] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [selectedDiscoveryCategory, setSelectedDiscoveryCategory] = useState<DiscoveryCategoryId | null>(null);
   const [shuffleSeed, setShuffleSeed] = useState(0);
+
+  // Debounce the search term (~250ms) so typing stays smooth.
+  useEffect(() => {
+    const handle = setTimeout(() => setDebouncedSearch(searchTerm), 250);
+    return () => clearTimeout(handle);
+  }, [searchTerm]);
 
   useFocusEffect(
     useCallback(() => {
@@ -718,24 +779,33 @@ export default function OpportunitiesScreen() {
   );
 
   const explore = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    const source = showForYouOnly ? fullForYou : shuffleOpportunities(opportunities, shuffleSeed);
-    let filtered = source;
+    const tokens = debouncedSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    let filtered = showForYouOnly ? [...fullForYou] : [...opportunities];
 
-    if (term) {
-      filtered = filtered.filter((item) =>
-        [item.title, item.organization, item.category, item.location]
-          .filter(Boolean)
-          .some((value) => value!.toLowerCase().includes(term)),
-      );
+    // Token-based match: every word must appear somewhere in the broad haystack
+    // (title, org, category, location, tags, benefits, summary, requirements…).
+    if (tokens.length) {
+      filtered = filtered.filter((item) => {
+        const haystack = normalizeOpportunityText(item);
+        return tokens.every((token) => haystack.includes(token));
+      });
     }
 
     filtered = filtered.filter((item) => matchesDiscoveryCategory(item, selectedDiscoveryCategory));
 
-    return filtered;
-  }, [fullForYou, opportunities, searchTerm, selectedDiscoveryCategory, showForYouOnly, shuffleSeed]);
+    return sortOpportunities(filtered, sortMode, shuffleSeed);
+  }, [fullForYou, opportunities, debouncedSearch, selectedDiscoveryCategory, showForYouOnly, sortMode, shuffleSeed]);
 
   const shouldShowChooser = !showForYouOnly && !isCategoryPage;
+
+  // Warm the image cache for the opportunities most likely to be seen next so
+  // their remote banners appear instantly instead of popping in during scroll.
+  useEffect(() => {
+    const uris = new Set<string>();
+    forYou.slice(0, 4).forEach((item) => item.image && uris.add(item.image));
+    explore.slice(0, 16).forEach((item) => item.image && uris.add(item.image));
+    uris.forEach((uri) => void Image.prefetch(uri).catch(() => undefined));
+  }, [forYou, explore]);
 
   const openOpportunity = (opportunityId: string, context: string) => {
     void recordOpportunitySignal({
@@ -747,6 +817,17 @@ export default function OpportunitiesScreen() {
     }, getToken);
     router.push(`/opportunities/${opportunityId}`);
   };
+
+  const handleShareOpportunity = useCallback((opportunity: Opportunity) => {
+    void recordOpportunitySignal({
+      opportunityId: opportunity.id,
+      signalType: 'share',
+      signalValue: 2,
+      source: 'mobile_explore',
+      context: 'explore_card_share',
+    }, getToken);
+    void shareOpportunity(opportunity);
+  }, [getToken]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -951,32 +1032,33 @@ export default function OpportunitiesScreen() {
                   </Pressable>
                 </View>
 
-                <FlatList
-                  horizontal
-                  data={forYou}
-                  keyExtractor={(item) => `for-you-${item.id}`}
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.forYouRail}
-                  snapToInterval={166}
-                  snapToAlignment="start"
-                  decelerationRate="fast"
-                  renderItem={({ item }) => (
-                    <FeaturedCard item={item} colors={colors} isDark={isDark} onPress={() => openOpportunity(item.id, 'for_you_featured_open')} />
-                  )}
-                  ListEmptyComponent={
-                    <View style={[styles.emptyRail, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                      <Sparkles color={colors.accent} size={24} />
-                      <Text style={[styles.emptyRailTitle, { color: colors.foreground }]}>
-                        {hasPersonalizationDetails ? 'Building your matches' : 'Complete your profile'}
-                      </Text>
-                      <Text style={[styles.emptyRailBody, { color: colors.textSecondary }]}>
-                        {hasPersonalizationDetails
-                          ? 'We\'re ranking opportunities based on your profile.'
-                          : 'Add more profile details for personalized recommendations.'}
-                      </Text>
-                    </View>
-                  }
-                />
+                {forYou.length > 0 ? (
+                  <View style={styles.forYouGrid}>
+                    {forYou.slice(0, 4).map((item) => (
+                      <FeaturedCard
+                        key={`for-you-${item.id}`}
+                        item={item}
+                        colors={colors}
+                        isDark={isDark}
+                        onShare={handleShareOpportunity}
+                        onPress={() => openOpportunity(item.id, 'for_you_featured_open')}
+                        cardStyle={styles.forYouGridCard}
+                      />
+                    ))}
+                  </View>
+                ) : (
+                  <View style={[styles.emptyRail, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <Sparkles color={colors.accent} size={24} />
+                    <Text style={[styles.emptyRailTitle, { color: colors.foreground }]}>
+                      {hasPersonalizationDetails ? 'Building your matches' : 'Complete your profile'}
+                    </Text>
+                    <Text style={[styles.emptyRailBody, { color: colors.textSecondary }]}>
+                      {hasPersonalizationDetails
+                        ? 'We\'re ranking opportunities based on your profile.'
+                        : 'Add more profile details for personalized recommendations.'}
+                    </Text>
+                  </View>
+                )}
 
                 <View style={styles.featureHubWrap}>
                   <View style={styles.sectionHeader}>
@@ -1012,30 +1094,53 @@ export default function OpportunitiesScreen() {
 
             {/* Explore Header */}
             {(showForYouOnly || isCategoryPage) && (
-              <View style={[styles.sectionHeader, styles.sectionHeaderLarge]}>
-                <View style={styles.sectionTitleRow}>
-                  <View style={[styles.sectionBadge, { backgroundColor: `${colors.accent}18` }]}>
-                    <Compass color={colors.accent} size={16} />
+              <>
+                <View style={[styles.sectionHeader, styles.sectionHeaderLarge]}>
+                  <View style={styles.sectionTitleRow}>
+                    <View style={[styles.sectionBadge, { backgroundColor: `${colors.accent}18` }]}>
+                      <Compass color={colors.accent} size={16} />
+                    </View>
+                    <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+                      {showForYouOnly ? 'Personalized' : pageTitle}
+                    </Text>
                   </View>
-                  <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-                    {showForYouOnly ? 'Personalized' : pageTitle}
-                  </Text>
+                  <View style={[styles.viewModeWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <Pressable
+                      onPress={() => setViewMode('grid')}
+                      style={[styles.viewModeBtn, viewMode === 'grid' && { backgroundColor: `${colors.accent}15`, borderRadius: 10 }]}
+                    >
+                      <Text style={[styles.viewModeText, { color: viewMode === 'grid' ? colors.accent : colors.textSecondary }]}>Grid</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setViewMode('list')}
+                      style={[styles.viewModeBtn, viewMode === 'list' && { backgroundColor: `${colors.accent}15`, borderRadius: 10 }]}
+                    >
+                      <Text style={[styles.viewModeText, { color: viewMode === 'list' ? colors.accent : colors.textSecondary }]}>List</Text>
+                    </Pressable>
+                  </View>
                 </View>
-                <View style={[styles.viewModeWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <Pressable
-                    onPress={() => setViewMode('grid')}
-                    style={[styles.viewModeBtn, viewMode === 'grid' && { backgroundColor: `${colors.accent}15`, borderRadius: 10 }]}
-                  >
-                    <Text style={[styles.viewModeText, { color: viewMode === 'grid' ? colors.accent : colors.textSecondary }]}>Grid</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => setViewMode('list')}
-                    style={[styles.viewModeBtn, viewMode === 'list' && { backgroundColor: `${colors.accent}15`, borderRadius: 10 }]}
-                  >
-                    <Text style={[styles.viewModeText, { color: viewMode === 'list' ? colors.accent : colors.textSecondary }]}>List</Text>
-                  </Pressable>
+
+                <View style={styles.sortRow}>
+                  <ArrowDownWideNarrow size={14} color={colors.textSecondary} />
+                  {SORT_OPTIONS.map((option) => {
+                    const active = sortMode === option.id;
+                    return (
+                      <Pressable
+                        key={option.id}
+                        onPress={() => setSortMode(option.id)}
+                        style={[
+                          styles.sortChip,
+                          { borderColor: active ? colors.accent : colors.border, backgroundColor: active ? `${colors.accent}15` : colors.card },
+                        ]}
+                      >
+                        <Text style={[styles.sortChipText, { color: active ? colors.accent : colors.textSecondary }]}>
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
-              </View>
+              </>
             )}
 
             {error ? (
@@ -1047,9 +1152,9 @@ export default function OpportunitiesScreen() {
         }
         renderItem={({ item }) => (
           viewMode === 'grid' ? (
-            <DetailCard item={item} colors={colors} isDark={isDark} onPress={() => openOpportunity(item.id, showForYouOnly ? 'for_you_grid_open' : 'explore_grid_open')} />
+            <DetailCard item={item} colors={colors} isDark={isDark} onShare={handleShareOpportunity} onPress={() => openOpportunity(item.id, showForYouOnly ? 'for_you_grid_open' : 'explore_grid_open')} />
           ) : (
-            <ListRow item={item} colors={colors} isDark={isDark} onPress={() => openOpportunity(item.id, showForYouOnly ? 'for_you_list_open' : 'explore_list_open')} />
+            <ListRow item={item} colors={colors} isDark={isDark} onShare={handleShareOpportunity} onPress={() => openOpportunity(item.id, showForYouOnly ? 'for_you_list_open' : 'explore_list_open')} />
           )
         )}
         ItemSeparatorComponent={() => viewMode === 'list' ? <View style={{ height: 10 }} /> : null}
@@ -1199,14 +1304,17 @@ const styles = StyleSheet.create({
   discoveryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    // Keep each tile at its own height — without this the row can stretch its
+    // children to fill the FlatList header, blowing the cards up full-screen.
+    alignItems: 'flex-start',
     gap: 10,
     marginTop: 16,
     marginBottom: 18,
   },
   discoveryCard: {
     width: CARD_WIDTH,
-    minHeight: 76,
-    borderRadius: 18,
+    height: 72,
+    borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#0F172A',
     borderWidth: 1,
@@ -1220,39 +1328,36 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 5,
   },
-  discoveryImage: {
-    ...StyleSheet.absoluteFillObject,
-    width: '100%',
-    height: '100%',
-  },
-  discoveryContent: {
-    minHeight: 76,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  discoveryIcon: {
-    width: 46,
-    height: 46,
+  discoveryImageBg: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    flexShrink: 0,
+    paddingHorizontal: 10,
   },
-  discoveryText: {
-    flex: 1,
-    minWidth: 0,
+  discoveryImageRadius: {
+    borderRadius: 16,
+  },
+  discoveryTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(2,6,23,0.30)',
   },
   discoveryTitle: {
     color: '#FFFFFF',
-    fontSize: 13,
-    lineHeight: 16,
-    fontWeight: '900',
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.7)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 5,
   },
   viewModeWrapper: { flexDirection: 'row', borderRadius: 12, borderWidth: 1, padding: 3, gap: 4 },
   viewModeBtn: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: 10 },
   viewModeText: { fontSize: 11, fontWeight: '700' },
+  sortRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -4, marginBottom: 14 },
+  sortChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1 },
+  sortChipText: { fontSize: 12, fontWeight: '700' },
   sectionHeader: { marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sectionHeaderLarge: { marginTop: 24 },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -1261,6 +1366,8 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontWeight: '800' },
   viewMoreText: { fontSize: 13, fontWeight: '800' },
   forYouRail: { paddingBottom: 10, gap: 12, paddingRight: 4 },
+  forYouGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  forYouGridCard: { width: CARD_WIDTH, height: 224, marginRight: 0 },
   importedAdWrap: {
     marginTop: 22,
     marginBottom: 26,
@@ -1268,7 +1375,7 @@ const styles = StyleSheet.create({
 
   // Featured Card
   featuredCard: { width: 154, height: 224, borderRadius: 18, borderWidth: 1, overflow: 'hidden', marginRight: 10, justifyContent: 'space-between' },
-  featuredBgImage: { ...StyleSheet.absoluteFillObject },
+  featuredBgImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
   featuredTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', padding: 9, zIndex: 1, gap: 6 },
   featuredMatchBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
   featuredMatchText: { fontSize: 9, fontWeight: '800' },
@@ -1286,6 +1393,7 @@ const styles = StyleSheet.create({
   featuredDeadlineBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   featuredDeadlineText: { fontSize: 10, fontWeight: '700' },
   featuredArrowBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  featuredFooterActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 
   // Feature Hub
   featureHubWrap: {
@@ -1351,6 +1459,7 @@ const styles = StyleSheet.create({
   detailCategoryText: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase' },
   detailCardTitle: { fontSize: 14, lineHeight: 20, fontWeight: '800', marginBottom: 4 },
   detailCardOrg: { fontSize: 11, marginBottom: 10 },
+  detailMatchReason: { fontSize: 10, lineHeight: 13, fontWeight: '700', color: '#10B981', marginTop: -6, marginBottom: 10 },
   detailCardMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   detailMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   detailMetaText: { fontSize: 10, fontWeight: '600' },
@@ -1359,6 +1468,8 @@ const styles = StyleSheet.create({
   detailStipendText: { fontSize: 11, fontWeight: '700' },
   detailFree: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   detailFreeText: { fontSize: 11, fontWeight: '700' },
+  detailFooterActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  detailShareBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   detailArrow: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
 
   // List Row
@@ -1377,6 +1488,7 @@ const styles = StyleSheet.create({
   listDeadlineText: { fontSize: 10, fontWeight: '700' },
   listStipend: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   listStipendText: { fontSize: 10, fontWeight: '700', color: '#10B981' },
+  listShareBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
 
   // Empty States
   emptyRail: { width: 260, borderRadius: 18, borderWidth: 1, padding: 20, alignItems: 'center', gap: 8 },

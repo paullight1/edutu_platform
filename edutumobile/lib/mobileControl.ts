@@ -261,6 +261,16 @@ function getDeadlineDays(deadline: string | null | undefined, now: number): numb
   return Math.ceil((time - now) / (1000 * 60 * 60 * 24));
 }
 
+/**
+ * A widget should never surface a closed opportunity. Items with a parseable
+ * deadline in the past are dropped; rolling / unlisted deadlines (null days)
+ * are kept.
+ */
+function isWidgetItemExpired(item: OpportunityWidgetItem, now: number): boolean {
+  const days = getDeadlineDays(item.deadline, now);
+  return days !== null && days < 0;
+}
+
 function getDeadlinePriority(deadline: string | null | undefined, now: number): number {
   const days = getDeadlineDays(deadline, now);
   if (days === null) return 8;
@@ -309,7 +319,9 @@ export function buildOpportunityWidgetSnapshot(options: BuildOpportunityWidgetSn
   const normalisedItems = (options.feedItems
     ? options.feedItems.map(normaliseWidgetFeedItem)
     : (options.opportunities || []).map(normaliseOpportunityWidgetItem))
-    .filter((item): item is OpportunityWidgetItem => Boolean(item));
+    .filter((item): item is OpportunityWidgetItem => Boolean(item))
+    // Never let a closed opportunity reach the home screen.
+    .filter((item) => !isWidgetItemExpired(item, nowValue));
   const items = rankWidgetItems(normalisedItems, options.userId, nowValue).slice(0, OPPORTUNITY_WIDGET_ITEM_LIMIT);
 
   return {

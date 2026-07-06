@@ -7,6 +7,7 @@ import { Bookmark, Clock, Trash2, ExternalLink, Sparkles, AlertCircle } from "lu
 import { useTheme } from "../../../components/context/ThemeContext";
 import { supabase } from "../../../lib/supabase";
 import { fetchSavedOpportunities, unsaveOpportunity } from "../../../packages/core/src/services/bookmarks";
+import { getDeadlineBadge, urgencyColor } from "../../../packages/core/src/utils/deadline";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import { ErrorBoundary } from "../../../components/ui/ErrorBoundary";
@@ -38,11 +39,21 @@ export default function SavedScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [filter, setFilter] = useState<'all' | 'urgent' | 'upcoming'>('all');
 
+    // Clerk's getToken / user references change on every render. Keep getToken
+    // in a ref so it never destabilizes fetchSaved (which must only re-create
+    // when the signed-in user id changes) — otherwise the effect loops forever.
+    const getTokenRef = React.useRef(getToken);
+    getTokenRef.current = getToken;
+    const userId = user?.id;
+
     const fetchSaved = useCallback(async () => {
-        if (!user) return;
+        if (!userId) {
+            setLoading(false);
+            return;
+        }
         try {
             setLoading(true);
-            const saved = await fetchSavedOpportunities(supabase, user.id, getToken);
+            const saved = await fetchSavedOpportunities(supabase, userId, getTokenRef.current);
             const mapped: SavedOpportunity[] = saved.map((bookmark) => {
                 const deadline = bookmark.deadline;
                 const daysRemaining = deadline
@@ -71,7 +82,7 @@ export default function SavedScreen() {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [getToken, user]);
+    }, [userId]);
 
     useEffect(() => {
         fetchSaved();
@@ -106,30 +117,19 @@ export default function SavedScreen() {
         fetchSaved();
     }, [fetchSaved]);
 
-    const getDeadlineColor = (days: number) => {
-        if (days <= 0) return '#EF4444';
-        if (days <= 3) return '#EF4444';
-        if (days <= 7) return '#F59E0B';
-        return '#10B981';
-    };
-
-    const getDeadlineText = (days: number) => {
-        if (days < 0) return 'Ended';
-        if (days === 0) return 'Today';
-        if (days === 1) return 'Tomorrow';
-        if (days <= 7) return `${days} days left`;
-        return `${days} days left`;
-    };
-
     if (loading) {
         return (
             <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'left', 'right']}>
                 <ScreenHeader title="Saved Opportunities" showBack />
-                <View style={styles.loadingContainer}>
+                <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={styles.loadingContainer}
+                    showsVerticalScrollIndicator={false}
+                >
                     {Array.from({ length: 4 }).map((_, i) => (
                         <OpportunityCardSkeleton key={i} />
                     ))}
-                </View>
+                </ScrollView>
             </SafeAreaView>
         );
     }
@@ -244,12 +244,18 @@ export default function SavedScreen() {
                                             </View>
 
                                             <View style={styles.oppDetails}>
-                                                <View style={styles.detailRow}>
-                                                    <Clock size={14} color={getDeadlineColor(opp.daysRemaining)} />
-                                                    <Text style={[styles.detailText, { color: getDeadlineColor(opp.daysRemaining) }]}>
-                                                        {getDeadlineText(opp.daysRemaining)}
-                                                    </Text>
-                                                </View>
+                                                {(() => {
+                                                    const badge = getDeadlineBadge(opp.deadline);
+                                                    const color = urgencyColor(badge.level);
+                                                    return (
+                                                        <View style={styles.detailRow}>
+                                                            <Clock size={14} color={color} />
+                                                            <Text style={[styles.detailText, { color }]}>
+                                                                {badge.label}
+                                                            </Text>
+                                                        </View>
+                                                    );
+                                                })()}
                                                 {opp.category && (
                                                     <Text style={[styles.categoryTag, { color: colors.accent }]}>
                                                         {opp.category}
@@ -293,9 +299,9 @@ const styles = StyleSheet.create({
         paddingTop: 16,
     },
     loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingTop: 16,
+        paddingBottom: 40,
     },
     loadingText: {
         marginTop: 12,

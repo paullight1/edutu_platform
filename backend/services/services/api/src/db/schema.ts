@@ -10,6 +10,7 @@ import {
   uniqueIndex,
   numeric,
   date,
+  vector,
 } from "drizzle-orm/pg-core";
 
 // Users table (mirrors Supabase auth.users mostly, but owned by us for app profiles)
@@ -194,6 +195,10 @@ export const opportunities = pgTable(
     applicationUrl: text("application_url"),
     imageUrl: text("image_url"),
     tags: text("tags").array().default([]),
+    skills: text("skills").array().default([]),
+    embedding: vector("embedding", { dimensions: 768 }),
+    embeddingModel: text("embedding_model"),
+    embeddedAt: timestamp("embedded_at", { withTimezone: true }),
     source: text("source"),
     metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
     isRemote: boolean("is_remote").default(true),
@@ -231,6 +236,19 @@ export const opportunities = pgTable(
     index("idx_opportunities_last_verified").on(table.lastVerifiedAt),
   ],
 );
+
+// Per-user profile embeddings for semantic recommendation retrieval.
+// Backend-owned (service role only); refreshed when the profile_hash changes.
+// NOTE: user_id is TEXT in the live DB (matches profiles.user_id there, which
+// holds Clerk-derived ids despite the uuid declaration above — schema drift).
+export const userProfileEmbeddings = pgTable("user_profile_embeddings", {
+  userId: text("user_id").primaryKey(),
+  embedding: vector("embedding", { dimensions: 768 }).notNull(),
+  embeddingModel: text("embedding_model").notNull(),
+  profileHash: text("profile_hash").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
 
 export const opportunityVerificationRuns = pgTable(
   "opportunity_verification_runs",
@@ -493,6 +511,32 @@ export const transactions = pgTable("transactions", {
   description: text("description"),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// Admin/audit trail. actor_user_id is text (not uuid) because actors can be
+// local-dev admins ("local-admin:<email>") as well as real user ids.
+export const adminAuditLogs = pgTable(
+  "admin_audit_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    action: text("action").notNull(),
+    actorUserId: text("actor_user_id"),
+    resource: text("resource").notNull(),
+    resourceId: text("resource_id"),
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .default({})
+      .notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("admin_audit_logs_created_idx").on(table.createdAt),
+    index("admin_audit_logs_actor_idx").on(table.actorUserId, table.createdAt),
+  ],
+);
 
 // AI-Generated Quizzes
 export const quizzes = pgTable("quizzes", {

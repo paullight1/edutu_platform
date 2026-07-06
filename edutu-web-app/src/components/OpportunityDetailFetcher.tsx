@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
-import { getOpportunity } from "../services/opportunities";
+import { Link, Navigate, useLocation, useParams } from "react-router-dom";
+import { getCachedOpportunitySync, getOpportunity } from "../services/opportunities";
 import type { Opportunity } from "../types/opportunity";
 import PublicEditorialShell from "./PublicEditorialShell";
 import Seo from "./Seo";
@@ -12,13 +12,60 @@ interface OpportunityDetailFetcherProps {
   embedded?: boolean;
 }
 
+function isOpportunityLike(value: unknown, id: string): value is Opportunity {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      (value as Opportunity).id === id &&
+      typeof (value as Opportunity).title === "string",
+  );
+}
+
+function DetailSkeleton() {
+  return (
+    <main className="mx-auto w-full max-w-4xl animate-pulse px-4 py-6 sm:px-6 lg:px-8">
+      <div className="h-4 w-28 rounded bg-surface-elevated" />
+      <div className="mt-5 aspect-[16/7] w-full rounded-lg bg-surface-elevated" />
+      <div className="mt-6 flex gap-2">
+        <div className="h-6 w-24 rounded-md bg-surface-elevated" />
+        <div className="h-6 w-16 rounded-md bg-surface-elevated" />
+      </div>
+      <div className="mt-4 h-8 w-3/4 rounded bg-surface-elevated" />
+      <div className="mt-3 h-4 w-1/3 rounded bg-surface-elevated" />
+      <div className="mt-8 space-y-3">
+        <div className="h-4 w-full rounded bg-surface-elevated" />
+        <div className="h-4 w-full rounded bg-surface-elevated" />
+        <div className="h-4 w-5/6 rounded bg-surface-elevated" />
+        <div className="h-4 w-2/3 rounded bg-surface-elevated" />
+      </div>
+      <div className="mt-8 h-12 w-full rounded-md bg-surface-elevated sm:w-56" />
+    </main>
+  );
+}
+
 const OpportunityDetailFetcher: React.FC<OpportunityDetailFetcherProps> = ({
   onBack,
   embedded = false,
 }) => {
   const { id } = useParams<{ id: string }>();
-  const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
-  const [loading, setLoading] = useState(true);
+  const location = useLocation();
+
+  // Instant paint: prefer the opportunity handed over by the link that
+  // navigated here, then the list cache — the network only fills gaps.
+  const resolveInitial = (): Opportunity | null => {
+    if (!id) return null;
+    const fromState = (location.state as { opportunity?: unknown } | null)
+      ?.opportunity;
+    if (isOpportunityLike(fromState, id)) {
+      return fromState;
+    }
+    return getCachedOpportunitySync(id);
+  };
+
+  const [opportunity, setOpportunity] = useState<Opportunity | null>(
+    resolveInitial,
+  );
+  const [loading, setLoading] = useState(() => !opportunity && Boolean(id));
 
   useEffect(() => {
     if (!id) {
@@ -27,13 +74,24 @@ const OpportunityDetailFetcher: React.FC<OpportunityDetailFetcherProps> = ({
     }
 
     let isActive = true;
-    setLoading(true);
+    const known = resolveInitial();
+    setOpportunity(known);
+    setLoading(!known);
 
+    // Always revalidate so a stale cached row (edited deadline, fixed link)
+    // self-corrects, but without blocking the already-painted view.
     getOpportunity(id)
       .then((result) => {
-        if (isActive) {
+        if (!isActive) return;
+        if (result) {
           setOpportunity(result);
+        } else if (!known) {
+          setOpportunity(null);
         }
+      })
+      .catch(() => {
+        // Keep whatever we already rendered; cold loads fall through to the
+        // not-found state below.
       })
       .finally(() => {
         if (isActive) {
@@ -44,26 +102,21 @@ const OpportunityDetailFetcher: React.FC<OpportunityDetailFetcherProps> = ({
     return () => {
       isActive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   if (!id) {
     return <Navigate to="/opportunities" replace />;
   }
 
-  if (loading) {
+  if (loading && !opportunity) {
     if (embedded) {
-      return (
-        <div className="flex min-h-[calc(100dvh-220px)] items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />
-        </div>
-      );
+      return <DetailSkeleton />;
     }
 
     return (
       <PublicEditorialShell>
-        <div className="flex min-h-[calc(100dvh-180px)] items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />
-        </div>
+        <DetailSkeleton />
       </PublicEditorialShell>
     );
   }
@@ -78,20 +131,20 @@ const OpportunityDetailFetcher: React.FC<OpportunityDetailFetcherProps> = ({
             path={`/opportunity/${id}`}
             noindex
           />
-          <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-950">
-            <p className="text-sm font-semibold text-brand-600 dark:text-brand-300">
+          <section className="rounded-2xl border border-subtle bg-surface-layer p-6 shadow-soft">
+            <p className="text-sm font-semibold text-brand">
               Opportunity unavailable
             </p>
-            <h1 className="mt-2 text-3xl font-semibold text-slate-950 dark:text-white">
+            <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-text-primary">
               This opportunity is no longer available
             </h1>
-            <p className="mt-3 text-base leading-7 text-slate-600 dark:text-slate-300">
+            <p className="mt-3 text-base leading-7 text-text-secondary">
               Browse the latest Edutu opportunities to find active scholarships,
               internships, fellowships, grants, and programs.
             </p>
             <Link
               to="/app/opportunities"
-              className="mt-5 inline-flex rounded-md bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+              className="mt-5 inline-flex rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-elevated transition hover:bg-brand-700"
             >
               Browse opportunities
             </Link>
@@ -108,20 +161,20 @@ const OpportunityDetailFetcher: React.FC<OpportunityDetailFetcherProps> = ({
           path={`/opportunity/${id}`}
           noindex
         />
-        <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-950">
-          <p className="text-sm font-semibold text-brand-600 dark:text-brand-300">
+        <section className="rounded-2xl border border-subtle bg-surface-layer p-6 shadow-soft">
+          <p className="text-sm font-semibold text-brand">
             Opportunity unavailable
           </p>
-          <h1 className="mt-2 text-3xl font-semibold text-slate-950 dark:text-white">
+          <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-text-primary">
             This opportunity is no longer available
           </h1>
-          <p className="mt-3 text-base leading-7 text-slate-600 dark:text-slate-300">
+          <p className="mt-3 text-base leading-7 text-text-secondary">
             Browse the latest Edutu opportunities to find active scholarships,
             internships, fellowships, grants, and programs.
           </p>
           <Link
             to="/opportunities"
-            className="mt-5 inline-flex rounded-md bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+            className="mt-5 inline-flex rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-elevated transition hover:bg-brand-700"
           >
             Browse opportunities
           </Link>
@@ -134,14 +187,10 @@ const OpportunityDetailFetcher: React.FC<OpportunityDetailFetcherProps> = ({
     <React.Suspense
       fallback={
         embedded ? (
-          <div className="flex min-h-[calc(100dvh-220px)] items-center justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />
-          </div>
+          <DetailSkeleton />
         ) : (
           <PublicEditorialShell>
-          <div className="flex min-h-[calc(100dvh-180px)] items-center justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />
-          </div>
+            <DetailSkeleton />
           </PublicEditorialShell>
         )
       }
