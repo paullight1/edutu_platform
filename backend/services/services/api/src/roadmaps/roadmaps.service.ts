@@ -4,7 +4,9 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Optional,
 } from "@nestjs/common";
+import { GoalsService } from "../goals/goals.service";
 import { db } from "../db";
 import {
   roadmaps,
@@ -34,6 +36,9 @@ import {
 } from "./dto/roadmap.dto";
 import { AiService } from "../ai";
 import { toDatabaseUserId } from "../common/user-id";
+import { CacheService } from "../common/cache/cache.service";
+
+const ROADMAPS_CACHE_PREFIX = "roadmaps:";
 
 type RoadmapStep = {
   id: string;
@@ -63,7 +68,15 @@ const featuredFirstOrder = desc(
 export class RoadmapsService {
   private readonly logger = new Logger(RoadmapsService.name);
 
-  constructor(private readonly aiService: AiService) {}
+  constructor(
+    private readonly aiService: AiService,
+    @Optional() private readonly goalsService?: GoalsService,
+    @Optional() private readonly cache?: CacheService,
+  ) {}
+
+  private async invalidateRoadmapCache(): Promise<void> {
+    await this.cache?.delByPrefix(ROADMAPS_CACHE_PREFIX);
+  }
 
   async findAll(params?: {
     status?: string;
@@ -85,27 +98,32 @@ export class RoadmapsService {
     } = params || {};
 
     const cappedLimit = Math.min(limit, 100);
-    const conditions = [eq(roadmaps.status, status)];
+    const key = `${ROADMAPS_CACHE_PREFIX}list:${status}:${category || ""}:${difficulty || ""}:${featured ? 1 : 0}:${search || ""}:${cappedLimit}:${offset}`;
 
-    if (category) conditions.push(eq(roadmaps.category, category));
-    if (difficulty) conditions.push(eq(roadmaps.difficulty, difficulty));
-    if (featured) conditions.push(eq(roadmaps.isFeatured, true));
-    if (search) conditions.push(ilike(roadmaps.title, `%${search}%`));
+    const run = async () => {
+      const conditions = [eq(roadmaps.status, status)];
+      if (category) conditions.push(eq(roadmaps.category, category));
+      if (difficulty) conditions.push(eq(roadmaps.difficulty, difficulty));
+      if (featured) conditions.push(eq(roadmaps.isFeatured, true));
+      if (search) conditions.push(ilike(roadmaps.title, `%${search}%`));
 
-    const items = await db
-      .select()
-      .from(roadmaps)
-      .where(and(...conditions))
-      .orderBy(
-        featuredFirstOrder,
-        desc(roadmaps.ratingAvg),
-        desc(roadmaps.enrollmentCount),
-        desc(roadmaps.createdAt),
-      )
-      .limit(cappedLimit)
-      .offset(offset);
+      const items = await db
+        .select()
+        .from(roadmaps)
+        .where(and(...conditions))
+        .orderBy(
+          featuredFirstOrder,
+          desc(roadmaps.ratingAvg),
+          desc(roadmaps.enrollmentCount),
+          desc(roadmaps.createdAt),
+        )
+        .limit(cappedLimit)
+        .offset(offset);
 
-    return items.map((item) => this.serializeRoadmap(item));
+      return items.map((item) => this.serializeRoadmap(item));
+    };
+
+    return this.cache ? this.cache.wrap(key, 180, run) : run();
   }
 
   async findTemplates(params?: {
@@ -134,23 +152,33 @@ export class RoadmapsService {
   }
 
   async findPublishedById(id: string) {
-    const [item] = await db
-      .select()
-      .from(roadmaps)
-      .where(and(eq(roadmaps.id, id), eq(roadmaps.status, "published")));
+    const run = async () => {
+      const [item] = await db
+        .select()
+        .from(roadmaps)
+        .where(and(eq(roadmaps.id, id), eq(roadmaps.status, "published")));
 
-    if (!item) throw new NotFoundException("Roadmap not found");
-    return this.serializeRoadmap(item);
+      if (!item) throw new NotFoundException("Roadmap not found");
+      return this.serializeRoadmap(item);
+    };
+    return this.cache
+      ? this.cache.wrap(`${ROADMAPS_CACHE_PREFIX}pub:${id}`, 300, run)
+      : run();
   }
 
   async findBySlug(slug: string) {
-    const [item] = await db
-      .select()
-      .from(roadmaps)
-      .where(and(eq(roadmaps.slug, slug), eq(roadmaps.status, "published")));
+    const run = async () => {
+      const [item] = await db
+        .select()
+        .from(roadmaps)
+        .where(and(eq(roadmaps.slug, slug), eq(roadmaps.status, "published")));
 
-    if (!item) throw new NotFoundException("Roadmap not found");
-    return this.serializeRoadmap(item);
+      if (!item) throw new NotFoundException("Roadmap not found");
+      return this.serializeRoadmap(item);
+    };
+    return this.cache
+      ? this.cache.wrap(`${ROADMAPS_CACHE_PREFIX}slug:${slug}`, 300, run)
+      : run();
   }
 
   async create(
@@ -223,6 +251,7 @@ export class RoadmapsService {
       })
       .returning();
 
+    await this.invalidateRoadmapCache();
     return this.serializeRoadmap(item);
   }
 
@@ -296,12 +325,14 @@ export class RoadmapsService {
       .where(eq(roadmaps.id, id))
       .returning();
 
+    await this.invalidateRoadmapCache();
     return this.serializeRoadmap(updated);
   }
 
   async remove(id: string) {
     await this.findOne(id);
     await db.delete(roadmaps).where(eq(roadmaps.id, id));
+    await this.invalidateRoadmapCache();
     return { success: true, id };
   }
 
@@ -370,7 +401,7 @@ export class RoadmapsService {
     // progress/currentStep/completedSteps (it only touches the adopt fields),
     // and on the insert path there is no prior row — so the values() below use
     // fresh defaults. `xmax = 0` gates the counter bump to true first inserts.
-    const enrollment = await db.transaction(async (tx) => {
+    const { enrollment, inserted } = await db.transaction(async (tx) => {
       const [row] = await tx
         .insert(roadmapEnrollments)
         .values({
@@ -410,10 +441,65 @@ export class RoadmapsService {
           .set({ enrollmentCount: sql`${roadmaps.enrollmentCount} + 1` })
           .where(eq(roadmaps.id, roadmapId));
       }
-      return enrollment;
+      return { enrollment, inserted };
     });
 
-    return this.serializeEnrollment(enrollment, roadmap);
+    // On first enrollment, turn the dated plan into trackable goals. Each goal
+    // flows through the goals reminder pipeline, so the user gets delivered
+    // reminders (push + in-app) for every milestone — the loop that makes
+    // adoption "work".
+    let goalsCreated = 0;
+    if (inserted) {
+      goalsCreated = await this.createAdoptionGoals(userId, roadmap, adoptedPlan);
+    }
+
+    return { ...this.serializeEnrollment(enrollment, roadmap), goalsCreated };
+  }
+
+  private async createAdoptionGoals(
+    userId: string,
+    roadmap: any,
+    adoptedPlan: {
+      steps?: Array<{
+        id?: string;
+        title?: string;
+        description?: string;
+        dueAt?: string | null;
+      }>;
+    },
+  ): Promise<number> {
+    if (!this.goalsService) return 0;
+
+    const steps = Array.isArray(adoptedPlan?.steps) ? adoptedPlan.steps : [];
+    let created = 0;
+
+    for (const step of steps) {
+      if (!step?.title) continue;
+
+      const due = step.dueAt ? new Date(step.dueAt) : null;
+      const targetDate =
+        due && !Number.isNaN(due.getTime()) ? due.toISOString() : undefined;
+
+      try {
+        await this.goalsService.create(userId, {
+          title: step.title,
+          description: step.description || undefined,
+          category: roadmap.category || undefined,
+          targetDate,
+          source: "imported",
+          templateId: roadmap.id,
+          priority: "medium",
+        });
+        created += 1;
+      } catch (e) {
+        this.logger.warn(
+          `Failed to create adoption goal for step ${step.id ?? "?"}`,
+          e instanceof Error ? e.message : String(e),
+        );
+      }
+    }
+
+    return created;
   }
 
   async getUserEnrollments(userId: string) {
