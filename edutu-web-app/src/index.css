@@ -137,7 +137,7 @@
 
 /* ==========================================================================
    Theme packs — accent palettes selected via <html data-theme="…">.
-   `blue` is the default and lives in :root / .dark above (no attribute).
+   `indigo` is the default and lives in :root / .dark above (no attribute).
    Each pack overrides the full brand ramp; the `.dark[data-theme]` variant
    re-lightens brand-500/600 so accents stay legible on dark surfaces.
    ========================================================================== */
@@ -1077,6 +1077,29 @@ body {
     font-size: 1rem !important;
     line-height: 1.55 !important;
     margin-bottom: 2rem !important;
+  }
+
+  .landing-hero-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 0.4rem !important;
+    margin-top: 2.25rem !important;
+  }
+
+  .landing-hero-stat-card {
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0.25rem 0 !important;
+  }
+
+  .landing-hero-stat-value {
+    font-size: 1.05rem !important;
+  }
+
+  .landing-hero-stat-label {
+    font-size: 0.62rem !important;
+    letter-spacing: 0.18em !important;
   }
 
   .landing-section-title {
