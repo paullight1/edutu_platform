@@ -20,6 +20,7 @@ export * from './services/deepLinking';
 export * from './services/aiRoadmapGenerator';
 export * from './services/analytics';
 export * from './services/opportunitySignals';
+export * from './services/dismissedOpportunities';
 
 export * from './hooks/useChat';
 export * from './hooks/useOpportunities';
@@ -32,3 +33,5 @@ export * from './hooks/useCredits';
 export * from './hooks/useCreatorAccess';
 export * from './hooks/useFeatureFlags';
 export * from './utils/auth';
+export * from './utils/deadline';
+export * from './utils/feedAnchor';

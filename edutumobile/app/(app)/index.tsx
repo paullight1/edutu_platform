@@ -1,9 +1,8 @@
-import { View, Text, ScrollView, StyleSheet, Dimensions, Image, RefreshControl, TouchableOpacity } from "react-native";
+import { View, Text, ScrollView, StyleSheet, Dimensions, Image, ImageBackground, RefreshControl, TouchableOpacity } from "react-native";
 import React, { useCallback, useEffect, useState, useMemo } from "react";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useRouter } from "expo-router";
-import { SvgXml } from "react-native-svg";
 import {
     Sparkles,
     ChevronRight,
@@ -11,6 +10,7 @@ import {
     FileText,
     Store,
     BookmarkPlus,
+    Share2,
 } from "lucide-react-native";
 import { useTheme } from "../../components/context/ThemeContext";
 import { LinearGradient } from "expo-linear-gradient";
@@ -20,10 +20,12 @@ import { useOpportunities } from "@edutu/core/src/hooks/useOpportunities";
 import { Opportunity } from "@edutu/core/src/types/opportunity";
 import { toSafeUUID } from "@edutu/core/src/utils/auth";
 import { recordOpportunitySignal } from "@edutu/core/src/services/opportunitySignals";
+import { shareOpportunity } from "../../lib/shareOpportunity";
+import { getDeadlineBadge, urgencyColor } from "@edutu/core/src/utils/deadline";
 import { AnimatedPressable } from "../../components/ui/AnimatedPressable";
 import { ShimmerCard } from "../../components/ui/Shimmer";
 import { syncAndUpdateOpportunityWidgetSnapshot } from "../../lib/opportunityWidgetSync";
-import { getDiscoveryCategoryIconSource, getDiscoveryCategoryIconXml, type DiscoveryCategoryIcon } from "../../lib/discoveryCategoryIcons";
+import { type DiscoveryCategoryIcon } from "../../lib/discoveryCategoryIcons";
 
 const { width } = Dimensions.get('window');
 const CARD_GAP = 12;
@@ -34,6 +36,7 @@ const DISCOVERY_BACKGROUNDS = {
     internships: require("../../assets/discovery/internships.png"),
     grants: require("../../assets/discovery/grants.png"),
     fellowships: require("../../assets/discovery/fellowships.png"),
+    training_conferences: require("../../assets/discovery/training-conferences.png"),
 } as const;
 
 // ─── Quick Actions Grid Component ─────────────────────────────────────────────
@@ -48,6 +51,7 @@ const DISCOVERY_CATEGORIES = [
     {
         id: 'scholarships',
         title: 'Scholarships',
+        description: 'Tuition funding & awards',
         icon: 'scholarship',
         colors: ['rgba(239,68,35,0.94)', 'rgba(153,27,27,0.82)'] as [string, string],
         accent: '#EF4423',
@@ -56,6 +60,7 @@ const DISCOVERY_CATEGORIES = [
     {
         id: 'internships',
         title: 'Internships',
+        description: 'Hands-on early-career roles',
         icon: 'career',
         colors: ['rgba(37,99,235,0.92)', 'rgba(30,64,175,0.82)'] as [string, string],
         accent: '#2563EB',
@@ -64,6 +69,7 @@ const DISCOVERY_CATEGORIES = [
     {
         id: 'grants',
         title: 'Programs',
+        description: 'Funded programs & grants',
         icon: 'grant',
         colors: ['rgba(16,185,129,0.92)', 'rgba(4,120,87,0.82)'] as [string, string],
         accent: '#10B981',
@@ -72,6 +78,7 @@ const DISCOVERY_CATEGORIES = [
     {
         id: 'fellowships',
         title: 'Fellowships',
+        description: 'Fellowships & leadership tracks',
         icon: 'leadership',
         colors: ['rgba(249,115,22,0.94)', 'rgba(194,65,12,0.82)'] as [string, string],
         accent: '#F97316',
@@ -80,6 +87,7 @@ const DISCOVERY_CATEGORIES = [
 ] satisfies Array<{
     id: string;
     title: string;
+    description: string;
     icon: DiscoveryCategoryIcon;
     colors: [string, string];
     accent: string;
@@ -88,22 +96,6 @@ const DISCOVERY_CATEGORIES = [
 
 function getUserLookupIds(userId: string): string[] {
     return Array.from(new Set([userId, toSafeUUID(userId)]));
-}
-
-function DiscoverySvgIcon({ type }: { type: DiscoveryCategoryIcon }) {
-    const xml = getDiscoveryCategoryIconXml(type);
-
-    if (xml) {
-        return <SvgXml xml={xml} width={40} height={40} />;
-    }
-
-    return (
-        <Image
-            source={getDiscoveryCategoryIconSource(type)}
-            style={{ width: 40, height: 40 }}
-            resizeMode="contain"
-        />
-    );
 }
 
 function DiscoveryCategoryGrid({ router }: { router: any }) {
@@ -118,15 +110,17 @@ function DiscoveryCategoryGrid({ router }: { router: any }) {
                     hapticFeedback="medium"
                     scaleTo={0.96}
                 >
-                    <Image source={item.image} style={styles.discoveryImage} resizeMode="cover" />
-                    <View style={styles.discoveryContent}>
-                        <View style={styles.discoveryIcon}>
-                            <DiscoverySvgIcon type={item.icon} />
-                        </View>
-                        <Text style={styles.discoveryTitle} numberOfLines={2}>
+                    <ImageBackground
+                        source={item.image}
+                        style={styles.discoveryImageBg}
+                        imageStyle={styles.discoveryImageRadius}
+                        resizeMode="cover"
+                    >
+                        <View style={styles.discoveryTint} />
+                        <Text style={styles.discoveryTitle} numberOfLines={1}>
                             {item.title}
                         </Text>
-                    </View>
+                    </ImageBackground>
                 </AnimatedPressable>
             ))}
         </View>
@@ -161,36 +155,37 @@ function QuickActionsGrid({ router }: { router: any }) {
 }
 
 // ─── Opportunity Card Component ─────────────────────────────────────────────
-function OpportunityCard({ item, isDark, textPrimary, textSecondary, onPress, onBookmark, bookmarked = false, index = 0 }: {
+function OpportunityCard({ item, isDark, textPrimary, textSecondary, onPress, onBookmark, onShare, bookmarked = false, index = 0 }: {
     item: Opportunity;
     isDark: boolean;
     textPrimary: string;
     textSecondary: string;
     onPress?: () => void;
     onBookmark?: () => void;
+    onShare?: () => void;
     bookmarked?: boolean;
     index?: number;
 }) {
-    const deadlineText = useMemo(() => {
-        if (!item.deadline) return 'Rolling';
-        const now = new Date();
-        const end = new Date(item.deadline);
-        const diffDays = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-        if (diffDays < 0) return 'Ended';
-        if (diffDays === 0) return 'Today';
-        if (diffDays === 1) return 'Tomorrow';
-        return `${diffDays} days left`;
-    }, [item.deadline]);
+    const deadlineBadge = useMemo(() => getDeadlineBadge(item.deadline), [item.deadline]);
+    const deadlineText = deadlineBadge.shortLabel;
+    const deadlineColor = deadlineBadge.level === 'none'
+        ? (isDark ? '#94A3B8' : '#64748B')
+        : urgencyColor(deadlineBadge.level);
 
-    const deadlineColor = useMemo(() => {
-        if (!item.deadline) return isDark ? '#94A3B8' : '#64748B';
-        const now = new Date();
-        const end = new Date(item.deadline);
-        const diffDays = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-        if (diffDays <= 0) return '#EF4444';
-        if (diffDays <= 7) return '#F59E0B';
-        return '#10B981';
-    }, [item.deadline]);
+    const topMatchReason = item.matchReasons?.[0];
+    const showMatchReason = Boolean(topMatchReason) && (item.match ?? 0) >= 40;
+
+    // The org field often mirrors the title; only show the pill when it adds
+    // something new, so the title isn't duplicated on the card.
+    const orgLabel = (item.organization ?? "").trim();
+    const titleLabel = (item.title ?? "").trim();
+    const org = orgLabel.toLowerCase();
+    const title = titleLabel.toLowerCase();
+    const showOrg =
+        orgLabel.length > 0 &&
+        org !== title &&
+        !title.startsWith(org) &&
+        !org.startsWith(title);
 
     return (
         <AnimatedPressable
@@ -209,22 +204,44 @@ function OpportunityCard({ item, isDark, textPrimary, textSecondary, onPress, on
             )}
             <View style={styles.oppCardContent}>
                 <View style={styles.oppCardTop}>
-                    <View style={[styles.oppOrgBadge, { backgroundColor: isDark ? "rgba(99,102,241,0.15)" : "#F0F0FF" }]}>
-                        <Text style={styles.oppOrgText}>{item.organization}</Text>
-                    </View>
-                    {onBookmark && (
-                        <TouchableOpacity
-                            onPress={(e) => {
-                                e.stopPropagation();
-                                onBookmark();
-                            }}
-                            style={styles.bookmarkBtn}
-                        >
-                            <BookmarkPlus size={16} color={bookmarked ? '#6366F1' : textSecondary} fill={bookmarked ? '#6366F1' : 'transparent'} />
-                        </TouchableOpacity>
+                    {showOrg ? (
+                        <View style={[styles.oppOrgBadge, { backgroundColor: isDark ? "rgba(99,102,241,0.15)" : "#F0F0FF" }]}>
+                            <Text style={styles.oppOrgText} numberOfLines={1}>{orgLabel}</Text>
+                        </View>
+                    ) : (
+                        <View style={{ flex: 1 }} />
                     )}
+                    <View style={styles.oppCardActions}>
+                        {onShare && (
+                            <TouchableOpacity
+                                onPress={(e) => {
+                                    e.stopPropagation();
+                                    onShare();
+                                }}
+                                hitSlop={6}
+                                style={styles.bookmarkBtn}
+                            >
+                                <Share2 size={15} color={textSecondary} />
+                            </TouchableOpacity>
+                        )}
+                        {onBookmark && (
+                            <TouchableOpacity
+                                onPress={(e) => {
+                                    e.stopPropagation();
+                                    onBookmark();
+                                }}
+                                hitSlop={6}
+                                style={styles.bookmarkBtn}
+                            >
+                                <BookmarkPlus size={16} color={bookmarked ? '#6366F1' : textSecondary} fill={bookmarked ? '#6366F1' : 'transparent'} />
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 </View>
                 <Text style={[styles.oppTitle, { color: textPrimary }]} numberOfLines={2}>{item.title}</Text>
+                {showMatchReason && (
+                    <Text style={styles.oppMatchReason} numberOfLines={1}>{topMatchReason}</Text>
+                )}
                 <View style={[styles.oppFooter, { borderTopColor: isDark ? "rgba(255,255,255,0.05)" : "#F1F5F9" }]}>
                     <View style={styles.deadlineRow}>
                         <View style={[styles.deadlineDot, { backgroundColor: deadlineColor }]} />
@@ -254,6 +271,7 @@ function OpportunitySection({
     grid = false,
     bookmarkedIds = [],
     onBookmark,
+    onShare,
     router,
     onOpenOpportunity,
 }: {
@@ -268,6 +286,7 @@ function OpportunitySection({
     grid?: boolean;
     bookmarkedIds?: string[];
     onBookmark?: (id: string) => void;
+    onShare?: (item: Opportunity) => void;
     router?: any;
     onOpenOpportunity?: (id: string) => void;
 }) {
@@ -300,6 +319,7 @@ function OpportunitySection({
                                 router?.push(`/opportunities/${item.id}`);
                             }}
                             onBookmark={onBookmark ? () => onBookmark(item.id) : undefined}
+                            onShare={onShare ? () => onShare(item) : undefined}
                             bookmarked={bookmarkedIds.includes(item.id)}
                             index={idx}
                         />
@@ -422,6 +442,17 @@ export default function Dashboard() {
         }, getToken);
     }, [getToken]);
 
+    const handleShareOpportunity = useCallback((opportunity: Opportunity) => {
+        void recordOpportunitySignal({
+            opportunityId: opportunity.id,
+            signalType: 'share',
+            signalValue: 2,
+            source: 'mobile_home',
+            context: 'home_card_share',
+        }, getToken);
+        void shareOpportunity(opportunity);
+    }, [getToken]);
+
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor }} edges={['left', 'right']}>
             <ScrollView
@@ -461,6 +492,7 @@ export default function Dashboard() {
                             textSecondary={textSecondary}
                             bookmarkedIds={bookmarkedIds}
                             onBookmark={toggleBookmark}
+                            onShare={handleShareOpportunity}
                             onOpenOpportunity={recordOpportunityOpen}
                             router={router}
                         />
@@ -489,6 +521,7 @@ export default function Dashboard() {
                             grid
                             bookmarkedIds={bookmarkedIds}
                             onBookmark={toggleBookmark}
+                            onShare={handleShareOpportunity}
                             onOpenOpportunity={recordOpportunityOpen}
                             router={router}
                         />
@@ -606,45 +639,36 @@ const styles = StyleSheet.create({
     },
     discoveryCard: {
         width: CARD_WIDTH,
-        minHeight: 88,
-        borderRadius: 20,
+        height: 72,
+        borderRadius: 16,
         overflow: 'hidden',
         backgroundColor: '#0F172A',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.14)',
-        elevation: 4,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 8,
     },
-    discoveryImage: {
-        ...StyleSheet.absoluteFillObject,
-        width: '100%',
-        height: '100%',
-    },
-    discoveryContent: {
-        minHeight: 88,
-        paddingHorizontal: 14,
-        paddingVertical: 12,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    discoveryIcon: {
-        width: 46,
-        height: 46,
+    discoveryImageBg: {
+        flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        flexShrink: 0,
+        paddingHorizontal: 10,
+    },
+    discoveryImageRadius: {
+        borderRadius: 16,
+    },
+    discoveryTint: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(2,6,23,0.30)',
     },
     discoveryTitle: {
-        flex: 1,
-        minWidth: 0,
         color: '#FFFFFF',
-        fontSize: 13,
-        lineHeight: 16,
-        fontWeight: '900',
+        fontSize: 16,
+        lineHeight: 20,
+        fontWeight: '800',
+        letterSpacing: 0.3,
+        textAlign: 'center',
+        textShadowColor: 'rgba(0,0,0,0.7)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 5,
     },
     sectionHeader: {
         flexDirection: 'row',
@@ -783,6 +807,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 7,
     },
+    oppCardActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 2,
+    },
     bookmarkBtn: {
         padding: 4,
     },
@@ -802,6 +831,14 @@ const styles = StyleSheet.create({
         fontSize: 12,
         lineHeight: 16,
         fontWeight: '600',
+        marginBottom: 8,
+    },
+    oppMatchReason: {
+        fontSize: 10,
+        lineHeight: 13,
+        fontWeight: '600',
+        color: '#10B981',
+        marginTop: -4,
         marginBottom: 8,
     },
     oppFooter: {

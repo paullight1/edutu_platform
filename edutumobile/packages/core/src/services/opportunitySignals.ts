@@ -6,6 +6,7 @@ export type OpportunitySignalType =
   | 'save'
   | 'dismiss'
   | 'apply'
+  | 'share'
   | 'chat_like'
   | 'chat_dislike'
   | 'recommended_in_chat';

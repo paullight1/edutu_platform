@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
   sheetTitle: {
     fontSize: 34,
     lineHeight: 40,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   sheetDescription: {
     marginTop: 16,
@@ -385,7 +385,7 @@ const styles = StyleSheet.create({
   },
   sheetPrimaryText: {
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: '600',
   },
   sheetSecondaryButton: {
     height: 68,
@@ -396,6 +396,6 @@ const styles = StyleSheet.create({
   },
   sheetSecondaryText: {
     fontSize: 21,
-    fontWeight: '800',
+    fontWeight: '600',
   },
 });

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { Opportunity, OpportunityDifficulty } from '../types/opportunity';
+import { MatchReason, Opportunity, OpportunityDifficulty } from '../types/opportunity';
 import { toSafeUUID } from '../utils/auth';
 import { categorizeOpportunity } from './opportunityCategorization';
 
@@ -15,6 +15,8 @@ interface FetchOptions {
   userId?: string;
   getAuthToken?: () => Promise<string | null | undefined>;
   profileOverride?: Record<string, unknown> | null;
+  /** Opportunity ids the user dismissed — excluded server-side (and locally on fallback). */
+  excludeOpportunityIds?: string[];
   onSyncSnapshot?: (opportunities: Opportunity[]) => Promise<void>;
   onUpdateN8n?: (opportunities: Opportunity[], userId: string) => Promise<void>;
 }
@@ -70,10 +72,54 @@ async function syncExternalSnapshot(
   });
 }
 
+/**
+ * Forward-compat coercion: recommendation endpoints historically returned
+ * `match_reasons` as plain strings, but newer engine responses may send
+ * `{ kind, label, points }` objects. Always surface plain labels for UI lists.
+ */
+function toReasonLabels(value: any): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item: any) => {
+      if (typeof item === 'string') {
+        return item;
+      }
+      if (item && typeof item === 'object' && typeof item.label === 'string') {
+        return item.label;
+      }
+      return null;
+    })
+    .filter((label: string | null): label is string => Boolean(label));
+}
+
+function toReasonDetails(value: any): MatchReason[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((item: any) => item && typeof item === 'object' && typeof item.label === 'string')
+    .map((item: any) => ({
+      kind: (item.kind || 'interest') as MatchReason['kind'],
+      label: item.label,
+      points: typeof item.points === 'number' ? item.points : 0,
+    }));
+}
+
 function normaliseOpportunity(row: any): Opportunity {
   const meta = row.metadata || {};
   const shareCard = meta.share_card || {};
   const canonicalCategory = categorizeOpportunity(row);
+  const rawReasons = row.matchReasons ?? row.match_reasons ?? [];
+  const rawRisks = row.matchRisks ?? row.match_risks ?? [];
+  // Prefer the explicit additive field; fall back to object-shaped match_reasons.
+  const rawReasonDetails = row.match_reason_details ?? row.matchReasonDetails;
+  const matchReasonDetails = toReasonDetails(
+    Array.isArray(rawReasonDetails) ? rawReasonDetails : rawReasons,
+  );
   return {
     id: row.id,
     title: row.title,
@@ -96,8 +142,9 @@ function normaliseOpportunity(row: any): Opportunity {
     difficulty: (row.difficulty as OpportunityDifficulty) || 'Medium',
     featured: row.is_featured || row.isFeatured || false,
     aiSummary: row.aiSummary || row.ai_summary || row.refined_summary || null,
-    matchReasons: row.matchReasons || row.match_reasons || [],
-    matchRisks: row.matchRisks || row.match_risks || [],
+    matchReasons: toReasonLabels(rawReasons),
+    matchRisks: toReasonLabels(rawRisks),
+    matchReasonDetails: matchReasonDetails.length > 0 ? matchReasonDetails : undefined,
     aiTags: row.aiTags || row.ai_tags || row.tags || [],
     stipend: row.stipend || null,
     currency: row.currency || null,
@@ -152,16 +199,29 @@ function buildOpportunityContext(opportunity: any): string {
     .toLowerCase();
 }
 
-function calculateMatchScore(opportunity: any, profile: any): number {
-  if (!profile) return 0;
+export interface MatchResult {
+  score: number;
+  reasons: MatchReason[];
+  risks: string[];
+}
+
+/**
+ * Pure scoring: given a (normalised) profile and an opportunity row, returns the
+ * match score together with plain-English reasons and any risks worth flagging.
+ * Does NOT mutate the opportunity — callers assign the results explicitly.
+ */
+export function evaluateMatch(profile: any, opportunity: any): MatchResult {
+  const reasons: MatchReason[] = [];
+  const risks: string[] = [];
+
+  if (!profile) {
+    return { score: 0, reasons, risks };
+  }
 
   let score = 0;
   let criteriaCount = 0;
   const eligibility = opportunity.eligibility || {};
   const oppSearchText = buildOpportunityContext(opportunity);
-
-  // Track match details for reasons
-  const matchDetails: string[] = [];
 
   // 1. Field of Study / Major Match
   if (profile.field_of_study) {
@@ -171,10 +231,10 @@ function calculateMatchScore(opportunity: any, profile: any): number {
 
     if (oppField && userField === oppField) {
       score += 1.5;
-      matchDetails.push('Matches your field of study');
+      reasons.push({ kind: 'field', label: `Fits your field, ${profile.field_of_study}`, points: 1.5 });
     } else if (oppSearchText.includes(userField)) {
       score += 1.0;
-      matchDetails.push('Related to your field of study');
+      reasons.push({ kind: 'field', label: `Related to your field, ${profile.field_of_study}`, points: 1.0 });
     }
   }
 
@@ -189,9 +249,14 @@ function calculateMatchScore(opportunity: any, profile: any): number {
         matchedSkills.push(skill);
       }
     });
-    score += Math.min(1.5, hitCount / Math.max(1, profile.skills.length / 2));
+    const points = Math.min(1.5, hitCount / Math.max(1, profile.skills.length / 2));
+    score += points;
     if (matchedSkills.length > 0) {
-      matchDetails.push(`Matches ${matchedSkills.slice(0, 2).join(', ')}`);
+      reasons.push({
+        kind: 'experience',
+        label: `Uses your skills: ${matchedSkills.slice(0, 2).join(', ')}`,
+        points,
+      });
     }
   }
 
@@ -199,14 +264,21 @@ function calculateMatchScore(opportunity: any, profile: any): number {
   if (profile.interests && Array.isArray(profile.interests) && profile.interests.length > 0) {
     criteriaCount++;
     let hitCount = 0;
+    const matchedInterests: string[] = [];
     profile.interests.forEach((interest: string) => {
       if (oppSearchText.includes(interest.toLowerCase())) {
         hitCount++;
+        matchedInterests.push(interest);
       }
     });
-    score += Math.min(1.0, hitCount / Math.max(1, profile.interests.length / 2));
-    if (hitCount > 0) {
-      matchDetails.push('Aligns with your interests');
+    const points = Math.min(1.0, hitCount / Math.max(1, profile.interests.length / 2));
+    score += points;
+    if (matchedInterests.length > 0) {
+      reasons.push({
+        kind: 'interest',
+        label: `Matches your interest in ${matchedInterests[0]}`,
+        points,
+      });
     }
   }
 
@@ -214,14 +286,17 @@ function calculateMatchScore(opportunity: any, profile: any): number {
   if (profile.ambitions && Array.isArray(profile.ambitions) && profile.ambitions.length > 0) {
     criteriaCount++;
     let hitCount = 0;
+    const matchedGoals: string[] = [];
     profile.ambitions.forEach((ambition: string) => {
       if (oppSearchText.includes(ambition.toLowerCase())) {
         hitCount++;
+        matchedGoals.push(ambition);
       }
     });
-    score += Math.min(1.0, hitCount / Math.max(1, profile.ambitions.length));
-    if (hitCount > 0) {
-      matchDetails.push('Fits your career goals');
+    const points = Math.min(1.0, hitCount / Math.max(1, profile.ambitions.length));
+    score += points;
+    if (matchedGoals.length > 0) {
+      reasons.push({ kind: 'goal', label: `Supports your goal: ${matchedGoals[0]}`, points });
     }
   }
 
@@ -233,13 +308,15 @@ function calculateMatchScore(opportunity: any, profile: any): number {
     if (profile.country) {
       if (countries.includes(profile.country.toLowerCase())) {
         score += 1.0;
-        matchDetails.push('Available in your country');
+        reasons.push({ kind: 'location', label: `Open to your country, ${profile.country}`, points: 1.0 });
       } else {
-        return 0;
+        risks.push(`May not be open to applicants from ${profile.country}`);
+        return { score: 0, reasons, risks };
       }
     } else {
       // User has no country set, apply a partial penalty
       score += 0.3;
+      risks.push('Confirm this opportunity is open in your country');
     }
   } else {
     // Open to all countries
@@ -250,14 +327,17 @@ function calculateMatchScore(opportunity: any, profile: any): number {
   if (profile.preferredRegions && profile.preferredRegions.length > 0) {
     criteriaCount++;
     let hitCount = 0;
+    const matchedRegions: string[] = [];
     profile.preferredRegions.forEach((region: string) => {
       if (oppSearchText.includes(region.toLowerCase()) || opportunity.location?.toLowerCase().includes(region.toLowerCase())) {
         hitCount++;
+        matchedRegions.push(region);
       }
     });
-    score += Math.min(1.0, hitCount);
-    if (hitCount > 0) {
-      matchDetails.push('In your preferred region');
+    const points = Math.min(1.0, hitCount);
+    score += points;
+    if (matchedRegions.length > 0) {
+      reasons.push({ kind: 'location', label: `Open to your region, ${matchedRegions[0]}`, points });
     }
   }
 
@@ -266,9 +346,10 @@ function calculateMatchScore(opportunity: any, profile: any): number {
     criteriaCount++;
     if (opportunity.location?.toLowerCase().includes('remote') || opportunity.is_remote) {
       score += 1.5;
-      matchDetails.push('Remote opportunity');
+      reasons.push({ kind: 'remote', label: 'Remote — open to applicants anywhere', points: 1.5 });
     } else {
-      return 0;
+      risks.push('Not a remote opportunity');
+      return { score: 0, reasons, risks };
     }
   }
 
@@ -280,6 +361,9 @@ function calculateMatchScore(opportunity: any, profile: any): number {
     if (daysUntil > 0 && daysUntil <= 30) {
       score += 0.3;
     }
+    if (daysUntil >= 0 && daysUntil <= 3) {
+      risks.push('Deadline is very close — apply soon');
+    }
   }
 
   // 7. Featured bonus
@@ -287,24 +371,33 @@ function calculateMatchScore(opportunity: any, profile: any): number {
     score += 0.2;
   }
 
+  // Difficulty vs experience level risk (informational, does not affect score)
+  const difficulty = (opportunity.difficulty || '').toString().toLowerCase();
+  const level = (profile.experienceLevel || profile.level || '').toString().toLowerCase();
+  if (difficulty === 'hard' && /beginner|entry|student|junior/.test(level)) {
+    risks.push('This is an advanced opportunity for your level');
+  }
+
   // If no criteria could be evaluated, assign a low baseline score
-  if (criteriaCount === 0) return 15;
+  if (criteriaCount === 0) {
+    return { score: 15, reasons, risks };
+  }
 
   const maxPossibleScore = 9.5;
   const normalizedPercentage = (score / Math.min(criteriaCount * 1.5, maxPossibleScore)) * 100;
 
   const finalScore = Math.min(100, Math.round(normalizedPercentage));
 
-  // Store match reasons on the opportunity
-  if (matchDetails.length > 0) {
-    opportunity.matchReasons = matchDetails;
-  }
+  return { score: finalScore, reasons, risks };
+}
 
-  return finalScore;
+function calculateMatchScore(opportunity: any, profile: any): number {
+  return evaluateMatch(profile, opportunity).score;
 }
 
 export async function fetchOpportunities(options: FetchOptions): Promise<Opportunity[]> {
-  const { supabase, force, userId, getAuthToken, profileOverride, signal, onSyncSnapshot } = options;
+  const { supabase, force, userId, getAuthToken, profileOverride, signal, onSyncSnapshot, excludeOpportunityIds } = options;
+  const hasExclusions = Array.isArray(excludeOpportunityIds) && excludeOpportunityIds.length > 0;
 
   if (!force && cachedOpportunities && !userId) {
     return cachedOpportunities;
@@ -360,8 +453,9 @@ export async function fetchOpportunities(options: FetchOptions): Promise<Opportu
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            limit: 50,
+            limit: 300,
             minMatchScore: 0,
+            ...(hasExclusions ? { excludeOpportunityIds } : {}),
           }),
           signal,
         });
@@ -391,8 +485,9 @@ export async function fetchOpportunities(options: FetchOptions): Promise<Opportu
         },
         body: JSON.stringify({
           profile,
-          limit: 50,
+          limit: 300,
           minMatchScore: userId ? 0 : 30,
+          ...(hasExclusions ? { excludeOpportunityIds } : {}),
         }),
         signal,
       });
@@ -425,9 +520,28 @@ export async function fetchOpportunities(options: FetchOptions): Promise<Opportu
 
   if (oppError) throw oppError;
 
-  let normalised = (opps || []).map(row => {
+  const excludedSet = new Set(excludeOpportunityIds ?? []);
+
+  // LOCKED SEMANTICS — OFFLINE-ONLY SCORING BELOW.
+  // The local evaluateMatch (including its hard-zero country / remote-only
+  // rules) only ever runs on this Supabase/offline fallback path. Server
+  // recommendation responses flow through normaliseOpportunity untouched and
+  // must NEVER be re-scored or filtered by this local heuristic.
+  let normalised = (opps || [])
+    .filter((row: any) => !excludedSet.has(row.id))
+    .map(row => {
     const opt = normaliseOpportunity(row);
-    opt.match = calculateMatchScore(row, profile);
+    const result = evaluateMatch(profile, row);
+    opt.match = result.score;
+    // Prefer server-provided reasons; only fall back to local evaluation when
+    // the row didn't already carry any.
+    if (!opt.matchReasons || opt.matchReasons.length === 0) {
+      opt.matchReasons = result.reasons.map(r => r.label);
+      opt.matchReasonDetails = result.reasons;
+    }
+    if (!opt.matchRisks || opt.matchRisks.length === 0) {
+      opt.matchRisks = result.risks;
+    }
     return opt;
   });
 

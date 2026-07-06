@@ -33,12 +33,16 @@ export function useProStatus(supabase: SupabaseClient, userId: string | null): U
       // Check RevenueCat subscription status
       const rcPro = await isProSubscriber();
 
-      // Check Supabase status
-      const { data: profile } = await supabase
+      // Check Supabase status. Profiles are keyed by the raw Clerk ID;
+      // the hashed toSafeUUID form only exists in rows from older builds.
+      const lookupIds = Array.from(new Set([userId, toSafeUUID(userId)]));
+      const { data: profiles } = await supabase
         .from('profiles')
-        .select('is_pro, pro_since, pro_expires_at, subscription_id')
-        .eq('user_id', toSafeUUID(userId))
-        .single();
+        .select('user_id, is_pro, pro_since, pro_expires_at, subscription_id')
+        .in('user_id', lookupIds);
+
+      const profile =
+        profiles?.find((row: { user_id: string }) => row.user_id === userId) ?? profiles?.[0];
 
       const profileExpiresAt = profile?.pro_expires_at ? new Date(profile.pro_expires_at).getTime() : null;
       const dbPro = Boolean(profile?.is_pro) && (!profileExpiresAt || profileExpiresAt > Date.now());
@@ -61,14 +65,9 @@ export function useProStatus(supabase: SupabaseClient, userId: string | null): U
       setProSince(profile?.pro_since || null);
       setSubscriptionId(profile?.subscription_id || null);
 
-      // Sync if there's a discrepancy
-      if (rcPro !== dbPro) {
-        await supabase.rpc('sync_subscription_status', {
-          p_user_id: toSafeUUID(userId),
-          p_is_pro: rcPro,
-          p_pro_since: rcPro ? new Date().toISOString() : null,
-        });
-      }
+      // Note: profiles.is_pro is written only by the RevenueCat webhook
+      // (service role). The client must never sync entitlement state —
+      // that would let a patched client self-grant Pro.
     } catch (error) {
       console.error('Error checking pro status:', error);
     } finally {
@@ -92,7 +91,7 @@ export function useProStatus(supabase: SupabaseClient, userId: string | null): U
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'profiles', filter: `user_id=eq.${toSafeUUID(userId)}` },
+        { event: '*', schema: 'public', table: 'profiles', filter: `user_id=eq.${userId}` },
         () => void checkStatus(),
       )
       .subscribe();

@@ -9,10 +9,10 @@ import {
   RefreshCcw,
 } from "lucide-react";
 import { useAuth as useAppAuth } from "../hooks/useAuth";
-import { useDarkMode } from "../hooks/useDarkMode";
 import PullToRefresh from "./ui/PullToRefresh";
 import { EmptyState, ErrorState } from "./ui/EmptyState";
 import { getBookmarks, type BookmarkRecord } from "../services/bookmarks";
+import UrgencyPill from "./opportunity/UrgencyPill";
 
 function formatDeadline(value?: string | null) {
   if (!value) return "No deadline";
@@ -29,7 +29,6 @@ export default function SavedPage() {
   const navigate = useNavigate();
   const { getToken } = useClerkAuth();
   const { user } = useAppAuth();
-  const { isDarkMode } = useDarkMode();
   const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,22 +71,16 @@ export default function SavedPage() {
     }
   };
 
-  const surfaceClass = isDarkMode
-    ? "border-white/10 bg-gray-900/70"
-    : "border-slate-200 bg-white shadow-sm";
+  const surfaceClass = "border-subtle bg-surface-layer shadow-soft";
 
   return (
-    <div
-      className={`min-h-[100dvh] ${isDarkMode ? "bg-gray-950 text-white" : "bg-slate-50 text-slate-950"}`}
-    >
-      <header
-        className={`sticky top-0 z-30 hidden border-b backdrop-blur-xl lg:block ${isDarkMode ? "border-white/10 bg-gray-950/90" : "border-slate-200 bg-white/90"}`}
-      >
+    <div className="min-h-[100dvh] bg-surface-body text-text-primary">
+      <header className="sticky top-0 z-30 hidden border-b border-subtle bg-surface-layer/90 backdrop-blur-xl lg:block">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/10"
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-subtle px-3 text-sm font-bold text-text-secondary transition hover:bg-surface-elevated"
           >
             <ChevronLeft size={17} />
             Back
@@ -96,7 +89,7 @@ export default function SavedPage() {
             type="button"
             onClick={() => void loadBookmarks()}
             disabled={loading}
-            className="inline-flex h-10 items-center gap-2 rounded-xl bg-brand-500 px-3 text-sm font-bold text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-brand px-3 text-sm font-bold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? (
               <Loader2 size={17} className="animate-spin" />
@@ -117,17 +110,17 @@ export default function SavedPage() {
           <section className={`rounded-[20px] border p-4 sm:p-5 ${surfaceClass}`}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-600 dark:text-brand-300">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">
                   Saved workspace
                 </p>
-                <h1 className="mt-1 text-xl font-semibold tracking-tight">
+                <h1 className="mt-1 text-xl font-display font-semibold tracking-tight">
                   Saved opportunities
                 </h1>
-                <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">
+                <p className="mt-2 text-sm leading-6 text-text-muted">
                   Everything you bookmarked, ready to revisit and apply.
                 </p>
               </div>
-              <span className="shrink-0 rounded-full bg-brand-500/10 px-3 py-1 text-xs font-semibold text-brand-700 dark:text-brand-200">
+              <span className="shrink-0 rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold text-brand">
                 {bookmarks.length}
               </span>
             </div>
@@ -138,7 +131,7 @@ export default function SavedPage() {
               {Array.from({ length: 4 }).map((_, index) => (
                 <div
                   key={index}
-                  className={`h-24 animate-pulse rounded-[20px] border ${isDarkMode ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"}`}
+                  className="h-24 animate-pulse rounded-[20px] border border-subtle bg-surface-elevated"
                 />
               ))}
             </div>
@@ -170,24 +163,31 @@ export default function SavedPage() {
                   onClick={() => openOpportunity(bookmark.opportunity_id)}
                   className={`flex w-full items-center gap-3 rounded-[20px] border p-4 text-left transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${surfaceClass}`}
                 >
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand/10 text-brand">
                     <Bookmark size={20} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-600 dark:text-brand-300">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
                       {bookmark.opportunity_category || "Opportunity"}
                     </p>
-                    <h3 className="mt-1 line-clamp-2 text-sm font-semibold text-slate-950 dark:text-white">
+                    <h3 className="mt-1 line-clamp-2 text-sm font-semibold text-text-primary">
                       {bookmark.opportunity_title}
                     </h3>
-                    <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                      {bookmark.opportunity_location || "Worldwide"} ·{" "}
-                      {formatDeadline(bookmark.opportunity_deadline)}
-                    </p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                      <p className="text-xs font-medium text-text-muted">
+                        {bookmark.opportunity_location || "Worldwide"} ·{" "}
+                        {formatDeadline(bookmark.opportunity_deadline)}
+                      </p>
+                      <UrgencyPill
+                        deadline={bookmark.opportunity_deadline}
+                        compact
+                        className="!py-0.5"
+                      />
+                    </div>
                   </div>
                   <ChevronRight
                     size={18}
-                    className="shrink-0 text-slate-400"
+                    className="shrink-0 text-text-muted"
                   />
                 </button>
               ))}

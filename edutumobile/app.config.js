@@ -63,12 +63,16 @@ export default {
     ios: {
       supportsTablet: true,
       buildNumber: "1",
+      deploymentTarget: "16.4",
       ...(enableAssociatedDomains ? { associatedDomains: ["applinks:edutu.org"] } : {}),
       config: {
         usesNonExemptEncryption: false
       },
       infoPlist: {
-        UIBackgroundModes: ["fetch", "remote-notification"],
+        UIBackgroundModes: ["fetch", "remote-notification", "processing"],
+        BGTaskSchedulerPermittedIdentifiers: [
+          "com.expo.modules.backgroundtask.processing"
+        ],
         NSPhotoLibraryUsageDescription: "Allow Edutu to access your photos to update your profile and create content.",
         NSCameraUsageDescription: "Allow Edutu to access your camera to take photos for your profile.",
         NSMicrophoneUsageDescription: "Allow Edutu to record audio when you use voice chat features.",
@@ -115,6 +119,12 @@ export default {
         }
       ],
       [
+        "expo-calendar",
+        {
+          "calendarPermission": "Allow Edutu to add your opportunity milestones and application deadlines to your calendar."
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "Allow Edutu to access your photos to update your profile and create content.",
@@ -153,7 +163,8 @@ export default {
           targetCellWidth: "3",
           targetCellHeight: "2"
         }
-      ]
+      ],
+      "expo-background-task"
     ],
     experiments: {
       tsconfigPaths: true,

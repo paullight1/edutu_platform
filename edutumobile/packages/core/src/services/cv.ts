@@ -10,6 +10,7 @@ import {
   UserCV,
 } from '../types/cv';
 import { toSafeUUID } from '../utils/auth';
+import { requestProductApi, type GetAuthToken } from './productApi';
 
 const TEMPLATE_STRUCTURE: CVStructure = {
   sections: [
@@ -304,14 +305,19 @@ export async function fetchUserCVs(
   userId: string,
 ): Promise<UserCV[]> {
   try {
+    // user_cvs is keyed by the raw auth id (RLS compares it to the JWT `sub`),
+    // unlike profiles/goals which use the hashed UUID.
     const { data, error } = await supabase
       .from('user_cvs')
       .select('*')
-      .eq('user_id', toSafeUUID(userId))
+      .eq('user_id', userId)
       .order('updated_at', { ascending: false });
 
     if (error) throw error;
-    return (data || []).map(mapUserCV);
+    const remote = (data || []).map(mapUserCV);
+    // Keep offline-saved CVs visible until they exist in the cloud.
+    if (!remote.length) return readLocalCVs(userId);
+    return remote;
   } catch {
     return readLocalCVs(userId);
   }
@@ -342,7 +348,7 @@ export async function createUserCV(
 ): Promise<UserCV> {
   const fallback: UserCV = {
     id: createId('cv'),
-    user_id: toSafeUUID(userId),
+    user_id: userId,
     template_id: cv.template_id,
     name: cv.name || 'Untitled CV',
     data_json: cv.data_json || emptyCVData(),
@@ -357,7 +363,7 @@ export async function createUserCV(
     const { data, error } = await supabase
       .from('user_cvs')
       .insert({
-        user_id: toSafeUUID(userId),
+        user_id: userId,
         template_id: cv.template_id,
         name: cv.name || 'Untitled CV',
         data_json: cv.data_json || emptyCVData(),
@@ -443,7 +449,7 @@ export async function setPrimaryCV(
     await supabase
       .from('user_cvs')
       .update({ is_primary: false })
-      .eq('user_id', toSafeUUID(userId));
+      .eq('user_id', userId);
 
     const { error } = await supabase
       .from('user_cvs')
@@ -603,6 +609,172 @@ export async function generateAICVDraft(
   };
 }
 
+// ─── Backend AI (real LLM) ───────────────────────────────────────────────────
+// These call the platform API (Gemini-backed /cv/ai/* routes) and fall back to
+// the local heuristics above when offline or unauthenticated, so every flow
+// keeps working without a network.
+
+/** Ensure every repeatable section item has an id (backend AI output has none). */
+function normalizeCVData(data: CVData): CVData {
+  const withIds = <T extends { id?: string }>(items: T[] | undefined, prefix: string): T[] =>
+    (items || []).map((item) => ({ ...item, id: item.id || createId(prefix) }));
+
+  const base = emptyCVData();
+  return {
+    ...base,
+    ...data,
+    header: { ...base.header, ...(data.header || {}) } as CVData['header'],
+    skills: uniq(data.skills || []),
+    experience: withIds(data.experience, 'exp'),
+    education: withIds(data.education, 'edu'),
+    projects: withIds(data.projects, 'proj'),
+    achievements: withIds(data.achievements, 'ach'),
+  };
+}
+
+/** Strip a CVData down to the fields the backend AI contract understands. */
+function toBackendCVPayload(data: CVData) {
+  return {
+    header: data.header,
+    summary: data.summary,
+    experience: data.experience,
+    education: data.education,
+    skills: data.skills,
+    projects: data.projects,
+    achievements: data.achievements,
+  };
+}
+
+function buildProfileContext(profile: any) {
+  if (!profile) return undefined;
+  return {
+    full_name: profile.full_name || profile.fullName || undefined,
+    email: profile.email || undefined,
+    country: profile.country || undefined,
+    location: profile.location || profile.country || undefined,
+    institution: profile.institution || profile.school || undefined,
+    field_of_study: profile.field_of_study || profile.courseOfStudy || undefined,
+    education_level: profile.education_level || profile.degree || undefined,
+    interests: Array.isArray(profile.interests) ? profile.interests : undefined,
+    skills: Array.isArray(profile.skills) ? profile.skills : undefined,
+  };
+}
+
+export interface CVDraftResult {
+  cv: CVData;
+  suggestions: string[];
+  /** 'ai' when the backend LLM produced it, 'local' when the heuristic fallback ran. */
+  source: 'ai' | 'local';
+}
+
+/**
+ * Generate a CV draft with the backend LLM (profile + goals aware); falls back
+ * to the local heuristic so the flow always completes.
+ */
+export async function generateCVDraftWithAI(
+  supabase: SupabaseClient,
+  userId: string,
+  options?: {
+    linkedInUrl?: string;
+    prompt?: string;
+    currentData?: CVData;
+    getToken?: GetAuthToken;
+  },
+): Promise<CVDraftResult> {
+  if (options?.getToken) {
+    try {
+      const [profile, goals] = await Promise.all([
+        fetchProfile(supabase, userId),
+        fetchGoals(supabase, userId),
+      ]);
+
+      const response = await requestProductApi<{ cv?: CVData; suggestions?: string[] }>(
+        '/cv/ai/draft',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            profile: buildProfileContext(profile),
+            goals: (goals || []).map((goal: any) => ({
+              title: goal.title,
+              description: goal.description,
+              progress: goal.progress,
+            })),
+            currentCV: options.currentData ? toBackendCVPayload(options.currentData) : undefined,
+            prompt: options.prompt,
+            linkedInUrl: options.linkedInUrl,
+          }),
+        },
+        options.getToken,
+      );
+
+      if (response?.cv) {
+        return {
+          cv: normalizeCVData(response.cv),
+          suggestions: Array.isArray(response.suggestions) ? response.suggestions : [],
+          source: 'ai',
+        };
+      }
+    } catch {
+      // fall through to the local heuristic
+    }
+  }
+
+  const cv = await generateAICVDraft(supabase, userId, options);
+  return { cv: normalizeCVData(cv), suggestions: [], source: 'local' };
+}
+
+/**
+ * Rewrite just the professional summary with the backend LLM, using the rest
+ * of the CV as context. Local fallback composes one from what's already there.
+ */
+export async function improveCVSummaryWithAI(
+  supabase: SupabaseClient,
+  userId: string,
+  currentData: CVData,
+  getToken?: GetAuthToken,
+): Promise<{ summary: string; source: 'ai' | 'local' }> {
+  if (getToken) {
+    try {
+      const response = await requestProductApi<{ cv?: CVData }>(
+        '/cv/ai/draft',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            currentCV: toBackendCVPayload(currentData),
+            prompt:
+              'Rewrite ONLY the professional summary: 2-3 confident, specific sentences grounded in the experience, education, and skills provided. Keep every other section unchanged.',
+          }),
+        },
+        getToken,
+      );
+      const summary = response?.cv?.summary?.trim();
+      if (summary) return { summary, source: 'ai' };
+    } catch {
+      // fall through
+    }
+  }
+
+  const skills = (currentData.skills || []).slice(0, 4).join(', ');
+  const topRole = currentData.experience?.[0];
+  const topEdu = currentData.education?.[0];
+  const summary = [
+    currentData.summary?.trim() || '',
+    topRole?.role ? `Experience as ${topRole.role}${topRole.company ? ` at ${topRole.company}` : ''}.` : '',
+    topEdu?.field || topEdu?.degree
+      ? `Background in ${topEdu?.field || topEdu?.degree}${topEdu?.institution ? ` (${topEdu.institution})` : ''}.`
+      : '',
+    skills ? `Core strengths: ${skills}.` : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+
+  return {
+    summary: summary || 'Motivated candidate focused on growth, execution, and measurable results.',
+    source: 'local',
+  };
+}
+
 export async function matchCVToOpportunity(
   supabase: SupabaseClient,
   cvId: string,
@@ -686,6 +858,7 @@ export async function tailorCVForOpportunity(
     userId: string;
     currentCVData: CVData;
     opportunityId: string;
+    getToken?: GetAuthToken;
   },
 ): Promise<AITailorResponse> {
   const { data: opportunity, error } = await supabase
@@ -695,6 +868,49 @@ export async function tailorCVForOpportunity(
     .single();
 
   if (error) throw error;
+
+  // Real LLM tailoring via the platform API; heuristic below stays as fallback.
+  if (options.getToken) {
+    try {
+      const response = await requestProductApi<AITailorResponse>(
+        '/cv/ai/tailor',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            currentCV: toBackendCVPayload(options.currentCVData || emptyCVData()),
+            opportunity: {
+              id: opportunity.id,
+              title: opportunity.title,
+              organization: opportunity.organization,
+              category: opportunity.category,
+              description:
+                typeof opportunity.description === 'string'
+                  ? opportunity.description.slice(0, 4000)
+                  : undefined,
+              requirements: opportunity.requirements || undefined,
+              skills: opportunity.skills || undefined,
+              benefits: opportunity.benefits || undefined,
+              tags: opportunity.tags || undefined,
+              deadline: opportunity.deadline ?? null,
+            },
+          }),
+        },
+        options.getToken,
+      );
+
+      if (response?.tailored_cv) {
+        return {
+          ...response,
+          tailored_cv: normalizeCVData(response.tailored_cv),
+          improvements: Array.isArray(response.improvements) ? response.improvements : [],
+          matched_keywords: Array.isArray(response.matched_keywords) ? response.matched_keywords : [],
+          missing_keywords: Array.isArray(response.missing_keywords) ? response.missing_keywords : [],
+        };
+      }
+    } catch {
+      // fall through to the local heuristic
+    }
+  }
 
   const baseCv = options.currentCVData || emptyCVData();
   const opportunityKeywords = pickMeaningfulKeywords([
@@ -805,7 +1021,7 @@ export function buildCVText(cv: Partial<UserCV>) {
       );
       if (item.location) lines.push(item.location);
       if (item.description) lines.push(item.description);
-      if (item.highlights?.length) lines.push(`Highlights: ${item.highlights.join(', ')}`);
+      if (item.highlights?.filter(Boolean).length) lines.push(`Highlights: ${item.highlights.filter(Boolean).join(', ')}`);
       lines.push('');
     }
   }
@@ -819,7 +1035,7 @@ export function buildCVText(cv: Partial<UserCV>) {
       lines.push(
         `${formatDate(item.start_date)} - ${formatDate(item.end_date)}`.trim(),
       );
-      if (item.highlights?.length) lines.push(`Highlights: ${item.highlights.join(', ')}`);
+      if (item.highlights?.filter(Boolean).length) lines.push(`Highlights: ${item.highlights.filter(Boolean).join(', ')}`);
       lines.push('');
     }
   }
@@ -853,4 +1069,115 @@ export async function shareCV(cv: Partial<UserCV>) {
     title: cv.name || 'My CV',
     message,
   });
+}
+
+// ─── PDF/HTML export ─────────────────────────────────────────────────────────
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function dateRange(start?: string | null, end?: string | null, current?: boolean) {
+  const from = formatDate(start);
+  const to = current ? 'Present' : formatDate(end);
+  if (!from && !to) return '';
+  return [from, to].filter(Boolean).join(' – ');
+}
+
+/**
+ * Renders a clean, single-column, print-friendly resume as HTML for
+ * expo-print's printToFileAsync. Kept intentionally ATS-safe: system fonts,
+ * no columns, semantic headings.
+ */
+export function buildCVHtml(cv: Partial<UserCV>): string {
+  const data = cv.data_json || emptyCVData();
+  const header: NonNullable<CVData['header']> = data.header || emptyCVData().header!;
+  const contact = [header.email, header.phone, header.location, header.linkedin, header.portfolio || header.website]
+    .filter(Boolean)
+    .map(escapeHtml)
+    .join(' &nbsp;•&nbsp; ');
+
+  const section = (title: string, body: string) =>
+    body
+      ? `<section><h2>${escapeHtml(title)}</h2>${body}</section>`
+      : '';
+
+  const experience = (data.experience || [])
+    .filter((item) => item.role || item.company)
+    .map((item) => `
+      <div class="item">
+        <div class="row"><strong>${escapeHtml(item.role || '')}</strong><span>${escapeHtml(dateRange(item.start_date, item.end_date, item.current))}</span></div>
+        <div class="sub">${escapeHtml([item.company, item.location].filter(Boolean).join(' · '))}</div>
+        ${item.description ? `<p>${escapeHtml(item.description)}</p>` : ''}
+        ${item.highlights?.filter(Boolean).length ? `<ul>${item.highlights.filter(Boolean).map((h) => `<li>${escapeHtml(h)}</li>`).join('')}</ul>` : ''}
+      </div>`)
+    .join('');
+
+  const education = (data.education || [])
+    .filter((item) => item.institution || item.degree)
+    .map((item) => `
+      <div class="item">
+        <div class="row"><strong>${escapeHtml([item.degree, item.field].filter(Boolean).join(', '))}</strong><span>${escapeHtml(dateRange(item.start_date, item.end_date))}</span></div>
+        <div class="sub">${escapeHtml(item.institution || '')}${item.gpa ? ` · GPA ${escapeHtml(item.gpa)}` : ''}</div>
+        ${item.highlights?.filter(Boolean).length ? `<ul>${item.highlights.filter(Boolean).map((h) => `<li>${escapeHtml(h)}</li>`).join('')}</ul>` : ''}
+      </div>`)
+    .join('');
+
+  const projects = (data.projects || [])
+    .filter((item) => item.name)
+    .map((item) => `
+      <div class="item">
+        <div class="row"><strong>${escapeHtml(item.name)}</strong></div>
+        ${item.description ? `<p>${escapeHtml(item.description)}</p>` : ''}
+        ${item.technologies?.length ? `<div class="sub">${escapeHtml(item.technologies.join(', '))}</div>` : ''}
+        ${item.url ? `<div class="sub">${escapeHtml(item.url)}</div>` : ''}
+      </div>`)
+    .join('');
+
+  const achievements = (data.achievements || [])
+    .filter((item) => item.title)
+    .map((item) => `
+      <div class="item">
+        <div class="row"><strong>${escapeHtml(item.title)}</strong>${item.date ? `<span>${escapeHtml(formatDate(item.date))}</span>` : ''}</div>
+        ${item.issuer ? `<div class="sub">${escapeHtml(item.issuer)}</div>` : ''}
+        ${item.description ? `<p>${escapeHtml(item.description)}</p>` : ''}
+      </div>`)
+    .join('');
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #111827; font-size: 12.5px; line-height: 1.5; padding: 36px 44px; }
+  h1 { font-size: 24px; letter-spacing: 0.2px; }
+  .contact { margin-top: 4px; color: #4B5563; font-size: 11.5px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1.4px; color: #1F2937; border-bottom: 1.5px solid #111827; padding-bottom: 3px; margin: 18px 0 8px; }
+  .item { margin-bottom: 10px; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .row span { color: #6B7280; font-size: 11px; white-space: nowrap; }
+  .sub { color: #4B5563; font-size: 11.5px; margin-top: 1px; }
+  p { margin-top: 3px; }
+  ul { margin: 4px 0 0 16px; }
+  li { margin-bottom: 2px; }
+  .skills { display: flex; flex-wrap: wrap; gap: 6px; }
+  .skill { border: 1px solid #D1D5DB; border-radius: 999px; padding: 2px 10px; font-size: 11px; color: #374151; }
+</style>
+</head>
+<body>
+  <h1>${escapeHtml(header.full_name || cv.name || 'Untitled CV')}</h1>
+  ${contact ? `<div class="contact">${contact}</div>` : ''}
+  ${section('Summary', data.summary ? `<p>${escapeHtml(data.summary)}</p>` : '')}
+  ${section('Skills', (data.skills || []).length ? `<div class="skills">${(data.skills || []).map((s) => `<span class="skill">${escapeHtml(s)}</span>`).join('')}</div>` : '')}
+  ${section('Experience', experience)}
+  ${section('Education', education)}
+  ${section('Projects', projects)}
+  ${section('Achievements', achievements)}
+</body>
+</html>`;
 }

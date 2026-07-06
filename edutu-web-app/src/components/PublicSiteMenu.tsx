@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronRight, Menu, X } from 'lucide-react';
-import { useDarkMode } from '../hooks/useDarkMode';
 
 type NavItem = {
   label: string;
@@ -23,7 +22,6 @@ const defaultNavItems: NavItem[] = [
 ];
 
 const PublicSiteMenu: React.FC = () => {
-  const { isDarkMode } = useDarkMode();
   const location = useLocation();
   const [open, setOpen] = useState(false);
 
@@ -40,7 +38,7 @@ const PublicSiteMenu: React.FC = () => {
 
   return (
     <div className="relative">
-      <nav className="hidden items-center gap-8 text-sm font-semibold text-slate-600 md:flex">
+      <nav className="hidden items-center gap-8 text-sm font-semibold text-text-secondary md:flex">
         {defaultNavItems.map((item) => {
           const isActive = item.external ? false : activePath(item.to);
 
@@ -50,7 +48,7 @@ const PublicSiteMenu: React.FC = () => {
               href={item.to}
               target="_blank"
               rel="noreferrer"
-              className="transition hover:text-[#146ef5]"
+              className="transition hover:text-brand"
             >
               {item.label}
             </a>
@@ -58,9 +56,7 @@ const PublicSiteMenu: React.FC = () => {
             <Link
               key={item.to}
               to={item.to}
-              className={`transition hover:text-[#146ef5] ${
-                isActive ? 'text-[#146ef5]' : ''
-              }`}
+              className={`transition hover:text-brand ${isActive ? 'text-brand' : ''}`}
               aria-current={isActive ? 'page' : undefined}
             >
               {item.label}
@@ -69,7 +65,7 @@ const PublicSiteMenu: React.FC = () => {
         })}
         <Link
           to="/auth?mode=sign-in"
-          className="inline-flex h-10 items-center justify-center rounded-lg bg-[#146ef5] px-4 text-sm font-bold text-white transition hover:bg-[#0055d4]"
+          className="inline-flex h-10 items-center justify-center rounded-xl bg-brand px-4 text-sm font-bold text-white transition hover:bg-brand-700"
         >
           Sign in
         </Link>
@@ -78,11 +74,7 @@ const PublicSiteMenu: React.FC = () => {
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className={`inline-flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-[12px] border px-4 text-sm font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 md:hidden ${
-          isDarkMode
-            ? 'border-white/10 bg-white/5 text-white hover:bg-white/10'
-            : 'border-slate-200 bg-white text-slate-900 hover:bg-slate-50'
-        }`}
+        className="inline-flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-subtle bg-surface-layer px-4 text-sm font-bold text-text-primary transition-all duration-200 hover:bg-surface-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 md:hidden"
         aria-expanded={open}
         aria-label={open ? 'Close menu' : 'Open menu'}
       >
@@ -97,14 +89,10 @@ const PublicSiteMenu: React.FC = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.98 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
-            className={`absolute right-0 top-[calc(100%+0.75rem)] z-50 w-[min(92vw,22rem)] overflow-hidden rounded-[24px] border shadow-2xl ${
-              isDarkMode ? 'border-white/10 bg-slate-950/95' : 'border-slate-200 bg-white/95'
-            } backdrop-blur-xl`}
+            className="absolute right-0 top-[calc(100%+0.75rem)] z-50 w-[min(92vw,22rem)] overflow-hidden rounded-3xl border border-subtle bg-surface-layer/95 shadow-elevated backdrop-blur-xl"
           >
             <div className="p-2">
-              <div className={`px-4 pt-2 pb-3 text-[11px] font-semibold uppercase tracking-[0.3em] ${
-                isDarkMode ? 'text-slate-500' : 'text-slate-400'
-              }`}>
+              <div className="px-4 pb-3 pt-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-text-muted">
                 Navigate
               </div>
 
@@ -113,12 +101,8 @@ const PublicSiteMenu: React.FC = () => {
                   const isActive = item.external ? false : activePath(item.to);
                   const className = `flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-semibold transition-colors ${
                     isActive
-                      ? isDarkMode
-                        ? 'bg-white/10 text-white'
-                        : 'bg-slate-100 text-slate-950'
-                      : isDarkMode
-                        ? 'text-slate-300 hover:bg-white/5 hover:text-white'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                      ? 'bg-brand/10 text-brand'
+                      : 'text-text-secondary hover:bg-surface-elevated hover:text-text-primary'
                   }`;
 
                   return item.external ? (
@@ -148,11 +132,11 @@ const PublicSiteMenu: React.FC = () => {
                 })}
               </div>
 
-              <div className={`mt-2 border-t px-2 pt-2 ${isDarkMode ? 'border-white/10' : 'border-slate-200'}`}>
+              <div className="mt-2 border-t border-subtle px-2 pt-2">
                 <Link
                   to="/auth"
                   onClick={() => setOpen(false)}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-500 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-brand-500/20 transition-transform hover:-translate-y-0.5"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-brand px-4 py-3 text-sm font-bold text-white shadow-soft transition-transform hover:-translate-y-0.5"
                 >
                   Get started
                 </Link>

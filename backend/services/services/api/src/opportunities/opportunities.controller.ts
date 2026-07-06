@@ -37,6 +37,7 @@ import {
   type UserRecommendationRequestDto,
 } from "./dto/personalization.dto";
 import { OpportunitiesService } from "./opportunities.service";
+import { OpportunityEmbeddingService } from "./opportunity-embedding.service";
 import { OpportunityVerificationService } from "./opportunity-verification.service";
 import { CurrentUser, Public, AdminGuard } from "../auth";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
@@ -52,16 +53,25 @@ export class OpportunitiesController {
   constructor(
     private readonly opportunitiesService: OpportunitiesService,
     private readonly opportunityVerificationService: OpportunityVerificationService,
+    private readonly opportunityEmbeddingService: OpportunityEmbeddingService,
   ) {}
 
   @Public()
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Get()
   async findAll(
+    @Res({ passthrough: true }) response: Response,
     @Query("limit") limit?: number,
     @Query("offset") offset?: number,
     @Query("category") category?: string,
   ) {
+    // The catalog is near-static (changes on admin writes + the daily sync).
+    // Let browsers/CDN absorb repeat reads; Express adds a matching ETag and
+    // answers If-None-Match with 304 automatically.
+    response.setHeader(
+      "Cache-Control",
+      "public, max-age=60, stale-while-revalidate=300",
+    );
     // Public learner feed: active records only, capped page size and depth,
     // and internal/paid-trust fields stripped so the catalog can't be
     // harvested for free at parity with the paid API.
@@ -85,6 +95,10 @@ export class OpportunitiesController {
 
   @Post("recommendations/query")
   @Public()
+  // Anonymous + does a candidate scan per call, so keep it tight. The LLM
+  // re-rank is not reachable here (service gates it behind an authenticated
+  // userId), so this endpoint can never drive provider spend.
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   queryRecommendations(
     @Body(new ZodValidationPipe(RecommendationQuerySchema))
     body: RecommendationQueryDto,
@@ -102,6 +116,19 @@ export class OpportunitiesController {
       userId,
       body || {},
     );
+  }
+
+  @Post("match-scores")
+  // Batch scoring for client badge hydration: same pipeline as the feed,
+  // applied to specific ids (browse page, detail deep links). Capped at 50.
+  getMatchScores(
+    @CurrentUser("id") userId: string,
+    @Body() body: { opportunityIds?: string[] },
+  ) {
+    const ids = Array.isArray(body?.opportunityIds)
+      ? body.opportunityIds.filter((id) => typeof id === "string").slice(0, 50)
+      : [];
+    return this.opportunitiesService.scoreOpportunitiesForUser(userId, ids);
   }
 
   @Get("preferences")
@@ -225,6 +252,22 @@ export class OpportunitiesController {
     });
   }
 
+  @Post("admin/embeddings/backfill")
+  @UseGuards(AdminGuard)
+  adminEmbeddingsBackfill(
+    @Body() body: { limit?: number; reembed?: boolean },
+  ) {
+    return this.opportunityEmbeddingService.backfillOpportunityEmbeddings(
+      body ?? {},
+    );
+  }
+
+  @Post("admin/enrichment/backfill")
+  @UseGuards(AdminGuard)
+  adminEnrichmentBackfill(@Body() body: { limit?: number }) {
+    return this.opportunitiesService.backfillEnrichment(body ?? {});
+  }
+
   @Post("admin/verification/:id")
   @UseGuards(AdminGuard)
   async verifyOpportunity(
@@ -252,7 +295,14 @@ export class OpportunitiesController {
   @Public()
   @Throttle({ default: { limit: 30, ttl: 60000 } })
   @Get(":id")
-  async findOne(@Param("id") id: string) {
+  async findOne(
+    @Param("id") id: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    response.setHeader(
+      "Cache-Control",
+      "public, max-age=60, stale-while-revalidate=300",
+    );
     const row = await this.opportunitiesService.findOne(id);
     return (
       stripInternalOpportunityFieldsBatch(

@@ -1437,3 +1437,73 @@ a:hover {
     width: 100%;
   }
 }
+
+/* ==========================================================================
+   Rich text editor (Quill 2) — theme the snow toolbar/editor to match admin.
+   Used by <RichTextEditor> in the blog CMS.
+   ========================================================================== */
+.ql-toolbar.ql-snow {
+  background: var(--bg-tertiary);
+  border-color: var(--border-light);
+  border-radius: 10px 10px 0 0;
+}
+.ql-container.ql-snow {
+  background: var(--bg-secondary);
+  border-color: var(--border-light);
+  border-radius: 0 0 10px 10px;
+}
+.ql-editor {
+  min-height: 360px;
+  font-size: 16px;
+  color: var(--text-primary);
+}
+.ql-editor.ql-blank::before {
+  color: var(--text-tertiary);
+  font-style: normal;
+}
+.ql-editor p,
+.ql-editor li,
+.ql-editor h1,
+.ql-editor h2,
+.ql-editor h3 {
+  color: var(--text-primary);
+}
+.ql-snow .ql-picker,
+.ql-snow .ql-picker-label {
+  color: var(--text-primary);
+}
+.ql-snow .ql-picker-options {
+  background: var(--bg-secondary);
+  border-color: var(--border-light);
+}
+.ql-snow .ql-stroke {
+  stroke: var(--text-secondary);
+}
+.ql-snow .ql-fill {
+  fill: var(--text-secondary);
+}
+.ql-snow button:hover .ql-stroke,
+.ql-snow button.ql-active .ql-stroke,
+.ql-snow .ql-picker-label:hover .ql-stroke {
+  stroke: var(--apple-blue, #2563eb);
+}
+.ql-snow button:hover .ql-fill,
+.ql-snow button.ql-active .ql-fill {
+  fill: var(--apple-blue, #2563eb);
+}
+.ql-snow .ql-tooltip {
+  background: var(--bg-secondary);
+  border-color: var(--border-light);
+  color: var(--text-primary);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  z-index: 200;
+}
+.ql-snow .ql-tooltip input[type='text'] {
+  background: var(--bg-tertiary);
+  border-color: var(--border-light);
+  color: var(--text-primary);
+}
+.ql-snow .ql-tooltip a.ql-action,
+.ql-snow .ql-tooltip a.ql-preview {
+  color: var(--apple-blue, #2563eb);
+}

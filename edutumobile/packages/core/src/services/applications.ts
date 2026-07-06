@@ -4,6 +4,21 @@ import { toSafeUUID } from '../utils/auth';
 
 export type ApplicationStatus = 'draft' | 'submitted' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
 
+/** The active forward stages of an application, in order. Terminal states
+ * (rejected/withdrawn) are intentionally excluded. Used to render the pipeline
+ * stepper and to compute the next "Advance" stage. */
+export const APPLICATION_PIPELINE: ApplicationStatus[] = ['draft', 'submitted', 'interview', 'offer'];
+
+/** Returns the next forward pipeline stage, or null when there is none
+ * (already at 'offer', or in a terminal state like rejected/withdrawn). */
+export function getNextApplicationStage(status: ApplicationStatus): ApplicationStatus | null {
+  const index = APPLICATION_PIPELINE.indexOf(status);
+  if (index === -1 || index >= APPLICATION_PIPELINE.length - 1) {
+    return null;
+  }
+  return APPLICATION_PIPELINE[index + 1];
+}
+
 export interface AppliedOpportunity {
   id: string;
   opportunity_id: string;

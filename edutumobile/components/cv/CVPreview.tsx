@@ -1,14 +1,17 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { Download } from 'lucide-react-native';
 import { UserCV } from '@edutu/core/src/types/cv';
 import { useTheme } from '../../components/context/ThemeContext';
 
 interface Props {
     currentCV: Partial<UserCV>;
     onBack: () => void;
+    onExport?: () => void;
+    isExporting?: boolean;
 }
 
-export function CVPreview({ currentCV, onBack }: Props) {
+export function CVPreview({ currentCV, onBack, onExport, isExporting }: Props) {
     const { colors } = useTheme();
 
     return (
@@ -17,6 +20,22 @@ export function CVPreview({ currentCV, onBack }: Props) {
                 <TouchableOpacity onPress={onBack}>
                     <Text style={[styles.previewBackText, { color: colors.primary }]}>Back to Edit</Text>
                 </TouchableOpacity>
+                {onExport ? (
+                    <TouchableOpacity
+                        style={[styles.previewExportBtn, { backgroundColor: colors.primary, opacity: isExporting ? 0.7 : 1 }]}
+                        onPress={onExport}
+                        disabled={isExporting}
+                        accessibilityRole="button"
+                        accessibilityLabel="Download CV as PDF"
+                    >
+                        {isExporting ? (
+                            <ActivityIndicator color="#FFFFFF" size="small" />
+                        ) : (
+                            <Download size={16} color="#FFFFFF" />
+                        )}
+                        <Text style={styles.previewExportText}>{isExporting ? 'Preparing…' : 'PDF'}</Text>
+                    </TouchableOpacity>
+                ) : null}
             </View>
             <ScrollView style={styles.previewContent}>
                 <View style={[styles.previewCard, { backgroundColor: '#FFFFFF' }]}>
@@ -112,10 +131,26 @@ const styles = StyleSheet.create({
     },
     previewHeader: {
         padding: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
     },
     previewBackText: {
         fontSize: 14,
         fontWeight: '600',
+    },
+    previewExportBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 999,
+    },
+    previewExportText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '700',
     },
     previewContent: {
         flex: 1,

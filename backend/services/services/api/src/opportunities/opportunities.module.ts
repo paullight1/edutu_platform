@@ -4,6 +4,7 @@ import { OpportunitiesController } from "./opportunities.controller";
 import { OpportunityRankingService } from "./opportunity-ranking.service";
 import { OpportunityVerificationService } from "./opportunity-verification.service";
 import { OpportunityShareCardService } from "./opportunity-share-card.service";
+import { OpportunityEmbeddingService } from "./opportunity-embedding.service";
 import { AiModule } from "../ai";
 
 @Module({
@@ -14,12 +15,14 @@ import { AiModule } from "../ai";
     OpportunityRankingService,
     OpportunityVerificationService,
     OpportunityShareCardService,
+    OpportunityEmbeddingService,
   ],
   exports: [
     OpportunitiesService,
     OpportunityRankingService,
     OpportunityVerificationService,
     OpportunityShareCardService,
+    OpportunityEmbeddingService,
   ],
 })
 export class OpportunitiesModule {}

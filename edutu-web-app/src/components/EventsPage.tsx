@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
   Calendar,
@@ -63,44 +63,46 @@ function EventCard({ event }: { event: EdutuEvent }) {
     "Join an Edutu event for application support, career guidance, and student opportunities.";
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border-subtle bg-surface-layer shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-elevated hover:border-brand-500/30">
+    <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-elevated hover:border-brand/40">
       <Link
         to={`/events/${event.slug}`}
-        className="block text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+        className="block text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-2"
       >
-        <div className="relative aspect-[16/9] overflow-hidden bg-slate-100 dark:bg-slate-900">
+        <div className="relative aspect-[16/9] overflow-hidden bg-surface-elevated">
           <ImageWithFallback
             src={event.imageUrl || eventFallbackImage}
             alt={`${event.title} event cover`}
             className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
             fallbackClassName="flex h-full w-full items-center justify-center"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
         </div>
       </Link>
 
       <div className="flex flex-1 flex-col p-4">
         <div className="flex flex-wrap gap-2 text-xs font-semibold">
-          <span className="rounded-md border border-brand-500/20 bg-brand-500/10 px-2 py-1 text-brand-700 dark:text-brand-300">
+          <span className="rounded-md border border-brand/20 bg-brand/10 px-2 py-1 text-brand">
             {event.isOnline ? "Online" : "In person"}
           </span>
-          <span className="rounded-md border border-border-subtle bg-surface-elevated px-2 py-1 text-soft">
+          <span className="rounded-md border border-subtle bg-surface-elevated px-2 py-1 text-text-secondary">
             {event.audience || "Public"}
           </span>
         </div>
 
         <Link
           to={`/events/${event.slug}`}
-          className="mt-3 text-strong hover:text-brand-600"
+          className="mt-3 text-text-primary hover:text-brand"
         >
-          <h2 className="text-lg font-semibold leading-snug">{event.title}</h2>
+          <h2 className="font-display text-lg font-semibold leading-snug tracking-tight">
+            {event.title}
+          </h2>
         </Link>
 
-        <p className="mt-2 line-clamp-2 text-sm leading-6 text-soft">
+        <p className="mt-2 line-clamp-2 text-sm leading-6 text-text-secondary">
           {summary}
         </p>
 
-        <div className="mt-4 grid gap-2 text-sm text-muted">
+        <div className="mt-4 grid gap-2 text-sm text-text-muted">
           <span className="inline-flex items-center gap-1.5">
             <Calendar size={14} />
             {formatEventDate(event.startsAt)}
@@ -115,10 +117,10 @@ function EventCard({ event }: { event: EdutuEvent }) {
           </span>
         </div>
 
-        <div className="mt-5 flex items-center justify-end border-t border-border-subtle pt-4">
+        <div className="mt-5 flex items-center justify-end border-t border-subtle pt-4">
           <Link
             to={`/events/${event.slug}`}
-            className="inline-flex items-center gap-1 rounded-full px-5 py-3 text-sm font-semibold bg-surface-layer border border-border-subtle hover:border-brand-500/30 transition-all duration-300"
+            className="inline-flex items-center gap-1 rounded-full px-5 py-3 text-sm font-semibold bg-surface-layer border border-subtle hover:border-brand/40 transition-all duration-300"
           >
             Details
             <ArrowRight size={14} />
@@ -131,7 +133,7 @@ function EventCard({ event }: { event: EdutuEvent }) {
 
 function LoadingCard() {
   return (
-    <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface-layer animate-pulse">
+    <div className="overflow-hidden rounded-2xl border border-subtle bg-surface-layer animate-pulse">
       <div className="aspect-[16/9] bg-surface-elevated" />
       <div className="p-4 space-y-3">
         <div className="flex gap-2">
@@ -157,6 +159,7 @@ function LoadingCard() {
 }
 
 export default function EventsPage() {
+  const reduceMotion = useReducedMotion();
   const [events, setEvents] = useState<EdutuEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -253,13 +256,13 @@ export default function EventsPage() {
       <PublicEditorialShell mainClassName="max-w-7xl py-5 sm:py-6">
         <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-sm font-semibold text-brand-600 dark:text-brand-300">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">
               Events
             </p>
-            <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">
+            <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight sm:text-4xl">
               Upcoming Edutu events
             </h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-soft">
+            <p className="mt-3 max-w-2xl text-base leading-7 text-text-secondary">
               Join workshops, mentorship sessions, and live announcements from
               the Edutu team.
             </p>
@@ -269,18 +272,18 @@ export default function EventsPage() {
             type="button"
             onClick={() => void loadEvents()}
             disabled={loading}
-            className="inline-flex items-center gap-2 self-start rounded-full px-5 py-3 text-sm font-semibold bg-surface-layer border border-border-subtle hover:border-brand-500/30 disabled:cursor-not-allowed disabled:opacity-60 transition-all duration-300"
+            className="inline-flex items-center gap-2 self-start rounded-full px-5 py-3 text-sm font-semibold bg-surface-layer border border-subtle hover:border-brand/40 disabled:cursor-not-allowed disabled:opacity-60 transition-all duration-300"
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
             Refresh
           </button>
         </section>
 
-        <section className="rounded-2xl border border-border-subtle bg-surface-layer p-4">
+        <section className="rounded-2xl border border-subtle bg-surface-layer p-4">
           <div className="relative">
             <Search
               size={18}
-              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted"
+              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-text-muted"
             />
             <input
               type="text"
@@ -288,13 +291,13 @@ export default function EventsPage() {
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="Search by title, location, or topic"
-              className="h-11 w-full rounded-xl border border-border-subtle bg-surface-elevated/60 pl-11 pr-11 text-sm text-strong placeholder:text-muted focus:border-brand-500 focus:bg-surface-layer"
+              className="h-11 w-full rounded-xl border border-subtle bg-surface-elevated/60 pl-11 pr-11 text-sm text-text-primary placeholder:text-text-muted focus:border-brand focus:bg-surface-layer"
             />
             {searchTerm ? (
               <button
                 type="button"
                 onClick={() => setSearchTerm("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted transition-all duration-300 hover:text-strong"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-text-muted transition-all duration-300 hover:text-text-primary"
                 aria-label="Clear search"
               >
                 <X size={16} />
@@ -304,11 +307,11 @@ export default function EventsPage() {
         </section>
 
         {error ? (
-          <section className="mt-5 rounded-lg border border-rose-200 bg-rose-50 p-5 text-rose-900 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-100">
-            <h2 className="text-lg font-semibold">Unable to load events</h2>
-            <p className="mt-2 text-sm leading-6 text-rose-800/80 dark:text-rose-100/80">
-              {error}
-            </p>
+          <section className="mt-5 rounded-2xl border border-danger/30 bg-danger/10 p-5">
+            <h2 className="font-display text-lg font-semibold tracking-tight text-danger">
+              Unable to load events
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-text-secondary">{error}</p>
           </section>
         ) : null}
 
@@ -323,8 +326,8 @@ export default function EventsPage() {
             {filteredEvents.map((event) => (
               <motion.div
                 key={event.id}
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
+                initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
+                whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-60px" }}
                 transition={{ duration: 0.4, ease: "easeOut" }}
               >
@@ -333,9 +336,11 @@ export default function EventsPage() {
             ))}
           </section>
         ) : (
-          <section className="mt-6 rounded-2xl border border-border-subtle bg-surface-layer p-10 text-center">
-            <h2 className="text-2xl font-semibold">No events found</h2>
-            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-soft">
+          <section className="mt-6 rounded-2xl border border-subtle bg-surface-layer p-10 text-center">
+            <h2 className="font-display text-2xl font-semibold tracking-tight">
+              No events found
+            </h2>
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-text-secondary">
               Check back soon or clear your search to see all announced events.
             </p>
           </section>

@@ -1,5 +1,7 @@
 import { Opportunity } from '../types/opportunity';
 
+const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://edutu-platform.onrender.com').replace(/\/$/, '');
+
 export interface RoadmapMilestone {
   id: string;
   title: string;
@@ -23,6 +25,27 @@ export interface RoadmapResource {
   type: 'official' | 'youtube' | 'pdf' | 'template' | 'community' | 'mentor';
   description: string;
   url?: string;
+}
+
+/** Applicant snapshot sent to the backend so the plan targets THIS user. */
+export interface ApplicantProfile {
+  country?: string;
+  pursuit?: string;
+  gradeLevel?: string;
+  schoolName?: string;
+  isGraduate?: boolean;
+  interests?: string[];
+  ambitions?: string[];
+}
+
+export interface RequirementAction {
+  requirement: string;
+  action: string;
+}
+
+export interface ProfileGap {
+  gap: string;
+  action: string;
 }
 
 export interface AIGeneratedRoadmap {
@@ -55,6 +78,14 @@ export interface AIGeneratedRoadmap {
   winningStrategy: string;
   summary: string;
   totalWeeks: number;
+  /** Each listed requirement mapped to a concrete action that satisfies it. */
+  requirementActions: RequirementAction[];
+  /** Weaknesses in the applicant's profile for THIS opportunity, with fixes. */
+  profileGaps: ProfileGap[];
+  /** Tactics past winners of this kind of opportunity used. */
+  bestPractices: string[];
+  /** True when backend LLM enrichment was applied (vs. the deterministic scaffold). */
+  personalized?: boolean;
 }
 
 function weeksBetween(start: Date, end: Date): number {
@@ -94,7 +125,8 @@ function buildSearchUrl(base: string, query: string): string {
 
 export function generateRoadmapFromOpportunity(
   opportunity: Opportunity,
-  startDate: Date = new Date()
+  startDate: Date = new Date(),
+  profile?: ApplicantProfile
 ): AIGeneratedRoadmap {
   const parsedDeadline = opportunity.deadline ? new Date(opportunity.deadline) : null;
   const deadline = parsedDeadline && !Number.isNaN(parsedDeadline.getTime()) ? parsedDeadline : addDays(startDate, 90);
@@ -114,6 +146,9 @@ export function generateRoadmapFromOpportunity(
   const supportActions = generateSupportActions(opportunity, category);
   const winningStrategy = generateWinningStrategy(opportunity, daysUntilDeadline, submissionBufferDays, category);
   const summary = generateSummary(opportunity, totalWeeks, category, daysUntilDeadline, submissionTarget);
+  const requirementActions = generateRequirementActions(opportunity);
+  const profileGaps = generateProfileGaps(opportunity, category, profile);
+  const bestPractices = generateBestPractices(category);
 
   return {
     milestones,
@@ -130,7 +165,129 @@ export function generateRoadmapFromOpportunity(
     winningStrategy,
     summary,
     totalWeeks,
+    requirementActions,
+    profileGaps,
+    bestPractices,
+    personalized: false,
   };
+}
+
+export interface RoadmapGenerationOptions {
+  startDate?: Date;
+  hoursPerWeek?: number;
+  currentLevel?: 'beginner' | 'intermediate' | 'advanced';
+  /** Applicant snapshot — personalizes both the local plan and the AI prompt. */
+  profile?: ApplicantProfile;
+  signal?: AbortSignal;
+}
+
+interface OpportunityPlanEnrichment {
+  summary?: string;
+  winningStrategy?: string;
+  milestones?: Array<{ id: string; title: string; description: string }>;
+  checklist?: string[];
+  supportActions?: string[];
+  requirementActions?: RequirementAction[];
+  profileGaps?: ProfileGap[];
+  bestPractices?: string[];
+  generatedBy?: 'ai' | 'fallback';
+}
+
+/**
+ * Fetches AI-authored narrative enrichment for a roadmap from the backend LLM.
+ * Returns null on any failure so callers can fall back to the deterministic plan.
+ */
+export async function fetchOpportunityPlanEnrichment(
+  opportunity: Opportunity,
+  milestones: RoadmapMilestone[],
+  options: Pick<RoadmapGenerationOptions, 'hoursPerWeek' | 'currentLevel' | 'profile' | 'signal'> = {}
+): Promise<OpportunityPlanEnrichment | null> {
+  try {
+    const response = await fetch(`${API_URL}/roadmaps/ai/opportunity-plan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: opportunity.title,
+        organization: opportunity.organization,
+        category: opportunity.category,
+        deadline: opportunity.deadline ?? undefined,
+        description: opportunity.description?.slice(0, 4000),
+        hoursPerWeek: options.hoursPerWeek,
+        currentLevel: options.currentLevel,
+        milestones: milestones.map((milestone) => ({ id: milestone.id, title: milestone.title })),
+        // Older backend deployments strip these unknown keys harmlessly.
+        requirements: (opportunity.requirements || []).slice(0, 30).map((r) => r.slice(0, 500)),
+        profile: options.profile,
+      }),
+      signal: options.signal,
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as OpportunityPlanEnrichment;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Merges AI enrichment onto the deterministic roadmap. The scheduling (dates,
+ * reminders, daily plan) always comes from the heuristic; the LLM only refines
+ * narrative fields, and milestones are matched by id so alignment is stable.
+ */
+export function mergeRoadmapEnrichment(
+  roadmap: AIGeneratedRoadmap,
+  enrichment: OpportunityPlanEnrichment | null
+): AIGeneratedRoadmap {
+  if (!enrichment) return roadmap;
+
+  const enrichedById = new Map((enrichment.milestones || []).map((milestone) => [milestone.id, milestone]));
+  const hasSupportActions = Array.isArray(enrichment.supportActions) && enrichment.supportActions.length > 0;
+
+  const validPairs = <T,>(list: T[] | undefined, keys: Array<keyof T>): T[] =>
+    Array.isArray(list)
+      ? list.filter(
+          (item) =>
+            item && keys.every((key) => typeof item[key] === 'string' && (item[key] as unknown as string).trim())
+        )
+      : [];
+
+  const requirementActions = validPairs<RequirementAction>(enrichment.requirementActions, ['requirement', 'action']);
+  const profileGaps = validPairs<ProfileGap>(enrichment.profileGaps, ['gap', 'action']);
+  const bestPractices = Array.isArray(enrichment.bestPractices)
+    ? enrichment.bestPractices.filter((tip) => typeof tip === 'string' && tip.trim())
+    : [];
+
+  return {
+    ...roadmap,
+    personalized: enrichment.generatedBy === 'ai',
+    summary: enrichment.summary?.trim() || roadmap.summary,
+    winningStrategy: enrichment.winningStrategy?.trim() || roadmap.winningStrategy,
+    supportActions: hasSupportActions ? enrichment.supportActions! : roadmap.supportActions,
+    requirementActions: requirementActions.length > 0 ? requirementActions : roadmap.requirementActions,
+    profileGaps: profileGaps.length > 0 ? profileGaps : roadmap.profileGaps,
+    bestPractices: bestPractices.length > 0 ? bestPractices : roadmap.bestPractices,
+    milestones: roadmap.milestones.map((milestone) => {
+      const enriched = enrichedById.get(milestone.id);
+      if (!enriched) return milestone;
+      return {
+        ...milestone,
+        title: enriched.title?.trim() || milestone.title,
+        description: enriched.description?.trim() || milestone.description,
+      };
+    }),
+  };
+}
+
+/**
+ * Preferred entry point: builds the deterministic roadmap, then enriches it with
+ * the backend LLM. Always resolves to a usable roadmap even fully offline.
+ */
+export async function generateRoadmap(
+  opportunity: Opportunity,
+  options: RoadmapGenerationOptions = {}
+): Promise<AIGeneratedRoadmap> {
+  const roadmap = generateRoadmapFromOpportunity(opportunity, options.startDate, options.profile);
+  const enrichment = await fetchOpportunityPlanEnrichment(opportunity, roadmap.milestones, options);
+  return mergeRoadmapEnrichment(roadmap, enrichment);
 }
 
 function generateMilestones(
@@ -575,6 +732,97 @@ function generateResources(opp: Opportunity, category: string): RoadmapResource[
   ];
 
   return resources.filter((resource) => resource.type !== 'official' || Boolean(resource.url));
+}
+
+/** Map each listed requirement to a concrete evidence-producing action. */
+function generateRequirementActions(opp: Opportunity): RequirementAction[] {
+  return (opp.requirements || []).slice(0, 15).map((requirement) => {
+    const lower = requirement.toLowerCase();
+    let action = 'Gather or produce the evidence that proves you meet this, and file it in your application folder.';
+    if (/transcript|academic record|grade|gpa|result/.test(lower)) {
+      action = 'Request official transcripts from your institution now — they often take 1-2 weeks to issue.';
+    } else if (/recommendation|referee|reference letter/.test(lower)) {
+      action = 'Choose 2-3 referees today and brief them with your CV and this opportunity\'s criteria.';
+    } else if (/essay|statement|motivation|sop|cover letter/.test(lower)) {
+      action = 'Outline this within the first week; strong drafts need at least two feedback rounds.';
+    } else if (/cv|resume|portfolio/.test(lower)) {
+      action = 'Update it with your latest results and tailor one line of proof to each selection criterion.';
+    } else if (/english|language|ielts|toefl|proficiency/.test(lower)) {
+      action = 'Check whether a test score is required and book the earliest test date if you lack one.';
+    } else if (/age|years old|under \d|nationality|citizen|resident/.test(lower)) {
+      action = 'Verify you qualify before investing time — confirm with your ID/passport details.';
+    } else if (/degree|bachelor|master|diploma|enrolled|student/.test(lower)) {
+      action = 'Prepare proof of enrollment or your certificate copy, scanned clearly as PDF.';
+    }
+    return { requirement, action };
+  });
+}
+
+/** Compare the applicant profile against the opportunity to surface fixable gaps. */
+function generateProfileGaps(
+  opp: Opportunity,
+  category: string,
+  profile?: ApplicantProfile
+): ProfileGap[] {
+  const gaps: ProfileGap[] = [];
+  if (!profile) {
+    return [
+      {
+        gap: 'Your Edutu profile is incomplete, so this plan is not yet personalized.',
+        action: 'Fill in your education level, field of study, and ambitions in your profile, then regenerate.',
+      },
+    ];
+  }
+
+  if (!profile.pursuit) {
+    gaps.push({
+      gap: 'No field of study/pursuit on your profile.',
+      action: 'Add it so your application story can connect your academic direction to this opportunity.',
+    });
+  }
+  if (!profile.ambitions?.length) {
+    gaps.push({
+      gap: 'No stated ambitions on your profile.',
+      action: 'Write 2-3 sentences on your long-term goal — selectors reward clear direction.',
+    });
+  }
+  if (!profile.gradeLevel && !profile.isGraduate) {
+    gaps.push({
+      gap: 'Your education level is not set.',
+      action: 'Set it so eligibility checks and essay framing match your actual stage.',
+    });
+  }
+  if (category.includes('scholar') && profile.interests?.length) {
+    const text = `${opp.title} ${opp.description || ''}`.toLowerCase();
+    const overlaps = profile.interests.filter((interest) => text.includes(interest.toLowerCase()));
+    if (overlaps.length === 0) {
+      gaps.push({
+        gap: 'None of your listed interests obviously connect to this opportunity.',
+        action: 'Decide your strongest genuine link to this program and make it the spine of your essay.',
+      });
+    }
+  }
+  return gaps.slice(0, 4);
+}
+
+/** Category-level tactics used by past winners; the AI replaces these with sharper ones. */
+function generateBestPractices(category: string): string[] {
+  const isScholarly = category.includes('scholar') || category.includes('fellow') || category.includes('grant');
+  return isScholarly
+    ? [
+        'Winners submit 3-5 days early — portals slow down or crash near deadlines.',
+        'Tie every essay paragraph to one proof point: an award, project, or measurable result.',
+        'Brief your referees with your CV and the program criteria before they write.',
+        'Mirror the program\'s own language when describing your impact and goals.',
+        'Have one non-expert read your essay — if they can\'t retell your story, simplify it.',
+      ]
+    : [
+        'Tailor your CV to the listed requirements — one line of proof per requirement.',
+        'Research the organization\'s recent work and reference it in your motivation.',
+        'Submit early and confirm receipt; follow up politely if you get no confirmation.',
+        'Prepare a 60-second story of your best result for screening calls.',
+        'Connect with current or past participants on LinkedIn and ask one specific question.',
+      ];
 }
 
 function generateSupportActions(opp: Opportunity, category: string): string[] {

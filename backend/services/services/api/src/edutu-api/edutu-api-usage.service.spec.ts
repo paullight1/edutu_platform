@@ -8,6 +8,7 @@ jest.mock("../db", () => ({
     select: jest.fn(),
     update: jest.fn(),
     insert: jest.fn(),
+    transaction: jest.fn(),
   },
 }));
 
@@ -15,6 +16,7 @@ const mockedDb = db as unknown as {
   select: jest.Mock;
   update: jest.Mock;
   insert: jest.Mock;
+  transaction: jest.Mock;
 };
 
 describe("EdutuApiUsageService", () => {
@@ -25,43 +27,95 @@ describe("EdutuApiUsageService", () => {
     service = new EdutuApiUsageService();
   });
 
+  const billableConsumer: ApiConsumerContext = {
+    id: "consumer-1",
+    name: "Scholarship Engine",
+    plan: "starter",
+    scopes: ["opportunities:read"],
+    monthlyQuota: 1000,
+    ownerUserId: "user-1",
+    requestId: "req-123",
+  };
+
+  // Builds a fake tx object for db.transaction(cb). `claimed` controls whether
+  // the ledger-insert claim inserted a new row (first delivery) or hit the
+  // unique index (retry). `balance` is what the decrement returns.
+  function stubTransaction(opts: {
+    claimed: boolean;
+    balanceAfterDecrement?: number | null;
+    currentBalance?: number;
+  }) {
+    const txExecute = jest.fn().mockResolvedValue({
+      rowCount: opts.claimed ? 1 : 0,
+      rows: opts.claimed ? [{ id: "ledger-1" }] : [],
+    });
+    const decReturning = jest
+      .fn()
+      .mockResolvedValue(
+        opts.balanceAfterDecrement === null
+          ? []
+          : [{ creditsBalance: opts.balanceAfterDecrement }],
+      );
+    const decWhere = jest.fn().mockReturnValue({ returning: decReturning });
+    const set = jest.fn().mockReturnValue({ where: decWhere });
+    const update = jest.fn().mockReturnValue({ set });
+    const selLimit = jest
+      .fn()
+      .mockResolvedValue([{ creditsBalance: opts.currentBalance ?? 0 }]);
+    const selWhere = jest.fn().mockReturnValue({ limit: selLimit });
+    const selFrom = jest.fn().mockReturnValue({ where: selWhere });
+    const select = jest.fn().mockReturnValue({ from: selFrom });
+    const tx = { execute: txExecute, update, select, insert: jest.fn() };
+    mockedDb.transaction.mockImplementation(async (cb: any) => cb(tx));
+    return { txExecute, update, set };
+  }
+
   it("deducts one API credit for billable endpoints and records a transaction", async () => {
-    const execute = jest.fn().mockResolvedValue([{ creditsBalance: 9 }]);
-    const returning = jest.fn().mockReturnValue({ execute });
-    const where = jest.fn().mockReturnValue({ returning });
-    const set = jest.fn().mockReturnValue({ where });
-    mockedDb.update.mockReturnValue({ set });
-    const transactionExecute = jest.fn().mockResolvedValue([]);
-    const values = jest.fn().mockReturnValue({ execute: transactionExecute });
-    mockedDb.insert.mockReturnValue({ values });
+    const { txExecute, set, update } = stubTransaction({
+      claimed: true,
+      balanceAfterDecrement: 9,
+    });
 
     const remaining = await service.reserveRequestCredit(
-      {
-        id: "consumer-1",
-        name: "Scholarship Engine",
-        plan: "starter",
-        scopes: ["opportunities:read"],
-        monthlyQuota: 1000,
-        ownerUserId: "user-1",
-        requestId: "req-123",
-      },
+      billableConsumer,
       "/v1/opportunities",
     );
 
     expect(remaining).toBe(9);
+    expect(txExecute).toHaveBeenCalledTimes(1); // ledger claim insert
+    expect(update).toHaveBeenCalledTimes(1); // balance decrement
     expect(set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        updatedAt: expect.any(Date),
-      }),
+      expect.objectContaining({ updatedAt: expect.any(Date) }),
     );
-    expect(values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: "user-1",
-        amount: -1,
-        type: "api_request",
-        referenceId: "req-123",
-      }),
+  });
+
+  it("does not double-charge when the same request id is retried (idempotent)", async () => {
+    const { update } = stubTransaction({ claimed: false, currentBalance: 9 });
+
+    const remaining = await service.reserveRequestCredit(
+      billableConsumer,
+      "/v1/opportunities",
     );
+
+    // Retry: report current balance, never decrement again.
+    expect(remaining).toBe(9);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("returns null and does not persist a charge when credits are exhausted", async () => {
+    // Claimed the ledger row, but the guarded decrement matched no row.
+    const { update } = stubTransaction({
+      claimed: true,
+      balanceAfterDecrement: null,
+    });
+
+    const remaining = await service.reserveRequestCredit(
+      billableConsumer,
+      "/v1/opportunities",
+    );
+
+    expect(remaining).toBeNull(); // InsufficientCreditsError rolls back the tx
+    expect(update).toHaveBeenCalledTimes(1);
   });
 
   it("reads the balance for credit-free endpoints without deducting", async () => {

@@ -8,20 +8,25 @@ import {
 import { useAuth as useClerkAuth } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
 import {
+  Bookmark,
   Briefcase,
+  ChevronRight,
   Loader2,
+  LogOut,
   PencilLine,
   Save,
+  Send,
+  Settings,
   Sparkles,
   UserCheck,
 } from "lucide-react";
 import { useAuth as useAppAuth } from "../hooks/useAuth";
-import { useDarkMode } from "../hooks/useDarkMode";
 import {
   getProductApiToken,
   isInvalidOrExpiredTokenError,
 } from "../lib/clerkToken";
 import PullToRefresh from "./ui/PullToRefresh";
+import ProfileQuickStats from "./ProfileQuickStats";
 import Button from "./ui/Button";
 import Input from "./ui/Input";
 import Label from "./ui/Label";
@@ -97,19 +102,19 @@ function calculateAge(dateOfBirth: string) {
   return age >= 0 ? age : null;
 }
 
-const FIELD_LABEL_CLASS_NAME = "font-semibold text-slate-950 dark:text-white";
+const FIELD_LABEL_CLASS_NAME = "font-semibold text-text-primary";
 const FIELD_INPUT_CLASS_NAME =
-  "h-11 rounded-xl border-slate-200 bg-white px-3 pr-10 text-slate-700 font-semibold dark:border-white/10 dark:bg-gray-950 dark:text-white";
+  "h-11 rounded-xl border border-subtle bg-surface-layer px-3 pr-10 font-semibold text-text-secondary";
 const DATE_INPUT_CLASS_NAME =
-  "h-11 rounded-xl border-slate-200 bg-white px-3 text-slate-700 font-semibold dark:border-white/10 dark:bg-gray-950 dark:text-white";
+  "h-11 rounded-xl border border-subtle bg-surface-layer px-3 font-semibold text-text-secondary";
 const SKILLS_TEXTAREA_CLASS_NAME =
-  "resize-none rounded-xl border-slate-200 px-3 py-3 pr-10 text-slate-700 font-semibold leading-6 dark:border-white/10 dark:bg-gray-950 dark:text-white";
+  "resize-none rounded-xl border border-subtle px-3 py-3 pr-10 font-semibold leading-6 text-text-secondary";
 
 export default function ProfilePage() {
   const navigate = useNavigate();
   const { getToken } = useClerkAuth();
-  const { user } = useAppAuth();
-  const { isDarkMode } = useDarkMode();
+  const { user, signOut } = useAppAuth();
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const [profile, setProfile] = useState<BackendProfile | null>(null);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -231,6 +236,17 @@ export default function ProfilePage() {
   const completeness = profile?.completeness;
   const completenessPercent = completeness?.percent ?? 0;
 
+  const handleSignOut = async () => {
+    if (isSigningOut) return;
+    setIsSigningOut(true);
+    try {
+      await signOut();
+      navigate("/");
+    } finally {
+      setIsSigningOut(false);
+    }
+  };
+
   const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSaving(true);
@@ -272,9 +288,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div
-      className={`min-h-[100dvh] ${isDarkMode ? "bg-gray-950 text-white" : "bg-slate-50 text-slate-950"}`}
-    >
+    <div className="min-h-[100dvh] bg-surface-body text-text-primary">
       <PullToRefresh
         onRefresh={loadProfile}
         disabled={loading || saving}
@@ -282,33 +296,31 @@ export default function ProfilePage() {
       >
         <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
           <section
-            className={`rounded-[20px] border p-5 sm:p-6 ${isDarkMode ? "border-white/10 bg-gray-900/70" : "border-slate-200 bg-white shadow-sm"}`}
+            className="rounded-[20px] border border-subtle bg-surface-layer p-5 shadow-soft sm:p-6"
           >
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
               <div>
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand/10 text-brand">
                   <UserCheck size={22} />
                 </div>
-                <h1 className="mt-4 text-2xl font-semibold tracking-tight sm:text-3xl">
+                <h1 className="mt-4 font-display text-2xl font-semibold tracking-tight sm:text-3xl">
                   Your profile
                 </h1>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-text-secondary">
                   Keep your details current so Edutu can tune recommendations,
                   deadlines, and application support around you.
                 </p>
               </div>
-              <div
-                className={`rounded-2xl border p-4 ${isDarkMode ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"}`}
-              >
+              <div className="rounded-2xl border border-subtle bg-surface-elevated p-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500 text-base font-semibold text-white">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand text-base font-semibold text-white">
                     {displayName(profile, user?.name).charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold">
                       {displayName(profile, user?.name)}
                     </p>
-                    <p className="truncate text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    <p className="truncate text-xs font-semibold text-text-muted">
                       {profile?.email || user?.email || "Signed in member"}
                     </p>
                   </div>
@@ -316,33 +328,48 @@ export default function ProfilePage() {
                 <div className="mt-5">
                   <div className="flex items-center justify-between text-sm font-semibold">
                     <span>Profile completeness</span>
-                    <span className="text-brand-600 dark:text-brand-300">
+                    <span className="text-brand">
                       {completenessPercent}%
                     </span>
                   </div>
-                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-elevated">
                     <div
-                      className="h-full rounded-full bg-brand-500 transition-all"
+                      className="h-full rounded-full bg-brand transition-all"
                       style={{ width: `${completenessPercent}%` }}
                     />
                   </div>
-                  <p className="mt-3 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  <p className="mt-3 text-xs font-semibold text-text-muted">
                     Last updated{" "}
                     {formatDate(profile?.updatedAt || profile?.updated_at)}
                   </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => void handleSignOut()}
+                  disabled={isSigningOut}
+                  className="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-danger/30 bg-danger/5 px-4 text-sm font-semibold text-danger transition hover:bg-danger/10 disabled:cursor-wait disabled:opacity-60"
+                >
+                  {isSigningOut ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <LogOut size={16} />
+                  )}
+                  {isSigningOut ? "Signing out…" : "Log out"}
+                </button>
               </div>
             </div>
           </section>
 
+          <ProfileQuickStats />
+
           {error ? (
-            <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">
+            <div className="mt-5 rounded-2xl border border-danger/20 bg-danger/10 p-4 text-sm font-semibold text-danger">
               {error}
             </div>
           ) : null}
 
           {savedMessage ? (
-            <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
+            <div className="mt-5 rounded-2xl border border-success/20 bg-success/10 p-4 text-sm font-semibold text-success">
               {savedMessage}
             </div>
           ) : null}
@@ -350,18 +377,18 @@ export default function ProfilePage() {
           <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
             <form
               onSubmit={saveProfile}
-              className={`rounded-[20px] border p-5 sm:p-6 ${isDarkMode ? "border-white/10 bg-gray-900/70" : "border-slate-200 bg-white shadow-sm"}`}
+              className="rounded-[20px] border border-subtle bg-surface-layer p-5 shadow-soft sm:p-6"
             >
               <div className="mb-5 flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-semibold tracking-tight">
+                  <h2 className="font-display text-lg font-semibold tracking-tight">
                     Profile details
                   </h2>
-                  <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
+                  <p className="mt-1 text-sm leading-6 text-text-muted">
                     Tap any field to edit what Edutu should know about you.
                   </p>
                 </div>
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600 dark:text-brand-300">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-brand/10 text-brand">
                   <PencilLine size={18} />
                 </span>
               </div>
@@ -383,7 +410,7 @@ export default function ProfilePage() {
                     />
                     <PencilLine
                       size={16}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
                     />
                   </div>
                 </div>
@@ -403,7 +430,7 @@ export default function ProfilePage() {
                     />
                     <PencilLine
                       size={16}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
                     />
                   </div>
                 </div>
@@ -422,7 +449,7 @@ export default function ProfilePage() {
                     />
                     <PencilLine
                       size={16}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
                     />
                   </div>
                 </div>
@@ -441,7 +468,7 @@ export default function ProfilePage() {
                     />
                     <PencilLine
                       size={16}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
                     />
                   </div>
                 </div>
@@ -463,7 +490,7 @@ export default function ProfilePage() {
                     />
                     <PencilLine
                       size={16}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
                     />
                   </div>
                 </div>
@@ -482,7 +509,7 @@ export default function ProfilePage() {
                     />
                     <PencilLine
                       size={16}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
                     />
                   </div>
                 </div>
@@ -502,7 +529,7 @@ export default function ProfilePage() {
                     />
                     <PencilLine
                       size={16}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
                     />
                   </div>
                 </div>
@@ -525,7 +552,7 @@ export default function ProfilePage() {
                     />
                     <PencilLine
                       size={16}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
                     />
                   </div>
                 </div>
@@ -547,7 +574,7 @@ export default function ProfilePage() {
                     />
                   </div>
                   {calculatedAge !== null ? (
-                    <span className="mt-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
+                    <span className="mt-1 block text-xs font-medium text-text-muted">
                       Age {calculatedAge}
                     </span>
                   ) : null}
@@ -572,7 +599,7 @@ export default function ProfilePage() {
                     />
                     <PencilLine
                       size={16}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
                     />
                   </div>
                 </div>
@@ -594,7 +621,7 @@ export default function ProfilePage() {
                     />
                     <PencilLine
                       size={16}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
                     />
                   </div>
                 </div>
@@ -614,7 +641,7 @@ export default function ProfilePage() {
                     />
                     <PencilLine
                       size={16}
-                      className="pointer-events-none absolute right-3 top-4 text-slate-400"
+                      className="pointer-events-none absolute right-3 top-4 text-text-muted"
                     />
                   </div>
                 </div>
@@ -645,8 +672,63 @@ export default function ProfilePage() {
             </form>
 
             <aside className="space-y-5">
+              <div className="rounded-[20px] border border-subtle bg-surface-layer p-3 shadow-soft">
+                <p className="px-2 pb-1 pt-2 text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">
+                  Account
+                </p>
+                <nav className="mt-1 space-y-1">
+                  {(
+                    [
+                      { label: "Settings", icon: Settings, to: "/app/settings" },
+                      {
+                        label: "Saved opportunities",
+                        icon: Bookmark,
+                        to: "/app/saved",
+                      },
+                      {
+                        label: "My applications",
+                        icon: Send,
+                        to: "/app/applications",
+                      },
+                    ] as const
+                  ).map(({ label, icon: Icon, to }) => (
+                    <button
+                      key={to}
+                      type="button"
+                      onClick={() => navigate(to)}
+                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-text-secondary transition hover:bg-surface-elevated hover:text-text-primary"
+                    >
+                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-elevated text-text-secondary">
+                        <Icon size={17} />
+                      </span>
+                      <span className="flex-1 truncate">{label}</span>
+                      <ChevronRight size={16} className="text-text-muted" />
+                    </button>
+                  ))}
+                </nav>
+                <div className="mt-1 border-t border-subtle pt-1">
+                  <button
+                    type="button"
+                    onClick={() => void handleSignOut()}
+                    disabled={isSigningOut}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-danger transition hover:bg-danger/10 disabled:cursor-wait disabled:opacity-60"
+                  >
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-danger/10 text-danger">
+                      {isSigningOut ? (
+                        <Loader2 size={17} className="animate-spin" />
+                      ) : (
+                        <LogOut size={17} />
+                      )}
+                    </span>
+                    <span className="flex-1 truncate">
+                      {isSigningOut ? "Signing out…" : "Log out"}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
               <div
-                className={`rounded-[20px] border p-5 ${isDarkMode ? "border-white/10 bg-gray-900/70" : "border-slate-200 bg-white shadow-sm"}`}
+                className="rounded-[20px] border border-subtle bg-surface-layer p-5 shadow-soft"
               >
                 <div className="flex items-center gap-2 text-sm font-semibold">
                   <Sparkles size={17} />
@@ -657,14 +739,14 @@ export default function ProfilePage() {
                     {completeness.missing.map((field) => (
                       <span
                         key={field.key}
-                        className="rounded-xl bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:text-amber-300"
+                        className="rounded-xl bg-warning/10 px-2.5 py-1 text-xs font-semibold text-warning"
                       >
                         {field.label}
                       </span>
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-3 text-sm font-semibold leading-6 text-slate-500 dark:text-slate-400">
+                  <p className="mt-3 text-sm font-semibold leading-6 text-text-muted">
                     Your profile has the core details needed for better
                     matching.
                   </p>
@@ -673,14 +755,14 @@ export default function ProfilePage() {
 
               {interestedCountries.length > 0 ? (
                 <div
-                  className={`rounded-[20px] border p-5 ${isDarkMode ? "border-white/10 bg-gray-900/70" : "border-slate-200 bg-white shadow-sm"}`}
+                  className="rounded-[20px] border border-subtle bg-surface-layer p-5 shadow-soft"
                 >
                   <p className="text-sm font-semibold">Interested countries</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {interestedCountries.map((countryName) => (
                       <span
                         key={countryName}
-                        className="rounded-xl bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300"
+                        className="rounded-xl bg-success/10 px-2.5 py-1 text-xs font-semibold text-success"
                       >
                         {countryName}
                       </span>
@@ -691,14 +773,14 @@ export default function ProfilePage() {
 
               {interests.length > 0 ? (
                 <div
-                  className={`rounded-[20px] border p-5 ${isDarkMode ? "border-white/10 bg-gray-900/70" : "border-slate-200 bg-white shadow-sm"}`}
+                  className="rounded-[20px] border border-subtle bg-surface-layer p-5 shadow-soft"
                 >
                   <p className="text-sm font-semibold">Interest tags</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {interests.map((interest) => (
                       <span
                         key={interest}
-                        className="rounded-xl bg-sky-500/10 px-2.5 py-1 text-xs font-semibold text-sky-700 dark:text-sky-300"
+                        className="rounded-xl bg-accent/10 px-2.5 py-1 text-xs font-semibold text-accent"
                       >
                         {interest}
                       </span>
@@ -709,14 +791,14 @@ export default function ProfilePage() {
 
               {skills.length > 0 ? (
                 <div
-                  className={`rounded-[20px] border p-5 ${isDarkMode ? "border-white/10 bg-gray-900/70" : "border-slate-200 bg-white shadow-sm"}`}
+                  className="rounded-[20px] border border-subtle bg-surface-layer p-5 shadow-soft"
                 >
                   <p className="text-sm font-semibold">Skill tags</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {skills.map((skill) => (
                       <span
                         key={skill}
-                        className="rounded-xl bg-brand-500/10 px-2.5 py-1 text-xs font-semibold text-brand-700 dark:text-brand-300"
+                        className="rounded-xl bg-brand/10 px-2.5 py-1 text-xs font-semibold text-brand"
                       >
                         {skill}
                       </span>

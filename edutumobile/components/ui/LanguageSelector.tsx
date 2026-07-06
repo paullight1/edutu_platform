@@ -40,7 +40,7 @@ export function LanguageSelector() {
                         key={lang.code}
                         activeOpacity={0.7}
                         className={`flex-row items-center justify-between p-4 rounded-xl mb-2 border ${isActive
-                                ? 'border-indigo-500/30'
+                                ? 'border-blue-500/30'
                                 : 'border-transparent'
                             }`}
                         style={{ backgroundColor: isActive ? 'rgba(99, 102, 241, 0.1)' : 'rgba(255,255,255,0.02)' }}

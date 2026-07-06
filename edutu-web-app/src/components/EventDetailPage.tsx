@@ -177,7 +177,7 @@ export default function EventDetailPage() {
     return (
       <PublicEditorialShell mainClassName="max-w-5xl py-6">
         <div className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
-          <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface-layer animate-pulse">
+          <div className="overflow-hidden rounded-2xl border border-subtle bg-surface-layer animate-pulse">
             <div className="aspect-[16/9] bg-surface-elevated" />
             <div className="space-y-3 p-5 sm:p-6">
               <div className="h-5 w-20 rounded-md bg-surface-elevated" />
@@ -188,7 +188,7 @@ export default function EventDetailPage() {
               </div>
             </div>
           </div>
-          <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface-layer animate-pulse">
+          <div className="overflow-hidden rounded-2xl border border-subtle bg-surface-layer animate-pulse">
             <div className="space-y-3 p-5">
               <div className="h-6 w-1/2 rounded bg-surface-elevated" />
               <div className="space-y-3">
@@ -218,15 +218,17 @@ export default function EventDetailPage() {
           path="/events"
           noindex
         />
-        <section className="rounded-2xl border border-border-subtle bg-surface-layer p-10 text-center">
-          <h1 className="text-2xl font-semibold">Event not found</h1>
-          <p className="mt-3 text-sm leading-6 text-soft">
+        <section className="rounded-2xl border border-subtle bg-surface-layer p-10 text-center">
+          <h1 className="font-display text-2xl font-semibold tracking-tight">
+            Event not found
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-text-secondary">
             This event may have been archived or unpublished.
           </p>
           <button
             type="button"
             onClick={() => navigate("/events")}
-            className="mt-5 inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold bg-surface-layer border border-border-subtle hover:border-brand-500/30 transition-all duration-300"
+            className="mt-5 inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold bg-surface-layer border border-subtle hover:border-brand/40 transition-all duration-300"
           >
             Back to events
           </button>
@@ -247,15 +249,15 @@ export default function EventDetailPage() {
       <PublicEditorialShell mainClassName="max-w-6xl py-5 sm:py-6">
         <Link
           to="/events"
-          className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-soft hover:bg-surface-elevated hover:text-strong transition-all duration-300"
+          className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-text-secondary hover:bg-surface-elevated hover:text-text-primary transition-all duration-300"
         >
           <ArrowLeft size={16} />
           Events
         </Link>
 
         <div className="mt-4 grid gap-5 lg:grid-cols-[1.35fr_0.65fr] lg:items-start">
-          <article className="overflow-hidden rounded-2xl border border-border-subtle bg-surface-layer">
-            <div className="aspect-[16/9] overflow-hidden bg-slate-100 dark:bg-slate-900">
+          <article className="overflow-hidden rounded-2xl border border-subtle bg-surface-layer">
+            <div className="aspect-[16/9] overflow-hidden bg-surface-elevated">
               <ImageWithFallback
                 src={event.imageUrl || eventFallbackImage}
                 alt={`${event.title} event cover`}
@@ -265,35 +267,37 @@ export default function EventDetailPage() {
             </div>
             <div className="p-5 sm:p-6">
               <div className="flex flex-wrap gap-2 text-xs font-semibold">
-                <span className="rounded-md border border-brand-500/20 bg-brand-500/10 px-2 py-1 text-brand-700 dark:text-brand-300">
+                <span className="rounded-md border border-brand/20 bg-brand/10 px-2 py-1 text-brand">
                   {event.isOnline ? "Online" : "In person"}
                 </span>
-                <span className="rounded-md border border-border-subtle bg-surface-elevated px-2 py-1 text-soft">
+                <span className="rounded-md border border-subtle bg-surface-elevated px-2 py-1 text-text-secondary">
                   {event.audience || "Public"}
                 </span>
               </div>
-              <h1 className="mt-4 text-3xl font-semibold leading-tight sm:text-4xl">
+              <h1 className="mt-4 font-display text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
                 {event.title}
               </h1>
-              <p className="mt-4 text-base leading-8 text-soft">
+              <p className="mt-4 text-base leading-8 text-text-secondary">
                 {event.description || event.summary || seoDescription}
               </p>
             </div>
           </article>
 
-          <aside className="rounded-2xl border border-border-subtle bg-surface-layer p-6">
-            <h2 className="text-lg font-semibold">Event details</h2>
+          <aside className="rounded-2xl border border-subtle bg-surface-layer p-6">
+            <h2 className="font-display text-lg font-semibold tracking-tight">
+              Event details
+            </h2>
             <dl className="mt-5 grid gap-5 text-sm">
               <div className="flex gap-3">
                 <Calendar
                   size={18}
-                  className="mt-0.5 shrink-0 text-brand-600 dark:text-brand-300"
+                  className="mt-0.5 shrink-0 text-brand"
                 />
                 <div>
-                    <dt className="font-semibold text-muted">
+                    <dt className="font-semibold text-text-muted">
                       Date
                     </dt>
-                    <dd className="mt-1 text-strong">
+                    <dd className="mt-1 text-text-primary">
                     {formatDate(event.startsAt)}
                   </dd>
                 </div>
@@ -301,13 +305,13 @@ export default function EventDetailPage() {
               <div className="flex gap-3">
                 <Clock3
                   size={18}
-                  className="mt-0.5 shrink-0 text-brand-600 dark:text-brand-300"
+                  className="mt-0.5 shrink-0 text-brand"
                 />
                 <div>
-                  <dt className="font-semibold text-muted">
+                  <dt className="font-semibold text-text-muted">
                     Time
                   </dt>
-                  <dd className="mt-1 text-strong">
+                  <dd className="mt-1 text-text-primary">
                     {formatTime(event.startsAt)}
                     {event.timezone ? ` ${event.timezone}` : ""}
                   </dd>
@@ -316,13 +320,13 @@ export default function EventDetailPage() {
               <div className="flex gap-3">
                 <MapPin
                   size={18}
-                  className="mt-0.5 shrink-0 text-brand-600 dark:text-brand-300"
+                  className="mt-0.5 shrink-0 text-brand"
                 />
                 <div>
-                  <dt className="font-semibold text-muted">
+                  <dt className="font-semibold text-text-muted">
                     Location
                   </dt>
-                  <dd className="mt-1 text-strong">
+                  <dd className="mt-1 text-text-primary">
                     {event.location ||
                       (event.isOnline ? "Online" : "Location TBA")}
                   </dd>
@@ -332,26 +336,26 @@ export default function EventDetailPage() {
 
             <form
               onSubmit={handleJoin}
-              className="mt-5 border-t border-border-subtle pt-5"
+              className="mt-5 border-t border-subtle pt-5"
             >
               <div className="grid gap-4">
-                <label className="grid gap-2 text-sm font-semibold text-soft">
+                <label className="grid gap-2 text-sm font-semibold text-text-secondary">
                   Name
                   <input
                     value={name}
                     onChange={(inputEvent) => setName(inputEvent.target.value)}
                     placeholder="Optional"
-                    className="h-11 rounded-xl border border-border-subtle bg-surface-elevated/60 px-4 text-sm font-normal text-strong placeholder:text-muted focus:border-brand-500 focus:bg-surface-layer"
+                    className="h-11 rounded-xl border border-subtle bg-surface-elevated/60 px-4 text-sm font-normal text-text-primary placeholder:text-text-muted focus:border-brand focus:bg-surface-layer"
                   />
                 </label>
-                <label className="grid gap-2 text-sm font-semibold text-soft">
+                <label className="grid gap-2 text-sm font-semibold text-text-secondary">
                   Email
                   <input
                     value={email}
                     onChange={(inputEvent) => setEmail(inputEvent.target.value)}
                     type="email"
                     placeholder="Optional"
-                    className="h-11 rounded-xl border border-border-subtle bg-surface-elevated/60 px-4 text-sm font-normal text-strong placeholder:text-muted focus:border-brand-500 focus:bg-surface-layer"
+                    className="h-11 rounded-xl border border-subtle bg-surface-elevated/60 px-4 text-sm font-normal text-text-primary placeholder:text-text-muted focus:border-brand focus:bg-surface-layer"
                   />
                 </label>
               </div>
@@ -359,7 +363,7 @@ export default function EventDetailPage() {
               <button
                 type="submit"
                 disabled={joining}
-                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold bg-surface-layer border border-border-subtle hover:border-brand-500/30 disabled:cursor-wait disabled:opacity-70 transition-all duration-300"
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white shadow-elevated hover:bg-brand-700 disabled:cursor-wait disabled:opacity-70 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-2"
               >
                 {joining ? (
                   "Joining"

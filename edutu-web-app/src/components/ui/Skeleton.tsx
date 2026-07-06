@@ -22,7 +22,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
     animation = 'pulse',
     style: styleOverride
 }) => {
-    const baseClasses = 'bg-gray-200 dark:bg-gray-700';
+    const baseClasses = 'bg-surface-elevated';
 
     const animationClasses = {
         pulse: 'animate-pulse',
@@ -75,7 +75,7 @@ export const SkeletonText: React.FC<{ lines?: number; className?: string }> = ({
  * Skeleton Card - For card content placeholders
  */
 export const SkeletonCard: React.FC<{ className?: string }> = ({ className = '' }) => (
-    <div className={`p-4 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 ${className}`}>
+    <div className={`p-4 rounded-2xl bg-surface-layer border border-subtle ${className}`}>
         <div className="flex items-start gap-4">
             <Skeleton variant="circular" className="w-12 h-12 shrink-0" />
             <div className="flex-1 space-y-2">
@@ -94,7 +94,7 @@ export const SkeletonCard: React.FC<{ className?: string }> = ({ className = '' 
  * Skeleton Stats Card - For dashboard stat cards
  */
 export const SkeletonStatsCard: React.FC<{ className?: string }> = ({ className = '' }) => (
-    <div className={`p-4 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 ${className}`}>
+    <div className={`p-4 rounded-2xl bg-surface-layer border border-subtle ${className}`}>
         <Skeleton variant="text" className="h-3 w-20 mb-2" />
         <Skeleton variant="text" className="h-8 w-16 mb-1" />
         <Skeleton variant="text" className="h-3 w-24" />
@@ -145,7 +145,7 @@ export const SkeletonList: React.FC<{ count?: number; className?: string }> = ({
 }) => (
     <div className={`space-y-3 ${className}`}>
         {Array.from({ length: count }).map((_, index) => (
-            <div key={index} className="flex items-center gap-3 p-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
+            <div key={index} className="flex items-center gap-3 p-3 rounded-xl bg-surface-layer border border-subtle">
                 <Skeleton variant="circular" className="w-10 h-10 shrink-0" />
                 <div className="flex-1 space-y-1">
                     <Skeleton variant="text" className="h-4 w-3/4" />
@@ -220,7 +220,7 @@ export const SkeletonOpportunities: React.FC = () => (
 export const SkeletonChat: React.FC = () => (
     <div className="flex flex-col h-full p-4">
         {/* Header */}
-        <div className="flex items-center gap-3 pb-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-3 pb-4 border-b border-subtle">
             <Skeleton variant="circular" className="w-12 h-12" />
             <div className="space-y-1">
                 <Skeleton variant="text" className="h-5 w-32" />
@@ -245,7 +245,7 @@ export const SkeletonChat: React.FC = () => (
         </div>
 
         {/* Input */}
-        <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="pt-4 border-t border-subtle">
             <Skeleton variant="rounded" className="h-12 w-full" />
         </div>
     </div>

@@ -12,7 +12,7 @@ import {
     UserCircle,
 } from "lucide-react-native";
 import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
+import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import { useTheme } from "../../components/context/ThemeContext";
 import { EdutuLogo } from "../../components/branding/EdutuLogo";
 import { WelcomeHintSystem } from "../../components/ui/WelcomeHintSystem";
@@ -21,6 +21,15 @@ import { supabase } from "../../lib/supabase";
 import { useNotifications } from "@edutu/core/src/hooks/useNotifications";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// Real Apple Liquid Glass (iOS 26+); elsewhere we use a blur fallback.
+const HAS_LIQUID_GLASS = (() => {
+    try {
+        return isLiquidGlassAvailable();
+    } catch {
+        return false;
+    }
+})();
 
 function getBottomNavOffset(bottomInset: number): number {
     if (Platform.OS === 'ios') {
@@ -42,50 +51,48 @@ function Badge({ count, isDark }: { count?: number | "!"; isDark: boolean }) {
 }
 
 // ─── Tab Item ─────────────────────────────────────────────────────────────────
+// Standard iOS UITabBar / Telegram item: icon over a small label, tinted with
+// the accent when active and neutral gray otherwise.
 function TabItem({
     icon: Icon,
     label,
+    color,
     isActive,
+    highlight,
     badge,
     onPress,
-    theme,
     isDark,
 }: {
     icon: React.ComponentType<{ size: number; color: string; strokeWidth?: number }>;
     label: string;
+    color: string;
     isActive: boolean;
+    highlight?: string;
     badge?: number | "!";
     onPress: () => void;
-    theme: any;
     isDark: boolean;
 }) {
     return (
         <TouchableOpacity
             onPress={onPress}
-            activeOpacity={0.75}
-            style={[
-                styles.tabItem,
-                isActive && { backgroundColor: theme.activePill }
-            ]}
+            activeOpacity={0.6}
+            style={styles.tabItem}
             accessibilityRole="button"
             accessibilityState={{ selected: isActive }}
             accessibilityLabel={label}
         >
-            <View style={styles.iconContainer}>
-                <Icon
-                    size={21}
-                    color={isActive ? theme.activeColor : theme.inactive}
-                    strokeWidth={isActive ? 2.5 : 2}
+            {isActive && (
+                <View
+                    pointerEvents="none"
+                    style={[styles.tabActiveBubble, { backgroundColor: highlight }]}
                 />
+            )}
+            <View style={styles.tabIconWrap}>
+                <Icon size={24} color={color} strokeWidth={isActive ? 2.4 : 1.9} />
                 <Badge count={badge} isDark={isDark} />
             </View>
-
             <Text
-                style={[
-                    styles.tabLabel,
-                    { color: isActive ? theme.labelActive : theme.inactive },
-                    isActive && { fontWeight: "700" }
-                ]}
+                style={[styles.tabLabel, { color, fontWeight: isActive ? "700" : "600" }]}
                 numberOfLines={1}
             >
                 {label}
@@ -210,33 +217,6 @@ function HeaderLogoTitle({
     );
 }
 
-function EdutuAIButton({ onPress, isDark }: { onPress: () => void; isDark: boolean }) {
-    return (
-        <View style={styles.aiBtnWrapper}>
-            <TouchableOpacity
-                onPress={onPress}
-                activeOpacity={0.9}
-                style={styles.aiBtnContainer}
-                accessibilityRole="button"
-                accessibilityLabel="Open Edutu AI chat"
-            >
-                <BlurView
-                    intensity={isDark ? 40 : 60}
-                    tint={isDark ? "dark" : "light"}
-                    style={[StyleSheet.absoluteFill, styles.aiBlurBackground]}
-                />
-                <View style={[
-                    styles.aiGlassBorder,
-                    { borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.4)' }
-                ]} />
-                <View style={styles.aiIconContainer}>
-                    <Sparkles size={24} color={isDark ? "#FFFFFF" : "#3B82F6"} strokeWidth={2.5} />
-                </View>
-            </TouchableOpacity>
-        </View>
-    );
-}
-
 // ─── Shared App Header ────────────────────────────────────────────────────────
 function AppHeader({ isDark, colors, unreadNotifications }: { isDark: boolean, colors: any, unreadNotifications: number }) {
     const router = useRouter();
@@ -281,6 +261,7 @@ function BottomNav({
     onTabPress,
     onAIPress,
     isDark,
+    colors,
 }: {
     tabs: Array<{
         key: string;
@@ -293,68 +274,86 @@ function BottomNav({
     onTabPress: (key: string, route: string) => void;
     onAIPress: () => void;
     isDark: boolean;
+    colors: any;
 }) {
     const insets = useSafeAreaInsets();
-    const bottomOffset = getBottomNavOffset(insets.bottom);
-    const THEME = {
-        navBg: isDark ? "rgba(15, 23, 42, 0.65)" : "rgba(255, 255, 255, 0.80)",
-        activePill: isDark ? "rgba(99, 102, 241, 0.20)" : "#F0F0F5",
-        activeColor: isDark ? "#818CF8" : "#4F46E5",
-        inactive: isDark ? "#94A3B8" : "#475569",
-        border: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)",
-        labelActive: isDark ? "#A5B4FC" : "#4F46E5",
-        shadow: isDark ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.08)",
-    };
-    return (
-        <View style={[
-            styles.navContainer,
-            {
-                bottom: bottomOffset,
-                zIndex: 2000,
-                elevation: 20,
-            }
-        ]} pointerEvents="box-none">
-            <View style={[styles.navPillWrapper, { shadowColor: THEME.shadow }]}>
+    // Brighter accent + higher-contrast inactive so labels stay legible on the
+    // translucent glass over dark content.
+    const accent = isDark ? "#A5B4FC" : (colors.accent || "#4F46E5");
+    const inactive = isDark ? "#C7CCD4" : "#5B6472";
+    const glassTint = isDark
+        ? (Platform.OS === "android" ? "rgba(22,24,34,0.94)" : "rgba(20,22,32,0.72)")
+        : (Platform.OS === "android" ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.78)");
+    const borderCol = isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.06)";
+    const activeBubble = isDark ? "rgba(129,140,248,0.30)" : "rgba(79,70,229,0.14)";
+
+    // Shared glass background for both the pill and the detached circle.
+    const glassBackground = (rounded: number) =>
+        HAS_LIQUID_GLASS ? (
+            <GlassView
+                style={StyleSheet.absoluteFill}
+                glassEffectStyle="regular"
+                isInteractive
+                colorScheme={isDark ? "dark" : "light"}
+            />
+        ) : (
+            <>
                 <BlurView
-                    intensity={isDark ? 65 : 90}
-                    tint={isDark ? "dark" : "light"}
+                    intensity={isDark ? 40 : 60}
+                    tint={isDark ? "systemChromeMaterialDark" : "systemChromeMaterialLight"}
+                    experimentalBlurMethod={Platform.OS === "android" ? "dimezisBlurView" : undefined}
                     style={StyleSheet.absoluteFill}
                 />
-                <LinearGradient
-                    colors={
-                        isDark
-                            ? ['rgba(255,255,255,0.18)', 'rgba(255,255,255,0.03)', 'rgba(255,255,255,0.02)']
-                            : ['rgba(255,255,255,0.92)', 'rgba(255,255,255,0.35)', 'rgba(255,255,255,0.12)']
-                    }
-                    start={{ x: 0.1, y: 0 }}
-                    end={{ x: 0.9, y: 1 }}
-                    style={styles.navGlassWash}
-                    pointerEvents="none"
-                />
+                <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: glassTint }]} />
                 <View
                     pointerEvents="none"
                     style={[
-                        styles.navSpecularLine,
-                        { backgroundColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.9)' }
+                        StyleSheet.absoluteFillObject,
+                        { borderRadius: rounded, borderCurve: "continuous", borderWidth: StyleSheet.hairlineWidth, borderColor: borderCol },
                     ]}
                 />
-                <View style={[styles.navPillOverlay, { backgroundColor: THEME.navBg, borderColor: THEME.border }]}>
-                    {tabs.map((tab) => (
-                        <TabItem
-                            key={tab.key}
-                            icon={tab.icon}
-                            label={tab.label}
-                            isActive={activeRoute === tab.key}
-                            badge={tab.badge}
-                            onPress={() => onTabPress(tab.key, tab.route)}
-                            theme={THEME}
-                            isDark={isDark}
-                        />
-                    ))}
+            </>
+        );
+
+    return (
+        <View
+            style={[styles.navRow, { bottom: Math.max(insets.bottom, 10) }]}
+            pointerEvents="box-none"
+        >
+            {/* Main floating glass pill with the tabs */}
+            <View style={styles.navPill}>
+                {glassBackground(32)}
+                <View style={styles.navPillRow}>
+                    {tabs.map((tab) => {
+                        const isActive = activeRoute === tab.key;
+                        return (
+                            <TabItem
+                                key={tab.key}
+                                icon={tab.icon}
+                                label={tab.label}
+                                color={isActive ? accent : inactive}
+                                isActive={isActive}
+                                highlight={activeBubble}
+                                badge={tab.badge}
+                                onPress={() => onTabPress(tab.key, tab.route)}
+                                isDark={isDark}
+                            />
+                        );
+                    })}
                 </View>
             </View>
 
-            <EdutuAIButton onPress={onAIPress} isDark={isDark} />
+            {/* Detached glass circle — the Edutu AI accessory */}
+            <TouchableOpacity
+                onPress={onAIPress}
+                activeOpacity={0.85}
+                style={styles.navCircle}
+                accessibilityRole="button"
+                accessibilityLabel="Open Edutu AI"
+            >
+                {glassBackground(999)}
+                <Sparkles size={24} color={accent} strokeWidth={2.2} />
+            </TouchableOpacity>
         </View>
     );
 }
@@ -496,23 +495,14 @@ export default function AppLayout() {
             </View>
 
             {showBottomNav && (
-                <>
-                    {isDark && (
-                        <LinearGradient
-                            colors={["transparent", "rgba(2, 6, 23, 0.6)", "rgba(2, 6, 23, 0.9)"]}
-                            style={[styles.bottomFade, { height: 84 + Math.max(insets.bottom, 0) }]}
-                            pointerEvents="none"
-                        />
-                    )}
-
-                    <BottomNav
-                        tabs={tabs}
-                        activeRoute={activeRoute}
-                        onTabPress={(key, route) => router.push(route as never)}
-                        onAIPress={() => router.push('/chat' as never)}
-                        isDark={isDark}
-                    />
-                </>
+                <BottomNav
+                    tabs={tabs}
+                    activeRoute={activeRoute}
+                    onTabPress={(key, route) => router.push(route as never)}
+                    onAIPress={() => router.push('/chat' as never)}
+                    isDark={isDark}
+                    colors={colors}
+                />
             )}
 
             <WelcomeHintSystem
@@ -529,60 +519,72 @@ const styles = StyleSheet.create({
     appContainer: {
         flex: 1,
     },
-    navContainer: {
+    navRow: {
         position: "absolute",
         left: 14,
         right: 14,
         flexDirection: "row",
         alignItems: "center",
-        gap: 12,
+        gap: 10,
         zIndex: 999,
     },
-    navPillWrapper: {
+    navPill: {
         flex: 1,
-        height: 68,
-        borderRadius: 34,
+        height: 66,
+        borderRadius: 33,
+        borderCurve: "continuous",
         overflow: "hidden",
-        shadowOffset: { width: 0, height: 14 },
-        shadowOpacity: 1,
-        shadowRadius: 24,
-        elevation: 14,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.18,
+        shadowRadius: 20,
+        elevation: 12,
     },
-    navGlassWash: {
-        ...StyleSheet.absoluteFillObject,
-    },
-    navSpecularLine: {
-        position: 'absolute',
-        top: 1,
-        left: 18,
-        right: 18,
-        height: 1,
-        borderRadius: 999,
-    },
-    navPillOverlay: {
+    navPillRow: {
         flex: 1,
         flexDirection: "row",
         alignItems: "center",
-        paddingHorizontal: 8,
-        borderWidth: 1,
-        borderRadius: 34,
+        paddingHorizontal: 6,
+    },
+    navCircle: {
+        width: 66,
+        height: 66,
+        borderRadius: 33,
+        borderCurve: "continuous",
+        overflow: "hidden",
+        alignItems: "center",
+        justifyContent: "center",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.18,
+        shadowRadius: 20,
+        elevation: 12,
     },
     tabItem: {
         flex: 1,
-        height: 52,
-        flexDirection: "column",
+        height: 56,
         alignItems: "center",
         justifyContent: "center",
-        borderRadius: 26,
-        marginHorizontal: 3,
+        gap: 4,
     },
-    iconContainer: {
+    tabActiveBubble: {
+        position: "absolute",
+        top: 4,
+        left: 6,
+        right: 6,
+        bottom: 4,
+        borderRadius: 22,
+        borderCurve: "continuous",
+    },
+    tabIconWrap: {
         position: "relative",
     },
     tabLabel: {
-        fontSize: 10,
-        marginTop: 2,
+        fontSize: 11,
+        lineHeight: 14,
         letterSpacing: 0.1,
+        includeFontPadding: false,
+        textAlign: "center",
     },
     badge: {
         position: "absolute",
@@ -602,54 +604,6 @@ const styles = StyleSheet.create({
         fontSize: 8,
         fontWeight: "800",
         lineHeight: 10,
-    },
-
-    // ─── AI Button Styles ───────────────────────────────────────────
-    aiBtnWrapper: {
-        position: "relative",
-        alignItems: "center",
-    },
-    aiBtnContainer: {
-        width: 68,
-        height: 68,
-        borderRadius: 34,
-        alignItems: "center",
-        justifyContent: "center",
-        overflow: 'hidden',
-    },
-    aiBlurBackground: {
-        borderRadius: 34,
-    },
-    aiHoldBackground: {
-        borderRadius: 34,
-    },
-    aiGlassBorder: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        borderRadius: 34,
-        borderWidth: 2,
-    },
-    aiIconContainer: {
-        zIndex: 10,
-    },
-    aiPulseRing: {
-        position: 'absolute',
-        top: -4,
-        left: -4,
-        right: -4,
-        bottom: -4,
-        borderRadius: 36,
-        borderWidth: 2,
-        opacity: 0.6,
-    },
-    aiLabel: {
-        fontSize: 10,
-        fontWeight: "600",
-        marginTop: 4,
-        letterSpacing: 0.2,
     },
 
     // ─── Ripple Effect ──────────────────────────────────────────────
@@ -728,12 +682,5 @@ const styles = StyleSheet.create({
         backgroundColor: '#EF4444',
         borderWidth: 1.5,
         borderColor: '#020617',
-    },
-    bottomFade: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        zIndex: 90,
     },
 });

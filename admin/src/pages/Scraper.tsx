@@ -217,6 +217,13 @@ export default function ScraperDashboard() {
     const [scrapingElapsedSeconds, setScrapingElapsedSeconds] = useState(0);
     const [selectedOpportunities, setSelectedOpportunities] = useState<Set<number>>(new Set());
     const [activeScrapeJobId, setActiveScrapeJobId] = useState<string | null>(null);
+    // Background-run UX: when the modal is minimized the scrape keeps running.
+    const [isBackground, setIsBackground] = useState(false);
+    const [liveFoundCount, setLiveFoundCount] = useState(0);
+    // Live pause/stop + real progress tracking.
+    const [isPaused, setIsPaused] = useState(false);
+    const [sourcesTotal, setSourcesTotal] = useState(0);
+    const [sourcesDone, setSourcesDone] = useState(0);
     const [notifications, setNotifications] = useState<Notification[]>([]);
 
     const showNotification = (message: string, type: Notification['type'] = 'info') => {
@@ -234,17 +241,28 @@ export default function ScraperDashboard() {
     const [enhancingIndexes, setEnhancingIndexes] = useState<Set<number>>(new Set());
     const [detailsOpportunity, setDetailsOpportunity] = useState<ScrapedOpportunity | null>(null);
     const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
+    const [expandedJobGroups, setExpandedJobGroups] = useState<Set<string>>(new Set());
+    const toggleJobGroup = (key: string) => {
+        setExpandedJobGroups(prev => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key); else next.add(key);
+            return next;
+        });
+    };
     const abortControllerRef = useRef<AbortController | null>(null);
+    // Mirrors isBackground for the async scrape closure (state would be stale).
+    const isBackgroundRef = useRef(false);
 
     useEffect(() => {
-        if (!showLoadingModal || !scrapingStartedAt || modalError || currentStep >= 4) return;
+        // Keep ticking while the modal is open OR minimized to the background pill.
+        if (!(showLoadingModal || isBackground) || !scrapingStartedAt || modalError || currentStep >= 4) return;
 
         const interval = window.setInterval(() => {
             setScrapingElapsedSeconds(Math.max(0, Math.floor((Date.now() - scrapingStartedAt) / 1000)));
         }, 1000);
 
         return () => window.clearInterval(interval);
-    }, [showLoadingModal, scrapingStartedAt, modalError, currentStep]);
+    }, [showLoadingModal, isBackground, scrapingStartedAt, modalError, currentStep]);
 
     const fetchSettings = useCallback(async () => {
         try {
@@ -357,6 +375,66 @@ export default function ScraperDashboard() {
         } finally {
             setIsLoadingInspect(false);
         }
+    };
+
+    const [isSavingInspect, setIsSavingInspect] = useState(false);
+    const [isImprovingInspect, setIsImprovingInspect] = useState(false);
+
+    // Save every opportunity from the inspected job into the live catalogue.
+    const saveInspectOpportunities = async () => {
+        if (inspectOpportunities.length === 0) return;
+        setIsSavingInspect(true);
+        const items = inspectOpportunities.map(opp => {
+            const sourceUrl = opp.sourceUrl || opp.source_url || opp.applyUrl || opp.apply_url || '';
+            const applyUrl = opp.applyUrl || opp.apply_url || opp.application_url || sourceUrl;
+            if (!sourceUrl) return null;
+            return {
+                title: opp.title, summary: opp.summary || undefined, description: opp.description || undefined,
+                category: opp.category || undefined, organization: opp.organization || undefined, location: opp.location || undefined,
+                type: 'scholarship', eligibilityCriteria: opp.requirements?.length ? opp.requirements.join('\n') : undefined,
+                fundingType: opp.funding_type || undefined, targetRegion: opp.target_region || undefined,
+                deadline: opp.deadline || undefined, sourceUrl, applyUrl,
+                imageUrl: opp.imageUrl || opp.image_url || undefined, eligibility: opp.eligibility || undefined,
+                isFeatured: false, isRemote: true, status: 'pending', tags: [] as string[],
+            };
+        }).filter((i): i is NonNullable<typeof i> => Boolean(i));
+        if (items.length === 0) { setIsSavingInspect(false); showNotification('No valid opportunities to save', 'warning'); return; }
+        let inserted = 0, skipped = 0;
+        for (let i = 0; i < items.length; i += 100) {
+            try {
+                const result = await backendFetchJson<{ success: boolean; inserted?: number; skipped?: number }>(
+                    `/opportunities/admin/bulk-import`,
+                    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: items.slice(i, i + 100) }) },
+                );
+                inserted += result.inserted || 0; skipped += result.skipped || 0;
+            } catch (e) { console.error('inspect save batch failed', e); }
+        }
+        setIsSavingInspect(false);
+        await loadRecentOpportunities(); await loadData();
+        showNotification(`Saved ${inserted} opportunities${skipped ? `, skipped ${skipped}` : ''}`, 'success');
+    };
+
+    // Improve every opportunity in the inspected job with AI (updates the list live).
+    const improveInspectOpportunities = async () => {
+        if (inspectOpportunities.length === 0) return;
+        setIsImprovingInspect(true);
+        const updated = [...inspectOpportunities];
+        for (let i = 0; i < updated.length; i++) {
+            try {
+                const response = await fetch(`${API_URL}/enhance-preview`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
+                    body: JSON.stringify(updated[i]),
+                });
+                const result = await response.json();
+                if (response.ok && result.success && result.opportunity) {
+                    updated[i] = result.opportunity;
+                    setInspectOpportunities([...updated]);
+                }
+            } catch (e) { console.warn('AI improve failed for item', i, e); }
+        }
+        setIsImprovingInspect(false);
+        showNotification('AI improvement complete', 'success');
     };
 
     const handleDeleteJob = async (id: string) => {
@@ -494,16 +572,55 @@ export default function ScraperDashboard() {
         };
     }, [fetchSettings, loadData, loadRecentOpportunities]);
 
+    // Explicit cancel: aborts the in-flight scrape and resets everything.
     function stopScrape() {
         if (abortControllerRef.current) {
             abortControllerRef.current.abort();
         }
         setScraping(false);
         setShowLoadingModal(false);
+        setIsBackground(false);
+        isBackgroundRef.current = false;
         setModalError(null);
         setScrapingStartedAt(null);
         setScrapingElapsedSeconds(0);
+        setLiveFoundCount(0);
     }
+
+    // Minimize: hide the modal but let the scrape keep running in the background.
+    // The fetch promise in startScrape is NOT aborted, so it completes normally.
+    function minimizeScrape() {
+        setShowLoadingModal(false);
+        setIsBackground(true);
+        isBackgroundRef.current = true;
+    }
+
+    // Re-open the progress modal from the floating background pill.
+    function restoreScrape() {
+        setIsBackground(false);
+        isBackgroundRef.current = false;
+        setShowLoadingModal(true);
+    }
+
+    // Live run controls — hit the backend so the crawl actually pauses/stops.
+    const postRunControl = async (action: 'pause' | 'resume' | 'stop') => {
+        try {
+            await fetch(`${API_URL}/run/${action}`, {
+                method: 'POST',
+                headers: await getAuthHeaders(),
+            });
+        } catch (e) {
+            console.warn(`Failed to ${action} scrape run`, e);
+        }
+    };
+    const pauseScrape = () => { setIsPaused(true); void postRunControl('pause'); };
+    const resumeScrape = () => { setIsPaused(false); void postRunControl('resume'); };
+    // Graceful stop: the backend finalizes with partial results and the stream
+    // sends `done`, so the normal completion path renders what was gathered.
+    const requestStopScrape = () => {
+        void postRunControl('stop');
+        showNotification('Stopping scrape — finishing the current item…', 'info');
+    };
 
     const getJobSourceResults = (job: ScrapeJob) => {
         if (!job.source_results) return [];
@@ -586,6 +703,12 @@ export default function ScraperDashboard() {
         setScrapeResult(null);
         setModalError(null);
         setActiveScrapeJobId(null);
+        setIsBackground(false);
+        isBackgroundRef.current = false;
+        setLiveFoundCount(0);
+        setIsPaused(false);
+        setSourcesTotal(0);
+        setSourcesDone(0);
         setShowLoadingModal(true);
         setCurrentStep(1);
         setScrapingStartedAt(Date.now());
@@ -601,87 +724,138 @@ export default function ScraperDashboard() {
         abortControllerRef.current = controller;
 
         try {
-            // Use port 3000 (NestJS default) unless overridden by env
-            const backendUrl = (import.meta.env.VITE_BACKEND_URL || 'https://edutu-api.onrender.com').replace(/\/$/, '');
+            const backendUrl = (import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'https://edutu-api.onrender.com').replace(/\/$/, '');
 
-            // Step 1: Connecting to sources
+            // Step 1 → 2
             setCurrentStep(1);
-            await new Promise(r => setTimeout(r, 500));
-
-            // Step 2: Starting scrape
+            await new Promise(r => setTimeout(r, 300));
             setCurrentStep(2);
-            // Mark all as 'scraping'
-            setScrapingProgress(sourcesToScrape.map(s => ({ source: s.name, status: 'scraping' as const, progress: 0 })));
+            setScrapingProgress(sourcesToScrape.map(s => ({ source: s.name, status: 'pending' as const, progress: 0 })));
 
-            const response = await fetch(`${backendUrl}/api/scraper/run`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(await getAuthHeaders()),
-                },
-                body: JSON.stringify({
-                    sourceId: sourceId ?? undefined,
-                    allSources: !sourceId,
-                    maxPages: maxPages,
-                }),
+            const params = new URLSearchParams({ maxPages: String(maxPages) });
+            if (sourceId) params.set('sourceId', String(sourceId));
+            else params.set('allSources', 'true');
+
+            // GET the SSE stream via fetch (so auth headers are sent; EventSource can't).
+            const response = await fetch(`${backendUrl}/api/scraper/run/stream?${params.toString()}`, {
+                method: 'GET',
+                headers: { ...(await getAuthHeaders()) },
                 signal: controller.signal,
             });
 
-            // Step 3: Processing results
-            setCurrentStep(3);
-
-            if (response.ok) {
-                const result = await response.json();
-                console.log('Scrape result:', result);
-
-                // Map backend response to expected ScrapeResult shape
-                const mapped: ScrapeResult = {
-                    success: result.success,
-                    sourcesScraped: result.sourcesScraped ?? sourcesToScrape.length,
-                    totalResults: result.totalResults ?? 0,
-                    duration: result.duration,
-                    jobId: result.jobId ?? result.jobLogId ?? undefined,
-                    error: result.error,
-                    sourceResults: result.sourceResults ?? sourcesToScrape.map(s => ({
-                        name: s.name,
-                        url: s.url,
-                        status: 'success' as const,
-                        itemsFound: 0,
-                        itemsSaved: 0,
-                    })),
-                    opportunities: result.opportunities ?? [],
-                };
-
-                setScrapeResult(mapped);
-                setActiveScrapeJobId(mapped.jobId ?? null);
-
-                setScrapingProgress(
-                    (result.sourceResults ?? sourcesToScrape.map(s => ({ name: s.name, status: 'success' as const }))).map(
-                        (sr: SourceResult | { name: string; status: 'success' | 'failed' | 'skipped' | 'pending' }) => ({
-                            source: sr.name,
-                            status: sr.status === 'failed' ? 'failed' as const : 'completed' as const,
-                            progress: 100,
-                        })
-                    )
-                );
-
-                // Step 4: Complete
-                setCurrentStep(4);
-                await new Promise(r => setTimeout(r, 1000));
-
-                setShowLoadingModal(false);
-                setShowResultsModal(true);
-                setScrapingStartedAt(null);
-                await loadData();
-                await loadRecentOpportunities();
-            } else {
-                const errorText = await response.text();
-                console.error('Scrape failed:', response.status, errorText);
+            if (!response.ok || !response.body) {
+                const errorText = await response.text().catch(() => '');
                 let errorMsg = `Server error ${response.status}`;
                 try { errorMsg = JSON.parse(errorText).message || errorMsg; } catch { /* noop */ }
-                setModalError(`Backend error: ${errorMsg}`);
-                setScrapeResult({ success: false, error: errorMsg });
+                throw new Error(errorMsg);
             }
+
+            // ── Consume the Server-Sent-Events stream: each event is `data: <json>\n\n` ──
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            const streamed: ScrapedOpportunity[] = [];
+            let buffer = '';
+            let finalResult: Record<string, unknown> | null = null;
+            let streamError: string | null = null;
+
+            const markSource = (name: string, status: 'pending' | 'scraping' | 'completed' | 'failed') =>
+                setScrapingProgress(prev => prev.map(p =>
+                    p.source === name ? { ...p, status, progress: status === 'completed' ? 100 : p.progress } : p));
+
+            streamLoop: while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const chunks = buffer.split('\n\n');
+                buffer = chunks.pop() || '';
+                for (const chunk of chunks) {
+                    const dataLine = chunk.split('\n').find(l => l.startsWith('data:'));
+                    if (!dataLine) continue;
+                    let evt: Record<string, unknown>;
+                    try { evt = JSON.parse(dataLine.slice(5).trim()); } catch { continue; }
+
+                    switch (evt.type) {
+                        case 'start': {
+                            setCurrentStep(2);
+                            const names = Array.isArray(evt.sources) ? (evt.sources as string[]) : sourcesToScrape.map(s => s.name);
+                            setScrapingProgress(names.map(n => ({ source: n, status: 'pending' as const, progress: 0 })));
+                            setSourcesTotal(names.length);
+                            setSourcesDone(0);
+                            break;
+                        }
+                        case 'source-start':
+                            markSource(String(evt.name), 'scraping');
+                            break;
+                        case 'control':
+                            setIsPaused(evt.state === 'paused');
+                            break;
+                        case 'opportunity':
+                            // Live append — this is what makes items stream in one by one.
+                            streamed.push(evt.opportunity as ScrapedOpportunity);
+                            setLiveFoundCount(streamed.length);
+                            setCurrentStep(3);
+                            setScrapeResult({
+                                success: true,
+                                sourcesScraped: sourcesToScrape.length,
+                                totalResults: streamed.length,
+                                opportunities: [...streamed],
+                            });
+                            break;
+                        case 'source-done':
+                            markSource(String(evt.name), evt.error ? 'failed' : 'completed');
+                            setSourcesDone(prev => prev + 1);
+                            break;
+                        case 'done':
+                            finalResult = (evt.result as Record<string, unknown>) || {};
+                            break;
+                        case 'error':
+                            streamError = String(evt.error || 'Scrape failed');
+                            break streamLoop;
+                    }
+                }
+            }
+
+            if (streamError) throw new Error(streamError);
+
+            // Final mapped result (prefer streamed items; fall back to the done payload).
+            const doneOpps = Array.isArray(finalResult?.opportunities) ? (finalResult!.opportunities as ScrapedOpportunity[]) : [];
+            const opportunities = streamed.length ? streamed : doneOpps;
+            const mapped: ScrapeResult = {
+                success: (finalResult?.success as boolean) ?? true,
+                sourcesScraped: (finalResult?.sourcesScraped as number) ?? sourcesToScrape.length,
+                totalResults: (finalResult?.totalResults as number) ?? opportunities.length,
+                duration: finalResult?.duration as number | undefined,
+                jobId: (finalResult?.jobId as string) ?? (finalResult?.jobLogId as string) ?? undefined,
+                sourceResults: (finalResult?.sourceResults as SourceResult[]) ?? undefined,
+                opportunities,
+            };
+
+            setScrapeResult(mapped);
+            setActiveScrapeJobId(mapped.jobId ?? null);
+            setLiveFoundCount(mapped.opportunities?.length ?? mapped.totalResults ?? 0);
+            setScrapingProgress(prev => prev.map(p =>
+                p.status === 'scraping' || p.status === 'pending' ? { ...p, status: 'completed' as const, progress: 100 } : p));
+
+            // Step 4: Complete (background-aware)
+            setCurrentStep(4);
+            const foundCount = mapped.opportunities?.length ?? mapped.totalResults ?? 0;
+            await new Promise(r => setTimeout(r, 800));
+            setScrapingStartedAt(null);
+
+            if (isBackgroundRef.current) {
+                setIsBackground(false);
+                isBackgroundRef.current = false;
+                setShowLoadingModal(false);
+                showNotification(
+                    `Background scrape complete — ${foundCount} opportunities found. Open it from Recent Scrapes below.`,
+                    'success',
+                );
+            } else {
+                setShowLoadingModal(false);
+                setShowResultsModal(true);
+            }
+            await loadData();
+            await loadRecentOpportunities();
         } catch (error: unknown) {
             if (error instanceof Error && error.name === 'AbortError') {
                 console.log('Scrape cancelled by user');
@@ -695,6 +869,13 @@ export default function ScraperDashboard() {
                 setModalError(hint);
                 setScrapeResult({ success: false, error: hint });
             }
+        }
+        // If an error surfaced while the modal was minimized, bring it back so the
+        // user actually sees what went wrong (success path already cleared the ref).
+        if (isBackgroundRef.current) {
+            setIsBackground(false);
+            isBackgroundRef.current = false;
+            setShowLoadingModal(true);
         }
         setScraping(false);
         abortControllerRef.current = null;
@@ -872,11 +1053,14 @@ export default function ScraperDashboard() {
         ? 0
         : currentStep >= 4
             ? 100
-            : currentStep === 3
-                ? Math.min(96, 78 + Math.floor(scrapingElapsedSeconds / 3))
-                : currentStep === 2
-                    ? Math.min(76, 28 + Math.floor(scrapingElapsedSeconds * 1.6))
-                    : Math.min(24, 8 + Math.floor(scrapingElapsedSeconds * 2));
+            // Real progress once the source count is known (sources completed / total).
+            : sourcesTotal > 0
+                ? Math.min(99, Math.max(2, Math.round((sourcesDone / sourcesTotal) * 100)))
+                : currentStep === 3
+                    ? Math.min(96, 78 + Math.floor(scrapingElapsedSeconds / 3))
+                    : currentStep === 2
+                        ? Math.min(76, 28 + Math.floor(scrapingElapsedSeconds * 1.6))
+                        : Math.min(24, 8 + Math.floor(scrapingElapsedSeconds * 2));
 
     const toggleOpportunitySelection = (index: number) => {
         const newSelection = new Set(selectedOpportunities);
@@ -1155,6 +1339,85 @@ export default function ScraperDashboard() {
     };
 
 
+
+    // Compact source card (grid layout) — replaces the wide table rows.
+    const renderSourceCard = (source: ScrapeSource, depth: number = 0): React.ReactNode => {
+        const children = getChildren(source.id);
+        const isExpanded = expandedGroups.has(source.id);
+        const hasChildren = children.length > 0 || source.is_group;
+        const successRate = source.total_scraped + source.total_failed > 0
+            ? Math.round((source.total_scraped / (source.total_scraped + source.total_failed)) * 100)
+            : null;
+        return (
+            <React.Fragment key={source.id}>
+                <div style={{
+                    background: source.is_group ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
+                    border: `1px solid ${depth > 0 ? 'var(--apple-blue)' : 'var(--border-light)'}`,
+                    borderLeft: depth > 0 ? '3px solid var(--apple-blue)' : undefined,
+                    borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10,
+                    transition: 'border-color 0.15s ease',
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                        <div style={{ minWidth: 0 }}>
+                            <div
+                                onClick={() => hasChildren && toggleGroup(source.id)}
+                                style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: hasChildren ? 'pointer' : 'default' }}
+                            >
+                                {hasChildren && (
+                                    <ChevronRight size={14} style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s', color: 'var(--text-tertiary)', flexShrink: 0 }} />
+                                )}
+                                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {source.name}
+                                </span>
+                            </div>
+                            {source.is_group
+                                ? <span style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', fontWeight: 600 }}>Group · {children.length} sources</span>
+                                : source.url && (
+                                    <a href={source.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                                        style={{ fontSize: 11, color: 'var(--link-blue)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {source.url.replace(/^https?:\/\//, '').slice(0, 34)}<ExternalLink size={9} />
+                                    </a>
+                                )}
+                        </div>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); toggleSource(source); }}
+                            title={source.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable'}
+                            style={{
+                                flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 6,
+                                fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer',
+                                background: source.enabled ? 'rgba(52, 199, 89, 0.12)' : 'var(--bg-tertiary)',
+                                color: source.enabled ? '#34c759' : 'var(--text-tertiary)',
+                            }}
+                        >
+                            {source.enabled ? <CheckCircle2 size={11} /> : <Pause size={11} />}
+                            {source.enabled ? 'Active' : 'Off'}
+                        </button>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 11, color: 'var(--text-tertiary)' }}>
+                        <span>{source.last_scraped ? formatDate(source.last_scraped) : 'Never scraped'}</span>
+                        <span>{successRate !== null ? `${successRate}% success` : '—'}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                            onClick={() => { if (source.is_group) showNotification(`Starting scrape for all ${source.name} sources`, 'info'); startScrape(source.id); }}
+                            title={source.is_group ? 'Scrape all in group' : 'Scrape this source'}
+                            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '7px 10px', borderRadius: 8, border: '1px solid rgba(0,113,227,0.3)', background: 'rgba(0,113,227,0.08)', color: '#0071e3', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                        >
+                            <Play size={13} /> {source.is_group ? 'Run all' : 'Run'}
+                        </button>
+                        <button
+                            onClick={() => deleteSource(source.id)}
+                            title="Delete source"
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '7px 10px', borderRadius: 8, border: '1px solid rgba(255,59,48,0.25)', background: 'transparent', color: '#ff3b30', cursor: 'pointer' }}
+                        >
+                            <Trash2 size={13} />
+                        </button>
+                    </div>
+                </div>
+                {isExpanded && children.map(child => renderSourceCard(child, depth + 1))}
+            </React.Fragment>
+        );
+    };
 
     const enabledSourcesCount = sources.filter(s => s.enabled).length;
 
@@ -1566,34 +1829,23 @@ export default function ScraperDashboard() {
                         </button>
                     </div>
                 </div>
-                <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                            <tr style={{ background: 'var(--bg-tertiary)' }}>
-                                <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Source</th>
-                                <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Status</th>
-                                <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Last Scraped</th>
-                                <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Success Rate</th>
-                                <th style={{ padding: '12px 24px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {rootSources.length === 0 ? (
-                                <tr>
-                                    <td colSpan={5} style={{ padding: '48px 24px', textAlign: 'center' }}>
-                                        <AlertCircle size={32} style={{ color: 'var(--text-tertiary)', margin: '0 auto 12px' }} />
-                                        <p style={{ color: 'var(--text-tertiary)', fontSize: 14 }}>
-                                            No sources found matching your frequency/filter.
-                                        </p>
-                                    </td>
-                                </tr>
-                            ) : (
-                                rootSources.map(source => renderSourceRow(source))
-                            )}
-                        </tbody>
-
-                    </table>
-                </div>
+                {rootSources.length === 0 ? (
+                    <div style={{ padding: '48px 24px', textAlign: 'center' }}>
+                        <AlertCircle size={32} style={{ color: 'var(--text-tertiary)', margin: '0 auto 12px' }} />
+                        <p style={{ color: 'var(--text-tertiary)', fontSize: 14 }}>
+                            No sources found matching your filter.
+                        </p>
+                    </div>
+                ) : (
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                        gap: 12,
+                        padding: '16px 24px 24px',
+                    }}>
+                        {rootSources.map(source => renderSourceCard(source))}
+                    </div>
+                )}
             </div>
 
             {/* Automation Settings */}
@@ -1846,6 +2098,10 @@ export default function ScraperDashboard() {
                                 {visibleJobGroups.map(group => {
                                     const latestJob = group.jobs[0];
                                     const statusColor = getStatusColor(latestJob.status);
+                                    const isExpanded = expandedJobGroups.has(group.displayName);
+                                    const totalFound = group.jobs.reduce((s, j) => s + getJobFoundCount(j), 0);
+                                    const totalSaved = group.jobs.reduce((s, j) => s + getJobSavedCount(j), 0);
+                                    const latestRunning = latestJob.status === 'running' || latestJob.status === 'in_progress';
 
                                     return (
                                         <div
@@ -1908,48 +2164,67 @@ export default function ScraperDashboard() {
                                                 </span>
                                             </div>
 
-                                            <div style={{
-                                                display: 'flex',
-                                                gap: 8,
-                                                flexWrap: 'wrap',
-                                                marginBottom: 12,
-                                            }}>
-                                                <span style={{
-                                                    padding: '4px 8px',
-                                                    borderRadius: 999,
-                                                    background: 'rgba(0, 113, 227, 0.08)',
-                                                    color: 'var(--text-primary)',
-                                                    fontSize: 11,
-                                                    fontWeight: 600,
-                                                }}>
-                                                    {getJobFoundCount(latestJob)} opportunities found
+                                            {/* Total outcomes across all runs in this group */}
+                                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                                                <span style={{ padding: '4px 8px', borderRadius: 999, background: 'rgba(0, 113, 227, 0.08)', color: 'var(--text-primary)', fontSize: 11, fontWeight: 600 }}>
+                                                    {totalFound} found
                                                 </span>
-                                                <span style={{
-                                                    padding: '4px 8px',
-                                                    borderRadius: 999,
-                                                    background: 'rgba(52, 199, 89, 0.1)',
-                                                    color: '#34c759',
-                                                    fontSize: 11,
-                                                    fontWeight: 600,
-                                                }}>
-                                                    {getJobSavedCount(latestJob)} saved
+                                                <span style={{ padding: '4px 8px', borderRadius: 999, background: 'rgba(52, 199, 89, 0.1)', color: '#34c759', fontSize: 11, fontWeight: 600 }}>
+                                                    {totalSaved} saved
                                                 </span>
-                                                <span style={{
-                                                    padding: '4px 8px',
-                                                    borderRadius: 999,
-                                                    background: 'var(--bg-tertiary)',
-                                                    color: 'var(--text-secondary)',
-                                                    fontSize: 11,
-                                                    fontWeight: 600,
-                                                }}>
-                                                    {latestJob.duration_seconds}s
+                                                <span style={{ padding: '4px 8px', borderRadius: 999, background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontSize: 11, fontWeight: 600 }}>
+                                                    {group.jobs.length} run{group.jobs.length === 1 ? '' : 's'}
                                                 </span>
                                             </div>
 
+                                            {/* Live progress for the active run */}
+                                            {latestRunning && scraping && (
+                                                <div style={{ marginBottom: 12 }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
+                                                        <span>{isPaused ? 'Paused' : 'Scraping'} · {liveFoundCount} found</span>
+                                                        <span>{estimatedProgress}%</span>
+                                                    </div>
+                                                    <div style={{ height: 4, background: 'var(--bg-tertiary)', borderRadius: 2, overflow: 'hidden' }}>
+                                                        <div style={{ height: '100%', width: `${estimatedProgress}%`, background: 'linear-gradient(90deg,#146ef5,#60a5fa)', borderRadius: 2, transition: 'width 0.5s ease' }} />
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Actions: View & Save · (running) pause/stop · expand runs */}
+                                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                <button
+                                                    onClick={() => handleInspectJob(latestJob)}
+                                                    title="View this run's opportunities — save them or improve with AI"
+                                                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 10px', borderRadius: 8, border: '1px solid rgba(0,113,227,0.25)', background: 'rgba(0,113,227,0.08)', color: 'var(--primary)', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}
+                                                >
+                                                    <Save size={13} /> View &amp; Save
+                                                </button>
+                                                {latestRunning && scraping && (
+                                                    <>
+                                                        <button onClick={isPaused ? resumeScrape : pauseScrape} title={isPaused ? 'Resume' : 'Pause'}
+                                                            style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid var(--border-medium)', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                            {isPaused ? <Play size={14} /> : <Pause size={14} />}
+                                                        </button>
+                                                        <button onClick={requestStopScrape} title="Stop"
+                                                            style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid rgba(255,59,48,0.3)', background: 'rgba(255,59,48,0.1)', color: '#ff3b30', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                            <X size={14} />
+                                                        </button>
+                                                    </>
+                                                )}
+                                                <button onClick={() => toggleJobGroup(group.displayName)} title={isExpanded ? 'Hide runs' : 'Show runs'}
+                                                    style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid var(--border-medium)', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <ChevronRight size={16} style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+                                                </button>
+                                            </div>
+
+                                            {isExpanded && (
                                             <div style={{
                                                 display: 'flex',
                                                 flexDirection: 'column',
                                                 gap: 8,
+                                                marginTop: 12,
+                                                borderTop: '1px solid var(--border-light)',
+                                                paddingTop: 12,
                                             }}>
                                                 {group.jobs.slice(0, showAllJobs ? group.jobs.length : 3).map(job => {
                                                     const jobStatus = getStatusColor(job.status);
@@ -2070,6 +2345,7 @@ export default function ScraperDashboard() {
                                                     );
                                                 })}
                                             </div>
+                                            )}
                                         </div>
                                     );
                                 })}
@@ -2515,6 +2791,8 @@ export default function ScraperDashboard() {
                                         <AlertCircle size={32} color="white" />
                                     ) : currentStep === 4 ? (
                                         <CheckCircle2 size={32} color="white" />
+                                    ) : isPaused ? (
+                                        <Pause size={30} color="white" />
                                     ) : (
                                         <Loader2 size={32} color="white" className="animate-spin" />
                                     )}
@@ -2525,7 +2803,7 @@ export default function ScraperDashboard() {
                                     color: modalError ? '#ff3b30' : 'var(--text-primary)',
                                     margin: 0,
                                 }}>
-                                    {modalError ? 'Scraping Failed' : currentStep === 4 ? 'Scraping Complete!' : 'Scraping in Progress...'}
+                                    {modalError ? 'Scraping Failed' : currentStep === 4 ? 'Scraping Complete!' : isPaused ? 'Scrape Paused' : 'Scraping in Progress...'}
                                 </h2>
                                 <p style={{
                                     color: 'var(--text-tertiary)',
@@ -2722,37 +3000,160 @@ export default function ScraperDashboard() {
                                 </div>
                             )}
 
-                            {/* Stop / Dismiss Button */}
-                            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 20 }}>
-                                <button
-                                    onClick={stopScrape}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 8,
-                                        padding: '10px 28px',
-                                        background: modalError ? 'var(--apple-blue)' : 'rgba(255, 59, 48, 0.1)',
-                                        border: `1px solid ${modalError ? 'transparent' : 'rgba(255, 59, 48, 0.3)'}`,
-                                        borderRadius: 10,
-                                        color: modalError ? 'white' : '#ff3b30',
-                                        fontSize: 14,
-                                        fontWeight: 500,
-                                        cursor: 'pointer',
-                                        transition: 'opacity 0.2s ease',
-                                    }}
-                                    onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
-                                    onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
-                                >
-                                    {modalError
-                                        ? <><CheckCircle2 size={16} /> Dismiss</>
-                                        : <><X size={16} /> Stop Scraping</>
-                                    }
-                                </button>
+                            {/* Live opportunity count + per-item loading skeletons */}
+                            {!modalError && (
+                                <div style={{ marginBottom: 4 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                            {currentStep === 4 ? 'Opportunities found' : 'Opportunities incoming'}
+                                        </span>
+                                        <span style={{ fontSize: 15, fontWeight: 700, color: '#146ef5', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                            {currentStep === 4
+                                                ? liveFoundCount
+                                                : <><Loader2 size={13} className="animate-spin" /> scanning…</>}
+                                        </span>
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                                        {(scrapeResult?.opportunities ?? []).slice(0, 4).map((opp, i) => (
+                                            <div key={`opp-${i}`} style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', animation: 'fadeIn 0.3s ease' }}>
+                                                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opp.title}</div>
+                                                <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opp.organization || opp.source}</div>
+                                            </div>
+                                        ))}
+                                        {currentStep < 4 && Array.from({ length: Math.max(0, 4 - Math.min(4, scrapeResult?.opportunities?.length ?? 0)) }).map((_, i) => (
+                                            <div key={`sk-${i}`} style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border-light)' }}>
+                                                <div style={{ height: 10, width: '80%', borderRadius: 4, background: 'var(--bg-tertiary)', animation: 'pulse 1.5s ease-in-out infinite', animationDelay: `${i * 0.15}s` }} />
+                                                <div style={{ height: 8, width: '55%', borderRadius: 4, background: 'var(--bg-tertiary)', marginTop: 8, animation: 'pulse 1.5s ease-in-out infinite', animationDelay: `${i * 0.15 + 0.2}s` }} />
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {currentStep === 4 && liveFoundCount > 4 && (
+                                        <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-tertiary)', textAlign: 'center' }}>
+                                            + {liveFoundCount - 4} more — click the run in Recent Scrapes to view all
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+            {/* Footer actions: minimize (keep running) vs cancel; Dismiss on error/complete */}
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 20 }}>
+                                {modalError || currentStep === 4 ? (
+                                    <button
+                                        onClick={stopScrape}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: 8,
+                                            padding: '10px 28px', background: 'var(--apple-blue)',
+                                            border: '1px solid transparent', borderRadius: 10,
+                                            color: 'white', fontSize: 14, fontWeight: 500, cursor: 'pointer',
+                                            transition: 'opacity 0.2s ease',
+                                        }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+                                    >
+                                        <CheckCircle2 size={16} /> Dismiss
+                                    </button>
+                                ) : (
+                                    <>
+                                        <button
+                                            onClick={isPaused ? resumeScrape : pauseScrape}
+                                            title={isPaused ? 'Resume the scrape' : 'Pause the scrape'}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 8,
+                                                padding: '10px 22px', background: isPaused ? 'rgba(52, 199, 89, 0.12)' : 'var(--bg-tertiary)',
+                                                border: `1px solid ${isPaused ? 'rgba(52, 199, 89, 0.35)' : 'var(--border-medium)'}`, borderRadius: 10,
+                                                color: isPaused ? '#34c759' : 'var(--text-primary)', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                                                transition: 'opacity 0.2s ease',
+                                            }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+                                        >
+                                            {isPaused ? <><Play size={16} /> Resume</> : <><Pause size={16} /> Pause</>}
+                                        </button>
+                                        <button
+                                            onClick={requestStopScrape}
+                                            title="Stop and keep what was gathered so far"
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 8,
+                                                padding: '10px 22px', background: 'rgba(255, 59, 48, 0.1)',
+                                                border: '1px solid rgba(255, 59, 48, 0.3)', borderRadius: 10,
+                                                color: '#ff3b30', fontSize: 14, fontWeight: 500, cursor: 'pointer',
+                                                transition: 'opacity 0.2s ease',
+                                            }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+                                        >
+                                            <X size={16} /> Stop
+                                        </button>
+                                        <button
+                                            onClick={minimizeScrape}
+                                            title="Keep the scrape running and close this window"
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 8,
+                                                padding: '10px 22px', background: 'var(--apple-blue)',
+                                                border: '1px solid transparent', borderRadius: 10,
+                                                color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                                                transition: 'opacity 0.2s ease',
+                                            }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.88'; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+                                        >
+                                            <ArrowLeft size={16} /> Background
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>
                 )
             }
+
+            {/* Floating background-scrape pill (shown while minimized) */}
+            {scraping && isBackground && !showLoadingModal && (
+                <div
+                    style={{
+                        position: 'fixed', bottom: 24, right: 24, zIndex: 1100,
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '10px 12px 10px 14px', borderRadius: 18,
+                        background: 'var(--bg-primary)', border: '1px solid var(--border-medium)',
+                        boxShadow: '0 12px 30px -8px rgba(0,0,0,0.35)',
+                        color: 'var(--text-primary)', animation: 'slideUp 0.3s ease',
+                    }}
+                >
+                    <button
+                        onClick={restoreScrape}
+                        title="Tap to view scrape progress"
+                        style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0 }}
+                    >
+                        <span style={{ width: 34, height: 34, borderRadius: 10, background: isPaused ? 'var(--bg-tertiary)' : 'linear-gradient(135deg,#146ef5,#60a5fa)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isPaused ? 'var(--text-secondary)' : 'white' }}>
+                            {isPaused ? <Pause size={17} /> : <Loader2 size={18} className="animate-spin" />}
+                        </span>
+                        <span style={{ textAlign: 'left' }}>
+                            <span style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>
+                                {isPaused ? 'Scrape paused' : 'Scraping…'} <span style={{ color: '#146ef5' }}>{liveFoundCount}</span> found · {estimatedProgress}%
+                            </span>
+                            <span style={{ display: 'block', fontSize: 11, color: 'var(--text-tertiary)' }}>
+                                {formatElapsed(scrapingElapsedSeconds)} elapsed · tap to view
+                            </span>
+                        </span>
+                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 4 }}>
+                        <button
+                            onClick={isPaused ? resumeScrape : pauseScrape}
+                            title={isPaused ? 'Resume' : 'Pause'}
+                            style={{ width: 32, height: 32, borderRadius: 9, border: '1px solid var(--border-light)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                            {isPaused ? <Play size={15} /> : <Pause size={15} />}
+                        </button>
+                        <button
+                            onClick={requestStopScrape}
+                            title="Stop (keep what was gathered)"
+                            style={{ width: 32, height: 32, borderRadius: 9, border: '1px solid rgba(255,59,48,0.3)', background: 'rgba(255,59,48,0.1)', color: '#ff3b30', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                            <X size={15} />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Results Modal */}
             {
@@ -3516,22 +3917,34 @@ export default function ScraperDashboard() {
                             )}
                         </div>
 
-                        <div style={{ padding: '20px 32px', background: 'var(--bg-tertiary)', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end' }}>
-                            <button
-                                onClick={() => setInspectJobDetails(null)}
-                                style={{
-                                    padding: '10px 24px',
-                                    background: 'var(--text-primary)',
-                                    color: 'var(--bg-primary)',
-                                    border: 'none',
-                                    borderRadius: 10,
-                                    fontSize: 14,
-                                    fontWeight: 600,
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                Close
-                            </button>
+                        <div style={{ padding: '20px 32px', background: 'var(--bg-tertiary)', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
+                                {inspectOpportunities.length} opportunit{inspectOpportunities.length === 1 ? 'y' : 'ies'} in this run
+                            </span>
+                            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                <button
+                                    onClick={improveInspectOpportunities}
+                                    disabled={isImprovingInspect || isSavingInspect || inspectOpportunities.length === 0}
+                                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: 'rgba(122,61,255,0.1)', color: '#7a3dff', border: '1px solid rgba(122,61,255,0.3)', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: (isImprovingInspect || inspectOpportunities.length === 0) ? 'not-allowed' : 'pointer', opacity: (isImprovingInspect || inspectOpportunities.length === 0) ? 0.6 : 1 }}
+                                >
+                                    {isImprovingInspect ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+                                    {isImprovingInspect ? 'Improving…' : 'Improve with AI'}
+                                </button>
+                                <button
+                                    onClick={saveInspectOpportunities}
+                                    disabled={isSavingInspect || isImprovingInspect || inspectOpportunities.length === 0}
+                                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: 'var(--apple-blue)', color: 'white', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: (isSavingInspect || inspectOpportunities.length === 0) ? 'not-allowed' : 'pointer', opacity: (isSavingInspect || inspectOpportunities.length === 0) ? 0.6 : 1 }}
+                                >
+                                    {isSavingInspect ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                    {isSavingInspect ? 'Saving…' : `Save all${inspectOpportunities.length ? ` (${inspectOpportunities.length})` : ''}`}
+                                </button>
+                                <button
+                                    onClick={() => setInspectJobDetails(null)}
+                                    style={{ padding: '10px 20px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-medium)', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+                                >
+                                    Close
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
