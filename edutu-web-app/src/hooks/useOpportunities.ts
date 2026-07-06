@@ -35,11 +35,16 @@ export function useOpportunities(): UseOpportunitiesResult {
     // Reflect background revalidations (stale-while-revalidate) triggered by
     // any other screen or the boot-time warm-up.
     return subscribeToOpportunities((opportunities) => {
-      setState((prev) => ({
-        data: opportunities,
-        loading: false,
-        error: prev.error
-      }));
+      setState((prev) => {
+        if (opportunities.length === 0 && prev.data.length > 0) {
+          return prev;
+        }
+        return {
+          data: opportunities,
+          loading: false,
+          error: prev.error
+        };
+      });
     });
   }, []);
 

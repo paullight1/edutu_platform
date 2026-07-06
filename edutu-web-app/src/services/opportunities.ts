@@ -637,7 +637,9 @@ export async function fetchOpportunities(
       normalised.length > 0
         ? normalised
         : await requestStaticOpportunitySnapshot(options);
-    setOpportunityCache(resolvedOpportunities);
+    if (resolvedOpportunities.length > 0 || !cachedOpportunities) {
+      setOpportunityCache(resolvedOpportunities);
+    }
 
     if (resolvedOpportunities.length > 0) {
       void (async () => {
