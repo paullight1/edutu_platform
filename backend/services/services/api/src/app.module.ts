@@ -28,9 +28,12 @@ import { ConfigModule } from "@nestjs/config";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { APP_GUARD } from "@nestjs/core";
 import { DeveloperModule } from "./developer/developer.module";
+import { CalendarModule } from "./calendar/calendar.module";
+import { CacheModule } from "./common/cache/cache.module";
 
 @Module({
   imports: [
+    CacheModule,
     ConfigModule.forRoot(),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
@@ -62,6 +65,7 @@ import { DeveloperModule } from "./developer/developer.module";
     EventsModule,
     EdutuApiModule,
     DeveloperModule,
+    CalendarModule,
   ],
   controllers: [AppController],
   providers: [

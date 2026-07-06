@@ -3,7 +3,7 @@
 buildscript {
   repositories {
     google()
-    maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2/") }
+    mavenCentral()
   }
   dependencies {
         classpath 'com.google.gms:google-services:4.4.4'
@@ -17,13 +17,25 @@ allprojects {
   repositories {
     maven { url uri("$rootDir/local-maven-repo") }
     google()
-    maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2/") }
+    mavenCentral()
     maven { url 'https://www.jitpack.io' }
   }
 }
 
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"
+
+subprojects { subproject ->
+  subproject.plugins.withId("com.android.library") { configureAndroidNdk(subproject) }
+  subproject.plugins.withId("com.android.application") { configureAndroidNdk(subproject) }
+}
+
+void configureAndroidNdk(Project project) {
+  project.android {
+    ndkVersion rootProject.ext.ndkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+  }
+}
 
 gradle.projectsEvaluated {
   subprojects { subproject ->

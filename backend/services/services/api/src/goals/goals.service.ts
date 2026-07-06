@@ -10,6 +10,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { toDatabaseUserId } from "../common/user-id";
 import { NotificationsService } from "../notifications/notifications.service";
 import type { BroadcastNotificationDto } from "../notifications/dto/notification.dto";
+import { CalendarSyncService } from "../calendar/calendar-sync.service";
 import type { CreateGoalDto } from "./dto/create-goal.dto";
 import type { UpdateGoalDto } from "./dto/update-goal.dto";
 
@@ -23,6 +24,7 @@ export class GoalsService {
 
   constructor(
     @Optional() private readonly notificationsService?: NotificationsService,
+    @Optional() private readonly calendarService?: CalendarSyncService,
   ) {}
 
   // Get all goals for a user
@@ -86,6 +88,7 @@ export class GoalsService {
       .returning();
     const serialized = this.serializeGoal(newGoal);
     await this.replaceGoalReminderQueue(dbUserId, serialized);
+    void this.calendarService?.syncGoal(dbUserId, serialized);
     return serialized;
   }
 
@@ -104,6 +107,7 @@ export class GoalsService {
     if (!updatedGoal) throw new NotFoundException("Goal not found");
     const serialized = this.serializeGoal(updatedGoal);
     await this.replaceGoalReminderQueue(dbUserId, serialized);
+    void this.calendarService?.syncGoal(dbUserId, serialized);
     return serialized;
   }
 
@@ -117,6 +121,7 @@ export class GoalsService {
 
     if (!deleted) throw new NotFoundException("Goal not found");
     await this.cancelGoalReminders(dbUserId, id);
+    void this.calendarService?.removeGoal(dbUserId, id);
     return { success: true };
   }
 

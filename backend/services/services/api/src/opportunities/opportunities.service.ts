@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Optional } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { existsSync } from "fs";
 import { readFile } from "fs/promises";
@@ -12,7 +12,6 @@ import * as path from "path";
 import { z } from "zod";
 import { OpportunityRankingService } from "./opportunity-ranking.service";
 import { OpportunityEmbeddingService } from "./opportunity-embedding.service";
-import { TtlCache } from "../common/cache/ttl-cache";
 import {
   OpportunityPreferenceDto,
   OpportunitySignalDto,
@@ -21,6 +20,9 @@ import {
 } from "./dto/personalization.dto";
 import { AiService } from "../ai";
 import { OpportunityShareCardService } from "./opportunity-share-card.service";
+import { CacheService } from "../common/cache/cache.service";
+
+const OPPS_CACHE_PREFIX = "opps:";
 import {
   buildOpportunityPublicShareUrl,
   buildOpportunityShareText,
@@ -416,28 +418,17 @@ async function loadStaticOpportunitySnapshot(): Promise<
   }
 }
 
-const OPPORTUNITY_READ_CACHE_TTL_MS = Number(
-  process.env.OPPORTUNITY_READ_CACHE_TTL_MS ?? 60_000,
-);
-
 @Injectable()
 export class OpportunitiesService {
   private readonly logger = new Logger(OpportunitiesService.name);
   private readonly supabase: SupabaseClient | null = null;
 
-  // Read-through caches for the near-static catalog. Invalidated on every write
-  // (create/update/status/remove/import/enhance/purge/sync). See TtlCache note
-  // re: multi-instance staleness.
-  private readonly listCache = new TtlCache<Record<string, any>[]>(
-    OPPORTUNITY_READ_CACHE_TTL_MS,
-  );
-  private readonly detailCache = new TtlCache<Record<string, any> | null>(
-    OPPORTUNITY_READ_CACHE_TTL_MS,
-  );
-
+  // Read-through cache for the near-static catalog is served by the shared
+  // (Redis-backed) CacheService under the "opps:" prefix. Every write
+  // (create/update/status/remove/import/enhance/purge/sync) invalidates it so
+  // edits are visible immediately rather than after the TTL lapses.
   private invalidateReadCaches(): void {
-    this.listCache.clear();
-    this.detailCache.clear();
+    void this.cache?.delByPrefix(OPPS_CACHE_PREFIX);
   }
 
   constructor(
@@ -445,6 +436,7 @@ export class OpportunitiesService {
     private readonly aiService: AiService,
     private readonly opportunityShareCardService: OpportunityShareCardService,
     private readonly embeddingService: OpportunityEmbeddingService,
+    @Optional() private readonly cache?: CacheService,
   ) {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -465,29 +457,9 @@ export class OpportunitiesService {
     const statusFilter = status || "active";
     const cappedLimit = Math.min(Number(limit) || 20, 100);
     const normalizedOffset = Number(offset) || 0;
+    const cacheKey = `${OPPS_CACHE_PREFIX}list:${statusFilter}:${category || ""}:${cappedLimit}:${normalizedOffset}`;
 
-    const cacheKey = `${statusFilter}|${category ?? ""}|${cappedLimit}|${normalizedOffset}`;
-    const cached = this.listCache.get(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    const rows = await this.loadOpportunityList(
-      statusFilter,
-      category,
-      cappedLimit,
-      normalizedOffset,
-    );
-    this.listCache.set(cacheKey, rows);
-    return rows;
-  }
-
-  private async loadOpportunityList(
-    statusFilter: string,
-    category: string | undefined,
-    cappedLimit: number,
-    normalizedOffset: number,
-  ): Promise<Record<string, any>[]> {
+    const run = async () => {
     try {
       if (this.supabase) {
         let request = this.supabase
@@ -557,6 +529,9 @@ export class OpportunitiesService {
       statusFilter,
       category,
     ).map((row) => withOpportunityUrlAliases(row as Record<string, any>));
+    };
+
+    return this.cache ? this.cache.wrap(cacheKey, 45, run) : run();
   }
 
   async listSitemapOpportunities(
@@ -646,17 +621,7 @@ export class OpportunitiesService {
   }
 
   async findOne(id: string) {
-    const cached = this.detailCache.get(id);
-    if (cached !== undefined) {
-      return cached;
-    }
-
-    const result = await this.loadOpportunityDetail(id);
-    this.detailCache.set(id, result);
-    return result;
-  }
-
-  private async loadOpportunityDetail(id: string) {
+    const run = async () => {
     try {
       if (this.supabase) {
         const { data, error } = await this.supabase
@@ -693,6 +658,11 @@ export class OpportunitiesService {
     const snapshotRows = await loadStaticOpportunitySnapshot();
     const row = snapshotRows.find((item) => String(item.id) === String(id));
     return row ? withOpportunityUrlAliases(row as Record<string, any>) : null;
+    };
+
+    return this.cache
+      ? this.cache.wrap(`${OPPS_CACHE_PREFIX}detail:${id}`, 60, run)
+      : run();
   }
 
   async ensureShareCard(id: string) {
