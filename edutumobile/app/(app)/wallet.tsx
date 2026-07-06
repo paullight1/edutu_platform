@@ -1,7 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowUpRight, ArrowDownLeft, PlusCircle, CreditCard, TrendingUp, Zap, Crown } from 'lucide-react-native';
+import { ArrowUpRight, ArrowDownLeft, PlusCircle, CreditCard, Flame, Zap, Crown } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
@@ -9,15 +9,20 @@ import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { useTheme } from '../../components/context/ThemeContext';
 import { useCredits } from '@edutu/core/src/hooks/useCredits';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
+import { CreditPackSheet } from '../../components/credits/CreditPackSheet';
 import { supabase } from '../../lib/supabase';
 
 export default function WalletScreen() {
     const { user } = useUser();
     const router = useRouter();
     const { colors } = useTheme();
-    const { credits, isLoading: creditsLoading, transactions, refreshCredits } = useCredits(supabase, user?.id || null);
+    const { credits, loginStreak, isLoading: creditsLoading, transactions, refreshCredits } = useCredits(supabase, user?.id || null);
     const { isPro, isLoading: proLoading } = useProStatus(supabase, user?.id || null);
     const [refreshing, setRefreshing] = useState(false);
+    const [showCreditSheet, setShowCreditSheet] = useState(false);
+
+    const scrollRef = useRef<ScrollView>(null);
+    const txSectionY = useRef(0);
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
@@ -26,18 +31,26 @@ export default function WalletScreen() {
     }, [refreshCredits]);
 
     const handleAddCredits = () => {
-        router.push('/paywall');
+        setShowCreditSheet(true);
     };
 
     const handleUpgradePro = () => {
         router.push('/paywall');
     };
 
+    const handleViewHistory = () => {
+        scrollRef.current?.scrollTo({ y: txSectionY.current, animated: true });
+    };
+
+    // Highlight the daily-login streak; day 7 (and multiples) grant a bonus.
+    const streakDots = Array.from({ length: 7 }, (_, i) => i < loginStreak % 7 || (loginStreak > 0 && loginStreak % 7 === 0));
+
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
             <ScreenHeader title="Wallet" showBack />
 
             <ScrollView
+                ref={scrollRef}
                 style={styles.scrollView}
                 showsVerticalScrollIndicator={false}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
@@ -75,19 +88,7 @@ export default function WalletScreen() {
                             </View>
                             <Text style={styles.actionLabel}>Buy Credits</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.actionItem} activeOpacity={0.7}>
-                            <View style={[styles.actionIcon, { backgroundColor: 'rgba(59, 130, 246, 0.2)' }]}>
-                                <ArrowUpRight color="#3B82F6" size={22} />
-                            </View>
-                            <Text style={styles.actionLabel}>Send</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.actionItem} activeOpacity={0.7}>
-                            <View style={[styles.actionIcon, { backgroundColor: 'rgba(59, 130, 246, 0.2)' }]}>
-                                <TrendingUp color="#3b82f6" size={22} />
-                            </View>
-                            <Text style={styles.actionLabel}>Cashout</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.actionItem} activeOpacity={0.7}>
+                        <TouchableOpacity style={styles.actionItem} onPress={handleViewHistory} activeOpacity={0.7}>
                             <View style={[styles.actionIcon, { backgroundColor: 'rgba(245, 158, 11, 0.2)' }]}>
                                 <CreditCard color="#F59E0B" size={22} />
                             </View>
@@ -95,6 +96,56 @@ export default function WalletScreen() {
                         </TouchableOpacity>
                     </View>
                 </LinearGradient>
+
+                {/* Login Streak */}
+                <View style={[styles.streakCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <View style={styles.streakHeader}>
+                        <View style={styles.streakTitleRow}>
+                            <View style={[styles.streakFlame, { backgroundColor: 'rgba(249, 115, 22, 0.15)' }]}>
+                                <Flame color="#F97316" size={18} />
+                            </View>
+                            <View>
+                                <Text style={[styles.streakTitle, { color: colors.foreground }]}>
+                                    {loginStreak}-day streak
+                                </Text>
+                                <Text style={[styles.streakSub, { color: colors.textSecondary }]}>
+                                    {loginStreak > 0 && loginStreak % 7 === 0
+                                        ? 'Bonus unlocked! Keep it going.'
+                                        : `Day 7 earns a credit bonus`}
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+                    <View style={styles.streakDots}>
+                        {streakDots.map((filled, i) => {
+                            const isBonusDay = i === 6;
+                            return (
+                                <View key={i} style={styles.streakDotWrap}>
+                                    <View
+                                        style={[
+                                            styles.streakDot,
+                                            {
+                                                backgroundColor: filled
+                                                    ? isBonusDay
+                                                        ? '#F59E0B'
+                                                        : '#F97316'
+                                                    : colors.muted,
+                                                borderColor: isBonusDay ? '#F59E0B' : 'transparent',
+                                            },
+                                        ]}
+                                    >
+                                        {isBonusDay && (
+                                            <Zap size={12} color={filled ? '#FFFFFF' : colors.textSecondary} />
+                                        )}
+                                    </View>
+                                    <Text style={[styles.streakDotLabel, { color: colors.textSecondary }]}>
+                                        {i + 1}
+                                    </Text>
+                                </View>
+                            );
+                        })}
+                    </View>
+                </View>
 
                 {/* Quick Actions */}
                 <View style={styles.quickActions}>
@@ -105,7 +156,7 @@ export default function WalletScreen() {
                     >
                         <Crown size={24} color={colors.accent} />
                         <Text style={[styles.quickActionTitle, { color: colors.foreground }]}>Upgrade to Pro</Text>
-                        <Text style={[styles.quickActionDesc, { color: colors.textSecondary }]}>$10/month for unlimited features</Text>
+                        <Text style={[styles.quickActionDesc, { color: colors.textSecondary }]}>Unlimited premium features</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -120,7 +171,12 @@ export default function WalletScreen() {
                 </View>
 
                 {/* Transactions Section */}
-                <View style={styles.sectionHeader}>
+                <View
+                    style={styles.sectionHeader}
+                    onLayout={(e) => {
+                        txSectionY.current = e.nativeEvent.layout.y;
+                    }}
+                >
                     <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Recent Transactions</Text>
                 </View>
 
@@ -166,6 +222,13 @@ export default function WalletScreen() {
 
                 <View style={{ height: 40 }} />
             </ScrollView>
+
+            <CreditPackSheet
+                visible={showCreditSheet}
+                onClose={() => setShowCreditSheet(false)}
+                userId={user?.id || null}
+                onPurchased={refreshCredits}
+            />
         </SafeAreaView>
     );
 }
@@ -184,6 +247,18 @@ const styles = StyleSheet.create({
     actionItem: { alignItems: 'center' },
     actionIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
     actionLabel: { color: 'white', fontSize: 12, fontWeight: '500' },
+
+    // Streak
+    streakCard: { borderRadius: 20, borderWidth: 1, padding: 18, marginBottom: 24 },
+    streakHeader: { marginBottom: 16 },
+    streakTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    streakFlame: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    streakTitle: { fontSize: 16, fontWeight: '700' },
+    streakSub: { fontSize: 12, marginTop: 2 },
+    streakDots: { flexDirection: 'row', justifyContent: 'space-between' },
+    streakDotWrap: { alignItems: 'center', gap: 6 },
+    streakDot: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
+    streakDotLabel: { fontSize: 10, fontWeight: '600' },
 
     // Quick Actions
     quickActions: { flexDirection: 'row', gap: 12, marginBottom: 24 },

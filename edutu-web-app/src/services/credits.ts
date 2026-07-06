@@ -1,11 +1,20 @@
 import { supabase } from "../lib/supabaseClient";
 import logger from "../lib/logger";
 
+// Canonical ledger is `payment_transactions` (what the server functions
+// spend_credits/admin_add_credits and the RevenueCat webhook write, and what
+// the mobile app reads). `amount` is signed (spends are negative).
 export type TransactionType =
-  | "purchase"
-  | "spend"
+  | "subscription_purchase"
+  | "credit_purchase"
+  | "credit_spend"
   | "reward"
   | "refund"
+  | "payout"
+  | "credit"
+  // legacy credit_transactions types, kept so old rows still render
+  | "purchase"
+  | "spend"
   | "admin_grant"
   | "creator_earning";
 
@@ -15,16 +24,23 @@ export interface CreditTransaction {
   amount: number;
   type: TransactionType;
   description: string;
-  related_id: string | null;
-  related_type: string | null;
+  status?: string | null;
+  currency?: string | null;
+  transaction_id?: string | null;
   created_at: string;
 }
 
 export const CREDIT_TRANSACTION_LABELS: Record<TransactionType, string> = {
-  purchase: "Purchase",
-  spend: "Spent",
+  subscription_purchase: "Subscription",
+  credit_purchase: "Credit purchase",
+  credit_spend: "Spent",
   reward: "Reward",
   refund: "Refund",
+  payout: "Payout",
+  credit: "Credit",
+  // legacy
+  purchase: "Purchase",
+  spend: "Spent",
   admin_grant: "Granted by admin",
   creator_earning: "Creator earning",
 };
@@ -60,8 +76,8 @@ export async function getTransactionHistory(
   limit = 50,
 ): Promise<CreditTransaction[]> {
   const { data, error } = await supabase
-    .from("credit_transactions")
-    .select("*")
+    .from("payment_transactions")
+    .select("id, user_id, type, amount, description, status, currency, transaction_id, created_at")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -75,59 +91,30 @@ export async function getTransactionHistory(
 }
 
 export async function spendCredits(
-  userId: string,
   amount: number,
-  description: string,
-  relatedId?: string,
-  relatedType?: string,
-): Promise<{ success: boolean; balance: number; error?: string }> {
+  reason: string,
+): Promise<{ success: boolean; error?: string }> {
+  // Atomic deduction scoped to the authenticated user (auth.uid()) — the
+  // user id is NEVER passed from the client. See migration 015. The RPC
+  // returns a boolean (true = spent, false = insufficient balance).
   const { data, error } = await supabase.rpc("spend_credits", {
-    p_user_id: userId,
     p_amount: amount,
-    p_description: description,
-    p_related_id: relatedId ?? null,
-    p_related_type: relatedType ?? null,
+    p_reason: reason,
   });
 
   if (error) {
     logger.error("spendCredits RPC error:", error);
-    return { success: false, balance: 0, error: error.message };
+    return { success: false, error: error.message };
   }
 
-  const result = data?.[0];
-  return {
-    success: result?.success ?? false,
-    balance: result?.balance ?? 0,
-    error: result?.error_message,
-  };
+  return data === true
+    ? { success: true }
+    : { success: false, error: "Insufficient credits" };
 }
 
-export async function addCredits(
-  userId: string,
-  amount: number,
-  description: string,
-  relatedId?: string,
-  relatedType?: string,
-): Promise<{ success: boolean; balance: number }> {
-  const { data, error } = await supabase.rpc("add_credits", {
-    p_user_id: userId,
-    p_amount: amount,
-    p_description: description,
-    p_related_id: relatedId ?? null,
-    p_related_type: relatedType ?? null,
-  });
-
-  if (error) {
-    logger.error("addCredits RPC error:", error);
-    return { success: false, balance: 0 };
-  }
-
-  const result = data?.[0];
-  return {
-    success: result?.success ?? false,
-    balance: result?.balance ?? 0,
-  };
-}
+// NOTE: client-side `addCredits` was removed. Credits can only be *earned*
+// server-side (award_engagement_credit / claim_daily_credit) or granted by
+// the service role (admin_add_credits) — a client can never mint credits.
 
 export async function hasEnoughCredits(
   userId: string,

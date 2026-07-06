@@ -4,11 +4,10 @@ import {
   InternalServerErrorException,
   Logger,
 } from "@nestjs/common";
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createHmac, timingSafeEqual } from "crypto";
 import { db } from "../db";
-import { profiles, transactions } from "../db/schema";
 import type {
   BillingInterval,
   BillingTransactionSummary,
@@ -65,7 +64,7 @@ export class BillingService {
 
     const supabase = this.getSupabase();
     let profile: any = null;
-    let creditProfile: { creditsBalance?: number | null } | null = null;
+    let creditProfile: { credits?: number | null } | null = null;
     let activeEntitlements: any[] = [];
     let activeSubscription: any = null;
     let recentTransactions: BillingTransactionSummary[] = [];
@@ -81,7 +80,7 @@ export class BillingService {
       ] = await Promise.all([
         supabase
           .from("profiles")
-          .select("is_pro, pro_since, pro_expires_at, credits, credits_balance")
+          .select("is_pro, pro_since, pro_expires_at, credits")
           .eq("user_id", userId)
           .maybeSingle(),
         supabase
@@ -133,13 +132,14 @@ export class BillingService {
     }
 
     try {
-      const [row] = await db
-        .select({ creditsBalance: profiles.creditsBalance })
-        .from(profiles)
-        .where(eq(profiles.userId, userId))
-        .limit(1)
-        .execute();
-      creditProfile = row ?? null;
+      // Fallback read of the real balance column (profiles.credits) in case the
+      // Supabase profile load above failed.
+      const result = await db.execute(
+        sql`select credits from profiles where user_id = ${userId} limit 1`,
+      );
+      const rows =
+        (result as { rows?: Array<{ credits?: number | null }> }).rows ?? [];
+      creditProfile = rows[0] ?? null;
     } catch (error) {
       this.logger.warn(
         `Unable to load API credits for ${userId}: ${
@@ -171,12 +171,7 @@ export class BillingService {
       isPro,
       proSince: profile?.pro_since ?? null,
       proExpiresAt,
-      credits: Number(
-        creditProfile?.creditsBalance ??
-          profile?.credits_balance ??
-          profile?.credits ??
-          0,
-      ),
+      credits: Number(profile?.credits ?? creditProfile?.credits ?? 0),
       subscriptionStatus:
         activeSubscription?.status ?? (isPro ? "active" : null),
       entitlements: Array.from(entitlements),
@@ -448,39 +443,38 @@ export class BillingService {
     );
 
     // Paystack retries webhooks, so the credit grant must be idempotent. Insert
-    // the ledger row keyed by (type, reference_id) first; only credit the
-    // profile when this delivery actually inserted the row. Both writes share
-    // one transaction so a partial failure cannot grant credits without a
-    // ledger record (or vice-versa).
+    // the ledger row into credit_transactions (the real ledger) keyed by
+    // (related_type, related_id) first; only credit profiles.credits when this
+    // delivery actually inserted the row. Both writes share one transaction, and
+    // set the app.credit_op guard flag so the profile trigger allows the update.
     await db.transaction(async (tx) => {
-      const inserted = await tx
-        .insert(transactions)
-        .values({
-          userId: input.userId,
-          amount: input.credits,
-          type: "credit_topup",
-          status: "completed",
-          referenceId: input.reference,
-          description: `API credit top-up: +${input.credits}`,
-        })
-        .onConflictDoNothing({
-          target: [transactions.type, transactions.referenceId],
-          where: sql`reference_id is not null`,
-        })
-        .returning({ id: transactions.id });
+      await tx.execute(sql`select set_config('app.credit_op', 'on', true)`);
 
-      if (inserted.length === 0) {
+      const inserted = await tx.execute(sql`
+        insert into credit_transactions
+          (user_id, amount, type, description, related_id, related_type)
+        values
+          (${input.userId}, ${input.credits}, 'purchase',
+           ${`API credit top-up: +${input.credits}`},
+           ${input.reference}, 'api_credit_purchase')
+        on conflict (related_type, related_id)
+          where related_id is not null
+            and related_type in ('api_request', 'api_credit_purchase')
+        do nothing
+        returning id
+      `);
+
+      const insertedRows =
+        (inserted as { rows?: unknown[] }).rows ?? [];
+      if (insertedRows.length === 0) {
         // Webhook redelivery — credits were already granted for this reference.
         return;
       }
 
-      await tx
-        .update(profiles)
-        .set({
-          creditsBalance: sql`${profiles.creditsBalance} + ${input.credits}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(profiles.userId, input.userId));
+      await tx.execute(sql`
+        update profiles set credits = credits + ${input.credits}, updated_at = now()
+        where user_id = ${input.userId}
+      `);
     });
   }
 

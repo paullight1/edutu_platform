@@ -53,6 +53,23 @@ function AdminCreatorApplicationsContent() {
     const [reviewNote, setReviewNote] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [profileCache, setProfileCache] = useState<Record<string, { name: string; email: string; avatar: string }>>({});
+    const [kycUrl, setKycUrl] = useState<string | null>(null);
+
+    // KYC docs live in a PRIVATE bucket. Resolve a short-lived signed URL when
+    // an application is opened. Legacy rows may hold a full public URL — use
+    // those as-is for backward compatibility.
+    useEffect(() => {
+        let cancelled = false;
+        const raw = selectedApp?.kyc_image_url;
+        if (!raw) { setKycUrl(null); return; }
+        if (/^https?:\/\//i.test(raw)) { setKycUrl(raw); return; }
+        setKycUrl(null);
+        supabase.storage
+            .from('creator-applications')
+            .createSignedUrl(raw, 3600)
+            .then(({ data }) => { if (!cancelled) setKycUrl(data?.signedUrl ?? null); });
+        return () => { cancelled = true; };
+    }, [selectedApp?.id, selectedApp?.kyc_image_url]);
 
     const textPrimary = colors.foreground;
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
@@ -165,10 +182,12 @@ function AdminCreatorApplicationsContent() {
                 .single();
 
             if (app?.user_id) {
-                await supabase
-                    .from('profiles')
-                    .update({ creator_status: newStatus })
-                    .eq('user_id', app.user_id);
+                // creator_status is a protected profile column (migration 015);
+                // the admin path of this RPC sets it for the target user.
+                await supabase.rpc('set_creator_status', {
+                    p_status: newStatus,
+                    p_user_id: app.user_id,
+                });
 
                 if (newStatus === 'approved') {
                     try {
@@ -428,11 +447,17 @@ function AdminCreatorApplicationsContent() {
                                     {selectedApp.kyc_image_url && (
                                         <View style={styles.detailSection}>
                                             <Text style={[styles.detailLabel, { color: textSecondary }]}>Verification Document</Text>
-                                            <Image
-                                                source={{ uri: selectedApp.kyc_image_url }}
-                                                style={styles.kycImage}
-                                                resizeMode="contain"
-                                            />
+                                            {kycUrl ? (
+                                                <Image
+                                                    source={{ uri: kycUrl }}
+                                                    style={styles.kycImage}
+                                                    resizeMode="contain"
+                                                />
+                                            ) : (
+                                                <View style={[styles.kycImage, { alignItems: 'center', justifyContent: 'center' }]}>
+                                                    <ActivityIndicator color={colors.primary} />
+                                                </View>
+                                            )}
                                         </View>
                                     )}
 

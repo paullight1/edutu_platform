@@ -965,7 +965,7 @@ export default function CreatorDashboard() {
                                     <View style={[styles.infoCallout, { backgroundColor: 'rgba(16, 185, 129, 0.08)', borderColor: 'rgba(16, 185, 129, 0.2)' }]}>
                                         <Eye size={16} color="#10B981" />
                                         <Text style={[styles.infoCalloutText, { color: textSecondary }]}>
-                                            Review your roadmap details before submitting for admin approval.
+                                            Review your roadmap details before publishing. As an approved creator, it goes live to learners immediately.
                                         </Text>
                                     </View>
 
