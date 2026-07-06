@@ -61,6 +61,9 @@ export default {
       backgroundColor: "#171a4f"
     },
     ios: {
+      // Must match ios/Edutu.xcodeproj (PRODUCT_BUNDLE_IDENTIFIER) so a
+      // `prebuild` regeneration stays consistent with the committed project.
+      bundleIdentifier: "com.tegm.edutuios",
       supportsTablet: true,
       buildNumber: "1",
       deploymentTarget: "16.4",
@@ -80,6 +83,10 @@ export default {
       }
     },
     android: {
+      // Must match android/app/build.gradle applicationId AND the
+      // package_name in google-services.json — a mismatch makes Firebase fail
+      // to initialize and crashes the app on launch.
+      package: "com.edutu.com",
       versionCode: 1,
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
