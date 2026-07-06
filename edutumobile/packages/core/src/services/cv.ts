@@ -475,11 +475,13 @@ export async function getUserProStatus(
   try {
     const data = await fetchProfile(supabase, userId);
     return {
-      isPro: Boolean(data?.is_pro ?? true),
+      // Fail CLOSED: a missing/null profile must not be treated as Pro,
+      // otherwise a failed fetch silently unlocks premium features.
+      isPro: Boolean(data?.is_pro ?? false),
       cvTrialUsed: Boolean(data?.cv_trial_used ?? false),
     };
   } catch {
-    return { isPro: true, cvTrialUsed: false };
+    return { isPro: false, cvTrialUsed: false };
   }
 }
 

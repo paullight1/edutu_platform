@@ -31,6 +31,8 @@ import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import { useTheme } from '../../../components/context/ThemeContext';
 import { supabase } from '../../../lib/supabase';
 import { useGoals } from '@edutu/core/src/hooks/useGoals';
+import { useCreditRewards } from '@edutu/core/src/hooks/useCreditRewards';
+import { useToast } from '../../../components/context/ToastContext';
 import { PRIORITY_OPTIONS, PRIORITY_CONFIG } from '../../../components/goals';
 import { ProgressBar } from '../../../components/ui/ProgressBar';
 
@@ -40,6 +42,16 @@ export default function GoalDetailScreen() {
     const router = useRouter();
     const { user } = useUser();
     const { goals, updateGoal, deleteGoal, toggleReminder } = useGoals(supabase, user?.id || null);
+    const { show: showToast } = useToast();
+    const { award } = useCreditRewards(supabase, user?.id || null, {
+        onEarned: (amount) => {
+            showToast({
+                emoji: '🎉',
+                variant: 'success',
+                message: `+${amount} credit${amount > 1 ? 's' : ''} for completing a goal`,
+            });
+        },
+    });
 
     const goal = goals.find(g => g.id === id);
 
@@ -106,6 +118,8 @@ export default function GoalDetailScreen() {
         try {
             await updateGoal(goal.id, { status: 'completed', progress: 100 });
             Alert.alert('🎉 Congratulations!', 'You\'ve completed this goal!');
+            // Reward completion (server grants at most once/day; toast via onEarned).
+            void award('COMPLETE_GOAL');
         } catch {
             Alert.alert('Error', 'Failed to complete goal');
         }

@@ -37,8 +37,9 @@ describe("BillingService", () => {
         is_pro: true,
         pro_since: PRO_SINCE_ISO,
         pro_expires_at: PRO_EXPIRES_ISO,
-        credits: 1000,
-        credits_balance: 1200,
+        // profiles.credits is the real authoritative balance column
+        // (there is no credits_balance column in the live DB).
+        credits: 1200,
       },
       error: null,
     };
