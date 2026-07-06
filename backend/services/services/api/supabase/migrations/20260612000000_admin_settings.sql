@@ -44,3 +44,8 @@ values (
   }'::jsonb
 )
 on conflict (key) do nothing;
+
+-- Managed exclusively by the API via the service role (which bypasses RLS).
+-- Enable RLS with no policies so anon/authenticated have no direct access,
+-- matching the other server-only tables (ai_provider_keys, webhook_api_keys).
+alter table public.admin_settings enable row level security;
