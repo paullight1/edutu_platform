@@ -446,12 +446,19 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
       if (!userId) return;
 
       try {
-        let token = await getProductApiToken(getToken);
-        let bookmarked = await isBookmarked(userId, opportunity.id, token);
-
-        if (!bookmarked) {
-          token = await getProductApiToken(getToken, { forceRefresh: true });
+        const token = await getProductApiToken(getToken);
+        let bookmarked: boolean;
+        try {
           bookmarked = await isBookmarked(userId, opportunity.id, token);
+        } catch (firstError) {
+          // Only the common "not bookmarked" -> false path used to trigger a
+          // forced token refresh + second request on every open. Retry with a
+          // fresh token ONLY when the call actually failed on an expired token.
+          if (!isInvalidOrExpiredTokenError(firstError)) throw firstError;
+          const freshToken = await getProductApiToken(getToken, {
+            forceRefresh: true,
+          });
+          bookmarked = await isBookmarked(userId, opportunity.id, freshToken);
         }
 
         if (isActive) {
@@ -590,20 +597,30 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
     trackInteraction(opportunity, "apply");
 
     void (async () => {
-      const token = await getProductApiToken(getToken, { forceRefresh: true });
-      const tracked = await addApplication(
-        userId,
-        {
-          id: opportunity.id,
-          title: opportunity.title,
-          category: opportunity.category,
-        },
-        { status: "draft" },
-        token,
-      );
+      try {
+        const token = await getProductApiToken(getToken, { forceRefresh: true });
+        const tracked = await addApplication(
+          userId,
+          {
+            id: opportunity.id,
+            title: opportunity.title,
+            category: opportunity.category,
+          },
+          { status: "draft" },
+          token,
+        );
 
-      if (tracked) {
-        success("Application started — added to your tracker");
+        if (tracked) {
+          success("Application started — added to your tracker");
+        }
+      } catch (applyError) {
+        // Without this, a rejected addApplication (e.g. a non-UUID id the
+        // backend refuses) became an unhandled rejection and the user got no
+        // feedback while the apply link still opened. Surface it softly.
+        console.warn("Could not add application to tracker:", applyError);
+        showError(
+          "Opened the application — but we couldn't add it to your tracker.",
+        );
       }
     })();
   };

@@ -3,6 +3,75 @@ import { ChatThread, ChatMessage, SendChatMessageResult } from '../types/chat';
 import { requestProductApi } from './productApi';
 
 const CHAT_PROXY_TIMEOUT_MS = 10000;
+const CHAT_SEND_TIMEOUT_MS = 12000;
+
+/**
+ * Thrown when the backend rate-limits the user (HTTP 429). The chat UI surfaces
+ * a distinct "message limit" message for this case instead of a generic failure.
+ */
+export class ChatRateLimitError extends Error {
+  constructor(message = "You've hit the message limit, try again shortly.") {
+    super(message);
+    this.name = 'ChatRateLimitError';
+  }
+}
+
+function getApiBaseUrl() {
+  return (process.env.EXPO_PUBLIC_API_URL || 'https://edutu-platform.onrender.com').replace(/\/$/, '');
+}
+
+/**
+ * Direct backend POST for chat sends. Unlike requestProductApi (which returns
+ * null on any non-2xx and swallows the status), this surfaces HTTP 429 as a
+ * typed ChatRateLimitError so the UI can show the right message. Returns null on
+ * other failures so callers can fall back to the supabase chat-proxy path.
+ */
+async function postChatMessageToBackend(
+  options: { threadId?: string | null; message: string; userId: string; authToken?: string | null },
+): Promise<SendChatMessageResult | null> {
+  const apiBaseUrl = getApiBaseUrl();
+  const token = options.authToken;
+
+  if (!apiBaseUrl || !token) {
+    return null;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), CHAT_SEND_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${apiBaseUrl}/chat/messages`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        threadId: options.threadId,
+        message: options.message,
+        userId: options.userId,
+      }),
+      signal: controller.signal,
+    });
+
+    if (response.status === 429) {
+      throw new ChatRateLimitError();
+    }
+
+    if (!response.ok) {
+      return null;
+    }
+
+    try {
+      return await response.json() as SendChatMessageResult;
+    } catch {
+      return null;
+    }
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 async function withTimeout<T>(operation: Promise<T>, timeoutMs: number): Promise<T> {
   return await Promise.race([
@@ -168,18 +237,7 @@ export async function sendChatMessage(
   options: { threadId?: string | null; message: string; userId: string; authToken?: string | null }
 ): Promise<SendChatMessageResult> {
   try {
-    const backendResult = await requestProductApi<SendChatMessageResult>(
-      '/chat/messages',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          threadId: options.threadId,
-          message: options.message,
-          userId: options.userId,
-        }),
-      },
-      options.authToken ? async () => options.authToken : undefined,
-    );
+    const backendResult = await postChatMessageToBackend(options);
 
     if (backendResult) return backendResult;
 

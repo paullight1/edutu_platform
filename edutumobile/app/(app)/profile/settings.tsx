@@ -20,16 +20,23 @@ import {
     Zap,
     Lock,
     Vibrate,
-    ExternalLink
+    ExternalLink,
+    MonitorSmartphone
 } from 'lucide-react-native';
 import { Card } from '../../../components/ui/Card';
 import { ScreenHeader } from "../../../components/ui/ScreenHeader";
-import { useTheme, ThemePackage } from "../../../components/context/ThemeContext";
+import { useTheme, ThemePackage, ThemeMode } from "../../../components/context/ThemeContext";
 import { notificationService, NotificationSettings } from "../../../lib/notifications";
 import * as WebBrowser from 'expo-web-browser';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
+
+const APPEARANCE_MODES: { id: ThemeMode; label: string; icon: React.ComponentType<{ size: number; color: string }> }[] = [
+    { id: 'light', label: 'Light', icon: Sun },
+    { id: 'dark', label: 'Dark', icon: Moon },
+    { id: 'system', label: 'System', icon: MonitorSmartphone },
+];
 
 const THEME_PACKAGES: { id: ThemePackage, name: string, color: string }[] = [
     { id: 'default', name: 'Indigo Pulse', color: '#6366f1' },
@@ -40,7 +47,7 @@ const THEME_PACKAGES: { id: ThemePackage, name: string, color: string }[] = [
 ];
 
 export default function SettingsScreen() {
-    const { isDark, packageId, setPackage, colors } = useTheme();
+    const { isDark, packageId, setPackage, colors, mode, setMode } = useTheme();
     const { signOut, getToken } = useAuth();
     const { user } = useUser();
     const router = useRouter();

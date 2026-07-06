@@ -46,6 +46,7 @@ const EventsPage = lazy(() => import("./components/EventsPage"));
 const EventDetailPage = lazy(() => import("./components/EventDetailPage"));
 const AboutPage = lazy(() => import("./components/AboutPage"));
 const BlogPage = lazy(() => import("./components/BlogPage"));
+const BlogPostPage = lazy(() => import("./components/BlogPostPage"));
 const PrivacyPolicyPage = lazy(() => import("./components/PrivacyPolicyPage"));
 const TermsPage = lazy(() => import("./components/TermsPage"));
 const CareersPage = lazy(() => import("./components/CareersPage"));
@@ -517,6 +518,7 @@ function App() {
       <Route path="/mentor" element={<MentorPage />} />
       <Route path="/about" element={<AboutPage />} />
       <Route path="/blog" element={<BlogPage />} />
+      <Route path="/blog/:slug" element={<BlogPostPage />} />
       <Route path="/privacy" element={<PrivacyPolicyPage />} />
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/careers" element={<CareersPage />} />

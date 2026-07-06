@@ -213,9 +213,15 @@ export default function MemberSettingsPanel() {
       if (!result.success) {
         throw new Error(result.error || "Unable to save privacy settings.");
       }
-      const nextSettings = await getUserSettings(token);
-      setSettings(nextSettings);
-      setDraftPrivacy(nextSettings?.privacy ?? draftPrivacy);
+      // The save already succeeded; a refetch hiccup shouldn't surface as a
+      // save error, so swallow it and keep the just-saved draft on screen.
+      try {
+        const nextSettings = await getUserSettings(token);
+        setSettings(nextSettings);
+        setDraftPrivacy(nextSettings.privacy);
+      } catch {
+        setSettings((prev) => (prev ? { ...prev, privacy: draftPrivacy } : prev));
+      }
       setStatus("Privacy settings saved.");
     } catch (saveError) {
       setError(
@@ -254,8 +260,12 @@ export default function MemberSettingsPanel() {
         throw new Error(result.error || "Unable to export account data.");
       }
       downloadJson("edutu-account-export.json", result.data);
-      const nextSettings = await getUserSettings(token);
-      setSettings(nextSettings);
+      // Export succeeded; don't let a settings refetch failure mask that.
+      try {
+        setSettings(await getUserSettings(token));
+      } catch {
+        /* keep existing settings on screen */
+      }
       setStatus("Account export prepared.");
     } catch (exportError) {
       setError(

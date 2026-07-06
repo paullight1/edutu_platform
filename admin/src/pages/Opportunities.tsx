@@ -31,9 +31,6 @@ import {
   Loader2,
   Sparkles,
   RefreshCw,
-  GraduationCap,
-  Cpu,
-  Scissors,
   Table2,
   LayoutGrid,
   ChevronLeft,
@@ -620,6 +617,12 @@ export default function Opportunities() {
   );
   const [urlInput, setUrlInput] = useState("");
   const [bulkPreview, setBulkPreview] = useState<BulkPreviewItem[]>([]);
+  // Opportunity ids whose cover image failed to load (dead scraped domains,
+  // e.g. sources that have gone offline). We fall back to the placeholder icon
+  // instead of rendering a broken image and spamming the console.
+  const [brokenImageIds, setBrokenImageIds] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   const addMethods = [
     {
@@ -657,66 +660,26 @@ export default function Opportunities() {
       desc: "Sync all sources",
       action: () => {
         setShowAddDropdown(false);
-        triggerApifySync("intel,custom,scholarship-api");
-      },
-    },
-    {
-      id: "apify-intel",
-      name: "Scholarship Intel",
-      icon: <GraduationCap size={16} />,
-      desc: "US scholarships & grants",
-      action: () => {
-        setShowAddDropdown(false);
-        triggerApifySync("intel");
-      },
-    },
-    {
-      id: "apify-custom",
-      name: "My Actor",
-      icon: <Cpu size={16} />,
-      desc: "Custom scraper",
-      action: () => {
-        setShowAddDropdown(false);
-        triggerApifySync("custom");
-      },
-    },
-    {
-      id: "apify-edutu",
-      name: "Edutu Engine",
-      icon: <Scissors size={16} />,
-      desc: "Edutu Engine",
-      action: () => {
-        setShowAddDropdown(false);
-        triggerApifySync("edutu");
-      },
-    },
-    {
-      id: "apify-scholarship-api",
-      name: "ScholarshipAPI",
-      icon: <Sparkles size={16} />,
-      desc: "Global scholarship database",
-      action: () => {
-        setShowAddDropdown(false);
-        triggerApifySync("scholarship-api");
+        triggerApifySync();
       },
     },
   ];
 
-  async function triggerApifySync(sourceId: string) {
+  async function triggerApifySync() {
     setShowLoadingModal(true);
     setLoadedResults([]);
     setLoadingStatus({
-      message: "Connecting to Edutu Engine...",
+      message: "Connecting to the scraper...",
       progress: 10,
-      source: sourceId,
+      source: "all",
       phase: "preview",
     });
 
     try {
       setLoadingStatus({
-        message: `Running ${sourceId} scraper...`,
+        message: "Crawling all enabled sources (this can take a minute)…",
         progress: 30,
-        source: sourceId,
+        source: "all",
         phase: "preview",
       });
       const response = await fetch(`${NEST_API_URL}/api/scraper/run`, {
@@ -731,7 +694,7 @@ export default function Opportunities() {
       setLoadingStatus({
         message: "Processing results...",
         progress: 70,
-        source: sourceId,
+        source: "all",
         phase: "preview",
       });
       const result = await response.json();
@@ -746,7 +709,7 @@ export default function Opportunities() {
         setLoadingStatus({
           message: `Found ${result.opportunities.length} opportunities`,
           progress: 100,
-          source: sourceId,
+          source: "all",
           phase: "preview",
         });
       } else {
@@ -755,16 +718,21 @@ export default function Opportunities() {
         setLoadingStatus({
           message: errMsg,
           progress: 100,
-          source: sourceId,
+          source: "all",
           phase: "error",
         });
       }
     } catch (error: unknown) {
-      const message = getErrorMessage(error);
+      // A bare "Failed to fetch" almost always means the API server isn't
+      // reachable — surface that plainly instead of a cryptic network error.
+      const raw = getErrorMessage(error);
+      const message = /failed to fetch|networkerror|load failed/i.test(raw)
+        ? `Cannot reach the API server at ${NEST_API_URL}. Make sure the backend is running.`
+        : raw;
       setLoadingStatus({
         message: "Error: " + message,
         progress: 100,
-        source: sourceId,
+        source: "all",
         phase: "error",
       });
       setTimeout(() => {
@@ -1474,6 +1442,11 @@ export default function Opportunities() {
     setIsScraping(true);
     setScrapedData(null);
 
+    // Analysis fetches the page, extracts its image, and runs the LLM — usually
+    // ~20s but a slow source can take longer. Cap the wait so the UI never hangs
+    // indefinitely; the user can still fill the form in manually.
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 120_000);
     try {
       const headers = await getAdminHeaders();
       const response = await fetch(
@@ -1481,6 +1454,7 @@ export default function Opportunities() {
         {
           method: "POST",
           headers,
+          signal: controller.signal,
           body: JSON.stringify({
             title: guessTitleFromUrl(urlInput),
             application_url: urlInput,
@@ -1520,10 +1494,15 @@ export default function Opportunities() {
       }
     } catch (error: unknown) {
       console.error("Scraping failed:", error);
+      const aborted =
+        error instanceof DOMException && error.name === "AbortError";
       alert(
-        `Scraping failed: ${getErrorMessage(error, "Check backend connection")}`,
+        aborted
+          ? "This page is taking too long to analyze. It may be slow or blocking automated access — you can still fill in the details manually."
+          : `Scraping failed: ${getErrorMessage(error, "Check that the backend is running")}`,
       );
     } finally {
+      window.clearTimeout(timeout);
       setIsScraping(false);
     }
   }
@@ -2296,10 +2275,19 @@ export default function Opportunities() {
                     className={`opportunity-card ${isExpanded ? "expanded" : ""}`}
                   >
                     <div className="opportunity-card-media">
-                      {opp.image_url ? (
+                      {opp.image_url && !brokenImageIds.has(opp.id) ? (
                         <img
                           src={opp.image_url}
                           alt={`${opp.title || "Opportunity"} cover`}
+                          loading="lazy"
+                          onError={() =>
+                            setBrokenImageIds((prev) => {
+                              if (prev.has(opp.id)) return prev;
+                              const next = new Set(prev);
+                              next.add(opp.id);
+                              return next;
+                            })
+                          }
                         />
                       ) : (
                         <Target size={34} />

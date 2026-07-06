@@ -20,6 +20,7 @@ import {
   type BackendRoadmap,
 } from "../services/roadmapApi";
 import { downloadRoadmapCalendar } from "../lib/calendarDownload";
+import { useGoals } from "../hooks/useGoals";
 import PullToRefresh from "./ui/PullToRefresh";
 import { EmptyState, ErrorState } from "./ui/EmptyState";
 import Button from "./ui/Button";
@@ -52,6 +53,7 @@ function parseOutcomes(outcomes?: string | null): string[] {
 export default function RoadmapsPage() {
   const navigate = useNavigate();
   const { getToken } = useClerkAuth();
+  const { refreshGoals } = useGoals();
 
   const [roadmaps, setRoadmaps] = useState<BackendRoadmap[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,6 +116,12 @@ export default function RoadmapsPage() {
             goalsCreated: result.goalsCreated ?? 0,
           },
         }));
+        // Adopting creates milestone-goals server-side; refresh the goals
+        // cache so they're visible immediately when the user opens /goals
+        // instead of only after a full reload.
+        await refreshGoals().catch((refreshError) => {
+          console.warn("Could not refresh goals after adopt", refreshError);
+        });
       } catch (enrollError) {
         console.error("Failed to enroll in roadmap", enrollError);
         window.alert(
@@ -125,7 +133,7 @@ export default function RoadmapsPage() {
         setEnrollingId(null);
       }
     },
-    [getToken],
+    [getToken, refreshGoals],
   );
 
   const addToCalendar = useCallback(

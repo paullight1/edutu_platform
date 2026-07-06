@@ -12,10 +12,11 @@ import {
     Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useUser } from '@clerk/clerk-expo';
+import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import { supabase } from '../../../lib/supabase';
+import { fetchProfile, updateProfile } from '@edutu/core/src/services/profile';
 import { useTheme } from '../../../components/context/ThemeContext';
 import { Card } from '../../../components/ui/Card';
 import { AnimatedPressable } from '../../../components/ui/AnimatedPressable';
@@ -36,7 +37,6 @@ import {
     ChevronRight,
 } from 'lucide-react-native';
 import { Avatar } from '../../../components/ui/Avatar';
-import { toSafeUUID } from '@edutu/core/src/utils/auth';
 import { useCreditRewards } from '@edutu/core/src/hooks/useCreditRewards';
 import { useToast } from '../../../components/context/ToastContext';
 
@@ -46,11 +46,11 @@ interface ProfileData {
     major?: string;
     cgpa?: string;
     country?: string;
-    bio?: string;
 }
 
 export default function EditProfileScreen() {
     const { user } = useUser();
+    const { getToken } = useAuth();
     const router = useRouter();
     const { colors, isDark } = useTheme();
     const insets = useSafeAreaInsets();
@@ -80,24 +80,18 @@ export default function EditProfileScreen() {
 
     async function loadProfile() {
         try {
-            // Profiles are keyed by the raw Clerk ID (written by the Clerk
-            // webhook); the hashed form only exists in rows from older builds.
-            const lookupIds = Array.from(new Set([user?.id!, toSafeUUID(user?.id!)]));
-            const { data: rows, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .in('user_id', lookupIds);
-
-            if (error) throw error;
-            const data = rows?.find((row) => row.user_id === user?.id) ?? rows?.[0];
+            // Load through the backend product API — it keys profiles by
+            // toDatabaseUserId(clerkId) under service_role. A direct Supabase
+            // read is blocked by RLS because the Clerk token isn't accepted as
+            // an auth.jwt() sub, so it would silently return nothing.
+            const data = await fetchProfile(getToken);
 
             setProfile({
-                full_name: data?.full_name || user?.fullName || '',
+                full_name: data?.fullName || user?.fullName || '',
                 school: data?.school || '',
                 major: data?.major || '',
-                cgpa: data?.cgpa?.toString() || '',
+                cgpa: data?.cgpa != null ? String(data.cgpa) : '',
                 country: data?.country || '',
-                bio: data?.bio || '',
             });
         } catch (error) {
             console.error('Error loading profile:', error);
@@ -107,7 +101,6 @@ export default function EditProfileScreen() {
                 major: '',
                 cgpa: '',
                 country: '',
-                bio: '',
             });
         } finally {
             setLoading(false);
@@ -118,23 +111,25 @@ export default function EditProfileScreen() {
         if (!user) return;
         setSaving(true);
         try {
-            const { error } = await supabase
-                .from('profiles')
-                .upsert({
-                    // Must be the raw Clerk ID — RLS requires auth.uid()::text = user_id.
-                    user_id: user.id,
-                    full_name: profile.full_name,
-                    school: profile.school,
-                    major: profile.major,
-                    cgpa: profile.cgpa ? parseFloat(profile.cgpa) : null,
-                    country: profile.country,
-                    bio: profile.bio,
-                    updated_at: new Date().toISOString(),
-                }, {
-                    onConflict: 'user_id'
-                });
+            // Empty strings are rejected by the backend (fields are min(1)),
+            // so clear values must be sent as null.
+            const toNullable = (v?: string) => {
+                const trimmed = v?.trim();
+                return trimmed ? trimmed : null;
+            };
+            const parsedCgpa = profile.cgpa ? Number.parseFloat(profile.cgpa) : null;
 
-            if (error) throw error;
+            const updated = await updateProfile(getToken, {
+                fullName: toNullable(profile.full_name),
+                school: toNullable(profile.school),
+                courseOfStudy: toNullable(profile.major),
+                cgpa: parsedCgpa != null && !Number.isNaN(parsedCgpa) ? parsedCgpa : null,
+                country: toNullable(profile.country),
+            });
+
+            // updateProfile returns null on any non-2xx / network failure.
+            if (!updated) throw new Error('Profile update request failed');
+
             // Reward profile completion (server grants once; toast via onEarned).
             void award('PROFILE_COMPLETE');
             Alert.alert('Success', 'Profile updated successfully!', [
@@ -246,29 +241,6 @@ export default function EditProfileScreen() {
                                     </View>
                                 </View>
                                 {profile.full_name && <View style={[styles.inputDot, { backgroundColor: colors.primary }]} />}
-                            </View>
-
-                            {/* Bio */}
-                            <View style={[styles.inputWrapper, { borderBottomColor: inputBorder }]}>
-                                <View style={styles.inputLeft}>
-                                    <View style={[styles.inputIconBox, { backgroundColor: focusedField === 'bio' ? `${colors.primary}15` : 'transparent' }]}>
-                                        <Pencil size={16} color={focusedField === 'bio' ? colors.primary : textSecondary} />
-                                    </View>
-                                    <View style={styles.inputTextContainer}>
-                                        <Text style={[styles.inputLabelText, { color: focusedField === 'bio' ? colors.primary : textSecondary }]}>Bio</Text>
-                                        <TextInput
-                                            style={[styles.textArea, { color: textPrimary }]}
-                                            value={profile.bio}
-                                            onChangeText={(val) => updateField('bio', val)}
-                                            onFocus={() => setFocusedField('bio')}
-                                            onBlur={() => setFocusedField(null)}
-                                            placeholder="Tell us about yourself..."
-                                            placeholderTextColor={textSecondary}
-                                            multiline
-                                            numberOfLines={3}
-                                        />
-                                    </View>
-                                </View>
                             </View>
 
                             {/* Country */}

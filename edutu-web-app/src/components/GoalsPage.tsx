@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useGoals, type Goal, type GoalStatus } from "../hooks/useGoals";
 import PullToRefresh from "./ui/PullToRefresh";
-import { EmptyState } from "./ui/EmptyState";
+import { EmptyState, ErrorState } from "./ui/EmptyState";
 import Button from "./ui/Button";
 import EnableNotificationsButton from "./EnableNotificationsButton";
 import ConnectCalendarButton from "./ConnectCalendarButton";
@@ -87,7 +87,7 @@ const EMPTY_FORM = {
 
 export default function GoalsPage() {
   const navigate = useNavigate();
-  const { goals, isLoading, refreshGoals, createGoal, updateGoal, deleteGoal } =
+  const { goals, isLoading, error, refreshGoals, createGoal, updateGoal, deleteGoal } =
     useGoals();
 
   const [filter, setFilter] = useState<FilterKey>("all");
@@ -301,6 +301,15 @@ export default function GoalsPage() {
                   className="h-40 animate-pulse rounded-[20px] border border-subtle bg-surface-elevated"
                 />
               ))}
+            </div>
+          ) : error && goals.length === 0 ? (
+            <div className={`mt-5 rounded-[20px] border ${surfaceClass}`}>
+              <ErrorState
+                message={error}
+                onRetry={() => {
+                  void refreshGoals();
+                }}
+              />
             </div>
           ) : visibleGoals.length === 0 ? (
             <div className={`mt-5 rounded-[20px] border ${surfaceClass}`}>

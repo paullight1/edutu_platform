@@ -21,6 +21,7 @@ import {
   type UserProfileForRecommendations,
 } from "../services/personalizedRecommendations";
 import { trackOpportunityClick } from "../services/personalizationService";
+import { clearRecommendationCache } from "./usePersonalizedOpportunities";
 import {
   mapInteractionToSignal,
   recordOpportunitySignal,
@@ -617,6 +618,11 @@ export const PersonalizationProvider: React.FC<{
       };
       setPreferences(next);
       if (prefsKey) writeJson(prefsKey, next);
+
+      // Drop the cached recommendation run so the feed refetches with the new
+      // signals instead of serving the pre-personalization cached results for
+      // up to the cache TTL after the user finishes onboarding.
+      clearRecommendationCache();
 
       // Best-effort sync into the backend profile so the server-side
       // recommender (and other devices) see the same signals.

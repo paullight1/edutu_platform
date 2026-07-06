@@ -30,14 +30,14 @@ interface SharePdfPreparationResult {
 const BUCKET =
   process.env.OPPORTUNITY_SHARE_CARD_BUCKET || "opportunity-share-cards";
 const CARD_WIDTH = 1080;
-const CARD_HEIGHT = 1680;
+const CARD_HEIGHT = 1350; // Instagram feed portrait (4:5)
 
 // Font stack limited to what the render container (librsvg via sharp) can
 // resolve — no exotic webfonts. We win on layout, colour and hierarchy.
 const FONT = "'Inter', 'Helvetica Neue', 'Segoe UI', Arial, sans-serif";
 
 // Bump when the card layout changes so cached cards regenerate on next fetch.
-const DESIGN_VERSION = "v2-brief-2026";
+const DESIGN_VERSION = "v5-brief-ig45";
 
 interface ShareStatus {
   label: string;
@@ -296,16 +296,17 @@ export class OpportunityShareCardService {
     const H = CARD_HEIGHT; // 1680
     const M = 72; // page margin
     const CW = W - M * 2; // content width
-    const FOOTER_H = 132;
+    const FOOTER_H = 124;
     const footerTop = H - FOOTER_H;
 
     // Header height flexes with the title so long titles never clip.
-    const titleLines = this.wrap(title, 26, 3);
+    // Compact scale for the 4:5 feed portrait — leaves the body room to breathe.
+    const titleLines = this.wrap(title, 27, 3);
     const titleStart = 232;
-    const titleLH = 66;
+    const titleLH = 60;
     const titleBottom = titleStart + (titleLines.length - 1) * titleLH;
-    const providerY = titleBottom + 78;
-    const headerH = providerY + 82;
+    const providerY = titleBottom + 70;
+    const headerH = providerY + 74;
 
     const layers: string[] = [];
 
@@ -325,7 +326,7 @@ export class OpportunityShareCardService {
 
     // Category chip
     layers.push(
-      this.chip(M, 164, category.toUpperCase(), {
+      this.chip(M, 144, category.toUpperCase(), {
         bg: "#FFFFFF",
         bgOpacity: 0.14,
         fg: "#DBEAFE",
@@ -337,7 +338,7 @@ export class OpportunityShareCardService {
     // Title (hero, on the gradient)
     titleLines.forEach((line, i) => {
       layers.push(
-        `<text x="${M}" y="${titleStart + i * titleLH}" font-family="${FONT}" font-size="54" font-weight="800" letter-spacing="-0.5" fill="#FFFFFF">${this.escape(line)}</text>`,
+        `<text x="${M}" y="${titleStart + i * titleLH}" font-family="${FONT}" font-size="50" font-weight="800" letter-spacing="-0.5" fill="#FFFFFF">${this.escape(line)}</text>`,
       );
     });
 
@@ -345,18 +346,17 @@ export class OpportunityShareCardService {
     layers.push(this.providerRow(M, providerY, provider, opportunity));
 
     // ---- Body (flowing cursor, budget-aware) ----
-    let y = headerH + 58;
-    const bodyBottom = footerTop - 40; // hard floor above footer
-    const listBottom = bodyBottom - 178; // reserve room for the apply band
+    let y = headerH + 44;
+    const bodyBottom = footerTop - 36; // hard floor above footer
 
-    // Summary
-    const summaryLines = this.wrap(summary, 64, 3);
+    // Summary (wrap kept conservative so it survives wider fallback fonts)
+    const summaryLines = this.wrap(summary, 58, 2);
     summaryLines.forEach((line, i) => {
       layers.push(
-        `<text x="${M}" y="${y + i * 38}" font-family="${FONT}" font-size="27" font-weight="500" fill="#475569">${this.escape(line)}</text>`,
+        `<text x="${M}" y="${y + i * 37}" font-family="${FONT}" font-size="26" font-weight="500" fill="#475569">${this.escape(line)}</text>`,
       );
     });
-    y += summaryLines.length * 38 + 34;
+    y += summaryLines.length * 37 + 26;
 
     // Fact tiles (2 x 2)
     const facts: Array<[string, string, string]> = [
@@ -373,16 +373,50 @@ export class OpportunityShareCardService {
       ],
     ];
     const tileW = (CW - 24) / 2;
-    const tileH = 116;
+    const tileH = 98;
     facts.forEach(([label, value, color], i) => {
       const tx = M + (i % 2) * (tileW + 24);
-      const ty = y + Math.floor(i / 2) * (tileH + 20);
+      const ty = y + Math.floor(i / 2) * (tileH + 18);
       layers.push(this.factTile(tx, ty, tileW, tileH, label, value, color));
     });
-    y += 2 * (tileH + 20) + 26;
+    y += 2 * (tileH + 18) + 22;
 
-    // Benefits
-    if (benefits.length && y + 96 < listBottom) {
+    // How-to-apply is measured FIRST and the band is anchored just above the
+    // footer, so it always renders. The benefit/requirement columns then fill
+    // the space above it — no fragile "is there room?" guard that could drop it.
+    const applyItems = application.length
+      ? application
+      : applyUrl
+        ? [applyUrl]
+        : [
+            "Open this opportunity in Edutu and follow the official application link.",
+          ];
+    const applyLinesAll = applyItems
+      .slice(0, 2)
+      .flatMap((step, i) => this.wrap(`${i + 1}.  ${this.clean(step)}`, 58, 2));
+    const applyLines = applyLinesAll.slice(0, 3);
+    if (applyLines.length > 0 && applyLines.length < applyLinesAll.length) {
+      const last = applyLines[applyLines.length - 1].replace(/[\s.,;:]+$/, "");
+      applyLines[applyLines.length - 1] = `${last}…`;
+    }
+    const applyH = 78 + applyLines.length * 32 + 18;
+    const applyTop = bodyBottom - applyH;
+    const listBottom = applyTop - 28;
+
+    // Benefits + Requirements. On the wide 4:5 canvas they sit in two columns
+    // so BOTH show (fuller detail). A single list spans the full width.
+    if (benefits.length && requirements.length) {
+      const block = this.dualLists(
+        { title: "Benefits", items: benefits, marker: "check", max: 3 },
+        { title: "Requirements", items: requirements, marker: "dot", max: 3 },
+        M,
+        y,
+        CW,
+        listBottom,
+      );
+      layers.push(block.svg);
+      y = block.y;
+    } else if (benefits.length) {
       const block = this.listSection(
         "Benefits",
         benefits,
@@ -391,13 +425,11 @@ export class OpportunityShareCardService {
         CW,
         listBottom,
         "check",
+        3,
       );
       layers.push(block.svg);
-      y = block.y + 28;
-    }
-
-    // Requirements
-    if (requirements.length && y + 96 < listBottom) {
+      y = block.y;
+    } else if (requirements.length) {
       const block = this.listSection(
         "Requirements",
         requirements,
@@ -406,24 +438,25 @@ export class OpportunityShareCardService {
         CW,
         listBottom,
         "dot",
+        3,
       );
       layers.push(block.svg);
-      y = block.y + 28;
+      y = block.y;
     }
 
-    // How to apply (highlighted band)
-    const applyItems = application.length
-      ? application
-      : applyUrl
-        ? [applyUrl]
-        : [
-            "Open this opportunity in Edutu and follow the official application link.",
-          ];
-    if (y + 132 < bodyBottom) {
-      layers.push(this.applyBand(M, y, CW, bodyBottom, applyItems));
+    // Quiet closing mark if the lists leave a big gap above the apply band.
+    if (applyTop - y > 190) {
+      const mid = Math.round((y + applyTop) / 2);
+      layers.push(
+        `<circle cx="${W / 2}" cy="${mid - 30}" r="5" fill="#C7D6F5"/>`,
+      );
+      layers.push(
+        `<text x="${W / 2}" y="${mid + 8}" text-anchor="middle" font-family="${FONT}" font-size="20" font-weight="700" letter-spacing="0.4" fill="#94A3B8">Shared via Edutu — your AI opportunity coach</text>`,
+      );
     }
 
-    // Footer
+    // Apply band (anchored above footer) + footer
+    layers.push(this.renderApplyBand(M, applyTop, CW, applyLines));
     layers.push(this.footer(footerTop, W, FOOTER_H));
 
     return `<?xml version="1.0" encoding="UTF-8"?>
@@ -520,9 +553,9 @@ export class OpportunityShareCardService {
     color: string,
   ): string {
     return `<g>
-    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="22" fill="#F4F8FF" stroke="#E1EAFF" stroke-width="1.5"/>
-    <text x="${x + 28}" y="${y + 46}" font-family="${FONT}" font-size="16" font-weight="800" letter-spacing="1.8" fill="#2563EB">${this.escape(label.toUpperCase())}</text>
-    <text x="${x + 28}" y="${y + 84}" font-family="${FONT}" font-size="26" font-weight="800" fill="${color}">${this.escape(this.truncate(value, 24))}</text>
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="20" fill="#F4F8FF" stroke="#E1EAFF" stroke-width="1.5"/>
+    <text x="${x + 28}" y="${y + 40}" font-family="${FONT}" font-size="16" font-weight="800" letter-spacing="1.8" fill="#2563EB">${this.escape(label.toUpperCase())}</text>
+    <text x="${x + 28}" y="${y + 76}" font-family="${FONT}" font-size="26" font-weight="800" fill="${color}">${this.escape(this.truncate(value, 24))}</text>
   </g>`;
   }
 
@@ -534,14 +567,18 @@ export class OpportunityShareCardService {
     w: number,
     bottom: number,
     marker: "check" | "dot",
+    maxItems = 3,
   ): { svg: string; y: number } {
     const parts: string[] = [
       `<text x="${x}" y="${y + 8}" font-family="${FONT}" font-size="24" font-weight="900" letter-spacing="0.3" fill="#0B1E45">${this.escape(title)}</text>`,
     ];
-    let cy = y + 50;
-    const lh = 34;
-    for (const item of items.slice(0, 3)) {
-      const wrapped = this.wrap(this.clean(item), 66, 2);
+    let cy = y + 48;
+    const lh = 33;
+    // Characters-per-line derived from the column width so it works both
+    // full-width and in a narrow two-column layout (safe for wide fallback fonts).
+    const cpl = Math.max(18, Math.floor((w - 44) / 13.5));
+    for (const item of items.slice(0, maxItems)) {
+      const wrapped = this.wrap(this.clean(item), cpl, 2);
       let stop = false;
       wrapped.forEach((line, li) => {
         if (cy > bottom) {
@@ -572,26 +609,62 @@ export class OpportunityShareCardService {
     return { svg: parts.join("\n  "), y: cy };
   }
 
-  private applyBand(
+  private dualLists(
+    left: {
+      title: string;
+      items: string[];
+      marker: "check" | "dot";
+      max: number;
+    },
+    right: {
+      title: string;
+      items: string[];
+      marker: "check" | "dot";
+      max: number;
+    },
     x: number,
     y: number,
     w: number,
     bottom: number,
-    items: string[],
-  ): string {
-    const steps = items.slice(0, 2).map((step) => this.clean(step));
-    const contentLines = steps.flatMap((step, i) =>
-      this.wrap(`${i + 1}.  ${step}`, 60, 2),
+  ): { svg: string; y: number } {
+    const gap = 28;
+    const colW = (w - gap) / 2;
+    const a = this.listSection(
+      left.title,
+      left.items,
+      x,
+      y,
+      colW,
+      bottom,
+      left.marker,
+      left.max,
     );
-    const maxLines = Math.max(1, Math.floor((bottom - y - 96) / 32));
-    const capped = contentLines.slice(0, maxLines);
-    const h = 78 + capped.length * 32 + 18;
+    const b = this.listSection(
+      right.title,
+      right.items,
+      x + colW + gap,
+      y,
+      colW,
+      bottom,
+      right.marker,
+      right.max,
+    );
+    return { svg: `${a.svg}\n  ${b.svg}`, y: Math.max(a.y, b.y) };
+  }
+
+  private renderApplyBand(
+    x: number,
+    y: number,
+    w: number,
+    lines: string[],
+  ): string {
+    const h = 78 + lines.length * 32 + 18;
     const parts: string[] = [
       `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="26" fill="#EEF4FF" stroke="#D6E4FF" stroke-width="1.5"/>`,
       `<text x="${x + 34}" y="${y + 52}" font-family="${FONT}" font-size="22" font-weight="900" letter-spacing="2" fill="#2563EB">HOW TO APPLY</text>`,
     ];
     let cy = y + 88;
-    capped.forEach((line) => {
+    lines.forEach((line) => {
       parts.push(
         `<text x="${x + 34}" y="${cy}" font-family="${FONT}" font-size="22" font-weight="600" fill="#1E293B">${this.escape(line)}</text>`,
       );
@@ -814,10 +887,13 @@ export class OpportunityShareCardService {
     return createHash("sha1")
       .update(
         JSON.stringify({
+          design: DESIGN_VERSION,
           title: opportunity.title,
           summary: opportunity.summary,
           description: opportunity.description,
           organization: opportunity.organization,
+          category: opportunity.category,
+          location: opportunity.location || opportunity.target_region,
           deadline: opportunity.close_date || opportunity.deadline,
           requirements: metadata.requirements,
           benefits: metadata.benefits,

@@ -35,6 +35,9 @@ import {
     ListTodo,
     ExternalLink,
     MapPin,
+    Mic,
+    AlertCircle,
+    RotateCcw,
 } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth, useUser } from '@clerk/clerk-expo';
