@@ -2561,8 +2561,8 @@ export default function Opportunities() {
                       }}
                     >
                       {loadedResults.length} opportunities found from{" "}
-                      {loadingStatus.source === "intel"
-                        ? "Scholarship Intel"
+                      {loadingStatus.source === "all"
+                        ? "all sources"
                         : loadingStatus.source}
                     </p>
                   </div>
@@ -2801,13 +2801,9 @@ export default function Opportunities() {
                         marginBottom: 12,
                       }}
                     >
-                      {loadingStatus.source === "intel"
-                        ? "Scholarship Intel"
-                        : loadingStatus.source === "custom"
-                          ? "My Actor"
-                          : loadingStatus.source === "edutu"
-                            ? "Edutu Engine"
-                            : loadingStatus.source}
+                      {loadingStatus.source === "all"
+                        ? "All Sources"
+                        : loadingStatus.source}
                     </span>
                   )}
                   <br />
