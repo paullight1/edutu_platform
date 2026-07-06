@@ -11,7 +11,7 @@ import { ErrorBoundary } from "../components/ui/ErrorBoundary";
 import { useDeepLink } from "../hooks/useDeepLink";
 import { useAuth } from "@clerk/clerk-expo";
 import { useEffect, useRef } from "react";
-import { AppState, type AppStateStatus } from "react-native";
+import { AppState, type AppStateStatus, View, Text } from "react-native";
 import { setSupabaseAccessTokenGetter } from "../packages/core/src/services/supabase";
 import { useInAppUpdatePrompt } from "../lib/updatePrompt";
 import { MobileCampaignHost } from "../components/mobile-control/MobileCampaignHost";
@@ -21,11 +21,70 @@ import { getConfig } from "../lib/config";
 import "../widgets/OpportunityWidget";
 import "../global.css";
 
-const PUBLISHABLE_KEY = getConfig().clerkPublishableKey;
+// Resolve required config WITHOUT throwing at module-load time. The previous
+// `throw` here ran during the initial import, i.e. before any React error
+// boundary exists — so a build that shipped without the embedded env vars
+// (e.g. an EAS build whose environment was missing EXPO_PUBLIC_* keys) would
+// crash to the launcher on open with no message. Now we surface a readable
+// screen instead of a silent crash.
+function resolveAppConfig():
+    | { ok: true; clerkPublishableKey: string }
+    | { ok: false; error: string } {
+    try {
+        const { clerkPublishableKey } = getConfig();
+        if (!clerkPublishableKey) {
+            return { ok: false, error: "Missing Clerk publishable key." };
+        }
+        return { ok: true, clerkPublishableKey };
+    } catch (error) {
+        return {
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+        };
+    }
+}
 
-if (!PUBLISHABLE_KEY) {
-    throw new Error(
-        "Missing Publishable Key. Please set EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY in your .env"
+// Deliberately self-contained: no theme/router/provider dependencies, so it can
+// render even when the app is too misconfigured to boot its providers.
+function ConfigErrorScreen({ message }: { message: string }) {
+    return (
+        <View
+            style={{
+                flex: 1,
+                backgroundColor: "#171a4f",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 24,
+            }}
+        >
+            <Text
+                style={{
+                    color: "#ffffff",
+                    fontSize: 18,
+                    fontWeight: "700",
+                    marginBottom: 8,
+                    textAlign: "center",
+                }}
+            >
+                Edutu couldn&apos;t start
+            </Text>
+            <Text
+                style={{ color: "#c7cbe6", fontSize: 14, textAlign: "center" }}
+            >
+                {message}
+            </Text>
+            <Text
+                style={{
+                    color: "#8a90c0",
+                    fontSize: 12,
+                    textAlign: "center",
+                    marginTop: 16,
+                }}
+            >
+                This build is missing required configuration. Please install the
+                latest version, or contact support if this keeps happening.
+            </Text>
+        </View>
     );
 }
 
@@ -95,13 +154,28 @@ function RootLayoutContent() {
 }
 
 export default function RootLayout() {
+    const config = resolveAppConfig();
+
+    // ErrorBoundary is now the OUTERMOST wrapper. Previously it lived inside
+    // ClerkProvider/ClerkLoaded/ThemeProvider, so a render-time throw in any of
+    // those providers (their child boundary can't catch its own ancestors)
+    // escaped uncaught and crashed the app. At the top level it catches them.
     return (
-        <ClerkProvider tokenCache={tokenCache} publishableKey={PUBLISHABLE_KEY}>
-            <ClerkLoaded>
-                <ThemeProvider>
-                    <RootLayoutContent />
-                </ThemeProvider>
-            </ClerkLoaded>
-        </ClerkProvider>
+        <ErrorBoundary message="Something went wrong with the app">
+            {config.ok ? (
+                <ClerkProvider
+                    tokenCache={tokenCache}
+                    publishableKey={config.clerkPublishableKey}
+                >
+                    <ClerkLoaded>
+                        <ThemeProvider>
+                            <RootLayoutContent />
+                        </ThemeProvider>
+                    </ClerkLoaded>
+                </ClerkProvider>
+            ) : (
+                <ConfigErrorScreen message={config.error} />
+            )}
+        </ErrorBoundary>
     );
 }

@@ -20,12 +20,23 @@ export type OpportunityWidgetProps = {
   }>;
 };
 
+export type OpportunityWidgetTimelineEntry = {
+  /** When WidgetKit should switch to this entry's props. */
+  date: Date;
+  props: OpportunityWidgetProps;
+};
+
 export function updateOpportunityWidget(_props: OpportunityWidgetProps) {
+  return;
+}
+
+export function updateOpportunityWidgetTimeline(_entries: OpportunityWidgetTimelineEntry[]) {
   return;
 }
 
 const OpportunityWidget = {
   updateSnapshot: updateOpportunityWidget,
+  updateTimeline: updateOpportunityWidgetTimeline,
 };
 
 export default OpportunityWidget;

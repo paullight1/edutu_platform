@@ -11,7 +11,7 @@ import {
 } from "@expo/ui/swift-ui/modifiers";
 import { createWidget, type WidgetEnvironment } from "expo-widgets";
 
-import type { OpportunityWidgetProps } from "./OpportunityWidget";
+import type { OpportunityWidgetProps, OpportunityWidgetTimelineEntry } from "./OpportunityWidget";
 
 const DEFAULT_OPPORTUNITY: OpportunityWidgetProps = {
   title: "Find your next scholarship",
@@ -295,6 +295,20 @@ OpportunityWidget.updateSnapshot(DEFAULT_OPPORTUNITY);
 
 export function updateOpportunityWidget(props: OpportunityWidgetProps) {
   OpportunityWidget.updateSnapshot({ ...DEFAULT_OPPORTUNITY, ...props });
+}
+
+/**
+ * Schedule dated entries so WidgetKit re-renders countdowns on-device at each
+ * midnight (no network, no background task needed between syncs).
+ */
+export function updateOpportunityWidgetTimeline(entries: OpportunityWidgetTimelineEntry[]) {
+  if (!entries.length) return;
+  OpportunityWidget.updateTimeline(
+    entries.map((entry) => ({
+      date: entry.date,
+      props: { ...DEFAULT_OPPORTUNITY, ...entry.props },
+    })),
+  );
 }
 
 export default OpportunityWidget;

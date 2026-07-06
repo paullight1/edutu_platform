@@ -6,17 +6,28 @@ import {
   type OpportunityWidgetSnapshot,
   type OpportunityWidgetItem,
 } from './mobileControl';
-import { updateOpportunityWidget, type OpportunityWidgetProps } from '../widgets/OpportunityWidget';
+import {
+  updateOpportunityWidgetTimeline,
+  type OpportunityWidgetProps,
+  type OpportunityWidgetTimelineEntry,
+} from '../widgets/OpportunityWidget';
 
 // The native Android widget reads this file (from the app's documents dir) as
 // its personalised, already-ranked source of truth. iOS uses expo-widgets'
-// snapshot channel instead, so this is Android-only.
+// timeline channel instead, so this is Android-only.
 const ANDROID_WIDGET_ITEMS_FILE = 'edutu_widget_items.json';
+
+// How many upcoming midnights get their own iOS timeline entry. Each entry
+// re-renders the widget with countdown text recomputed for that day, so
+// "3 days left" ticks down even when the app never runs. Two weeks covers
+// every relative label we show ("Closes today" … "14 days left") before the
+// background task or next app open replaces the timeline anyway.
+const TIMELINE_DAYS = 14;
 
 type SyncOptions = NonNullable<Parameters<typeof syncOpportunityWidgetSnapshot>[0]>;
 
-function formatWidgetDeadline(deadline?: string | null): string {
-  const badge = getDeadlineBadge(deadline);
+function formatWidgetDeadline(deadline?: string | null, now?: Date): string {
+  const badge = getDeadlineBadge(deadline, now);
   // Widgets show "Open now" instead of "Deadline not listed" for empty slots.
   if (badge.level === 'none') return 'Open now';
   // A relative countdown is only useful when the deadline is actually near.
@@ -26,52 +37,91 @@ function formatWidgetDeadline(deadline?: string | null): string {
 }
 
 /** Closing soon (today/tomorrow/critical/urgent) → the widget flags it red. */
-function isDeadlineUrgent(deadline?: string | null): boolean {
-  const badge = getDeadlineBadge(deadline);
+function isDeadlineUrgent(deadline?: string | null, now?: Date): boolean {
+  const badge = getDeadlineBadge(deadline, now);
   return (
     badge.isUrgent || badge.level === 'today' || badge.level === 'tomorrow'
   );
 }
 
-function firstRenderableItem(snapshot: OpportunityWidgetSnapshot): OpportunityWidgetItem | null {
-  return snapshot.items.find((item) => Boolean(item.title)) ?? null;
+/** Items whose deadline has passed as of `now` must not occupy a widget slot. */
+function isExpired(item: OpportunityWidgetItem, now?: Date): boolean {
+  return getDeadlineBadge(item.deadline, now).level === 'expired';
 }
 
-function mapWidgetItem(item: OpportunityWidgetItem) {
+function renderableItems(snapshot: OpportunityWidgetSnapshot, now?: Date): OpportunityWidgetItem[] {
+  return snapshot.items.filter((item) => Boolean(item.title) && !isExpired(item, now));
+}
+
+function mapWidgetItem(item: OpportunityWidgetItem, now?: Date) {
   return {
     title: item.title,
     provider: item.organization || 'Edutu',
-    deadline: formatWidgetDeadline(item.deadline),
+    deadline: formatWidgetDeadline(item.deadline, now),
     category: item.category || 'Opportunity',
     location: item.location || 'Global',
     match: item.match,
-    urgent: isDeadlineUrgent(item.deadline),
+    urgent: isDeadlineUrgent(item.deadline, now),
     deepLink: item.deepLink,
   };
 }
 
-export function getOpportunityWidgetProps(snapshot: OpportunityWidgetSnapshot): OpportunityWidgetProps {
-  const item = firstRenderableItem(snapshot);
-  const items = snapshot.items.filter((snapshotItem) => Boolean(snapshotItem.title)).map(mapWidgetItem);
+export function getOpportunityWidgetProps(
+  snapshot: OpportunityWidgetSnapshot,
+  now: Date = new Date(),
+): OpportunityWidgetProps {
+  const renderable = renderableItems(snapshot, now);
+  const item = renderable[0] ?? null;
+  const items = renderable.map((renderableItem) => mapWidgetItem(renderableItem, now));
 
   return {
     title: item?.title || snapshot.title || snapshot.emptyText,
     provider: item?.organization || 'Edutu',
-    deadline: formatWidgetDeadline(item?.deadline),
+    deadline: formatWidgetDeadline(item?.deadline, now),
     category: item?.category || 'Opportunity',
     location: item?.location || 'Global',
     match: item?.match,
-    urgent: isDeadlineUrgent(item?.deadline),
+    urgent: isDeadlineUrgent(item?.deadline, now),
     deepLink: item?.deepLink || 'edutu://opportunities',
     items,
   };
 }
 
 /**
+ * One entry for right now plus one per upcoming local midnight. WidgetKit
+ * swaps entries on-device at each date, so deadline countdowns stay correct
+ * ("2 days left" → "Closes tomorrow" → "Closes today") and expired items drop
+ * off — all without network access or a background wake-up.
+ */
+export function getOpportunityWidgetTimeline(
+  snapshot: OpportunityWidgetSnapshot,
+  now: Date = new Date(),
+): OpportunityWidgetTimelineEntry[] {
+  const entries: OpportunityWidgetTimelineEntry[] = [
+    { date: now, props: getOpportunityWidgetProps(snapshot, now) },
+  ];
+
+  // Relative labels only change day to day when an item has a parseable
+  // deadline; a single entry is enough otherwise.
+  const hasDatedDeadline = snapshot.items.some(
+    (item) => getDeadlineBadge(item.deadline, now).daysLeft !== null,
+  );
+  if (!hasDatedDeadline) return entries;
+
+  for (let day = 1; day <= TIMELINE_DAYS; day += 1) {
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + day);
+    entries.push({ date: midnight, props: getOpportunityWidgetProps(snapshot, midnight) });
+  }
+  return entries;
+}
+
+/**
  * Persist the personalised, ranked snapshot where the native Android widget
  * provider reads it. Raw deadlines are kept (the native side formats + expiry-
  * checks them each render), and match scores travel through so the widget can
- * show "N% match" instead of a generic "Top pick".
+ * show "N% match" instead of a generic "Top pick". `syncedAt` lets the widget
+ * judge staleness: it re-fetches its generic fallback once this list is a day
+ * old and stops preferring it after a week.
  */
 function writeAndroidWidgetItems(snapshot: OpportunityWidgetSnapshot): void {
   if (Platform.OS !== 'android') return;
@@ -97,7 +147,7 @@ function writeAndroidWidgetItems(snapshot: OpportunityWidgetSnapshot): void {
       file.delete();
     }
     file.create();
-    file.write(JSON.stringify(items));
+    file.write(JSON.stringify({ syncedAt: Date.now(), items }));
   } catch {
     // Best effort — the native widget falls back to its own network fetch.
   }
@@ -106,7 +156,7 @@ function writeAndroidWidgetItems(snapshot: OpportunityWidgetSnapshot): void {
 export async function updateOpportunityWidgetFromSnapshot(snapshot: OpportunityWidgetSnapshot): Promise<void> {
   try {
     writeAndroidWidgetItems(snapshot);
-    updateOpportunityWidget(getOpportunityWidgetProps(snapshot));
+    updateOpportunityWidgetTimeline(getOpportunityWidgetTimeline(snapshot));
   } catch {
     // Native widget updates are best-effort and must never block app startup or data loading.
   }

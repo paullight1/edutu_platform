@@ -53,8 +53,25 @@ class EdutuWidgetProvider : AppWidgetProvider() {
     private const val SIZE_EXPANDED = 1
     private const val SIZE_LARGE = 2
 
+    // Once the app-written list is a day old, refresh the generic fallback
+    // cache from the network; after a week, stop preferring the stale
+    // personalised list over that fresher generic data.
+    private const val APP_ITEMS_REFRESH_AFTER_MS = 24L * 60 * 60 * 1000
+    private const val APP_ITEMS_TRUST_FOR_MS = 7L * 24 * 60 * 60 * 1000
+
     private val executor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
+  }
+
+  /** The app-written personalised list plus when the app wrote it (null = unknown). */
+  private data class AppItems(val items: JSONArray, val syncedAt: Long?) {
+    fun ageMs(): Long? = syncedAt?.let { System.currentTimeMillis() - it }
+    fun isOlderThan(thresholdMs: Long): Boolean {
+      // Unknown age (legacy bare-array file) is treated as stale so the
+      // fallback cache still gets refreshed.
+      val age = ageMs() ?: return true
+      return age > thresholdMs
+    }
   }
 
   override fun onUpdate(
@@ -81,9 +98,12 @@ class EdutuWidgetProvider : AppWidgetProvider() {
 
   private fun refresh(context: Context) {
     val appContext = context.applicationContext
-    // The app writes a personalised, already-ranked list when it runs. When
-    // that's available we show it and skip the widget's own generic fetch.
-    if (readAppItems(appContext) != null) return
+    // The app writes a personalised, already-ranked list when it runs. While
+    // that list is fresh we show it and skip the widget's own generic fetch;
+    // once it goes stale we refresh the fallback cache so render() has
+    // current data to fall back to.
+    val appItems = readAppItems(appContext)
+    if (appItems != null && !appItems.isOlderThan(APP_ITEMS_REFRESH_AFTER_MS)) return
     executor.execute {
       val items = fetchItems(appContext) ?: return@execute
       appContext
@@ -107,9 +127,18 @@ class EdutuWidgetProvider : AppWidgetProvider() {
     appWidgetManager: AppWidgetManager,
     appWidgetIds: IntArray
   ) {
-    // Personalised app-provided list wins; otherwise fall back to the widget's
-    // own cached network fetch.
-    val items = readAppItems(context) ?: readCachedItems(context)
+    // The personalised app-provided list wins while it's reasonably recent
+    // (its deadlines are re-formatted and expiry-checked every render, so it
+    // stays *accurate* — it just stops reflecting new opportunities). Once
+    // it's over a week old, prefer the widget's own fresher generic fetch,
+    // keeping the stale personalised list only as a last resort.
+    val appItems = readAppItems(context)
+    val cached = readCachedItems(context)
+    val items = when {
+      appItems != null && !appItems.isOlderThan(APP_ITEMS_TRUST_FOR_MS) -> appItems.items
+      cached.length() > 0 -> cached
+      else -> appItems?.items ?: JSONArray()
+    }
     appWidgetIds.forEach { appWidgetId ->
       val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
       val views = buildViews(context, items, pickSize(options))
@@ -259,24 +288,37 @@ class EdutuWidgetProvider : AppWidgetProvider() {
 
   /**
    * The personalised, ranked list the JS app wrote (via expo-file-system) into
-   * the app's documents dir. Any items that have since closed are dropped;
-   * returns null when there's no usable app-provided data (so the widget falls
-   * back to its own fetch).
+   * the app's documents dir, with the write timestamp when available. The
+   * current format is `{"syncedAt": <epoch ms>, "items": [...]}`; a bare array
+   * (written by older app versions) is still accepted, with an unknown age.
+   * Any items that have since closed are dropped; returns null when there's no
+   * usable app-provided data (so the widget falls back to its own fetch).
    */
-  private fun readAppItems(context: Context): JSONArray? {
+  private fun readAppItems(context: Context): AppItems? {
     return try {
       val file = java.io.File(context.filesDir, APP_ITEMS_FILE)
       if (!file.exists()) return null
-      val text = file.readText()
+      val text = file.readText().trim()
       if (text.isBlank()) return null
-      val parsed = JSONArray(text)
+
+      val parsed: JSONArray
+      var syncedAt: Long? = null
+      if (text.startsWith("{")) {
+        val envelope = JSONObject(text)
+        parsed = envelope.optJSONArray("items") ?: return null
+        val stamp = envelope.optLong("syncedAt", 0L)
+        if (stamp > 0L) syncedAt = stamp
+      } else {
+        parsed = JSONArray(text)
+      }
+
       val fresh = JSONArray()
       for (i in 0 until parsed.length()) {
         val item = parsed.optJSONObject(i) ?: continue
         if (isExpired(item.optString("deadline"))) continue
         fresh.put(item)
       }
-      if (fresh.length() > 0) fresh else null
+      if (fresh.length() > 0) AppItems(fresh, syncedAt) else null
     } catch (e: Exception) {
       null
     }

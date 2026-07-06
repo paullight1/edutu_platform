@@ -675,9 +675,13 @@ export default function Opportunities() {
       phase: "preview",
     });
 
+    // A full crawl fetches + enriches every source, so it can run for a few
+    // minutes. Cap it so the modal can never hang forever on a stuck source.
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 240_000);
     try {
       setLoadingStatus({
-        message: "Crawling all enabled sources (this can take a minute)…",
+        message: "Crawling all enabled sources — this can take a few minutes…",
         progress: 30,
         source: "all",
         phase: "preview",
@@ -685,6 +689,7 @@ export default function Opportunities() {
       const response = await fetch(`${NEST_API_URL}/api/scraper/run`, {
         method: "POST",
         headers: await getAdminHeaders(),
+        signal: controller.signal,
         body: JSON.stringify({
           allSources: true,
           maxPages: 3,
@@ -726,9 +731,13 @@ export default function Opportunities() {
       // A bare "Failed to fetch" almost always means the API server isn't
       // reachable — surface that plainly instead of a cryptic network error.
       const raw = getErrorMessage(error);
-      const message = /failed to fetch|networkerror|load failed/i.test(raw)
-        ? `Cannot reach the API server at ${NEST_API_URL}. Make sure the backend is running.`
-        : raw;
+      const aborted =
+        error instanceof DOMException && error.name === "AbortError";
+      const message = aborted
+        ? "The crawl is taking too long from here. Run large syncs from the Scraper page, which streams progress in the background."
+        : /failed to fetch|networkerror|load failed/i.test(raw)
+          ? `Cannot reach the API server at ${NEST_API_URL}. Make sure the backend is running.`
+          : raw;
       setLoadingStatus({
         message: "Error: " + message,
         progress: 100,
@@ -739,6 +748,8 @@ export default function Opportunities() {
         setShowLoadingModal(false);
         alert("Preview failed: " + message);
       }, 2000);
+    } finally {
+      window.clearTimeout(timeout);
     }
   }
 
@@ -1526,12 +1537,17 @@ export default function Opportunities() {
           phase: "preview",
         });
 
+        // Per-URL timeout so one slow/blocking source can't stall the whole
+        // batch — it is marked "needs review" and the loop moves on.
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 90_000);
         try {
           const response = await fetch(
             `${NEST_API_URL}/api/scraper/enhance-preview`,
             {
               method: "POST",
               headers,
+              signal: controller.signal,
               body: JSON.stringify({
                 title: guessTitleFromUrl(url),
                 application_url: url,
@@ -1574,6 +1590,8 @@ export default function Opportunities() {
             errors: [],
           });
         } catch (error: unknown) {
+          const aborted =
+            error instanceof DOMException && error.name === "AbortError";
           previewResults.push({
             title: guessTitleFromUrl(url),
             organization: "Unknown",
@@ -1582,8 +1600,14 @@ export default function Opportunities() {
             source_url: url,
             confidence: 0,
             status: "needs_review",
-            errors: [getErrorMessage(error, "Preview failed")],
+            errors: [
+              aborted
+                ? "Timed out — source too slow to analyze"
+                : getErrorMessage(error, "Preview failed"),
+            ],
           });
+        } finally {
+          window.clearTimeout(timeout);
         }
       }
 
