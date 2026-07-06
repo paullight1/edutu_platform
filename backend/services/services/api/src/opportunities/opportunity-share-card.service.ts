@@ -32,6 +32,19 @@ const BUCKET =
 const CARD_WIDTH = 1080;
 const CARD_HEIGHT = 1680;
 
+// Font stack limited to what the render container (librsvg via sharp) can
+// resolve — no exotic webfonts. We win on layout, colour and hierarchy.
+const FONT = "'Inter', 'Helvetica Neue', 'Segoe UI', Arial, sans-serif";
+
+// Bump when the card layout changes so cached cards regenerate on next fetch.
+const DESIGN_VERSION = "v2-brief-2026";
+
+interface ShareStatus {
+  label: string;
+  dot: string;
+  valueColor: string;
+}
+
 @Injectable()
 export class OpportunityShareCardService {
   private readonly logger = new Logger(OpportunityShareCardService.name);
@@ -251,146 +264,375 @@ export class OpportunityShareCardService {
 
   private renderSvg(opportunity: OpportunityRecord): string {
     const metadata = this.asRecord(opportunity.metadata);
+    const title = this.clean(opportunity.title, "Opportunity");
+    const provider = this.clean(
+      opportunity.organization || opportunity.source,
+      "Opportunity provider",
+    );
+    const category = this.clean(opportunity.category, "Opportunity");
+    const summary = this.clean(
+      opportunity.summary || opportunity.description,
+      "A curated opportunity from Edutu. Review the full details and apply through the official source.",
+    );
+    const benefits = this.arrayFrom(opportunity.benefits ?? metadata.benefits);
     const requirements = this.arrayFrom(
       opportunity.requirements ?? metadata.requirements,
-    ).slice(0, 5);
-    const benefits = this.arrayFrom(
-      opportunity.benefits ?? metadata.benefits,
-    ).slice(0, 5);
+    );
     const application = this.arrayFrom(
       opportunity.application_process ?? metadata.application_process,
-    ).slice(0, 3);
-    const titleLines = this.wrap(
-      this.clean(opportunity.title, "Opportunity"),
-      24,
-      4,
     );
-    const summaryLines = this.wrap(
-      this.clean(
-        opportunity.summary || opportunity.description,
-        "A curated opportunity from Edutu. Review full details and apply through the official source.",
-      ),
-      62,
-      5,
+    const applyUrl = this.clean(
+      opportunity.application_url ||
+        opportunity.apply_url ||
+        opportunity.link ||
+        "",
+      "",
+    );
+    const deadlineRaw = opportunity.close_date || opportunity.deadline;
+    const status = this.statusInfo(deadlineRaw);
+
+    // ---- Layout frame ----
+    const W = CARD_WIDTH; // 1080
+    const H = CARD_HEIGHT; // 1680
+    const M = 72; // page margin
+    const CW = W - M * 2; // content width
+    const FOOTER_H = 132;
+    const footerTop = H - FOOTER_H;
+
+    // Header height flexes with the title so long titles never clip.
+    const titleLines = this.wrap(title, 26, 3);
+    const titleStart = 232;
+    const titleLH = 66;
+    const titleBottom = titleStart + (titleLines.length - 1) * titleLH;
+    const providerY = titleBottom + 78;
+    const headerH = providerY + 82;
+
+    const layers: string[] = [];
+
+    // Page + header band
+    layers.push(`<rect width="${W}" height="${H}" fill="#FFFFFF"/>`);
+    layers.push(`<rect width="${W}" height="${headerH}" fill="url(#brand)"/>`);
+    layers.push(
+      `<circle cx="${W - 40}" cy="40" r="230" fill="#FFFFFF" fill-opacity="0.06"/>`,
+    );
+    layers.push(
+      `<circle cx="130" cy="${headerH - 20}" r="180" fill="#38BDF8" fill-opacity="0.12"/>`,
     );
 
-    const facts = [
-      ["Reward", this.funding(opportunity, benefits)],
-      ["Category", this.clean(opportunity.category, "General")],
-      ["Eligible Applicants", this.eligibility(opportunity)],
-      [
-        "Deadline",
-        this.deadline(opportunity.close_date || opportunity.deadline),
-      ],
+    // Brand mark + live status
+    layers.push(this.brandMark(M, 58));
+    layers.push(this.statusPill(W - M, 70, status));
+
+    // Category chip
+    layers.push(
+      this.chip(M, 164, category.toUpperCase(), {
+        bg: "#FFFFFF",
+        bgOpacity: 0.14,
+        fg: "#DBEAFE",
+        size: 19,
+        tracking: 2.5,
+      }),
+    );
+
+    // Title (hero, on the gradient)
+    titleLines.forEach((line, i) => {
+      layers.push(
+        `<text x="${M}" y="${titleStart + i * titleLH}" font-family="${FONT}" font-size="54" font-weight="800" letter-spacing="-0.5" fill="#FFFFFF">${this.escape(line)}</text>`,
+      );
+    });
+
+    // Provider row
+    layers.push(this.providerRow(M, providerY, provider, opportunity));
+
+    // ---- Body (flowing cursor, budget-aware) ----
+    let y = headerH + 58;
+    const bodyBottom = footerTop - 40; // hard floor above footer
+    const listBottom = bodyBottom - 178; // reserve room for the apply band
+
+    // Summary
+    const summaryLines = this.wrap(summary, 64, 3);
+    summaryLines.forEach((line, i) => {
+      layers.push(
+        `<text x="${M}" y="${y + i * 38}" font-family="${FONT}" font-size="27" font-weight="500" fill="#475569">${this.escape(line)}</text>`,
+      );
+    });
+    y += summaryLines.length * 38 + 34;
+
+    // Fact tiles (2 x 2)
+    const facts: Array<[string, string, string]> = [
+      ["Reward", this.funding(opportunity, benefits), "#0F172A"],
+      ["Deadline", this.deadline(deadlineRaw), status.valueColor],
+      ["Eligibility", this.eligibility(opportunity), "#0F172A"],
       [
         "Location",
         this.clean(
           opportunity.location || opportunity.target_region,
           "Worldwide",
         ),
-      ],
-      [
-        "Source",
-        this.clean(opportunity.organization || opportunity.source, "Edutu"),
+        "#0F172A",
       ],
     ];
+    const tileW = (CW - 24) / 2;
+    const tileH = 116;
+    facts.forEach(([label, value, color], i) => {
+      const tx = M + (i % 2) * (tileW + 24);
+      const ty = y + Math.floor(i / 2) * (tileH + 20);
+      layers.push(this.factTile(tx, ty, tileW, tileH, label, value, color));
+    });
+    y += 2 * (tileH + 20) + 26;
+
+    // Benefits
+    if (benefits.length && y + 96 < listBottom) {
+      const block = this.listSection(
+        "Benefits",
+        benefits,
+        M,
+        y,
+        CW,
+        listBottom,
+        "check",
+      );
+      layers.push(block.svg);
+      y = block.y + 28;
+    }
+
+    // Requirements
+    if (requirements.length && y + 96 < listBottom) {
+      const block = this.listSection(
+        "Requirements",
+        requirements,
+        M,
+        y,
+        CW,
+        listBottom,
+        "dot",
+      );
+      layers.push(block.svg);
+      y = block.y + 28;
+    }
+
+    // How to apply (highlighted band)
+    const applyItems = application.length
+      ? application
+      : applyUrl
+        ? [applyUrl]
+        : [
+            "Open this opportunity in Edutu and follow the official application link.",
+          ];
+    if (y + 132 < bodyBottom) {
+      layers.push(this.applyBand(M, y, CW, bodyBottom, applyItems));
+    }
+
+    // Footer
+    layers.push(this.footer(footerTop, W, FOOTER_H));
 
     return `<?xml version="1.0" encoding="UTF-8"?>
-<svg width="${CARD_WIDTH}" height="${CARD_HEIGHT}" viewBox="0 0 ${CARD_WIDTH} ${CARD_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#F8FBFF"/>
-      <stop offset="0.48" stop-color="#EEF6FF"/>
-      <stop offset="1" stop-color="#FFFFFF"/>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B1E45"/>
+      <stop offset="0.55" stop-color="#173C82"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+    <linearGradient id="footer" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0B1E45"/>
+      <stop offset="1" stop-color="#1D4ED8"/>
     </linearGradient>
   </defs>
-  <rect width="${CARD_WIDTH}" height="${CARD_HEIGHT}" fill="url(#bg)"/>
-  <circle cx="-40" cy="330" r="210" fill="#3B82F6" opacity="0.08"/>
-  <circle cx="1030" cy="1540" r="245" fill="#0EA5E9" opacity="0.10"/>
-  <rect x="78" y="1620" width="924" height="18" rx="9" fill="#2F80ED"/>
-
-  <g transform="translate(78 58)">
-    <circle cx="18" cy="18" r="18" fill="#2563EB"/>
-    <text x="48" y="24" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="900" fill="#0B2F6B">Edutu</text>
-    <text x="48" y="47" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="800" letter-spacing="3" fill="#5B7CFA">OPPORTUNITY BRIEF</text>
-  </g>
-  <text x="870" y="86" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="21" font-weight="800" fill="#2563EB">Visit Scholarship Engine</text>
-
-  ${this.textBlock(titleLines, 78, 225, 63, 75, "#0A1020", 900)}
-  ${this.providerBlock(opportunity)}
-  ${this.textBlock(summaryLines, 78, 565, 27, 37, "#172033", 500)}
-
-  ${this.factGrid(facts)}
-  ${this.section("Scholarship Reward / Benefits", benefits.length ? benefits : [this.funding(opportunity, benefits)], 78, 950)}
-  ${this.section("Requirements", requirements.length ? requirements : ["Review the official eligibility criteria before applying."], 78, 1160)}
-  ${this.applySection(application.length ? application : [opportunity.application_url || opportunity.apply_url || opportunity.link || "Open this opportunity in Edutu and follow the application link."], 78, 1390)}
+  ${layers.join("\n  ")}
 </svg>`;
   }
 
-  private providerBlock(opportunity: OpportunityRecord): string {
-    const provider = this.clean(
-      opportunity.organization || opportunity.source,
-      "Opportunity provider",
-    ).toUpperCase();
-    const lines = this.wrap(provider, 16, 4);
-    return `
-  <rect x="790" y="220" width="210" height="130" rx="28" fill="#FFFFFF" stroke="#D6E8FF"/>
-  <text x="895" y="290" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="38" font-weight="900" fill="#0B2F6B">${this.escape(provider.slice(0, 2))}</text>
-  ${this.textBlock(lines, 770, 378, 24, 30, "#0B2F6B", 900, 260, "middle")}`;
+  private brandMark(x: number, y: number): string {
+    return `<g transform="translate(${x} ${y})">
+    <rect x="0" y="0" width="54" height="54" rx="16" fill="#FFFFFF"/>
+    <text x="27" y="40" text-anchor="middle" font-family="${FONT}" font-size="34" font-weight="900" fill="#123C82">E</text>
+    <text x="70" y="26" font-family="${FONT}" font-size="30" font-weight="800" letter-spacing="-0.3" fill="#FFFFFF">Edutu</text>
+    <text x="70" y="49" font-family="${FONT}" font-size="13" font-weight="700" letter-spacing="3.5" fill="#8FB4FF">OPPORTUNITY BRIEF</text>
+  </g>`;
   }
 
-  private factGrid(facts: string[][]): string {
-    return facts
-      .map(([label, value], index) => {
-        const column = index % 3;
-        const row = Math.floor(index / 3);
-        const x = 78 + column * 318;
-        const y = 760 + row * 104;
-        return `<text x="${x}" y="${y}" font-family="Inter, Arial, sans-serif" font-size="19" font-weight="900" fill="#2563EB">${this.escape(label)}:</text>
-  <text x="${x}" y="${y + 35}" font-family="Inter, Arial, sans-serif" font-size="25" font-weight="700" fill="#111827">${this.escape(this.truncate(value, 42))}</text>`;
-      })
-      .join("\n  ");
+  private statusPill(rightX: number, y: number, status: ShareStatus): string {
+    const w = Math.round(58 + status.label.length * 11.5);
+    const x = rightX - w;
+    return `<g>
+    <rect x="${x}" y="${y}" width="${w}" height="46" rx="23" fill="#FFFFFF" fill-opacity="0.14" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="1.5"/>
+    <circle cx="${x + 27}" cy="${y + 23}" r="7" fill="${status.dot}"/>
+    <text x="${x + 44}" y="${y + 30}" font-family="${FONT}" font-size="18" font-weight="800" letter-spacing="1.4" fill="#FFFFFF">${this.escape(status.label)}</text>
+  </g>`;
   }
 
-  private section(
+  private chip(
+    x: number,
+    y: number,
+    text: string,
+    opts: {
+      bg: string;
+      bgOpacity?: number;
+      fg: string;
+      size: number;
+      tracking: number;
+    },
+  ): string {
+    const w = Math.round(
+      text.length * (opts.size * 0.66 + opts.tracking) + 40,
+    );
+    return `<g>
+    <rect x="${x}" y="${y}" width="${w}" height="42" rx="21" fill="${opts.bg}" fill-opacity="${opts.bgOpacity ?? 1}"/>
+    <text x="${x + 22}" y="${y + 28}" font-family="${FONT}" font-size="${opts.size}" font-weight="800" letter-spacing="${opts.tracking}" fill="${opts.fg}">${this.escape(text)}</text>
+  </g>`;
+  }
+
+  private providerRow(
+    x: number,
+    y: number,
+    provider: string,
+    opportunity: OpportunityRecord,
+  ): string {
+    const initials =
+      provider
+        .replace(/[^A-Za-z0-9 ]/g, "")
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((word) => word[0])
+        .join("")
+        .toUpperCase() || "ED";
+    const sub = this.clean(
+      opportunity.location || opportunity.target_region,
+      "Global opportunity",
+    );
+    return `<g>
+    <circle cx="${x + 34}" cy="${y - 6}" r="34" fill="#FFFFFF"/>
+    <text x="${x + 34}" y="${y + 4}" text-anchor="middle" font-family="${FONT}" font-size="26" font-weight="900" fill="#123C82">${this.escape(initials)}</text>
+    <text x="${x + 88}" y="${y - 10}" font-family="${FONT}" font-size="27" font-weight="800" fill="#FFFFFF">${this.escape(this.truncate(provider, 34))}</text>
+    <text x="${x + 88}" y="${y + 18}" font-family="${FONT}" font-size="20" font-weight="600" fill="#AFC7FF">${this.escape(this.truncate(sub, 42))}</text>
+  </g>`;
+  }
+
+  private factTile(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    label: string,
+    value: string,
+    color: string,
+  ): string {
+    return `<g>
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="22" fill="#F4F8FF" stroke="#E1EAFF" stroke-width="1.5"/>
+    <text x="${x + 28}" y="${y + 46}" font-family="${FONT}" font-size="16" font-weight="800" letter-spacing="1.8" fill="#2563EB">${this.escape(label.toUpperCase())}</text>
+    <text x="${x + 28}" y="${y + 84}" font-family="${FONT}" font-size="26" font-weight="800" fill="${color}">${this.escape(this.truncate(value, 24))}</text>
+  </g>`;
+  }
+
+  private listSection(
     title: string,
     items: string[],
     x: number,
     y: number,
-  ): string {
-    const bulletLines = items.flatMap((item) =>
-      this.wrap(`• ${this.clean(item)}`, 72, 2),
-    );
-    return `<text x="${x}" y="${y}" font-family="Inter, Arial, sans-serif" font-size="25" font-weight="900" fill="#2563EB">${this.escape(title)}</text>
-  ${this.textBlock(bulletLines.slice(0, 10), x + 16, y + 40, 23, 31, "#0F172A", 500)}`;
+    w: number,
+    bottom: number,
+    marker: "check" | "dot",
+  ): { svg: string; y: number } {
+    const parts: string[] = [
+      `<text x="${x}" y="${y + 8}" font-family="${FONT}" font-size="24" font-weight="900" letter-spacing="0.3" fill="#0B1E45">${this.escape(title)}</text>`,
+    ];
+    let cy = y + 50;
+    const lh = 34;
+    for (const item of items.slice(0, 3)) {
+      const wrapped = this.wrap(this.clean(item), 66, 2);
+      let stop = false;
+      wrapped.forEach((line, li) => {
+        if (cy > bottom) {
+          stop = true;
+          return;
+        }
+        if (li === 0) {
+          if (marker === "check") {
+            parts.push(
+              `<circle cx="${x + 10}" cy="${cy - 8}" r="11" fill="#DCFCE7"/>`,
+            );
+            parts.push(
+              `<path d="M ${x + 5} ${cy - 8} L ${x + 9} ${cy - 4} L ${x + 16} ${cy - 13}" fill="none" stroke="#16A34A" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>`,
+            );
+          } else {
+            parts.push(
+              `<circle cx="${x + 10}" cy="${cy - 8}" r="4.5" fill="#2563EB"/>`,
+            );
+          }
+        }
+        parts.push(
+          `<text x="${x + 36}" y="${cy}" font-family="${FONT}" font-size="23" font-weight="500" fill="#1E293B">${this.escape(line)}</text>`,
+        );
+        cy += lh;
+      });
+      if (stop) break;
+    }
+    return { svg: parts.join("\n  "), y: cy };
   }
 
-  private applySection(items: string[], x: number, y: number): string {
-    const lines = items.flatMap((item, index) =>
-      this.wrap(`${index + 1}. ${this.clean(item)}`, 76, 2),
-    );
-    return `<line x1="${x}" x2="1002" y1="${y - 28}" y2="${y - 28}" stroke="#2563EB" stroke-opacity="0.14" stroke-width="2"/>
-  <text x="${x}" y="${y}" font-family="Inter, Arial, sans-serif" font-size="25" font-weight="900" fill="#2563EB">How To Apply</text>
-  ${this.textBlock(lines.slice(0, 6), x, y + 40, 22, 30, "#0F172A", 600)}`;
-  }
-
-  private textBlock(
-    lines: string[],
+  private applyBand(
     x: number,
     y: number,
-    size: number,
-    lineHeight: number,
-    fill: string,
-    weight: number,
-    width = 720,
-    anchor: "start" | "middle" = "start",
+    w: number,
+    bottom: number,
+    items: string[],
   ): string {
-    return lines
-      .map(
-        (line, index) =>
-          `<text x="${anchor === "middle" ? x + width / 2 : x}" y="${y + index * lineHeight}" text-anchor="${anchor}" font-family="Inter, Arial, sans-serif" font-size="${size}" font-weight="${weight}" fill="${fill}">${this.escape(line)}</text>`,
-      )
-      .join("\n  ");
+    const steps = items.slice(0, 2).map((step) => this.clean(step));
+    const contentLines = steps.flatMap((step, i) =>
+      this.wrap(`${i + 1}.  ${step}`, 60, 2),
+    );
+    const maxLines = Math.max(1, Math.floor((bottom - y - 96) / 32));
+    const capped = contentLines.slice(0, maxLines);
+    const h = 78 + capped.length * 32 + 18;
+    const parts: string[] = [
+      `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="26" fill="#EEF4FF" stroke="#D6E4FF" stroke-width="1.5"/>`,
+      `<text x="${x + 34}" y="${y + 52}" font-family="${FONT}" font-size="22" font-weight="900" letter-spacing="2" fill="#2563EB">HOW TO APPLY</text>`,
+    ];
+    let cy = y + 88;
+    capped.forEach((line) => {
+      parts.push(
+        `<text x="${x + 34}" y="${cy}" font-family="${FONT}" font-size="22" font-weight="600" fill="#1E293B">${this.escape(line)}</text>`,
+      );
+      cy += 32;
+    });
+    return parts.join("\n  ");
+  }
+
+  private footer(top: number, w: number, h: number): string {
+    const cy = top + h / 2;
+    return `<g>
+    <rect x="0" y="${top}" width="${w}" height="${h}" fill="url(#footer)"/>
+    <text x="72" y="${cy - 4}" font-family="${FONT}" font-size="24" font-weight="800" fill="#FFFFFF">Discover more opportunities</text>
+    <text x="72" y="${cy + 26}" font-family="${FONT}" font-size="19" font-weight="600" fill="#AFC7FF">Personalized matches, roadmaps &amp; deadline reminders</text>
+    <g transform="translate(${w - 72 - 168} ${cy - 26})">
+      <rect x="0" y="0" width="168" height="52" rx="26" fill="#FFFFFF"/>
+      <text x="84" y="34" text-anchor="middle" font-family="${FONT}" font-size="22" font-weight="900" fill="#123C82">edutu.ai</text>
+    </g>
+  </g>`;
+  }
+
+  private statusInfo(value?: string | Date | null): ShareStatus {
+    const days = this.daysLeft(value);
+    if (days !== null && days < 0) {
+      return { label: "CLOSED", dot: "#F87171", valueColor: "#DC2626" };
+    }
+    if (days !== null && days <= 7) {
+      return {
+        label: `${days}D LEFT`,
+        dot: "#FBBF24",
+        valueColor: "#D97706",
+      };
+    }
+    return { label: "ACTIVE", dot: "#34D399", valueColor: "#0F172A" };
+  }
+
+  private daysLeft(value?: string | Date | null): number | null {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return Math.ceil((date.getTime() - Date.now()) / 86400000);
   }
 
   private buildSingleImagePdf(
