@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -35,18 +35,22 @@ import {
     Calendar,
 } from 'lucide-react-native';
 import { useUser, useAuth } from '@clerk/clerk-expo';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import { useTheme } from "../../../components/context/ThemeContext";
 import { supabase } from "../../../lib/supabase";
 import { toSafeUUID } from "@edutu/core/src/utils/auth";
+import { fetchProfile, type BackendProfile } from '@edutu/core/src/services/profile';
 import { useOpportunities } from '@edutu/core/src/hooks/useOpportunities';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../../lib/i18n';
 
 function PremiumButton() {
     const router = useRouter();
     const { isDark, colors } = useTheme();
+    const { t } = useTranslation('profile');
 
     return (
         <TouchableOpacity
@@ -55,7 +59,7 @@ function PremiumButton() {
             activeOpacity={0.7}
         >
             <Crown size={16} color="#F59E0B" />
-            <Text style={[styles.premiumButtonText, { color: '#F59E0B' }]}>Premium</Text>
+            <Text style={[styles.premiumButtonText, { color: '#F59E0B' }]}>{t('view.premium')}</Text>
         </TouchableOpacity>
     );
 }
@@ -65,10 +69,10 @@ function getUserLookupIds(userId: string): string[] {
 }
 
 function formatProfileDeadline(deadline?: string | null): string {
-    if (!deadline) return 'None';
+    if (!deadline) return i18n.t('profile:view.deadline.none');
 
     const dueDate = new Date(deadline);
-    if (Number.isNaN(dueDate.getTime())) return 'None';
+    if (Number.isNaN(dueDate.getTime())) return i18n.t('profile:view.deadline.none');
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -77,9 +81,9 @@ function formatProfileDeadline(deadline?: string | null): string {
     dueDay.setHours(0, 0, 0, 0);
 
     const diffDays = Math.ceil((dueDay.getTime() - today.getTime()) / 86400000);
-    if (diffDays <= 0) return 'Today';
-    if (diffDays === 1) return 'Tomorrow';
-    if (diffDays <= 7) return `${diffDays} days`;
+    if (diffDays <= 0) return i18n.t('profile:view.deadline.today');
+    if (diffDays === 1) return i18n.t('profile:view.deadline.tomorrow');
+    if (diffDays <= 7) return i18n.t('profile:view.deadline.days', { count: diffDays });
 
     return dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
@@ -116,14 +120,18 @@ export default function ProfileScreen() {
     const { signOut, getToken } = useAuth();
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { t } = useTranslation('profile');
 
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
     const [isAdmin, setIsAdmin] = useState(false);
+    // Canonical saved profile (backend row) — the header must reflect what the
+    // user actually saved on the edit screen, not stale onboarding metadata.
+    const [savedProfile, setSavedProfile] = useState<BackendProfile | null>(null);
     const [profileStats, setProfileStats] = useState({
         activeGoals: 0,
         completedGoals: 0,
         appliedOpps: 0,
-        nextDeadline: 'None',
+        nextDeadline: formatProfileDeadline(null),
     });
 
     const { data: matchedOpportunities } = useOpportunities({
@@ -131,6 +139,23 @@ export default function ProfileScreen() {
         userId: user?.id,
         getAuthToken: getToken,
     });
+
+    // Refetch on every focus so returning from the edit screen shows the
+    // values that were just saved (the screen stays mounted behind the stack).
+    useFocusEffect(
+        useCallback(() => {
+            let cancelled = false;
+            const loadSavedProfile = async () => {
+                if (!user) return;
+                const data = await fetchProfile(getToken);
+                if (data && !cancelled) setSavedProfile(data);
+            };
+            loadSavedProfile();
+            return () => {
+                cancelled = true;
+            };
+        }, [user?.id, getToken])
+    );
 
     useEffect(() => {
         const checkRole = async () => {
@@ -179,7 +204,7 @@ export default function ProfileScreen() {
                     .in('user_id', lookupIds);
 
                 const uniqueBookmarkIds = Array.from(new Set(bookmarks?.map((bookmark: any) => bookmark.opportunity_id) || []));
-                let nextDeadline = 'None';
+                let nextDeadline = formatProfileDeadline(null);
 
                 if (uniqueBookmarkIds.length > 0) {
                     const { data: opps } = await supabase
@@ -212,39 +237,39 @@ export default function ProfileScreen() {
 
     const menuGroups = [
         {
-            title: 'Tools',
+            title: t('view.menu.tools'),
             items: [
-                { id: 'creator', title: 'Creator Studio', desc: 'Build & manage your shop', icon: LayoutGrid, route: '/creator-dashboard', color: '#6366F1', bg: 'rgba(99,102,241,0.15)' },
-                { id: 'cv', title: 'CV Builder', desc: 'Professional profile builder', icon: FileText, route: '/cv', color: '#10B981', bg: 'rgba(16,185,129,0.15)' },
-                { id: 'chat', title: 'AI Coach', desc: 'Get personalized guidance', icon: MessageCircle, route: '/chat', color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' },
+                { id: 'creator', title: t('view.menu.creatorStudio'), desc: t('view.menu.creatorStudioDesc'), icon: LayoutGrid, route: '/creator-dashboard', color: '#6366F1', bg: 'rgba(99,102,241,0.15)' },
+                { id: 'cv', title: t('view.menu.cvBuilder'), desc: t('view.menu.cvBuilderDesc'), icon: FileText, route: '/cv', color: '#10B981', bg: 'rgba(16,185,129,0.15)' },
+                { id: 'chat', title: t('view.menu.aiCoach'), desc: t('view.menu.aiCoachDesc'), icon: MessageCircle, route: '/chat', color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' },
             ]
         },
         {
-            title: 'Preferences',
+            title: t('view.menu.preferences'),
             items: [
-                { id: 'notifications', title: 'Notifications', desc: 'Stay updated on progress', icon: Bell, route: '/notifications', color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
-                { id: 'settings', title: 'Settings', desc: 'Theme & app preferences', icon: Settings, route: '/profile/settings', color: '#64748B', bg: 'rgba(100,116,139,0.15)' },
+                { id: 'notifications', title: t('view.menu.notifications'), desc: t('view.menu.notificationsDesc'), icon: Bell, route: '/notifications', color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
+                { id: 'settings', title: t('view.menu.settings'), desc: t('view.menu.settingsDesc'), icon: Settings, route: '/profile/settings', color: '#64748B', bg: 'rgba(100,116,139,0.15)' },
             ]
         },
         {
-            title: 'Support',
+            title: t('view.menu.support'),
             items: [
-                { id: 'help', title: 'Help & Support', desc: 'FAQ & direct assistance', icon: HelpCircle, route: '/help', color: '#06B6D4', bg: 'rgba(6,182,212,0.15)' },
-                { id: 'security', title: 'Privacy', desc: 'Data & visibility control', icon: Shield, route: '/privacy', color: '#EC4899', bg: 'rgba(236,72,153,0.15)' },
+                { id: 'help', title: t('view.menu.helpSupport'), desc: t('view.menu.helpSupportDesc'), icon: HelpCircle, route: '/help', color: '#06B6D4', bg: 'rgba(6,182,212,0.15)' },
+                { id: 'security', title: t('view.menu.privacy'), desc: t('view.menu.privacyDesc'), icon: Shield, route: '/privacy', color: '#EC4899', bg: 'rgba(236,72,153,0.15)' },
             ]
         }
     ];
 
     const adminMenuItems = [
-        { id: 'creator-apps', title: 'Creator Applications', desc: 'Review and approve creators', icon: Users, route: '/admin/creator-applications', color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' },
-        { id: 'create-roadmap', title: 'Create Roadmap', desc: 'Add new learning paths', icon: Megaphone, route: '/admin/roadmap/create', color: '#06B6D4', bg: 'rgba(6,182,212,0.15)' },
-        { id: 'testimonials', title: 'Testimonials', desc: 'Manage reviews and videos', icon: MessageCircle, route: '/admin/testimonials', color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
-        { id: 'premium-features', title: 'Premium Features', desc: 'OTA feature flags control', icon: Crown, route: '/admin/premium-features', color: '#10B981', bg: 'rgba(16,185,129,0.15)' },
+        { id: 'creator-apps', title: t('view.admin.creatorApplications'), desc: t('view.admin.creatorApplicationsDesc'), icon: Users, route: '/admin/creator-applications', color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' },
+        { id: 'create-roadmap', title: t('view.admin.createRoadmap'), desc: t('view.admin.createRoadmapDesc'), icon: Megaphone, route: '/admin/roadmap/create', color: '#06B6D4', bg: 'rgba(6,182,212,0.15)' },
+        { id: 'testimonials', title: t('view.admin.testimonials'), desc: t('view.admin.testimonialsDesc'), icon: MessageCircle, route: '/admin/testimonials', color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
+        { id: 'premium-features', title: t('view.admin.premiumFeatures'), desc: t('view.admin.premiumFeaturesDesc'), icon: Crown, route: '/admin/premium-features', color: '#10B981', bg: 'rgba(16,185,129,0.15)' },
     ];
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-            <ScreenHeader title="Profile" showBack right={<PremiumButton />} />
+            <ScreenHeader title={t('view.title')} showBack right={<PremiumButton />} />
             <ScrollView
                 style={styles.scrollView}
                 showsVerticalScrollIndicator={false}
@@ -276,7 +301,7 @@ export default function ProfileScreen() {
                         {/* User Info */}
                         <View style={styles.userInfo}>
                             <Text style={[styles.userName, { color: colors.foreground }]}>
-                                {user?.fullName || 'User'}
+                                {user?.fullName || t('view.userFallback')}
                             </Text>
                             <Text style={[styles.userEmail, { color: textSecondary }]}>
                                 {user?.primaryEmailAddress?.emailAddress || ''}
@@ -289,14 +314,14 @@ export default function ProfileScreen() {
                         <View style={styles.infoItem}>
                             <MapPin size={16} color={textSecondary} />
                             <Text style={[styles.infoText, { color: textSecondary }]}>
-                                {user?.unsafeMetadata?.country as string || 'Not set'}
+                                {savedProfile?.country || (user?.unsafeMetadata?.country as string) || t('view.notSet')}
                             </Text>
                         </View>
                         <View style={styles.infoDivider} />
                         <View style={styles.infoItem}>
                             <GraduationCap size={16} color={textSecondary} />
                             <Text style={[styles.infoText, { color: textSecondary }]}>
-                                {user?.unsafeMetadata?.education as string || 'Student'}
+                                {savedProfile?.major || savedProfile?.school || (user?.unsafeMetadata?.education as string) || t('view.studentFallback')}
                             </Text>
                         </View>
                     </View>
@@ -307,35 +332,35 @@ export default function ProfileScreen() {
                         onPress={() => router.push('/profile/edit')}
                     >
                         <Edit3 size={16} color="#fff" />
-                        <Text style={styles.editProfileText}>Edit Profile</Text>
+                        <Text style={styles.editProfileText}>{t('view.editProfile')}</Text>
                     </TouchableOpacity>
                 </View>
 
                 <View style={styles.statsSection}>
                     <View style={styles.statsGrid}>
                         <ProfileStatCard
-                            title="Active goals"
+                            title={t('view.stats.activeGoals')}
                             value={String(profileStats.activeGoals)}
                             icon={Target}
                             colors={['#3B4FE4', '#6366F1']}
                             onPress={() => router.push('/goals')}
                         />
                         <ProfileStatCard
-                            title="Matches"
+                            title={t('view.stats.matches')}
                             value={String(matchedOpportunities.length)}
                             icon={Sparkles}
                             colors={['#2563eb', '#3b82f6']}
                             onPress={() => router.push('/opportunities')}
                         />
                         <ProfileStatCard
-                            title="Applied"
+                            title={t('view.stats.applied')}
                             value={String(profileStats.appliedOpps)}
                             icon={CheckCircle2}
                             colors={['#059669', '#10B981']}
                             onPress={() => router.push('/applied')}
                         />
                         <ProfileStatCard
-                            title="Deadline"
+                            title={t('view.stats.deadline')}
                             value={profileStats.nextDeadline}
                             icon={Calendar}
                             colors={['#D97706', '#F59E0B']}
@@ -355,10 +380,10 @@ export default function ProfileScreen() {
                     </View>
                     <View style={styles.creatorContent}>
                         <Text style={[styles.creatorTitle, { color: colors.foreground }]}>
-                            Become a Creator
+                            {t('view.becomeCreator')}
                         </Text>
                         <Text style={[styles.creatorDesc, { color: textSecondary }]}>
-                            Share your scholarship journey and help others succeed
+                            {t('view.becomeCreatorDesc')}
                         </Text>
                     </View>
                     <ChevronRight size={20} color={colors.primary} />
@@ -402,7 +427,7 @@ export default function ProfileScreen() {
                         <View style={styles.adminHeader}>
                             <Wrench size={14} color="#3b82f6" />
                             <Text style={[styles.groupTitle, { color: '#3b82f6' }]}>
-                                Admin
+                                {t('view.admin.title')}
                             </Text>
                         </View>
 
@@ -441,7 +466,7 @@ export default function ProfileScreen() {
                     }]}
                 >
                     <LogOut size={18} color="#ef4444" />
-                    <Text style={styles.logoutText}>Log Out</Text>
+                    <Text style={styles.logoutText}>{t('view.logOut')}</Text>
                 </TouchableOpacity>
 
                 {/* Footer */}
@@ -451,8 +476,8 @@ export default function ProfileScreen() {
                         style={styles.footerLogo}
                         resizeMode="contain"
                     />
-                    <Text style={[styles.footerText, { color: textSecondary }]}>Edutu v1.2</Text>
-                    <Text style={[styles.footerSubtext, { color: textSecondary }]}>Empowering African Youth</Text>
+                    <Text style={[styles.footerText, { color: textSecondary }]}>{t('view.appVersion', { version: '1.2' })}</Text>
+                    <Text style={[styles.footerSubtext, { color: textSecondary }]}>{t('view.footerTagline')}</Text>
                 </View>
             </ScrollView>
         </SafeAreaView>

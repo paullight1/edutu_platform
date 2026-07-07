@@ -45,10 +45,16 @@ export class ProfileService {
     const dbUserId = toDatabaseUserId(userId);
     const updateData = this.toProfileUpdate(dto);
 
+    // Upsert instead of update: a PATCH must not 404 just because the user
+    // never hit GET /profile first (that was a real failure mode — the save
+    // silently died and the profile came back empty).
     const [updated] = await db
-      .update(profiles)
-      .set(updateData)
-      .where(eq(profiles.userId, dbUserId))
+      .insert(profiles)
+      .values({ userId: dbUserId, ...updateData })
+      .onConflictDoUpdate({
+        target: profiles.userId,
+        set: updateData,
+      })
       .returning();
 
     if (!updated) {
