@@ -27,6 +27,7 @@
     "dev": "remotion studio",
     "build": "remotion bundle",
     "render": "remotion render EdutuLaunch out/edutu-launch.mp4 --codec=h264",
+    "render:ad": "remotion render EdutuAd out/edutu-ad.mp4 --codec=h264",
     "still": "remotion still EdutuLaunch out/edutu-launch-frame.png --frame=450",
     "upgrade": "remotion upgrade",
     "lint": "eslint src && tsc"

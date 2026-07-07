@@ -45,10 +45,28 @@ const sections: LegalSection[] = [
         ],
     },
     {
-        heading: '6. Contact Us',
+        heading: '6. Account Deletion',
         body: [
-            'If you have any questions about this Privacy Policy or how we handle your data, reach out to us at privacy@edutu.org and our team will help.',
+            'You can permanently delete your Edutu account and all associated data at any time.',
+            [
+                'In the mobile app: go to Profile → Settings → Delete Account. Your profile, chats, goals, CVs, saved opportunities, and billing records are all removed.',
+                'By email: send us a deletion request using the button below from the email address linked to your account, and we will delete your account and confirm within 30 days.',
+            ],
         ],
+        cta: {
+            label: 'Email us to delete your account',
+            href: 'mailto:my.edutu@gmail.com?subject=Account%20Deletion%20Request&body=Please%20delete%20my%20Edutu%20account%20and%20all%20associated%20data.%0A%0AAccount%20email%3A%20',
+        },
+    },
+    {
+        heading: '7. Contact Us',
+        body: [
+            'If you have any questions about this Privacy Policy or how we handle your data, reach out to us at my.edutu@gmail.com and our team will help.',
+        ],
+        cta: {
+            label: 'Email us',
+            href: 'mailto:my.edutu@gmail.com?subject=Privacy%20Question',
+        },
     },
 ];
 
@@ -56,7 +74,7 @@ const PrivacyPolicyPage: React.FC = () => (
     <LegalDocPage
         eyebrow="Privacy"
         title="Privacy Policy"
-        lastUpdated="July 6, 2026"
+        lastUpdated="July 7, 2026"
         intro="Your trust matters to us. This policy explains what information Edutu collects, how we use it, and the choices you have. We keep it plain so you always know where you stand."
         sections={sections}
     />

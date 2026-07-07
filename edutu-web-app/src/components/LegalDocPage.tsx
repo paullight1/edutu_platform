@@ -8,6 +8,8 @@ export interface LegalSection {
     heading: string;
     /** Each entry is a paragraph. Use a string[] for a bulleted list instead. */
     body: (string | string[])[];
+    /** Optional action button rendered after the body (e.g. a mailto link). */
+    cta?: { label: string; href: string };
 }
 
 interface LegalDocPageProps {
@@ -66,6 +68,14 @@ const LegalDocPage: React.FC<LegalDocPageProps> = ({ eyebrow, title, lastUpdated
                                             </p>
                                         ),
                                     )}
+                                    {section.cta ? (
+                                        <a
+                                            href={section.cta.href}
+                                            className="inline-flex items-center gap-2 rounded-full bg-brand px-6 py-3 text-sm font-bold text-white transition-opacity hover:opacity-90"
+                                        >
+                                            {section.cta.label}
+                                        </a>
+                                    ) : null}
                                 </div>
                             </div>
                         ))}
