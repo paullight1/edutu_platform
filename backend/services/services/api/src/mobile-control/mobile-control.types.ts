@@ -49,10 +49,33 @@ export interface WidgetFeed {
   updated_at?: string;
 }
 
+export type ModuleAccess = "free" | "pro" | "disabled";
+
+// Admin-controlled app gating, sourced from admin_settings.mobileApp and
+// mirrored into the public config payload the app polls at launch.
+export interface AppControlConfig {
+  forceUpdate: {
+    enabled: boolean;
+    minVersion: string;
+    title: string;
+    message: string;
+    iosStoreUrl: string;
+    androidStoreUrl: string;
+    otaFirst: boolean;
+  };
+  maintenance: {
+    enabled: boolean;
+    title: string;
+    message: string;
+  };
+  moduleLocks: Record<string, ModuleAccess>;
+}
+
 export interface MobileControlConfig {
   campaigns: MobileCampaign[];
   featureFlags: MobileFeatureFlag[];
   widgetFeeds: WidgetFeed[];
+  appControl: AppControlConfig;
   serverTime: string;
 }
 

@@ -83,7 +83,10 @@ export class SettingsService {
     payload: AdminSettingsDto,
   ): Promise<AdminSettingsResponse> {
     const current = (await this.getSettings()).settings;
-    const normalized = mergeAdminSettings(payload);
+    // Group-level merge over the CURRENT settings, not the defaults: a client
+    // that PUTs an older shape (no mobileApp group) must not silently reset
+    // remote app-control gates that were switched on elsewhere.
+    const normalized = mergeAdminSettings({ ...current, ...payload });
 
     try {
       const updated = await db

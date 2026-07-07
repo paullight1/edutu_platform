@@ -4,7 +4,9 @@ import {
   InternalServerErrorException,
 } from "@nestjs/common";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { SettingsService } from "../settings/settings.service";
 import type {
+  AppControlConfig,
   CampaignEventDto,
   JsonRecord,
   MobileCampaign,
@@ -12,6 +14,21 @@ import type {
   MobileFeatureFlag,
   WidgetFeed,
 } from "./mobile-control.types";
+
+// Safe posture when settings can't be read: nothing is gated.
+const OPEN_APP_CONTROL: AppControlConfig = {
+  forceUpdate: {
+    enabled: false,
+    minVersion: "1.0.0",
+    title: "",
+    message: "",
+    iosStoreUrl: "",
+    androidStoreUrl: "",
+    otaFirst: true,
+  },
+  maintenance: { enabled: false, title: "", message: "" },
+  moduleLocks: {},
+};
 
 type ControlTable =
   | "mobile_app_campaigns"
@@ -31,7 +48,7 @@ const SELECT_LIMIT = 500;
 export class MobileControlService {
   private readonly supabase: SupabaseClient | null;
 
-  constructor() {
+  constructor(private readonly settingsService: SettingsService) {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -42,15 +59,17 @@ export class MobileControlService {
   }
 
   async getConfig(): Promise<MobileControlConfig> {
-    const [campaigns, featureFlags, widgetFeeds] = await Promise.all([
-      this.listActive<MobileCampaign>(TABLES.campaigns).catch(
-        () => [] as MobileCampaign[],
-      ),
-      this.listActiveFeatureFlags().catch(() => [] as MobileFeatureFlag[]),
-      this.listActive<WidgetFeed>(TABLES.widgetFeeds).catch(
-        () => [] as WidgetFeed[],
-      ),
-    ]);
+    const [campaigns, featureFlags, widgetFeeds, appControl] =
+      await Promise.all([
+        this.listActive<MobileCampaign>(TABLES.campaigns).catch(
+          () => [] as MobileCampaign[],
+        ),
+        this.listActiveFeatureFlags().catch(() => [] as MobileFeatureFlag[]),
+        this.listActive<WidgetFeed>(TABLES.widgetFeeds).catch(
+          () => [] as WidgetFeed[],
+        ),
+        this.getAppControl().catch(() => OPEN_APP_CONTROL),
+      ]);
 
     return {
       campaigns: this.sortByPriority(campaigns),
@@ -58,7 +77,20 @@ export class MobileControlService {
         (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
       ),
       widgetFeeds: this.sortByPriority(widgetFeeds),
+      appControl,
       serverTime: new Date().toISOString(),
+    };
+  }
+
+  private async getAppControl(): Promise<AppControlConfig> {
+    const { settings } = await this.settingsService.getSettings();
+    const mobileApp = settings.mobileApp;
+    if (!mobileApp) return OPEN_APP_CONTROL;
+
+    return {
+      forceUpdate: { ...OPEN_APP_CONTROL.forceUpdate, ...mobileApp.forceUpdate },
+      maintenance: { ...OPEN_APP_CONTROL.maintenance, ...mobileApp.maintenance },
+      moduleLocks: mobileApp.moduleLocks ?? {},
     };
   }
 

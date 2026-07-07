@@ -36,15 +36,59 @@ const ApiSettingsSchema = z.object({
   rateLimitPerMinute: z.number().int().min(10).max(1000),
 });
 
+// Remote control for the mobile app: forced upgrades, maintenance lockout and
+// per-module access locks. Served (read-only) on the public
+// GET /mobile-control/config endpoint, so keep this free of secrets.
+export const ModuleAccessSchema = z.enum(["free", "pro", "disabled"]);
+
+const MobileForceUpdateSchema = z.object({
+  enabled: z.boolean(),
+  // Lowest app version allowed to run; anything older gets the blocking gate.
+  minVersion: z
+    .string()
+    .trim()
+    .regex(/^\d+(\.\d+){0,3}$/, "minVersion must look like 1.2.3"),
+  title: z.string().trim().min(1).max(120),
+  message: z.string().trim().min(1).max(500),
+  iosStoreUrl: z.string().trim().max(500),
+  androidStoreUrl: z.string().trim().max(500),
+  // Try an expo-updates OTA fetch+reload before sending users to the store.
+  otaFirst: z.boolean(),
+});
+
+const MobileMaintenanceSchema = z.object({
+  enabled: z.boolean(),
+  title: z.string().trim().min(1).max(120),
+  message: z.string().trim().min(1).max(500),
+});
+
+const MobileAppSettingsSchema = z.object({
+  forceUpdate: MobileForceUpdateSchema,
+  maintenance: MobileMaintenanceSchema,
+  // moduleKey -> access level; unknown keys default to "free" on the client.
+  moduleLocks: z.record(z.string().max(60), ModuleAccessSchema),
+});
+
 export const AdminSettingsSchema = z.object({
   platform: PlatformSettingsSchema,
   content: ContentSettingsSchema,
   notifications: NotificationSettingsSchema,
   security: SecuritySettingsSchema,
   api: ApiSettingsSchema,
+  // Optional so clients that predate app control (e.g. the external web admin
+  // portal) can still PUT the old shape; updateSettings preserves the current
+  // stored value when the group is absent from the payload.
+  mobileApp: MobileAppSettingsSchema.optional(),
 });
 
+export type ModuleAccess = z.infer<typeof ModuleAccessSchema>;
+export type MobileAppSettings = z.infer<typeof MobileAppSettingsSchema>;
+
 export type AdminSettingsDto = z.infer<typeof AdminSettingsSchema>;
+
+// Stored/merged settings always carry the mobileApp group (defaults fill it);
+// only inbound payloads may omit it.
+type ResolvedAdminSettings = AdminSettingsDto & { mobileApp: MobileAppSettings };
 
 export interface AdminSettingsResponse {
   success: boolean;
@@ -53,7 +97,7 @@ export interface AdminSettingsResponse {
   error?: string;
 }
 
-export const DEFAULT_ADMIN_SETTINGS: AdminSettingsDto = {
+export const DEFAULT_ADMIN_SETTINGS: ResolvedAdminSettings = {
   platform: {
     siteName: "Edutu",
     supportEmail: "support@edutu.org",
@@ -85,9 +129,29 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettingsDto = {
     webhookUrl: "https://api.edutu.org/webhooks",
     rateLimitPerMinute: 100,
   },
+  mobileApp: {
+    forceUpdate: {
+      enabled: false,
+      minVersion: "1.0.0",
+      title: "Update required",
+      message:
+        "This version of Edutu is no longer supported. Please update to keep going.",
+      iosStoreUrl: "",
+      androidStoreUrl:
+        "https://play.google.com/store/apps/details?id=com.edutu.com",
+      otaFirst: true,
+    },
+    maintenance: {
+      enabled: false,
+      title: "We'll be right back",
+      message:
+        "Edutu is undergoing scheduled maintenance. Please check back shortly.",
+    },
+    moduleLocks: {},
+  },
 };
 
-export function mergeAdminSettings(value: unknown): AdminSettingsDto {
+export function mergeAdminSettings(value: unknown): ResolvedAdminSettings {
   const partial =
     value && typeof value === "object" && !Array.isArray(value)
       ? (value as Partial<AdminSettingsDto>)
@@ -114,5 +178,20 @@ export function mergeAdminSettings(value: unknown): AdminSettingsDto {
       ...DEFAULT_ADMIN_SETTINGS.api,
       ...(partial.api ?? {}),
     },
-  });
+    mobileApp: {
+      forceUpdate: {
+        ...DEFAULT_ADMIN_SETTINGS.mobileApp.forceUpdate,
+        ...(partial.mobileApp?.forceUpdate ?? {}),
+      },
+      maintenance: {
+        ...DEFAULT_ADMIN_SETTINGS.mobileApp.maintenance,
+        ...(partial.mobileApp?.maintenance ?? {}),
+      },
+      moduleLocks:
+        partial.mobileApp?.moduleLocks ??
+        DEFAULT_ADMIN_SETTINGS.mobileApp.moduleLocks,
+    },
+    // mobileApp is always constructed above; the schema marks it optional only
+    // for inbound payload compatibility.
+  }) as ResolvedAdminSettings;
 }

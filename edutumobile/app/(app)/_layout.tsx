@@ -18,6 +18,7 @@ import { ToastProvider, useToast } from "../../components/context/ToastContext";
 import { useCreditRewards } from "@edutu/core/src/hooks/useCreditRewards";
 import { EdutuLogo } from "../../components/branding/EdutuLogo";
 import { WelcomeHintSystem } from "../../components/ui/WelcomeHintSystem";
+import { ModuleLockOverlay } from "../../components/mobile-control/ModuleLockOverlay";
 import * as Notifications from "expo-notifications";
 import { notificationService, registerForPushNotificationsAsync } from "../../lib/notifications";
 import { supabase } from "../../lib/supabase";
@@ -589,6 +590,10 @@ export default function AppLayout() {
                 enabled={activeRoute === "home" && !pathname.includes("onboarding")}
                 isDark={isDark}
             />
+
+            {/* Admin module locks (pro/disabled) — covers whatever route is
+                active, including deep links, without per-screen wiring. */}
+            <ModuleLockOverlay />
         </View>
         </ToastProvider>
     );
