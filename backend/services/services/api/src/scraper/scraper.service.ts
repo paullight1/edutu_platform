@@ -20,6 +20,26 @@ interface ScrapeOptions {
   maxPages?: number;
 }
 
+/**
+ * Live progress event emitted during a scrape run (consumed by the SSE
+ * endpoint). Optional — synchronous callers pass no listener.
+ */
+export type ScrapeStreamEvent =
+  | { type: "start"; totalSources: number; sources: string[] }
+  | { type: "source-start"; name: string }
+  | { type: "opportunity"; opportunity: unknown }
+  | { type: "source-done"; name: string; itemsFound: number; error?: string }
+  | { type: "control"; state: "paused" | "resumed" | "stopping" };
+
+export type ScrapeEventListener = (event: ScrapeStreamEvent) => void;
+
+/** Live pause/stop control for the single in-flight scrape (advisory-locked). */
+interface ActiveRunControl {
+  paused: boolean;
+  stopRequested: boolean;
+  emit?: ScrapeEventListener;
+}
+
 export interface ScrapeSource {
   id: number;
   name: string;
@@ -582,7 +602,57 @@ export class ScraperService implements OnModuleInit {
    * manual triggers. Without this, each replica's cron (and overlapping manual
    * runs) would crawl concurrently, duplicating work and AI spend.
    */
-  async runScraper(options: ScrapeOptions): Promise<ScrapeResult> {
+  /** Pause/stop control for the current run (only one runs at a time). */
+  private activeRun: ActiveRunControl | null = null;
+
+  /** Pause the in-flight scrape — the crawl loop halts between pages/sources. */
+  pauseRun(): { ok: boolean; status: string } {
+    if (!this.activeRun || this.activeRun.stopRequested) {
+      return { ok: false, status: this.activeRun ? "stopping" : "idle" };
+    }
+    this.activeRun.paused = true;
+    this.activeRun.emit?.({ type: "control", state: "paused" });
+    return { ok: true, status: "paused" };
+  }
+
+  /** Resume a paused scrape. */
+  resumeRun(): { ok: boolean; status: string } {
+    if (!this.activeRun || this.activeRun.stopRequested) {
+      return { ok: false, status: this.activeRun ? "stopping" : "idle" };
+    }
+    this.activeRun.paused = false;
+    this.activeRun.emit?.({ type: "control", state: "resumed" });
+    return { ok: true, status: "running" };
+  }
+
+  /** Request a graceful stop — the crawl finalizes with partial results. */
+  stopRun(): { ok: boolean; status: string } {
+    if (!this.activeRun) return { ok: false, status: "idle" };
+    this.activeRun.stopRequested = true;
+    this.activeRun.paused = false; // release any pause wait so the loop can exit
+    this.activeRun.emit?.({ type: "control", state: "stopping" });
+    return { ok: true, status: "stopping" };
+  }
+
+  getRunStatus(): { running: boolean; paused: boolean; stopping: boolean } {
+    return {
+      running: Boolean(this.activeRun),
+      paused: Boolean(this.activeRun?.paused),
+      stopping: Boolean(this.activeRun?.stopRequested),
+    };
+  }
+
+  /** Block while the run is paused (unless a stop was requested). */
+  private async waitWhilePaused(): Promise<void> {
+    while (this.activeRun?.paused && !this.activeRun?.stopRequested) {
+      await this.delay(400);
+    }
+  }
+
+  async runScraper(
+    options: ScrapeOptions,
+    onEvent?: ScrapeEventListener,
+  ): Promise<ScrapeResult> {
     const { sourceId, allSources, maxPages = 3 } = options;
 
     this.logger.log(
@@ -594,9 +664,14 @@ export class ScraperService implements OnModuleInit {
       return this.mockScrape();
     }
 
-    const lock = await this.withScrapeLock(() =>
-      this.executeScraperRun(options),
-    );
+    // Register pause/stop control only once the advisory lock is held, so a
+    // concurrent (lock-losing) call can never clobber the active run's control.
+    const lock = await this.withScrapeLock(() => {
+      this.activeRun = { paused: false, stopRequested: false, emit: onEvent };
+      return this.executeScraperRun(options, onEvent).finally(() => {
+        this.activeRun = null;
+      });
+    });
 
     if (!lock.acquired) {
       this.logger.warn(
@@ -648,6 +723,7 @@ export class ScraperService implements OnModuleInit {
 
   private async executeScraperRun(
     options: ScrapeOptions,
+    onEvent?: ScrapeEventListener,
   ): Promise<ScrapeResult> {
     const { sourceId, allSources, maxPages = 3 } = options;
     const startTime = Date.now();
@@ -667,10 +743,16 @@ export class ScraperService implements OnModuleInit {
       }
 
       this.logger.log(`Found ${sources.length} source(s) to scrape`);
+      onEvent?.({
+        type: "start",
+        totalSources: sources.length,
+        sources: sources.map((s) => s.name),
+      });
       const { results, sourceResults, outcome } = await this.crawlSources(
         sources,
         maxPages,
         jobLogId,
+        onEvent,
       );
       const duration = Math.round((Date.now() - startTime) / 1000);
 
@@ -1185,6 +1267,7 @@ export class ScraperService implements OnModuleInit {
     sources: ScrapeSource[],
     maxPages: number,
     jobLogId: string | null,
+    onEvent?: ScrapeEventListener,
   ): Promise<{
     results: RawItem[];
     sourceResults: SourceResult[];
@@ -1195,9 +1278,16 @@ export class ScraperService implements OnModuleInit {
     const pagesToCrawl = Math.min(maxPages, MAX_PAGES_CAP);
 
     for (const source of sources) {
+      // Honor live pause/stop between sources.
+      if (this.activeRun?.stopRequested) break;
+      await this.waitWhilePaused();
+      if (this.activeRun?.stopRequested) break;
+
       const sourceStartTime = Date.now();
       let itemsFound = 0;
       let urlsDiscovered = 0;
+
+      onEvent?.({ type: "source-start", name: source.name });
 
       try {
         this.logger.log(`Crawling: ${source.name} (${source.url})`);
@@ -1221,6 +1311,11 @@ export class ScraperService implements OnModuleInit {
         }
 
         for (let page = 1; page <= pagesToCrawl; page++) {
+          // Honor live pause/stop between pages.
+          if (this.activeRun?.stopRequested) break;
+          await this.waitWhilePaused();
+          if (this.activeRun?.stopRequested) break;
+
           const pageUrl = this.buildPageUrl(source.url, page);
           this.logger.log(`  → Fetching page ${page}: ${pageUrl}`);
 
@@ -1268,6 +1363,10 @@ export class ScraperService implements OnModuleInit {
             );
             allResults.push(...enrichedItems);
             itemsFound += enrichedItems.length;
+            // Stream each enriched opportunity to any live listener (SSE).
+            for (const item of enrichedItems) {
+              onEvent?.({ type: "opportunity", opportunity: item });
+            }
             this.logger.log(
               `  ✓ ${enrichedItems.length} items enriched from page ${page}`,
             );
@@ -1297,8 +1396,10 @@ export class ScraperService implements OnModuleInit {
           urlsDiscovered,
           duration,
         });
+        onEvent?.({ type: "source-done", name: source.name, itemsFound });
       } catch (error: any) {
         this.logger.error(`Error crawling "${source.name}": ${error.message}`);
+        onEvent?.({ type: "source-done", name: source.name, itemsFound: 0, error: error.message });
         await this.updateSourceStatus(
           source.id,
           false,
