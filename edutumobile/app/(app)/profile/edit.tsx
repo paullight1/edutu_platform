@@ -39,6 +39,7 @@ import {
 import { Avatar } from '../../../components/ui/Avatar';
 import { useCreditRewards } from '@edutu/core/src/hooks/useCreditRewards';
 import { useToast } from '../../../components/context/ToastContext';
+import { useTranslation } from 'react-i18next';
 
 interface ProfileData {
     full_name?: string;
@@ -54,6 +55,7 @@ export default function EditProfileScreen() {
     const router = useRouter();
     const { colors, isDark } = useTheme();
     const insets = useSafeAreaInsets();
+    const { t } = useTranslation('profile');
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -66,7 +68,7 @@ export default function EditProfileScreen() {
             showToast({
                 emoji: '🎯',
                 variant: 'success',
-                message: `+${amount} credit${amount > 1 ? 's' : ''} for completing your profile`,
+                message: t('edit.creditsEarned', { count: amount }),
             });
         },
     });
@@ -130,14 +132,27 @@ export default function EditProfileScreen() {
             // updateProfile returns null on any non-2xx / network failure.
             if (!updated) throw new Error('Profile update request failed');
 
+            // Mirror saved fields into Clerk unsafeMetadata so screens that
+            // still read it (profile header, personalization) stay in sync.
+            // Non-fatal: the backend profile row is the source of truth.
+            try {
+                const meta = { ...(user.unsafeMetadata as Record<string, unknown>) };
+                if (updated.country) meta.country = updated.country;
+                if (updated.school) meta.schoolName = updated.school;
+                if (updated.major) meta.education = updated.major;
+                await user.update({ unsafeMetadata: meta });
+            } catch (metaError) {
+                console.warn('Clerk metadata mirror failed:', metaError);
+            }
+
             // Reward profile completion (server grants once; toast via onEarned).
             void award('PROFILE_COMPLETE');
-            Alert.alert('Success', 'Profile updated successfully!', [
-                { text: 'OK', onPress: () => router.back() }
+            Alert.alert(t('common:states.success'), t('edit.saveSuccess'), [
+                { text: t('common:actions.ok'), onPress: () => router.back() }
             ]);
         } catch (error) {
             console.error('Error updating profile:', error);
-            Alert.alert('Error', 'Failed to update profile.');
+            Alert.alert(t('common:states.error'), t('edit.saveError'));
         } finally {
             setSaving(false);
         }
@@ -155,9 +170,9 @@ export default function EditProfileScreen() {
     if (loading) {
         return (
             <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-                <ScreenHeader title="Edit Profile" showBack />
+                <ScreenHeader title={t('edit.title')} showBack />
                 <View style={styles.loadingContainer}>
-                    <BrandedLoader label="Loading profile..." />
+                    <BrandedLoader label={t('edit.loadingProfile')} />
                 </View>
             </SafeAreaView>
         );
@@ -166,9 +181,9 @@ export default function EditProfileScreen() {
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
             <ScreenHeader
-                title="Edit Profile"
+                title={t('edit.title')}
                 showBack
-                subtitle="Keep your profile up to date"
+                subtitle={t('edit.subtitle')}
             />
 
             <KeyboardAvoidingView
@@ -191,7 +206,7 @@ export default function EditProfileScreen() {
                         >
                             <View style={styles.avatarContent}>
                                 <Avatar
-                                    name={user?.fullName || 'User'}
+                                    name={user?.fullName || t('edit.userFallback')}
                                     imageUrl={user?.imageUrl}
                                     size="xl"
                                 />
@@ -202,7 +217,7 @@ export default function EditProfileScreen() {
                                     <Pencil size={14} color="#FFFFFF" />
                                 </TouchableOpacity>
                                 <Text style={styles.avatarHint}>
-                                    Profile picture managed by Clerk
+                                    {t('edit.avatarManagedByClerk')}
                                 </Text>
                             </View>
                         </LinearGradient>
@@ -215,8 +230,8 @@ export default function EditProfileScreen() {
                                 <User size={18} color={colors.primary} />
                             </View>
                             <View>
-                                <Text style={[styles.sectionTitle, { color: textPrimary }]}>Personal Information</Text>
-                                <Text style={[styles.sectionSubtitle, { color: textSecondary }]}>Basic details about yourself</Text>
+                                <Text style={[styles.sectionTitle, { color: textPrimary }]}>{t('edit.personalInfoTitle')}</Text>
+                                <Text style={[styles.sectionSubtitle, { color: textSecondary }]}>{t('edit.personalInfoSubtitle')}</Text>
                             </View>
                         </View>
 
@@ -228,14 +243,14 @@ export default function EditProfileScreen() {
                                         <User size={16} color={focusedField === 'full_name' ? colors.primary : textSecondary} />
                                     </View>
                                     <View style={styles.inputTextContainer}>
-                                        <Text style={[styles.inputLabelText, { color: focusedField === 'full_name' ? colors.primary : textSecondary }]}>Full Name</Text>
+                                        <Text style={[styles.inputLabelText, { color: focusedField === 'full_name' ? colors.primary : textSecondary }]}>{t('edit.fullNameLabel')}</Text>
                                         <TextInput
                                             style={[styles.input, { color: textPrimary }]}
                                             value={profile.full_name}
                                             onChangeText={(val) => updateField('full_name', val)}
                                             onFocus={() => setFocusedField('full_name')}
                                             onBlur={() => setFocusedField(null)}
-                                            placeholder="Your full name"
+                                            placeholder={t('edit.fullNamePlaceholder')}
                                             placeholderTextColor={textSecondary}
                                         />
                                     </View>
@@ -250,14 +265,14 @@ export default function EditProfileScreen() {
                                         <Globe size={16} color={focusedField === 'country' ? colors.primary : textSecondary} />
                                     </View>
                                     <View style={styles.inputTextContainer}>
-                                        <Text style={[styles.inputLabelText, { color: focusedField === 'country' ? colors.primary : textSecondary }]}>Country</Text>
+                                        <Text style={[styles.inputLabelText, { color: focusedField === 'country' ? colors.primary : textSecondary }]}>{t('edit.countryLabel')}</Text>
                                         <TextInput
                                             style={[styles.input, { color: textPrimary }]}
                                             value={profile.country}
                                             onChangeText={(val) => updateField('country', val)}
                                             onFocus={() => setFocusedField('country')}
                                             onBlur={() => setFocusedField(null)}
-                                            placeholder="e.g., Nigeria"
+                                            placeholder={t('edit.countryPlaceholder')}
                                             placeholderTextColor={textSecondary}
                                         />
                                     </View>
@@ -274,8 +289,8 @@ export default function EditProfileScreen() {
                                 <GraduationCap size={18} color="#10B981" />
                             </View>
                             <View>
-                                <Text style={[styles.sectionTitle, { color: textPrimary }]}>Academic Background</Text>
-                                <Text style={[styles.sectionSubtitle, { color: textSecondary }]}>Education details for better matching</Text>
+                                <Text style={[styles.sectionTitle, { color: textPrimary }]}>{t('edit.academicTitle')}</Text>
+                                <Text style={[styles.sectionSubtitle, { color: textSecondary }]}>{t('edit.academicSubtitle')}</Text>
                             </View>
                         </View>
 
@@ -287,14 +302,14 @@ export default function EditProfileScreen() {
                                         <School size={16} color={focusedField === 'school' ? '#10B981' : textSecondary} />
                                     </View>
                                     <View style={styles.inputTextContainer}>
-                                        <Text style={[styles.inputLabelText, { color: focusedField === 'school' ? '#10B981' : textSecondary }]}>University / School</Text>
+                                        <Text style={[styles.inputLabelText, { color: focusedField === 'school' ? '#10B981' : textSecondary }]}>{t('edit.schoolLabel')}</Text>
                                         <TextInput
                                             style={[styles.input, { color: textPrimary }]}
                                             value={profile.school}
                                             onChangeText={(val) => updateField('school', val)}
                                             onFocus={() => setFocusedField('school')}
                                             onBlur={() => setFocusedField(null)}
-                                            placeholder="e.g., University of Lagos"
+                                            placeholder={t('edit.schoolPlaceholder')}
                                             placeholderTextColor={textSecondary}
                                         />
                                     </View>
@@ -309,14 +324,14 @@ export default function EditProfileScreen() {
                                         <BookOpen size={16} color={focusedField === 'major' ? '#10B981' : textSecondary} />
                                     </View>
                                     <View style={styles.inputTextContainer}>
-                                        <Text style={[styles.inputLabelText, { color: focusedField === 'major' ? '#10B981' : textSecondary }]}>Major / Course</Text>
+                                        <Text style={[styles.inputLabelText, { color: focusedField === 'major' ? '#10B981' : textSecondary }]}>{t('edit.majorLabel')}</Text>
                                         <TextInput
                                             style={[styles.input, { color: textPrimary }]}
                                             value={profile.major}
                                             onChangeText={(val) => updateField('major', val)}
                                             onFocus={() => setFocusedField('major')}
                                             onBlur={() => setFocusedField(null)}
-                                            placeholder="e.g., Computer Science"
+                                            placeholder={t('edit.majorPlaceholder')}
                                             placeholderTextColor={textSecondary}
                                         />
                                     </View>
@@ -331,14 +346,14 @@ export default function EditProfileScreen() {
                                         <Award size={16} color={focusedField === 'cgpa' ? '#10B981' : textSecondary} />
                                     </View>
                                     <View style={styles.inputTextContainer}>
-                                        <Text style={[styles.inputLabelText, { color: focusedField === 'cgpa' ? '#10B981' : textSecondary }]}>Current CGPA</Text>
+                                        <Text style={[styles.inputLabelText, { color: focusedField === 'cgpa' ? '#10B981' : textSecondary }]}>{t('edit.cgpaLabel')}</Text>
                                         <TextInput
                                             style={[styles.input, { color: textPrimary }]}
                                             value={profile.cgpa}
                                             onChangeText={(val) => updateField('cgpa', val)}
                                             onFocus={() => setFocusedField('cgpa')}
                                             onBlur={() => setFocusedField(null)}
-                                            placeholder="e.g., 3.8"
+                                            placeholder={t('edit.cgpaPlaceholder')}
                                             keyboardType="decimal-pad"
                                             placeholderTextColor={textSecondary}
                                         />
@@ -361,9 +376,9 @@ export default function EditProfileScreen() {
                                     <GraduationCap size={20} color={colors.primary} />
                                 </View>
                                 <View style={styles.infoTextContainer}>
-                                    <Text style={[styles.infoTitle, { color: colors.primary }]}>Why this matters</Text>
+                                    <Text style={[styles.infoTitle, { color: colors.primary }]}>{t('edit.whyTitle')}</Text>
                                     <Text style={[styles.infoDesc, { color: textSecondary }]}>
-                                        Keep your academic profile updated to see the most relevant scholarships and internship opportunities matched to your background.
+                                        {t('edit.whyDesc')}
                                     </Text>
                                 </View>
                                 <ChevronRight size={18} color={textSecondary} />
@@ -390,7 +405,7 @@ export default function EditProfileScreen() {
                                 ) : (
                                     <>
                                         <Save size={18} color="#FFFFFF" />
-                                        <Text style={styles.saveButtonText}>Save Changes</Text>
+                                        <Text style={styles.saveButtonText}>{t('edit.saveChanges')}</Text>
                                     </>
                                 )}
                             </LinearGradient>
