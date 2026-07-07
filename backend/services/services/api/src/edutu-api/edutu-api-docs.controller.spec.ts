@@ -36,6 +36,27 @@ describe("EdutuApiDocsController", () => {
     ).toBe(true);
   });
 
+  it("serves an AI-ready llms.txt document grounded in the configured base URL", () => {
+    const previous = process.env.EDUTU_API_PUBLIC_URL;
+    process.env.EDUTU_API_PUBLIC_URL = "https://api.example.com/v1";
+
+    try {
+      const doc = controller.getLlmsDocument();
+
+      expect(doc).toContain("# Edutu Scholarship Engine API");
+      expect(doc).toContain("Base URL: https://api.example.com/v1");
+      expect(doc).toContain("x-edutu-api-key");
+      expect(doc).toContain("POST | /recommendations");
+      expect(doc).toContain("code=rate_limit_exceeded");
+      expect(doc).toContain(
+        'curl "https://api.example.com/v1/opportunities?limit=5"',
+      );
+    } finally {
+      if (previous === undefined) delete process.env.EDUTU_API_PUBLIC_URL;
+      else process.env.EDUTU_API_PUBLIC_URL = previous;
+    }
+  });
+
   it("respects an explicit openapi url override", () => {
     const previous = process.env.EDUTU_API_OPENAPI_URL;
     process.env.EDUTU_API_OPENAPI_URL =

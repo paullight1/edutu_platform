@@ -1,4 +1,4 @@
-import { Controller, Get } from "@nestjs/common";
+import { Controller, Get, Header } from "@nestjs/common";
 import { Public } from "../auth";
 
 const DEFAULT_API_BASE_URL = "http://localhost:3000/v1";
@@ -36,6 +36,7 @@ export class EdutuApiDocsController {
       marketingUrl,
       apiBaseUrl,
       openapiUrl,
+      llmsUrl: `${apiBaseUrl.replace(/\/+$/, "")}/llms.txt`,
       authentication: {
         required: true,
         acceptedHeaders: [
@@ -108,6 +109,111 @@ export class EdutuApiDocsController {
         },
       ],
     };
+  }
+
+  /**
+   * Plain-markdown API reference designed to be pasted into (or fetched by)
+   * an AI coding assistant so it can integrate against the API in one shot.
+   */
+  @Get("llms.txt")
+  @Header("Content-Type", "text/markdown; charset=utf-8")
+  getLlmsDocument(): string {
+    const apiBaseUrl = this.normalizeBaseUrl(
+      process.env.EDUTU_API_PUBLIC_URL ||
+        process.env.API_PUBLIC_URL ||
+        process.env.API_BASE_URL ||
+        DEFAULT_API_BASE_URL,
+    );
+    const dashboardUrl =
+      process.env.EDUTU_DASHBOARD_URL || "https://www.edutu.org/developers";
+
+    return `# Edutu Scholarship Engine API
+
+> REST API for verified global scholarships, fellowships, internships, and grants.
+> Base URL: ${apiBaseUrl}
+> Machine-readable spec: ${apiBaseUrl}/openapi.json
+> Get an API key: ${dashboardUrl}
+
+## Authentication
+
+Every endpoint except GET /health and this file requires an API key. Send it in ANY of these headers:
+
+    x-edutu-api-key: <API_KEY>
+    x-api-key: <API_KEY>
+    Authorization: Bearer <API_KEY>
+
+Keys look like \`edu_live_<prefix>_<secret>\` (or \`edu_test_...\`). Keys are shown once at creation in the dashboard and stored hashed server-side.
+
+## Endpoints
+
+| Method | Path | Scope | Purpose |
+|---|---|---|---|
+| GET | /health | none (public) | Liveness + echoes your plan when a key is sent |
+| GET | /opportunities | opportunities:read | Search/list the catalog (filters below) |
+| GET | /opportunities/stats | opportunities:read | Catalog coverage + freshness stats |
+| GET | /opportunities/sync | opportunities:sync | Delta sync; pass updatedSince, includes expired rows |
+| GET | /opportunities/{id} | opportunities:read | One opportunity by UUID |
+| GET | /categories | opportunities:read | Category slugs with counts |
+| GET | /usage | usage:read | Your quota, credits, and period reset (never costs a credit) |
+| POST | /recommendations | recommendations:read | Ranked matches for a profile you send |
+| POST | /events | events:write | Report impressions/clicks/applies back |
+
+## GET /opportunities — query parameters
+
+- q: free-text search (title, description, category, eligibility)
+- category | canonicalCategory: slug from GET /categories
+- type: scholarship | fellowship | internship | grant | ...
+- fundingType, targetRegion: string filters
+- remote: "true" | "false"
+- deadlineFrom, deadlineTo: date (YYYY-MM-DD) — bound the deadline
+- updatedSince: ISO datetime — rows updated on/after (use for polling)
+- includeExpired: "true" to keep past-deadline rows (default excluded)
+- includeTotal: "true" to add meta.total (extra query, use sparingly)
+- limit: 1-100 (default 25), offset: integer OR cursor: opaque string
+- sort: updated_desc (default) | updated_asc | created_desc | created_asc | deadline_asc | deadline_desc
+
+### Pagination
+
+Responses include meta.nextCursor when more rows exist. Pass it back as ?cursor=... (preferred over offset; stable under writes). meta.hasMore tells you when to stop.
+
+## Response envelope
+
+Lists: { "object": "list", "data": [...], "meta": { limit, nextCursor, hasMore, total, requestId, quota } }
+
+Opportunity object (stable fields): id, title, description, category, canonicalCategory, type, eligibilityCriteria, fundingType, targetRegion, deadline (ISO or null), remote, urls.source, urls.apply, imageUrl, trust.verificationStatus, trust.qualityScore, aiSummary, aiTags, updatedAt.
+
+## POST /recommendations — body
+
+{ "limit": 10, "profile": { "country": "NG", "fieldOfStudy": "computer science", "degree": "BSc", "skills": ["python"], "interests": ["AI"], "interestedCountries": ["US", "UK"] }, "preferences": { "preferredCategories": ["scholarships"], "preferredRegions": ["Europe"], "remoteOnly": false, "maxDeadlineDays": 90 } }
+All fields optional; more profile signal = better ranking. Returns { object: "recommendation.list", data: [opportunity...], meta }.
+
+## POST /events — body
+
+{ "eventType": "impression" | "view" | "click" | "save" | "apply" | "dismiss" | "recommendation_shown", "opportunityId": "<uuid>", "externalUserId": "<your-user-id>", "sessionId": "...", "metadata": {} }
+
+## Errors (JSON, always this shape)
+
+{ "error": { "message", "status", "code", "retryAfter" }, "requestId": "..." }
+
+- 401 invalid/missing key · 403 code — key lacks the required scope
+- 402 code=quota_exceeded (monthly quota) or code=credits_exhausted (buy credits in the dashboard)
+- 429 code=rate_limit_exceeded — honor the Retry-After header (seconds)
+
+## Limits & headers
+
+Per-minute rate limit and monthly quota depend on your plan (defaults: live 60/min + 1000/mo). Every response carries: X-RateLimit-Limit/-Remaining/-Reset, X-Edutu-Quota-Limit/-Remaining/-Reset, X-Edutu-Credits-Remaining, X-Edutu-Request-Id. Send an x-request-id header to make retries idempotent for credit billing.
+
+## Quickstart
+
+    curl "${apiBaseUrl}/opportunities?limit=5" -H "x-edutu-api-key: $EDUTU_API_KEY"
+
+    const res = await fetch("${apiBaseUrl}/opportunities?category=scholarships&limit=12", {
+      headers: { "x-edutu-api-key": process.env.EDUTU_API_KEY },
+    });
+    const { data, meta } = await res.json();
+
+Recommended integration pattern: full pull via /opportunities (cursor pagination), then poll /opportunities/sync?updatedSince=<last-run> on a schedule; report engagement via /events; check /usage before large backfills.
+`;
   }
 
   @Get("openapi.json")
