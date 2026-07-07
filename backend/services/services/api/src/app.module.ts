@@ -30,6 +30,8 @@ import { APP_GUARD } from "@nestjs/core";
 import { DeveloperModule } from "./developer/developer.module";
 import { CalendarModule } from "./calendar/calendar.module";
 import { CacheModule } from "./common/cache/cache.module";
+import { CopilotModule } from "./copilot/copilot.module";
+import { SavedSearchesModule } from "./saved-searches/saved-searches.module";
 
 @Module({
   imports: [
@@ -66,6 +68,8 @@ import { CacheModule } from "./common/cache/cache.module";
     EdutuApiModule,
     DeveloperModule,
     CalendarModule,
+    CopilotModule,
+    SavedSearchesModule,
   ],
   controllers: [AppController],
   providers: [

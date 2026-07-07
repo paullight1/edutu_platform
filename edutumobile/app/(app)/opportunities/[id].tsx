@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import {
   GraduationCap,
   Clock,
@@ -70,6 +71,7 @@ import ViewShot, { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import { File, Paths } from "expo-file-system";
 import { getConfig } from "../../../lib/config";
+import i18n from "../../../lib/i18n";
 import {
   generateRoadmap,
   AIGeneratedRoadmap,
@@ -99,11 +101,12 @@ type RoadmapStep =
 
 // Phases shown while the plan generates. They map to real work: build the dated
 // scaffold, then personalize the narrative with the backend LLM.
+// Each entry is an i18n key in the 'opps' namespace, translated at render time.
 const GENERATION_PHASES = [
-  "Analyzing the opportunity",
-  "Building your preparation timeline",
-  "Personalizing milestones with AI",
-  "Scheduling deadline reminders",
+  "detail.generating.phase1",
+  "detail.generating.phase2",
+  "detail.generating.phase3",
+  "detail.generating.phase4",
 ] as const;
 
 const SHARE_TEXT_LIMITS = {
@@ -114,7 +117,7 @@ const SHARE_TEXT_LIMITS = {
 
 function cleanShareText(
   value?: string | null,
-  fallback = "Not specified",
+  fallback = i18n.t("opps:detail.share.notSpecified"),
 ): string {
   const text =
     typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
@@ -127,7 +130,7 @@ function clampShareText(value: string, maxLength: number): string {
 }
 
 function formatShareDeadline(deadline?: string | null): string {
-  if (!deadline) return "Rolling / Not specified";
+  if (!deadline) return i18n.t("opps:detail.share.rollingNotSpecified");
   const parsed = new Date(deadline);
   if (Number.isNaN(parsed.getTime())) return deadline;
   return parsed.toLocaleDateString("en-US", {
@@ -151,8 +154,8 @@ function getShareFunding(opportunity: Opportunity): string {
   return cleanShareText(
     fundedBenefit,
     opportunity.category?.toLowerCase().includes("scholarship")
-      ? "Funding available"
-      : "Open opportunity",
+      ? i18n.t("opps:detail.share.fundingAvailable")
+      : i18n.t("opps:detail.share.openOpportunity"),
   );
 }
 
@@ -170,7 +173,7 @@ function getShareEligibility(opportunity: Opportunity): string {
 
   if (typeof countries === "string") return countries;
   if (typeof level === "string") return level;
-  return opportunity.location || "Open to eligible applicants";
+  return opportunity.location || i18n.t("opps:detail.share.openToEligible");
 }
 
 function getShareBullets(
@@ -187,7 +190,7 @@ function getShareBullets(
   if (cleaned.length > 0) return cleaned.slice(0, limit);
   return fallback
     ? [clampShareText(cleanShareText(fallback), SHARE_TEXT_LIMITS.section)]
-    : ["Details available in Edutu."];
+    : [i18n.t("opps:detail.share.detailsInApp")];
 }
 
 function buildMobileOpportunityShareText(opportunity: Opportunity): string {
@@ -204,23 +207,33 @@ function buildMobileOpportunityShareText(opportunity: Opportunity): string {
     .join("\n");
 
   return [
-    `${expired ? "Deadline Passed" : "Still Active"}!`,
+    expired
+      ? i18n.t("opps:detail.share.deadlinePassed")
+      : i18n.t("opps:detail.share.stillActive"),
     "",
-    cleanShareText(opportunity.title, "Edutu opportunity"),
+    cleanShareText(opportunity.title, i18n.t("opps:detail.share.fallbackTitle")),
     "",
-    `Sponsor: ${cleanShareText(opportunity.organization, "Edutu")}`,
+    i18n.t("opps:detail.share.sponsorLine", {
+      sponsor: cleanShareText(opportunity.organization, "Edutu"),
+    }),
     "",
-    "Benefits:",
+    i18n.t("opps:detail.share.benefitsHeading"),
     benefitLines,
     "",
-    `Category: ${cleanShareText(opportunity.category, "Opportunity")}`,
-    `Eligible Country: ${getShareEligibility(opportunity)}`,
-    `Deadline: ${formatShareDeadline(opportunity.deadline)}`,
+    i18n.t("opps:detail.share.categoryLine", {
+      category: cleanShareText(opportunity.category, i18n.t("opps:shared.opportunity")),
+    }),
+    i18n.t("opps:detail.share.eligibleCountryLine", {
+      eligibility: getShareEligibility(opportunity),
+    }),
+    i18n.t("opps:detail.share.deadlineLine", {
+      deadline: formatShareDeadline(opportunity.deadline),
+    }),
     "",
-    "Click the link below to apply📌",
+    i18n.t("opps:detail.share.applyCta"),
     opportunity.applyUrl || "https://edutu.ai",
     "",
-    "Kindly share with your friends who might be interested.",
+    i18n.t("opps:detail.share.shareWithFriends"),
   ].join("\n");
 }
 
@@ -281,6 +294,7 @@ async function downloadShareImage(
 }
 
 export default function OpportunityDetailScreen() {
+  const { t } = useTranslation("opps");
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useUser();
@@ -414,7 +428,7 @@ export default function OpportunityDetailScreen() {
           getToken,
         );
         setBookmarked(false);
-        Alert.alert("Removed", "Opportunity removed from saved list");
+        Alert.alert(t("detail.alerts.removedTitle"), t("detail.alerts.removedMsg"));
       } else {
         await saveOpportunity(supabase, user.id, id, getToken);
         void recordOpportunitySignal(
@@ -428,11 +442,11 @@ export default function OpportunityDetailScreen() {
           getToken,
         );
         setBookmarked(true);
-        Alert.alert("Saved", "Opportunity saved to your list");
+        Alert.alert(t("detail.alerts.savedTitle"), t("detail.alerts.savedMsg"));
       }
     } catch (error) {
       console.error("Error toggling bookmark:", error);
-      Alert.alert("Error", "Failed to save opportunity");
+      Alert.alert(t("common:states.error"), t("detail.alerts.saveFailed"));
     } finally {
       setBookmarkLoading(false);
     }
@@ -487,17 +501,19 @@ export default function OpportunityDetailScreen() {
     (intent: string) => {
       if (!opportunity) return;
 
-      const prompt = `${intent}
-
-Opportunity: ${opportunity.title}
-Organization: ${opportunity.organization || "Unknown"}
-Category: ${opportunity.category || "Opportunity"}
-Deadline: ${opportunity.deadline || "Rolling"}
-Description: ${opportunity.aiSummary || opportunity.description || "No description available"}`;
+      const prompt = t("detail.aiPromptTemplate", {
+        intent,
+        title: opportunity.title,
+        organization: opportunity.organization || t("shared.unknown"),
+        category: opportunity.category || t("shared.opportunity"),
+        deadline: opportunity.deadline || t("detail.rolling"),
+        description:
+          opportunity.aiSummary || opportunity.description || t("detail.noDescription"),
+      });
 
       router.push({ pathname: "/chat", params: { voiceMsg: prompt } } as never);
     },
-    [opportunity, router],
+    [opportunity, router, t],
   );
 
   const handleShare = useCallback(async () => {
@@ -520,7 +536,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
             } else {
               await Sharing.shareAsync(downloaded.uri, {
                 mimeType: downloaded.mimeType,
-                dialogTitle: "Share opportunity",
+                dialogTitle: t("detail.share.dialogTitle"),
               });
             }
             return;
@@ -538,7 +554,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
             if (canShareFile) {
               await Sharing.shareAsync(uri, {
                 mimeType: "image/png",
-                dialogTitle: "Share opportunity",
+                dialogTitle: t("detail.share.dialogTitle"),
               });
             } else {
               await Share.share({
@@ -559,18 +575,18 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
         setSharingCard(false);
       }
     }
-  }, [opportunity]);
+  }, [opportunity, t]);
 
   const generateAIPath = useCallback(async () => {
     if (!opportunity) return;
 
     if (!isPro && credits < ROADMAP_CREDIT_COST) {
       Alert.alert(
-        "Insufficient Credits",
-        `Generating an AI roadmap requires ${ROADMAP_CREDIT_COST} credits. You have ${credits} credits. Upgrade to Pro for unlimited access or buy more credits.`,
+        t("detail.alerts.insufficientCreditsTitle"),
+        t("detail.alerts.insufficientCreditsMsg", { cost: ROADMAP_CREDIT_COST, credits }),
         [
-          { text: "Cancel", style: "cancel" },
-          { text: "Get Credits", onPress: () => router.push("/paywall") },
+          { text: t("common:actions.cancel"), style: "cancel" },
+          { text: t("detail.alerts.getCredits"), onPress: () => router.push("/paywall") },
         ],
       );
       return;
@@ -579,10 +595,10 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
     if (!isPro) {
       const success = await spendCredits(
         ROADMAP_CREDIT_COST,
-        `AI Roadmap: ${opportunity.title}`,
+        t("detail.goals.aiRoadmapCredit", { title: opportunity.title }),
       );
       if (!success) {
-        Alert.alert("Error", "Failed to deduct credits. Please try again.");
+        Alert.alert(t("common:states.error"), t("detail.alerts.deductFailed"));
         return;
       }
     }
@@ -622,7 +638,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
     } finally {
       setGeneratingRoadmap(false);
     }
-  }, [opportunity, isPro, credits, spendCredits, router, intake, user?.unsafeMetadata]);
+  }, [opportunity, isPro, credits, spendCredits, router, intake, user?.unsafeMetadata, t]);
 
   const handleExportCalendar = useCallback(async () => {
     if (!generatedRoadmap || !opportunity) return;
@@ -633,16 +649,16 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
     );
     if (result.reason === "unsupported") {
       Alert.alert(
-        "Use the mobile app",
-        "Calendar export with reminders is available in the Edutu mobile app.",
+        t("detail.alerts.useMobileTitle"),
+        t("detail.alerts.useMobileMsg"),
       );
     } else if (!result.ok && result.reason === "error") {
       Alert.alert(
-        "Export failed",
-        "Could not create the calendar file. Please try again.",
+        t("detail.alerts.exportFailedTitle"),
+        t("detail.alerts.exportFailedMsg"),
       );
     }
-  }, [generatedRoadmap, customMilestones, opportunity]);
+  }, [generatedRoadmap, customMilestones, opportunity, t]);
 
   const handleTrackWithRoadmap = useCallback(async () => {
     if (!user || !opportunity || !generatedRoadmap) return;
@@ -657,8 +673,8 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
 
       if (existing) {
         Alert.alert(
-          "Already Tracked",
-          "This opportunity is already actively tracked.",
+          t("detail.alerts.alreadyTrackedTitle"),
+          t("detail.alerts.alreadyTrackedMsg"),
         );
         return;
       }
@@ -683,8 +699,11 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
       );
       const goalsToCreate = [
         {
-          title: `Submit ${opportunity.title}`,
-          description: `${generatedRoadmap.winningStrategy}\n\nResources:\n${resourceText}`,
+          title: t("detail.goals.submitTitle", { title: opportunity.title }),
+          description: t("detail.goals.submitDescription", {
+            strategy: generatedRoadmap.winningStrategy,
+            resources: resourceText,
+          }),
           deadline: generatedRoadmap.submissionTargetDate,
           priority: "high" as const,
         },
@@ -700,14 +719,18 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
         // Profile gaps become early, high-priority goals — closing them is what
         // turns a generic application into a winning one.
         ...generatedRoadmap.profileGaps.map((gapItem) => ({
-          title: `Close gap: ${gapItem.gap.slice(0, 80)}`,
+          title: t("detail.goals.closeGap", { gap: gapItem.gap.slice(0, 80) }),
           description: gapItem.action,
           deadline: customMilestones[1]?.date || generatedRoadmap.submissionTargetDate,
           priority: "high" as const,
         })),
         ...generatedRoadmap.dailyPlan.map((day) => ({
           title: day.title,
-          description: `${day.description}\n\nFocus: ${day.focus}\nTime: ${day.durationMinutes} minutes`,
+          description: t("detail.goals.dailyDescription", {
+            description: day.description,
+            focus: day.focus,
+            minutes: day.durationMinutes,
+          }),
           deadline: day.date,
           priority:
             day.focus === "submission" || day.focus === "writing"
@@ -716,7 +739,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
         })),
         ...selectedChecklist.map((item) => ({
           title: item.title,
-          description: `Checklist item for ${opportunity.title}`,
+          description: t("detail.goals.checklistDescription", { title: opportunity.title }),
           deadline: undefined,
           priority: "low" as const,
         })),
@@ -761,11 +784,11 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
       setRoadmapStep("overview");
 
       Alert.alert(
-        "AI Roadmap Created!",
-        `${createdGoals.length} goals, daily actions, checklist items, and reminders have been added to your Goals page.`,
+        t("detail.alerts.roadmapCreatedTitle"),
+        t("detail.alerts.roadmapCreatedMsg", { count: createdGoals.length }),
         [
           {
-            text: "Add to Calendar",
+            text: t("detail.alerts.addToCalendar"),
             onPress: async () => {
               const result = await syncRoadmapToCalendar(
                 opportunity.title,
@@ -773,24 +796,24 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
               );
               if (result.ok) {
                 Alert.alert(
-                  "Calendar Synced",
-                  `${result.eventCount} milestone and deadline events were added to your "Edutu Opportunities" calendar.`,
+                  t("detail.alerts.calendarSyncedTitle"),
+                  t("detail.alerts.calendarSyncedMsg", { count: result.eventCount }),
                 );
               } else {
                 Alert.alert(
-                  "Calendar Sync Failed",
-                  result.reason || "Could not add events to your calendar.",
+                  t("detail.alerts.calendarSyncFailedTitle"),
+                  result.reason || t("detail.alerts.calendarSyncFailedMsg"),
                 );
               }
             },
           },
-          { text: "View Goals", onPress: () => router.push("/goals") },
-          { text: "Stay Here", style: "cancel" },
+          { text: t("detail.alerts.viewGoals"), onPress: () => router.push("/goals") },
+          { text: t("detail.alerts.stayHere"), style: "cancel" },
         ],
       );
     } catch (error: any) {
       console.error("Failed to track with roadmap:", error);
-      Alert.alert("Error", error.message || "Failed to create roadmap.");
+      Alert.alert(t("common:states.error"), error.message || t("detail.alerts.createRoadmapFailed"));
     }
   }, [
     user,
@@ -802,6 +825,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
     createGoal,
     updateGoal,
     router,
+    t,
   ]);
 
   const handleTrackDeadlineOnly = useCallback(async () => {
@@ -810,31 +834,31 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
     try {
       if (opportunity.deadline) {
         await createGoal({
-          title: `Deadline: ${opportunity.title}`,
-          description: `Submit application for ${opportunity.organization}.`,
-          category: "Application",
+          title: t("detail.goals.deadlineTitle", { title: opportunity.title }),
+          description: t("detail.goals.deadlineDescription", { organization: opportunity.organization }),
+          category: t("detail.goals.applicationCategory"),
           deadline: opportunity.deadline,
           source: "custom",
         });
         setBookmarked(true);
         Alert.alert(
-          "Deadline Tracked!",
-          "The deadline has been added to your calendar with reminders.",
+          t("detail.alerts.deadlineTrackedTitle"),
+          t("detail.alerts.deadlineTrackedMsg"),
           [
-            { text: "View Calendar", onPress: () => router.push("/goals") },
-            { text: "OK", style: "cancel" },
+            { text: t("detail.alerts.viewCalendar"), onPress: () => router.push("/goals") },
+            { text: t("common:actions.ok"), style: "cancel" },
           ],
         );
       } else {
         Alert.alert(
-          "Bookmarked!",
-          "This opportunity has been saved to your bookmarks.",
+          t("detail.alerts.bookmarkedTitle"),
+          t("detail.alerts.bookmarkedMsg"),
         );
       }
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to track deadline.");
+      Alert.alert(t("common:states.error"), error.message || t("detail.alerts.trackDeadlineFailed"));
     }
-  }, [user, opportunity, createGoal, router]);
+  }, [user, opportunity, createGoal, router, t]);
 
   const addCustomMilestone = () => {
     if (!newMilestoneTitle.trim()) return;
@@ -885,7 +909,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
         <View
           style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
         >
-          <BrandedLoader label="Loading opportunity..." />
+          <BrandedLoader label={t("detail.loading")} />
         </View>
       </SafeAreaView>
     );
@@ -914,7 +938,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
               marginTop: 16,
             }}
           >
-            Opportunity not found
+            {t("detail.notFound")}
           </Text>
           <TouchableOpacity
             onPress={() => router.back()}
@@ -925,7 +949,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
               borderRadius: 12,
             }}
           >
-            <Text style={{ color: "white", fontWeight: "600" }}>Go Back</Text>
+            <Text style={{ color: "white", fontWeight: "600" }}>{t("detail.goBack")}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -945,7 +969,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
   const shareSummary = clampShareText(
     cleanShareText(
       opportunity.aiSummary || opportunity.description,
-      "A curated opportunity from Edutu. Open in the app to review full details and apply.",
+      t("detail.share.summaryFallback"),
     ),
     SHARE_TEXT_LIMITS.summary,
   );
@@ -956,40 +980,40 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
   );
   const shareRequirements = getShareBullets(
     opportunity.requirements,
-    "Review the official eligibility criteria before applying.",
+    t("detail.share.requirementsFallback"),
     5,
   );
   const shareApplicationSteps = getShareBullets(
     opportunity.applicationProcess,
     opportunity.applyUrl
-      ? `Apply through the official link: ${opportunity.applyUrl}`
-      : "Open this opportunity in Edutu and follow the application link.",
+      ? t("detail.share.applyThroughLink", { url: opportunity.applyUrl })
+      : t("detail.share.applyInApp"),
     3,
   );
   const shareStatus = isClosed
-    ? { label: "CLOSED", dot: "#F87171", valueColor: "#DC2626" }
+    ? { label: t("detail.share.statusClosed"), dot: "#F87171", valueColor: "#DC2626" }
     : daysUntilDeadline !== null && daysUntilDeadline <= 7
       ? {
-          label: `${daysUntilDeadline}D LEFT`,
+          label: t("detail.share.statusDaysLeft", { count: daysUntilDeadline }),
           dot: "#FBBF24",
           valueColor: "#D97706",
         }
-      : { label: "ACTIVE", dot: "#34D399", valueColor: "#0F172A" };
+      : { label: t("detail.share.statusActive"), dot: "#34D399", valueColor: "#0F172A" };
   const shareTiles = [
-    { label: "Reward", value: getShareFunding(opportunity), color: "#0F172A" },
+    { label: t("detail.share.tileReward"), value: getShareFunding(opportunity), color: "#0F172A" },
     {
-      label: "Deadline",
+      label: t("detail.share.tileDeadline"),
       value: formatShareDeadline(opportunity.deadline),
       color: shareStatus.valueColor,
     },
     {
-      label: "Eligibility",
+      label: t("detail.share.tileEligibility"),
       value: getShareEligibility(opportunity),
       color: "#0F172A",
     },
     {
-      label: "Location",
-      value: opportunity.location || "Worldwide",
+      label: t("detail.share.tileLocation"),
+      value: opportunity.location || t("shared.worldwide"),
       color: "#0F172A",
     },
   ];
@@ -1009,7 +1033,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
       edges={["top", "left", "right"]}
     >
       <ScreenHeader
-        title="Opportunity Details"
+        title={t("detail.headerTitle")}
         showBack
         right={
           <View style={{ flexDirection: "row" }}>
@@ -1067,7 +1091,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                 ]}
               >
                 <Sparkles size={12} color="white" />
-                <Text style={styles.featuredText}>Featured</Text>
+                <Text style={styles.featuredText}>{t("detail.featured")}</Text>
               </View>
             )}
             {isUrgent && !isClosed && (
@@ -1076,7 +1100,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
               >
                 <AlertCircle size={12} color="white" />
                 <Text style={styles.urgentText}>
-                  {daysUntilDeadline} days left
+                  {t("detail.daysLeft", { count: daysUntilDeadline ?? 0 })}
                 </Text>
               </View>
             )}
@@ -1113,7 +1137,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                 style={[styles.matchBadge, { backgroundColor: "#10B98115" }]}
               >
                 <Text style={[styles.matchText, { color: "#10B981" }]}>
-                  {opportunity.match}% Match
+                  {t("detail.matchPercent", { match: opportunity.match })}
                 </Text>
               </View>
             )}
@@ -1129,7 +1153,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.sponsorLabel, { color: textSecondary }]}>
-                Sponsor
+                {t("detail.sponsor")}
               </Text>
               <Text style={[styles.sponsorName, { color: textPrimary }]}>
                 {opportunity.organization}
@@ -1150,7 +1174,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                 style={[styles.statText, { color: textSecondary }]}
                 numberOfLines={1}
               >
-                {opportunity.location || "Remote"}
+                {opportunity.location || t("shared.remote")}
               </Text>
             </View>
             <View
@@ -1161,7 +1185,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
             >
               <Users size={16} color={textSecondary} />
               <Text style={[styles.statText, { color: textSecondary }]}>
-                {opportunity.applicants || "500+"} applied
+                {t("detail.applied", { value: opportunity.applicants || "500+" })}
               </Text>
             </View>
           </View>
@@ -1198,12 +1222,12 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                   <Text
                     style={[styles.deadlineLabel, { color: textSecondary }]}
                   >
-                    {isClosed ? "Closed" : "Deadline"}
+                    {isClosed ? t("detail.closed") : t("detail.deadline")}
                   </Text>
                   <Text style={[styles.deadlineValue, { color: textPrimary }]}>
                     {isClosed
-                      ? "Application period has ended"
-                      : `${daysUntilDeadline} days remaining`}
+                      ? t("detail.applicationEnded")
+                      : t("detail.daysRemaining", { count: daysUntilDeadline ?? 0 })}
                   </Text>
                   <Text style={[styles.deadlineDate, { color: textSecondary }]}>
                     {new Date(opportunity.deadline!).toLocaleDateString(
@@ -1230,7 +1254,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                   <Text
                     style={[styles.deadlineLabel, { color: textSecondary }]}
                   >
-                    Stipend / Funding
+                    {t("detail.stipendFunding")}
                   </Text>
                   <Text style={[styles.deadlineValue, { color: "#10B981" }]}>
                     {opportunity.currency || "$"}
@@ -1245,7 +1269,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
           {opportunity.matchReasons && opportunity.matchReasons.length > 0 && (
             <>
               <Text style={[styles.sectionTitle, { color: textPrimary }]}>
-                Why This Matches You
+                {t("detail.whyMatches")}
               </Text>
               <View
                 style={[
@@ -1274,7 +1298,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
           {opportunity.matchRisks && opportunity.matchRisks.length > 0 && (
             <>
               <Text style={[styles.sectionTitle, { color: textPrimary }]}>
-                Things to Check
+                {t("detail.thingsToCheck")}
               </Text>
               <View
                 style={[
@@ -1311,26 +1335,26 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
             <View style={styles.aiDecisionHeader}>
               <Sparkles size={16} color={colors.accent} />
               <Text style={[styles.aiDecisionTitle, { color: textPrimary }]}>
-                Ask Edutu AI about this opportunity
+                {t("detail.askAI")}
               </Text>
             </View>
             <View style={styles.aiDecisionActions}>
               {[
                 [
-                  "Check eligibility",
-                  "Check my eligibility for this opportunity. Be specific about likely gaps and what I should verify.",
+                  t("detail.aiChips.eligibility"),
+                  t("detail.aiChips.eligibilityPrompt"),
                 ],
                 [
-                  "Explain fit",
-                  "Explain why this opportunity fits me and what profile details would improve the match.",
+                  t("detail.aiChips.fit"),
+                  t("detail.aiChips.fitPrompt"),
                 ],
                 [
-                  "Tailor CV",
-                  "Suggest how to tailor my CV for this opportunity with concrete bullet improvements.",
+                  t("detail.aiChips.cv"),
+                  t("detail.aiChips.cvPrompt"),
                 ],
                 [
-                  "Plan prep",
-                  "Create a concise preparation plan for this application before the deadline.",
+                  t("detail.aiChips.prep"),
+                  t("detail.aiChips.prepPrompt"),
                 ],
               ].map(([label, prompt]) => (
                 <TouchableOpacity
@@ -1394,7 +1418,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
 
           {/* About Section */}
           <Text style={[styles.sectionTitle, { color: textPrimary }]}>
-            About This Opportunity
+            {t("detail.aboutTitle")}
           </Text>
 
           {opportunity.aiSummary &&
@@ -1426,7 +1450,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                       textTransform: "uppercase",
                     }}
                   >
-                    AI Summary
+                    {t("detail.aiSummary")}
                   </Text>
                 </View>
                 <Text
@@ -1441,14 +1465,14 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
             {opportunity.description &&
             opportunity.description !== "No description provided."
               ? opportunity.description
-              : 'Detailed description is currently unavailable. Tap "Apply Now" to view more details on the official website.'}
+              : t("detail.descriptionUnavailable")}
           </Text>
 
           {/* Requirements */}
           {opportunity.requirements && opportunity.requirements.length > 0 && (
             <>
               <Text style={[styles.sectionTitle, { color: textPrimary }]}>
-                Requirements
+                {t("detail.requirements")}
               </Text>
               <View
                 style={[
@@ -1477,7 +1501,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
           {opportunity.benefits && opportunity.benefits.length > 0 && (
             <>
               <Text style={[styles.sectionTitle, { color: textPrimary }]}>
-                Benefits
+                {t("detail.benefits")}
               </Text>
               <View
                 style={[
@@ -1502,6 +1526,58 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
             </>
           )}
 
+          {/* Application Co-pilot CTA */}
+          {!isClosed && (
+            <AnimatedPressable
+              onPress={() => router.push(`/copilot/${opportunity.id}` as never)}
+              style={[
+                styles.roadmapCTA,
+                {
+                  backgroundColor: `${colors.accent}10`,
+                  borderColor: `${colors.accent}25`,
+                },
+              ]}
+              entering={FadeInDown.duration(400)}
+              hapticFeedback="medium"
+            >
+              <LinearGradient
+                colors={[`${colors.accent}06`, `${colors.accent}02`]}
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.roadmapCTAContent}>
+                <View
+                  style={[
+                    styles.roadmapCTAIcon,
+                    { backgroundColor: `${colors.accent}20` },
+                  ]}
+                >
+                  <FileText size={22} color={colors.accent} />
+                </View>
+                <View style={styles.roadmapCTAText}>
+                  <Text
+                    style={[styles.roadmapCTATitle, { color: textPrimary }]}
+                  >
+                    {t("detail.copilotCta")}
+                  </Text>
+                  <Text
+                    style={[styles.roadmapCTADesc, { color: textSecondary }]}
+                    numberOfLines={2}
+                  >
+                    {t("detail.copilotCtaDesc")}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.roadmapCTAArrow,
+                    { backgroundColor: colors.accent },
+                  ]}
+                >
+                  <ChevronRight size={22} color="#FFFFFF" />
+                </View>
+              </View>
+            </AnimatedPressable>
+          )}
+
           {/* Fit-to-my-life intake — optional, tunes the generated plan */}
           {!bookmarked && opportunity.deadline && !isClosed && (
             <View
@@ -1511,8 +1587,8 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
               ]}
             >
               <Text style={[styles.intakeTitle, { color: textPrimary }]}>
-                Tune your plan{" "}
-                <Text style={{ color: textSecondary }}>(optional)</Text>
+                {t("detail.tunePlan")}{" "}
+                <Text style={{ color: textSecondary }}>{t("detail.optional")}</Text>
               </Text>
               <RoadmapIntake
                 value={intake}
@@ -1563,15 +1639,15 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                   <Text
                     style={[styles.roadmapCTATitle, { color: textPrimary }]}
                   >
-                    Generate ROADMAP using AI
+                    {t("detail.generateRoadmapCta")}
                   </Text>
                   <Text
                     style={[styles.roadmapCTADesc, { color: textSecondary }]}
                     numberOfLines={2}
                   >
                     {isPro
-                      ? "Generate AI roadmap with weekly goals and reminders (Pro)"
-                      : `Generate AI roadmap — ${ROADMAP_CREDIT_COST} credits (You have ${credits})`}
+                      ? t("detail.roadmapProDesc")
+                      : t("detail.roadmapCreditsDesc", { cost: ROADMAP_CREDIT_COST, credits })}
                   </Text>
                 </View>
                 <View
@@ -1592,7 +1668,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
             !bookmarked && (
               <>
                 <Text style={[styles.sectionTitle, { color: textPrimary }]}>
-                  Preparation Roadmap
+                  {t("detail.prepRoadmap")}
                 </Text>
                 <View
                   style={[
@@ -1601,9 +1677,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                   ]}
                 >
                   <Text style={[styles.roadmapText, { color: textSecondary }]}>
-                    This opportunity has {opportunity.roadmap.length}{" "}
-                    preparation steps. Bookmark to add them to your Goals and
-                    track your progress!
+                    {t("detail.roadmapStepsIntro", { count: opportunity.roadmap.length })}
                   </Text>
                   <View style={styles.roadmapSteps}>
                     {opportunity.roadmap.slice(0, 3).map((step, index) => (
@@ -1628,7 +1702,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                       <Text
                         style={[styles.moreSteps, { color: textSecondary }]}
                       >
-                        +{opportunity.roadmap.length - 3} more steps
+                        {t("detail.moreSteps", { count: opportunity.roadmap.length - 3 })}
                       </Text>
                     )}
                   </View>
@@ -1641,7 +1715,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                   >
                     <Target size={16} color="white" />
                     <Text style={styles.addGoalsButtonText}>
-                      Add to My Goals
+                      {t("detail.addToGoals")}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -1675,7 +1749,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                 >
                   <ExternalLink size={18} color="white" />
                   <Text style={styles.applyButtonText}>
-                    {isClosed ? "Closed" : "Apply Now"}
+                    {isClosed ? t("detail.closed") : t("detail.applyNow")}
                   </Text>
                 </TouchableOpacity>
               </LinearGradient>
@@ -1717,7 +1791,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                     ]}
                     numberOfLines={1}
                   >
-                    {bookmarked ? "Saved" : "Save"}
+                    {bookmarked ? t("detail.savedLabel") : t("common:actions.save")}
                   </Text>
                 </>
               )}
@@ -1809,22 +1883,22 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
             {/* Modal Title */}
             <View style={styles.modalTitleBar}>
               <Text style={[styles.modalStepTitle, { color: textPrimary }]}>
-                {roadmapStep === "overview" && "AI Roadmap Overview"}
-                {roadmapStep === "milestones" && "Milestones"}
-                {roadmapStep === "weekly" && "Weekly Goals"}
-                {roadmapStep === "checklist" && "Preparation Checklist"}
-                {roadmapStep === "confirm" && "Review & Create"}
+                {roadmapStep === "overview" && t("detail.roadmap.stepTitles.overview")}
+                {roadmapStep === "milestones" && t("detail.roadmap.stepTitles.milestones")}
+                {roadmapStep === "weekly" && t("detail.roadmap.stepTitles.weekly")}
+                {roadmapStep === "checklist" && t("detail.roadmap.stepTitles.checklist")}
+                {roadmapStep === "confirm" && t("detail.roadmap.stepTitles.confirm")}
               </Text>
               <Text style={[styles.modalStepDesc, { color: textSecondary }]}>
                 {roadmapStep === "overview" &&
-                  "Your personalized path to success"}
+                  t("detail.roadmap.stepDescs.overview")}
                 {roadmapStep === "milestones" &&
-                  "Key stages in your preparation journey"}
-                {roadmapStep === "weekly" && "Week-by-week breakdown of tasks"}
+                  t("detail.roadmap.stepDescs.milestones")}
+                {roadmapStep === "weekly" && t("detail.roadmap.stepDescs.weekly")}
                 {roadmapStep === "checklist" &&
-                  "Everything you need to prepare"}
+                  t("detail.roadmap.stepDescs.checklist")}
                 {roadmapStep === "confirm" &&
-                  "Final review before creating your roadmap"}
+                  t("detail.roadmap.stepDescs.confirm")}
               </Text>
             </View>
 
@@ -1835,7 +1909,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
             >
               {generatingRoadmap && (
                 <View style={styles.generatingContainer}>
-                  <BrandedLoader label="Building your plan..." size={64} />
+                  <BrandedLoader label={t("detail.generating.label")} size={64} />
                   <View style={styles.generatingSteps}>
                     {GENERATION_PHASES.map((step, i) => {
                       const isDone = i < generationPhase;
@@ -1867,7 +1941,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                               },
                             ]}
                           >
-                            {step}
+                            {t(step)}
                           </Text>
                         </View>
                       );
@@ -1893,7 +1967,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                       <Text
                         style={[styles.overcardTitle, { color: textPrimary }]}
                       >
-                        Your Personalized Roadmap
+                        {t("detail.roadmap.personalizedTitle")}
                       </Text>
                       {generatedRoadmap.personalized && (
                         <View
@@ -1906,7 +1980,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                           <Text
                             style={[styles.aiBadgeText, { color: colors.accent }]}
                           >
-                            Personalized by AI
+                            {t("detail.roadmap.personalizedByAI")}
                           </Text>
                         </View>
                       )}
@@ -1928,7 +2002,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                       <Text
                         style={[styles.calendarCtaText, { color: colors.accent }]}
                       >
-                        Add to calendar & remind me
+                        {t("detail.roadmap.addToCalendarRemind")}
                       </Text>
                     </TouchableOpacity>
 
@@ -1954,7 +2028,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                             { color: textSecondary },
                           ]}
                         >
-                          Days left
+                          {t("detail.roadmap.daysLeftLabel")}
                         </Text>
                       </View>
                       <View
@@ -1978,7 +2052,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                             { color: textSecondary },
                           ]}
                         >
-                          Daily steps
+                          {t("detail.roadmap.dailySteps")}
                         </Text>
                       </View>
                       <View
@@ -2002,7 +2076,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                             { color: textSecondary },
                           ]}
                         >
-                          Tasks
+                          {t("detail.roadmap.tasks")}
                         </Text>
                       </View>
                       <View
@@ -2026,7 +2100,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                             { color: textSecondary },
                           ]}
                         >
-                          Reminders
+                          {t("detail.roadmap.reminders")}
                         </Text>
                       </View>
                     </View>
@@ -2040,7 +2114,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                       <Text
                         style={[styles.strategyLabel, { color: colors.accent }]}
                       >
-                        Submit target
+                        {t("detail.roadmap.submitTarget")}
                       </Text>
                       <Text
                         style={[styles.strategyTitle, { color: textPrimary }]}
@@ -2066,7 +2140,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                         <Text
                           style={[styles.strategyLabel, { color: colors.accent }]}
                         >
-                          Requirements → your moves
+                          {t("detail.roadmap.requirementMoves")}
                         </Text>
                         {generatedRoadmap.requirementActions
                           .slice(0, 8)
@@ -2080,7 +2154,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                               <Text
                                 style={[styles.resourceDesc, { color: textSecondary }]}
                               >
-                                → {item.action}
+                                {t("detail.roadmap.actionArrow", { action: item.action })}
                               </Text>
                             </View>
                           ))}
@@ -2095,7 +2169,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                         ]}
                       >
                         <Text style={[styles.strategyLabel, { color: "#F59E0B" }]}>
-                          Close these gaps to win
+                          {t("detail.roadmap.closeGaps")}
                         </Text>
                         {generatedRoadmap.profileGaps.map((item, i) => (
                           <View key={`gap-${i}`} style={{ marginTop: i === 0 ? 4 : 12 }}>
@@ -2107,7 +2181,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                             <Text
                               style={[styles.resourceDesc, { color: textSecondary }]}
                             >
-                              → {item.action}
+                              {t("detail.roadmap.actionArrow", { action: item.action })}
                             </Text>
                           </View>
                         ))}
@@ -2124,7 +2198,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                         <Text
                           style={[styles.strategyLabel, { color: colors.accent }]}
                         >
-                          What winners do
+                          {t("detail.roadmap.whatWinnersDo")}
                         </Text>
                         {generatedRoadmap.bestPractices.slice(0, 6).map((tip, i) => (
                           <Text
@@ -2134,7 +2208,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                               { color: textSecondary, marginTop: i === 0 ? 4 : 8 },
                             ]}
                           >
-                            •  {tip}
+                            {t("detail.roadmap.tipBullet", { tip })}
                           </Text>
                         ))}
                       </View>
@@ -2149,7 +2223,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                       <Text
                         style={[styles.strategyLabel, { color: colors.accent }]}
                       >
-                        Resources
+                        {t("detail.roadmap.resources")}
                       </Text>
                       {generatedRoadmap.resources
                         .slice(0, 4)
@@ -2197,8 +2271,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                     <Text
                       style={[styles.milestonesHint, { color: textSecondary }]}
                     >
-                      Tap a milestone to mark it done. Your timeline runs to the
-                      submission deadline.
+                      {t("detail.roadmap.milestonesHint")}
                     </Text>
                     <RoadmapTimeline
                       milestones={customMilestones}
@@ -2239,7 +2312,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                             { color: colors.accent },
                           ]}
                         >
-                          Add Custom Milestone
+                          {t("detail.roadmap.addCustomMilestone")}
                         </Text>
                       </TouchableOpacity>
                     ) : (
@@ -2252,7 +2325,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                         <Text
                           style={[styles.formLabel, { color: textPrimary }]}
                         >
-                          Milestone Title
+                          {t("detail.roadmap.milestoneTitleLabel")}
                         </Text>
                         <TextInput
                           style={[
@@ -2265,7 +2338,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                               borderColor,
                             },
                           ]}
-                          placeholder="e.g., Complete Essay Draft"
+                          placeholder={t("detail.roadmap.milestoneTitlePlaceholder")}
                           placeholderTextColor={textSecondary}
                           value={newMilestoneTitle}
                           onChangeText={setNewMilestoneTitle}
@@ -2273,7 +2346,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                         <Text
                           style={[styles.formLabel, { color: textPrimary }]}
                         >
-                          Description
+                          {t("detail.roadmap.descriptionLabel")}
                         </Text>
                         <TextInput
                           style={[
@@ -2287,7 +2360,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                               borderColor,
                             },
                           ]}
-                          placeholder="What needs to be done?"
+                          placeholder={t("detail.roadmap.milestoneDescPlaceholder")}
                           placeholderTextColor={textSecondary}
                           value={newMilestoneDesc}
                           onChangeText={setNewMilestoneDesc}
@@ -2317,7 +2390,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                                 { color: textSecondary },
                               ]}
                             >
-                              Cancel
+                              {t("common:actions.cancel")}
                             </Text>
                           </TouchableOpacity>
                           <TouchableOpacity
@@ -2327,7 +2400,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                               { backgroundColor: colors.accent },
                             ]}
                           >
-                            <Text style={styles.formAddText}>Add</Text>
+                            <Text style={styles.formAddText}>{t("detail.roadmap.add")}</Text>
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -2351,7 +2424,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                           { color: textPrimary },
                         ]}
                       >
-                        First 7 daily actions
+                        {t("detail.roadmap.firstDailyActions")}
                       </Text>
                       {generatedRoadmap.dailyPlan.slice(0, 7).map((day) => (
                         <View key={day.id} style={styles.dailyPreviewRow}>
@@ -2361,7 +2434,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                               { color: colors.accent },
                             ]}
                           >
-                            D{day.day}
+                            {t("detail.roadmap.dayAbbrev", { day: day.day })}
                           </Text>
                           <View style={styles.dailyPreviewCopy}>
                             <Text
@@ -2379,8 +2452,10 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                                 { color: textSecondary },
                               ]}
                             >
-                              {new Date(day.date).toLocaleDateString()} ·{" "}
-                              {day.durationMinutes} min
+                              {t("detail.roadmap.dailyMeta", {
+                                date: new Date(day.date).toLocaleDateString(),
+                                minutes: day.durationMinutes,
+                              })}
                             </Text>
                           </View>
                         </View>
@@ -2409,7 +2484,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                                   { color: colors.accent },
                                 ]}
                               >
-                                W{week.week}
+                                {t("detail.roadmap.weekAbbrev", { week: week.week })}
                               </Text>
                             </View>
                             <Text
@@ -2444,7 +2519,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                                   { color: textSecondary },
                                 ]}
                               >
-                                +{week.tasks.length - 3} more tasks
+                                {t("detail.roadmap.moreTasks", { count: week.tasks.length - 3 })}
                               </Text>
                             )}
                           </View>
@@ -2456,8 +2531,9 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                                 { color: textSecondary },
                               ]}
                             >
-                              Target:{" "}
-                              {new Date(week.deadline).toLocaleDateString()}
+                              {t("detail.roadmap.target", {
+                                date: new Date(week.deadline).toLocaleDateString(),
+                              })}
                             </Text>
                           </View>
                         </View>
@@ -2466,8 +2542,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                       <Text
                         style={[styles.weeklyMore, { color: textSecondary }]}
                       >
-                        +{generatedRoadmap.totalWeeks - 6} more weeks will be
-                        included in your roadmap
+                        {t("detail.roadmap.moreWeeks", { count: generatedRoadmap.totalWeeks - 6 })}
                       </Text>
                     )}
                   </View>
@@ -2500,14 +2575,14 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                             ]}
                           >
                             {category === "document"
-                              ? "Documents"
+                              ? t("detail.roadmap.categories.document")
                               : category === "preparation"
-                                ? "Preparation"
+                                ? t("detail.roadmap.categories.preparation")
                                 : category === "application"
-                                  ? "Application"
+                                  ? t("detail.roadmap.categories.application")
                                   : category === "interview"
-                                    ? "Interview Prep"
-                                    : "Follow-up"}
+                                    ? t("detail.roadmap.categories.interview")
+                                    : t("detail.roadmap.categories.followUp")}
                           </Text>
                           {items.map((item) => {
                             const isSelected = selectedChecklistItems.includes(
@@ -2570,7 +2645,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                           { color: textPrimary },
                         ]}
                       >
-                        Roadmap Summary
+                        {t("detail.roadmap.summaryTitle")}
                       </Text>
                       <View style={styles.confirmRow}>
                         <Text
@@ -2579,7 +2654,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                             { color: textSecondary },
                           ]}
                         >
-                          Opportunity
+                          {t("detail.roadmap.summaryOpportunity")}
                         </Text>
                         <Text
                           style={[styles.confirmValue, { color: textPrimary }]}
@@ -2594,12 +2669,12 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                             { color: textSecondary },
                           ]}
                         >
-                          Duration
+                          {t("detail.roadmap.summaryDuration")}
                         </Text>
                         <Text
                           style={[styles.confirmValue, { color: textPrimary }]}
                         >
-                          {generatedRoadmap.dailyPlan.length} daily steps
+                          {t("detail.roadmap.dailyStepsCount", { count: generatedRoadmap.dailyPlan.length })}
                         </Text>
                       </View>
                       <View style={styles.confirmRow}>
@@ -2609,12 +2684,12 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                             { color: textSecondary },
                           ]}
                         >
-                          Milestones
+                          {t("detail.roadmap.summaryMilestones")}
                         </Text>
                         <Text
                           style={[styles.confirmValue, { color: textPrimary }]}
                         >
-                          {customMilestones.length} stages
+                          {t("detail.roadmap.stagesCount", { count: customMilestones.length })}
                         </Text>
                       </View>
                       <View style={styles.confirmRow}>
@@ -2624,12 +2699,12 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                             { color: textSecondary },
                           ]}
                         >
-                          Checklist Items
+                          {t("detail.roadmap.checklistItems")}
                         </Text>
                         <Text
                           style={[styles.confirmValue, { color: textPrimary }]}
                         >
-                          {selectedChecklistItems.length} selected
+                          {t("detail.roadmap.selectedCount", { count: selectedChecklistItems.length })}
                         </Text>
                       </View>
                       <View style={styles.confirmRow}>
@@ -2639,7 +2714,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                             { color: textSecondary },
                           ]}
                         >
-                          Submit target
+                          {t("detail.roadmap.submitTarget")}
                         </Text>
                         <Text
                           style={[styles.confirmValue, { color: textPrimary }]}
@@ -2654,12 +2729,12 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                             { color: textSecondary },
                           ]}
                         >
-                          Reminders
+                          {t("detail.roadmap.reminders")}
                         </Text>
                         <Text
                           style={[styles.confirmValue, { color: textPrimary }]}
                         >
-                          {generatedRoadmap.reminders.length} scheduled
+                          {t("detail.roadmap.scheduledCount", { count: generatedRoadmap.reminders.length })}
                         </Text>
                       </View>
                     </View>
@@ -2680,9 +2755,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                           { color: textSecondary },
                         ]}
                       >
-                        This creates milestones, daily calendar goals, selected
-                        checklist items, and automatic reminders. You can
-                        customize them later.
+                        {t("detail.roadmap.confirmInfo")}
                       </Text>
                     </View>
                   </View>
@@ -2721,7 +2794,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                       { color: textSecondary },
                     ]}
                   >
-                    Back
+                    {t("common:actions.back")}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -2749,10 +2822,10 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
               >
                 <Text style={styles.modalSubmitText}>
                   {roadmapStep === "confirm"
-                    ? "Create Roadmap"
+                    ? t("detail.roadmap.createRoadmap")
                     : roadmapStep === "overview"
-                      ? "View Roadmap"
-                      : "Continue"}
+                      ? t("detail.roadmap.viewRoadmap")
+                      : t("common:actions.continue")}
                 </Text>
                 {roadmapStep !== "confirm" && (
                   <ChevronRight size={18} color="white" />
@@ -2783,7 +2856,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                     <View>
                       <Text style={styles.shareBrandTitle}>Edutu</Text>
                       <Text style={styles.shareBrandSubtitle}>
-                        OPPORTUNITY BRIEF
+                        {t("detail.share.brief")}
                       </Text>
                     </View>
                   </View>
@@ -2801,7 +2874,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                 </View>
                 <View style={styles.shareCategoryChip}>
                   <Text style={styles.shareCategoryText}>
-                    {(opportunity.category || "Opportunity").toUpperCase()}
+                    {(opportunity.category || t("shared.opportunity")).toUpperCase()}
                   </Text>
                 </View>
                 <Text style={styles.shareTitle} numberOfLines={3}>
@@ -2823,10 +2896,10 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                   </View>
                   <View style={styles.shareProviderText}>
                     <Text style={styles.shareProviderName} numberOfLines={1}>
-                      {opportunity.organization || "Opportunity provider"}
+                      {opportunity.organization || t("detail.share.providerFallback")}
                     </Text>
                     <Text style={styles.shareProviderSub} numberOfLines={1}>
-                      {opportunity.location || "Global opportunity"}
+                      {opportunity.location || t("detail.share.locationFallback")}
                     </Text>
                   </View>
                 </View>
@@ -2856,7 +2929,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
 
                 {shareBenefits.length > 0 && (
                   <>
-                    <Text style={styles.shareSectionTitle}>Benefits</Text>
+                    <Text style={styles.shareSectionTitle}>{t("detail.share.benefits")}</Text>
                     {shareBenefits.slice(0, 3).map((item, index) => (
                       <View key={`benefit-${index}`} style={styles.shareBulletRow}>
                         <View style={styles.shareCheck}>
@@ -2873,7 +2946,7 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                 {shareRequirements.length > 0 && (
                   <>
                     <Text style={[styles.shareSectionTitle, { marginTop: 26 }]}>
-                      Requirements
+                      {t("detail.share.requirements")}
                     </Text>
                     {shareRequirements.slice(0, 2).map((item, index) => (
                       <View
@@ -2890,15 +2963,17 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
                 )}
 
                 <View style={styles.shareApplyBox}>
-                  <Text style={styles.shareApplyTitle}>HOW TO APPLY</Text>
+                  <Text style={styles.shareApplyTitle}>{t("detail.share.howToApply")}</Text>
                   {shareApplicationSteps.slice(0, 2).map((item, index) => (
                     <Text
                       key={`apply-${index}`}
                       style={styles.shareApplyText}
                       numberOfLines={2}
                     >
-                      {index + 1}.{"  "}
-                      {clampShareText(item, SHARE_TEXT_LIMITS.apply)}
+                      {t("detail.share.applyStep", {
+                        number: index + 1,
+                        step: clampShareText(item, SHARE_TEXT_LIMITS.apply),
+                      })}
                     </Text>
                   ))}
                 </View>
@@ -2913,10 +2988,10 @@ Description: ${opportunity.aiSummary || opportunity.description || "No descripti
               >
                 <View style={styles.shareFooterTextWrap}>
                   <Text style={styles.shareFooterTitle}>
-                    Discover more opportunities
+                    {t("detail.share.discoverMore")}
                   </Text>
                   <Text style={styles.shareFooterSub}>
-                    Personalized matches, roadmaps &amp; deadline reminders
+                    {t("detail.share.footerSub")}
                   </Text>
                 </View>
                 <View style={styles.shareFooterBadge}>

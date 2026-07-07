@@ -1,4 +1,10 @@
-import { Injectable, Logger, Optional } from "@nestjs/common";
+import {
+  Injectable,
+  Logger,
+  Optional,
+  ConflictException,
+  NotFoundException,
+} from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { existsSync } from "fs";
 import { readFile } from "fs/promises";
@@ -21,6 +27,7 @@ import {
 import { AiService } from "../ai";
 import { OpportunityShareCardService } from "./opportunity-share-card.service";
 import { CacheService } from "../common/cache/cache.service";
+import { SavedSearchesService } from "../saved-searches/saved-searches.service";
 
 const OPPS_CACHE_PREFIX = "opps:";
 import {
@@ -437,6 +444,7 @@ export class OpportunitiesService {
     private readonly opportunityShareCardService: OpportunityShareCardService,
     private readonly embeddingService: OpportunityEmbeddingService,
     @Optional() private readonly cache?: CacheService,
+    @Optional() private readonly savedSearchesService?: SavedSearchesService,
   ) {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -1049,33 +1057,105 @@ export class OpportunitiesService {
         })
         .eq("id", id)
         .select()
-        .single();
+        .maybeSingle();
 
-      if (!error) {
+      if (!error && updated) {
         return withOpportunityUrlAliases(updated as Record<string, any>);
       }
 
+      if (!error) {
+        // No error and no row means the id didn't match anything.
+        throw new NotFoundException("Opportunity not found");
+      }
+
+      // A duplicate apply/source URL is a real conflict, not a server fault —
+      // report it as 409 with a clear message instead of an opaque 500 (and
+      // don't bother with the fallback, which hits the same unique index).
+      if (this.isUniqueViolation(error)) {
+        throw new ConflictException(
+          "Another opportunity already uses this apply or source URL. Change the URL and try again.",
+        );
+      }
+
       this.logger.warn(
-        `Canonical opportunity update failed, falling back to Drizzle schema: ${error.message}`,
+        `Canonical opportunity update failed, trying direct DB update: ${error.message}`,
       );
     }
 
+    // Fallback path (Supabase service client unavailable, or the canonical
+    // update errored). The admin DTO carries camelCase fields AND metadata-only
+    // keys (applicationProcess / application_process / requirements / benefits)
+    // that are NOT columns on the Drizzle table. Spreading `...data` therefore
+    // emitted `SET "application_process" = …` → invalid SQL → 500 on every
+    // edit whenever this path ran. Map ONLY real columns, like create() does,
+    // and only touch fields that were actually provided (partial update).
     const updateData: Partial<typeof opportunities.$inferInsert> = {
-      ...data,
-      deadline: data.deadline ? new Date(data.deadline) : undefined,
       updatedAt: new Date(),
     };
 
-    const result = await db
-      .update(opportunities)
-      .set(updateData)
-      .where(eq(opportunities.id, id))
-      .returning()
-      .execute();
+    if (data.title !== undefined) updateData.title = data.title;
+    if (data.summary !== undefined) updateData.summary = data.summary;
+    if (data.description !== undefined)
+      updateData.description = data.description;
+    if (data.category !== undefined) updateData.category = data.category;
+    if (data.organization !== undefined)
+      updateData.organization = data.organization;
+    if (data.location !== undefined || data.targetRegion !== undefined)
+      updateData.location = data.location || data.targetRegion || null;
+    if (data.type !== undefined) updateData.type = data.type;
+    if (data.eligibilityCriteria !== undefined)
+      updateData.eligibilityCriteria = data.eligibilityCriteria;
+    if (data.fundingType !== undefined)
+      updateData.fundingType = data.fundingType;
+    if (data.targetRegion !== undefined)
+      updateData.targetRegion = data.targetRegion;
+    if (data.sourceUrl !== undefined) updateData.sourceUrl = data.sourceUrl;
+    if (data.applyUrl !== undefined || data.sourceUrl !== undefined)
+      updateData.applyUrl = data.applyUrl || data.sourceUrl || null;
+    if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
+    if (data.eligibility !== undefined)
+      updateData.eligibility = data.eligibility as any;
+    if (data.tags !== undefined) updateData.tags = data.tags as any;
+    if (data.isFeatured !== undefined)
+      updateData.isFeatured = data.isFeatured;
+    if (data.isRemote !== undefined) updateData.isRemote = data.isRemote;
+    if (data.status !== undefined) updateData.status = data.status;
 
-    return result[0]
-      ? withOpportunityUrlAliases(result[0] as Record<string, any>)
-      : result[0];
+    // Guard the date: an invalid string used to throw RangeError → 500.
+    if (data.deadline !== undefined) {
+      const parsed = data.deadline ? new Date(data.deadline) : null;
+      updateData.deadline =
+        parsed && !Number.isNaN(parsed.getTime()) ? parsed : null;
+    }
+
+    // NOTE: no `.returning()`. The Drizzle `opportunities` model declares a
+    // `provider_id` column that does NOT exist on the live table, so a full
+    // RETURNING clause throws `column "provider_id" does not exist` → 500. We
+    // update, then re-read through findOne(), which is resilient on its own.
+    try {
+      await db
+        .update(opportunities)
+        .set(updateData)
+        .where(eq(opportunities.id, id))
+        .execute();
+    } catch (error: any) {
+      if (this.isUniqueViolation(error)) {
+        throw new ConflictException(
+          "Another opportunity already uses this apply or source URL. Change the URL and try again.",
+        );
+      }
+      throw error;
+    }
+
+    return this.findOne(id);
+  }
+
+  // Postgres unique-violation detector (SQLSTATE 23505), tolerant of both the
+  // supabase-js error shape and Drizzle's wrapped driver error.
+  private isUniqueViolation(error: any): boolean {
+    const code = error?.code ?? error?.cause?.code;
+    const message = String(error?.message ?? error?.cause?.message ?? "");
+    return code === "23505" || /duplicate key|unique constraint/i.test(message);
   }
 
   async updateStatus(id: string, status: string) {
@@ -1092,7 +1172,12 @@ export class OpportunitiesService {
         if (status === "active") {
           void this.embeddingService.embedOpportunity(id);
         }
-        return this.findOne(id);
+        const row = await this.findOne(id);
+        // Approval is when a row becomes visible — match saved-search alerts now.
+        if (status === "active" && row) {
+          void this.savedSearchesService?.notifyNewOpportunities([row]);
+        }
+        return row;
       }
 
       this.logger.warn(
@@ -1108,7 +1193,11 @@ export class OpportunitiesService {
     if (status === "active") {
       void this.embeddingService.embedOpportunity(id);
     }
-    return this.findOne(id);
+    const row = await this.findOne(id);
+    if (status === "active" && row) {
+      void this.savedSearchesService?.notifyNewOpportunities([row]);
+    }
+    return row;
   }
 
   async enhanceOpportunity(id: string) {
@@ -2284,6 +2373,8 @@ ${sourceText || "No source page text was available. Improve wording only from st
         const savedId = (record as Record<string, unknown>).id;
         if (savedId) void this.embeddingService.embedOpportunity(String(savedId));
       }
+      // Fire-and-forget: alert users whose saved searches match (active rows only).
+      void this.savedSearchesService?.notifyNewOpportunities(saved);
       await this.prewarmShareAssets(saved);
       return { inserted, skipped, opportunities: saved };
     }
@@ -2384,6 +2475,9 @@ ${sourceText || "No source page text was available. Improve wording only from st
       for (const row of result) {
         if (row.id) void this.embeddingService.embedOpportunity(row.id);
       }
+      void this.savedSearchesService?.notifyNewOpportunities(
+        result as unknown as Record<string, unknown>[],
+      );
       await this.prewarmShareAssets(result);
       return { inserted, skipped, opportunities: result };
     } catch (dbErr) {
@@ -2452,6 +2546,7 @@ ${sourceText || "No source page text was available. Improve wording only from st
       this.logger.log(
         `Saved ${inserted} opportunities, skipped ${skipped} duplicates (sequential fallback)`,
       );
+      void this.savedSearchesService?.notifyNewOpportunities(savedOpportunities);
       await this.prewarmShareAssets(savedOpportunities);
       return { inserted, skipped, opportunities: savedOpportunities };
     }

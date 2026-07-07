@@ -5,6 +5,7 @@ export type NotificationKind =
   | "goal-weekly-digest"
   | "goal-progress"
   | "opportunity-highlight"
+  | "opportunity-alert"
   | "admin-broadcast"
   | "system";
 

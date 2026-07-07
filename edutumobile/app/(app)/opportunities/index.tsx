@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import {
+  Alert,
   FlatList,
   Image,
   ImageBackground,
@@ -16,6 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { SvgXml } from 'react-native-svg';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import {
@@ -44,6 +46,7 @@ import {
   Inbox,
   Share2,
   ArrowDownWideNarrow,
+  Bell,
 } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { useTheme } from '../../../components/context/ThemeContext';
@@ -51,6 +54,7 @@ import { supabase } from '../../../lib/supabase';
 import { useOpportunities } from '@edutu/core/src/hooks/useOpportunities';
 import { Opportunity } from '@edutu/core/src/types/opportunity';
 import { recordOpportunitySignal } from '@edutu/core/src/services/opportunitySignals';
+import { createSavedSearch } from '@edutu/core/src/services/savedSearches';
 import { getDeadlineBadge, urgencyColor } from '@edutu/core/src/utils/deadline';
 import { LinearGradient } from 'expo-linear-gradient';
 import { syncAndUpdateOpportunityWidgetSnapshot } from '../../../lib/opportunityWidgetSync';
@@ -60,10 +64,11 @@ import { shareOpportunity } from '../../../lib/shareOpportunity';
 
 type SortMode = 'recommended' | 'deadline' | 'newest';
 
+// Labels are i18n keys in the 'opps' namespace, translated at render time.
 const SORT_OPTIONS: Array<{ id: SortMode; label: string }> = [
-  { id: 'recommended', label: 'Recommended' },
-  { id: 'deadline', label: 'Deadline' },
-  { id: 'newest', label: 'Newest' },
+  { id: 'recommended', label: 'list.sort.recommended' },
+  { id: 'deadline', label: 'list.sort.deadline' },
+  { id: 'newest', label: 'list.sort.newest' },
 ];
 
 const { width } = Dimensions.get('window');
@@ -80,31 +85,32 @@ const DISCOVERY_BACKGROUNDS = {
   training_conferences: require('../../../assets/discovery/training-conferences.png'),
 } as const;
 
+// `label` holds an i18n key in the 'opps' namespace, translated at render time.
 const DISCOVERY_CARDS = [
   {
     id: 'scholarships',
-    label: 'Scholarships',
+    label: 'list.discovery.scholarships',
     icon: 'scholarship',
     colors: ['rgba(239,68,35,0.94)', 'rgba(153,27,27,0.82)'] as const,
     image: DISCOVERY_BACKGROUNDS.scholarships,
   },
   {
     id: 'internships',
-    label: 'Internships',
+    label: 'list.discovery.internships',
     icon: 'career',
     colors: ['rgba(37,99,235,0.92)', 'rgba(30,64,175,0.82)'] as const,
     image: DISCOVERY_BACKGROUNDS.internships,
   },
   {
     id: 'grants',
-    label: 'Programs',
+    label: 'list.discovery.programs',
     icon: 'grant',
     colors: ['rgba(16,185,129,0.92)', 'rgba(4,120,87,0.82)'] as const,
     image: DISCOVERY_BACKGROUNDS.grants,
   },
   {
     id: 'fellowships',
-    label: 'Fellowships',
+    label: 'list.discovery.fellowships',
     icon: 'leadership',
     colors: ['rgba(249,115,22,0.94)', 'rgba(194,65,12,0.82)'] as const,
     image: DISCOVERY_BACKGROUNDS.fellowships,
@@ -117,19 +123,20 @@ const DISCOVERY_CARDS = [
   image: number;
 }>;
 
+// `title`/`desc` hold i18n keys in the 'opps' namespace, translated at render time.
 const OTHER_FEATURES = [
   {
     id: 'cv',
-    title: 'CV Builder',
-    desc: 'Build, edit, and tailor your profile',
+    title: 'list.features.cv.title',
+    desc: 'list.features.cv.desc',
     icon: FileText,
     route: '/cv',
     gradient: ['#2563EB', '#4F46E5'] as const,
   },
   {
     id: 'discussion',
-    title: 'Group Discussion',
-    desc: 'Join the community and talk plans',
+    title: 'list.features.discussion.title',
+    desc: 'list.features.discussion.desc',
     icon: Users,
     route: 'https://whatsapp.com/channel/0029VbCHBEVJJhzPcbBboP3y',
     external: true,
@@ -137,48 +144,48 @@ const OTHER_FEATURES = [
   },
   {
     id: 'goals',
-    title: 'Goals',
-    desc: 'Track milestones and momentum',
+    title: 'list.features.goals.title',
+    desc: 'list.features.goals.desc',
     icon: Target,
     route: '/goals',
     gradient: ['#10B981', '#059669'] as const,
   },
   {
     id: 'roadmaps',
-    title: 'Roadmaps',
-    desc: 'Follow guided learning paths',
+    title: 'list.features.roadmaps.title',
+    desc: 'list.features.roadmaps.desc',
     icon: Compass,
     route: '/roadmaps',
     gradient: ['#F59E0B', '#EF4444'] as const,
   },
   {
     id: 'saved',
-    title: 'Saved',
-    desc: 'Revisit shortlisted opportunities',
+    title: 'list.features.saved.title',
+    desc: 'list.features.saved.desc',
     icon: BookmarkPlus,
     route: '/saved',
     gradient: ['#EC4899', '#DB2777'] as const,
   },
   {
     id: 'applied',
-    title: 'Applied',
-    desc: 'Review applications in progress',
+    title: 'list.features.applied.title',
+    desc: 'list.features.applied.desc',
     icon: CheckCircle2,
     route: '/applied',
     gradient: ['#14B8A6', '#0F766E'] as const,
   },
   {
     id: 'deadlines',
-    title: 'Deadlines',
-    desc: 'Keep submissions on track',
+    title: 'list.features.deadlines.title',
+    desc: 'list.features.deadlines.desc',
     icon: Clock,
     route: '/deadlines',
     gradient: ['#F97316', '#DC2626'] as const,
   },
   {
     id: 'studio',
-    title: 'Creator Studio',
-    desc: 'Build and share learning content',
+    title: 'list.features.studio.title',
+    desc: 'list.features.studio.desc',
     icon: LayoutGrid,
     route: '/creator-dashboard',
     gradient: ['#111827', '#374151'] as const,
@@ -350,6 +357,7 @@ function DiscoveryCard({
   active: boolean;
   onPress: () => void;
 }) {
+  const { t } = useTranslation('opps');
   return (
     <Pressable onPress={onPress} style={[styles.discoveryCard, active && styles.discoveryCardActive]}>
       <ImageBackground
@@ -359,7 +367,7 @@ function DiscoveryCard({
         resizeMode="cover"
       >
         <View style={styles.discoveryTint} />
-        <Text style={styles.discoveryTitle} numberOfLines={1}>{item.label}</Text>
+        <Text style={styles.discoveryTitle} numberOfLines={1}>{t(item.label)}</Text>
       </ImageBackground>
     </Pressable>
   );
@@ -374,6 +382,7 @@ function FeatureCard({
   onPress: () => void;
   colors: any;
 }) {
+  const { t } = useTranslation('opps');
   const Icon = item.icon;
 
   return (
@@ -386,8 +395,8 @@ function FeatureCard({
           <ChevronRight size={16} color="rgba(255,255,255,0.92)" />
         </View>
         <View style={styles.featureCardBody}>
-          <Text style={styles.featureCardTitle} numberOfLines={1}>{item.title}</Text>
-          <Text style={styles.featureCardDesc} numberOfLines={2}>{item.desc}</Text>
+          <Text style={styles.featureCardTitle} numberOfLines={1}>{t(item.title)}</Text>
+          <Text style={styles.featureCardDesc} numberOfLines={2}>{t(item.desc)}</Text>
         </View>
       </LinearGradient>
     </Pressable>
@@ -412,6 +421,7 @@ function DiscoveryCategorySvgIcon({ type }: { type: DiscoveryCategoryIcon }) {
 
 // ─── Featured Card (For You horizontal scroll) ──────────────────────────────
 function FeaturedCard({ item, onPress, onShare, colors, isDark, cardStyle }: { item: Opportunity; onPress: () => void; onShare: (item: Opportunity) => void; colors: any; isDark: boolean; cardStyle?: any }) {
+  const { t } = useTranslation('opps');
   const accent = getAccent(item);
   const deadline = getDeadlineText(item.deadline);
   const CategoryIcon = getCategoryIcon(item.category);
@@ -431,11 +441,11 @@ function FeaturedCard({ item, onPress, onShare, colors, isDark, cardStyle }: { i
         <View style={[styles.featuredMatchBadge, { backgroundColor: `${accent}30` }]}>
           <Sparkles size={10} color={accent} />
           <Text style={[styles.featuredMatchText, { color: accent }]}>
-            {item.match ? `${item.match}%` : 'Pick'}
+            {item.match ? `${item.match}%` : t('list.card.pick')}
           </Text>
         </View>
         <View style={[styles.featuredChip, { backgroundColor: 'rgba(255,255,255,0.14)' }]}>
-          <Text style={styles.featuredChipText}>{item.category || 'Match'}</Text>
+          <Text style={styles.featuredChipText}>{item.category || t('list.card.match')}</Text>
         </View>
         {item.stipend && item.stipend > 0 && (
           <View style={[styles.featuredStipendBadge, { backgroundColor: 'rgba(16,185,129,0.3)' }]}>
@@ -452,7 +462,7 @@ function FeaturedCard({ item, onPress, onShare, colors, isDark, cardStyle }: { i
           <View style={styles.featuredMetaPill}>
             <MapPin size={10} color="rgba(255,255,255,0.75)" />
             <Text style={styles.featuredMetaPillText} numberOfLines={1}>
-              {item.isRemote ? 'Remote' : item.location || 'Worldwide'}
+              {item.isRemote ? t('shared.remote') : item.location || t('shared.worldwide')}
             </Text>
           </View>
         </View>
@@ -487,6 +497,7 @@ function FeaturedCard({ item, onPress, onShare, colors, isDark, cardStyle }: { i
 
 // ─── Detail Card (Grid view for explore) ─────────────────────────────────────
 function DetailCard({ item, onPress, onShare, colors, isDark }: { item: Opportunity; onPress: () => void; onShare: (item: Opportunity) => void; colors: any; isDark: boolean }) {
+  const { t } = useTranslation('opps');
   const accent = getAccent(item);
   const deadline = getDeadlineText(item.deadline);
   const CategoryIcon = getCategoryIcon(item.category);
@@ -519,7 +530,7 @@ function DetailCard({ item, onPress, onShare, colors, isDark }: { item: Opportun
       <View style={styles.detailCardBody}>
         <View style={[styles.detailCategoryBadge, { backgroundColor: `${accent}12` }]}>
           <Text style={[styles.detailCategoryText, { color: accent }]} numberOfLines={1}>
-            {item.category || 'Opportunity'}
+            {item.category || t('shared.opportunity')}
           </Text>
         </View>
 
@@ -542,7 +553,7 @@ function DetailCard({ item, onPress, onShare, colors, isDark }: { item: Opportun
           <View style={styles.detailMetaItem}>
             <MapPin size={12} color={colors.textSecondary} />
             <Text style={[styles.detailMetaText, { color: colors.textSecondary }]} numberOfLines={1}>
-              {item.isRemote ? 'Remote' : item.location?.split(',')[0] || 'Worldwide'}
+              {item.isRemote ? t('shared.remote') : item.location?.split(',')[0] || t('shared.worldwide')}
             </Text>
           </View>
           <View style={[styles.detailMetaItem, { backgroundColor: `${deadline.color}10` }]}>
@@ -562,7 +573,7 @@ function DetailCard({ item, onPress, onShare, colors, isDark }: { item: Opportun
             </View>
           ) : (
             <View style={[styles.detailFree, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#f1f5f9' }]}>
-              <Text style={[styles.detailFreeText, { color: colors.textSecondary }]}>Open</Text>
+              <Text style={[styles.detailFreeText, { color: colors.textSecondary }]}>{t('list.card.open')}</Text>
             </View>
           )}
           <View style={styles.detailFooterActions}>
@@ -588,6 +599,7 @@ function DetailCard({ item, onPress, onShare, colors, isDark }: { item: Opportun
 
 // ─── List Row (for list view) ────────────────────────────────────────────────
 function ListRow({ item, onPress, onShare, colors, isDark }: { item: Opportunity; onPress: () => void; onShare: (item: Opportunity) => void; colors: any; isDark: boolean }) {
+  const { t } = useTranslation('opps');
   const accent = getAccent(item);
   const deadline = getDeadlineText(item.deadline);
   const CategoryIcon = getCategoryIcon(item.category);
@@ -606,7 +618,7 @@ function ListRow({ item, onPress, onShare, colors, isDark }: { item: Opportunity
       {/* Content */}
       <View style={styles.listContent}>
         <View style={[styles.listCategoryBadge, { backgroundColor: `${accent}12` }]}>
-          <Text style={[styles.listCategoryText, { color: accent }]}>{item.category || 'Opportunity'}</Text>
+          <Text style={[styles.listCategoryText, { color: accent }]}>{item.category || t('shared.opportunity')}</Text>
         </View>
         <Text style={[styles.listTitle, { color: colors.foreground }]} numberOfLines={2}>{item.title}</Text>
         <Text style={[styles.listOrg, { color: colors.textSecondary }]} numberOfLines={1}>{item.organization}</Text>
@@ -614,7 +626,7 @@ function ListRow({ item, onPress, onShare, colors, isDark }: { item: Opportunity
         <View style={styles.listMeta}>
           <View style={styles.listMetaItem}>
             <MapPin size={10} color={colors.textSecondary} />
-            <Text style={[styles.listMetaText, { color: colors.textSecondary }]}>{item.isRemote ? 'Remote' : item.location?.split(',')[0] || 'Worldwide'}</Text>
+            <Text style={[styles.listMetaText, { color: colors.textSecondary }]}>{item.isRemote ? t('shared.remote') : item.location?.split(',')[0] || t('shared.worldwide')}</Text>
           </View>
           <View style={[styles.listDeadlineBadge, { backgroundColor: `${deadline.color}12` }]}>
             <Clock size={10} color={deadline.color} />
@@ -647,10 +659,11 @@ function ListRow({ item, onPress, onShare, colors, isDark }: { item: Opportunity
 }
 
 export default function OpportunitiesScreen() {
+  const { t } = useTranslation('opps');
   const { user } = useUser();
   const { getToken } = useAuth();
   const router = useRouter();
-  const params = useLocalSearchParams<{ view?: string; category?: string }>();
+  const params = useLocalSearchParams<{ view?: string; category?: string; q?: string }>();
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<Opportunity>>(null);
   const searchInputRef = useRef<TextInput>(null);
@@ -689,6 +702,14 @@ export default function OpportunitiesScreen() {
     const isValidCategory = DISCOVERY_CARDS.some((card) => card.id === categoryParam);
     setSelectedDiscoveryCategory(isValidCategory ? categoryParam as DiscoveryCategoryId : null);
   }, [params.category]);
+
+  // Deep link from saved-search alerts: /opportunities?q=... preloads the search.
+  useEffect(() => {
+    if (typeof params.q === 'string' && params.q.trim()) {
+      setSearchTerm(params.q);
+      setShowSearch(true);
+    }
+  }, [params.q]);
 
   useEffect(() => {
     Animated.timing(searchExpand, {
@@ -744,11 +765,11 @@ export default function OpportunitiesScreen() {
 
   const showForYouOnly = params.view === 'foryou';
   const isCategoryPage = Boolean(selectedDiscoveryCategory);
-  const pageTitle = selectedDiscoveryCategory ? getDiscoveryPageTitle(selectedDiscoveryCategory) : 'Opportunities';
+  const pageTitle = selectedDiscoveryCategory ? t(getDiscoveryPageTitle(selectedDiscoveryCategory)) : t('list.title');
   const selectedDiscoveryCard = getDiscoveryCard(selectedDiscoveryCategory);
   const pageSubtitle = selectedDiscoveryCategory
-    ? `Browse ${getDiscoveryPageTitle(selectedDiscoveryCategory).toLowerCase()} only`
-    : 'Choose a category to explore';
+    ? t('list.browseOnly', { category: t(getDiscoveryPageTitle(selectedDiscoveryCategory)).toLowerCase() })
+    : t('list.chooseCategory');
   const searchHeight = searchExpand.interpolate({ inputRange: [0, 1], outputRange: [0, 70] });
   const searchOpacity = searchExpand.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0, 0, 1] });
   const searchTranslate = searchExpand.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] });
@@ -857,6 +878,44 @@ export default function OpportunitiesScreen() {
     router.push({ pathname: '/opportunities', params: { category: categoryId } });
   }, [router]);
 
+  // Persist the current search/category as a server-side alert: the backend
+  // matches every newly ingested opportunity against it and pushes new hits.
+  const handleSaveSearch = useCallback(async () => {
+    setShowMenu(false);
+    const query = (debouncedSearch || searchTerm).trim();
+    const category = selectedDiscoveryCategory || undefined;
+    if (!query && !category) {
+      Alert.alert(
+        t('list.saveSearch.nothingToSaveTitle'),
+        t('list.saveSearch.nothingToSaveMsg'),
+      );
+      return;
+    }
+    const name = [
+      query ? `“${query}”` : null,
+      category ? category.charAt(0).toUpperCase() + category.slice(1) : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+
+    const created = await createSavedSearch(
+      { name, query: query || undefined, category, notifyEnabled: true },
+      getToken,
+    );
+    if (created) {
+      Alert.alert(
+        t('list.saveSearch.savedTitle'),
+        t('list.saveSearch.savedMsg', { name }),
+        [
+          { text: t('list.saveSearch.manageAlerts'), onPress: () => router.push('/saved-searches' as never) },
+          { text: t('common:actions.done'), style: 'cancel' },
+        ],
+      );
+    } else {
+      Alert.alert(t('list.saveSearch.failedTitle'), t('list.saveSearch.failedMsg'));
+    }
+  }, [debouncedSearch, searchTerm, selectedDiscoveryCategory, getToken, router, t]);
+
   const handleFeaturePress = useCallback((route: string) => {
     setShowMenu(false);
     if (route.startsWith('http')) {
@@ -897,9 +956,9 @@ export default function OpportunitiesScreen() {
         </Animated.View>
       ) : (
         <ScreenHeader
-          title={showForYouOnly ? 'For you' : pageTitle}
+          title={showForYouOnly ? t('list.forYou') : pageTitle}
           showBack
-          subtitle={showForYouOnly ? 'Personalized recommendations' : pageSubtitle}
+          subtitle={showForYouOnly ? t('list.forYouSubtitle') : pageSubtitle}
           right={
             <Pressable onPress={() => setShowMenu((current) => !current)} style={[styles.headerMenuButton, { backgroundColor: colors.card }]}>
               <Menu size={20} color={colors.foreground} />
@@ -912,15 +971,29 @@ export default function OpportunitiesScreen() {
         <View style={[styles.menuSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Pressable style={styles.menuItem} onPress={() => handleMenuAction('search')}>
             <Search size={16} color={colors.foreground} />
-            <Text style={[styles.menuItemText, { color: colors.foreground }]}>{showSearch ? 'Hide Search' : 'Search'}</Text>
+            <Text style={[styles.menuItemText, { color: colors.foreground }]}>{showSearch ? t('list.hideSearch') : t('common:actions.search')}</Text>
           </Pressable>
           <Pressable style={styles.menuItem} onPress={() => handleMenuAction('settings')}>
             <Settings size={16} color={colors.foreground} />
-            <Text style={[styles.menuItemText, { color: colors.foreground }]}>Settings</Text>
+            <Text style={[styles.menuItemText, { color: colors.foreground }]}>{t('list.settings')}</Text>
           </Pressable>
           <Pressable style={styles.menuItem} onPress={() => handleMenuAction('refresh')}>
             <RefreshCw size={16} color={colors.foreground} />
-            <Text style={[styles.menuItemText, { color: colors.foreground }]}>Refresh</Text>
+            <Text style={[styles.menuItemText, { color: colors.foreground }]}>{t('list.refresh')}</Text>
+          </Pressable>
+          <Pressable style={styles.menuItem} onPress={() => void handleSaveSearch()}>
+            <BookmarkPlus size={16} color={colors.accent} />
+            <Text style={[styles.menuItemText, { color: colors.accent }]}>{t('list.saveSearch.menuSave')}</Text>
+          </Pressable>
+          <Pressable
+            style={styles.menuItem}
+            onPress={() => {
+              setShowMenu(false);
+              router.push('/saved-searches' as never);
+            }}
+          >
+            <Bell size={16} color={colors.foreground} />
+            <Text style={[styles.menuItemText, { color: colors.foreground }]}>{t('list.saveSearch.menuAlerts')}</Text>
           </Pressable>
         </View>
       )}
@@ -932,11 +1005,20 @@ export default function OpportunitiesScreen() {
             ref={searchInputRef}
             value={searchTerm}
             onChangeText={setSearchTerm}
-            placeholder="Search scholarships, fellowships, jobs..."
+            placeholder={t('list.searchPlaceholder')}
             placeholderTextColor={colors.textSecondary}
             style={[styles.searchInput, { color: colors.foreground }]}
             returnKeyType="search"
           />
+          {searchTerm.trim().length > 1 && (
+            <Pressable
+              onPress={() => void handleSaveSearch()}
+              style={styles.searchCloseButton}
+              hitSlop={6}
+            >
+              <BookmarkPlus color={colors.accent} size={17} />
+            </Pressable>
+          )}
           <Pressable
             onPress={() => {
               setSearchTerm('');
@@ -989,7 +1071,7 @@ export default function OpportunitiesScreen() {
                   </Pressable>
                 </View>
                 <Animated.View style={[styles.categoryHeroCopy, { opacity: categoryHeroOpacity }]}>
-                  <Text style={styles.categoryHeroEyebrow}>Explore</Text>
+                  <Text style={styles.categoryHeroEyebrow}>{t('list.explore')}</Text>
                   <Text style={styles.categoryHeroTitle}>{pageTitle}</Text>
                 </Animated.View>
               </View>
@@ -998,9 +1080,9 @@ export default function OpportunitiesScreen() {
             {shouldShowChooser && (
               <>
                 <View style={styles.broadIntro}>
-                  <Text style={[styles.broadIntroTitle, { color: colors.foreground }]}>What are you looking for?</Text>
+                  <Text style={[styles.broadIntroTitle, { color: colors.foreground }]}>{t('list.whatLookingFor')}</Text>
                   <Text style={[styles.broadIntroBody, { color: colors.textSecondary }]}>
-                    Pick one category so your feed stays focused.
+                    {t('list.pickCategory')}
                   </Text>
                 </View>
 
@@ -1025,10 +1107,10 @@ export default function OpportunitiesScreen() {
                     <View style={[styles.sectionBadge, { backgroundColor: `${colors.accent}18` }]}>
                       <Sparkles color={colors.accent} size={16} />
                     </View>
-                    <Text style={[styles.sectionTitle, { color: colors.foreground }]}>For you</Text>
+                    <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t('list.forYou')}</Text>
                   </View>
                   <Pressable onPress={() => router.push({ pathname: '/opportunities', params: { view: 'foryou' } })}>
-                    <Text style={[styles.viewMoreText, { color: colors.accent }]}>View all</Text>
+                    <Text style={[styles.viewMoreText, { color: colors.accent }]}>{t('common:actions.viewAll')}</Text>
                   </Pressable>
                 </View>
 
@@ -1050,12 +1132,12 @@ export default function OpportunitiesScreen() {
                   <View style={[styles.emptyRail, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <Sparkles color={colors.accent} size={24} />
                     <Text style={[styles.emptyRailTitle, { color: colors.foreground }]}>
-                      {hasPersonalizationDetails ? 'Building your matches' : 'Complete your profile'}
+                      {hasPersonalizationDetails ? t('list.buildingMatches') : t('list.completeProfile')}
                     </Text>
                     <Text style={[styles.emptyRailBody, { color: colors.textSecondary }]}>
                       {hasPersonalizationDetails
-                        ? 'We\'re ranking opportunities based on your profile.'
-                        : 'Add more profile details for personalized recommendations.'}
+                        ? t('list.rankingByProfile')
+                        : t('list.addProfileDetails')}
                     </Text>
                   </View>
                 )}
@@ -1066,7 +1148,7 @@ export default function OpportunitiesScreen() {
                       <View style={[styles.sectionBadge, { backgroundColor: `${colors.accent}18` }]}>
                         <LayoutGrid color={colors.accent} size={16} />
                       </View>
-                      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Other features</Text>
+                      <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t('list.otherFeatures')}</Text>
                     </View>
                   </View>
 
@@ -1101,7 +1183,7 @@ export default function OpportunitiesScreen() {
                       <Compass color={colors.accent} size={16} />
                     </View>
                     <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-                      {showForYouOnly ? 'Personalized' : pageTitle}
+                      {showForYouOnly ? t('list.personalized') : pageTitle}
                     </Text>
                   </View>
                   <View style={[styles.viewModeWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -1109,13 +1191,13 @@ export default function OpportunitiesScreen() {
                       onPress={() => setViewMode('grid')}
                       style={[styles.viewModeBtn, viewMode === 'grid' && { backgroundColor: `${colors.accent}15`, borderRadius: 10 }]}
                     >
-                      <Text style={[styles.viewModeText, { color: viewMode === 'grid' ? colors.accent : colors.textSecondary }]}>Grid</Text>
+                      <Text style={[styles.viewModeText, { color: viewMode === 'grid' ? colors.accent : colors.textSecondary }]}>{t('list.viewMode.grid')}</Text>
                     </Pressable>
                     <Pressable
                       onPress={() => setViewMode('list')}
                       style={[styles.viewModeBtn, viewMode === 'list' && { backgroundColor: `${colors.accent}15`, borderRadius: 10 }]}
                     >
-                      <Text style={[styles.viewModeText, { color: viewMode === 'list' ? colors.accent : colors.textSecondary }]}>List</Text>
+                      <Text style={[styles.viewModeText, { color: viewMode === 'list' ? colors.accent : colors.textSecondary }]}>{t('list.viewMode.list')}</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -1134,7 +1216,7 @@ export default function OpportunitiesScreen() {
                         ]}
                       >
                         <Text style={[styles.sortChipText, { color: active ? colors.accent : colors.textSecondary }]}>
-                          {option.label}
+                          {t(option.label)}
                         </Text>
                       </Pressable>
                     );
@@ -1164,9 +1246,9 @@ export default function OpportunitiesScreen() {
               <View style={[styles.emptyStateIcon, { backgroundColor: `${colors.accent}18` }]}>
                 <Inbox size={42} color={colors.accent} strokeWidth={1.8} />
               </View>
-              <Text style={[styles.emptyStateTitle, { color: colors.foreground }]}>No opportunities found</Text>
+              <Text style={[styles.emptyStateTitle, { color: colors.foreground }]}>{t('list.emptyTitle')}</Text>
               <Text style={[styles.emptyStateBody, { color: colors.textSecondary }]}>
-                {searchTerm ? 'Try a different search term.' : 'Check back later for new opportunities.'}
+                {searchTerm ? t('list.emptyTrySearch') : t('list.emptyCheckBack')}
               </Text>
             </View>
           )
