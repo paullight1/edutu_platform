@@ -8,7 +8,11 @@ import {
   Patch,
   Logger,
   UseGuards,
+  Sse,
+  Query,
+  type MessageEvent,
 } from "@nestjs/common";
+import { Observable, Subject } from "rxjs";
 import { Throttle } from "@nestjs/throttler";
 import { ScraperService, ScrapeSource } from "./scraper.service";
 import { Public, AdminGuard } from "../auth";
@@ -60,6 +64,61 @@ export class ScraperController {
         error: error.message || "An error occurred",
       };
     }
+  }
+
+  /**
+   * Server-Sent Events stream of a live scrape: emits `start`, `source-start`,
+   * `opportunity` (one per enriched item), `source-done`, and finally `done` /
+   * `error`. The admin UI reads this with fetch()+ReadableStream so it can send
+   * auth headers (EventSource cannot). Guarded by the class-level AdminGuard.
+   */
+  @Sse("run/stream")
+  runScraperStream(
+    @Query()
+    query: { sourceId?: string; allSources?: string; maxPages?: string },
+  ): Observable<MessageEvent> {
+    const subject = new Subject<MessageEvent>();
+    const options = {
+      sourceId: query.sourceId ? Number(query.sourceId) : undefined,
+      allSources: query.sourceId ? false : true,
+      maxPages: query.maxPages ? Number(query.maxPages) : 3,
+    };
+    const emit = (data: unknown) => subject.next({ data } as MessageEvent);
+
+    this.scraperService
+      .runScraper(options, (event) => emit(event))
+      .then((result) => {
+        emit({ type: "done", result });
+        subject.complete();
+      })
+      .catch((error) => {
+        this.logger.error(`Scraper stream failed: ${error?.message}`);
+        emit({ type: "error", error: error?.message || "Scrape failed" });
+        subject.complete();
+      });
+
+    return subject.asObservable();
+  }
+
+  // ─── Live run controls (pause / resume / stop the in-flight scrape) ────────
+  @Post("run/pause")
+  pauseRun() {
+    return this.scraperService.pauseRun();
+  }
+
+  @Post("run/resume")
+  resumeRun() {
+    return this.scraperService.resumeRun();
+  }
+
+  @Post("run/stop")
+  stopRun() {
+    return this.scraperService.stopRun();
+  }
+
+  @Get("run/status")
+  runStatus() {
+    return this.scraperService.getRunStatus();
   }
 
   @Post("backfill")
