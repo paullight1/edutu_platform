@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import { getLocalAdminEmail, isLocalAdminBypassEnabled } from './localAdmin';
 
-const DEFAULT_BACKEND_URL = 'https://edutu-api.onrender.com';
+const DEFAULT_BACKEND_URL = 'https://edutu-platform.onrender.com';
 
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, '');

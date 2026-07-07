@@ -724,7 +724,7 @@ export default function ScraperDashboard() {
         abortControllerRef.current = controller;
 
         try {
-            const backendUrl = (import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'https://edutu-api.onrender.com').replace(/\/$/, '');
+            const backendUrl = getBackendBaseUrl();
 
             // Step 1 → 2
             setCurrentStep(1);
