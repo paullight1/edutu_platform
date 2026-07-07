@@ -15,8 +15,10 @@ import {
 } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import PublicHeader from './PublicHeader';
+import { getDocsUrl, getPublicApiBaseUrl } from '../lib/apiProductUrls';
 
-const docsUrl = import.meta.env.VITE_DOCS_URL || 'https://docs.edutu.org';
+const docsUrl = getDocsUrl();
+const apiBaseUrl = getPublicApiBaseUrl();
 
 type Feature = {
     icon: LucideIcon;
@@ -70,7 +72,7 @@ const features: Feature[] = [
 
 const stats: Stat[] = [
     { value: '31+', label: 'Countries covered' },
-    { value: '5', label: 'REST endpoints' },
+    { value: '9', label: 'REST endpoints' },
     { value: '99.9%', label: 'Uptime SLA' },
     { value: '12K+', label: 'Active opportunities' },
 ];
@@ -79,28 +81,26 @@ const codeTabs: CodeTab[] = [
     {
         label: 'cURL',
         title: 'Fetch the public opportunity feed',
-        code: `curl -X GET "https://api.edutu.org/v1/opportunities?status=active&limit=5" \\
+        code: `curl -X GET "${apiBaseUrl}/opportunities?limit=5" \\
   -H "Authorization: Bearer $EDUTU_API_KEY"`,
     },
     {
         label: 'JavaScript',
         title: 'Query opportunities from your app',
-        code: `import { fetchOpportunities } from 'edutu-sdk';
-
-const opportunities = await fetchOpportunities({
-  status: 'active',
-  category: 'Scholarships',
-  limit: 12,
-});`,
+        code: `const res = await fetch(
+  "${apiBaseUrl}/opportunities?category=scholarships&limit=12",
+  { headers: { "x-edutu-api-key": process.env.EDUTU_API_KEY } },
+);
+const { data, meta } = await res.json();`,
     },
     {
         label: 'Python',
         title: 'Sync opportunities into your system',
         code: `import requests
 
-url = "https://api.edutu.org/v1/opportunities"
+url = "${apiBaseUrl}/opportunities"
 headers = {"Authorization": f"Bearer {API_KEY}"}
-params = {"status": "active", "limit": 50}
+params = {"sort": "updated_desc", "limit": 50}
 
 response = requests.get(url, headers=headers, params=params)
 data = response.json()`,

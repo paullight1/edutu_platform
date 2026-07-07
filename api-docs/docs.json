@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "name": "Edutu Scholarship API",
-  "description": "Verified global scholarships, fellowships, internships, and grants — as an API.",
+  "description": "Verified global scholarships, fellowships, internships, and grants \u2014 as an API.",
   "theme": "polar",
   "colors": {
     "primary": "#146ef5",
@@ -26,11 +26,6 @@
   },
   "anchors": [
     {
-      "name": "Status",
-      "icon": "circle-check",
-      "url": "https://status.edutu.org"
-    },
-    {
       "name": "Support",
       "icon": "envelope",
       "url": "mailto:api@edutu.org"
@@ -39,19 +34,30 @@
   "navigation": [
     {
       "group": "Overview",
-      "pages": ["introduction", "quickstart"]
+      "pages": [
+        "introduction",
+        "quickstart"
+      ]
     },
     {
       "group": "Guides",
-      "pages": ["authentication", "rate-limits", "errors", "pagination"]
+      "pages": [
+        "authentication",
+        "rate-limits",
+        "errors",
+        "pagination"
+      ]
     },
     {
       "group": "Use Cases",
-      "pages": ["use-cases/sync", "use-cases/recommendations"]
+      "pages": [
+        "use-cases/sync",
+        "use-cases/recommendations"
+      ]
     }
   ],
   "api": {
-    "openapi": "https://api.edutu.org/v1/openapi.json"
+    "openapi": "https://edutu-platform.onrender.com/v1/openapi.json"
   },
   "footerSocials": {
     "x": "https://x.com/edutuorg",

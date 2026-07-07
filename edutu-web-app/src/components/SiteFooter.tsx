@@ -1,8 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Github, Linkedin, Twitter } from 'lucide-react';
+import { getDocsUrl, isExternalDocsUrl } from '../lib/apiProductUrls';
 
-const docsUrl = import.meta.env.VITE_DOCS_URL || 'https://docs.edutu.org';
+const docsUrl = getDocsUrl();
 
 type FooterLink = {
     label: string;
@@ -39,7 +40,7 @@ const columns: FooterColumn[] = [
         title: 'Resources',
         links: [
             { label: 'Help Center', to: '/help' },
-            { label: 'Developer Docs', to: docsUrl, external: true },
+            { label: 'Developer Docs', to: docsUrl, external: isExternalDocsUrl() },
             { label: 'Scholarship Engine', to: '/scholarship-engine' },
             { label: 'Privacy Policy', to: '/privacy' },
             { label: 'Terms of Service', to: '/terms' },

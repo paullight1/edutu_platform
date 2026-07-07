@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronRight, Menu, X } from 'lucide-react';
+import { getDocsUrl, isExternalDocsUrl } from '../lib/apiProductUrls';
 
 type NavItem = {
   label: string;
@@ -9,12 +10,12 @@ type NavItem = {
   external?: boolean;
 };
 
-const docsUrl = import.meta.env.VITE_DOCS_URL || "https://docs.edutu.org";
+const docsUrl = getDocsUrl();
 const defaultNavItems: NavItem[] = [
   { label: 'Opportunities', to: '/opportunities' },
   { label: 'Scholarship Engine', to: '/scholarship-engine' },
   { label: 'Developers', to: '/developers' },
-  { label: 'Docs', to: docsUrl, external: true },
+  { label: 'Docs', to: docsUrl, external: isExternalDocsUrl() },
   { label: 'Mentor', to: '/mentor' },
   { label: 'About', to: '/about' },
   { label: 'Blog', to: '/blog' },

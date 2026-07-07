@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ChevronDown, Menu, Moon, Sun, UserRound, X } from "lucide-react";
 import { useAuth as useClerkAuth, useUser } from "@clerk/clerk-react";
 import { useDarkMode } from "../hooks/useDarkMode";
+import { getDocsUrl, isExternalDocsUrl } from "../lib/apiProductUrls";
 
 interface PublicHeaderProps {
   fixed?: boolean;
@@ -15,7 +16,7 @@ type NavItem = {
   external?: boolean;
 };
 
-const docsUrl = import.meta.env.VITE_DOCS_URL || "https://docs.edutu.org";
+const docsUrl = getDocsUrl();
 
 const coreNavItems: NavItem[] = [
   { label: "Opportunities", to: "/opportunities" },
@@ -26,7 +27,7 @@ const coreNavItems: NavItem[] = [
 
 const moreNavItems: NavItem[] = [
   { label: "Scholarship Engine", to: "/scholarship-engine" },
-  { label: "Docs", to: docsUrl, external: true },
+  { label: "Docs", to: docsUrl, external: isExternalDocsUrl() },
   { label: "About", to: "/about" },
   { label: "Events", to: "/events" },
 ];
