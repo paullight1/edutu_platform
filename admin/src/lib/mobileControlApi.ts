@@ -1,6 +1,6 @@
-import { getAdminAuthHeaders } from './backend';
+import { getAdminAuthHeaders, getBackendBaseUrl } from './backend';
 
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'https://edutu-api.onrender.com';
+const API_BASE_URL = getBackendBaseUrl();
 
 export interface MobileCampaign {
   id?: string;

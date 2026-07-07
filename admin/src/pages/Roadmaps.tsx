@@ -5,9 +5,9 @@ import {
     Loader2, AlertCircle, CheckCircle2,
     Star, FileText, X, Plus, Sparkles, ArrowLeft, Users
 } from 'lucide-react';
-import { getAdminAuthHeaders } from '../lib/backend';
+import { getAdminAuthHeaders, getBackendBaseUrl } from '../lib/backend';
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || 'https://edutu-api.onrender.com';
+const API_URL = getBackendBaseUrl();
 
 interface RoadmapStep {
     id: string;
