@@ -1,8 +1,10 @@
 import { Controller, Get } from "@nestjs/common";
+import { Public } from "../auth";
 
 const DEFAULT_API_BASE_URL = "http://localhost:3000/v1";
 const DEFAULT_DOCS_URL = "https://docs.edutu.org";
 
+@Public()
 @Controller("v1")
 export class EdutuApiDocsController {
   @Get()

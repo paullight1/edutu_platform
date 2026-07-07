@@ -1,6 +1,7 @@
 import {
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -56,7 +57,7 @@ export class EdutuApiKeyGuard implements CanActivate {
     );
 
     if (scope && !this.hasScope(consumer.scopes, scope)) {
-      throw new UnauthorizedException(`API key missing scope: ${scope}`);
+      throw new ForbiddenException(`API key missing scope: ${scope}`);
     }
 
     const rateLimit = this.usageService.reserveRateLimit(consumer);
@@ -97,23 +98,24 @@ export class EdutuApiKeyGuard implements CanActivate {
     }
 
     const endpoint = String(request.originalUrl || request.url || "");
-    const creditBalance = await this.usageService.reserveRequestCredit(
+    const credit = await this.usageService.reserveRequestCredit(
       consumer,
       endpoint,
     );
-    if (creditBalance === null && !this.isCreditFreeEndpoint(endpoint)) {
+    if (credit.exhausted) {
       throw new HttpException(
         {
           message: "API credits exhausted",
+          code: "credits_exhausted",
           requestId,
           quota: consumer.quota,
         },
         HttpStatus.PAYMENT_REQUIRED,
       );
     }
-    consumer.creditBalance = creditBalance;
-    if (creditBalance !== null) {
-      response.setHeader("X-Edutu-Credits-Remaining", String(creditBalance));
+    consumer.creditBalance = credit.balance;
+    if (credit.balance !== null) {
+      response.setHeader("X-Edutu-Credits-Remaining", String(credit.balance));
     }
 
     request.apiConsumer = consumer;
@@ -307,9 +309,5 @@ export class EdutuApiKeyGuard implements CanActivate {
       String(Math.max(rateLimit.remaining, 0)),
     );
     response.setHeader("X-RateLimit-Reset", rateLimit.resetAt);
-  }
-
-  private isCreditFreeEndpoint(endpoint: string) {
-    return /\/v1\/(usage|health)(?:\/|$)/i.test(endpoint);
   }
 }

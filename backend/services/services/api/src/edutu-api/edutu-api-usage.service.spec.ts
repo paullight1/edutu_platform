@@ -77,7 +77,7 @@ describe("EdutuApiUsageService", () => {
       "/v1/opportunities",
     );
 
-    expect(remaining).toBe(9);
+    expect(remaining).toEqual({ balance: 9, exhausted: false });
     // set_config + claim insert + decrement = 3 statements.
     expect(txExecute).toHaveBeenCalledTimes(3);
   });
@@ -94,13 +94,13 @@ describe("EdutuApiUsageService", () => {
       "/v1/opportunities",
     );
 
-    expect(remaining).toBe(42);
+    expect(remaining).toEqual({ balance: 42, exhausted: false });
     // set_config + claim (conflict no-op) + current-balance read = 3 statements,
     // the third being a SELECT, not a decrementing UPDATE.
     expect(txExecute).toHaveBeenCalledTimes(3);
   });
 
-  it("returns null and does not persist a charge when credits are exhausted", async () => {
+  it("signals exhaustion and does not persist a charge when credits run out", async () => {
     // Claimed the ledger row, but the guarded decrement matched no row.
     const { txExecute } = stubTransaction({
       claimed: true,
@@ -112,7 +112,7 @@ describe("EdutuApiUsageService", () => {
       "/v1/opportunities",
     );
 
-    expect(remaining).toBeNull(); // InsufficientCreditsError rolls back the tx
+    expect(remaining).toEqual({ balance: 0, exhausted: true }); // InsufficientCreditsError rolls back the tx
     expect(txExecute).toHaveBeenCalledTimes(3);
   });
 
@@ -131,7 +131,23 @@ describe("EdutuApiUsageService", () => {
       "/v1/usage",
     );
 
-    expect(remaining).toBe(17);
+    expect(remaining).toEqual({ balance: 17, exhausted: false });
+    expect(mockedDb.transaction).not.toHaveBeenCalled();
+  });
+
+  it("never blocks consumers without an owner (env/partner keys)", async () => {
+    const remaining = await service.reserveRequestCredit(
+      {
+        id: "env",
+        name: "Environment API key",
+        plan: "internal",
+        scopes: ["*"],
+        monthlyQuota: null,
+      },
+      "/v1/opportunities",
+    );
+
+    expect(remaining).toEqual({ balance: null, exhausted: false });
     expect(mockedDb.transaction).not.toHaveBeenCalled();
   });
 

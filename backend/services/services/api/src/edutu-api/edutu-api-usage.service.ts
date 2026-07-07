@@ -20,6 +20,13 @@ export interface RateLimitReservation {
   retryAfterSeconds: number;
 }
 
+export interface CreditReservation {
+  /** Remaining balance after this request, or null when untracked/unknown. */
+  balance: number | null;
+  /** True only when the owner has a credit balance and it is spent. */
+  exhausted: boolean;
+}
+
 interface RateWindow {
   windowStart: number;
   count: number;
@@ -217,13 +224,16 @@ export class EdutuApiUsageService {
   async reserveRequestCredit(
     consumer: ApiConsumerContext,
     endpoint: string,
-  ): Promise<number | null> {
+  ): Promise<CreditReservation> {
     if (
       consumer.id === "env" ||
       !consumer.ownerUserId ||
       this.isCreditFreeEndpoint(endpoint)
     ) {
-      return this.readCreditBalance(consumer.ownerUserId ?? null);
+      return {
+        balance: await this.readCreditBalance(consumer.ownerUserId ?? null),
+        exhausted: false,
+      };
     }
 
     const ownerUserId = consumer.ownerUserId;
@@ -270,7 +280,10 @@ export class EdutuApiUsageService {
           const current = await tx.execute(sql`
             select credits from profiles where user_id = ${ownerUserId} limit 1
           `);
-          return this.readNumber(current, "credits");
+          return {
+            balance: this.readNumber(current, "credits"),
+            exhausted: false,
+          } satisfies CreditReservation;
         }
 
         // Atomically decrement, but only while credits remain.
@@ -286,18 +299,23 @@ export class EdutuApiUsageService {
           throw new InsufficientCreditsError();
         }
 
-        return this.readNumber(decremented, "credits");
+        return {
+          balance: this.readNumber(decremented, "credits"),
+          exhausted: false,
+        } satisfies CreditReservation;
       });
     } catch (error) {
       if (error instanceof InsufficientCreditsError) {
-        return null;
+        return { balance: 0, exhausted: true };
       }
+      // Infrastructure failure while charging: fail open rather than blocking
+      // paying consumers on a transient DB error.
       this.logger.warn(
         `Unable to reserve API credit: ${
           error instanceof Error ? error.message : "unknown error"
         }`,
       );
-      return null;
+      return { balance: null, exhausted: false };
     }
   }
 
