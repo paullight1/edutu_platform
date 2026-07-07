@@ -1,23 +1,12 @@
 import React, { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
-import { useAuth, useOAuth, useSignIn, useUser } from '@clerk/clerk-expo';
-import * as WebBrowser from 'expo-web-browser';
+import { useAuth, useSignIn, useUser } from '@clerk/clerk-expo';
 import { ArrowRight, Eye, EyeOff, Lock, LogIn, Mail, ShieldCheck } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { AuthShell } from '../../components/auth/AuthShell';
 import { useTheme } from '../../components/context/ThemeContext';
 import i18n from '../../lib/i18n';
-
-WebBrowser.maybeCompleteAuthSession();
-
-const SOCIAL_SIGN_IN_HINT = 'signIn.errors.socialSignInHint';
-
-const PASSWORD_ERROR_CODES = new Set([
-  'form_password_incorrect',
-  'form_identifier_not_found',
-  'form_param_format_invalid',
-]);
 
 type SecondFactorStrategy = 'email_code' | 'phone_code' | 'totp' | 'backup_code';
 
@@ -76,20 +65,6 @@ function secondFactorHint(strategy: SecondFactorStrategy, safeIdentifier?: strin
   return i18n.t('auth:signIn.twoFactor.hintAuthenticator');
 }
 
-function isPasswordSignInError(error: any) {
-  const clerkError = error?.errors?.[0];
-  const code = clerkError?.code;
-  const message = `${clerkError?.message ?? error?.message ?? ''}`.toLowerCase();
-
-  return (
-    PASSWORD_ERROR_CODES.has(code) ||
-    message.includes('password') ||
-    message.includes('identifier') ||
-    message.includes('couldn') ||
-    message.includes('invalid')
-  );
-}
-
 function getClerkErrorText(error: any) {
   const clerkErrors = Array.isArray(error?.errors)
     ? error.errors.map((entry: any) => `${entry?.code ?? ''} ${entry?.message ?? ''} ${entry?.longMessage ?? ''}`).join(' ')
@@ -103,14 +78,6 @@ function isExistingSessionError(error: any) {
   return text.includes('session') && (text.includes('already') || text.includes('exists'));
 }
 
-function AppleIcon({ size, color }: { size: number; color: string }) {
-  return (
-    <Text style={{ fontSize: size * 0.7, fontWeight: '700', color, fontFamily: 'system-ui' }}>
-      &#63743;
-    </Text>
-  );
-}
-
 export default function SignInPage() {
   const { signIn, setActive, isLoaded } = useSignIn();
   const { isSignedIn } = useAuth();
@@ -119,15 +86,11 @@ export default function SignInPage() {
   const router = useRouter();
   const { t } = useTranslation('auth');
 
-  const { startOAuthFlow: googleOAuth } = useOAuth({ strategy: 'oauth_google' });
-  const { startOAuthFlow: appleOAuth } = useOAuth({ strategy: 'oauth_apple' });
-
   const [emailAddress, setEmailAddress] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
-  const [oauthLoading, setOauthLoading] = React.useState<'google' | 'apple' | null>(null);
   const [failedEmail, setFailedEmail] = React.useState('');
   const [failedAttempts, setFailedAttempts] = React.useState(0);
   const [twoFactor, setTwoFactor] = React.useState<TwoFactorState | null>(null);
@@ -148,35 +111,6 @@ export default function SignInPage() {
   const continueExistingSession = () => {
     const destination = user && !user.unsafeMetadata?.onboardingComplete ? '/onboarding' : '/(app)';
     router.replace(destination);
-  };
-
-  const handleOAuth = async (provider: 'google' | 'apple') => {
-    if (isSignedIn) {
-      continueExistingSession();
-      return;
-    }
-
-    setError('');
-    setOauthLoading(provider);
-
-    try {
-      const flow = provider === 'google' ? googleOAuth : appleOAuth;
-      const { createdSessionId, setActive: setActiveSession } = await flow();
-
-      if (createdSessionId && setActiveSession) {
-        await setActiveSession({ session: createdSessionId });
-        router.replace('/');
-      }
-    } catch (err: any) {
-      if (isExistingSessionError(err)) {
-        continueExistingSession();
-        return;
-      }
-
-      setError(err.errors?.[0]?.message || t('oauth.failed', { provider }));
-    } finally {
-      setOauthLoading(null);
-    }
   };
 
   const onSignInPress = async () => {
@@ -223,11 +157,7 @@ export default function SignInPage() {
         setFailedAttempts(nextFailedAttempts);
       }
 
-      if (nextFailedAttempts >= 2 && isPasswordSignInError(err)) {
-        setError(t(SOCIAL_SIGN_IN_HINT));
-      } else {
-        setError(err.errors?.[0]?.message || t('signIn.errors.failed'));
-      }
+      setError(err.errors?.[0]?.message || t('signIn.errors.failed'));
     } finally {
       setLoading(false);
     }
@@ -441,38 +371,6 @@ export default function SignInPage() {
           </>
         ) : (
           <>
-            <View style={styles.oauthRow}>
-              <Pressable
-                style={[styles.oauthButton, { backgroundColor: colors.card, borderColor: colors.border }]}
-                onPress={() => handleOAuth('google')}
-                disabled={oauthLoading !== null}
-              >
-                <View style={styles.oauthIconWrap}>
-                  <Text style={styles.oauthG}>G</Text>
-                </View>
-                <Text style={[styles.oauthLabel, { color: colors.foreground }]}>
-                  {oauthLoading === 'google' ? t('oauth.connecting') : 'Google'}
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[styles.oauthButton, { backgroundColor: colors.card, borderColor: colors.border }]}
-                onPress={() => handleOAuth('apple')}
-                disabled={oauthLoading !== null}
-              >
-                <AppleIcon size={20} color={colors.foreground} />
-                <Text style={[styles.oauthLabel, { color: colors.foreground }]}>
-                  {oauthLoading === 'apple' ? t('oauth.connecting') : 'Apple'}
-                </Text>
-              </Pressable>
-            </View>
-
-            <View style={styles.dividerRow}>
-              <View style={[styles.divider, { backgroundColor: colors.border }]} />
-              <Text style={[styles.dividerText, { color: colors.textSecondary }]}>{t('oauth.orContinueWithEmail')}</Text>
-              <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            </View>
-
             {errorBanner}
 
             <View style={styles.inputContainer}>
@@ -547,49 +445,6 @@ export default function SignInPage() {
 const styles = StyleSheet.create({
   formStack: {
     gap: 16,
-  },
-  oauthRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  oauthButton: {
-    flex: 1,
-    minHeight: 54,
-    borderRadius: 16,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  oauthIconWrap: {
-    width: 22,
-    height: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  oauthG: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#EA4335',
-  },
-  oauthLabel: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    marginVertical: 4,
-  },
-  divider: {
-    flex: 1,
-    height: 1,
-  },
-  dividerText: {
-    fontSize: 13,
-    fontWeight: '600',
   },
   inputContainer: {
     gap: 12,

@@ -7,7 +7,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useAuth, useOAuth, useSignUp, useUser } from '@clerk/clerk-expo';
+import { useAuth, useSignUp, useUser } from '@clerk/clerk-expo';
 import * as WebBrowser from 'expo-web-browser';
 import { Link, useRouter } from 'expo-router';
 import {
@@ -22,8 +22,6 @@ import {
 import { useTranslation } from 'react-i18next';
 import { AuthShell } from '../../components/auth/AuthShell';
 import { useTheme } from '../../components/context/ThemeContext';
-
-WebBrowser.maybeCompleteAuthSession();
 
 function ErrorBox({ message }: { message: string }) {
   const { isDark } = useTheme();
@@ -56,14 +54,6 @@ function isExistingSessionError(error: any) {
   return text.includes('session') && (text.includes('already') || text.includes('exists'));
 }
 
-function AppleIcon({ size, color }: { size: number; color: string }) {
-  return (
-    <Text style={{ fontSize: size * 0.7, fontWeight: '700', color, fontFamily: 'system-ui' }}>
-      &#63743;
-    </Text>
-  );
-}
-
 export default function SignUpScreen() {
   const { isLoaded, signUp, setActive } = useSignUp();
   const { isSignedIn } = useAuth();
@@ -72,9 +62,6 @@ export default function SignUpScreen() {
   const router = useRouter();
   const { t } = useTranslation('auth');
 
-  const { startOAuthFlow: googleOAuth } = useOAuth({ strategy: 'oauth_google' });
-  const { startOAuthFlow: appleOAuth } = useOAuth({ strategy: 'oauth_apple' });
-
   const [fullName, setFullName] = React.useState('');
   const [emailAddress, setEmailAddress] = React.useState('');
   const [password, setPassword] = React.useState('');
@@ -82,41 +69,11 @@ export default function SignUpScreen() {
   const [pendingVerification, setPendingVerification] = React.useState(false);
   const [code, setCode] = React.useState('');
   const [loading, setLoading] = React.useState(false);
-  const [oauthLoading, setOauthLoading] = React.useState<'google' | 'apple' | null>(null);
   const [error, setError] = React.useState('');
 
   const continueExistingSession = () => {
     const destination = user && !user.unsafeMetadata?.onboardingComplete ? '/onboarding' : '/(app)';
     router.replace(destination);
-  };
-
-  const handleOAuth = async (provider: 'google' | 'apple') => {
-    if (isSignedIn) {
-      continueExistingSession();
-      return;
-    }
-
-    setError('');
-    setOauthLoading(provider);
-
-    try {
-      const flow = provider === 'google' ? googleOAuth : appleOAuth;
-      const { createdSessionId, setActive: setActiveSession } = await flow();
-
-      if (createdSessionId && setActiveSession) {
-        await setActiveSession({ session: createdSessionId });
-        router.replace('/onboarding');
-      }
-    } catch (err: any) {
-      if (isExistingSessionError(err)) {
-        continueExistingSession();
-        return;
-      }
-
-      setError(err.errors?.[0]?.message || t('oauth.failed', { provider }));
-    } finally {
-      setOauthLoading(null);
-    }
   };
 
   const onSignUpPress = async () => {
@@ -275,36 +232,6 @@ export default function SignUpScreen() {
       icon={Sparkles}
       align="top"
     >
-      <View style={styles.oauthRow}>
-        <Pressable
-          style={[styles.oauthButton, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={() => handleOAuth('google')}
-          disabled={oauthLoading !== null}
-        >
-          <Text style={styles.oauthG}>G</Text>
-          <Text style={[styles.oauthLabel, { color: colors.foreground }]}>
-            {oauthLoading === 'google' ? t('oauth.connecting') : 'Google'}
-          </Text>
-        </Pressable>
-
-        <Pressable
-          style={[styles.oauthButton, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={() => handleOAuth('apple')}
-          disabled={oauthLoading !== null}
-        >
-          <AppleIcon size={20} color={colors.foreground} />
-          <Text style={[styles.oauthLabel, { color: colors.foreground }]}>
-            {oauthLoading === 'apple' ? t('oauth.connecting') : 'Apple'}
-          </Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.dividerRow}>
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
-        <Text style={[styles.dividerText, { color: colors.textSecondary }]}>{t('oauth.orContinueWithEmail')}</Text>
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
-      </View>
-
       {error ? <ErrorBox message={error} /> : null}
 
       <View style={styles.inputContainer}>
@@ -398,47 +325,6 @@ export default function SignUpScreen() {
 }
 
 const styles = StyleSheet.create({
-  oauthRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  oauthButton: {
-    flex: 1,
-    minHeight: 54,
-    borderRadius: 16,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  oauthG: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#EA4335',
-  },
-  oauthApple: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  oauthLabel: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    marginVertical: 4,
-  },
-  divider: {
-    flex: 1,
-    height: 1,
-  },
-  dividerText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
   inputContainer: {
     gap: 12,
   },

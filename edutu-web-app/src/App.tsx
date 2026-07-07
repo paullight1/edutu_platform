@@ -532,6 +532,8 @@ function App() {
       <Route path="/blog/:slug" element={<BlogPostPage />} />
       <Route path="/privacy" element={<PrivacyPolicyPage />} />
       <Route path="/terms" element={<TermsPage />} />
+      {/* Mobile app.config supportUrl points here; /privacy is the single legal/contact hub. */}
+      <Route path="/support" element={<Navigate to="/privacy" replace />} />
       <Route path="/careers" element={<CareersPage />} />
       <Route path="/help" element={<HelpCenterPage />} />
       <Route path="/app/help" element={<Navigate to="/help" replace />} />

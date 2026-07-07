@@ -40,7 +40,7 @@ const sections: LegalSection[] = [
     {
         heading: '6. Changes and Contact',
         body: [
-            'We may update these terms from time to time. If we make significant changes, we will let you know. Continued use of Edutu after changes means you accept the updated terms. Questions? Contact us at support@edutu.org.',
+            'We may update these terms from time to time. If we make significant changes, we will let you know. Continued use of Edutu after changes means you accept the updated terms. Questions? Contact us at my.edutu@gmail.com.',
         ],
     },
 ];
@@ -49,7 +49,7 @@ const TermsPage: React.FC = () => (
     <LegalDocPage
         eyebrow="Legal"
         title="Terms of Service"
-        lastUpdated="July 6, 2026"
+        lastUpdated="July 7, 2026"
         intro="These terms set out the simple rules for using Edutu. We keep them clear so you know what to expect from us, and what we expect from you."
         sections={sections}
     />
