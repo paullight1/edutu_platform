@@ -65,9 +65,34 @@ export class EdutuApiDocsController {
         },
         {
           method: "GET",
+          path: "/v1/opportunities/stats",
+          access: "api key",
+          description: "Inspect catalog health and coverage.",
+        },
+        {
+          method: "GET",
+          path: "/v1/opportunities/sync",
+          access: "api key",
+          description:
+            "Delta sync of changed rows (requires opportunities:sync).",
+        },
+        {
+          method: "GET",
           path: "/v1/opportunities/:id",
           access: "api key",
           description: "Fetch a single normalized opportunity.",
+        },
+        {
+          method: "POST",
+          path: "/v1/recommendations",
+          access: "api key",
+          description: "Ranked opportunities for a supplied profile.",
+        },
+        {
+          method: "POST",
+          path: "/v1/events",
+          access: "api key",
+          description: "Record partner impressions, clicks, and conversions.",
         },
         {
           method: "GET",
@@ -239,7 +264,7 @@ export class EdutuApiDocsController {
             name: "limit",
             in: "query",
             required: false,
-            schema: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+            schema: { type: "integer", minimum: 1, maximum: 100, default: 25 },
             description: "Page size. Maximum 100.",
           },
           OpportunityCursor: {

@@ -30,10 +30,11 @@ import {
   type DeveloperEnvironment,
   type DeveloperProjectSummary,
 } from "../services/developer";
+import { getDocsUrl, getOpenApiUrl, getPublicApiBaseUrl } from "../lib/apiProductUrls";
 
-const docsUrl = import.meta.env.VITE_DOCS_URL || "https://docs.edutu.org";
-const apiSpecUrl =
-  import.meta.env.VITE_API_OPENAPI_URL || "https://api.edutu.org/v1/openapi.json";
+const docsUrl = getDocsUrl();
+const apiBaseUrl = getPublicApiBaseUrl();
+const apiSpecUrl = getOpenApiUrl();
 
 const scopeOptions = [
   {
@@ -472,7 +473,7 @@ export default function DeveloperDashboardPage() {
                 <ActivityBadge icon={KeyRound} label="Bearer token" />
               </div>
               <pre className="mt-4 overflow-x-auto rounded-2xl border border-subtle bg-surface-elevated p-4 text-xs leading-6 text-text-secondary">
-{`curl -X GET https://api.edutu.org/v1/opportunities?limit=10 \\
+{`curl -X GET ${apiBaseUrl}/opportunities?limit=10 \\
   -H "Authorization: Bearer edu_live_your_prefix_your_secret" \\
   -H "x-request-id: req_12345"`}
               </pre>

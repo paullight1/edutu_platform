@@ -140,7 +140,33 @@ describe("EdutuApiKeyGuard", () => {
     });
 
     await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
-      UnauthorizedException,
+      ForbiddenException,
     );
+  });
+
+  it("returns 402 with a stable code when credits are exhausted", async () => {
+    (usageService.reserveRequestCredit as jest.Mock).mockResolvedValue({
+      balance: 0,
+      exhausted: true,
+    });
+    const reflector = new Reflector();
+    jest.spyOn(reflector, "getAllAndOverride").mockReturnValue(undefined);
+    const guard = new EdutuApiKeyGuard(reflector, usageService as any);
+    jest.spyOn(guard as any, "resolveConsumer").mockResolvedValue({
+      id: "consumer-1",
+      name: "Test consumer",
+      plan: "starter",
+      scopes: ["*"],
+      monthlyQuota: null,
+      ownerUserId: "user-1",
+    });
+    const { context } = createContext({
+      authorization: "Bearer edutu_live_test",
+    });
+
+    await expect(guard.canActivate(context)).rejects.toMatchObject({
+      status: 402,
+      response: expect.objectContaining({ code: "credits_exhausted" }),
+    });
   });
 });

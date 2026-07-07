@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Database, Globe, Server, Smartphone } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import PublicEditorialShell from './PublicEditorialShell';
+import { getDocsUrl } from '../lib/apiProductUrls';
 
-const docsUrl = import.meta.env.VITE_DOCS_URL || 'https://docs.edutu.org';
+const docsUrl = getDocsUrl();
 
 type Endpoint = {
   method: string;

@@ -25,6 +25,7 @@ import { consumePostAuthRedirect } from "./lib/auth";
 import { initializeCapacitor } from "./lib/capacitor";
 import { verifyAdminAccess } from "./lib/adminAccess";
 import { useAuth as useAppAuth } from "./hooks/useAuth";
+import { getDocsUrl, isExternalDocsUrl } from "./lib/apiProductUrls";
 import { useAbsoluteSessionTimeout } from "./hooks/useAbsoluteSessionTimeout";
 
 const AuthScreen = lazy(() => import("./components/AuthScreen"));
@@ -60,6 +61,7 @@ const DevelopersLandingPage = lazy(
 const DeveloperDashboardPage = lazy(
   () => import("./components/DeveloperDashboardPage"),
 );
+const DeveloperDocsPage = lazy(() => import("./components/DeveloperDocsPage"));
 const DeadlinesPage = lazy(() => import("./components/DeadlinesPage"));
 const GoalsPage = lazy(() => import("./components/GoalsPage"));
 const ProfilePage = lazy(() => import("./components/ProfilePage"));
@@ -70,7 +72,7 @@ const SettingsPage = lazy(() => import("./components/SettingsPage"));
 
 const ADMIN_PORTAL_URL =
   import.meta.env.VITE_ADMIN_URL || "https://admin.edutu.org";
-const DOCS_SITE_URL = import.meta.env.VITE_DOCS_URL || "https://docs.edutu.org";
+const DOCS_SITE_URL = getDocsUrl();
 // When the Next.js marketing site is live, set VITE_MARKETING_URL (e.g.
 // https://www.edutu.org) and the public marketing routes redirect there.
 const MARKETING_SITE_URL = import.meta.env.VITE_MARKETING_URL || "";
@@ -304,6 +306,15 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 }
 
 function DocsRedirect() {
+  // The in-app docs fallback is a router path; hosted docs are cross-origin.
+  if (!isExternalDocsUrl()) {
+    return <Navigate to={DOCS_SITE_URL} replace />;
+  }
+
+  return <ExternalDocsRedirect />;
+}
+
+function ExternalDocsRedirect() {
   useEffect(() => {
     window.location.replace(DOCS_SITE_URL);
   }, []);
@@ -547,6 +558,7 @@ function App() {
           <MarketingRedirect path="/scholarship-api" fallback={<DevelopersLandingPage />} />
         }
       />
+      <Route path="/developers/docs" element={<DeveloperDocsPage />} />
       <Route
         path="/dashboard/developer"
         element={

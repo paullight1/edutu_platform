@@ -20,12 +20,12 @@ Pick the header style you prefer — all three are accepted.
 
 <CodeGroup>
 ```bash cURL
-curl https://api.edutu.org/v1/opportunities?limit=3 \
+curl https://edutu-platform.onrender.com/v1/opportunities?limit=3 \
   -H "x-edutu-api-key: edu_live_xxxxxxxxxxxx"
 ```
 
 ```javascript JavaScript
-const res = await fetch("https://api.edutu.org/v1/opportunities?limit=3", {
+const res = await fetch("https://edutu-platform.onrender.com/v1/opportunities?limit=3", {
   headers: { "x-edutu-api-key": process.env.EDUTU_API_KEY },
 });
 const { data } = await res.json();
@@ -36,7 +36,7 @@ console.log(data);
 import os, httpx
 
 r = httpx.get(
-    "https://api.edutu.org/v1/opportunities",
+    "https://edutu-platform.onrender.com/v1/opportunities",
     params={"limit": 3},
     headers={"x-edutu-api-key": os.environ["EDUTU_API_KEY"]},
 )
@@ -73,7 +73,7 @@ A successful response looks like:
 ## 3. Check your usage
 
 ```bash
-curl https://api.edutu.org/v1/usage \
+curl https://edutu-platform.onrender.com/v1/usage \
   -H "x-edutu-api-key: edu_live_xxxxxxxxxxxx"
 ```
 

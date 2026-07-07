@@ -3,7 +3,7 @@
 This folder is the source for **docs.edutu.org**, built with
 [Mintlify](https://mintlify.com). The full **API Reference** is generated
 automatically from the backend's OpenAPI spec
-(`GET https://api.edutu.org/v1/openapi.json`) — no hand-written endpoint pages.
+(`GET https://edutu-platform.onrender.com/v1/openapi.json`) — no hand-written endpoint pages.
 
 ## Structure
 
@@ -40,11 +40,11 @@ npx mintlify@latest dev   # from this folder
 ## Keeping the reference in sync
 
 The reference is pulled live from
-`https://api.edutu.org/v1/openapi.json` at build time. If you prefer a
+`https://edutu-platform.onrender.com/v1/openapi.json` at build time. If you prefer a
 version-controlled snapshot (recommended for reproducible docs):
 
 ```bash
-curl https://api.edutu.org/v1/openapi.json -o openapi.json
+curl https://edutu-platform.onrender.com/v1/openapi.json -o openapi.json
 ```
 
 …then change `docs.json` → `"api": { "openapi": "openapi.json" }` and commit it.

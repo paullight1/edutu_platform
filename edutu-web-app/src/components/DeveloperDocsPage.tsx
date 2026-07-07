@@ -17,8 +17,9 @@ import {
 } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import PublicEditorialShell from './PublicEditorialShell';
+import { getOpenApiUrl } from '../lib/apiProductUrls';
 
-const apiSpecUrl = import.meta.env.VITE_API_OPENAPI_URL || 'https://api.edutu.org/v1/openapi.json';
+const apiSpecUrl = getOpenApiUrl();
 
 type DocLink = {
     label: string;
