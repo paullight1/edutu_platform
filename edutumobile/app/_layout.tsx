@@ -15,6 +15,8 @@ import { AppState, type AppStateStatus, View, Text } from "react-native";
 import { setSupabaseAccessTokenGetter } from "../packages/core/src/services/supabase";
 import { useInAppUpdatePrompt } from "../lib/updatePrompt";
 import { MobileCampaignHost } from "../components/mobile-control/MobileCampaignHost";
+import { AppControlGate } from "../components/mobile-control/AppControlGate";
+import { AppControlProvider } from "../components/context/AppControlContext";
 import { syncWidgetSuite } from "../lib/widgetSuiteSync";
 import { registerWidgetBackgroundRefresh } from "../lib/widgetBackgroundTask";
 import { getConfig } from "../lib/config";
@@ -143,12 +145,17 @@ function RootLayoutContent() {
         <ErrorBoundary message="Something went wrong with the app">
             <SafeAreaProvider>
                 <OfflineProvider>
-                    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
-                        <StatusBar style={isDark ? "light" : "dark"} />
-                        <Slot />
-                        <OfflineBanner />
-                        <MobileCampaignHost />
-                    </GestureHandlerRootView>
+                    <AppControlProvider>
+                        <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
+                            <StatusBar style={isDark ? "light" : "dark"} />
+                            <Slot />
+                            <OfflineBanner />
+                            <MobileCampaignHost />
+                            {/* Last child so the force-update / maintenance gate
+                                covers every screen and overlay above. */}
+                            <AppControlGate />
+                        </GestureHandlerRootView>
+                    </AppControlProvider>
                 </OfflineProvider>
             </SafeAreaProvider>
         </ErrorBoundary>

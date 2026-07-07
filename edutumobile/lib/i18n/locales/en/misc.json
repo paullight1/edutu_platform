@@ -1,509 +1,564 @@
 {
-  "creatorApply": {
-    "title": "Become a Creator",
-    "types": {
-      "scholarship": { "label": "Scholarship", "desc": "Academic scholarships & grants" },
-      "fellowship": { "label": "Fellowship", "desc": "Research & professional fellowships" },
-      "internship": { "label": "Internship", "desc": "Professional internship programs" },
-      "job": { "label": "Full-time Job", "desc": "Full-time employment offers" },
-      "program": { "label": "Accelerator/Program", "desc": "Accelerators & training programs" },
-      "other": { "label": "Other", "desc": "Other opportunities" }
+    "creatorApply": {
+        "title": "Become a Creator",
+        "types": {
+            "scholarship": {
+                "label": "Scholarship",
+                "desc": "Academic scholarships & grants"
+            },
+            "fellowship": {
+                "label": "Fellowship",
+                "desc": "Research & professional fellowships"
+            },
+            "internship": {
+                "label": "Internship",
+                "desc": "Professional internship programs"
+            },
+            "job": {
+                "label": "Full-time Job",
+                "desc": "Full-time employment offers"
+            },
+            "program": {
+                "label": "Accelerator/Program",
+                "desc": "Accelerators & training programs"
+            },
+            "other": {
+                "label": "Other",
+                "desc": "Other opportunities"
+            }
+        },
+        "motivations": {
+            "helpOthers": "I want to help others achieve what I achieved",
+            "mentor": "I enjoy mentoring and sharing knowledge",
+            "giveBack": "I want to give back to the community",
+            "document": "I want to document my journey for others",
+            "payForward": "I believe in paying it forward"
+        },
+        "alerts": {
+            "uploadImageFailed": "Failed to upload image. Please try again.",
+            "submitFailed": "Connection failed. Please try again."
+        },
+        "success": {
+            "headerTitle": "Application Submitted",
+            "title": "Welcome to the Creator Community!",
+            "text": "We have received your application and are excited to review your journey. Our team will verify your credentials within 2-3 business days.",
+            "applicationId": "Application ID",
+            "status": "Status",
+            "pendingReview": "Pending Review",
+            "responseTime": "Response Time",
+            "responseTimeValue": "2-3 days",
+            "backToProfile": "Back to Profile"
+        },
+        "intro": {
+            "heroTitle": "Share Your Victory Story",
+            "heroSubtitle": "You've achieved something incredible. Inspire the next generation by sharing your roadmap to success.",
+            "you": "You",
+            "yourName": "Your Name",
+            "futureCreator": "Future Creator",
+            "statStudentsHelped": "Students Helped",
+            "statSuccessStories": "Success Stories",
+            "statRevenueShare": "Revenue Share",
+            "benefit": "As a verified creator, you'll earn <bold>85% revenue share</bold> from every roadmap sale and reach thousands of learners worldwide."
+        },
+        "motivation": {
+            "title": "What motivates you?",
+            "desc": "Select the reason that best describes why you want to become a creator."
+        },
+        "achievement": {
+            "title": "Your Achievement",
+            "desc": "Tell us about the opportunity you secured so we can help others follow your path.",
+            "typeLabel": "Opportunity Type",
+            "nameLabel": "Opportunity Name",
+            "namePlaceholder": "e.g., Mastercard Foundation Scholarship 2024",
+            "linkedinLabel": "LinkedIn Profile",
+            "portfolioLabel": "Portfolio URL (Optional)",
+            "portfolioPlaceholder": "Link to your portfolio or personal website"
+        },
+        "verification": {
+            "title": "Verification",
+            "desc": "We verify all creators to maintain quality and trust. Upload a document to confirm your achievement.",
+            "documentLabel": "Verification Document",
+            "documentHint": "Upload your award letter, certificate, acceptance email, or ID",
+            "tapToUpload": "Tap to upload",
+            "acceptedFormats": "JPG, PNG accepted",
+            "verified": "Verified",
+            "storyLabel": "Your Story",
+            "storyPlaceholder": "Share your journey - how you prepared, challenges you faced, and advice for others...",
+            "socialLabel": "Social Links (Optional)",
+            "socialPlaceholder": "Twitter, YouTube, etc. (comma separated)"
+        },
+        "review": {
+            "title": "Review Application",
+            "desc": "Double-check your details before submitting.",
+            "motivation": "Motivation",
+            "achievement": "Achievement",
+            "type": "Type",
+            "name": "Name",
+            "verification": "Verification",
+            "documentUploaded": "Document uploaded",
+            "bio": "Bio",
+            "callout": "Your application will be reviewed within <bold>2-3 business days</bold>. You'll be notified once approved."
+        },
+        "submitApplication": "Submit Application"
     },
-    "motivations": {
-      "helpOthers": "I want to help others achieve what I achieved",
-      "mentor": "I enjoy mentoring and sharing knowledge",
-      "giveBack": "I want to give back to the community",
-      "document": "I want to document my journey for others",
-      "payForward": "I believe in paying it forward"
-    },
-    "alerts": {
-      "uploadImageFailed": "Failed to upload image. Please try again.",
-      "submitFailed": "Connection failed. Please try again."
-    },
-    "success": {
-      "headerTitle": "Application Submitted",
-      "title": "Welcome to the Creator Community!",
-      "text": "We have received your application and are excited to review your journey. Our team will verify your credentials within 2-3 business days.",
-      "applicationId": "Application ID",
-      "status": "Status",
-      "pendingReview": "Pending Review",
-      "responseTime": "Response Time",
-      "responseTimeValue": "2-3 days",
-      "backToProfile": "Back to Profile"
-    },
-    "intro": {
-      "heroTitle": "Share Your Victory Story",
-      "heroSubtitle": "You've achieved something incredible. Inspire the next generation by sharing your roadmap to success.",
-      "you": "You",
-      "yourName": "Your Name",
-      "futureCreator": "Future Creator",
-      "statStudentsHelped": "Students Helped",
-      "statSuccessStories": "Success Stories",
-      "statRevenueShare": "Revenue Share",
-      "benefit": "As a verified creator, you'll earn <bold>85% revenue share</bold> from every roadmap sale and reach thousands of learners worldwide."
-    },
-    "motivation": {
-      "title": "What motivates you?",
-      "desc": "Select the reason that best describes why you want to become a creator."
-    },
-    "achievement": {
-      "title": "Your Achievement",
-      "desc": "Tell us about the opportunity you secured so we can help others follow your path.",
-      "typeLabel": "Opportunity Type",
-      "nameLabel": "Opportunity Name",
-      "namePlaceholder": "e.g., Mastercard Foundation Scholarship 2024",
-      "linkedinLabel": "LinkedIn Profile",
-      "portfolioLabel": "Portfolio URL (Optional)",
-      "portfolioPlaceholder": "Link to your portfolio or personal website"
-    },
-    "verification": {
-      "title": "Verification",
-      "desc": "We verify all creators to maintain quality and trust. Upload a document to confirm your achievement.",
-      "documentLabel": "Verification Document",
-      "documentHint": "Upload your award letter, certificate, acceptance email, or ID",
-      "tapToUpload": "Tap to upload",
-      "acceptedFormats": "JPG, PNG accepted",
-      "verified": "Verified",
-      "storyLabel": "Your Story",
-      "storyPlaceholder": "Share your journey - how you prepared, challenges you faced, and advice for others...",
-      "socialLabel": "Social Links (Optional)",
-      "socialPlaceholder": "Twitter, YouTube, etc. (comma separated)"
-    },
-    "review": {
-      "title": "Review Application",
-      "desc": "Double-check your details before submitting.",
-      "motivation": "Motivation",
-      "achievement": "Achievement",
-      "type": "Type",
-      "name": "Name",
-      "verification": "Verification",
-      "documentUploaded": "Document uploaded",
-      "bio": "Bio",
-      "callout": "Your application will be reviewed within <bold>2-3 business days</bold>. You'll be notified once approved."
-    },
-    "submitApplication": "Submit Application"
-  },
-  "creatorDashboard": {
-    "title": "Creator Studio",
-    "subtitle": "Create & manage your roadmaps",
-    "loading": "Loading Creator Studio...",
-    "longLoad": {
-      "title": "This is taking longer than expected",
-      "text": "Please try again later or go back while we reconnect.",
-      "tryAgain": "Try Again"
-    },
-    "access": {
-      "pendingBadge": "Application Pending",
-      "pendingDesc": "Your application is being reviewed by our team. We'll notify you once it's approved. This usually takes 2-3 business days.",
-      "pendingInfo": "While you wait, you can browse other creators' roadmaps for inspiration.",
-      "browseRoadmaps": "Browse Roadmaps",
-      "rejectedBadge": "Application Not Approved",
-      "rejectedDesc": "Unfortunately, your application wasn't approved. You can submit a new application with additional details.",
-      "reapply": "Reapply",
-      "noneDesc": "Join our creator community and share your knowledge with thousands of learners. Earn credits while helping others achieve their goals.",
-      "perkRevenue": "85% Revenue Share",
-      "perkReach": "Reach 10K+ Students",
-      "perkBadge": "Verified Creator Badge",
-      "applyCta": "Apply to Become a Creator"
-    },
-    "welcomeGreeting": "Welcome back,",
-    "creatorFallback": "Creator",
-    "createRoadmap": "Create Roadmap",
-    "overview": "Overview",
-    "stats": {
-      "totalCredits": "Total Credits",
-      "totalStudents": "Total Students",
-      "roadmaps": "Roadmaps"
-    },
-    "rewards": {
-      "title": "Creator Rewards",
-      "text": "You earn <bold>85%</bold> of every roadmap sale."
-    },
-    "myRoadmaps": "My Roadmaps",
-    "empty": {
-      "title": "No roadmaps yet",
-      "subtext": "Create your first roadmap and start sharing your knowledge with the community.",
-      "cta": "Create Your First Roadmap"
-    },
-    "free": "Free",
-    "priceCr": "{{price}} cr",
-    "alerts": {
-      "thumbnailUploaded": "Thumbnail uploaded!",
-      "uploadFailedTitle": "Upload Failed",
-      "fileUploaded": "File uploaded successfully.",
-      "missingInfoTitle": "Missing Info",
-      "missingInfoMessage": "Please fill in the title and description.",
-      "missingCurriculumTitle": "Missing Curriculum",
-      "missingCurriculumMessage": "Add at least one roadmap stage.",
-      "publishFailed": "Unable to publish roadmap.",
-      "publishedTitle": "Success!",
-      "publishedMessage": "Your roadmap is published and visible to learners.",
-      "failedTitle": "Failed",
-      "failedFallback": "Please try again."
-    },
-    "wizard": {
-      "basicsTitle": "Roadmap Basics",
-      "basicsDesc": "Tell us about your roadmap",
-      "curriculumTitle": "Curriculum Stages",
-      "curriculumDesc": "Define the learning stages",
-      "resourcesTitle": "Resources & Files",
-      "resourcesDesc": "Add supporting materials",
-      "reviewTitle": "Review & Submit",
-      "reviewDesc": "Double-check before submitting",
-      "basicsCallout": "You're creating a <bold>roadmap</bold> — a step-by-step learning guide that helps students achieve specific goals.",
-      "titleLabel": "Roadmap Title",
-      "titlePlaceholder": "e.g. Complete Web Development Roadmap",
-      "descriptionLabel": "Description",
-      "descriptionPlaceholder": "What will students learn? What outcomes can they expect?",
-      "categoryLabel": "Category",
-      "thumbnailLabel": "Thumbnail Image",
-      "uploaded": "Uploaded",
-      "browseDevice": "Browse from device",
-      "ratioHint": "16:9 ratio recommended",
-      "priceLabel": "Price (Credits)",
-      "pricePlaceholder": "0 for free roadmap",
-      "experienceLabel": "Your Experience",
-      "experiencePlaceholder": "Why are you qualified to create this roadmap?",
-      "curriculumCallout": "Break your roadmap into <bold>stages</bold>. Each stage represents a key milestone in the student's journey.",
-      "stageNumber": "Stage {{number}}",
-      "stageTitlePlaceholder": "Stage title (e.g. Fundamentals)",
-      "stageDescPlaceholder": "Brief description of this stage",
-      "stageDurationPlaceholder": "Duration (e.g. Week 1-2)",
-      "addStage": "Add Stage",
-      "resourcesCallout": "Add resources like sample files, templates, or documents that students can download.",
-      "resourceNamePlaceholder": "Resource name",
-      "uploadFile": "Upload file",
-      "addResource": "Add Resource",
-      "reviewCallout": "Review your roadmap details before publishing. As an approved creator, it goes live to learners immediately.",
-      "reviewBasics": "Basics",
-      "reviewTitleLabel": "Title",
-      "reviewCategoryLabel": "Category",
-      "reviewPriceLabel": "Price",
-      "priceCredits": "{{price}} credits",
-      "reviewCurriculum": "Curriculum ({{total}} stages)",
-      "reviewResources": "Resources ({{total}})",
-      "untitled": "Untitled",
-      "fileAttached": "✓ {{fileName}}",
-      "submitForReview": "Submit for Review"
-    }
-  },
-  "mentorApply": {
-    "title": "Become a Mentor",
-    "alerts": {
-      "notSignedInTitle": "Not signed in",
-      "notSignedInMessage": "Please sign in to submit a mentor application."
-    },
-    "success": {
-      "title": "Application Sent!",
-      "desc": "Thanks for applying to be a mentor. We'll review your application and get back to you within 2-3 business days.",
-      "backToProfile": "Back to Profile"
-    },
-    "motivations": {
-      "helpOthers": "I want to help others achieve what I achieved",
-      "mentor": "I enjoy mentoring and sharing knowledge",
-      "giveBack": "I want to give back to the community",
-      "document": "I want to document my journey for others",
-      "payForward": "I believe in paying it forward"
-    },
-    "contentTypes": {
-      "mentorship": { "label": "Mentorship", "desc": "1-on-1 guidance" },
-      "course": { "label": "Course", "desc": "Learning paths" },
-      "template": { "label": "Templates", "desc": "CV & resume templates" },
-      "resource": { "label": "Resources", "desc": "Study materials" }
-    },
-    "intro": {
-      "heroTitle": "Share Your\n<accent>Success Story</accent>",
-      "heroDesc": "You've achieved something incredible. Help others get there too by sharing your knowledge and experience.",
-      "statLearners": "Learners",
-      "statMentors": "Mentors",
-      "statRevenue": "Revenue",
-      "info": "Reach learners from 31+ countries. Your experience can change someone's life anywhere in the world.",
-      "getStarted": "Get Started"
-    },
-    "motivation": {
-      "title": "What motivates you?",
-      "desc": "Choose the reason that best describes why you want to mentor."
-    },
-    "details": {
-      "title": "Tell us about yourself",
-      "desc": "Help learners understand your expertise.",
-      "displayNameLabel": "Display Name",
-      "displayNamePlaceholder": "How should learners know you?",
-      "teachLabel": "What will you teach?",
-      "bioLabel": "Your Bio",
-      "bioPlaceholder": "Share your background, achievements...",
-      "experienceLabel": "Years of Experience",
-      "experiencePlaceholder": "e.g., 5 years in software engineering",
-      "linkedinLabel": "LinkedIn URL",
-      "portfolioLabel": "Portfolio URL",
-      "reviewApplication": "Review Application"
-    },
-    "review": {
-      "title": "Review your application",
-      "desc": "Make sure everything looks good before submitting.",
-      "displayName": "Display Name",
-      "motivation": "Motivation",
-      "contentType": "Content Type",
-      "experience": "Experience",
-      "bio": "Bio",
-      "linkedin": "LinkedIn",
-      "portfolio": "Portfolio",
-      "notProvided": "Not provided",
-      "submitting": "Submitting...",
-      "submit": "Submit Application"
-    }
-  },
-  "admin": {
-    "creatorApplications": {
-      "title": "Creator Applications",
-      "subtitle": "Review and manage applications",
-      "alerts": {
-        "loadFailed": "Failed to load applications.",
-        "approvedSuccess": "Application approved successfully.",
-        "rejectedSuccess": "Application rejected successfully.",
-        "reviewFailed": "Failed to review application."
-      },
-      "unknown": "Unknown",
-      "unknownUser": "Unknown User",
-      "status": {
-        "pending": "Pending",
-        "approved": "Approved",
-        "rejected": "Rejected"
-      },
-      "filters": { "all": "All" },
-      "stats": { "total": "Total" },
-      "loading": "Loading applications...",
-      "empty": {
-        "title": "No Applications",
-        "pending": "No pending applications to review.",
-        "generic": "No applications found."
-      },
-      "modal": {
-        "title": "Application Details",
-        "reviewedOn": "Reviewed {{date}}",
-        "applicant": "Applicant",
-        "opportunity": "Opportunity",
-        "motivation": "Motivation",
-        "bio": "Bio",
-        "linkedin": "LinkedIn",
-        "verificationDocument": "Verification Document",
-        "proofUrl": "Proof URL",
-        "appliedOn": "Applied On",
-        "reviewerNotes": "Reviewer Notes",
-        "notePlaceholder": "Add a note about this decision...",
-        "reject": "Reject",
-        "approve": "Approve"
-      }
-    },
-    "premiumFeatures": {
-      "title": "Premium Features",
-      "subtitle": "Manage OTA feature flags",
-      "alerts": {
-        "loadFailed": "Failed to load feature flags.",
-        "validationTitle": "Validation Error",
-        "validationMessage": "Label and description are required.",
-        "updated": "Feature flag updated successfully.",
-        "saveFailed": "Failed to save feature flag.",
-        "statusUpdateFailed": "Failed to update status.",
-        "proUpdateFailed": "Failed to update pro requirement."
-      },
-      "stats": {
-        "total": "Total",
-        "enabled": "Enabled",
-        "proOnly": "Pro Only"
-      },
-      "searchPlaceholder": "Search features...",
-      "filters": {
-        "all": "All",
-        "enabled": "Enabled",
-        "disabled": "Disabled",
-        "proOnly": "Pro Only"
-      },
-      "status": {
-        "enabled": "Enabled",
-        "disabled": "Disabled"
-      },
-      "toggles": {
-        "enabled": "Enabled",
-        "proOnly": "Pro Only"
-      },
-      "loading": "Loading feature flags...",
-      "empty": {
-        "title": "No Feature Flags",
-        "filtered": "No features match the current filter.",
-        "none": "No feature flags found in the database."
-      },
-      "modal": {
-        "title": "Edit Feature Flag",
-        "labelLabel": "Label *",
-        "labelPlaceholder": "e.g. AI Tutor",
-        "descriptionLabel": "Description *",
-        "descriptionPlaceholder": "Describe what this feature does...",
-        "sortOrderLabel": "Sort Order",
-        "submit": "Update Feature Flag"
-      }
-    },
-    "testimonials": {
-      "title": "Testimonials",
-      "subtitle": "Manage client testimonials",
-      "alerts": {
-        "loadFailed": "Failed to load testimonials.",
-        "validationTitle": "Validation Error",
-        "validationMessage": "Name, Role, and Review text are required.",
-        "updated": "Testimonial updated successfully.",
-        "added": "Testimonial added successfully.",
-        "saveFailed": "Failed to save testimonial.",
-        "deleteTitle": "Delete Testimonial",
-        "deleteMessage": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
-        "deleted": "Testimonial deleted.",
-        "deleteFailed": "Failed to delete testimonial.",
-        "statusUpdateFailed": "Failed to update status."
-      },
-      "stats": {
-        "total": "Total",
-        "active": "Active",
-        "inactive": "Inactive"
-      },
-      "filters": { "all": "All" },
-      "status": {
-        "active": "Active",
-        "inactive": "Inactive"
-      },
-      "videoLinked": "YouTube video linked",
-      "addButton": "Add Testimonial",
-      "loading": "Loading testimonials...",
-      "empty": {
-        "title": "No Testimonials",
-        "filtered": "No testimonials match the current filter.",
-        "none": "Tap the button above to add your first testimonial."
-      },
-      "modal": {
-        "editTitle": "Edit Testimonial",
-        "nameLabel": "Name *",
-        "namePlaceholder": "e.g. John Doe",
-        "roleLabel": "Role *",
-        "rolePlaceholder": "e.g. Software Engineer",
-        "countryLabel": "Country <dim>(optional)</dim>",
-        "countryPlaceholder": "e.g. 🇳🇬 Nigeria",
-        "ratingLabel": "Rating",
-        "reviewLabel": "Review Text *",
-        "reviewPlaceholder": "Write the testimonial review...",
-        "youtubeLabel": "YouTube URL <dim>(optional)</dim>",
-        "videoId": "Video ID: {{id}}",
-        "videoIdError": "Could not extract video ID from URL",
-        "update": "Update Testimonial"
-      }
-    },
-    "roadmapCreate": {
-      "title": "Create Roadmap",
-      "alerts": {
-        "coverUploadFailed": "Failed to upload cover image",
-        "resourceRequired": "Please fill in resource title and URL",
-        "fileUploadFailed": "Failed to upload file",
-        "requiredFields": "Please fill in title, summary, and at least one stage",
-        "created": "Roadmap created successfully!",
-        "createFailed": "Failed to create roadmap. Please try again."
-      },
-      "basicInfo": "Basic Information",
-      "uploadCover": "Upload Cover Image",
-      "titleLabel": "Title",
-      "titlePlaceholder": "e.g., Complete Web Development Bootcamp",
-      "summaryLabel": "Summary",
-      "summaryPlaceholder": "Brief description of this roadmap...",
-      "categoryLabel": "Category",
-      "categories": {
-        "education": "Education",
-        "programming": "Programming",
-        "business": "Business",
-        "career": "Career",
-        "design": "Design",
-        "marketing": "Marketing",
-        "other": "Other"
-      },
-      "difficultyLabel": "Difficulty",
-      "difficulty": {
-        "beginner": "Beginner",
-        "intermediate": "Intermediate",
-        "advanced": "Advanced"
-      },
-      "priceLabel": "Price",
-      "price": {
+    "creatorDashboard": {
+        "title": "Creator Studio",
+        "subtitle": "Create & manage your roadmaps",
+        "loading": "Loading Creator Studio...",
+        "longLoad": {
+            "title": "This is taking longer than expected",
+            "text": "Please try again later or go back while we reconnect.",
+            "tryAgain": "Try Again"
+        },
+        "access": {
+            "pendingBadge": "Application Pending",
+            "pendingDesc": "Your application is being reviewed by our team. We'll notify you once it's approved. This usually takes 2-3 business days.",
+            "pendingInfo": "While you wait, you can browse other creators' roadmaps for inspiration.",
+            "browseRoadmaps": "Browse Roadmaps",
+            "rejectedBadge": "Application Not Approved",
+            "rejectedDesc": "Unfortunately, your application wasn't approved. You can submit a new application with additional details.",
+            "reapply": "Reapply",
+            "noneDesc": "Join our creator community and share your knowledge with thousands of learners. Earn credits while helping others achieve their goals.",
+            "perkRevenue": "85% Revenue Share",
+            "perkReach": "Reach 10K+ Students",
+            "perkBadge": "Verified Creator Badge",
+            "applyCta": "Apply to Become a Creator"
+        },
+        "welcomeGreeting": "Welcome back,",
+        "creatorFallback": "Creator",
+        "createRoadmap": "Create Roadmap",
+        "overview": "Overview",
+        "stats": {
+            "totalCredits": "Total Credits",
+            "totalStudents": "Total Students",
+            "roadmaps": "Roadmaps"
+        },
+        "rewards": {
+            "title": "Creator Rewards",
+            "text": "You earn <bold>85%</bold> of every roadmap sale."
+        },
+        "myRoadmaps": "My Roadmaps",
+        "empty": {
+            "title": "No roadmaps yet",
+            "subtext": "Create your first roadmap and start sharing your knowledge with the community.",
+            "cta": "Create Your First Roadmap"
+        },
         "free": "Free",
-        "premium": "Premium"
-      },
-      "durationLabel": "Duration",
-      "durationPlaceholder": "e.g., 3 months",
-      "tagsLabel": "Tags (comma separated)",
-      "tagsPlaceholder": "e.g., javascript, react, web development",
-      "outcomesLabel": "Learning Outcomes (one per line)",
-      "outcomesPlaceholder": "- Build full-stack applications\\n- Master React and Node.js\\n- Deploy to production",
-      "resources": "Resources",
-      "resourceTitlePlaceholder": "Resource Title",
-      "resourceDescriptionPlaceholder": "Description",
-      "resourceUrlPlaceholder": "URL",
-      "typeLabel": "Type",
-      "resourceTypes": {
-        "article": "article",
-        "video": "video",
-        "course": "course",
-        "tool": "tool",
-        "book": "book",
-        "other": "other"
-      },
-      "costLabel": "Cost",
-      "cost": {
-        "free": "free",
-        "paid": "paid"
-      },
-      "resourceMeta": "{{type}} • {{cost}}",
-      "addResource": "Add Resource",
-      "uploadDoc": "Upload PDF/Doc (optional)",
-      "stages": "Roadmap Stages",
-      "stageTitlePlaceholder": "Stage {{number}} Title",
-      "stageDescriptionPlaceholder": "Stage Description",
-      "stageDurationPlaceholder": "Duration (e.g., 2 weeks)",
-      "milestonePlaceholder": "Milestone",
-      "tasks": "Tasks",
-      "taskTitlePlaceholder": "Task Title",
-      "taskDescriptionPlaceholder": "Task Description",
-      "taskDurationPlaceholder": "Duration",
-      "taskOutcomePlaceholder": "Expected Outcome",
-      "addTask": "Add Task",
-      "checkpointPlaceholder": "Checkpoint / Deliverable"
-    }
-  },
-  "notifications": {
-    "goalDeadlineToday": {
-      "title": "Goal Deadline Today! 🎯",
-      "body": "Don't forget: {{title}}"
+        "priceCr": "{{price}} cr",
+        "alerts": {
+            "thumbnailUploaded": "Thumbnail uploaded!",
+            "uploadFailedTitle": "Upload Failed",
+            "fileUploaded": "File uploaded successfully.",
+            "missingInfoTitle": "Missing Info",
+            "missingInfoMessage": "Please fill in the title and description.",
+            "missingCurriculumTitle": "Missing Curriculum",
+            "missingCurriculumMessage": "Add at least one roadmap stage.",
+            "publishFailed": "Unable to publish roadmap.",
+            "publishedTitle": "Success!",
+            "publishedMessage": "Your roadmap is published and visible to learners.",
+            "failedTitle": "Failed",
+            "failedFallback": "Please try again."
+        },
+        "wizard": {
+            "basicsTitle": "Roadmap Basics",
+            "basicsDesc": "Tell us about your roadmap",
+            "curriculumTitle": "Curriculum Stages",
+            "curriculumDesc": "Define the learning stages",
+            "resourcesTitle": "Resources & Files",
+            "resourcesDesc": "Add supporting materials",
+            "reviewTitle": "Review & Submit",
+            "reviewDesc": "Double-check before submitting",
+            "basicsCallout": "You're creating a <bold>roadmap</bold> — a step-by-step learning guide that helps students achieve specific goals.",
+            "titleLabel": "Roadmap Title",
+            "titlePlaceholder": "e.g. Complete Web Development Roadmap",
+            "descriptionLabel": "Description",
+            "descriptionPlaceholder": "What will students learn? What outcomes can they expect?",
+            "categoryLabel": "Category",
+            "thumbnailLabel": "Thumbnail Image",
+            "uploaded": "Uploaded",
+            "browseDevice": "Browse from device",
+            "ratioHint": "16:9 ratio recommended",
+            "priceLabel": "Price (Credits)",
+            "pricePlaceholder": "0 for free roadmap",
+            "experienceLabel": "Your Experience",
+            "experiencePlaceholder": "Why are you qualified to create this roadmap?",
+            "curriculumCallout": "Break your roadmap into <bold>stages</bold>. Each stage represents a key milestone in the student's journey.",
+            "stageNumber": "Stage {{number}}",
+            "stageTitlePlaceholder": "Stage title (e.g. Fundamentals)",
+            "stageDescPlaceholder": "Brief description of this stage",
+            "stageDurationPlaceholder": "Duration (e.g. Week 1-2)",
+            "addStage": "Add Stage",
+            "resourcesCallout": "Add resources like sample files, templates, or documents that students can download.",
+            "resourceNamePlaceholder": "Resource name",
+            "uploadFile": "Upload file",
+            "addResource": "Add Resource",
+            "reviewCallout": "Review your roadmap details before publishing. As an approved creator, it goes live to learners immediately.",
+            "reviewBasics": "Basics",
+            "reviewTitleLabel": "Title",
+            "reviewCategoryLabel": "Category",
+            "reviewPriceLabel": "Price",
+            "priceCredits": "{{price}} credits",
+            "reviewCurriculum": "Curriculum ({{total}} stages)",
+            "reviewResources": "Resources ({{total}})",
+            "untitled": "Untitled",
+            "fileAttached": "✓ {{fileName}}",
+            "submitForReview": "Submit for Review"
+        }
     },
-    "deadlineTomorrow": {
-      "title": "Deadline Tomorrow! ⏱️",
-      "body": "Upcoming: {{title}}"
+    "mentorApply": {
+        "title": "Become a Mentor",
+        "alerts": {
+            "notSignedInTitle": "Not signed in",
+            "notSignedInMessage": "Please sign in to submit a mentor application."
+        },
+        "success": {
+            "title": "Application Sent!",
+            "desc": "Thanks for applying to be a mentor. We'll review your application and get back to you within 2-3 business days.",
+            "backToProfile": "Back to Profile"
+        },
+        "motivations": {
+            "helpOthers": "I want to help others achieve what I achieved",
+            "mentor": "I enjoy mentoring and sharing knowledge",
+            "giveBack": "I want to give back to the community",
+            "document": "I want to document my journey for others",
+            "payForward": "I believe in paying it forward"
+        },
+        "contentTypes": {
+            "mentorship": {
+                "label": "Mentorship",
+                "desc": "1-on-1 guidance"
+            },
+            "course": {
+                "label": "Course",
+                "desc": "Learning paths"
+            },
+            "template": {
+                "label": "Templates",
+                "desc": "CV & resume templates"
+            },
+            "resource": {
+                "label": "Resources",
+                "desc": "Study materials"
+            }
+        },
+        "intro": {
+            "heroTitle": "Share Your\n<accent>Success Story</accent>",
+            "heroDesc": "You've achieved something incredible. Help others get there too by sharing your knowledge and experience.",
+            "statLearners": "Learners",
+            "statMentors": "Mentors",
+            "statRevenue": "Revenue",
+            "info": "Reach learners from 31+ countries. Your experience can change someone's life anywhere in the world.",
+            "getStarted": "Get Started"
+        },
+        "motivation": {
+            "title": "What motivates you?",
+            "desc": "Choose the reason that best describes why you want to mentor."
+        },
+        "details": {
+            "title": "Tell us about yourself",
+            "desc": "Help learners understand your expertise.",
+            "displayNameLabel": "Display Name",
+            "displayNamePlaceholder": "How should learners know you?",
+            "teachLabel": "What will you teach?",
+            "bioLabel": "Your Bio",
+            "bioPlaceholder": "Share your background, achievements...",
+            "experienceLabel": "Years of Experience",
+            "experiencePlaceholder": "e.g., 5 years in software engineering",
+            "linkedinLabel": "LinkedIn URL",
+            "portfolioLabel": "Portfolio URL",
+            "reviewApplication": "Review Application"
+        },
+        "review": {
+            "title": "Review your application",
+            "desc": "Make sure everything looks good before submitting.",
+            "displayName": "Display Name",
+            "motivation": "Motivation",
+            "contentType": "Content Type",
+            "experience": "Experience",
+            "bio": "Bio",
+            "linkedin": "LinkedIn",
+            "portfolio": "Portfolio",
+            "notProvided": "Not provided",
+            "submitting": "Submitting...",
+            "submit": "Submit Application"
+        }
     },
-    "deadlineApproaching": {
-      "title": "Deadline Approaching 🗓️",
-      "body": "3 days left for: {{title}}"
+    "admin": {
+        "creatorApplications": {
+            "title": "Creator Applications",
+            "subtitle": "Review and manage applications",
+            "alerts": {
+                "loadFailed": "Failed to load applications.",
+                "approvedSuccess": "Application approved successfully.",
+                "rejectedSuccess": "Application rejected successfully.",
+                "reviewFailed": "Failed to review application."
+            },
+            "unknown": "Unknown",
+            "unknownUser": "Unknown User",
+            "status": {
+                "pending": "Pending",
+                "approved": "Approved",
+                "rejected": "Rejected"
+            },
+            "filters": {
+                "all": "All"
+            },
+            "stats": {
+                "total": "Total"
+            },
+            "loading": "Loading applications...",
+            "empty": {
+                "title": "No Applications",
+                "pending": "No pending applications to review.",
+                "generic": "No applications found."
+            },
+            "modal": {
+                "title": "Application Details",
+                "reviewedOn": "Reviewed {{date}}",
+                "applicant": "Applicant",
+                "opportunity": "Opportunity",
+                "motivation": "Motivation",
+                "bio": "Bio",
+                "linkedin": "LinkedIn",
+                "verificationDocument": "Verification Document",
+                "proofUrl": "Proof URL",
+                "appliedOn": "Applied On",
+                "reviewerNotes": "Reviewer Notes",
+                "notePlaceholder": "Add a note about this decision...",
+                "reject": "Reject",
+                "approve": "Approve"
+            }
+        },
+        "premiumFeatures": {
+            "title": "Premium Features",
+            "subtitle": "Manage OTA feature flags",
+            "alerts": {
+                "loadFailed": "Failed to load feature flags.",
+                "validationTitle": "Validation Error",
+                "validationMessage": "Label and description are required.",
+                "updated": "Feature flag updated successfully.",
+                "saveFailed": "Failed to save feature flag.",
+                "statusUpdateFailed": "Failed to update status.",
+                "proUpdateFailed": "Failed to update pro requirement."
+            },
+            "stats": {
+                "total": "Total",
+                "enabled": "Enabled",
+                "proOnly": "Pro Only"
+            },
+            "searchPlaceholder": "Search features...",
+            "filters": {
+                "all": "All",
+                "enabled": "Enabled",
+                "disabled": "Disabled",
+                "proOnly": "Pro Only"
+            },
+            "status": {
+                "enabled": "Enabled",
+                "disabled": "Disabled"
+            },
+            "toggles": {
+                "enabled": "Enabled",
+                "proOnly": "Pro Only"
+            },
+            "loading": "Loading feature flags...",
+            "empty": {
+                "title": "No Feature Flags",
+                "filtered": "No features match the current filter.",
+                "none": "No feature flags found in the database."
+            },
+            "modal": {
+                "title": "Edit Feature Flag",
+                "labelLabel": "Label *",
+                "labelPlaceholder": "e.g. AI Tutor",
+                "descriptionLabel": "Description *",
+                "descriptionPlaceholder": "Describe what this feature does...",
+                "sortOrderLabel": "Sort Order",
+                "submit": "Update Feature Flag"
+            }
+        },
+        "testimonials": {
+            "title": "Testimonials",
+            "subtitle": "Manage client testimonials",
+            "alerts": {
+                "loadFailed": "Failed to load testimonials.",
+                "validationTitle": "Validation Error",
+                "validationMessage": "Name, Role, and Review text are required.",
+                "updated": "Testimonial updated successfully.",
+                "added": "Testimonial added successfully.",
+                "saveFailed": "Failed to save testimonial.",
+                "deleteTitle": "Delete Testimonial",
+                "deleteMessage": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
+                "deleted": "Testimonial deleted.",
+                "deleteFailed": "Failed to delete testimonial.",
+                "statusUpdateFailed": "Failed to update status."
+            },
+            "stats": {
+                "total": "Total",
+                "active": "Active",
+                "inactive": "Inactive"
+            },
+            "filters": {
+                "all": "All"
+            },
+            "status": {
+                "active": "Active",
+                "inactive": "Inactive"
+            },
+            "videoLinked": "YouTube video linked",
+            "addButton": "Add Testimonial",
+            "loading": "Loading testimonials...",
+            "empty": {
+                "title": "No Testimonials",
+                "filtered": "No testimonials match the current filter.",
+                "none": "Tap the button above to add your first testimonial."
+            },
+            "modal": {
+                "editTitle": "Edit Testimonial",
+                "nameLabel": "Name *",
+                "namePlaceholder": "e.g. John Doe",
+                "roleLabel": "Role *",
+                "rolePlaceholder": "e.g. Software Engineer",
+                "countryLabel": "Country <dim>(optional)</dim>",
+                "countryPlaceholder": "e.g. 🇳🇬 Nigeria",
+                "ratingLabel": "Rating",
+                "reviewLabel": "Review Text *",
+                "reviewPlaceholder": "Write the testimonial review...",
+                "youtubeLabel": "YouTube URL <dim>(optional)</dim>",
+                "videoId": "Video ID: {{id}}",
+                "videoIdError": "Could not extract video ID from URL",
+                "update": "Update Testimonial"
+            }
+        },
+        "roadmapCreate": {
+            "title": "Create Roadmap",
+            "alerts": {
+                "coverUploadFailed": "Failed to upload cover image",
+                "resourceRequired": "Please fill in resource title and URL",
+                "fileUploadFailed": "Failed to upload file",
+                "requiredFields": "Please fill in title, summary, and at least one stage",
+                "created": "Roadmap created successfully!",
+                "createFailed": "Failed to create roadmap. Please try again."
+            },
+            "basicInfo": "Basic Information",
+            "uploadCover": "Upload Cover Image",
+            "titleLabel": "Title",
+            "titlePlaceholder": "e.g., Complete Web Development Bootcamp",
+            "summaryLabel": "Summary",
+            "summaryPlaceholder": "Brief description of this roadmap...",
+            "categoryLabel": "Category",
+            "categories": {
+                "education": "Education",
+                "programming": "Programming",
+                "business": "Business",
+                "career": "Career",
+                "design": "Design",
+                "marketing": "Marketing",
+                "other": "Other"
+            },
+            "difficultyLabel": "Difficulty",
+            "difficulty": {
+                "beginner": "Beginner",
+                "intermediate": "Intermediate",
+                "advanced": "Advanced"
+            },
+            "priceLabel": "Price",
+            "price": {
+                "free": "Free",
+                "premium": "Premium"
+            },
+            "durationLabel": "Duration",
+            "durationPlaceholder": "e.g., 3 months",
+            "tagsLabel": "Tags (comma separated)",
+            "tagsPlaceholder": "e.g., javascript, react, web development",
+            "outcomesLabel": "Learning Outcomes (one per line)",
+            "outcomesPlaceholder": "- Build full-stack applications\\n- Master React and Node.js\\n- Deploy to production",
+            "resources": "Resources",
+            "resourceTitlePlaceholder": "Resource Title",
+            "resourceDescriptionPlaceholder": "Description",
+            "resourceUrlPlaceholder": "URL",
+            "typeLabel": "Type",
+            "resourceTypes": {
+                "article": "article",
+                "video": "video",
+                "course": "course",
+                "tool": "tool",
+                "book": "book",
+                "other": "other"
+            },
+            "costLabel": "Cost",
+            "cost": {
+                "free": "free",
+                "paid": "paid"
+            },
+            "resourceMeta": "{{type}} • {{cost}}",
+            "addResource": "Add Resource",
+            "uploadDoc": "Upload PDF/Doc (optional)",
+            "stages": "Roadmap Stages",
+            "stageTitlePlaceholder": "Stage {{number}} Title",
+            "stageDescriptionPlaceholder": "Stage Description",
+            "stageDurationPlaceholder": "Duration (e.g., 2 weeks)",
+            "milestonePlaceholder": "Milestone",
+            "tasks": "Tasks",
+            "taskTitlePlaceholder": "Task Title",
+            "taskDescriptionPlaceholder": "Task Description",
+            "taskDurationPlaceholder": "Duration",
+            "taskOutcomePlaceholder": "Expected Outcome",
+            "addTask": "Add Task",
+            "checkpointPlaceholder": "Checkpoint / Deliverable"
+        }
+    },
+    "notifications": {
+        "goalDeadlineToday": {
+            "title": "Goal Deadline Today! 🎯",
+            "body": "Don't forget: {{title}}"
+        },
+        "deadlineTomorrow": {
+            "title": "Deadline Tomorrow! ⏱️",
+            "body": "Upcoming: {{title}}"
+        },
+        "deadlineApproaching": {
+            "title": "Deadline Approaching 🗓️",
+            "body": "3 days left for: {{title}}"
+        }
+    },
+    "share": {
+        "notSpecified": "Not specified",
+        "rollingDeadline": "Rolling / Not specified",
+        "fundingAvailable": "Funding available",
+        "openOpportunity": "Open opportunity",
+        "openEligibility": "Open to eligible applicants",
+        "detailsInApp": "Details available in Edutu.",
+        "fallbackTitle": "Edutu opportunity",
+        "deadlinePassed": "Deadline Passed!",
+        "stillActive": "Still Active!",
+        "sponsor": "Sponsor: {{name}}",
+        "benefits": "Benefits:",
+        "category": "Category: {{category}}",
+        "categoryFallback": "Opportunity",
+        "eligibleCountry": "Eligible Country: {{country}}",
+        "deadline": "Deadline: {{deadline}}",
+        "applyCta": "Click the link below to apply📌",
+        "shareWithFriends": "Kindly share with your friends who might be interested.",
+        "dialogTitle": "Share opportunity"
+    },
+    "appControl": {
+        "adminBypassMaintenance": "Maintenance mode is ON — admins bypass this gate",
+        "adminBypassUpdate": "Force update is ON — admins bypass this gate",
+        "maintenanceTitle": "We'll be right back",
+        "maintenanceMessage": "Edutu is undergoing scheduled maintenance. Please check back shortly.",
+        "updateTitle": "Update required",
+        "updateMessage": "This version of Edutu is no longer supported. Please update to keep going.",
+        "updateNow": "Update now",
+        "retry": "Try again",
+        "updateFallbackTitle": "Update Edutu",
+        "updateFallbackMessage": "Please install the latest version of Edutu from your app store.",
+        "versionHint": "Installed version {{current}} · required {{min}}",
+        "proLockTitle": "{{module}} is a Pro feature",
+        "proLockMessage": "Upgrade to Edutu Pro to unlock this feature and everything else in the toolkit.",
+        "disabledTitle": "{{module}} is temporarily unavailable",
+        "disabledMessage": "We're improving this part of Edutu. It will be back soon — everything else works as usual.",
+        "upgradeCta": "Upgrade to Pro",
+        "goBack": "Go back"
     }
-  },
-  "share": {
-    "notSpecified": "Not specified",
-    "rollingDeadline": "Rolling / Not specified",
-    "fundingAvailable": "Funding available",
-    "openOpportunity": "Open opportunity",
-    "openEligibility": "Open to eligible applicants",
-    "detailsInApp": "Details available in Edutu.",
-    "fallbackTitle": "Edutu opportunity",
-    "deadlinePassed": "Deadline Passed!",
-    "stillActive": "Still Active!",
-    "sponsor": "Sponsor: {{name}}",
-    "benefits": "Benefits:",
-    "category": "Category: {{category}}",
-    "categoryFallback": "Opportunity",
-    "eligibleCountry": "Eligible Country: {{country}}",
-    "deadline": "Deadline: {{deadline}}",
-    "applyCta": "Click the link below to apply📌",
-    "shareWithFriends": "Kindly share with your friends who might be interested.",
-    "dialogTitle": "Share opportunity"
-  }
 }

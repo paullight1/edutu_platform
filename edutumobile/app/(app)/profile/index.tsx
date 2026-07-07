@@ -265,6 +265,7 @@ export default function ProfileScreen() {
         { id: 'create-roadmap', title: t('view.admin.createRoadmap'), desc: t('view.admin.createRoadmapDesc'), icon: Megaphone, route: '/admin/roadmap/create', color: '#06B6D4', bg: 'rgba(6,182,212,0.15)' },
         { id: 'testimonials', title: t('view.admin.testimonials'), desc: t('view.admin.testimonialsDesc'), icon: MessageCircle, route: '/admin/testimonials', color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
         { id: 'premium-features', title: t('view.admin.premiumFeatures'), desc: t('view.admin.premiumFeaturesDesc'), icon: Crown, route: '/admin/premium-features', color: '#10B981', bg: 'rgba(16,185,129,0.15)' },
+        { id: 'app-control', title: t('view.admin.appControl'), desc: t('view.admin.appControlDesc'), icon: Shield, route: '/admin/app-control', color: '#EF4444', bg: 'rgba(239,68,68,0.15)' },
     ];
 
     return (

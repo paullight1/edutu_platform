@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getCachedOpportunitiesSnapshot } from '../packages/core/src/services/opportunities';
 import type { Opportunity } from '../packages/core/src/types/opportunity';
+import { normaliseAppControl, OPEN_APP_CONTROL, type AppControlConfig } from './appControl';
 import { getConfig } from './config';
 
 export type CampaignType = 'popup' | 'banner' | 'notification' | 'interstitial' | 'announcement';
@@ -60,6 +61,7 @@ export interface MobileControlConfig {
   campaigns: MobileCampaign[];
   featureFlags: MobileFeatureFlag[];
   widgetFeeds: WidgetFeed[];
+  appControl: AppControlConfig;
   serverTime: string;
 }
 
@@ -73,6 +75,7 @@ const EMPTY_MOBILE_CONTROL_CONFIG: MobileControlConfig = {
   campaigns: [],
   featureFlags: [],
   widgetFeeds: [],
+  appControl: OPEN_APP_CONTROL,
   serverTime: new Date(0).toISOString(),
 };
 let hasLoggedMobileControlNetworkError = false;
@@ -163,6 +166,7 @@ function normaliseMobileControlConfig(payload: unknown): MobileControlConfig {
     campaigns: Array.isArray(record.campaigns) ? record.campaigns : [],
     featureFlags: Array.isArray(record.featureFlags) ? record.featureFlags : [],
     widgetFeeds: Array.isArray(record.widgetFeeds) ? record.widgetFeeds : [],
+    appControl: normaliseAppControl(record.appControl),
     serverTime: typeof record.serverTime === 'string' ? record.serverTime : new Date().toISOString(),
   };
 }
