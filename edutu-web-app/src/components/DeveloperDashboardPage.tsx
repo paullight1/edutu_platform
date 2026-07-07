@@ -360,6 +360,32 @@ export default function DeveloperDashboardPage() {
     setGeneratedKey({ ...generatedKey, copied: true });
   };
 
+  const [aiPromptCopied, setAiPromptCopied] = useState(false);
+
+  // One-shot brief for an AI coding assistant. Includes the raw key only
+  // while it is still on screen (it is never retrievable later).
+  const copyAiPrompt = async () => {
+    const key = generatedKey?.rawKey || "<PASTE_YOUR_EDUTU_API_KEY>";
+    const prompt = `Integrate the Edutu Scholarship Engine API into this project.
+
+Base URL: ${apiBaseUrl}
+Auth: send the API key in the "x-edutu-api-key" header (Bearer also works).
+API key: ${key} — store it as the EDUTU_API_KEY environment variable, never hardcode it.
+Full API reference (fetch and read this FIRST): ${apiBaseUrl}/llms.txt
+OpenAPI spec (machine-readable): ${apiSpecUrl}
+
+Implement:
+1. A typed client for GET /opportunities with filters (q, category, type, remote, deadlineFrom/To) and cursor pagination (follow meta.nextCursor while meta.hasMore).
+2. GET /opportunities/{id} for detail views.
+3. Optional: delta sync via GET /opportunities/sync?updatedSince=<ISO> on a schedule, and POST /recommendations with a user profile for ranked matches.
+4. Error handling by code: 429 → wait Retry-After seconds and retry; 402 (quota_exceeded / credits_exhausted) → surface to the user; 401/403 → invalid key or missing scope.
+5. Send a unique x-request-id header per request so retries are never double-billed.`;
+
+    await navigator.clipboard.writeText(prompt);
+    setAiPromptCopied(true);
+    window.setTimeout(() => setAiPromptCopied(false), 2500);
+  };
+
   const sectionAnimation = reduceMotion
     ? {}
     : {
@@ -477,6 +503,30 @@ export default function DeveloperDashboardPage() {
   -H "Authorization: Bearer edu_live_your_prefix_your_secret" \\
   -H "x-request-id: req_12345"`}
               </pre>
+
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={copyAiPrompt}
+                  className="inline-flex items-center gap-2 rounded-full border border-brand/30 bg-brand/10 px-4 py-2 text-sm font-semibold text-brand transition-all duration-300 hover:bg-brand/15 active:scale-[0.97]"
+                >
+                  <Sparkles size={15} />
+                  {aiPromptCopied ? "Copied — paste into your AI" : "Copy AI setup prompt"}
+                </button>
+                <p className="text-xs leading-5 text-text-muted">
+                  Paste into Claude Code, Cursor, or ChatGPT and it wires the whole
+                  integration from {""}
+                  <a
+                    href={`${apiBaseUrl}/llms.txt`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-brand underline-offset-2 hover:underline"
+                  >
+                    llms.txt
+                  </a>
+                  .
+                </p>
+              </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl border border-subtle bg-white p-4">

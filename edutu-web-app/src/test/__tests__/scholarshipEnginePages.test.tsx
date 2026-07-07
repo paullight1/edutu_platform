@@ -12,9 +12,8 @@ const serviceMocks = vi.hoisted(() => ({
   createCheckout: vi.fn(),
 }));
 
-// Pin the docs env so the assertion is independent of local .env contents.
-vi.stubEnv("VITE_DOCS_URL", "https://docs.edutu.org");
-const docsUrl = "https://docs.edutu.org";
+// VITE_DOCS_URL is unset locally, so docs links resolve to the in-app page.
+const docsUrl = "/developers/docs";
 
 vi.mock("@clerk/clerk-react", () => ({
   useAuth: () => ({
