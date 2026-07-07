@@ -12,6 +12,7 @@ import * as Sharing from 'expo-sharing';
 import { File, Paths } from 'expo-file-system';
 import { Opportunity } from '@edutu/core/src/types/opportunity';
 import { getConfig } from './config';
+import i18n from './i18n';
 
 const SHARE_TEXT_LIMITS = {
   summary: 360,
@@ -19,7 +20,7 @@ const SHARE_TEXT_LIMITS = {
   apply: 160,
 };
 
-export function cleanShareText(value?: string | null, fallback = 'Not specified'): string {
+export function cleanShareText(value?: string | null, fallback: string = i18n.t('misc:share.notSpecified')): string {
   const text = typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
   return text || fallback;
 }
@@ -30,7 +31,7 @@ export function clampShareText(value: string, maxLength: number): string {
 }
 
 function formatShareDeadline(deadline?: string | null): string {
-  if (!deadline) return 'Rolling / Not specified';
+  if (!deadline) return i18n.t('misc:share.rollingDeadline');
   const parsed = new Date(deadline);
   if (Number.isNaN(parsed.getTime())) return deadline;
   return parsed.toLocaleDateString('en-US', {
@@ -54,8 +55,8 @@ export function getShareFunding(opportunity: Opportunity): string {
   return cleanShareText(
     fundedBenefit,
     opportunity.category?.toLowerCase().includes('scholarship')
-      ? 'Funding available'
-      : 'Open opportunity',
+      ? i18n.t('misc:share.fundingAvailable')
+      : i18n.t('misc:share.openOpportunity'),
   );
 }
 
@@ -72,7 +73,7 @@ function getShareEligibility(opportunity: Opportunity): string {
 
   if (typeof countries === 'string') return countries;
   if (typeof level === 'string') return level;
-  return opportunity.location || 'Open to eligible applicants';
+  return opportunity.location || i18n.t('misc:share.openEligibility');
 }
 
 function getShareBullets(items?: string[], fallback?: string, limit = 5): string[] {
@@ -83,7 +84,7 @@ function getShareBullets(items?: string[], fallback?: string, limit = 5): string
   if (cleaned.length > 0) return cleaned.slice(0, limit);
   return fallback
     ? [clampShareText(cleanShareText(fallback), SHARE_TEXT_LIMITS.section)]
-    : ['Details available in Edutu.'];
+    : [i18n.t('misc:share.detailsInApp')];
 }
 
 export function buildMobileOpportunityShareText(opportunity: Opportunity): string {
@@ -96,23 +97,23 @@ export function buildMobileOpportunityShareText(opportunity: Opportunity): strin
     .join('\n');
 
   return [
-    `${expired ? 'Deadline Passed' : 'Still Active'}!`,
+    expired ? i18n.t('misc:share.deadlinePassed') : i18n.t('misc:share.stillActive'),
     '',
-    cleanShareText(opportunity.title, 'Edutu opportunity'),
+    cleanShareText(opportunity.title, i18n.t('misc:share.fallbackTitle')),
     '',
-    `Sponsor: ${cleanShareText(opportunity.organization, 'Edutu')}`,
+    i18n.t('misc:share.sponsor', { name: cleanShareText(opportunity.organization, 'Edutu') }),
     '',
-    'Benefits:',
+    i18n.t('misc:share.benefits'),
     benefitLines,
     '',
-    `Category: ${cleanShareText(opportunity.category, 'Opportunity')}`,
-    `Eligible Country: ${getShareEligibility(opportunity)}`,
-    `Deadline: ${formatShareDeadline(opportunity.deadline)}`,
+    i18n.t('misc:share.category', { category: cleanShareText(opportunity.category, i18n.t('misc:share.categoryFallback')) }),
+    i18n.t('misc:share.eligibleCountry', { country: getShareEligibility(opportunity) }),
+    i18n.t('misc:share.deadline', { deadline: formatShareDeadline(opportunity.deadline) }),
     '',
-    'Click the link below to apply📌',
+    i18n.t('misc:share.applyCta'),
     opportunity.applyUrl || 'https://edutu.ai',
     '',
-    'Kindly share with your friends who might be interested.',
+    i18n.t('misc:share.shareWithFriends'),
   ].join('\n');
 }
 
@@ -181,7 +182,7 @@ export async function shareOpportunity(opportunity: Opportunity): Promise<boolea
         } else {
           await Sharing.shareAsync(downloaded.uri, {
             mimeType: downloaded.mimeType,
-            dialogTitle: 'Share opportunity',
+            dialogTitle: i18n.t('misc:share.dialogTitle'),
           });
         }
         return true;

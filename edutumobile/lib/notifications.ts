@@ -3,6 +3,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getConfig } from './config';
+import i18n from './i18n';
 
 const PUSH_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
 
@@ -252,8 +253,8 @@ class NotificationService {
             // Schedule Day Of
             const idDayOf = await Notifications.scheduleNotificationAsync({
                 content: {
-                    title: "Goal Deadline Today! 🎯",
-                    body: `Don't forget: ${title}`,
+                    title: i18n.t('misc:notifications.goalDeadlineToday.title'),
+                    body: i18n.t('misc:notifications.goalDeadlineToday.body', { title }),
                     data: { goalId, type: 'goal_deadline' },
                 },
                 trigger: {
@@ -267,8 +268,8 @@ class NotificationService {
             if (oneDayBefore.getTime() > Date.now()) {
                 const id1 = await Notifications.scheduleNotificationAsync({
                     content: {
-                        title: "Deadline Tomorrow! ⏱️",
-                        body: `Upcoming: ${title}`,
+                        title: i18n.t('misc:notifications.deadlineTomorrow.title'),
+                        body: i18n.t('misc:notifications.deadlineTomorrow.body', { title }),
                         data: { goalId, type: 'goal_deadline_reminder' },
                     },
                     trigger: { date: oneDayBefore } as Notifications.NotificationTriggerInput,
@@ -281,8 +282,8 @@ class NotificationService {
             if (threeDaysBefore.getTime() > Date.now()) {
                 const id3 = await Notifications.scheduleNotificationAsync({
                     content: {
-                        title: "Deadline Approaching 🗓️",
-                        body: `3 days left for: ${title}`,
+                        title: i18n.t('misc:notifications.deadlineApproaching.title'),
+                        body: i18n.t('misc:notifications.deadlineApproaching.body', { title }),
                         data: { goalId, type: 'goal_deadline_reminder' },
                     },
                     trigger: { date: threeDaysBefore } as Notifications.NotificationTriggerInput,

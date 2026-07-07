@@ -1,0 +1,74 @@
+{
+  "title": "Paramètres",
+  "sections": {
+    "display": "Préférences d'affichage",
+    "language": "Langue",
+    "notifications": "Notifications",
+    "privacySecurity": "Confidentialité et sécurité",
+    "legal": "Mentions légales",
+    "dangerZone": "Zone sensible"
+  },
+  "display": {
+    "systemAppearance": "Apparence du système",
+    "systemAppearanceDesc": "Suit les réglages de votre appareil",
+    "auto": "Auto",
+    "selectTheme": "Choisir un thème",
+    "themes": {
+      "default": "Pulsation Indigo",
+      "ocean": "Brise Océane",
+      "sunset": "Soleil d'Afrique",
+      "forest": "Forêt d'Émeraude",
+      "royal": "Velours Royal"
+    }
+  },
+  "language": {
+    "label": "Langue de l'application",
+    "desc": "Choisissez la langue utilisée par Edutu",
+    "restartTitle": "Redémarrage requis",
+    "restartMessage": "Passer à {{language}} change le sens de l'affichage. Edutu doit redémarrer pour appliquer ce changement.",
+    "restartNow": "Redémarrer maintenant",
+    "restartLater": "Plus tard"
+  },
+  "notifications": {
+    "push": "Notifications push",
+    "pushDesc": "Mises à jour en temps réel",
+    "email": "Alertes par e-mail",
+    "emailDesc": "Résumé hebdomadaire et actualités",
+    "haptics": "Retour haptique",
+    "hapticsDesc": "Vibrations tactiles"
+  },
+  "security": {
+    "passwordKeys": "Mot de passe et clés",
+    "passwordKeysDesc": "Gérer l'accès au compte",
+    "privacy": "Confidentialité",
+    "privacyDesc": "Paramètres de visibilité des données",
+    "addEmailPassword": "Ajouter un mot de passe e-mail",
+    "addEmailPasswordDesc": "Vous utilisez Google ou Apple actuellement. Ajoutez un mot de passe pour pouvoir aussi vous connecter par e-mail.",
+    "newPassword": "Nouveau mot de passe",
+    "confirmPassword": "Confirmer le mot de passe",
+    "addPassword": "Ajouter le mot de passe",
+    "addingPassword": "Ajout du mot de passe...",
+    "passwordTooShortTitle": "Mot de passe trop court",
+    "passwordTooShortMessage": "Utilisez au moins 8 caractères.",
+    "passwordMismatchTitle": "Les mots de passe ne correspondent pas",
+    "passwordMismatchMessage": "Saisissez le même mot de passe dans les deux champs.",
+    "passwordAddedTitle": "Mot de passe ajouté",
+    "passwordAddedMessage": "Vous pouvez maintenant aussi vous connecter avec votre e-mail et votre mot de passe.",
+    "passwordErrorTitle": "Impossible d'ajouter le mot de passe",
+    "passwordErrorMessage": "Veuillez réessayer."
+  },
+  "legal": {
+    "privacyPolicy": "Politique de confidentialité",
+    "privacyPolicyDesc": "Comment nous traitons vos données",
+    "terms": "Conditions d'utilisation",
+    "termsDesc": "Accord utilisateur et politiques"
+  },
+  "account": {
+    "deleteAccount": "Supprimer le compte",
+    "deleteConfirmMessage": "Voulez-vous vraiment supprimer votre compte ? Cette action est irréversible. Toutes vos données, vos objectifs et votre progression seront définitivement supprimés.",
+    "userNotFound": "Utilisateur introuvable. Veuillez réessayer.",
+    "dataDeleteError": "Impossible de supprimer vos données. Veuillez réessayer avant de supprimer votre compte.",
+    "deleteError": "Échec de la suppression du compte. Veuillez contacter le support à support@edutu.org"
+  },
+  "helpCenter": "Centre d'aide"
+}

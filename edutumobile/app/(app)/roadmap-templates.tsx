@@ -6,9 +6,11 @@ import { File, Paths } from 'expo-file-system';
 import * as Notifications from 'expo-notifications';
 import * as Sharing from 'expo-sharing';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { useTheme } from '../../components/context/ThemeContext';
 import { notificationService } from '../../lib/notifications';
+import i18n from '../../lib/i18n';
 
 type TemplateIcon = typeof BookOpen;
 
@@ -107,7 +109,7 @@ function providerFromResource(resource: BackendRoadmapResource): string {
     try {
         return new URL(resource.url || '').hostname.replace(/^www\./, '');
     } catch {
-        return 'Resource';
+        return i18n.t('goals:templates.resourceFallback');
     }
 }
 
@@ -136,9 +138,9 @@ function mapBackendRoadmapToTemplate(roadmap: BackendRoadmap): Template | null {
 
         return {
             week,
-            title: step.title || `Step ${index + 1}`,
+            title: step.title || i18n.t('goals:templates.stepFallback', { number: index + 1 }),
             guidance: step.description || '',
-            deliverable: step.phase ? `Focus: ${step.phase}` : undefined,
+            deliverable: step.phase ? i18n.t('goals:templates.focus', { value: step.phase }) : undefined,
             resources,
         };
     });
@@ -146,13 +148,13 @@ function mapBackendRoadmapToTemplate(roadmap: BackendRoadmap): Template | null {
     return {
         id: roadmap.id,
         title: roadmap.title,
-        summary: roadmap.description || 'A guided, step-by-step roadmap.',
-        meta: roadmap.estimated_duration || `${steps.length}-step plan`,
-        difficulty: roadmap.difficulty ? roadmap.difficulty.charAt(0).toUpperCase() + roadmap.difficulty.slice(1) : 'All Levels',
+        summary: roadmap.description || i18n.t('goals:templates.defaultSummary'),
+        meta: roadmap.estimated_duration || i18n.t('goals:templates.stepPlan', { count: steps.length }),
+        difficulty: roadmap.difficulty ? roadmap.difficulty.charAt(0).toUpperCase() + roadmap.difficulty.slice(1) : i18n.t('goals:templates.allLevels'),
         icon,
         accent,
         outcomes: parseOutcomes(roadmap.outcomes),
-        reminderCadence: 'Milestone reminders scheduled from your start date.',
+        reminderCadence: i18n.t('goals:templates.defaultCadence'),
         milestones,
     };
 }
@@ -329,6 +331,7 @@ const buildDate = (week: number) => {
 const formatIcsDate = (date: Date) => date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
 
 export default function RoadmapTemplatesScreen() {
+    const { t } = useTranslation('goals');
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { colors, isDark } = useTheme();
@@ -369,14 +372,14 @@ export default function RoadmapTemplatesScreen() {
         const events = template.milestones.map((milestone) => {
             const start = buildDate(milestone.week);
             const end = new Date(start.getTime() + 60 * 60 * 1000);
-            const description = `${milestone.guidance}\\nDeliverable: ${milestone.deliverable}`;
+            const description = `${milestone.guidance}\\n${t('templates.deliverableLabel', { value: milestone.deliverable })}`;
             return [
                 'BEGIN:VEVENT',
                 `UID:${template.id}-${milestone.week}@edutu`,
                 `DTSTAMP:${formatIcsDate(new Date())}`,
                 `DTSTART:${formatIcsDate(start)}`,
                 `DTEND:${formatIcsDate(end)}`,
-                `SUMMARY:${template.title}: Week ${milestone.week}`,
+                `SUMMARY:${t('templates.icsSummary', { title: template.title, week: milestone.week })}`,
                 `DESCRIPTION:${description.replace(/\n/g, '\\n')}`,
                 'END:VEVENT',
             ].join('\n');
@@ -384,23 +387,23 @@ export default function RoadmapTemplatesScreen() {
         const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Edutu//Roadmap Templates//EN', ...events, 'END:VCALENDAR'].join('\n');
 
         if (Platform.OS === 'web') {
-            Alert.alert('Calendar ready', 'Calendar export is available on mobile builds.');
+            Alert.alert(t('templates.calendarReadyTitle'), t('templates.calendarReadyMessage'));
             return;
         }
 
         const file = new File(Paths.cache, `${template.id}-roadmap.ics`);
         file.write(ics);
         if (await Sharing.isAvailableAsync()) {
-            await Sharing.shareAsync(file.uri, { mimeType: 'text/calendar', dialogTitle: 'Add roadmap to calendar' });
+            await Sharing.shareAsync(file.uri, { mimeType: 'text/calendar', dialogTitle: t('templates.shareDialogTitle') });
         } else {
-            Alert.alert('Calendar file created', file.uri);
+            Alert.alert(t('templates.calendarFileCreated'), file.uri);
         }
     };
 
     const scheduleReminders = async (template: Template) => {
         const allowed = await notificationService.requestPermissions();
         if (!allowed) {
-            Alert.alert('Notifications blocked', 'Enable notifications to receive roadmap reminders.');
+            Alert.alert(t('templates.notificationsBlockedTitle'), t('templates.notificationsBlockedMessage'));
             return;
         }
 
@@ -410,7 +413,7 @@ export default function RoadmapTemplatesScreen() {
             if (date.getTime() <= Date.now()) continue;
             const id = await Notifications.scheduleNotificationAsync({
                 content: {
-                    title: `Roadmap reminder: Week ${milestone.week}`,
+                    title: t('templates.reminderTitle', { week: milestone.week }),
                     body: `${template.title} - ${milestone.title}`,
                     data: { type: 'roadmap-template', templateId: template.id, week: milestone.week },
                 },
@@ -419,7 +422,7 @@ export default function RoadmapTemplatesScreen() {
             scheduled.push(id);
         }
 
-        Alert.alert('Reminders scheduled', `${scheduled.length} roadmap reminders are now scheduled.`);
+        Alert.alert(t('templates.remindersScheduledTitle'), t('templates.remindersScheduledMessage', { count: scheduled.length }));
     };
 
     const openResource = async (resource: TemplateResource) => {
@@ -431,7 +434,7 @@ export default function RoadmapTemplatesScreen() {
 
     return (
         <SafeAreaView style={[styles.screen, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-            <ScreenHeader title="Explore Templates" subtitle="Featured roadmap paths" showBack />
+            <ScreenHeader title={t('templates.title')} subtitle={t('templates.subtitle')} showBack />
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -454,30 +457,30 @@ export default function RoadmapTemplatesScreen() {
                                 <Sparkles size={22} color="#FFFFFF" />
                             </View>
                             <View style={styles.featuredCopy}>
-                                <Text style={[styles.featuredEyebrow, { color: colors.primary }]}>FEATURED ROADMAP TEMPLATES</Text>
-                                <Text style={[styles.featuredTitle, { color: colors.foreground }]}>Pick a proven path and start planning faster</Text>
+                                <Text style={[styles.featuredEyebrow, { color: colors.primary }]}>{t('templates.eyebrow')}</Text>
+                                <Text style={[styles.featuredTitle, { color: colors.foreground }]}>{t('templates.heading')}</Text>
                             </View>
                         </View>
                         <Text style={[styles.featuredSubtitle, { color: textSecondary }]}>
-                            Each template includes milestones, resources, calendar export, and study reminders.
+                            {t('templates.description')}
                         </Text>
                         <View style={styles.statsRow}>
                             <View style={[styles.statPill, { backgroundColor: subtleBg, borderColor }]}>
                                 <BookOpen size={13} color={colors.primary} />
-                                <Text style={[styles.statText, { color: colors.foreground }]}>{templates.length} templates</Text>
+                                <Text style={[styles.statText, { color: colors.foreground }]}>{t('templates.count', { count: templates.length })}</Text>
                             </View>
                             <View style={[styles.statPill, { backgroundColor: subtleBg, borderColor }]}>
                                 <Clock3 size={13} color={colors.primary} />
-                                <Text style={[styles.statText, { color: colors.foreground }]}>8-20 weeks</Text>
+                                <Text style={[styles.statText, { color: colors.foreground }]}>{t('templates.weeksRange')}</Text>
                             </View>
                         </View>
                     </View>
 
                     <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionHeading, { color: colors.foreground }]}>Featured paths</Text>
+                        <Text style={[styles.sectionHeading, { color: colors.foreground }]}>{t('templates.featuredPaths')}</Text>
                         {loading
                             ? <ActivityIndicator size="small" color={colors.primary} />
-                            : <Text style={[styles.sectionCount, { color: textSecondary }]}>{templates.length} available</Text>}
+                            : <Text style={[styles.sectionCount, { color: textSecondary }]}>{t('templates.available', { count: templates.length })}</Text>}
                     </View>
 
                     <View style={styles.list}>
@@ -555,33 +558,33 @@ export default function RoadmapTemplatesScreen() {
                                 <View style={styles.actionGrid}>
                                     <TouchableOpacity style={[styles.actionBtn, { backgroundColor: selectedTemplate.accent }]} onPress={() => router.push('/roadmaps')}>
                                         <BookOpen size={16} color="#FFFFFF" />
-                                        <Text style={styles.primaryActionText}>Start roadmap</Text>
+                                        <Text style={styles.primaryActionText}>{t('templates.startRoadmap')}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity style={[styles.actionBtn, styles.secondaryActionBtn, { borderColor }]} onPress={() => exportCalendar(selectedTemplate)}>
                                         <Download size={16} color={colors.foreground} />
-                                        <Text style={[styles.secondaryActionText, { color: colors.foreground }]}>Calendar</Text>
+                                        <Text style={[styles.secondaryActionText, { color: colors.foreground }]}>{t('templates.calendar')}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity style={[styles.actionBtn, styles.secondaryActionBtn, { borderColor }]} onPress={() => scheduleReminders(selectedTemplate)}>
                                         <Bell size={16} color={colors.foreground} />
-                                        <Text style={[styles.secondaryActionText, { color: colors.foreground }]}>Reminders</Text>
+                                        <Text style={[styles.secondaryActionText, { color: colors.foreground }]}>{t('templates.reminders')}</Text>
                                     </TouchableOpacity>
                                 </View>
 
                                 <View style={[styles.panel, { backgroundColor: colors.background }]}>
-                                    <Text style={[styles.panelTitle, { color: colors.foreground }]}>Outcomes</Text>
+                                    <Text style={[styles.panelTitle, { color: colors.foreground }]}>{t('templates.outcomes')}</Text>
                                     {selectedTemplate.outcomes.map((outcome) => (
                                         <Text key={outcome} style={[styles.bullet, { color: textSecondary }]}>• {outcome}</Text>
                                     ))}
                                 </View>
 
-                                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Guidance and resources</Text>
+                                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t('templates.guidance')}</Text>
                                 {selectedTemplate.milestones.map((milestone) => (
                                     <View key={`${selectedTemplate.id}-${milestone.week}`} style={[styles.milestone, { backgroundColor: colors.background, borderColor }]}>
-                                        <Text style={[styles.weekLabel, { color: selectedTemplate.accent }]}>Week {milestone.week}</Text>
+                                        <Text style={[styles.weekLabel, { color: selectedTemplate.accent }]}>{t('templates.week', { week: milestone.week })}</Text>
                                         <Text style={[styles.milestoneTitle, { color: colors.foreground }]}>{milestone.title}</Text>
                                         <Text style={[styles.milestoneText, { color: textSecondary }]}>{milestone.guidance}</Text>
                                         {milestone.deliverable ? (
-                                            <Text style={[styles.deliverable, { color: colors.foreground }]}>Deliverable: {milestone.deliverable}</Text>
+                                            <Text style={[styles.deliverable, { color: colors.foreground }]}>{t('templates.deliverableLabel', { value: milestone.deliverable })}</Text>
                                         ) : null}
                                         <View style={styles.resourceList}>
                                             {milestone.resources.map((resource) => (

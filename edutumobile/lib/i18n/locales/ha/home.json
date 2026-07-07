@@ -1,0 +1,237 @@
+{
+  "tabs": {
+    "home": "Gida",
+    "discover": "Binciko",
+    "plan": "Shiri",
+    "me": "Ni",
+    "openEdutuAi": "Buɗe Edutu AI",
+    "badgeOverflow": "99+"
+  },
+  "rewards": {
+    "creditsEarned_one": "+kirediti {{count}} · {{label}}",
+    "creditsEarned_other": "+kirediti {{count}} · {{label}}"
+  },
+  "home": {
+    "exploreOpportunities": "Binciko damammaki",
+    "featuredOpportunities": "Fitattun Damammaki",
+    "quickActionsTitle": "Ayyuka Cikin Sauri",
+    "recommendedOpportunities": "Damammakin da Aka Ba da Shawara",
+    "viewMore": "Duba Ƙari",
+    "emptyTitle": "Babu Shawarwari Tukuna",
+    "emptyDescription": "Binciko damammaki ka ajiye waɗanda kake son bin diddiginsu.",
+    "emptyCta": "Binciko Damammaki",
+    "quickActions": {
+      "roadmaps": "Taswirorin Hanya",
+      "goals": "Manufofi",
+      "cvBuilder": "Ginin CV",
+      "saved": "Ajiyayyu"
+    },
+    "discovery": {
+      "scholarships": {
+        "title": "Tallafin karatu",
+        "description": "Kuɗin karatu da kyaututtuka"
+      },
+      "internships": {
+        "title": "Horon aiki",
+        "description": "Ayyukan farkon sana'a na aikace-aikace"
+      },
+      "grants": {
+        "title": "Shirye-shirye",
+        "description": "Shirye-shirye masu tallafi da kuɗaɗe"
+      },
+      "fellowships": {
+        "title": "Fellowship",
+        "description": "Fellowship da hanyoyin jagoranci"
+      }
+    }
+  },
+  "notifications": {
+    "title": "Sanarwa",
+    "passwordPromptTitle": "Saka kalmar sirri a asusunka",
+    "passwordPromptBody": "Ka shiga da Google ko Apple. Saka kalmar sirri don ka iya shiga da email idan ka manta wanne zaɓi ka yi amfani da shi.",
+    "setPassword": "Saka kalmar sirri",
+    "filterAll": "Duka",
+    "filterUnread_one": "Ba a karanta ba ({{count}})",
+    "filterUnread_other": "Ba a karanta ba ({{count}})",
+    "loading": "Ana loda sanarwa...",
+    "emptyTitle": "Babu Sanarwa",
+    "emptySubtitle": "Ka gama duka!"
+  },
+  "help": {
+    "title": "Taimako da Tallafi",
+    "headerTitle": "Ta yaya za mu taimake ka?",
+    "headerSubtitle": "Nemo amsoshin tambayoyin gama-gari ko ka tuntuɓe mu.",
+    "faqSectionTitle": "Tambayoyin da Ake Yawan Yi",
+    "directSupport": "Tallafi Kai Tsaye",
+    "emailSupport": "Tallafi ta Email",
+    "visitWebsite": "Ziyarci Gidan Yanar Gizo",
+    "footer": "Cibiyar Taimako ta Edutu",
+    "faqs": {
+      "ai": {
+        "question": "Ta yaya zan yi amfani da Edutu AI?",
+        "answer": "Za ka iya shiga Edutu AI daga maɓallin tsakiya na mashigin kewayawa. Kawai ka rubuta tambayarka game da kwasa-kwasai, jagorar sana'a, ko ƙwarewa, zai taimaka maka nan take."
+      },
+      "enroll": {
+        "question": "Ta yaya zan shiga kwas?",
+        "answer": "Je zuwa shafin 'Market', nemo kwas ɗin da kake sha'awa, ka danna 'Access Now'. Wasu kwasa-kwasai suna buƙatar Kirediti, wasu kuma kyauta ne."
+      },
+      "credits": {
+        "question": "Ta yaya zan samu Kirediti?",
+        "answer": "Za ka iya samun Kirediti ta hanyar shiga fitattun damammaki, kammala ayyuka, ko bayar da gudummawa a matsayin mai ƙirƙira. Duba walat ɗinka don ƙarin bayani."
+      },
+      "security": {
+        "question": "Shin bayanaina suna da tsaro?",
+        "answer": "Eh, muna amfani da ɓoye-ɓoye na matakin masana'antu da Clerk don tantancewa domin tabbatar da kariyar bayanan ka da ci gaban karatunka a koyaushe."
+      }
+    }
+  },
+  "privacy": {
+    "title": "Manufar Sirri",
+    "headerTitle": "Sirrinka Yana da Muhimmanci",
+    "lastUpdated": "Sabuntawa ta ƙarshe: Afrilu 2026",
+    "notice": "Ta amfani da Edutu, ka amince da sharuɗɗan hidimarmu da wannan manufar sirri. Ba mu taɓa sayar da bayanan ka ga wasu ba.",
+    "footer": "Sashin Shari'a na Edutu",
+    "sections": {
+      "dataWeCollect": {
+        "title": "Bayanan da Muke Tattarawa",
+        "desc": "Muna tattara sunanka, email, da ci gaban karatunka don keɓance kwarewar koyonka da bin diddigin manufofinka."
+      },
+      "howWeUseIt": {
+        "title": "Yadda Muke Amfani da Su",
+        "desc": "Bayanan ka suna taimaka mana mu ba ka shawarar kwasa-kwasai, mu ba da jagorar AI, mu kuma tabbatar kana samun Kirediti kan nasarorinka."
+      },
+      "dataProtection": {
+        "title": "Kariyar Bayanai",
+        "desc": "Duk bayanan kai an ɓoye su. Muna amfani da ƙa'idojin tsaro na matakin masana'antu don kare bayanan ka daga shiga mara izini."
+      },
+      "yourRights": {
+        "title": "Haƙƙoƙinka",
+        "desc": "Za ka iya neman goge asusunka ko sauke bayanan ka a kowane lokaci ta cibiyar taimakonmu ko ta tuntuɓar tallafi."
+      }
+    }
+  },
+  "deadlines": {
+    "title": "Wa'adodi",
+    "subtitle": "Jimla {{total}} • {{urgent}} na gaggawa",
+    "loading": "Ana loda wa'adodinka...",
+    "emptyTitle": "Babu Wa'adi Tukuna",
+    "emptyDescription": "Nemi damammaki ko ka yi musu alama don bin diddigin wa'adodin nema.",
+    "browseOpportunities": "Binciko Damammaki",
+    "thisWeek": "Wannan Makon",
+    "nextWeek": "Mako mai Zuwa",
+    "thisMonth": "Wannan Watan",
+    "later": "Daga baya",
+    "pastDue": "Wa'adi Ya Wuce",
+    "daysLeft_one": "Kwana {{count}}",
+    "daysLeft_other": "Kwanaki {{count}}",
+    "applied": "An nema",
+    "bookmarked": "An yi alama"
+  },
+  "applied": {
+    "title": "Buƙatuna na Nema",
+    "status": {
+      "draft": "Daftari",
+      "submitted": "An mika",
+      "interview": "Hira",
+      "offer": "Tayin",
+      "rejected": "An ƙi",
+      "withdrawn": "An janye"
+    },
+    "filters": {
+      "total": "Jimla",
+      "closed": "An rufe"
+    },
+    "recently": "Kwanan nan",
+    "statusNotUpdatedTitle": "Ba a sabunta matsayi ba",
+    "statusNotUpdatedMessage": "Da fatan za a sake gwadawa nan gaba kaɗan.",
+    "updateStatusTitle": "Sabunta matsayin buƙatar nema",
+    "appliedCount_one": "An nemi {{count}}",
+    "appliedCount_other": "An nemi {{count}}",
+    "appliedOn": "An nema {{date}}",
+    "advanceTo": "Ci gaba zuwa {{stage}}",
+    "emptyTitle": "Babu buƙatar nema tukuna",
+    "emptySubtitle": "Damammakin da ka nema za su bayyana a nan.",
+    "emptyFilter": "Babu buƙatar nema a wannan matakin.",
+    "browseOpportunities": "Binciko Damammaki",
+    "loading": "Ana loda buƙatun nema..."
+  },
+  "paywall": {
+    "title": "Premium",
+    "loading": "Ana loda premium...",
+    "subscriptionActive": "Rajistarka tana aiki",
+    "simpleAccess": "Damar rajista mai sauƙi",
+    "premiumIsActive": "Premium yana aiki",
+    "unlockPremium": "Buɗe premium",
+    "heroActive": "Ka riga ka sami damar amfani da kayan aiki da samfurorin premium.",
+    "heroUpsell": "Yi rajista don samfurorin premium, kayan aikin AI, fitarwa, da dacewa mai zurfi.",
+    "monthly": "Kowane wata",
+    "yearly": "Kowace shekara",
+    "save": "Tanadi",
+    "billedMonthly": "Ana biya kowane wata",
+    "perMonthBilledYearly": "{{price}} a wata, ana biya kowace shekara",
+    "features": {
+      "unlimitedAi": "Ƙirƙirar AI mara iyaka",
+      "premiumTemplates": "Samfurorin CV na premium",
+      "aiTailoring": "Daidaitawa da ƙarfin AI",
+      "priorityTools": "Fifikon kayan aikin damammaki",
+      "pdfExport": "Fitar da PDF",
+      "advancedFilters": "Ingantattun matattara"
+    },
+    "comingSoonTitle": "Nan Ba da Daɗewa Ba",
+    "comingSoonMessage": "Rajista za ta samu da zarar an saita kayayyakin App Store.",
+    "premiumActiveTitle": "Premium Yana Aiki",
+    "premiumActiveMessage": "Rajistarka ta premium yanzu tana aiki.",
+    "purchaseFailed": "Sayan ya kasa",
+    "restoredTitle": "An dawo da su",
+    "restoredMessage": "An dawo da abubuwan da ka saya.",
+    "restoreFailed": "An kasa dawo da abubuwan da aka saya",
+    "backToApp": "Koma manhaja",
+    "subscribe": "Yi rajistar premium",
+    "renewalNote": "Rajista tana sabuntawa kai tsaye, ana kuma iya sarrafa ta a saitunan na'urarka."
+  },
+  "wallet": {
+    "title": "Walat",
+    "balanceTitle": "Ragowar Kirediti",
+    "creditsUnit": "Kirediti",
+    "proMember": "Memban Pro",
+    "upgradeToPro": "Haɓaka zuwa Pro",
+    "buyCredits": "Sayi Kirediti",
+    "history": "Tarihi",
+    "dayStreak_one": "Jerin kwana {{count}}",
+    "dayStreak_other": "Jerin kwanaki {{count}}",
+    "streakBonusUnlocked": "An buɗe kari! Ci gaba da haka.",
+    "streakBonusHint": "Rana ta 7 tana samun karin kirediti",
+    "unlimitedPremiumFeatures": "Fasalolin premium mara iyaka",
+    "payPerUse": "Biya-kan-amfani don fasalolin AI",
+    "recentTransactions": "Mu'amalolin Kwanan Nan",
+    "noTransactions": "Babu mu'amala tukuna",
+    "noTransactionsHint": "Sayi kirediti ko ka samu daga abubuwan da ka ƙirƙira don ganin ayyuka a nan.",
+    "txAmount": "{{sign}}{{amount}} cr"
+  },
+  "opportunityCard": {
+    "notInterestedTitle": "Ba ka da sha'awa?",
+    "notInterestedMessage": "Za mu rage nuna maka damammaki irin wannan.",
+    "notInterestedConfirm": "Ba ni da sha'awa",
+    "percentMatch": "Dacewa {{percent}}%"
+  },
+  "creditPack": {
+    "title": "Sayi Kirediti",
+    "subtitle": "Kirediti suna ba da ƙarfin fasalolin AI. Zaɓi fakiti — kana biyan abin da ka yi amfani da shi kawai.",
+    "packs": {
+      "starter": "Mafari",
+      "popular": "Shahararre",
+      "pro": "Pro",
+      "megaValue": "Babbar Riba"
+    },
+    "creditsUnit": "kirediti",
+    "bestValue": "Mafi riba",
+    "comingSoonTitle": "Nan Ba da Daɗewa Ba",
+    "comingSoonMessage": "Fakitin kirediti za su samu da zarar an saita kayayyakin shago.",
+    "purchaseCompleteTitle": "An Kammala Saya",
+    "purchaseCompleteMessage_one": "Kirediti {{count}} yana zuwa. Ragowarka za ta sabunta nan ba da daɗewa ba.",
+    "purchaseCompleteMessage_other": "Kirediti {{count}} suna zuwa. Ragowarka za ta sabunta nan ba da daɗewa ba.",
+    "purchaseFailedTitle": "Sayan Ya Kasa",
+    "somethingWentWrong": "Wani abu ya ɓaci.",
+    "autoAddNote": "Ana saka kirediti kai tsaye bayan saya."
+  }
+}

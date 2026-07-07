@@ -1,0 +1,412 @@
+{
+    "createGoal": "Create Goal",
+    "viewAll": "View All",
+    "creditsEarned_one": "+{{count}} credit for completing a goal",
+    "creditsEarned_other": "+{{count}} credits for completing a goal",
+    "priority": {
+        "high": "High",
+        "medium": "Medium",
+        "low": "Low",
+        "highFull": "High Priority",
+        "mediumFull": "Medium Priority",
+        "lowFull": "Low Priority",
+        "highDesc": "Urgent - needs immediate attention",
+        "mediumDesc": "Important - work on it soon",
+        "lowDesc": "Can be done when you have time"
+    },
+    "status": {
+        "completed": "Completed",
+        "overdue": "Overdue",
+        "inProgress": "In Progress"
+    },
+    "labels": {
+        "progress": "Progress",
+        "priority": "Priority",
+        "deadline": "Deadline",
+        "reminder": "Reminder",
+        "status": "Status",
+        "datePlaceholder": "YYYY-MM-DD"
+    },
+    "time": {
+        "today": "Today",
+        "tomorrow": "Tomorrow",
+        "overdueShort": "{{count}}d overdue",
+        "leftShort": "{{count}}d left",
+        "daysOverdue_one": "{{count}} day overdue",
+        "daysOverdue_other": "{{count}} days overdue",
+        "daysLeft_one": "{{count}} day left",
+        "daysLeft_other": "{{count}} days left",
+        "daysFromNow_one": "{{count}} day from now",
+        "daysFromNow_other": "{{count}} days from now",
+        "days_one": "{{count}} day",
+        "days_other": "{{count}} days"
+    },
+    "deleteConfirm": {
+        "title": "Delete Goal",
+        "message": "Are you sure you want to delete \"{{title}}\"?"
+    },
+    "stats": {
+        "active": "Active",
+        "completed": "Completed",
+        "roadmaps": "Roadmaps",
+        "completion": "Completion",
+        "total": "Total",
+        "done": "Done",
+        "progress": "Progress"
+    },
+    "sections": {
+        "roadmaps": "Roadmaps",
+        "personalGoals": "Personal Goals"
+    },
+    "filter": {
+        "byStatus": "Filter by Status",
+        "activeLabel": "Filter: {{label}}",
+        "clear": "Clear",
+        "allGoals": "All Goals",
+        "all": "All",
+        "active": "Active",
+        "completed": "Completed"
+    },
+    "empty": {
+        "noRoadmaps": {
+            "title": "No Roadmaps",
+            "description": "Import an opportunity roadmap to see goals here.",
+            "action": "Browse Roadmaps"
+        },
+        "noPersonalGoals": {
+            "title": "No Personal Goals",
+            "description": "Tap the plus icon to add your first goal."
+        }
+    },
+    "dashboard": {
+        "title": "Goals",
+        "subtitle": "{{active}} active · {{rate}}% completed",
+        "searchPlaceholder": "Search your goals...",
+        "upcomingDeadlines": "Upcoming Deadlines",
+        "myOpportunities": "My Opportunities",
+        "savedSummary": "{{count}} saved",
+        "savedSummaryWithUrgent": "{{count}} saved · {{urgent}} urgent",
+        "opportunityFallback": "Opportunity",
+        "searchResults_one": "Found {{count}} goal matching \"{{term}}\"",
+        "searchResults_other": "Found {{count}} goals matching \"{{term}}\"",
+        "shareBanner": {
+            "title": "Have Opportunities to Share?",
+            "subtitle": "Contact us if you have scholarships, jobs, or programs you'd like to share with our community",
+            "action": "Contact Us"
+        }
+    },
+    "detail": {
+        "title": "Goal Details",
+        "editTitle": "Edit Goal",
+        "details": "Details",
+        "fromRoadmap": "From Roadmap",
+        "personalGoal": "Personal Goal",
+        "titlePlaceholder": "Goal title",
+        "descriptionPlaceholder": "Add a description...",
+        "noDeadline": "No deadline",
+        "markComplete": "Mark as Complete",
+        "reopen": "Reopen Goal",
+        "cancelEditing": "Cancel Editing",
+        "notFound": {
+            "title": "Goal Not Found",
+            "description": "This goal may have been deleted or you don't have access to it.",
+            "back": "Back to Goals"
+        },
+        "reminder": {
+            "enabled": "Enabled",
+            "disabled": "Disabled",
+            "enabledTitle": "Reminder Enabled",
+            "disabledTitle": "Reminder Disabled",
+            "enabledMessage": "You'll be reminded on {{date}}",
+            "disabledMessage": "You won't receive reminders for this goal."
+        },
+        "alerts": {
+            "enterTitle": "Please enter a goal title",
+            "updated": "Goal updated successfully",
+            "updateFailed": "Failed to update goal",
+            "congratsTitle": "🎉 Congratulations!",
+            "congratsMessage": "You've completed this goal!",
+            "completeFailed": "Failed to complete goal",
+            "deleteFailed": "Failed to delete goal",
+            "noDeadlineTitle": "No Deadline",
+            "noDeadlineMessage": "Set a deadline first to enable reminders.",
+            "reminderFailed": "Failed to toggle reminder"
+        }
+    },
+    "add": {
+        "title": "Create New Goal",
+        "heading": "Set Your Target",
+        "subheading": "Define your goal and track progress towards achievement.",
+        "titleLabel": "Goal Title",
+        "titlePlaceholder": "What do you want to achieve?",
+        "descriptionLabel": "Description",
+        "descriptionPlaceholder": "Add more details about this goal...",
+        "preview": "PREVIEW",
+        "pastDate": "Past date",
+        "validation": {
+            "titleTooShort": "Title must be at least 3 characters",
+            "looksGood": "Looks good!",
+            "deadlinePast": "Deadline cannot be in the past"
+        },
+        "alerts": {
+            "invalidTitle": "Invalid Title",
+            "titleTooShort": "Goal title must be at least 3 characters",
+            "titleTooLongTitle": "Title Too Long",
+            "titleTooLongMessage": "Goal title must be less than 100 characters",
+            "invalidDeadline": "Invalid Deadline",
+            "created": "Goal created successfully!",
+            "createAnother": "Create Another",
+            "createFailed": "Failed to create goal. Please try again."
+        }
+    },
+    "allRoadmaps": {
+        "title": "Roadmap Goals",
+        "goalCount_one": "{{count}} goal",
+        "goalCount_other": "{{count}} goals",
+        "otherGroup": "Other",
+        "empty": {
+            "title": "No roadmap goals",
+            "searchHint": "Try adjusting your search",
+            "description": "Import goals from a roadmap to see them here"
+        }
+    },
+    "myList": {
+        "title": "My Goals",
+        "goalsTracked_one": "{{count}} goal tracked",
+        "goalsTracked_other": "{{count}} goals tracked",
+        "heroTitle": "Stay Focused 🎯",
+        "heroCompleted_one": "You've completed {{count}} goal. Keep the momentum going!",
+        "heroCompleted_other": "You've completed {{count}} goals. Keep the momentum going!",
+        "heroEmpty": "Turn your ambitions into achievable goals. Start tracking today!",
+        "ctaTitle": "Create Your First Goal",
+        "ctaSubtitle": "Set targets and track your progress",
+        "highPriorityAlert_one": "{{count}} high-priority goal needs attention",
+        "highPriorityAlert_other": "{{count}} high-priority goals need attention",
+        "searchPlaceholder": "Search goals...",
+        "sortLabel": "Sort: {{label}}",
+        "sortBy": "Sort By",
+        "sort": {
+            "newest": "Newest First",
+            "oldest": "Oldest First",
+            "priority": "Priority",
+            "deadline": "Deadline",
+            "progress": "Progress",
+            "title": "Title (A-Z)"
+        },
+        "empty": {
+            "title": "No goals yet",
+            "noMatch": "No matching goals",
+            "searchHint": "Try adjusting your search or filters",
+            "description": "Start by creating your first goal to track progress and stay motivated"
+        }
+    },
+    "roadmaps": {
+        "title": "Roadmaps",
+        "subtitle": "Structured learning paths to achieve your goals",
+        "loading": "Loading roadmaps...",
+        "searchPlaceholder": "Search roadmaps...",
+        "empty": "No roadmaps found. Try adjusting your search or filters!",
+        "noDescription": "No description available",
+        "featured": "Featured",
+        "stepsCount_one": "{{count}} step",
+        "stepsCount_other": "{{count}} steps",
+        "notAvailable": "N/A",
+        "varies": "Varies",
+        "achieveTitle": "What You'll Achieve",
+        "learningPath": "Learning Path",
+        "startButton": "Start This Roadmap",
+        "rateButton": "Rate this roadmap",
+        "categories": {
+            "all": "All",
+            "scholarship": "Scholarship",
+            "career": "Career",
+            "education": "Education",
+            "skills": "Skills",
+            "business": "Business",
+            "tech": "Tech"
+        },
+        "creatorBanner": {
+            "title": "Become a Roadmap Creator",
+            "subtitle": "Share your expertise. Build learning paths. Earn while you teach."
+        },
+        "templateBanner": {
+            "title": "Explore Roadmap Templates",
+            "subtitle": "Start from a proven path and turn it into a goal."
+        },
+        "detailInfo": {
+            "creatorProof": "Creator proof: {{value}}",
+            "deadlineStrategy": "Deadline strategy: {{value}}",
+            "targetDeadline": "Target deadline: {{value}}",
+            "audience": "For: {{value}}",
+            "strategy": "Strategy: {{value}}"
+        },
+        "statsLabels": {
+            "difficulty": "Difficulty",
+            "duration": "Duration",
+            "steps": "Steps",
+            "enrolled": "Enrolled"
+        },
+        "deadline": {
+            "dueToday": "{{date}} - due today",
+            "dueTomorrow": "{{date}} - due tomorrow",
+            "daysLeft_one": "{{date}} - {{count}} day left",
+            "daysLeft_other": "{{date}} - {{count}} days left",
+            "overdue": "{{date}} - overdue",
+            "daysBefore_one": "{{count}} day before deadline",
+            "daysBefore_other": "{{count}} days before deadline",
+            "dueOnDeadline": "Due on deadline day",
+            "dueDay": "Due day {{day}}"
+        },
+        "adoption": {
+            "fallback": "You have enrolled in this roadmap. Check your goals to start!",
+            "ready": "Your roadmap is ready.",
+            "milestones_one": "{{count}} milestone added to your goals.",
+            "milestones_other": "{{count}} milestones added to your goals.",
+            "deadline": "Deadline: {{date}}.",
+            "reminders": "Reminders are scheduled.",
+            "calendarEvents_one": "{{count}} calendar event prepared.",
+            "calendarEvents_other": "{{count}} calendar events prepared.",
+            "community": "A matching roadmap community is available."
+        },
+        "calendar": {
+            "unavailableTitle": "Calendar unavailable",
+            "unavailableMessage": "Could not build the calendar. Please try again.",
+            "exportFailedTitle": "Export failed",
+            "exportFailedMessage": "Could not open the calendar file."
+        },
+        "enroll": {
+            "adoptedTitle": "Roadmap adopted",
+            "viewGoals": "View Goals",
+            "addToCalendar": "Add to Calendar",
+            "openCommunity": "Open Community",
+            "continueBrowsing": "Continue Browsing",
+            "failedTitle": "Enrollment Failed",
+            "failed": "Enrollment failed",
+            "failedMessage": "Could not enroll."
+        },
+        "intent": {
+            "title": "Help Us Find Your Perfect Roadmap",
+            "subtitle": "Answer a few questions so we can recommend the best learning path for you.",
+            "answerPlaceholder": "Type your answer...",
+            "skip": "Skip for now",
+            "submit": "Find My Roadmaps",
+            "q1": "What is your current experience level?",
+            "q2": "How much time can you commit per week?",
+            "q3": "What are your main goals?",
+            "levels": {
+                "beginner": "Beginner",
+                "intermediate": "Intermediate",
+                "advanced": "Advanced"
+            },
+            "time": {
+                "lessThan5": "Less than 5 hours",
+                "hours5to10": "5-10 hours",
+                "hours10to20": "10-20 hours",
+                "hours20plus": "20+ hours"
+            }
+        },
+        "feedback": {
+            "title": "How was this roadmap?",
+            "subtitle": "Your feedback helps us improve and helps other learners.",
+            "placeholder": "What did you like or what could be improved?",
+            "submit": "Submit Feedback",
+            "thanksTitle": "Thank you!",
+            "thanksMessage": "Your feedback helps us improve roadmaps for everyone."
+        }
+    },
+    "templates": {
+        "title": "Explore Templates",
+        "subtitle": "Featured roadmap paths",
+        "eyebrow": "FEATURED ROADMAP TEMPLATES",
+        "heading": "Pick a proven path and start planning faster",
+        "description": "Each template includes milestones, resources, calendar export, and study reminders.",
+        "count_one": "{{count}} template",
+        "count_other": "{{count}} templates",
+        "weeksRange": "8-20 weeks",
+        "featuredPaths": "Featured paths",
+        "available": "{{count}} available",
+        "startRoadmap": "Start roadmap",
+        "calendar": "Calendar",
+        "reminders": "Reminders",
+        "outcomes": "Outcomes",
+        "guidance": "Guidance and resources",
+        "week": "Week {{week}}",
+        "deliverableLabel": "Deliverable: {{value}}",
+        "icsSummary": "{{title}}: Week {{week}}",
+        "shareDialogTitle": "Add roadmap to calendar",
+        "calendarReadyTitle": "Calendar ready",
+        "calendarReadyMessage": "Calendar export is available on mobile builds.",
+        "calendarFileCreated": "Calendar file created",
+        "notificationsBlockedTitle": "Notifications blocked",
+        "notificationsBlockedMessage": "Enable notifications to receive roadmap reminders.",
+        "reminderTitle": "Roadmap reminder: Week {{week}}",
+        "remindersScheduledTitle": "Reminders scheduled",
+        "remindersScheduledMessage_one": "{{count}} roadmap reminder is now scheduled.",
+        "remindersScheduledMessage_other": "{{count}} roadmap reminders are now scheduled.",
+        "stepFallback": "Step {{number}}",
+        "focus": "Focus: {{value}}",
+        "defaultSummary": "A guided, step-by-step roadmap.",
+        "stepPlan": "{{count}}-step plan",
+        "allLevels": "All Levels",
+        "defaultCadence": "Milestone reminders scheduled from your start date.",
+        "resourceFallback": "Resource"
+    },
+    "calendar": {
+        "title": "My Calendar",
+        "deadlinePrefix": "Deadline: {{title}}",
+        "noEvents": "No goals or deadlines on this day.",
+        "legend": {
+            "personalGoal": "Personal Goal",
+            "roadmap": "Roadmap",
+            "opportunity": "Opportunity"
+        },
+        "badge": {
+            "goal": "GOAL",
+            "roadmap": "ROADMAP",
+            "opportunity": "OPPORTUNITY"
+        },
+        "days": {
+            "sun": "Sun",
+            "mon": "Mon",
+            "tue": "Tue",
+            "wed": "Wed",
+            "thu": "Thu",
+            "fri": "Fri",
+            "sat": "Sat"
+        },
+        "months": {
+            "january": "January",
+            "february": "February",
+            "march": "March",
+            "april": "April",
+            "may": "May",
+            "june": "June",
+            "july": "July",
+            "august": "August",
+            "september": "September",
+            "october": "October",
+            "november": "November",
+            "december": "December"
+        }
+    },
+    "intake": {
+        "timeQuestion": "How much time can you commit each week?",
+        "levelQuestion": "Where are you starting from?",
+        "time": {
+            "under5": "Under 5 hrs",
+            "h5to10": "5–10 hrs",
+            "h10to20": "10–20 hrs",
+            "h20plus": "20+ hrs"
+        },
+        "level": {
+            "beginner": "New to this",
+            "intermediate": "Some experience",
+            "advanced": "Experienced"
+        }
+    },
+    "timeline": {
+        "today": "TODAY",
+        "milestoneDone": "{{title}}, done",
+        "removeMilestone": "Remove {{title}}"
+    }
+}

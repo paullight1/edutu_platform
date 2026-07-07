@@ -1,0 +1,74 @@
+{
+  "title": "Saituna",
+  "sections": {
+    "display": "Zaɓin Nuni",
+    "language": "Harshe",
+    "notifications": "Sanarwa",
+    "privacySecurity": "Sirri da Tsaro",
+    "legal": "Shari'a",
+    "dangerZone": "Yankin Haɗari"
+  },
+  "display": {
+    "systemAppearance": "Kamannin Na'ura",
+    "systemAppearanceDesc": "Yana bin saitunan na'urarka",
+    "auto": "Kai tsaye",
+    "selectTheme": "Zaɓi Kalar Zane",
+    "themes": {
+      "default": "Indigo Pulse",
+      "ocean": "Iskar Teku",
+      "sunset": "Faɗuwar Ranar Afirka",
+      "forest": "Dajin Emerald",
+      "royal": "Alfarmar Sarauta"
+    }
+  },
+  "language": {
+    "label": "Harshen Manhaja",
+    "desc": "Zaɓi harshen da Edutu zai yi amfani da shi",
+    "restartTitle": "Ana buƙatar sake kunnawa",
+    "restartMessage": "Sauya zuwa {{language}} yana canza fuskar shimfiɗa. Edutu na buƙatar sake kunnawa don amfani da shi.",
+    "restartNow": "Sake kunnawa yanzu",
+    "restartLater": "Daga baya"
+  },
+  "notifications": {
+    "push": "Sanarwar Turawa",
+    "pushDesc": "Sabbin bayanai kai tsaye",
+    "email": "Faɗakarwar Imel",
+    "emailDesc": "Taƙaitawar mako da sabbin bayanai",
+    "haptics": "Girgiza",
+    "hapticsDesc": "Amsawar girgiza"
+  },
+  "security": {
+    "passwordKeys": "Kalmar Sirri da Makullai",
+    "passwordKeysDesc": "Sarrafa shiga asusu",
+    "privacy": "Sirri",
+    "privacyDesc": "Saitunan ganin bayanai",
+    "addEmailPassword": "Ƙara kalmar sirrin imel",
+    "addEmailPasswordDesc": "A yanzu kana amfani da Google ko Apple. Ƙara kalmar sirri don shiga da imel ma ya yi aiki.",
+    "newPassword": "Sabuwar kalmar sirri",
+    "confirmPassword": "Tabbatar da kalmar sirri",
+    "addPassword": "Ƙara kalmar sirri",
+    "addingPassword": "Ana ƙara kalmar sirri...",
+    "passwordTooShortTitle": "Kalmar sirri ta yi gajarta",
+    "passwordTooShortMessage": "Yi amfani da aƙalla haruffa 8.",
+    "passwordMismatchTitle": "Kalmomin sirri ba su yi daidai ba",
+    "passwordMismatchMessage": "Shigar da kalmar sirri iri ɗaya a wuraren biyu.",
+    "passwordAddedTitle": "An ƙara kalmar sirri",
+    "passwordAddedMessage": "Yanzu za ka iya shiga da imel da kalmar sirri ma.",
+    "passwordErrorTitle": "Ba a iya ƙara kalmar sirri ba",
+    "passwordErrorMessage": "Da fatan za a sake gwadawa."
+  },
+  "legal": {
+    "privacyPolicy": "Manufar Sirri",
+    "privacyPolicyDesc": "Yadda muke kula da bayanan ka",
+    "terms": "Sharuɗɗan Amfani",
+    "termsDesc": "Yarjejeniyar mai amfani da manufofi"
+  },
+  "account": {
+    "deleteAccount": "Goge Asusu",
+    "deleteConfirmMessage": "Ka tabbata kana son goge asusunka? Ba za a iya juyar da wannan matakin ba. Duk bayanan ka, manufofinka, da ci gabanka za a goge su gaba ɗaya.",
+    "userNotFound": "Ba a samu mai amfani ba. Da fatan za a sake gwadawa.",
+    "dataDeleteError": "Ba mu iya goge bayanan manhajarka ba. Da fatan ka sake gwadawa kafin goge asusunka.",
+    "deleteError": "An kasa goge asusu. Da fatan a tuntuɓi taimako ta support@edutu.org"
+  },
+  "helpCenter": "Cibiyar Taimako"
+}

@@ -19,6 +19,7 @@ import {
   User,
   Lock,
 } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { AuthShell } from '../../components/auth/AuthShell';
 import { useTheme } from '../../components/context/ThemeContext';
 
@@ -69,6 +70,7 @@ export default function SignUpScreen() {
   const { user } = useUser();
   const { colors, isDark } = useTheme();
   const router = useRouter();
+  const { t } = useTranslation('auth');
 
   const { startOAuthFlow: googleOAuth } = useOAuth({ strategy: 'oauth_google' });
   const { startOAuthFlow: appleOAuth } = useOAuth({ strategy: 'oauth_apple' });
@@ -111,7 +113,7 @@ export default function SignUpScreen() {
         return;
       }
 
-      setError(err.errors?.[0]?.message || `${provider} sign-in failed.`);
+      setError(err.errors?.[0]?.message || t('oauth.failed', { provider }));
     } finally {
       setOauthLoading(null);
     }
@@ -130,17 +132,17 @@ export default function SignUpScreen() {
     setError('');
 
     if (!fullName.trim()) {
-      setError('Enter your full name.');
+      setError(t('signUp.errors.fullNameRequired'));
       return;
     }
 
     if (!emailAddress.trim()) {
-      setError('Enter your email address.');
+      setError(t('signUp.errors.emailRequired'));
       return;
     }
 
     if (password.length < 8) {
-      setError('Password must be at least 8 characters.');
+      setError(t('signUp.errors.passwordTooShort'));
       return;
     }
 
@@ -162,7 +164,7 @@ export default function SignUpScreen() {
         return;
       }
 
-      setError(err.errors?.[0]?.message || 'Failed to create account.');
+      setError(err.errors?.[0]?.message || t('signUp.errors.createFailed'));
     } finally {
       setLoading(false);
     }
@@ -188,7 +190,7 @@ export default function SignUpScreen() {
         await setActive({ session: attempt.createdSessionId });
         router.replace('/onboarding');
       } else {
-        setError('Verification is not complete yet. Try again.');
+        setError(t('signUp.errors.verificationIncomplete'));
       }
     } catch (err: any) {
       if (isExistingSessionError(err)) {
@@ -196,7 +198,7 @@ export default function SignUpScreen() {
         return;
       }
 
-      setError(err.errors?.[0]?.message || 'Invalid verification code.');
+      setError(err.errors?.[0]?.message || t('signUp.errors.invalidCode'));
     } finally {
       setLoading(false);
     }
@@ -209,23 +211,23 @@ export default function SignUpScreen() {
 
     try {
       await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
-      Alert.alert('Code sent', `A fresh code was sent to ${emailAddress}.`);
+      Alert.alert(t('signUp.alerts.codeSent.title'), t('signUp.alerts.codeSent.message', { email: emailAddress }));
     } catch {
-      Alert.alert('Resend failed', 'Try again in a moment.');
+      Alert.alert(t('signUp.alerts.resendFailed.title'), t('signUp.alerts.resendFailed.message'));
     }
   };
 
   if (pendingVerification) {
     return (
       <AuthShell
-        title="Verify your email"
-        subtitle={`Enter the code sent to ${emailAddress} to unlock your onboarding flow.`}
+        title={t('signUp.verify.title')}
+        subtitle={t('signUp.verify.subtitle', { email: emailAddress })}
         icon={Mail}
       >
         {error ? <ErrorBox message={error} /> : null}
 
         <View style={styles.verifyCard}>
-          <Text style={[styles.verifyLabel, { color: colors.textSecondary }]}>Verification code</Text>
+          <Text style={[styles.verifyLabel, { color: colors.textSecondary }]}>{t('signUp.verify.codeLabel')}</Text>
           <TextInput
             value={code}
             onChangeText={setCode}
@@ -255,12 +257,12 @@ export default function SignUpScreen() {
           ]}
         >
           <Text style={styles.verifyButtonText}>
-            {loading ? 'Verifying...' : 'Verify and continue'}
+            {loading ? t('signUp.verify.verifying') : t('signUp.verify.button')}
           </Text>
         </Pressable>
 
         <Pressable style={styles.resendButton} onPress={resendCode}>
-          <Text style={[styles.resendText, { color: colors.accent }]}>Resend code</Text>
+          <Text style={[styles.resendText, { color: colors.accent }]}>{t('signUp.verify.resend')}</Text>
         </Pressable>
       </AuthShell>
     );
@@ -268,8 +270,8 @@ export default function SignUpScreen() {
 
   return (
     <AuthShell
-      title="Create your account"
-      subtitle="Start with a lighter first step, then finish your profile inside onboarding."
+      title={t('signUp.title')}
+      subtitle={t('signUp.subtitle')}
       icon={Sparkles}
       align="top"
     >
@@ -281,7 +283,7 @@ export default function SignUpScreen() {
         >
           <Text style={styles.oauthG}>G</Text>
           <Text style={[styles.oauthLabel, { color: colors.foreground }]}>
-            {oauthLoading === 'google' ? 'Connecting...' : 'Google'}
+            {oauthLoading === 'google' ? t('oauth.connecting') : 'Google'}
           </Text>
         </Pressable>
 
@@ -292,14 +294,14 @@ export default function SignUpScreen() {
         >
           <AppleIcon size={20} color={colors.foreground} />
           <Text style={[styles.oauthLabel, { color: colors.foreground }]}>
-            {oauthLoading === 'apple' ? 'Connecting...' : 'Apple'}
+            {oauthLoading === 'apple' ? t('oauth.connecting') : 'Apple'}
           </Text>
         </Pressable>
       </View>
 
       <View style={styles.dividerRow}>
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
-        <Text style={[styles.dividerText, { color: colors.textSecondary }]}>or continue with email</Text>
+        <Text style={[styles.dividerText, { color: colors.textSecondary }]}>{t('oauth.orContinueWithEmail')}</Text>
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
       </View>
 
@@ -311,7 +313,7 @@ export default function SignUpScreen() {
           <TextInput
             value={fullName}
             onChangeText={setFullName}
-            placeholder="John Doe"
+            placeholder={t('signUp.fullNamePlaceholder')}
             placeholderTextColor={colors.textSecondary}
             autoCapitalize="words"
             style={[styles.pillInput, { color: colors.foreground }]}
@@ -337,7 +339,7 @@ export default function SignUpScreen() {
           <TextInput
             value={password}
             onChangeText={setPassword}
-            placeholder="Minimum 8 characters"
+            placeholder={t('signUp.passwordPlaceholder')}
             placeholderTextColor={colors.textSecondary}
             secureTextEntry={!showPassword}
             style={[styles.pillInput, { color: colors.foreground }]}
@@ -362,15 +364,15 @@ export default function SignUpScreen() {
         style={[styles.signUpButton, { backgroundColor: '#2563EB' }, loading && styles.buttonDisabled]}
       >
         <Text style={styles.signUpButtonText}>
-          {loading ? 'Creating account...' : 'Create account'}
+          {loading ? t('signUp.creatingAccount') : t('signUp.createAccount')}
         </Text>
         {!loading ? <ArrowRight color="#FFFFFF" size={18} /> : null}
       </Pressable>
 
       <View style={styles.footerRow}>
-        <Text style={[styles.footerText, { color: colors.textSecondary }]}>Already have an account?</Text>
+        <Text style={[styles.footerText, { color: colors.textSecondary }]}>{t('signUp.haveAccount')}</Text>
         <Link href="/(auth)/sign-in">
-          <Text style={[styles.footerLink, { color: '#2563EB' }]}>Sign in</Text>
+          <Text style={[styles.footerLink, { color: '#2563EB' }]}>{t('signUp.signIn')}</Text>
         </Link>
       </View>
     </AuthShell>

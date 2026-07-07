@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, type ViewProps } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import type { LucideIcon } from 'lucide-react-native';
 import {
   SearchX, Bookmark, Target, FileText, Bell, Inbox,
@@ -29,74 +30,44 @@ interface EmptyStateProps extends ViewProps {
 
 interface VariantConfig {
   icon: LucideIcon;
-  title: string;
-  description: string;
-  actionLabel: string;
   iconColor: string;
 }
 
 const VARIANTS: Record<EmptyStateVariant, VariantConfig> = {
   search: {
     icon: SearchX,
-    title: 'No results found',
-    description: 'Try adjusting your search terms or filters to find what you\'re looking for.',
-    actionLabel: 'Clear Search',
     iconColor: '#94A3B8',
   },
   saved: {
     icon: Bookmark,
-    title: 'No saved opportunities',
-    description: 'Opportunities you bookmark will appear here. Start exploring to find scholarships and programmes that match your goals.',
-    actionLabel: 'Browse Opportunities',
     iconColor: '#6366F1',
   },
   goals: {
     icon: Target,
-    title: 'No goals yet',
-    description: 'Create your first goal to start tracking your progress toward scholarships, skills, and career milestones.',
-    actionLabel: 'Create Goal',
     iconColor: '#10B981',
   },
   applications: {
     icon: FileText,
-    title: 'No applications yet',
-    description: 'Track your scholarship and job applications here. When you apply to an opportunity, mark it to monitor your progress.',
-    actionLabel: 'Browse Opportunities',
     iconColor: '#3b82f6',
   },
   notifications: {
     icon: Bell,
-    title: 'No notifications',
-    description: 'You\'re all caught up! We\'ll notify you about deadlines, new opportunities, and goal reminders.',
-    actionLabel: 'Explore Opportunities',
     iconColor: '#F59E0B',
   },
   deadlines: {
     icon: AlertCircle,
-    title: 'No upcoming deadlines',
-    description: 'You don\'t have any approaching deadlines. Save opportunities and create goals to track important dates.',
-    actionLabel: 'Browse Opportunities',
     iconColor: '#EF4444',
   },
   offline: {
     icon: WifiOff,
-    title: 'You\'re offline',
-    description: 'Check your internet connection. You can still browse previously loaded content.',
-    actionLabel: 'Try Again',
     iconColor: '#64748B',
   },
   error: {
     icon: AlertCircle,
-    title: 'Something went wrong',
-    description: 'We couldn\'t load this content. Please try again or check back later.',
-    actionLabel: 'Retry',
     iconColor: '#EF4444',
   },
   generic: {
     icon: Inbox,
-    title: 'Nothing here yet',
-    description: 'Content will appear here once it\'s available.',
-    actionLabel: 'Go Back',
     iconColor: '#94A3B8',
   },
 };
@@ -111,11 +82,12 @@ export function EmptyState({
   onAction,
   ...props
 }: EmptyStateProps) {
+  const { t } = useTranslation('common');
   const config = VARIANTS[variant];
   const Icon = icon || config.icon;
-  const displayTitle = title || config.title;
-  const displayDescription = description || config.description;
-  const displayActionLabel = actionLabel || config.actionLabel;
+  const displayTitle = title || t(`emptyState.${variant}.title`);
+  const displayDescription = description || t(`emptyState.${variant}.description`);
+  const displayActionLabel = actionLabel || t(`emptyState.${variant}.actionLabel`);
 
   return (
     <View style={styles.container} {...props}>

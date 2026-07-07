@@ -1,0 +1,134 @@
+{
+  "header": {
+    "title": "المدرب الذكي"
+  },
+  "loading": {
+    "conversation": "جارٍ تحميل المحادثة..."
+  },
+  "deadline": {
+    "rolling": "مستمر",
+    "set": "تم تحديد الموعد النهائي"
+  },
+  "location": {
+    "remote": "عن بُعد"
+  },
+  "answers": {
+    "checkingOpportunities": "أتحقق من فرص Edutu من أجلك.",
+    "matchesFound": "وجدت {{count}} نتيجة مطابقة من Edutu.\nمرّر البطاقات أو ضيّق نطاق البحث.",
+    "roadmapChecking": "أتحقق من فرصك الآن.\nثم سأبني خارطة الطريق.",
+    "roadmapMatchFound": "وجدت تطابقًا محتملًا.\nاضغط على «إنشاء» لإنشاء الأهداف والتذكيرات.",
+    "roadmapWhichOpportunity": "لأي فرصة تريد ذلك؟\nأرسل الاسم أو تصفح الفرص."
+  },
+  "quickPrompts": {
+    "findScholarships": {
+      "title": "ابحث عن منح دراسية",
+      "subtitle": "المتاحة هذا الشهر"
+    },
+    "mastercard": {
+      "title": "فرص Mastercard المطابقة",
+      "subtitle": "منح دراسية من Edutu"
+    },
+    "buildRoadmap": {
+      "title": "أنشئ خارطة طريق",
+      "subtitle": "خطط لطلب تقديمي التالي"
+    },
+    "internships": {
+      "title": "مواعيد التدريب النهائية",
+      "subtitle": "فرص قادمة"
+    }
+  },
+  "alerts": {
+    "noDeadlineTitle": "لم يُعثر على موعد نهائي",
+    "noDeadlineMessage": "لا يوجد موعد نهائي محفوظ لهذه الفرصة بعد.",
+    "alreadyTrackedTitle": "متتبَّع بالفعل",
+    "alreadyTrackedMessage": "هذا الموعد النهائي موجود بالفعل في خطتك.",
+    "deadlineAddedTitle": "تمت إضافة الموعد النهائي",
+    "deadlineAddedMessage": "أضفت هذا إلى خطتك وجدولت التذكيرات.",
+    "couldNotAddDeadlineTitle": "تعذّرت إضافة الموعد النهائي",
+    "tryAgainFromOpportunity": "يرجى المحاولة مرة أخرى من صفحة الفرصة.",
+    "signInRequiredTitle": "تسجيل الدخول مطلوب",
+    "signInRequiredMessage": "يرجى تسجيل الدخول لإنشاء أهداف خارطة الطريق.",
+    "roadmapExistsTitle": "خارطة الطريق موجودة بالفعل",
+    "roadmapExistsMessage": "توجد بالفعل أهداف لهذه الفرصة في خطتك.",
+    "openGoals": "فتح الأهداف",
+    "stayHere": "البقاء هنا",
+    "roadmapCreatedTitle": "تم إنشاء خارطة الطريق",
+    "roadmapCreatedMessage": "تمت إضافة {{count}} من الأهداف مع تذكيرات حيثما وُجدت مواعيد نهائية.",
+    "couldNotCreateRoadmapTitle": "تعذّر إنشاء خارطة الطريق"
+  },
+  "goals": {
+    "applyTitle": "التقديم: {{title}}",
+    "applyDescription": "الموعد النهائي للتقديم لدى {{organization}}.",
+    "thisOpportunity": "هذه الفرصة",
+    "submitTitle": "إرسال {{title}}",
+    "submitDescription": "{{strategy}}\n\nالموارد:\n{{resources}}",
+    "milestoneDescription": "محطة إنجاز لـ {{title}}",
+    "dailyDescription": "{{description}}\n\nالتركيز: {{focus}}\nالوقت: {{minutes}} دقيقة",
+    "checklistDescription": "عنصر قائمة تحقق لـ {{title}}"
+  },
+  "messages": {
+    "recommendedTitle": "موصى به من الفرص",
+    "viewMore": "عرض المزيد",
+    "openAllOpportunities": "فتح جميع الفرص",
+    "narrowBy": "تضييق حسب:",
+    "view": "عرض",
+    "categoryFallback": "فرصة",
+    "typing": "Edutu يتحقق من الفرص"
+  },
+  "followUp": {
+    "country": "الدولة",
+    "deadline": "الموعد النهائي",
+    "funding": "التمويل"
+  },
+  "roadmapPanel": {
+    "title": "أنشئ خارطة طريق",
+    "subtitle": "أهداف ومواعيد نهائية وتذكيرات",
+    "searching": "جارٍ البحث في الفرص...",
+    "matchMeta": "{{category}} · ينتهي في {{deadline}}",
+    "daysLeft": "متبقٍّ {{count}} يوم",
+    "daysLeft_zero": "لم يتبقّ أي يوم",
+    "daysLeft_one": "متبقٍّ يوم واحد",
+    "daysLeft_two": "متبقٍّ يومان",
+    "daysLeft_few": "متبقٍّ {{count}} أيام",
+    "daysLeft_many": "متبقٍّ {{count}} يومًا",
+    "daysLeft_other": "متبقٍّ {{count}} يوم",
+    "dailySteps": "{{count}} خطوة يومية",
+    "dailySteps_zero": "لا توجد خطوات يومية",
+    "dailySteps_one": "خطوة يومية واحدة",
+    "dailySteps_two": "خطوتان يوميتان",
+    "dailySteps_few": "{{count}} خطوات يومية",
+    "dailySteps_many": "{{count}} خطوة يومية",
+    "dailySteps_other": "{{count}} خطوة يومية",
+    "build": "إنشاء"
+  },
+  "empty": {
+    "title": "أنا Edutu، مدربك الذكي",
+    "description": "اسأل عن منح دراسية حقيقية أو مواعيد نهائية أو خرائط طريق أو الخطوات التالية للتقديم."
+  },
+  "input": {
+    "placeholder": "راسل Edutu..."
+  },
+  "threads": {
+    "modalTitle": "المحادثات",
+    "newConversation": "محادثة جديدة",
+    "empty": "لا توجد محادثات حديثة",
+    "groups": {
+      "today": "اليوم",
+      "yesterday": "أمس",
+      "thisWeek": "هذا الأسبوع",
+      "older": "أقدم"
+    }
+  },
+  "voice": {
+    "titleTranscript": "رسالة صوتية",
+    "titleListening": "جارٍ الاستماع...",
+    "titleProcessing": "جارٍ المعالجة...",
+    "titleIdle": "اضغط للتحدث",
+    "sendingAutomatically": "جارٍ الإرسال تلقائيًا...",
+    "genericError": "حدث خطأ ما",
+    "hintStop": "اضغط على الميكروفون للإيقاف",
+    "hintSendOrWait": "اضغط على إرسال أو انتظر",
+    "hintTranscribing": "جارٍ تحويل رسالتك إلى نص...",
+    "hintStart": "اضغط على الميكروفون لبدء التسجيل"
+  }
+}

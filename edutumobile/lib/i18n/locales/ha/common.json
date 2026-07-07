@@ -1,0 +1,173 @@
+{
+  "appName": "Edutu",
+  "actions": {
+    "ok": "OK",
+    "cancel": "Soke",
+    "save": "Ajiye",
+    "delete": "Goge",
+    "done": "An gama",
+    "back": "Baya",
+    "next": "Na gaba",
+    "skip": "Tsallake",
+    "retry": "Sake gwadawa",
+    "close": "Rufe",
+    "continue": "Ci gaba",
+    "share": "Raba",
+    "apply": "Nema",
+    "search": "Bincika",
+    "seeAll": "Duba duka",
+    "viewAll": "Duba dukansu",
+    "learnMore": "Ƙara sani",
+    "getStarted": "Fara",
+    "tryAgain": "Sake gwadawa"
+  },
+  "states": {
+    "loading": "Ana lodawa...",
+    "saving": "Ana ajiyewa...",
+    "error": "Kuskure",
+    "success": "An yi nasara",
+    "empty": "Babu komai a nan tukuna",
+    "offline": "Ba ka da intanet",
+    "comingSoon": "Nan ba da daɗewa ba"
+  },
+  "errors": {
+    "generic": "Wani abu ya ɓaci. Da fatan za a sake gwadawa.",
+    "network": "Matsalar sadarwa. Duba haɗin intanet ɗinka ka sake gwadawa.",
+    "notFound": "Ba a samu ba"
+  },
+  "errorBoundary": {
+    "somethingWentWrong": "Wani abu ya ɓaci",
+    "unexpectedError": "An samu kuskuren da ba a zata ba",
+    "home": "Gida",
+    "tryAgain": "Sake Gwadawa"
+  },
+  "emptyState": {
+    "search": {
+      "title": "Ba a samu sakamako ba",
+      "description": "Gwada sauya kalmomin bincike ko matattara don samun abin da kake nema.",
+      "actionLabel": "Goge Bincike"
+    },
+    "saved": {
+      "title": "Babu damammakin da aka ajiye",
+      "description": "Damammakin da ka yi wa alama za su bayyana a nan. Fara bincike don samun tallafin karatu da shirye-shiryen da suka dace da manufofinka.",
+      "actionLabel": "Duba Damammaki"
+    },
+    "goals": {
+      "title": "Babu manufa tukuna",
+      "description": "Ƙirƙiri manufarka ta farko don fara bin diddigin ci gabanka zuwa tallafin karatu, ƙwarewa, da matakan sana'a.",
+      "actionLabel": "Ƙirƙiri Manufa"
+    },
+    "applications": {
+      "title": "Babu buƙatar nema tukuna",
+      "description": "Bi diddigin buƙatun tallafin karatu da na aiki a nan. Idan ka nemi wata dama, yi mata alama don lura da ci gabanka.",
+      "actionLabel": "Duba Damammaki"
+    },
+    "notifications": {
+      "title": "Babu sanarwa",
+      "description": "Ka gama duka! Za mu sanar da kai game da wa'adodi, sababbin damammaki, da tunatarwar manufofi.",
+      "actionLabel": "Binciko Damammaki"
+    },
+    "deadlines": {
+      "title": "Babu wa'adi mai zuwa",
+      "description": "Ba ka da wani wa'adi da ke gabatowa. Ajiye damammaki ka kuma ƙirƙiri manufofi don bin diddigin muhimman ranaku.",
+      "actionLabel": "Duba Damammaki"
+    },
+    "offline": {
+      "title": "Ba ka da intanet",
+      "description": "Duba haɗin intanet ɗinka. Za ka iya ci gaba da duba abubuwan da aka riga aka loda.",
+      "actionLabel": "Sake Gwadawa"
+    },
+    "error": {
+      "title": "Wani abu ya ɓaci",
+      "description": "Ba mu iya loda wannan abun ba. Da fatan za a sake gwadawa ko a duba daga baya.",
+      "actionLabel": "Sake gwadawa"
+    },
+    "generic": {
+      "title": "Babu komai a nan tukuna",
+      "description": "Abubuwa za su bayyana a nan da zarar sun samu.",
+      "actionLabel": "Koma Baya"
+    }
+  },
+  "offline": {
+    "banner": "Ba ka da intanet"
+  },
+  "hints": {
+    "home": {
+      "title": "Gida",
+      "body": "Fara daga nan don ganin fitattun damammaki da shawarwarin da suka fi dacewa da kai.",
+      "footer": "Yi amfani da Gida a matsayin taƙaitaccen bayaninka na yau da kullum."
+    },
+    "discover": {
+      "title": "Binciko",
+      "body": "Bincika tallafin karatu, ayyuka, tallafi, da shirye-shirye.",
+      "footer": "Ajiye waɗanda suka fi dacewa da kai."
+    },
+    "plan": {
+      "title": "Shiri",
+      "body": "Buɗe taswirorin hanya da manufofi idan kana buƙatar hanya mataki-mataki.",
+      "footer": "Mayar da damammaki zuwa ayyuka."
+    },
+    "ai": {
+      "title": "Tambayi Edutu AI",
+      "body": "Danna maɓallin AI na tsakiya don buɗe hira ka nemi jagora.",
+      "footer": "Tabbatar da sahihan bayanai."
+    },
+    "bell": {
+      "title": "Faɗakarwa",
+      "body": "Wa'adodi da tunatarwa suna bayyana a nan.",
+      "footer": "Duba abubuwan da lokacinsu ke ƙurewa."
+    },
+    "menu": {
+      "title": "Bayanan martaba",
+      "body": "Sabunta saituna da zaɓuɓɓuka a nan.",
+      "footer": "Ingantaccen bayanan martaba, ingantacciyar dacewa."
+    },
+    "skipHint": "Tsallake shawarwarin maraba",
+    "finishHint": "Kammala shawarwarin maraba",
+    "nextHint": "Nuna shawarar maraba ta gaba"
+  },
+  "landingCta": {
+    "title": "A Shirye Kake Ka Fara?",
+    "subtitle": "Shiga a matsayin jagora ko binciko taswirorin hanya na kanka",
+    "applyAsMentor": "Nema a Matsayin Jagora",
+    "seeRoadmaps": "Duba Taswirorin Hanya"
+  },
+  "adBanner": {
+    "completeProfile": {
+      "title": "Samu Damammakin da Suka Dace da Kai",
+      "subtitle": "Kammala bayanan martabarka don ganin damammakin da suka dace da ƙwarewarka da abubuwan da kake so",
+      "actionLabel": "Kammala Bayanan Martaba"
+    },
+    "exploreOpportunities": {
+      "title": "Binciko Sababbin Damammaki",
+      "subtitle": "Duba tallafin karatu, horon aiki, da shirye-shiryen da suka dace da bayanan martabarka",
+      "actionLabel": "Binciko Yanzu"
+    },
+    "buildCV": {
+      "title": "Gina CV ɗinka Mafi Kyau",
+      "subtitle": "Ƙirƙiri ƙwararren CV da samfurorin AI da shawarwari masu wayo",
+      "actionLabel": "Fara Ginawa"
+    },
+    "trackGoals": {
+      "title": "Tsaya kan Hanya da Manufofi",
+      "subtitle": "Saka muhimman matakai kada ka sake rasa wa'adin neman dama",
+      "actionLabel": "Saka Manufofi"
+    },
+    "upgradePro": {
+      "title": "Buɗe Fasalolin Pro",
+      "subtitle": "Daidaita CV da AI, samfurori na musamman, da ajiya mara iyaka",
+      "actionLabel": "Haɓaka Yanzu"
+    },
+    "notifications": {
+      "title": "Kada Ka Taɓa Rasa Wa'adi",
+      "subtitle": "Kunna sanarwa don samun tunatarwa kan damammaki masu zuwa",
+      "actionLabel": "Kunna"
+    }
+  },
+  "brandedLoader": {
+    "loading": "Ana lodawa…"
+  },
+  "campaign": {
+    "badge": "Edu2Mobile"
+  }
+}

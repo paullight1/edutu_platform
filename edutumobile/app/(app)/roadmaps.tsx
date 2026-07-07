@@ -11,6 +11,7 @@ import {
     ThumbsUp, Pencil
 } from "lucide-react-native";
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../../components/context/ThemeContext";
 import { useRouter } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
@@ -148,6 +149,7 @@ interface AIQuestion {
 const CATEGORY_FILTERS = ['All', 'Scholarship', 'Career', 'Education', 'Skills', 'Business', 'Tech'];
 
 export default function RoadmapsScreen() {
+    const { t } = useTranslation('goals');
     const { isDark, colors } = useTheme();
     const router = useRouter();
     const { user } = useUser();
@@ -260,9 +262,9 @@ export default function RoadmapsScreen() {
             console.error('Failed to load intent questions:', e);
             // Show default questions
             setIntentQuestions([
-                { id: 'q1', question: 'What is your current experience level?', type: 'select', options: ['Beginner', 'Intermediate', 'Advanced'] },
-                { id: 'q2', question: 'How much time can you commit per week?', type: 'select', options: ['Less than 5 hours', '5-10 hours', '10-20 hours', '20+ hours'] },
-                { id: 'q3', question: 'What are your main goals?', type: 'text' },
+                { id: 'q1', question: t('roadmaps.intent.q1'), type: 'select', options: [t('roadmaps.intent.levels.beginner'), t('roadmaps.intent.levels.intermediate'), t('roadmaps.intent.levels.advanced')] },
+                { id: 'q2', question: t('roadmaps.intent.q2'), type: 'select', options: [t('roadmaps.intent.time.lessThan5'), t('roadmaps.intent.time.hours5to10'), t('roadmaps.intent.time.hours10to20'), t('roadmaps.intent.time.hours20plus')] },
+                { id: 'q3', question: t('roadmaps.intent.q3'), type: 'text' },
             ]);
             setShowIntentModal(true);
         } finally {
@@ -327,7 +329,7 @@ export default function RoadmapsScreen() {
             setShowFeedbackModal(false);
             setFeedbackScore(0);
             setFeedbackText('');
-            Alert.alert('Thank you!', 'Your feedback helps us improve roadmaps for everyone.');
+            Alert.alert(t('roadmaps.feedback.thanksTitle'), t('roadmaps.feedback.thanksMessage'));
         } catch (e) {
             console.error('Feedback failed:', e);
         } finally {
@@ -353,46 +355,45 @@ export default function RoadmapsScreen() {
 
         const diffDays = Math.ceil((date.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
         const formatted = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        if (diffDays === 0) return `${formatted} - due today`;
-        if (diffDays === 1) return `${formatted} - due tomorrow`;
-        if (diffDays > 1) return `${formatted} - ${diffDays} days left`;
-        return `${formatted} - overdue`;
+        if (diffDays === 0) return t('roadmaps.deadline.dueToday', { date: formatted });
+        if (diffDays === 1) return t('roadmaps.deadline.dueTomorrow', { date: formatted });
+        if (diffDays > 1) return t('roadmaps.deadline.daysLeft', { date: formatted, count: diffDays });
+        return t('roadmaps.deadline.overdue', { date: formatted });
     };
 
     const formatRelativeDueDay = (value?: number | string | null) => {
         if (value === null || value === undefined || value === '') return '';
         const day = typeof value === 'number' ? value : Number(value);
         if (Number.isFinite(day)) {
-            if (day < 0) return `${Math.abs(day)} days before deadline`;
-            if (day === 0) return 'Due on deadline day';
-            if (day === 1) return 'Due day 1';
-            return `Due day ${day}`;
+            if (day < 0) return t('roadmaps.deadline.daysBefore', { count: Math.abs(day) });
+            if (day === 0) return t('roadmaps.deadline.dueOnDeadline');
+            return t('roadmaps.deadline.dueDay', { day });
         }
         return String(value);
     };
 
     const buildAdoptionMessage = (adoption?: RoadmapAdoptionResponse | null) => {
-        if (!adoption) return 'You have enrolled in this roadmap. Check your goals to start!';
+        if (!adoption) return t('roadmaps.adoption.fallback');
 
         const reminders = adoption.reminderSchedule || adoption.reminder_schedule || [];
         const communityAction = adoption.communityAction || adoption.community_action;
         const targetDeadline = adoption.targetDeadline || adoption.target_deadline;
-        const parts = ['Your roadmap is ready.'];
+        const parts = [t('roadmaps.adoption.ready')];
 
         if (adoption.goalsCreated && adoption.goalsCreated > 0) {
-            parts.push(`${adoption.goalsCreated} milestone${adoption.goalsCreated === 1 ? '' : 's'} added to your goals.`);
+            parts.push(t('roadmaps.adoption.milestones', { count: adoption.goalsCreated }));
         }
         if (targetDeadline) {
-            parts.push(`Deadline: ${new Date(targetDeadline).toLocaleDateString()}.`);
+            parts.push(t('roadmaps.adoption.deadline', { date: new Date(targetDeadline).toLocaleDateString() }));
         }
         if (reminders.length > 0 || (adoption.goalsCreated ?? 0) > 0) {
-            parts.push('Reminders are scheduled.');
+            parts.push(t('roadmaps.adoption.reminders'));
         }
         if (adoption.calendar?.enabled && adoption.calendar.eventCount > 0) {
-            parts.push(`${adoption.calendar.eventCount} calendar events prepared.`);
+            parts.push(t('roadmaps.adoption.calendarEvents', { count: adoption.calendar.eventCount }));
         }
         if (communityAction?.communityId) {
-            parts.push('A matching roadmap community is available.');
+            parts.push(t('roadmaps.adoption.community'));
         }
 
         return parts.join(' ');
@@ -431,16 +432,16 @@ export default function RoadmapsScreen() {
                 headers: { 'Authorization': `Bearer ${token}` },
             });
             if (!res?.ok) {
-                Alert.alert('Calendar unavailable', 'Could not build the calendar. Please try again.');
+                Alert.alert(t('roadmaps.calendar.unavailableTitle'), t('roadmaps.calendar.unavailableMessage'));
                 return;
             }
             const data = await res.json();
             const result = await shareIcsString(data.ics, data.filename || 'roadmap.ics');
             if (!result.ok && result.reason === 'error') {
-                Alert.alert('Export failed', 'Could not open the calendar file.');
+                Alert.alert(t('roadmaps.calendar.exportFailedTitle'), t('roadmaps.calendar.exportFailedMessage'));
             }
         } catch {
-            Alert.alert('Calendar unavailable', 'Could not build the calendar. Please try again.');
+            Alert.alert(t('roadmaps.calendar.unavailableTitle'), t('roadmaps.calendar.unavailableMessage'));
         }
     };
 
@@ -450,7 +451,7 @@ export default function RoadmapsScreen() {
         try {
             const token = await getAuthToken();
             const res = await postEnrollment(token, selectedItem);
-            if (!res?.ok) throw new Error('Enrollment failed');
+            if (!res?.ok) throw new Error(t('roadmaps.enroll.failed'));
             let adoption: RoadmapAdoptionResponse | null = null;
             try {
                 adoption = await res.json();
@@ -459,19 +460,19 @@ export default function RoadmapsScreen() {
             }
 
             setSelectedItem(null);
-            Alert.alert('Roadmap adopted', buildAdoptionMessage(adoption), [
-                { text: 'View Goals', onPress: () => router.push('/goals') },
+            Alert.alert(t('roadmaps.enroll.adoptedTitle'), buildAdoptionMessage(adoption), [
+                { text: t('roadmaps.enroll.viewGoals'), onPress: () => router.push('/goals') },
                 ...(adoption?.id
-                    ? [{ text: 'Add to Calendar', onPress: () => handleAddCalendar(adoption.id) }]
+                    ? [{ text: t('roadmaps.enroll.addToCalendar'), onPress: () => handleAddCalendar(adoption.id) }]
                     : []),
                 ...(adoption?.communityAction || adoption?.community_action
-                    ? [{ text: 'Open Community', onPress: () => router.push('/roadmaps') }]
+                    ? [{ text: t('roadmaps.enroll.openCommunity'), onPress: () => router.push('/roadmaps') }]
                     : []),
-                { text: 'Continue Browsing' },
+                { text: t('roadmaps.enroll.continueBrowsing') },
             ]);
             fetchRoadmaps();
         } catch (err: any) {
-            Alert.alert('Enrollment Failed', err.message || 'Could not enroll.');
+            Alert.alert(t('roadmaps.enroll.failedTitle'), err.message || t('roadmaps.enroll.failedMessage'));
         } finally {
             setEnrolling(false);
         }
@@ -512,14 +513,14 @@ export default function RoadmapsScreen() {
                     {item.is_featured && (
                         <View style={styles.featuredBadge}>
                             <Star color="#F59E0B" size={10} fill="#F59E0B" />
-                            <Text style={styles.featuredText}>Featured</Text>
+                            <Text style={styles.featuredText}>{t('roadmaps.featured')}</Text>
                         </View>
                     )}
                 </View>
                 <View style={styles.cardBody}>
                     <Text style={[styles.cardTitle, { color: textPrimary }]} numberOfLines={2}>{item.title}</Text>
                     <Text style={[styles.cardSummary, { color: textSecondary }]} numberOfLines={2}>
-                        {item.description || 'No description available'}
+                        {item.description || t('roadmaps.noDescription')}
                     </Text>
                     {(deadlineLabel || relativeDueLabel) && (
                         <View style={styles.cardDeadlineRow}>
@@ -536,7 +537,7 @@ export default function RoadmapsScreen() {
                             </View>
                             {item.steps?.length > 0 && (
                                 <View style={[styles.difficultyBadge, { backgroundColor: `${categoryColor}15` }]}>
-                                    <Text style={[styles.badgeText, { color: categoryColor }]}>{item.steps.length} steps</Text>
+                                    <Text style={[styles.badgeText, { color: categoryColor }]}>{t('roadmaps.stepsCount', { count: item.steps.length })}</Text>
                                 </View>
                             )}
                         </View>
@@ -555,8 +556,8 @@ export default function RoadmapsScreen() {
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor }} edges={['top', 'left', 'right']}>
             <ScreenHeader
-                title="Roadmaps"
-                subtitle="Structured learning paths to achieve your goals"
+                title={t('roadmaps.title')}
+                subtitle={t('roadmaps.subtitle')}
                 showBack
             />
 
@@ -578,9 +579,9 @@ export default function RoadmapsScreen() {
                             <Pencil size={20} color="#FFFFFF" />
                         </View>
                         <View style={styles.creatorBannerText}>
-                            <Text style={styles.creatorBannerTitle}>Become a Roadmap Creator</Text>
+                            <Text style={styles.creatorBannerTitle}>{t('roadmaps.creatorBanner.title')}</Text>
                             <Text style={styles.creatorBannerSubtitle}>
-                                Share your expertise. Build learning paths. Earn while you teach.
+                                {t('roadmaps.creatorBanner.subtitle')}
                             </Text>
                         </View>
                     </View>
@@ -599,9 +600,9 @@ export default function RoadmapsScreen() {
                     <BookOpen size={20} color="#FFFFFF" />
                 </View>
                 <View style={styles.templateBannerText}>
-                    <Text style={[styles.templateBannerTitle, { color: textPrimary }]}>Explore Roadmap Templates</Text>
+                    <Text style={[styles.templateBannerTitle, { color: textPrimary }]}>{t('roadmaps.templateBanner.title')}</Text>
                     <Text style={[styles.templateBannerSubtitle, { color: textSecondary }]}>
-                        Start from a proven path and turn it into a goal.
+                        {t('roadmaps.templateBanner.subtitle')}
                     </Text>
                 </View>
                 <ChevronRight size={20} color={textSecondary} />
@@ -611,7 +612,7 @@ export default function RoadmapsScreen() {
                 <View style={[styles.searchBox, { backgroundColor: inputBg, borderColor }]}>
                     <Search color={textSecondary} size={18} />
                     <TextInput
-                        placeholder="Search roadmaps..."
+                        placeholder={t('roadmaps.searchPlaceholder')}
                         placeholderTextColor={textSecondary}
                         style={[styles.searchInput, { color: textPrimary }]}
                         value={search}
@@ -627,7 +628,7 @@ export default function RoadmapsScreen() {
                             onPress={() => setCategory(cat)}
                         >
                             <Text style={[styles.filterChipText, { color: textSecondary }, category === cat && styles.filterChipTextActive]}>
-                                {cat}
+                                {t(`roadmaps.categories.${cat.toLowerCase()}`)}
                             </Text>
                         </TouchableOpacity>
                     ))}
@@ -636,7 +637,7 @@ export default function RoadmapsScreen() {
 
             {loading ? (
                 <View style={styles.centerState}>
-                    <BrandedLoader label="Loading roadmaps..." />
+                    <BrandedLoader label={t('roadmaps.loading')} />
                 </View>
             ) : (
                 <FlatList
@@ -655,7 +656,7 @@ export default function RoadmapsScreen() {
                         <RefreshControl refreshing={loading} onRefresh={fetchRoadmaps} tintColor="#6366F1" />
                     }
                     ListEmptyComponent={
-                        <Text style={[styles.emptyText, { color: textSecondary }]}>No roadmaps found. Try adjusting your search or filters!</Text>
+                        <Text style={[styles.emptyText, { color: textSecondary }]}>{t('roadmaps.empty')}</Text>
                     }
                 />
             )}
@@ -687,7 +688,7 @@ export default function RoadmapsScreen() {
                                         </View>
                                         <View style={styles.modalRating}>
                                             <Star color="#F59E0B" size={14} fill="#F59E0B" />
-                                            <Text style={[styles.modalRatingText, { color: textPrimary }]}>{selectedItem.rating_avg ? (selectedItem.rating_avg / 10).toFixed(1) : 'N/A'}</Text>
+                                            <Text style={[styles.modalRatingText, { color: textPrimary }]}>{selectedItem.rating_avg ? (selectedItem.rating_avg / 10).toFixed(1) : t('roadmaps.notAvailable')}</Text>
                                         </View>
                                     </View>
                                     <Text style={[styles.modalTitle, { color: textPrimary }]}>{selectedItem.title}</Text>
@@ -698,19 +699,19 @@ export default function RoadmapsScreen() {
                                             {getCreatorProof(selectedItem) && (
                                                 <View style={[styles.infoRow, { backgroundColor: inputBg }]}>
                                                     <ShieldCheck color={colors.primary} size={16} />
-                                                    <Text style={[styles.infoText, { color: textPrimary }]}>Creator proof: {getCreatorProof(selectedItem)}</Text>
+                                                    <Text style={[styles.infoText, { color: textPrimary }]}>{t('roadmaps.detailInfo.creatorProof', { value: getCreatorProof(selectedItem) })}</Text>
                                                 </View>
                                             )}
                                             {getDeadlineStrategy(selectedItem) && (
                                                 <View style={[styles.infoRow, { backgroundColor: inputBg }]}>
                                                     <Zap color="#F59E0B" size={16} />
-                                                    <Text style={[styles.infoText, { color: textPrimary }]}>Deadline strategy: {getDeadlineStrategy(selectedItem)}</Text>
+                                                    <Text style={[styles.infoText, { color: textPrimary }]}>{t('roadmaps.detailInfo.deadlineStrategy', { value: getDeadlineStrategy(selectedItem) })}</Text>
                                                 </View>
                                             )}
                                             {getTargetDeadline(selectedItem) && (
                                                 <View style={[styles.infoRow, { backgroundColor: inputBg }]}>
                                                     <CalendarDays color="#10B981" size={16} />
-                                                    <Text style={[styles.infoText, { color: textPrimary }]}>Target deadline: {formatTargetDeadline(getTargetDeadline(selectedItem))}</Text>
+                                                    <Text style={[styles.infoText, { color: textPrimary }]}>{t('roadmaps.detailInfo.targetDeadline', { value: formatTargetDeadline(getTargetDeadline(selectedItem)) })}</Text>
                                                 </View>
                                             )}
                                             {formatRelativeDueDay(getRelativeDueDay(selectedItem)) && (
@@ -725,39 +726,39 @@ export default function RoadmapsScreen() {
                                     {selectedItem.target_audience && (
                                         <View style={[styles.infoRow, { backgroundColor: inputBg }]}>
                                             <GraduationCap color={colors.primary} size={16} />
-                                            <Text style={[styles.infoText, { color: textPrimary }]}>For: {selectedItem.target_audience}</Text>
+                                            <Text style={[styles.infoText, { color: textPrimary }]}>{t('roadmaps.detailInfo.audience', { value: selectedItem.target_audience })}</Text>
                                         </View>
                                     )}
 
                                     <View style={styles.statsGrid}>
                                         <View style={[styles.statBox, { backgroundColor: inputBg }]}>
-                                            <Text style={[styles.statLabel, { color: textSecondary }]}>Difficulty</Text>
+                                            <Text style={[styles.statLabel, { color: textSecondary }]}>{t('roadmaps.statsLabels.difficulty')}</Text>
                                             <Text style={[styles.statValue, { color: textPrimary }]}>{selectedItem.difficulty}</Text>
                                         </View>
                                         <View style={[styles.statBox, { backgroundColor: inputBg }]}>
-                                            <Text style={[styles.statLabel, { color: textSecondary }]}>Duration</Text>
-                                            <Text style={[styles.statValue, { color: textPrimary }]}>{selectedItem.estimated_duration || 'Varies'}</Text>
+                                            <Text style={[styles.statLabel, { color: textSecondary }]}>{t('roadmaps.statsLabels.duration')}</Text>
+                                            <Text style={[styles.statValue, { color: textPrimary }]}>{selectedItem.estimated_duration || t('roadmaps.varies')}</Text>
                                         </View>
                                         <View style={[styles.statBox, { backgroundColor: inputBg }]}>
-                                            <Text style={[styles.statLabel, { color: textSecondary }]}>Steps</Text>
+                                            <Text style={[styles.statLabel, { color: textSecondary }]}>{t('roadmaps.statsLabels.steps')}</Text>
                                             <Text style={[styles.statValue, { color: textPrimary }]}>{selectedItem.steps?.length || 0}</Text>
                                         </View>
                                         <View style={[styles.statBox, { backgroundColor: inputBg }]}>
-                                            <Text style={[styles.statLabel, { color: textSecondary }]}>Enrolled</Text>
+                                            <Text style={[styles.statLabel, { color: textSecondary }]}>{t('roadmaps.statsLabels.enrolled')}</Text>
                                             <Text style={[styles.statValue, { color: textPrimary }]}>{(selectedItem.enrollment_count || 0).toLocaleString()}</Text>
                                         </View>
                                     </View>
 
                                     {selectedItem.outcomes && (
                                         <View style={styles.section}>
-                                            <Text style={[styles.sectionTitle, { color: textPrimary }]}>What You'll Achieve</Text>
+                                            <Text style={[styles.sectionTitle, { color: textPrimary }]}>{t('roadmaps.achieveTitle')}</Text>
                                             <Text style={{ color: textSecondary, lineHeight: 22, fontSize: 14 }}>{selectedItem.outcomes}</Text>
                                         </View>
                                     )}
 
                                     {selectedItem.steps && selectedItem.steps.length > 0 && (
                                         <View style={styles.section}>
-                                            <Text style={[styles.sectionTitle, { color: textPrimary }]}>Learning Path</Text>
+                                            <Text style={[styles.sectionTitle, { color: textPrimary }]}>{t('roadmaps.learningPath')}</Text>
                                             {selectedItem.steps.map((step: RoadmapStep, idx: number) => (
                                                 <View key={step.id || idx} style={[styles.stepCard, { backgroundColor: inputBg }]}>
                                                     <View style={styles.stepHeader}>
@@ -786,7 +787,7 @@ export default function RoadmapsScreen() {
                                                     )}
                                                     {(step.deadline_strategy || step.deadlineStrategy) && (
                                                         <Text style={[styles.stepMetaText, { color: textSecondary }]}>
-                                                            Strategy: {step.deadline_strategy || step.deadlineStrategy}
+                                                            {t('roadmaps.detailInfo.strategy', { value: step.deadline_strategy || step.deadlineStrategy })}
                                                         </Text>
                                                     )}
                                                 </View>
@@ -804,7 +805,7 @@ export default function RoadmapsScreen() {
                                         ) : (
                                             <>
                                                 <Sparkles size={18} color="white" />
-                                                <Text style={styles.enrollBtnText}>Start This Roadmap</Text>
+                                                <Text style={styles.enrollBtnText}>{t('roadmaps.startButton')}</Text>
                                             </>
                                         )}
                                     </TouchableOpacity>
@@ -814,7 +815,7 @@ export default function RoadmapsScreen() {
                                         onPress={() => setShowFeedbackModal(true)}
                                     >
                                         <ThumbsUp size={16} color={textSecondary} />
-                                        <Text style={[styles.feedbackBtnText, { color: textSecondary }]}>Rate this roadmap</Text>
+                                        <Text style={[styles.feedbackBtnText, { color: textSecondary }]}>{t('roadmaps.rateButton')}</Text>
                                     </TouchableOpacity>
                                 </View>
                             </ScrollView>
@@ -829,8 +830,8 @@ export default function RoadmapsScreen() {
                     <View style={[styles.intentSheet, { backgroundColor: isDark ? "#0F172A" : "#FFFFFF", borderColor }]}>
                         <View style={styles.intentHeader}>
                             <Sparkles color="#3b82f6" size={24} />
-                            <Text style={[styles.intentTitle, { color: textPrimary }]}>Help Us Find Your Perfect Roadmap</Text>
-                            <Text style={[styles.intentSubtitle, { color: textSecondary }]}>Answer a few questions so we can recommend the best learning path for you.</Text>
+                            <Text style={[styles.intentTitle, { color: textPrimary }]}>{t('roadmaps.intent.title')}</Text>
+                            <Text style={[styles.intentSubtitle, { color: textSecondary }]}>{t('roadmaps.intent.subtitle')}</Text>
                         </View>
                         <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
                             <View style={{ padding: 24, gap: 20 }}>
@@ -854,7 +855,7 @@ export default function RoadmapsScreen() {
                                                 style={[styles.answerInput, { backgroundColor: inputBg, borderColor, color: textPrimary }]}
                                                 value={intentAnswers[q.id] || ''}
                                                 onChangeText={(text) => setIntentAnswers({ ...intentAnswers, [q.id]: text })}
-                                                placeholder="Type your answer..."
+                                                placeholder={t('roadmaps.intent.answerPlaceholder')}
                                                 placeholderTextColor={textSecondary}
                                                 multiline
                                                 numberOfLines={3}
@@ -866,7 +867,7 @@ export default function RoadmapsScreen() {
                         </ScrollView>
                         <View style={[styles.intentFooter, { borderTopColor: borderColor }]}>
                             <TouchableOpacity style={[styles.intentSkipBtn]} onPress={() => setShowIntentModal(false)}>
-                                <Text style={[styles.intentSkipText, { color: textSecondary }]}>Skip for now</Text>
+                                <Text style={[styles.intentSkipText, { color: textSecondary }]}>{t('roadmaps.intent.skip')}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.intentSubmitBtn, { backgroundColor: colors.primary }, intentLoading && { opacity: 0.7 }]}
@@ -878,7 +879,7 @@ export default function RoadmapsScreen() {
                                 ) : (
                                     <>
                                         <Sparkles size={16} color="white" />
-                                        <Text style={styles.intentSubmitText}>Find My Roadmaps</Text>
+                                        <Text style={styles.intentSubmitText}>{t('roadmaps.intent.submit')}</Text>
                                     </>
                                 )}
                             </TouchableOpacity>
@@ -895,8 +896,8 @@ export default function RoadmapsScreen() {
                             <X color={textPrimary} size={18} />
                         </TouchableOpacity>
                         <View style={{ padding: 24 }}>
-                            <Text style={[styles.feedbackTitle, { color: textPrimary }]}>How was this roadmap?</Text>
-                            <Text style={[styles.feedbackSubtitle, { color: textSecondary }]}>Your feedback helps us improve and helps other learners.</Text>
+                            <Text style={[styles.feedbackTitle, { color: textPrimary }]}>{t('roadmaps.feedback.title')}</Text>
+                            <Text style={[styles.feedbackSubtitle, { color: textSecondary }]}>{t('roadmaps.feedback.subtitle')}</Text>
 
                             <View style={styles.starRating}>
                                 {[1, 2, 3, 4, 5].map(star => (
@@ -914,7 +915,7 @@ export default function RoadmapsScreen() {
                                 style={[styles.feedbackInput, { backgroundColor: inputBg, borderColor, color: textPrimary }]}
                                 value={feedbackText}
                                 onChangeText={setFeedbackText}
-                                placeholder="What did you like or what could be improved?"
+                                placeholder={t('roadmaps.feedback.placeholder')}
                                 placeholderTextColor={textSecondary}
                                 multiline
                                 numberOfLines={4}
@@ -930,7 +931,7 @@ export default function RoadmapsScreen() {
                                 ) : (
                                     <>
                                         <CheckCircle size={18} color="white" />
-                                        <Text style={styles.submitFeedbackText}>Submit Feedback</Text>
+                                        <Text style={styles.submitFeedbackText}>{t('roadmaps.feedback.submit')}</Text>
                                     </>
                                 )}
                             </TouchableOpacity>

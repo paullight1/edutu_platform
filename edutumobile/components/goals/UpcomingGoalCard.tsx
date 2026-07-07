@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Clock } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import type { Goal } from '@edutu/core/src/hooks/useGoals';
 
 interface UpcomingGoalCardProps {
@@ -11,6 +12,7 @@ interface UpcomingGoalCardProps {
 
 export function UpcomingGoalCard({ goal, days }: UpcomingGoalCardProps) {
     const router = useRouter();
+    const { t } = useTranslation('goals');
     const isUrgent = days <= 1;
 
     return (
@@ -23,7 +25,7 @@ export function UpcomingGoalCard({ goal, days }: UpcomingGoalCardProps) {
                     <Clock size={12} color="white" />
                 </View>
                 <Text style={[styles.daysText, isUrgent ? styles.daysUrgent : styles.daysNormal]}>
-                    {days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `${days} days`}
+                    {days === 0 ? t('time.today') : days === 1 ? t('time.tomorrow') : t('time.days', { count: days })}
                 </Text>
             </View>
             <Text style={styles.title} numberOfLines={2}>

@@ -1,0 +1,509 @@
+{
+  "creatorApply": {
+    "title": "Devenir créateur",
+    "types": {
+      "scholarship": { "label": "Bourse", "desc": "Bourses d'études et subventions académiques" },
+      "fellowship": { "label": "Fellowship", "desc": "Fellowships de recherche et professionnels" },
+      "internship": { "label": "Stage", "desc": "Programmes de stage professionnels" },
+      "job": { "label": "Emploi à temps plein", "desc": "Offres d'emploi à temps plein" },
+      "program": { "label": "Accélérateur/Programme", "desc": "Accélérateurs et programmes de formation" },
+      "other": { "label": "Autre", "desc": "Autres opportunités" }
+    },
+    "motivations": {
+      "helpOthers": "Je veux aider les autres à accomplir ce que j'ai accompli",
+      "mentor": "J'aime encadrer et partager mes connaissances",
+      "giveBack": "Je veux rendre à la communauté ce qu'elle m'a donné",
+      "document": "Je veux documenter mon parcours pour les autres",
+      "payForward": "Je crois qu'il faut transmettre à son tour"
+    },
+    "alerts": {
+      "uploadImageFailed": "Échec du téléversement de l'image. Veuillez réessayer.",
+      "submitFailed": "Échec de la connexion. Veuillez réessayer."
+    },
+    "success": {
+      "headerTitle": "Candidature envoyée",
+      "title": "Bienvenue dans la communauté des créateurs !",
+      "text": "Nous avons bien reçu votre candidature et avons hâte de découvrir votre parcours. Notre équipe vérifiera vos justificatifs sous 2 à 3 jours ouvrés.",
+      "applicationId": "ID de candidature",
+      "status": "Statut",
+      "pendingReview": "En attente d'examen",
+      "responseTime": "Délai de réponse",
+      "responseTimeValue": "2-3 jours",
+      "backToProfile": "Retour au profil"
+    },
+    "intro": {
+      "heroTitle": "Partagez votre histoire de réussite",
+      "heroSubtitle": "Vous avez accompli quelque chose d'incroyable. Inspirez la prochaine génération en partageant votre chemin vers la réussite.",
+      "you": "Vous",
+      "yourName": "Votre nom",
+      "futureCreator": "Futur créateur",
+      "statStudentsHelped": "Étudiants aidés",
+      "statSuccessStories": "Histoires de réussite",
+      "statRevenueShare": "Part des revenus",
+      "benefit": "En tant que créateur vérifié, vous gagnerez <bold>85 % des revenus</bold> de chaque vente de parcours et toucherez des milliers d'apprenants dans le monde entier."
+    },
+    "motivation": {
+      "title": "Qu'est-ce qui vous motive ?",
+      "desc": "Sélectionnez la raison qui décrit le mieux pourquoi vous voulez devenir créateur."
+    },
+    "achievement": {
+      "title": "Votre réussite",
+      "desc": "Parlez-nous de l'opportunité que vous avez décrochée pour que nous puissions aider d'autres à suivre votre voie.",
+      "typeLabel": "Type d'opportunité",
+      "nameLabel": "Nom de l'opportunité",
+      "namePlaceholder": "ex. : Mastercard Foundation Scholarship 2024",
+      "linkedinLabel": "Profil LinkedIn",
+      "portfolioLabel": "URL du portfolio (facultatif)",
+      "portfolioPlaceholder": "Lien vers votre portfolio ou site personnel"
+    },
+    "verification": {
+      "title": "Vérification",
+      "desc": "Nous vérifions tous les créateurs pour garantir qualité et confiance. Téléversez un document confirmant votre réussite.",
+      "documentLabel": "Document de vérification",
+      "documentHint": "Téléversez votre lettre d'attribution, certificat, e-mail d'admission ou pièce d'identité",
+      "tapToUpload": "Touchez pour téléverser",
+      "acceptedFormats": "JPG, PNG acceptés",
+      "verified": "Vérifié",
+      "storyLabel": "Votre histoire",
+      "storyPlaceholder": "Partagez votre parcours - comment vous vous êtes préparé, les défis rencontrés et vos conseils pour les autres...",
+      "socialLabel": "Liens sociaux (facultatif)",
+      "socialPlaceholder": "Twitter, YouTube, etc. (séparés par des virgules)"
+    },
+    "review": {
+      "title": "Vérifier la candidature",
+      "desc": "Vérifiez bien vos informations avant d'envoyer.",
+      "motivation": "Motivation",
+      "achievement": "Réussite",
+      "type": "Type",
+      "name": "Nom",
+      "verification": "Vérification",
+      "documentUploaded": "Document téléversé",
+      "bio": "Bio",
+      "callout": "Votre candidature sera examinée sous <bold>2 à 3 jours ouvrés</bold>. Vous serez notifié dès son approbation."
+    },
+    "submitApplication": "Envoyer la candidature"
+  },
+  "creatorDashboard": {
+    "title": "Studio Créateur",
+    "subtitle": "Créez et gérez vos parcours",
+    "loading": "Chargement du Studio Créateur...",
+    "longLoad": {
+      "title": "Cela prend plus de temps que prévu",
+      "text": "Veuillez réessayer plus tard ou revenir en arrière pendant que nous nous reconnectons.",
+      "tryAgain": "Réessayer"
+    },
+    "access": {
+      "pendingBadge": "Candidature en attente",
+      "pendingDesc": "Votre candidature est en cours d'examen par notre équipe. Nous vous préviendrons dès son approbation. Cela prend généralement 2 à 3 jours ouvrés.",
+      "pendingInfo": "En attendant, vous pouvez parcourir les parcours des autres créateurs pour vous inspirer.",
+      "browseRoadmaps": "Parcourir les parcours",
+      "rejectedBadge": "Candidature non approuvée",
+      "rejectedDesc": "Malheureusement, votre candidature n'a pas été approuvée. Vous pouvez en soumettre une nouvelle avec des détails supplémentaires.",
+      "reapply": "Postuler à nouveau",
+      "noneDesc": "Rejoignez notre communauté de créateurs et partagez vos connaissances avec des milliers d'apprenants. Gagnez des crédits tout en aidant les autres à atteindre leurs objectifs.",
+      "perkRevenue": "85 % des revenus",
+      "perkReach": "Touchez 10 000+ étudiants",
+      "perkBadge": "Badge Créateur vérifié",
+      "applyCta": "Postuler pour devenir créateur"
+    },
+    "welcomeGreeting": "Bon retour,",
+    "creatorFallback": "Créateur",
+    "createRoadmap": "Créer un parcours",
+    "overview": "Vue d'ensemble",
+    "stats": {
+      "totalCredits": "Total des crédits",
+      "totalStudents": "Total des étudiants",
+      "roadmaps": "Parcours"
+    },
+    "rewards": {
+      "title": "Récompenses créateur",
+      "text": "Vous gagnez <bold>85 %</bold> de chaque vente de parcours."
+    },
+    "myRoadmaps": "Mes parcours",
+    "empty": {
+      "title": "Aucun parcours pour le moment",
+      "subtext": "Créez votre premier parcours et commencez à partager vos connaissances avec la communauté.",
+      "cta": "Créer votre premier parcours"
+    },
+    "free": "Gratuit",
+    "priceCr": "{{price}} cr",
+    "alerts": {
+      "thumbnailUploaded": "Miniature téléversée !",
+      "uploadFailedTitle": "Échec du téléversement",
+      "fileUploaded": "Fichier téléversé avec succès.",
+      "missingInfoTitle": "Informations manquantes",
+      "missingInfoMessage": "Veuillez renseigner le titre et la description.",
+      "missingCurriculumTitle": "Programme manquant",
+      "missingCurriculumMessage": "Ajoutez au moins une étape au parcours.",
+      "publishFailed": "Impossible de publier le parcours.",
+      "publishedTitle": "Succès !",
+      "publishedMessage": "Votre parcours est publié et visible par les apprenants.",
+      "failedTitle": "Échec",
+      "failedFallback": "Veuillez réessayer."
+    },
+    "wizard": {
+      "basicsTitle": "Bases du parcours",
+      "basicsDesc": "Parlez-nous de votre parcours",
+      "curriculumTitle": "Étapes du programme",
+      "curriculumDesc": "Définissez les étapes d'apprentissage",
+      "resourcesTitle": "Ressources et fichiers",
+      "resourcesDesc": "Ajoutez des supports complémentaires",
+      "reviewTitle": "Vérifier et envoyer",
+      "reviewDesc": "Vérifiez bien avant d'envoyer",
+      "basicsCallout": "Vous créez un <bold>parcours</bold> — un guide d'apprentissage étape par étape qui aide les étudiants à atteindre des objectifs précis.",
+      "titleLabel": "Titre du parcours",
+      "titlePlaceholder": "ex. Parcours complet de développement web",
+      "descriptionLabel": "Description",
+      "descriptionPlaceholder": "Qu'apprendront les étudiants ? Quels résultats peuvent-ils attendre ?",
+      "categoryLabel": "Catégorie",
+      "thumbnailLabel": "Image miniature",
+      "uploaded": "Téléversée",
+      "browseDevice": "Parcourir l'appareil",
+      "ratioHint": "Ratio 16:9 recommandé",
+      "priceLabel": "Prix (Crédits)",
+      "pricePlaceholder": "0 pour un parcours gratuit",
+      "experienceLabel": "Votre expérience",
+      "experiencePlaceholder": "Pourquoi êtes-vous qualifié pour créer ce parcours ?",
+      "curriculumCallout": "Découpez votre parcours en <bold>étapes</bold>. Chaque étape représente un jalon clé dans le cheminement de l'étudiant.",
+      "stageNumber": "Étape {{number}}",
+      "stageTitlePlaceholder": "Titre de l'étape (ex. Fondamentaux)",
+      "stageDescPlaceholder": "Brève description de cette étape",
+      "stageDurationPlaceholder": "Durée (ex. Semaine 1-2)",
+      "addStage": "Ajouter une étape",
+      "resourcesCallout": "Ajoutez des ressources comme des fichiers d'exemple, des modèles ou des documents que les étudiants peuvent télécharger.",
+      "resourceNamePlaceholder": "Nom de la ressource",
+      "uploadFile": "Téléverser un fichier",
+      "addResource": "Ajouter une ressource",
+      "reviewCallout": "Vérifiez les détails de votre parcours avant publication. En tant que créateur approuvé, il devient immédiatement visible par les apprenants.",
+      "reviewBasics": "Bases",
+      "reviewTitleLabel": "Titre",
+      "reviewCategoryLabel": "Catégorie",
+      "reviewPriceLabel": "Prix",
+      "priceCredits": "{{price}} crédits",
+      "reviewCurriculum": "Programme ({{total}} étapes)",
+      "reviewResources": "Ressources ({{total}})",
+      "untitled": "Sans titre",
+      "fileAttached": "✓ {{fileName}}",
+      "submitForReview": "Soumettre pour examen"
+    }
+  },
+  "mentorApply": {
+    "title": "Devenir mentor",
+    "alerts": {
+      "notSignedInTitle": "Non connecté",
+      "notSignedInMessage": "Veuillez vous connecter pour envoyer une candidature de mentor."
+    },
+    "success": {
+      "title": "Candidature envoyée !",
+      "desc": "Merci d'avoir postulé pour devenir mentor. Nous examinerons votre candidature et vous répondrons sous 2 à 3 jours ouvrés.",
+      "backToProfile": "Retour au profil"
+    },
+    "motivations": {
+      "helpOthers": "Je veux aider les autres à accomplir ce que j'ai accompli",
+      "mentor": "J'aime encadrer et partager mes connaissances",
+      "giveBack": "Je veux rendre à la communauté ce qu'elle m'a donné",
+      "document": "Je veux documenter mon parcours pour les autres",
+      "payForward": "Je crois qu'il faut transmettre à son tour"
+    },
+    "contentTypes": {
+      "mentorship": { "label": "Mentorat", "desc": "Accompagnement individuel" },
+      "course": { "label": "Cours", "desc": "Chemins d'apprentissage" },
+      "template": { "label": "Modèles", "desc": "Modèles de CV" },
+      "resource": { "label": "Ressources", "desc": "Supports d'étude" }
+    },
+    "intro": {
+      "heroTitle": "Partagez votre\n<accent>histoire de réussite</accent>",
+      "heroDesc": "Vous avez accompli quelque chose d'incroyable. Aidez les autres à y arriver aussi en partageant vos connaissances et votre expérience.",
+      "statLearners": "Apprenants",
+      "statMentors": "Mentors",
+      "statRevenue": "Revenus",
+      "info": "Touchez des apprenants de plus de 31 pays. Votre expérience peut changer la vie de quelqu'un, où qu'il soit dans le monde.",
+      "getStarted": "Commencer"
+    },
+    "motivation": {
+      "title": "Qu'est-ce qui vous motive ?",
+      "desc": "Choisissez la raison qui décrit le mieux pourquoi vous voulez devenir mentor."
+    },
+    "details": {
+      "title": "Parlez-nous de vous",
+      "desc": "Aidez les apprenants à comprendre votre expertise.",
+      "displayNameLabel": "Nom affiché",
+      "displayNamePlaceholder": "Comment les apprenants doivent-ils vous connaître ?",
+      "teachLabel": "Qu'allez-vous enseigner ?",
+      "bioLabel": "Votre bio",
+      "bioPlaceholder": "Partagez votre parcours, vos réussites...",
+      "experienceLabel": "Années d'expérience",
+      "experiencePlaceholder": "ex. : 5 ans en génie logiciel",
+      "linkedinLabel": "URL LinkedIn",
+      "portfolioLabel": "URL du portfolio",
+      "reviewApplication": "Vérifier la candidature"
+    },
+    "review": {
+      "title": "Vérifiez votre candidature",
+      "desc": "Assurez-vous que tout est en ordre avant d'envoyer.",
+      "displayName": "Nom affiché",
+      "motivation": "Motivation",
+      "contentType": "Type de contenu",
+      "experience": "Expérience",
+      "bio": "Bio",
+      "linkedin": "LinkedIn",
+      "portfolio": "Portfolio",
+      "notProvided": "Non renseigné",
+      "submitting": "Envoi...",
+      "submit": "Envoyer la candidature"
+    }
+  },
+  "admin": {
+    "creatorApplications": {
+      "title": "Candidatures créateur",
+      "subtitle": "Examiner et gérer les candidatures",
+      "alerts": {
+        "loadFailed": "Échec du chargement des candidatures.",
+        "approvedSuccess": "Candidature approuvée avec succès.",
+        "rejectedSuccess": "Candidature rejetée avec succès.",
+        "reviewFailed": "Échec de l'examen de la candidature."
+      },
+      "unknown": "Inconnu",
+      "unknownUser": "Utilisateur inconnu",
+      "status": {
+        "pending": "En attente",
+        "approved": "Approuvée",
+        "rejected": "Rejetée"
+      },
+      "filters": { "all": "Toutes" },
+      "stats": { "total": "Total" },
+      "loading": "Chargement des candidatures...",
+      "empty": {
+        "title": "Aucune candidature",
+        "pending": "Aucune candidature en attente d'examen.",
+        "generic": "Aucune candidature trouvée."
+      },
+      "modal": {
+        "title": "Détails de la candidature",
+        "reviewedOn": "Examinée le {{date}}",
+        "applicant": "Candidat",
+        "opportunity": "Opportunité",
+        "motivation": "Motivation",
+        "bio": "Bio",
+        "linkedin": "LinkedIn",
+        "verificationDocument": "Document de vérification",
+        "proofUrl": "URL du justificatif",
+        "appliedOn": "Postulé le",
+        "reviewerNotes": "Notes de l'examinateur",
+        "notePlaceholder": "Ajoutez une note sur cette décision...",
+        "reject": "Rejeter",
+        "approve": "Approuver"
+      }
+    },
+    "premiumFeatures": {
+      "title": "Fonctionnalités Premium",
+      "subtitle": "Gérer les feature flags OTA",
+      "alerts": {
+        "loadFailed": "Échec du chargement des feature flags.",
+        "validationTitle": "Erreur de validation",
+        "validationMessage": "Le libellé et la description sont requis.",
+        "updated": "Feature flag mis à jour avec succès.",
+        "saveFailed": "Échec de l'enregistrement du feature flag.",
+        "statusUpdateFailed": "Échec de la mise à jour du statut.",
+        "proUpdateFailed": "Échec de la mise à jour de l'exigence Pro."
+      },
+      "stats": {
+        "total": "Total",
+        "enabled": "Activées",
+        "proOnly": "Pro uniquement"
+      },
+      "searchPlaceholder": "Rechercher des fonctionnalités...",
+      "filters": {
+        "all": "Toutes",
+        "enabled": "Activées",
+        "disabled": "Désactivées",
+        "proOnly": "Pro uniquement"
+      },
+      "status": {
+        "enabled": "Activée",
+        "disabled": "Désactivée"
+      },
+      "toggles": {
+        "enabled": "Activée",
+        "proOnly": "Pro uniquement"
+      },
+      "loading": "Chargement des feature flags...",
+      "empty": {
+        "title": "Aucun feature flag",
+        "filtered": "Aucune fonctionnalité ne correspond au filtre actuel.",
+        "none": "Aucun feature flag trouvé dans la base de données."
+      },
+      "modal": {
+        "title": "Modifier le feature flag",
+        "labelLabel": "Libellé *",
+        "labelPlaceholder": "ex. Tuteur IA",
+        "descriptionLabel": "Description *",
+        "descriptionPlaceholder": "Décrivez ce que fait cette fonctionnalité...",
+        "sortOrderLabel": "Ordre de tri",
+        "submit": "Mettre à jour le feature flag"
+      }
+    },
+    "testimonials": {
+      "title": "Témoignages",
+      "subtitle": "Gérer les témoignages clients",
+      "alerts": {
+        "loadFailed": "Échec du chargement des témoignages.",
+        "validationTitle": "Erreur de validation",
+        "validationMessage": "Le nom, le rôle et le texte de l'avis sont requis.",
+        "updated": "Témoignage mis à jour avec succès.",
+        "added": "Témoignage ajouté avec succès.",
+        "saveFailed": "Échec de l'enregistrement du témoignage.",
+        "deleteTitle": "Supprimer le témoignage",
+        "deleteMessage": "Voulez-vous vraiment supprimer « {{name}} » ? Cette action est irréversible.",
+        "deleted": "Témoignage supprimé.",
+        "deleteFailed": "Échec de la suppression du témoignage.",
+        "statusUpdateFailed": "Échec de la mise à jour du statut."
+      },
+      "stats": {
+        "total": "Total",
+        "active": "Actifs",
+        "inactive": "Inactifs"
+      },
+      "filters": { "all": "Tous" },
+      "status": {
+        "active": "Actif",
+        "inactive": "Inactif"
+      },
+      "videoLinked": "Vidéo YouTube liée",
+      "addButton": "Ajouter un témoignage",
+      "loading": "Chargement des témoignages...",
+      "empty": {
+        "title": "Aucun témoignage",
+        "filtered": "Aucun témoignage ne correspond au filtre actuel.",
+        "none": "Touchez le bouton ci-dessus pour ajouter votre premier témoignage."
+      },
+      "modal": {
+        "editTitle": "Modifier le témoignage",
+        "nameLabel": "Nom *",
+        "namePlaceholder": "ex. Jean Dupont",
+        "roleLabel": "Rôle *",
+        "rolePlaceholder": "ex. Ingénieur logiciel",
+        "countryLabel": "Pays <dim>(facultatif)</dim>",
+        "countryPlaceholder": "ex. 🇳🇬 Nigeria",
+        "ratingLabel": "Note",
+        "reviewLabel": "Texte de l'avis *",
+        "reviewPlaceholder": "Rédigez l'avis du témoignage...",
+        "youtubeLabel": "URL YouTube <dim>(facultatif)</dim>",
+        "videoId": "ID de la vidéo : {{id}}",
+        "videoIdError": "Impossible d'extraire l'ID de la vidéo depuis l'URL",
+        "update": "Mettre à jour le témoignage"
+      }
+    },
+    "roadmapCreate": {
+      "title": "Créer un parcours",
+      "alerts": {
+        "coverUploadFailed": "Échec du téléversement de l'image de couverture",
+        "resourceRequired": "Veuillez renseigner le titre et l'URL de la ressource",
+        "fileUploadFailed": "Échec du téléversement du fichier",
+        "requiredFields": "Veuillez renseigner le titre, le résumé et au moins une étape",
+        "created": "Parcours créé avec succès !",
+        "createFailed": "Échec de la création du parcours. Veuillez réessayer."
+      },
+      "basicInfo": "Informations de base",
+      "uploadCover": "Téléverser une image de couverture",
+      "titleLabel": "Titre",
+      "titlePlaceholder": "ex. : Bootcamp complet de développement web",
+      "summaryLabel": "Résumé",
+      "summaryPlaceholder": "Brève description de ce parcours...",
+      "categoryLabel": "Catégorie",
+      "categories": {
+        "education": "Éducation",
+        "programming": "Programmation",
+        "business": "Business",
+        "career": "Carrière",
+        "design": "Design",
+        "marketing": "Marketing",
+        "other": "Autre"
+      },
+      "difficultyLabel": "Difficulté",
+      "difficulty": {
+        "beginner": "Débutant",
+        "intermediate": "Intermédiaire",
+        "advanced": "Avancé"
+      },
+      "priceLabel": "Prix",
+      "price": {
+        "free": "Gratuit",
+        "premium": "Premium"
+      },
+      "durationLabel": "Durée",
+      "durationPlaceholder": "ex. : 3 mois",
+      "tagsLabel": "Tags (séparés par des virgules)",
+      "tagsPlaceholder": "ex. : javascript, react, développement web",
+      "outcomesLabel": "Résultats d'apprentissage (un par ligne)",
+      "outcomesPlaceholder": "- Créer des applications full-stack\\n- Maîtriser React et Node.js\\n- Déployer en production",
+      "resources": "Ressources",
+      "resourceTitlePlaceholder": "Titre de la ressource",
+      "resourceDescriptionPlaceholder": "Description",
+      "resourceUrlPlaceholder": "URL",
+      "typeLabel": "Type",
+      "resourceTypes": {
+        "article": "article",
+        "video": "vidéo",
+        "course": "cours",
+        "tool": "outil",
+        "book": "livre",
+        "other": "autre"
+      },
+      "costLabel": "Coût",
+      "cost": {
+        "free": "gratuit",
+        "paid": "payant"
+      },
+      "resourceMeta": "{{type}} • {{cost}}",
+      "addResource": "Ajouter une ressource",
+      "uploadDoc": "Téléverser un PDF/Doc (facultatif)",
+      "stages": "Étapes du parcours",
+      "stageTitlePlaceholder": "Titre de l'étape {{number}}",
+      "stageDescriptionPlaceholder": "Description de l'étape",
+      "stageDurationPlaceholder": "Durée (ex. : 2 semaines)",
+      "milestonePlaceholder": "Jalon",
+      "tasks": "Tâches",
+      "taskTitlePlaceholder": "Titre de la tâche",
+      "taskDescriptionPlaceholder": "Description de la tâche",
+      "taskDurationPlaceholder": "Durée",
+      "taskOutcomePlaceholder": "Résultat attendu",
+      "addTask": "Ajouter une tâche",
+      "checkpointPlaceholder": "Point de contrôle / Livrable"
+    }
+  },
+  "notifications": {
+    "goalDeadlineToday": {
+      "title": "Échéance d'objectif aujourd'hui ! 🎯",
+      "body": "N'oubliez pas : {{title}}"
+    },
+    "deadlineTomorrow": {
+      "title": "Échéance demain ! ⏱️",
+      "body": "À venir : {{title}}"
+    },
+    "deadlineApproaching": {
+      "title": "Échéance qui approche 🗓️",
+      "body": "3 jours restants pour : {{title}}"
+    }
+  },
+  "share": {
+    "notSpecified": "Non précisé",
+    "rollingDeadline": "En continu / Non précisé",
+    "fundingAvailable": "Financement disponible",
+    "openOpportunity": "Opportunité ouverte",
+    "openEligibility": "Ouverte aux candidats éligibles",
+    "detailsInApp": "Détails disponibles dans Edutu.",
+    "fallbackTitle": "Opportunité Edutu",
+    "deadlinePassed": "Échéance dépassée !",
+    "stillActive": "Toujours active !",
+    "sponsor": "Sponsor : {{name}}",
+    "benefits": "Avantages :",
+    "category": "Catégorie : {{category}}",
+    "categoryFallback": "Opportunité",
+    "eligibleCountry": "Pays éligible : {{country}}",
+    "deadline": "Échéance : {{deadline}}",
+    "applyCta": "Cliquez sur le lien ci-dessous pour postuler📌",
+    "shareWithFriends": "Partagez avec vos amis que cela pourrait intéresser.",
+    "dialogTitle": "Partager l'opportunité"
+  }
+}

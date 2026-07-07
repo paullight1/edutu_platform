@@ -3,6 +3,7 @@ import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { Bookmark, Clock, Trash2, ExternalLink, Sparkles, Target, AlertCircle, Briefcase, Calendar } from "lucide-react-native";
 import { useTheme } from "../../components/context/ThemeContext";
 import { supabase } from "../../lib/supabase";
@@ -44,6 +45,7 @@ function getCategoryGradient(category: string): string[] {
 }
 
 export default function MyOpportunitiesScreen() {
+    const { t } = useTranslation('opps');
     const { isDark, colors } = useTheme();
     const { user } = useUser();
     const { getToken } = useAuth();
@@ -68,8 +70,8 @@ export default function MyOpportunitiesScreen() {
                 return {
                     id: bookmark.opportunity_id,
                     bookmark_id: bookmark.id,
-                    title: bookmark.title || 'Opportunity',
-                    organization: bookmark.organization || 'Unknown',
+                    title: bookmark.title || t('shared.opportunity'),
+                    organization: bookmark.organization || t('shared.unknown'),
                     deadline: deadline || '',
                     category: bookmark.category || '',
                     location: bookmark.location || '',
@@ -87,7 +89,7 @@ export default function MyOpportunitiesScreen() {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [getToken, user]);
+    }, [getToken, user, t]);
 
     useEffect(() => {
         fetchSaved();
@@ -126,18 +128,18 @@ export default function MyOpportunitiesScreen() {
     };
 
     const getDeadlineText = (days: number) => {
-        if (days < 0) return 'Ended';
-        if (days === 0) return 'Today';
-        if (days === 1) return 'Tomorrow';
-        return `${days}d left`;
+        if (days < 0) return t('myOpps.ended');
+        if (days === 0) return t('myOpps.today');
+        if (days === 1) return t('myOpps.tomorrow');
+        return t('myOpps.daysShortLeft', { count: days });
     };
 
     if (loading) {
         return (
             <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'left', 'right']}>
-                <ScreenHeader title="My Opportunities" showBack />
+                <ScreenHeader title={t('myOpps.title')} showBack />
                 <View style={styles.loadingContainer}>
-                    <BrandedLoader label="Loading your opportunities..." />
+                    <BrandedLoader label={t('myOpps.loading')} />
                 </View>
             </SafeAreaView>
         );
@@ -145,7 +147,7 @@ export default function MyOpportunitiesScreen() {
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'left', 'right']}>
-            <ScreenHeader title="My Opportunities" showBack subtitle={`${myOpps.length} saved`} />
+            <ScreenHeader title={t('myOpps.title')} showBack subtitle={t('shared.savedCount', { count: myOpps.length })} />
 
             <ScrollView
                 style={{ flex: 1 }}
@@ -158,16 +160,16 @@ export default function MyOpportunitiesScreen() {
                         <View style={styles.emptyIconContainer}>
                             <Briefcase size={48} color={isDark ? '#64748B' : '#94A3B8'} />
                         </View>
-                        <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No Opportunities Saved</Text>
+                        <Text style={[styles.emptyTitle, { color: colors.foreground }]}>{t('myOpps.emptyTitle')}</Text>
                         <Text style={[styles.emptyDesc, { color: isDark ? '#94A3B8' : '#64748B' }]}>
-                            Browse opportunities and tap Save to add them here
+                            {t('myOpps.emptyDesc')}
                         </Text>
                         <TouchableOpacity
                             style={[styles.emptyBtn, { backgroundColor: colors.accent }]}
                             onPress={() => router.push('/opportunities')}
                         >
                             <Target size={18} color="#FFFFFF" />
-                            <Text style={styles.emptyBtnText}>Browse Opportunities</Text>
+                            <Text style={styles.emptyBtnText}>{t('myOpps.browse')}</Text>
                         </TouchableOpacity>
                     </Animated.View>
                 ) : (
@@ -180,7 +182,7 @@ export default function MyOpportunitiesScreen() {
                             >
                                 <Bookmark size={14} color={filter === 'all' ? '#FFFFFF' : colors.foreground} />
                                 <Text style={[styles.filterTabText, { color: filter === 'all' ? '#FFFFFF' : colors.foreground }]}>
-                                    All ({myOpps.length})
+                                    {t('filters.all', { count: myOpps.length })}
                                 </Text>
                             </TouchableOpacity>
                             <TouchableOpacity
@@ -189,7 +191,7 @@ export default function MyOpportunitiesScreen() {
                             >
                                 <AlertCircle size={14} color={filter === 'urgent' ? '#FFFFFF' : '#EF4444'} />
                                 <Text style={[styles.filterTabText, { color: filter === 'urgent' ? '#FFFFFF' : '#EF4444' }]}>
-                                    Urgent ({myOpps.filter(o => o.daysRemaining <= 7 && o.daysRemaining >= 0).length})
+                                    {t('filters.urgent', { count: myOpps.filter(o => o.daysRemaining <= 7 && o.daysRemaining >= 0).length })}
                                 </Text>
                             </TouchableOpacity>
                             <TouchableOpacity
@@ -198,7 +200,7 @@ export default function MyOpportunitiesScreen() {
                             >
                                 <Clock size={14} color={filter === 'upcoming' ? '#FFFFFF' : '#10B981'} />
                                 <Text style={[styles.filterTabText, { color: filter === 'upcoming' ? '#FFFFFF' : '#10B981' }]}>
-                                    Upcoming ({myOpps.filter(o => o.daysRemaining > 7).length})
+                                    {t('filters.upcoming', { count: myOpps.filter(o => o.daysRemaining > 7).length })}
                                 </Text>
                             </TouchableOpacity>
                         </Animated.View>
@@ -217,7 +219,7 @@ export default function MyOpportunitiesScreen() {
                                         <Text style={styles.summaryValue}>
                                             {myOpps.filter(o => o.daysRemaining > 0 && o.daysRemaining <= 30).length}
                                         </Text>
-                                        <Text style={styles.summaryLabel}>Open</Text>
+                                        <Text style={styles.summaryLabel}>{t('myOpps.summaryOpen')}</Text>
                                     </View>
                                     <View style={styles.summaryDivider} />
                                     <View style={styles.summaryItem}>
@@ -225,7 +227,7 @@ export default function MyOpportunitiesScreen() {
                                         <Text style={styles.summaryValue}>
                                             {myOpps.filter(o => o.daysRemaining <= 7 && o.daysRemaining >= 0).length}
                                         </Text>
-                                        <Text style={styles.summaryLabel}>Urgent</Text>
+                                        <Text style={styles.summaryLabel}>{t('myOpps.summaryUrgent')}</Text>
                                     </View>
                                     <View style={styles.summaryDivider} />
                                     <View style={styles.summaryItem}>
@@ -233,7 +235,7 @@ export default function MyOpportunitiesScreen() {
                                         <Text style={styles.summaryValue}>
                                             {myOpps.reduce((sum, o) => sum + o.match, 0) / (myOpps.length || 1) | 0}%
                                         </Text>
-                                        <Text style={styles.summaryLabel}>Avg Match</Text>
+                                        <Text style={styles.summaryLabel}>{t('myOpps.summaryAvgMatch')}</Text>
                                     </View>
                                 </View>
                             </LinearGradient>
@@ -243,7 +245,7 @@ export default function MyOpportunitiesScreen() {
                         {filteredOpps.length === 0 ? (
                             <View style={styles.emptyFilterState}>
                                 <Sparkles size={32} color={isDark ? '#64748B' : '#94A3B8'} />
-                                <Text style={[styles.emptyFilterText, { color: colors.foreground }]}>No {filter} opportunities</Text>
+                                <Text style={[styles.emptyFilterText, { color: colors.foreground }]}>{t(`filters.none.${filter}`)}</Text>
                             </View>
                         ) : (
                             filteredOpps.map((opp, index) => {
@@ -299,7 +301,7 @@ export default function MyOpportunitiesScreen() {
                                                         onPress={() => router.push(`/opportunities/${opp.id}`)}
                                                     >
                                                         <ExternalLink size={16} color={colors.accent} />
-                                                        <Text style={[styles.viewBtnText, { color: colors.accent }]}>View Details</Text>
+                                                        <Text style={[styles.viewBtnText, { color: colors.accent }]}>{t('shared.viewDetails')}</Text>
                                                     </TouchableOpacity>
                                                     <TouchableOpacity
                                                         style={styles.removeBtn}

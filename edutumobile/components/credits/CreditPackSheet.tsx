@@ -20,6 +20,7 @@ import {
     PRODUCTS,
     CREDIT_AMOUNTS,
 } from '@edutu/core/src/services/payments';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
     visible: boolean;
@@ -30,14 +31,16 @@ interface Props {
 }
 
 // Presentational metadata for each credit pack, ordered small → xlarge.
+// `label` holds an i18n key (home namespace); translated at render time.
 const PACKS: { productId: string; label: string; highlight?: boolean }[] = [
-    { productId: PRODUCTS.CREDITS_SMALL, label: 'Starter' },
-    { productId: PRODUCTS.CREDITS_MEDIUM, label: 'Popular', highlight: true },
-    { productId: PRODUCTS.CREDITS_LARGE, label: 'Pro' },
-    { productId: PRODUCTS.CREDITS_XLARGE, label: 'Mega Value' },
+    { productId: PRODUCTS.CREDITS_SMALL, label: 'creditPack.packs.starter' },
+    { productId: PRODUCTS.CREDITS_MEDIUM, label: 'creditPack.packs.popular', highlight: true },
+    { productId: PRODUCTS.CREDITS_LARGE, label: 'creditPack.packs.pro' },
+    { productId: PRODUCTS.CREDITS_XLARGE, label: 'creditPack.packs.megaValue' },
 ];
 
 export function CreditPackSheet({ visible, onClose, userId, onPurchased }: Props) {
+    const { t } = useTranslation('home');
     const { colors, isDark } = useTheme();
     const muted = colors.textSecondary;
     const surface = isDark ? 'rgba(255,255,255,0.05)' : '#FFFFFF';
@@ -97,8 +100,8 @@ export function CreditPackSheet({ visible, onClose, userId, onPurchased }: Props
 
         if (!configured || !priceByProduct[productId]) {
             Alert.alert(
-                'Coming Soon',
-                'Credit packs will be available once store products are configured.',
+                t('creditPack.comingSoonTitle'),
+                t('creditPack.comingSoonMessage'),
             );
             return;
         }
@@ -109,15 +112,15 @@ export function CreditPackSheet({ visible, onClose, userId, onPurchased }: Props
             if (result.success) {
                 onPurchased?.();
                 Alert.alert(
-                    'Purchase Complete',
-                    `${CREDIT_AMOUNTS[productId]} credits are on the way. Your balance will update shortly.`,
+                    t('creditPack.purchaseCompleteTitle'),
+                    t('creditPack.purchaseCompleteMessage', { count: CREDIT_AMOUNTS[productId] }),
                 );
                 onClose();
             } else if (result.error && result.error !== 'User cancelled') {
-                Alert.alert('Purchase Failed', result.error);
+                Alert.alert(t('creditPack.purchaseFailedTitle'), result.error);
             }
         } catch (error: any) {
-            Alert.alert('Purchase Failed', error?.message || 'Something went wrong.');
+            Alert.alert(t('creditPack.purchaseFailedTitle'), error?.message || t('creditPack.somethingWentWrong'));
         } finally {
             setPurchasingId(null);
         }
@@ -134,7 +137,7 @@ export function CreditPackSheet({ visible, onClose, userId, onPurchased }: Props
                             <View style={[styles.titleIcon, { backgroundColor: 'rgba(16,185,129,0.15)' }]}>
                                 <Zap size={18} color="#10B981" />
                             </View>
-                            <Text style={[styles.title, { color: colors.foreground }]}>Buy Credits</Text>
+                            <Text style={[styles.title, { color: colors.foreground }]}>{t('creditPack.title')}</Text>
                         </View>
                         <TouchableOpacity onPress={onClose} style={[styles.close, { backgroundColor: colors.muted }]}>
                             <X size={20} color={muted} />
@@ -142,7 +145,7 @@ export function CreditPackSheet({ visible, onClose, userId, onPurchased }: Props
                     </View>
 
                     <Text style={[styles.subtitle, { color: muted }]}>
-                        Credits power AI features. Pick a pack — you only pay for what you use.
+                        {t('creditPack.subtitle')}
                     </Text>
 
                     {loadingOfferings ? (
@@ -173,16 +176,16 @@ export function CreditPackSheet({ visible, onClose, userId, onPurchased }: Props
                                                 <Text style={[styles.packAmount, { color: colors.foreground }]}>
                                                     {amount.toLocaleString()}
                                                 </Text>
-                                                <Text style={[styles.packUnit, { color: muted }]}>credits</Text>
+                                                <Text style={[styles.packUnit, { color: muted }]}>{t('creditPack.creditsUnit')}</Text>
                                                 {pack.highlight && (
                                                     <View style={[styles.badge, { backgroundColor: `${colors.accent}18` }]}>
                                                         <Text style={[styles.badgeText, { color: colors.accent }]}>
-                                                            Best value
+                                                            {t('creditPack.bestValue')}
                                                         </Text>
                                                     </View>
                                                 )}
                                             </View>
-                                            <Text style={[styles.packLabel, { color: muted }]}>{pack.label}</Text>
+                                            <Text style={[styles.packLabel, { color: muted }]}>{t(pack.label)}</Text>
                                         </View>
 
                                         <View style={styles.packRight}>
@@ -194,7 +197,7 @@ export function CreditPackSheet({ visible, onClose, userId, onPurchased }: Props
                                                 </View>
                                             ) : (
                                                 <View style={[styles.soonPill, { borderColor }]}>
-                                                    <Text style={[styles.soonText, { color: muted }]}>Coming soon</Text>
+                                                    <Text style={[styles.soonText, { color: muted }]}>{t('common:states.comingSoon')}</Text>
                                                 </View>
                                             )}
                                         </View>
@@ -205,7 +208,7 @@ export function CreditPackSheet({ visible, onClose, userId, onPurchased }: Props
                             <View style={styles.footer}>
                                 <Check size={13} color={muted} />
                                 <Text style={[styles.footerText, { color: muted }]}>
-                                    Credits are added automatically after purchase.
+                                    {t('creditPack.autoAddNote')}
                                 </Text>
                             </View>
                         </ScrollView>

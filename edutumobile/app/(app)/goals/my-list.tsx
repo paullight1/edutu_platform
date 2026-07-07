@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useUser } from '@clerk/clerk-expo';
+import { useTranslation } from 'react-i18next';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { useTheme } from '../../../components/context/ThemeContext';
 import { supabase } from '../../../lib/supabase';
@@ -40,6 +41,7 @@ type SortOption = 'newest' | 'oldest' | 'priority' | 'deadline' | 'progress' | '
 type StatusFilter = 'all' | 'active' | 'completed';
 
 export default function MyListScreen() {
+    const { t } = useTranslation('goals');
     const { colors, isDark } = useTheme();
     const router = useRouter();
     const { user } = useUser();
@@ -110,18 +112,18 @@ export default function MyListScreen() {
     const borderColor = isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0';
 
     const sortOptions: { label: string; value: SortOption; icon: any }[] = [
-        { label: 'Newest First', value: 'newest', icon: Calendar },
-        { label: 'Oldest First', value: 'oldest', icon: Calendar },
-        { label: 'Priority', value: 'priority', icon: Target },
-        { label: 'Deadline', value: 'deadline', icon: Calendar },
-        { label: 'Progress', value: 'progress', icon: TrendingUp },
-        { label: 'Title (A-Z)', value: 'title', icon: ArrowUpDown },
+        { label: t('myList.sort.newest'), value: 'newest', icon: Calendar },
+        { label: t('myList.sort.oldest'), value: 'oldest', icon: Calendar },
+        { label: t('myList.sort.priority'), value: 'priority', icon: Target },
+        { label: t('myList.sort.deadline'), value: 'deadline', icon: Calendar },
+        { label: t('myList.sort.progress'), value: 'progress', icon: TrendingUp },
+        { label: t('myList.sort.title'), value: 'title', icon: ArrowUpDown },
     ];
 
     const statusOptions: { label: string; value: StatusFilter; count: number; icon: any }[] = [
-        { label: 'All', value: 'all', count: finalGoals.length, icon: Target },
-        { label: 'Active', value: 'active', count: activeGoals.length, icon: Zap },
-        { label: 'Completed', value: 'completed', count: completedGoals.length, icon: Trophy },
+        { label: t('filter.all'), value: 'all', count: finalGoals.length, icon: Target },
+        { label: t('filter.active'), value: 'active', count: activeGoals.length, icon: Zap },
+        { label: t('filter.completed'), value: 'completed', count: completedGoals.length, icon: Trophy },
     ];
 
     const getDaysUntil = (deadline: string | null | undefined): number => {
@@ -134,8 +136,8 @@ export default function MyListScreen() {
     return (
         <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
             <ScreenHeader
-                title="My Goals"
-                subtitle={`${finalGoals.length} goal${finalGoals.length !== 1 ? 's' : ''} tracked`}
+                title={t('myList.title')}
+                subtitle={t('myList.goalsTracked', { count: finalGoals.length })}
                 showBack
                 right={
                     <TouchableOpacity
@@ -161,11 +163,11 @@ export default function MyListScreen() {
                     >
                         <View style={styles.heroContent}>
                             <View style={styles.heroTextContainer}>
-                                <Text style={styles.heroTitle}>Stay Focused 🎯</Text>
+                                <Text style={styles.heroTitle}>{t('myList.heroTitle')}</Text>
                                 <Text style={styles.heroSubtitle}>
                                     {completedGoals.length > 0
-                                        ? `You've completed ${completedGoals.length} goal${completedGoals.length > 1 ? 's' : ''}. Keep the momentum going!`
-                                        : 'Turn your ambitions into achievable goals. Start tracking today!'
+                                        ? t('myList.heroCompleted', { count: completedGoals.length })
+                                        : t('myList.heroEmpty')
                                     }
                                 </Text>
                             </View>
@@ -183,28 +185,28 @@ export default function MyListScreen() {
                             <Target size={18} color="#3B82F6" />
                         </View>
                         <Text style={[styles.statValue, { color: textPrimary }]}>{finalGoals.length}</Text>
-                        <Text style={[styles.statLabel, { color: textSecondary }]}>Total</Text>
+                        <Text style={[styles.statLabel, { color: textSecondary }]}>{t('stats.total')}</Text>
                     </View>
                     <View style={[styles.statCard, { backgroundColor: colors.card, borderColor }]}>
                         <View style={[styles.statIconBox, { backgroundColor: '#10B98115' }]}>
                             <Zap size={18} color="#10B981" />
                         </View>
                         <Text style={[styles.statValue, { color: textPrimary }]}>{activeGoals.length}</Text>
-                        <Text style={[styles.statLabel, { color: textSecondary }]}>Active</Text>
+                        <Text style={[styles.statLabel, { color: textSecondary }]}>{t('stats.active')}</Text>
                     </View>
                     <View style={[styles.statCard, { backgroundColor: colors.card, borderColor }]}>
                         <View style={[styles.statIconBox, { backgroundColor: '#F59E0B15' }]}>
                             <Trophy size={18} color="#F59E0B" />
                         </View>
                         <Text style={[styles.statValue, { color: textPrimary }]}>{completedGoals.length}</Text>
-                        <Text style={[styles.statLabel, { color: textSecondary }]}>Done</Text>
+                        <Text style={[styles.statLabel, { color: textSecondary }]}>{t('stats.done')}</Text>
                     </View>
                     <View style={[styles.statCard, { backgroundColor: colors.card, borderColor }]}>
                         <View style={[styles.statIconBox, { backgroundColor: '#3b82f615' }]}>
                             <TrendingUp size={18} color="#3b82f6" />
                         </View>
                         <Text style={[styles.statValue, { color: textPrimary }]}>{avgProgress}%</Text>
-                        <Text style={[styles.statLabel, { color: textSecondary }]}>Progress</Text>
+                        <Text style={[styles.statLabel, { color: textSecondary }]}>{t('stats.progress')}</Text>
                     </View>
                 </Animated.View>
 
@@ -228,8 +230,8 @@ export default function MyListScreen() {
                                     <Star size={20} color="#FFFFFF" />
                                 </View>
                                 <View style={styles.ctaText}>
-                                    <Text style={styles.ctaTitle}>Create Your First Goal</Text>
-                                    <Text style={styles.ctaSubtitle}>Set targets and track your progress</Text>
+                                    <Text style={styles.ctaTitle}>{t('myList.ctaTitle')}</Text>
+                                    <Text style={styles.ctaSubtitle}>{t('myList.ctaSubtitle')}</Text>
                                 </View>
                             </View>
                             <ChevronRight size={20} color="#FFFFFF" />
@@ -251,7 +253,7 @@ export default function MyListScreen() {
                             <Timer size={16} color="#EF4444" />
                         </View>
                         <Text style={[styles.alertText, { color: '#EF4444' }]}>
-                            {highPriorityGoals.length} high-priority goal{highPriorityGoals.length > 1 ? 's' : ''} need{highPriorityGoals.length === 1 ? 's' : ''} attention
+                            {t('myList.highPriorityAlert', { count: highPriorityGoals.length })}
                         </Text>
                         <ChevronRight size={16} color="#EF4444" />
                     </AnimatedPressable>
@@ -262,7 +264,7 @@ export default function MyListScreen() {
                     <Search size={18} color={textSecondary} />
                     <TextInput
                         style={[styles.searchInput, { color: textPrimary }]}
-                        placeholder="Search goals..."
+                        placeholder={t('myList.searchPlaceholder')}
                         placeholderTextColor={textSecondary}
                         value={searchTerm}
                         onChangeText={setSearchTerm}
@@ -317,7 +319,7 @@ export default function MyListScreen() {
                 >
                     <ArrowUpDown size={16} color={textSecondary} />
                     <Text style={[styles.sortButtonText, { color: textSecondary }]}>
-                        Sort: {sortOptions.find(s => s.value === sortBy)?.label}
+                        {t('myList.sortLabel', { label: sortOptions.find(s => s.value === sortBy)?.label })}
                     </Text>
                 </TouchableOpacity>
 
@@ -344,12 +346,12 @@ export default function MyListScreen() {
                                 <BookmarkCheck size={48} color={colors.accent} />
                             </View>
                             <Text style={[styles.emptyTitle, { color: textPrimary }]}>
-                                {searchTerm ? 'No matching goals' : 'No goals yet'}
+                                {searchTerm ? t('myList.empty.noMatch') : t('myList.empty.title')}
                             </Text>
                             <Text style={[styles.emptyDesc, { color: textSecondary }]}>
                                 {searchTerm
-                                    ? 'Try adjusting your search or filters'
-                                    : 'Start by creating your first goal to track progress and stay motivated'
+                                    ? t('myList.empty.searchHint')
+                                    : t('myList.empty.description')
                                 }
                             </Text>
                             {!searchTerm && (
@@ -360,7 +362,7 @@ export default function MyListScreen() {
                                     hapticFeedback="medium"
                                 >
                                     <Plus size={18} color="#FFFFFF" />
-                                    <Text style={styles.emptyCtaText}>Create Goal</Text>
+                                    <Text style={styles.emptyCtaText}>{t('createGoal')}</Text>
                                 </AnimatedPressable>
                             )}
                         </View>
@@ -373,7 +375,7 @@ export default function MyListScreen() {
                 <View style={styles.modalOverlay}>
                     <TouchableOpacity style={styles.modalBackdrop} onPress={() => setShowSortMenu(false)} />
                     <View style={[styles.sortMenu, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}>
-                        <Text style={[styles.sortMenuTitle, { color: textPrimary }]}>Sort By</Text>
+                        <Text style={[styles.sortMenuTitle, { color: textPrimary }]}>{t('myList.sortBy')}</Text>
                         {sortOptions.map(opt => {
                             const isActive = sortBy === opt.value;
                             const Icon = opt.icon;

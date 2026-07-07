@@ -1,0 +1,284 @@
+{
+  "header": {
+    "title": "Ginin CV"
+  },
+  "loading": "Ana loda Ginin CV...",
+  "defaults": {
+    "myCv": "CV ɗina",
+    "untitled": "CV mara suna",
+    "aiDraft": "Daftarin CV na AI"
+  },
+  "proBanner": {
+    "upgrade": "Haɓaka zuwa Pro don CV mara iyaka",
+    "trial": "Akwai gwaji kyauta - Gwada fasalolin Pro!"
+  },
+  "quickActions": {
+    "title": "Gina cikin sauri",
+    "subtitle": "Fara daga sabon CV, ƙirƙira daga LinkedIn, ko daidaita daftarinka zuwa wata dama ta gaske.",
+    "create": {
+      "title": "Ƙirƙiri sabon CV",
+      "subtitle": "Fara da tsararren editan ka kuma zaɓi samfuri bayan duba misalai."
+    },
+    "linkedIn": {
+      "title": "Shigo da daga LinkedIn",
+      "subtitle": "Yi amfani da bayanan martabarka don rubuta ingantaccen daftari na farko da AI."
+    },
+    "tailor": {
+      "title": "Daidaita zuwa wata dama",
+      "subtitle": "Auna CV ɗinka da tallafin karatu, horon aiki, da shirye-shiryen da ke cikin ajiyarka."
+    }
+  },
+  "sections": {
+    "yourCvs": "CV ɗinka",
+    "chooseTemplate": "Zaɓi Samfuri"
+  },
+  "alerts": {
+    "aiDraftReadyTitle": "Daftarin AI ya shirya",
+    "draftReadyOfflineTitle": "Daftari ya shirya (yanayin rashin intanet)",
+    "draftReadyWithSuggestions": "Daftarin CV ɗinka yana cikin editan. Matakan gaba da aka ba da shawara:\n{{suggestions}}",
+    "draftReadyMessage": "An ƙirƙiri daftarin CV ɗinka daga bayanan martabarka.",
+    "generateFailed": "An kasa ƙirƙirar daftarin CV.",
+    "summaryUpdatedTitle": "An sabunta taƙaitawa",
+    "summaryUpdatedOffline": "An inganta ba tare da intanet ba daga bayanan da kake da su. Haɗa da intanet don cikakken sake rubutu na AI.",
+    "improveSummaryFailed": "Ba a iya inganta taƙaitawar a yanzu ba.",
+    "saveSuccess": "An ajiye CV cikin nasara!",
+    "saveFailed": "An kasa ajiye CV",
+    "deleteTitle": "Goge CV",
+    "deleteMessage": "Ka tabbata kana son goge wannan CV ɗin?",
+    "sharedAsTextTitle": "An raba a matsayin rubutu",
+    "sharedAsTextMessage": "Fitar da PDF bai samu ba, saboda haka an raba CV ɗin a matsayin rubutu.",
+    "exportFailed": "An kasa fitar da CV",
+    "tailoredTitle": "An daidaita CV — dacewa {{score}}%",
+    "tailorFailed": "An kasa daidaita CV don wannan damar."
+  },
+  "upgrade": {
+    "templateFeature": "Samfurin {{name}}"
+  },
+  "templates": {
+    "badgeFallback": "Samfuri",
+    "proBadge": "Pro",
+    "unlock": "Buɗe Samfuri",
+    "use": "Yi Amfani da Samfuri",
+    "tapToPreview": "Danna don duba misali",
+    "samples": {
+      "academic": {
+        "name": "Amara Okafor",
+        "headline": "Mai Neman MSc a Lafiyar Jama'a",
+        "summary": "Bayanin martaba mai mayar da hankali kan bincike, tare da ilimi, wallafe-wallafe, ayyukan fage, da nasarorin ilimi kafin tarihin aiki.",
+        "bullets": [
+          "Ilimi da bincike na farko",
+          "Wallafe-wallafe da kyaututtuka a bayyane",
+          "Ya dace da tallafin karatu da shiga digiri na biyu"
+        ]
+      },
+      "professional": {
+        "name": "Daniel Mensah",
+        "headline": "Manazarcin Ayyuka",
+        "summary": "Bayanin martaba mai mayar da hankali kan sakamako don horon aiki, ayyuka, fellowship, da shirye-shiryen farkon sana'a tare da tasirin aiki mai aunuwa.",
+        "bullets": [
+          "Tasirin aiki kafin karatu",
+          "Sashen ƙwarewa da awo mai ƙarfi",
+          "Ya dace da horon aiki da ayyuka"
+        ]
+      },
+      "creative": {
+        "name": "Leah Adeyemi",
+        "headline": "Mai Zanen Kayayyaki",
+        "summary": "Tsari mai dacewa da portfolio wanda ke fito da ayyuka, kayan aiki, hanyoyin haɗi, da nasarorin gani ba tare da rasa karantuwar ATS ba.",
+        "bullets": [
+          "Ayyuka da hanyoyin haɗin portfolio",
+          "Kayan aiki da fitattun misalan aiki",
+          "Ya dace da ayyukan zane da kafofin watsa labarai"
+        ]
+      },
+      "general": {
+        "name": "Ɗalibin Edutu",
+        "headline": "Mai Neman Dama",
+        "summary": "Daidaitaccen tsari ga ɗalibai masu nema a fannin tallafin karatu, shirye-shiryen makaranta, horon aiki, da damammakin al'umma.",
+        "bullets": [
+          "Tsaftataccen bayanan ɗalibi",
+          "Tsarin sassa mai sassauƙa",
+          "Ya dace da neman dama iri-iri"
+        ]
+      }
+    }
+  },
+  "linkedInModal": {
+    "title": "Gina CV da AI",
+    "description": "Liƙa URL ɗin bayanan martabarka na LinkedIn a ƙasa, AI ɗinmu zai tattara ƙwarewarka kai tsaye ya kuma gina CV ɗinka.",
+    "generate": "Ƙirƙiri CV"
+  },
+  "tailorModal": {
+    "title": "Daidaita CV da AI",
+    "subtitle": "Zaɓi wata dama daga ajiyarka ka daidaita wannan CV ɗin zuwa gare ta.",
+    "empty": "Babu damammakin da suka samu tukuna. Fara loda damammaki, sannan ka daidaita wannan CV ɗin."
+  },
+  "listItem": {
+    "updated": "An sabunta {{date}}",
+    "primary": "Na farko"
+  },
+  "editor": {
+    "sections": {
+      "personalInfo": "Bayanan Kai",
+      "summary": "Taƙaitaccen Bayani na Ƙwararru",
+      "skills": "Ƙwarewa",
+      "experience": "Ƙwarewar Aiki",
+      "education": "Ilimi",
+      "projects": "Ayyuka",
+      "achievements": "Nasarori"
+    },
+    "personal": {
+      "fullName": {
+        "label": "Cikakken Suna",
+        "placeholder": "John Doe"
+      },
+      "email": {
+        "label": "Email",
+        "placeholder": "john@example.com"
+      },
+      "phone": {
+        "label": "Waya",
+        "placeholder": "+1 234 567 8900"
+      },
+      "location": {
+        "label": "Wuri",
+        "placeholder": "Lagos, Nigeria"
+      },
+      "linkedin": {
+        "label": "LinkedIn",
+        "placeholder": "linkedin.com/in/johndoe"
+      },
+      "portfolio": {
+        "label": "Portfolio",
+        "placeholder": "portfolio.site"
+      }
+    },
+    "summaryPlaceholder": "Rubuta taƙaitaccen bayani na ƙwararru...",
+    "improving": "Ana ingantawa…",
+    "improveWithAi": "Inganta da AI",
+    "unlockAiAssist": "Buɗe Taimakon AI",
+    "aiSummaryFeature": "Mai Ƙirƙirar Taƙaitawa na AI",
+    "skillsPlaceholder": "JavaScript, Bincike, Excel, Jawabin jama'a...",
+    "add": "Saka",
+    "newExperience": "Sabuwar ƙwarewar aiki",
+    "newEducation": "Sabon ilimi",
+    "newProject": "Sabon aiki",
+    "newAchievement": "Sabuwar nasara",
+    "fields": {
+      "role": {
+        "label": "Matsayi",
+        "placeholder": "Ɗan Horon Software"
+      },
+      "company": {
+        "label": "Kamfani",
+        "placeholder": "Kamfani / Ƙungiya"
+      },
+      "location": {
+        "label": "Wuri",
+        "placeholder": "Daga nesa / Birni"
+      },
+      "startDate": {
+        "label": "Ranar Farawa",
+        "placeholder": "2024-01"
+      },
+      "endDate": {
+        "label": "Ranar Ƙarewa",
+        "placeholder": "2025-01"
+      },
+      "currentlyWorkHere": "Ina aiki a nan a halin yanzu",
+      "description": {
+        "label": "Bayani",
+        "placeholder": "Bayyana abin da ka yi"
+      },
+      "highlights": {
+        "label": "Fitattun abubuwa (ɗaya a kowane layi)",
+        "placeholder": "Na ƙara rajista da kashi 30%\nNa jagoranci ƙungiyar mutane 4"
+      },
+      "institution": {
+        "label": "Cibiya",
+        "placeholder": "Jami'a / Makaranta"
+      },
+      "degree": {
+        "label": "Shaidar Karatu",
+        "placeholder": "BSc / MSc / Diploma"
+      },
+      "fieldOfStudy": {
+        "label": "Fanni",
+        "placeholder": "Kimiyyar Kwamfuta"
+      },
+      "eduStartDate": {
+        "placeholder": "2021-09"
+      },
+      "eduEndDate": {
+        "placeholder": "2025-06 (ko abin da ake tsammani)"
+      },
+      "projectName": {
+        "label": "Sunan Aikin",
+        "placeholder": "Manhajar Nemo Tallafin Karatu"
+      },
+      "projectDescription": {
+        "placeholder": "Bayyana tasirin aikin"
+      },
+      "technologies": {
+        "label": "Fasahohi",
+        "placeholder": "React, Node.js"
+      },
+      "achievementTitle": {
+        "label": "Taken",
+        "placeholder": "Jerin Dean"
+      },
+      "issuer": {
+        "label": "Mai bayarwa",
+        "placeholder": "Jami'a / Ƙungiya"
+      },
+      "achievementDescription": {
+        "placeholder": "Dalilin da ya sa yake da muhimmanci"
+      }
+    },
+    "tailor": {
+      "title": "Daidaita don Dama",
+      "subtitle": "Auna wannan CV ɗin da damammakin da ke cikin ajiyarka"
+    },
+    "save": "Ajiye CV",
+    "preparing": "Ana shiryawa…",
+    "downloadPdf": "Sauke PDF"
+  },
+  "preview": {
+    "backToEdit": "Koma Gyara",
+    "downloadAccessibility": "Sauke CV a matsayin PDF",
+    "preparing": "Ana shiryawa…",
+    "pdf": "PDF",
+    "yourName": "Sunanka",
+    "sections": {
+      "summary": "Taƙaitawa",
+      "skills": "Ƙwarewa",
+      "experience": "Ƙwarewar Aiki",
+      "education": "Ilimi",
+      "projects": "Ayyuka",
+      "achievements": "Nasarori"
+    },
+    "startFallback": "Farawa",
+    "present": "- Har yanzu"
+  },
+  "proUpgrade": {
+    "title": "Buɗe {{feature}}",
+    "subtitle": "Samu damar amfani mara iyaka da duk fasalolin musamman",
+    "priceFrom": "Daga",
+    "price": "$5.99",
+    "pricePeriod": "/wata",
+    "features": {
+      "roadmaps": "Ƙirƙirar Taswirar Hanya ta AI mara iyaka",
+      "templates": "Samfurorin CV na Musamman",
+      "tailoring": "Daidaita CV da Ƙarfin AI",
+      "creatorListing": "Fifikon Jerin Masu Ƙirƙira",
+      "filters": "Ingantattun Matattarar Damammaki",
+      "pdfExport": "Fitar da PDF da Saukewa"
+    },
+    "upgradeCta": "Haɓaka zuwa Pro",
+    "trialActivatedTitle": "An Kunna Gwaji",
+    "trialActivatedMessage": "Yanzu kana da damar amfani da fasalolin Pro na kwanaki 7!",
+    "trialCta": "Gwada Kyauta na Kwanaki 7",
+    "secure": "Amintacce",
+    "cancelAnytime": "Soke a kowane lokaci"
+  }
+}

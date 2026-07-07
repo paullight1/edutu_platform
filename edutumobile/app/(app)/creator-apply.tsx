@@ -7,6 +7,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
+import { useTranslation, Trans } from 'react-i18next';
 import {
     ChevronLeft, CheckCircle2 as CheckCircle, Star,
     Send, Info, Sparkles, Briefcase, ChevronDown, ChevronRight,
@@ -26,23 +27,24 @@ const { width } = Dimensions.get('window');
 type ApplyStep = 'intro' | 'motivation' | 'achievement' | 'verification' | 'review';
 
 const OPPORTUNITY_TYPES = [
-    { id: 'scholarship', label: 'Scholarship', icon: GraduationCap, color: '#3B82F6', desc: 'Academic scholarships & grants' },
-    { id: 'fellowship', label: 'Fellowship', icon: Trophy, color: '#3b82f6', desc: 'Research & professional fellowships' },
-    { id: 'internship', label: 'Internship', icon: Briefcase, color: '#10B981', desc: 'Professional internship programs' },
-    { id: 'job', label: 'Full-time Job', icon: Target, color: '#F59E0B', desc: 'Full-time employment offers' },
-    { id: 'program', label: 'Accelerator/Program', icon: BookOpen, color: '#EF4444', desc: 'Accelerators & training programs' },
-    { id: 'other', label: 'Other', icon: Globe, color: '#94A3B8', desc: 'Other opportunities' },
+    { id: 'scholarship', labelKey: 'creatorApply.types.scholarship.label', icon: GraduationCap, color: '#3B82F6', descKey: 'creatorApply.types.scholarship.desc' },
+    { id: 'fellowship', labelKey: 'creatorApply.types.fellowship.label', icon: Trophy, color: '#3b82f6', descKey: 'creatorApply.types.fellowship.desc' },
+    { id: 'internship', labelKey: 'creatorApply.types.internship.label', icon: Briefcase, color: '#10B981', descKey: 'creatorApply.types.internship.desc' },
+    { id: 'job', labelKey: 'creatorApply.types.job.label', icon: Target, color: '#F59E0B', descKey: 'creatorApply.types.job.desc' },
+    { id: 'program', labelKey: 'creatorApply.types.program.label', icon: BookOpen, color: '#EF4444', descKey: 'creatorApply.types.program.desc' },
+    { id: 'other', labelKey: 'creatorApply.types.other.label', icon: Globe, color: '#94A3B8', descKey: 'creatorApply.types.other.desc' },
 ];
 
 const MOTIVATION_OPTIONS = [
-    { id: 'help_others', text: "I want to help others achieve what I achieved", icon: Heart },
-    { id: 'mentor', text: "I enjoy mentoring and sharing knowledge", icon: User },
-    { id: 'give_back', text: "I want to give back to the community", icon: Sparkles },
-    { id: 'document', text: "I want to document my journey for others", icon: FileText },
-    { id: 'pay_forward', text: "I believe in paying it forward", icon: Zap },
+    { id: 'help_others', textKey: 'creatorApply.motivations.helpOthers', icon: Heart },
+    { id: 'mentor', textKey: 'creatorApply.motivations.mentor', icon: User },
+    { id: 'give_back', textKey: 'creatorApply.motivations.giveBack', icon: Sparkles },
+    { id: 'document', textKey: 'creatorApply.motivations.document', icon: FileText },
+    { id: 'pay_forward', textKey: 'creatorApply.motivations.payForward', icon: Zap },
 ];
 
 export default function CreatorApply() {
+    const { t } = useTranslation('misc');
     const { user } = useUser();
     const router = useRouter();
     const { isDark, colors } = useTheme();
@@ -126,7 +128,7 @@ export default function CreatorApply() {
                 setKycImage(file.uri);
             }
         } catch (error: any) {
-            Alert.alert('Error', 'Failed to upload image. Please try again.');
+            Alert.alert(t('common:states.error'), t('creatorApply.alerts.uploadImageFailed'));
         } finally {
             setUploadingImage(false);
         }
@@ -173,7 +175,7 @@ export default function CreatorApply() {
 
             setSubmitted(true);
         } catch (e: any) {
-            Alert.alert('Error', e.message || 'Connection failed. Please try again.');
+            Alert.alert(t('common:states.error'), e.message || t('creatorApply.alerts.submitFailed'));
         } finally {
             setLoading(false);
         }
@@ -184,38 +186,38 @@ export default function CreatorApply() {
     if (submitted) {
         return (
             <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-                <ScreenHeader title="Application Submitted" showBack={false} />
+                <ScreenHeader title={t('creatorApply.success.headerTitle')} showBack={false} />
                 <View style={styles.successContent}>
                     <Animated.View style={{ transform: [{ scale: slideAnim.interpolate({ inputRange: [-1, 0, 1], outputRange: [0.5, 1, 0.5] }) }] }}>
                         <View style={[styles.successIconBox, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
                             <CheckCircle color="#10b981" size={64} />
                         </View>
                     </Animated.View>
-                    <Text style={[styles.successTitle, { color: textPrimary }]}>Welcome to the Creator Community!</Text>
+                    <Text style={[styles.successTitle, { color: textPrimary }]}>{t('creatorApply.success.title')}</Text>
                     <Text style={[styles.successText, { color: textSecondary }]}>
-                        We have received your application and are excited to review your journey. Our team will verify your credentials within 2-3 business days.
+                        {t('creatorApply.success.text')}
                     </Text>
                     <View style={[styles.successDetails, { backgroundColor: inputBg }]}>
                         <View style={styles.successDetailRow}>
-                            <Text style={[styles.successDetailLabel, { color: textSecondary }]}>Application ID</Text>
+                            <Text style={[styles.successDetailLabel, { color: textSecondary }]}>{t('creatorApply.success.applicationId')}</Text>
                             <Text style={[styles.successDetailValue, { color: textPrimary }]}>{user?.id?.slice(0, 8).toUpperCase()}</Text>
                         </View>
                         <View style={styles.successDetailRow}>
-                            <Text style={[styles.successDetailLabel, { color: textSecondary }]}>Status</Text>
+                            <Text style={[styles.successDetailLabel, { color: textSecondary }]}>{t('creatorApply.success.status')}</Text>
                             <View style={[styles.pendingBadge, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
-                                <Text style={[styles.pendingBadgeText, { color: '#F59E0B' }]}>Pending Review</Text>
+                                <Text style={[styles.pendingBadgeText, { color: '#F59E0B' }]}>{t('creatorApply.success.pendingReview')}</Text>
                             </View>
                         </View>
                         <View style={styles.successDetailRow}>
-                            <Text style={[styles.successDetailLabel, { color: textSecondary }]}>Response Time</Text>
-                            <Text style={[styles.successDetailValue, { color: textPrimary }]}>2-3 days</Text>
+                            <Text style={[styles.successDetailLabel, { color: textSecondary }]}>{t('creatorApply.success.responseTime')}</Text>
+                            <Text style={[styles.successDetailValue, { color: textPrimary }]}>{t('creatorApply.success.responseTimeValue')}</Text>
                         </View>
                     </View>
                     <TouchableOpacity
                         style={[styles.backHomeBtn, { backgroundColor: colors.accent }]}
                         onPress={() => router.replace('/profile')}
                     >
-                        <Text style={styles.backHomeText}>Back to Profile</Text>
+                        <Text style={styles.backHomeText}>{t('creatorApply.success.backToProfile')}</Text>
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
@@ -224,7 +226,7 @@ export default function CreatorApply() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-            <ScreenHeader title="Become a Creator" showBack />
+            <ScreenHeader title={t('creatorApply.title')} showBack />
 
             {/* Step Progress */}
             <View style={[styles.stepProgress, { borderBottomColor: borderColor }]}>
@@ -255,17 +257,17 @@ export default function CreatorApply() {
                                 <View style={[styles.heroIcon, { backgroundColor: `${colors.accent}12` }]}>
                                     <Sparkles color={colors.accent} size={32} />
                                 </View>
-                                <Text style={[styles.heroTitle, { color: textPrimary }]}>Share Your Victory Story</Text>
+                                <Text style={[styles.heroTitle, { color: textPrimary }]}>{t('creatorApply.intro.heroTitle')}</Text>
                                 <Text style={[styles.heroSubtitle, { color: textSecondary }]}>
-                                    You've achieved something incredible. Inspire the next generation by sharing your roadmap to success.
+                                    {t('creatorApply.intro.heroSubtitle')}
                                 </Text>
                             </View>
 
                             <View style={styles.creatorPreview}>
-                                <Avatar name={user?.fullName || 'You'} imageUrl={user?.imageUrl} size="md" />
+                                <Avatar name={user?.fullName || t('creatorApply.intro.you')} imageUrl={user?.imageUrl} size="md" />
                                 <View style={styles.creatorPreviewText}>
-                                    <Text style={[styles.creatorName, { color: textPrimary }]}>{user?.fullName || 'Your Name'}</Text>
-                                    <Text style={[styles.creatorRole, { color: colors.accent }]}>Future Creator</Text>
+                                    <Text style={[styles.creatorName, { color: textPrimary }]}>{user?.fullName || t('creatorApply.intro.yourName')}</Text>
+                                    <Text style={[styles.creatorRole, { color: colors.accent }]}>{t('creatorApply.intro.futureCreator')}</Text>
                                 </View>
                                 <View style={[styles.badge, { backgroundColor: colors.accent }]}>
                                     <Star color="#fff" size={12} />
@@ -274,9 +276,9 @@ export default function CreatorApply() {
 
                             <View style={styles.statsSection}>
                                 {[
-                                    { num: '10K+', label: 'Students Helped', color: '#3B82F6' },
-                                    { num: '500+', label: 'Success Stories', color: '#3b82f6' },
-                                    { num: '85%', label: 'Revenue Share', color: '#10B981' },
+                                    { num: '10K+', label: t('creatorApply.intro.statStudentsHelped'), color: '#3B82F6' },
+                                    { num: '500+', label: t('creatorApply.intro.statSuccessStories'), color: '#3b82f6' },
+                                    { num: '85%', label: t('creatorApply.intro.statRevenueShare'), color: '#10B981' },
                                 ].map((stat, i) => (
                                     <View key={i} style={[styles.statCard, { backgroundColor: cardBg, borderColor }]}>
                                         <Text style={[styles.statNumber, { color: stat.color }]}>{stat.num}</Text>
@@ -288,7 +290,7 @@ export default function CreatorApply() {
                             <View style={[styles.benefitCard, { backgroundColor: `${colors.accent}08`, borderColor: `${colors.accent}20` }]}>
                                 <Award size={20} color={colors.accent} />
                                 <Text style={[styles.benefitText, { color: textSecondary }]}>
-                                    As a verified creator, you'll earn <Text style={{ fontWeight: '800', color: colors.accent }}>85% revenue share</Text> from every roadmap sale and reach thousands of learners worldwide.
+                                    <Trans t={t} i18nKey="creatorApply.intro.benefit" components={{ bold: <Text style={{ fontWeight: '800', color: colors.accent }} /> }} />
                                 </Text>
                             </View>
                         </Animated.View>
@@ -298,15 +300,16 @@ export default function CreatorApply() {
                     {step === 'motivation' && (
                         <Animated.View style={{ transform: [{ translateX: slideAnim }] }}>
                             <View style={styles.stepHeader}>
-                                <Text style={[styles.stepHeaderTitle, { color: textPrimary }]}>What motivates you?</Text>
+                                <Text style={[styles.stepHeaderTitle, { color: textPrimary }]}>{t('creatorApply.motivation.title')}</Text>
                                 <Text style={[styles.stepHeaderDesc, { color: textSecondary }]}>
-                                    Select the reason that best describes why you want to become a creator.
+                                    {t('creatorApply.motivation.desc')}
                                 </Text>
                             </View>
 
                             <View style={styles.motivationGrid}>
                                 {MOTIVATION_OPTIONS.map((opt) => {
-                                    const isSelected = form.motivation === opt.text;
+                                    const optText = t(opt.textKey);
+                                    const isSelected = form.motivation === optText;
                                     const Icon = opt.icon;
                                     return (
                                         <TouchableOpacity
@@ -316,12 +319,12 @@ export default function CreatorApply() {
                                                 { backgroundColor: cardBg, borderColor: isSelected ? colors.accent : borderColor },
                                                 isSelected && { backgroundColor: `${colors.accent}08` }
                                             ]}
-                                            onPress={() => setForm(p => ({ ...p, motivation: opt.text }))}
+                                            onPress={() => setForm(p => ({ ...p, motivation: optText }))}
                                         >
                                             <View style={[styles.motivationIconBox, { backgroundColor: `${colors.accent}12` }]}>
                                                 <Icon size={24} color={isSelected ? colors.accent : textSecondary} />
                                             </View>
-                                            <Text style={[styles.motivationText, { color: isSelected ? colors.accent : textPrimary }]}>{opt.text}</Text>
+                                            <Text style={[styles.motivationText, { color: isSelected ? colors.accent : textPrimary }]}>{optText}</Text>
                                             {isSelected && (
                                                 <View style={[styles.motivationCheck, { backgroundColor: colors.accent }]}>
                                                     <Check size={14} color="white" />
@@ -338,15 +341,15 @@ export default function CreatorApply() {
                     {step === 'achievement' && (
                         <Animated.View style={{ transform: [{ translateX: slideAnim }] }}>
                             <View style={styles.stepHeader}>
-                                <Text style={[styles.stepHeaderTitle, { color: textPrimary }]}>Your Achievement</Text>
+                                <Text style={[styles.stepHeaderTitle, { color: textPrimary }]}>{t('creatorApply.achievement.title')}</Text>
                                 <Text style={[styles.stepHeaderDesc, { color: textSecondary }]}>
-                                    Tell us about the opportunity you secured so we can help others follow your path.
+                                    {t('creatorApply.achievement.desc')}
                                 </Text>
                             </View>
 
                             {/* Opportunity Type Grid */}
                             <View style={styles.formGroup}>
-                                <Text style={[styles.formLabel, { color: textPrimary }]}>Opportunity Type</Text>
+                                <Text style={[styles.formLabel, { color: textPrimary }]}>{t('creatorApply.achievement.typeLabel')}</Text>
                                 <View style={styles.typeGrid}>
                                     {OPPORTUNITY_TYPES.map((type) => {
                                         const isSelected = form.opportunityType === type.id;
@@ -364,8 +367,8 @@ export default function CreatorApply() {
                                                 <View style={[styles.typeIconBox, { backgroundColor: `${type.color}15` }]}>
                                                     <Icon size={20} color={isSelected ? type.color : textSecondary} />
                                                 </View>
-                                                <Text style={[styles.typeLabel, { color: isSelected ? type.color : textPrimary }]}>{type.label}</Text>
-                                                <Text style={[styles.typeDesc, { color: textSecondary }]}>{type.desc}</Text>
+                                                <Text style={[styles.typeLabel, { color: isSelected ? type.color : textPrimary }]}>{t(type.labelKey)}</Text>
+                                                <Text style={[styles.typeDesc, { color: textSecondary }]}>{t(type.descKey)}</Text>
                                             </TouchableOpacity>
                                         );
                                     })}
@@ -373,10 +376,10 @@ export default function CreatorApply() {
                             </View>
 
                             <View style={styles.formGroup}>
-                                <Text style={[styles.formLabel, { color: textPrimary }]}>Opportunity Name</Text>
+                                <Text style={[styles.formLabel, { color: textPrimary }]}>{t('creatorApply.achievement.nameLabel')}</Text>
                                 <TextInput
                                     style={[styles.wizardInput, { backgroundColor: inputBg, color: textPrimary, borderColor }]}
-                                    placeholder="e.g., Mastercard Foundation Scholarship 2024"
+                                    placeholder={t('creatorApply.achievement.namePlaceholder')}
                                     placeholderTextColor={textSecondary}
                                     value={form.opportunityTitle}
                                     onChangeText={v => setForm(p => ({ ...p, opportunityTitle: v }))}
@@ -384,7 +387,7 @@ export default function CreatorApply() {
                             </View>
 
                             <View style={styles.formGroup}>
-                                <Text style={[styles.formLabel, { color: textPrimary }]}>LinkedIn Profile</Text>
+                                <Text style={[styles.formLabel, { color: textPrimary }]}>{t('creatorApply.achievement.linkedinLabel')}</Text>
                                 <View style={[styles.inputWithIcon, { backgroundColor: inputBg, borderColor }]}>
                                     <ExternalLink color={textSecondary} size={20} />
                                     <TextInput
@@ -400,10 +403,10 @@ export default function CreatorApply() {
                             </View>
 
                             <View style={styles.formGroup}>
-                                <Text style={[styles.formLabel, { color: textPrimary }]}>Portfolio URL (Optional)</Text>
+                                <Text style={[styles.formLabel, { color: textPrimary }]}>{t('creatorApply.achievement.portfolioLabel')}</Text>
                                 <TextInput
                                     style={[styles.wizardInput, { backgroundColor: inputBg, color: textPrimary, borderColor }]}
-                                    placeholder="Link to your portfolio or personal website"
+                                    placeholder={t('creatorApply.achievement.portfolioPlaceholder')}
                                     placeholderTextColor={textSecondary}
                                     value={form.portfolioUrl}
                                     onChangeText={v => setForm(p => ({ ...p, portfolioUrl: v }))}
@@ -418,17 +421,17 @@ export default function CreatorApply() {
                     {step === 'verification' && (
                         <Animated.View style={{ transform: [{ translateX: slideAnim }] }}>
                             <View style={styles.stepHeader}>
-                                <Text style={[styles.stepHeaderTitle, { color: textPrimary }]}>Verification</Text>
+                                <Text style={[styles.stepHeaderTitle, { color: textPrimary }]}>{t('creatorApply.verification.title')}</Text>
                                 <Text style={[styles.stepHeaderDesc, { color: textSecondary }]}>
-                                    We verify all creators to maintain quality and trust. Upload a document to confirm your achievement.
+                                    {t('creatorApply.verification.desc')}
                                 </Text>
                             </View>
 
                             {/* KYC Upload */}
                             <View style={styles.formGroup}>
-                                <Text style={[styles.formLabel, { color: textPrimary }]}>Verification Document</Text>
+                                <Text style={[styles.formLabel, { color: textPrimary }]}>{t('creatorApply.verification.documentLabel')}</Text>
                                 <Text style={[styles.inputHint, { color: textSecondary }]}>
-                                    Upload your award letter, certificate, acceptance email, or ID
+                                    {t('creatorApply.verification.documentHint')}
                                 </Text>
 
                                 <TouchableOpacity
@@ -443,7 +446,7 @@ export default function CreatorApply() {
                                             <Image source={{ uri: kycImage }} style={styles.uploadedImage} />
                                             <View style={[styles.uploadedBadge, { backgroundColor: '#10B981' }]}>
                                                 <CheckCircle color="#fff" size={14} />
-                                                <Text style={styles.uploadedText}>Verified</Text>
+                                                <Text style={styles.uploadedText}>{t('creatorApply.verification.verified')}</Text>
                                             </View>
                                         </>
                                     ) : (
@@ -451,8 +454,8 @@ export default function CreatorApply() {
                                             <View style={[styles.uploadIcon, { backgroundColor: `${colors.accent}12` }]}>
                                                 <Camera color={colors.accent} size={28} />
                                             </View>
-                                            <Text style={[styles.uploadText, { color: textPrimary }]}>Tap to upload</Text>
-                                            <Text style={[styles.uploadSubtext, { color: textSecondary }]}>JPG, PNG accepted</Text>
+                                            <Text style={[styles.uploadText, { color: textPrimary }]}>{t('creatorApply.verification.tapToUpload')}</Text>
+                                            <Text style={[styles.uploadSubtext, { color: textSecondary }]}>{t('creatorApply.verification.acceptedFormats')}</Text>
                                         </>
                                     )}
                                 </TouchableOpacity>
@@ -460,10 +463,10 @@ export default function CreatorApply() {
 
                             {/* Bio */}
                             <View style={styles.formGroup}>
-                                <Text style={[styles.formLabel, { color: textPrimary }]}>Your Story</Text>
+                                <Text style={[styles.formLabel, { color: textPrimary }]}>{t('creatorApply.verification.storyLabel')}</Text>
                                 <TextInput
                                     style={[styles.wizardInput, styles.wizardTextArea, { backgroundColor: inputBg, color: textPrimary, borderColor }]}
-                                    placeholder="Share your journey - how you prepared, challenges you faced, and advice for others..."
+                                    placeholder={t('creatorApply.verification.storyPlaceholder')}
                                     placeholderTextColor={textSecondary}
                                     multiline
                                     numberOfLines={5}
@@ -474,10 +477,10 @@ export default function CreatorApply() {
                             </View>
 
                             <View style={styles.formGroup}>
-                                <Text style={[styles.formLabel, { color: textPrimary }]}>Social Links (Optional)</Text>
+                                <Text style={[styles.formLabel, { color: textPrimary }]}>{t('creatorApply.verification.socialLabel')}</Text>
                                 <TextInput
                                     style={[styles.wizardInput, { backgroundColor: inputBg, color: textPrimary, borderColor }]}
-                                    placeholder="Twitter, YouTube, etc. (comma separated)"
+                                    placeholder={t('creatorApply.verification.socialPlaceholder')}
                                     placeholderTextColor={textSecondary}
                                     value={form.socialLinks}
                                     onChangeText={v => setForm(p => ({ ...p, socialLinks: v }))}
@@ -490,14 +493,14 @@ export default function CreatorApply() {
                     {step === 'review' && (
                         <Animated.View style={{ transform: [{ translateX: slideAnim }] }}>
                             <View style={styles.stepHeader}>
-                                <Text style={[styles.stepHeaderTitle, { color: textPrimary }]}>Review Application</Text>
+                                <Text style={[styles.stepHeaderTitle, { color: textPrimary }]}>{t('creatorApply.review.title')}</Text>
                                 <Text style={[styles.stepHeaderDesc, { color: textSecondary }]}>
-                                    Double-check your details before submitting.
+                                    {t('creatorApply.review.desc')}
                                 </Text>
                             </View>
 
                             <View style={[styles.reviewCard, { backgroundColor: cardBg, borderColor }]}>
-                                <Text style={[styles.reviewSectionTitle, { color: textPrimary }]}>Motivation</Text>
+                                <Text style={[styles.reviewSectionTitle, { color: textPrimary }]}>{t('creatorApply.review.motivation')}</Text>
                                 <View style={styles.reviewRow}>
                                     <Heart size={16} color={colors.accent} />
                                     <Text style={[styles.reviewValue, { color: textPrimary }]}>{form.motivation}</Text>
@@ -505,29 +508,32 @@ export default function CreatorApply() {
                             </View>
 
                             <View style={[styles.reviewCard, { backgroundColor: cardBg, borderColor }]}>
-                                <Text style={[styles.reviewSectionTitle, { color: textPrimary }]}>Achievement</Text>
+                                <Text style={[styles.reviewSectionTitle, { color: textPrimary }]}>{t('creatorApply.review.achievement')}</Text>
                                 <View style={styles.reviewRow}>
-                                    <Text style={[styles.reviewLabel, { color: textSecondary }]}>Type</Text>
+                                    <Text style={[styles.reviewLabel, { color: textSecondary }]}>{t('creatorApply.review.type')}</Text>
                                     <Text style={[styles.reviewValue, { color: textPrimary }]}>
-                                        {OPPORTUNITY_TYPES.find(t => t.id === form.opportunityType)?.label}
+                                        {(() => {
+                                            const selectedType = OPPORTUNITY_TYPES.find(type => type.id === form.opportunityType);
+                                            return selectedType ? t(selectedType.labelKey) : undefined;
+                                        })()}
                                     </Text>
                                 </View>
                                 <View style={styles.reviewRow}>
-                                    <Text style={[styles.reviewLabel, { color: textSecondary }]}>Name</Text>
+                                    <Text style={[styles.reviewLabel, { color: textSecondary }]}>{t('creatorApply.review.name')}</Text>
                                     <Text style={[styles.reviewValue, { color: textPrimary }]}>{form.opportunityTitle}</Text>
                                 </View>
                             </View>
 
                             <View style={[styles.reviewCard, { backgroundColor: cardBg, borderColor }]}>
-                                <Text style={[styles.reviewSectionTitle, { color: textPrimary }]}>Verification</Text>
+                                <Text style={[styles.reviewSectionTitle, { color: textPrimary }]}>{t('creatorApply.review.verification')}</Text>
                                 {kycImage && (
                                     <View style={styles.reviewRow}>
                                         <FileText size={16} color={textSecondary} />
-                                        <Text style={[styles.reviewValue, { color: '#10B981' }]}>Document uploaded</Text>
+                                        <Text style={[styles.reviewValue, { color: '#10B981' }]}>{t('creatorApply.review.documentUploaded')}</Text>
                                     </View>
                                 )}
                                 <View style={styles.reviewRow}>
-                                    <Text style={[styles.reviewLabel, { color: textSecondary }]}>Bio</Text>
+                                    <Text style={[styles.reviewLabel, { color: textSecondary }]}>{t('creatorApply.review.bio')}</Text>
                                     <Text style={[styles.reviewValue, { color: textPrimary }]} numberOfLines={3}>{form.bio}</Text>
                                 </View>
                             </View>
@@ -535,7 +541,7 @@ export default function CreatorApply() {
                             <View style={[styles.infoCallout, { backgroundColor: `${colors.accent}08`, borderColor: `${colors.accent}20` }]}>
                                 <Info size={16} color={colors.accent} />
                                 <Text style={[styles.infoCalloutText, { color: textSecondary }]}>
-                                    Your application will be reviewed within <Text style={{ fontWeight: '700', color: colors.accent }}>2-3 business days</Text>. You'll be notified once approved.
+                                    <Trans t={t} i18nKey="creatorApply.review.callout" components={{ bold: <Text style={{ fontWeight: '700', color: colors.accent }} /> }} />
                                 </Text>
                             </View>
                         </Animated.View>
@@ -552,7 +558,7 @@ export default function CreatorApply() {
                         prevStep(steps[idx - 1]);
                     }} style={[styles.footerBtn, { backgroundColor: inputBg }]}>
                         <ChevronLeft size={18} color={textSecondary} />
-                        <Text style={[styles.footerBtnText, { color: textSecondary }]}>Back</Text>
+                        <Text style={[styles.footerBtnText, { color: textSecondary }]}>{t('common:actions.back')}</Text>
                     </TouchableOpacity>
                 )}
                 <TouchableOpacity
@@ -569,11 +575,11 @@ export default function CreatorApply() {
                     ) : step === 'review' ? (
                         <>
                             <Send color="white" size={18} />
-                            <Text style={styles.footerSubmitText}>Submit Application</Text>
+                            <Text style={styles.footerSubmitText}>{t('creatorApply.submitApplication')}</Text>
                         </>
                     ) : (
                         <>
-                            <Text style={styles.footerSubmitText}>Continue</Text>
+                            <Text style={styles.footerSubmitText}>{t('common:actions.continue')}</Text>
                             <ChevronRight size={18} color="white" />
                         </>
                     )}

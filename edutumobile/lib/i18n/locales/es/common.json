@@ -1,0 +1,173 @@
+{
+  "appName": "Edutu",
+  "actions": {
+    "ok": "OK",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "delete": "Eliminar",
+    "done": "Listo",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "skip": "Omitir",
+    "retry": "Reintentar",
+    "close": "Cerrar",
+    "continue": "Continuar",
+    "share": "Compartir",
+    "apply": "Aplicar",
+    "search": "Buscar",
+    "seeAll": "Ver todo",
+    "viewAll": "Ver todo",
+    "learnMore": "Saber más",
+    "getStarted": "Comenzar",
+    "tryAgain": "Intentar de nuevo"
+  },
+  "states": {
+    "loading": "Cargando...",
+    "saving": "Guardando...",
+    "error": "Error",
+    "success": "Éxito",
+    "empty": "Aún no hay nada aquí",
+    "offline": "Estás sin conexión",
+    "comingSoon": "Próximamente"
+  },
+  "errors": {
+    "generic": "Algo salió mal. Inténtalo de nuevo.",
+    "network": "Error de red. Revisa tu conexión e inténtalo de nuevo.",
+    "notFound": "No encontrado"
+  },
+  "errorBoundary": {
+    "somethingWentWrong": "Algo salió mal",
+    "unexpectedError": "Ocurrió un error inesperado",
+    "home": "Inicio",
+    "tryAgain": "Intentar de nuevo"
+  },
+  "emptyState": {
+    "search": {
+      "title": "Sin resultados",
+      "description": "Prueba ajustando tus términos de búsqueda o filtros para encontrar lo que buscas.",
+      "actionLabel": "Limpiar búsqueda"
+    },
+    "saved": {
+      "title": "No hay oportunidades guardadas",
+      "description": "Las oportunidades que guardes aparecerán aquí. Empieza a explorar para encontrar becas y programas que coincidan con tus metas.",
+      "actionLabel": "Explorar oportunidades"
+    },
+    "goals": {
+      "title": "Aún no tienes metas",
+      "description": "Crea tu primera meta para empezar a seguir tu progreso hacia becas, habilidades y logros profesionales.",
+      "actionLabel": "Crear meta"
+    },
+    "applications": {
+      "title": "Aún no hay postulaciones",
+      "description": "Haz seguimiento de tus postulaciones a becas y empleos aquí. Cuando apliques a una oportunidad, márcala para monitorear tu progreso.",
+      "actionLabel": "Explorar oportunidades"
+    },
+    "notifications": {
+      "title": "Sin notificaciones",
+      "description": "¡Estás al día! Te avisaremos sobre fechas límite, nuevas oportunidades y recordatorios de metas.",
+      "actionLabel": "Explorar oportunidades"
+    },
+    "deadlines": {
+      "title": "Sin fechas límite próximas",
+      "description": "No tienes fechas límite cercanas. Guarda oportunidades y crea metas para seguir fechas importantes.",
+      "actionLabel": "Explorar oportunidades"
+    },
+    "offline": {
+      "title": "Estás sin conexión",
+      "description": "Revisa tu conexión a internet. Aún puedes ver el contenido cargado anteriormente.",
+      "actionLabel": "Intentar de nuevo"
+    },
+    "error": {
+      "title": "Algo salió mal",
+      "description": "No pudimos cargar este contenido. Inténtalo de nuevo o vuelve más tarde.",
+      "actionLabel": "Reintentar"
+    },
+    "generic": {
+      "title": "Aún no hay nada aquí",
+      "description": "El contenido aparecerá aquí cuando esté disponible.",
+      "actionLabel": "Volver"
+    }
+  },
+  "offline": {
+    "banner": "Estás sin conexión"
+  },
+  "hints": {
+    "home": {
+      "title": "Inicio",
+      "body": "Empieza aquí con oportunidades destacadas y tus recomendaciones más relevantes.",
+      "footer": "Usa Inicio como tu resumen diario."
+    },
+    "discover": {
+      "title": "Descubrir",
+      "body": "Busca becas, empleos, subvenciones y programas.",
+      "footer": "Guarda las mejores coincidencias."
+    },
+    "plan": {
+      "title": "Planear",
+      "body": "Abre rutas y metas cuando necesites un camino paso a paso.",
+      "footer": "Convierte oportunidades en acciones."
+    },
+    "ai": {
+      "title": "Pregunta a Edutu AI",
+      "body": "Toca el botón central de IA para abrir el chat y pedir orientación.",
+      "footer": "Verifica los detalles oficiales."
+    },
+    "bell": {
+      "title": "Alertas",
+      "body": "Aquí verás fechas límite y recordatorios.",
+      "footer": "Revisa lo que es urgente."
+    },
+    "menu": {
+      "title": "Perfil",
+      "body": "Actualiza tus ajustes y preferencias aquí.",
+      "footer": "Mejor perfil, mejores coincidencias."
+    },
+    "skipHint": "Omitir consejos de bienvenida",
+    "finishHint": "Finalizar consejos de bienvenida",
+    "nextHint": "Mostrar siguiente consejo de bienvenida"
+  },
+  "landingCta": {
+    "title": "¿Listo para comenzar?",
+    "subtitle": "Únete como mentor o explora rutas personalizadas",
+    "applyAsMentor": "Postular como mentor",
+    "seeRoadmaps": "Ver rutas"
+  },
+  "adBanner": {
+    "completeProfile": {
+      "title": "Recibe oportunidades personalizadas",
+      "subtitle": "Completa tu perfil para ver coincidencias a la medida de tus habilidades e intereses",
+      "actionLabel": "Completar perfil"
+    },
+    "exploreOpportunities": {
+      "title": "Descubre nuevas oportunidades",
+      "subtitle": "Explora becas, pasantías y programas que coinciden con tu perfil",
+      "actionLabel": "Explorar ahora"
+    },
+    "buildCV": {
+      "title": "Crea tu CV perfecto",
+      "subtitle": "Crea un CV profesional con plantillas potenciadas por IA y sugerencias inteligentes",
+      "actionLabel": "Empezar a crear"
+    },
+    "trackGoals": {
+      "title": "Mantén el rumbo con metas",
+      "subtitle": "Define hitos y no vuelvas a perder una fecha límite de postulación",
+      "actionLabel": "Definir metas"
+    },
+    "upgradePro": {
+      "title": "Desbloquea funciones Pro",
+      "subtitle": "CV adaptado con IA, plantillas premium y guardados ilimitados",
+      "actionLabel": "Mejorar ahora"
+    },
+    "notifications": {
+      "title": "No te pierdas ninguna fecha límite",
+      "subtitle": "Activa las notificaciones para recibir recordatorios de próximas oportunidades",
+      "actionLabel": "Activar"
+    }
+  },
+  "brandedLoader": {
+    "loading": "Cargando…"
+  },
+  "campaign": {
+    "badge": "Edu2Mobile"
+  }
+}

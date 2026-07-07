@@ -1,0 +1,412 @@
+{
+  "createGoal": "Unda Lengo",
+  "viewAll": "Tazama Zote",
+  "creditsEarned_one": "+{{count}} krediti kwa kukamilisha lengo",
+  "creditsEarned_other": "+{{count}} krediti kwa kukamilisha lengo",
+  "priority": {
+    "high": "Juu",
+    "medium": "Wastani",
+    "low": "Chini",
+    "highFull": "Kipaumbele cha Juu",
+    "mediumFull": "Kipaumbele cha Wastani",
+    "lowFull": "Kipaumbele cha Chini",
+    "highDesc": "Ya dharura - inahitaji umakini wa haraka",
+    "mediumDesc": "Muhimu - lifanyie kazi hivi karibuni",
+    "lowDesc": "Inaweza kufanywa ukipata muda"
+  },
+  "status": {
+    "completed": "Limekamilika",
+    "overdue": "Limepitwa na wakati",
+    "inProgress": "Linaendelea"
+  },
+  "labels": {
+    "progress": "Maendeleo",
+    "priority": "Kipaumbele",
+    "deadline": "Tarehe ya mwisho",
+    "reminder": "Kikumbusho",
+    "status": "Hali",
+    "datePlaceholder": "MWAKA-MM-SS"
+  },
+  "time": {
+    "today": "Leo",
+    "tomorrow": "Kesho",
+    "overdueShort": "Limepitwa kwa siku {{count}}",
+    "leftShort": "Zimebaki siku {{count}}",
+    "daysOverdue_one": "Limepitwa kwa siku {{count}}",
+    "daysOverdue_other": "Limepitwa kwa siku {{count}}",
+    "daysLeft_one": "Imebaki siku {{count}}",
+    "daysLeft_other": "Zimebaki siku {{count}}",
+    "daysFromNow_one": "Siku {{count}} kuanzia sasa",
+    "daysFromNow_other": "Siku {{count}} kuanzia sasa",
+    "days_one": "Siku {{count}}",
+    "days_other": "Siku {{count}}"
+  },
+  "deleteConfirm": {
+    "title": "Futa Lengo",
+    "message": "Una uhakika unataka kufuta \"{{title}}\"?"
+  },
+  "stats": {
+    "active": "Yanayoendelea",
+    "completed": "Yaliyokamilika",
+    "roadmaps": "Ramani za Njia",
+    "completion": "Ukamilishaji",
+    "total": "Jumla",
+    "done": "Yamekamilika",
+    "progress": "Maendeleo"
+  },
+  "sections": {
+    "roadmaps": "Ramani za Njia",
+    "personalGoals": "Malengo Binafsi"
+  },
+  "filter": {
+    "byStatus": "Chuja kwa Hali",
+    "activeLabel": "Kichujio: {{label}}",
+    "clear": "Futa",
+    "allGoals": "Malengo Yote",
+    "all": "Yote",
+    "active": "Yanayoendelea",
+    "completed": "Yaliyokamilika"
+  },
+  "empty": {
+    "noRoadmaps": {
+      "title": "Hakuna Ramani za Njia",
+      "description": "Leta ramani ya njia ya fursa ili kuona malengo hapa.",
+      "action": "Vinjari Ramani za Njia"
+    },
+    "noPersonalGoals": {
+      "title": "Hakuna Malengo Binafsi",
+      "description": "Gusa alama ya kuongeza ili kuweka lengo lako la kwanza."
+    }
+  },
+  "dashboard": {
+    "title": "Malengo",
+    "subtitle": "{{active}} yanaendelea · {{rate}}% yamekamilika",
+    "searchPlaceholder": "Tafuta malengo yako...",
+    "upcomingDeadlines": "Tarehe za Mwisho Zinazokaribia",
+    "myOpportunities": "Fursa Zangu",
+    "savedSummary": "{{count}} zimehifadhiwa",
+    "savedSummaryWithUrgent": "{{count}} zimehifadhiwa · {{urgent}} za dharura",
+    "opportunityFallback": "Fursa",
+    "searchResults_one": "Limepatikana lengo {{count}} linalolingana na \"{{term}}\"",
+    "searchResults_other": "Yamepatikana malengo {{count}} yanayolingana na \"{{term}}\"",
+    "shareBanner": {
+      "title": "Una Fursa za Kushiriki?",
+      "subtitle": "Wasiliana nasi ikiwa una ufadhili wa masomo, kazi, au programu ambazo ungependa kushiriki na jamii yetu",
+      "action": "Wasiliana Nasi"
+    }
+  },
+  "detail": {
+    "title": "Maelezo ya Lengo",
+    "editTitle": "Hariri Lengo",
+    "details": "Maelezo",
+    "fromRoadmap": "Kutoka Ramani ya Njia",
+    "personalGoal": "Lengo Binafsi",
+    "titlePlaceholder": "Kichwa cha lengo",
+    "descriptionPlaceholder": "Ongeza maelezo...",
+    "noDeadline": "Hakuna tarehe ya mwisho",
+    "markComplete": "Weka Alama ya Kukamilika",
+    "reopen": "Fungua Lengo Tena",
+    "cancelEditing": "Ghairi Uhariri",
+    "notFound": {
+      "title": "Lengo Halijapatikana",
+      "description": "Huenda lengo hili limefutwa au huna ruhusa ya kulifikia.",
+      "back": "Rudi kwenye Malengo"
+    },
+    "reminder": {
+      "enabled": "Kimewashwa",
+      "disabled": "Kimezimwa",
+      "enabledTitle": "Kikumbusho Kimewashwa",
+      "disabledTitle": "Kikumbusho Kimezimwa",
+      "enabledMessage": "Utakumbushwa tarehe {{date}}",
+      "disabledMessage": "Hutapokea vikumbusho vya lengo hili."
+    },
+    "alerts": {
+      "enterTitle": "Tafadhali andika kichwa cha lengo",
+      "updated": "Lengo limesasishwa kwa mafanikio",
+      "updateFailed": "Imeshindikana kusasisha lengo",
+      "congratsTitle": "🎉 Hongera!",
+      "congratsMessage": "Umekamilisha lengo hili!",
+      "completeFailed": "Imeshindikana kukamilisha lengo",
+      "deleteFailed": "Imeshindikana kufuta lengo",
+      "noDeadlineTitle": "Hakuna Tarehe ya Mwisho",
+      "noDeadlineMessage": "Weka tarehe ya mwisho kwanza ili kuwasha vikumbusho.",
+      "reminderFailed": "Imeshindikana kubadilisha hali ya kikumbusho"
+    }
+  },
+  "add": {
+    "title": "Unda Lengo Jipya",
+    "heading": "Weka Shabaha Yako",
+    "subheading": "Fafanua lengo lako na ufuatilie maendeleo kuelekea mafanikio.",
+    "titleLabel": "Kichwa cha Lengo",
+    "titlePlaceholder": "Unataka kufanikisha nini?",
+    "descriptionLabel": "Maelezo",
+    "descriptionPlaceholder": "Ongeza maelezo zaidi kuhusu lengo hili...",
+    "preview": "ONYESHO LA AWALI",
+    "pastDate": "Tarehe iliyopita",
+    "validation": {
+      "titleTooShort": "Kichwa lazima kiwe na angalau herufi 3",
+      "looksGood": "Kiko sawa!",
+      "deadlinePast": "Tarehe ya mwisho haiwezi kuwa iliyopita"
+    },
+    "alerts": {
+      "invalidTitle": "Kichwa Batili",
+      "titleTooShort": "Kichwa cha lengo lazima kiwe na angalau herufi 3",
+      "titleTooLongTitle": "Kichwa Kirefu Mno",
+      "titleTooLongMessage": "Kichwa cha lengo lazima kiwe na herufi chini ya 100",
+      "invalidDeadline": "Tarehe ya Mwisho Batili",
+      "created": "Lengo limeundwa kwa mafanikio!",
+      "createAnother": "Unda Jingine",
+      "createFailed": "Imeshindikana kuunda lengo. Tafadhali jaribu tena."
+    }
+  },
+  "allRoadmaps": {
+    "title": "Malengo ya Ramani za Njia",
+    "goalCount_one": "Lengo {{count}}",
+    "goalCount_other": "Malengo {{count}}",
+    "otherGroup": "Mengineyo",
+    "empty": {
+      "title": "Hakuna malengo ya ramani za njia",
+      "searchHint": "Jaribu kubadilisha utafutaji wako",
+      "description": "Leta malengo kutoka kwenye ramani ya njia ili kuyaona hapa"
+    }
+  },
+  "myList": {
+    "title": "Malengo Yangu",
+    "goalsTracked_one": "Lengo {{count}} linafuatiliwa",
+    "goalsTracked_other": "Malengo {{count}} yanafuatiliwa",
+    "heroTitle": "Baki Makini 🎯",
+    "heroCompleted_one": "Umekamilisha lengo {{count}}. Endeleza kasi hiyo!",
+    "heroCompleted_other": "Umekamilisha malengo {{count}}. Endeleza kasi hiyo!",
+    "heroEmpty": "Geuza matamanio yako kuwa malengo yanayoweza kufikiwa. Anza kufuatilia leo!",
+    "ctaTitle": "Unda Lengo Lako la Kwanza",
+    "ctaSubtitle": "Weka shabaha na ufuatilie maendeleo yako",
+    "highPriorityAlert_one": "Lengo {{count}} la kipaumbele cha juu linahitaji umakini",
+    "highPriorityAlert_other": "Malengo {{count}} ya kipaumbele cha juu yanahitaji umakini",
+    "searchPlaceholder": "Tafuta malengo...",
+    "sortLabel": "Panga: {{label}}",
+    "sortBy": "Panga Kwa",
+    "sort": {
+      "newest": "Mapya Kwanza",
+      "oldest": "Ya Zamani Kwanza",
+      "priority": "Kipaumbele",
+      "deadline": "Tarehe ya Mwisho",
+      "progress": "Maendeleo",
+      "title": "Kichwa (A-Z)"
+    },
+    "empty": {
+      "title": "Bado hakuna malengo",
+      "noMatch": "Hakuna malengo yanayolingana",
+      "searchHint": "Jaribu kubadilisha utafutaji au vichujio vyako",
+      "description": "Anza kwa kuunda lengo lako la kwanza ili kufuatilia maendeleo na kubaki na motisha"
+    }
+  },
+  "roadmaps": {
+    "title": "Ramani za Njia",
+    "subtitle": "Njia za kujifunza zilizopangwa ili kufikia malengo yako",
+    "loading": "Inapakia ramani za njia...",
+    "searchPlaceholder": "Tafuta ramani za njia...",
+    "empty": "Hakuna ramani za njia zilizopatikana. Jaribu kubadilisha utafutaji au vichujio vyako!",
+    "noDescription": "Hakuna maelezo yanayopatikana",
+    "featured": "Iliyoangaziwa",
+    "stepsCount_one": "Hatua {{count}}",
+    "stepsCount_other": "Hatua {{count}}",
+    "notAvailable": "Haipatikani",
+    "varies": "Hutofautiana",
+    "achieveTitle": "Utakachofanikisha",
+    "learningPath": "Njia ya Kujifunza",
+    "startButton": "Anza Ramani Hii ya Njia",
+    "rateButton": "Kadiria ramani hii ya njia",
+    "categories": {
+      "all": "Zote",
+      "scholarship": "Ufadhili wa Masomo",
+      "career": "Kazi",
+      "education": "Elimu",
+      "skills": "Ujuzi",
+      "business": "Biashara",
+      "tech": "Teknolojia"
+    },
+    "creatorBanner": {
+      "title": "Kuwa Mtayarishaji wa Ramani za Njia",
+      "subtitle": "Shiriki utaalamu wako. Jenga njia za kujifunza. Pata kipato unapofundisha."
+    },
+    "templateBanner": {
+      "title": "Chunguza Violezo vya Ramani za Njia",
+      "subtitle": "Anza kutoka njia iliyothibitishwa na uigeuze kuwa lengo."
+    },
+    "detailInfo": {
+      "creatorProof": "Uthibitisho wa mtayarishaji: {{value}}",
+      "deadlineStrategy": "Mkakati wa tarehe ya mwisho: {{value}}",
+      "targetDeadline": "Tarehe ya mwisho lengwa: {{value}}",
+      "audience": "Kwa ajili ya: {{value}}",
+      "strategy": "Mkakati: {{value}}"
+    },
+    "statsLabels": {
+      "difficulty": "Ugumu",
+      "duration": "Muda",
+      "steps": "Hatua",
+      "enrolled": "Waliojiunga"
+    },
+    "deadline": {
+      "dueToday": "{{date}} - inatakiwa leo",
+      "dueTomorrow": "{{date}} - inatakiwa kesho",
+      "daysLeft_one": "{{date}} - imebaki siku {{count}}",
+      "daysLeft_other": "{{date}} - zimebaki siku {{count}}",
+      "overdue": "{{date}} - imepitwa na wakati",
+      "daysBefore_one": "Siku {{count}} kabla ya tarehe ya mwisho",
+      "daysBefore_other": "Siku {{count}} kabla ya tarehe ya mwisho",
+      "dueOnDeadline": "Inatakiwa siku ya tarehe ya mwisho",
+      "dueDay": "Inatakiwa siku ya {{day}}"
+    },
+    "adoption": {
+      "fallback": "Umejiunga na ramani hii ya njia. Angalia malengo yako ili kuanza!",
+      "ready": "Ramani yako ya njia iko tayari.",
+      "milestones_one": "Hatua muhimu {{count}} imeongezwa kwenye malengo yako.",
+      "milestones_other": "Hatua muhimu {{count}} zimeongezwa kwenye malengo yako.",
+      "deadline": "Tarehe ya mwisho: {{date}}.",
+      "reminders": "Vikumbusho vimepangwa.",
+      "calendarEvents_one": "Tukio {{count}} la kalenda limeandaliwa.",
+      "calendarEvents_other": "Matukio {{count}} ya kalenda yameandaliwa.",
+      "community": "Jamii inayolingana na ramani hii ya njia inapatikana."
+    },
+    "calendar": {
+      "unavailableTitle": "Kalenda haipatikani",
+      "unavailableMessage": "Imeshindikana kuunda kalenda. Tafadhali jaribu tena.",
+      "exportFailedTitle": "Uhamishaji umeshindikana",
+      "exportFailedMessage": "Imeshindikana kufungua faili la kalenda."
+    },
+    "enroll": {
+      "adoptedTitle": "Ramani ya njia imepokelewa",
+      "viewGoals": "Tazama Malengo",
+      "addToCalendar": "Ongeza kwenye Kalenda",
+      "openCommunity": "Fungua Jamii",
+      "continueBrowsing": "Endelea Kuvinjari",
+      "failedTitle": "Kujiunga Kumeshindikana",
+      "failed": "Kujiunga kumeshindikana",
+      "failedMessage": "Imeshindikana kujiunga."
+    },
+    "intent": {
+      "title": "Tusaidie Kupata Ramani ya Njia Inayokufaa Kabisa",
+      "subtitle": "Jibu maswali machache ili tuweze kukupendekezea njia bora ya kujifunza.",
+      "answerPlaceholder": "Andika jibu lako...",
+      "skip": "Ruka kwa sasa",
+      "submit": "Nipatie Ramani Zangu za Njia",
+      "q1": "Kiwango chako cha uzoefu kwa sasa ni kipi?",
+      "q2": "Unaweza kutenga muda kiasi gani kwa wiki?",
+      "q3": "Malengo yako makuu ni yapi?",
+      "levels": {
+        "beginner": "Mwanzilishi",
+        "intermediate": "Wastani",
+        "advanced": "Mtaalamu"
+      },
+      "time": {
+        "lessThan5": "Chini ya saa 5",
+        "hours5to10": "Saa 5-10",
+        "hours10to20": "Saa 10-20",
+        "hours20plus": "Saa 20+"
+      }
+    },
+    "feedback": {
+      "title": "Ramani hii ya njia ilikuwaje?",
+      "subtitle": "Maoni yako yanatusaidia kuboresha na kuwasaidia wanafunzi wengine.",
+      "placeholder": "Ulipenda nini au ni nini kingeweza kuboreshwa?",
+      "submit": "Tuma Maoni",
+      "thanksTitle": "Asante!",
+      "thanksMessage": "Maoni yako yanatusaidia kuboresha ramani za njia kwa kila mtu."
+    }
+  },
+  "templates": {
+    "title": "Chunguza Violezo",
+    "subtitle": "Njia za ramani zilizoangaziwa",
+    "eyebrow": "VIOLEZO VYA RAMANI ZA NJIA VILIVYOANGAZIWA",
+    "heading": "Chagua njia iliyothibitishwa na uanze kupanga haraka zaidi",
+    "description": "Kila kiolezo kinajumuisha hatua muhimu, rasilimali, uhamishaji wa kalenda, na vikumbusho vya kusoma.",
+    "count_one": "Kiolezo {{count}}",
+    "count_other": "Violezo {{count}}",
+    "weeksRange": "Wiki 8-20",
+    "featuredPaths": "Njia zilizoangaziwa",
+    "available": "{{count}} zinapatikana",
+    "startRoadmap": "Anza ramani ya njia",
+    "calendar": "Kalenda",
+    "reminders": "Vikumbusho",
+    "outcomes": "Matokeo",
+    "guidance": "Mwongozo na rasilimali",
+    "week": "Wiki ya {{week}}",
+    "deliverableLabel": "Kinachowasilishwa: {{value}}",
+    "icsSummary": "{{title}}: Wiki ya {{week}}",
+    "shareDialogTitle": "Ongeza ramani ya njia kwenye kalenda",
+    "calendarReadyTitle": "Kalenda iko tayari",
+    "calendarReadyMessage": "Uhamishaji wa kalenda unapatikana kwenye matoleo ya simu.",
+    "calendarFileCreated": "Faili la kalenda limeundwa",
+    "notificationsBlockedTitle": "Arifa zimezuiwa",
+    "notificationsBlockedMessage": "Washa arifa ili kupokea vikumbusho vya ramani ya njia.",
+    "reminderTitle": "Kikumbusho cha ramani ya njia: Wiki ya {{week}}",
+    "remindersScheduledTitle": "Vikumbusho vimepangwa",
+    "remindersScheduledMessage_one": "Kikumbusho {{count}} cha ramani ya njia kimepangwa sasa.",
+    "remindersScheduledMessage_other": "Vikumbusho {{count}} vya ramani ya njia vimepangwa sasa.",
+    "stepFallback": "Hatua ya {{number}}",
+    "focus": "Lengo kuu: {{value}}",
+    "defaultSummary": "Ramani ya njia yenye mwongozo wa hatua kwa hatua.",
+    "stepPlan": "Mpango wa hatua {{count}}",
+    "allLevels": "Viwango Vyote",
+    "defaultCadence": "Vikumbusho vya hatua muhimu vimepangwa kuanzia tarehe yako ya kuanza.",
+    "resourceFallback": "Rasilimali"
+  },
+  "calendar": {
+    "title": "Kalenda Yangu",
+    "deadlinePrefix": "Tarehe ya mwisho: {{title}}",
+    "noEvents": "Hakuna malengo wala tarehe za mwisho siku hii.",
+    "legend": {
+      "personalGoal": "Lengo Binafsi",
+      "roadmap": "Ramani ya Njia",
+      "opportunity": "Fursa"
+    },
+    "badge": {
+      "goal": "LENGO",
+      "roadmap": "RAMANI YA NJIA",
+      "opportunity": "FURSA"
+    },
+    "days": {
+      "sun": "Jpl",
+      "mon": "Jtt",
+      "tue": "Jnn",
+      "wed": "Jtn",
+      "thu": "Alh",
+      "fri": "Iju",
+      "sat": "Jmo"
+    },
+    "months": {
+      "january": "Januari",
+      "february": "Februari",
+      "march": "Machi",
+      "april": "Aprili",
+      "may": "Mei",
+      "june": "Juni",
+      "july": "Julai",
+      "august": "Agosti",
+      "september": "Septemba",
+      "october": "Oktoba",
+      "november": "Novemba",
+      "december": "Desemba"
+    }
+  },
+  "intake": {
+    "timeQuestion": "Unaweza kutenga muda kiasi gani kila wiki?",
+    "levelQuestion": "Unaanzia wapi?",
+    "time": {
+      "under5": "Chini ya saa 5",
+      "h5to10": "Saa 5–10",
+      "h10to20": "Saa 10–20",
+      "h20plus": "Saa 20+"
+    },
+    "level": {
+      "beginner": "Ni mgeni katika hili",
+      "intermediate": "Nina uzoefu kiasi",
+      "advanced": "Nina uzoefu mkubwa"
+    }
+  },
+  "timeline": {
+    "today": "LEO",
+    "milestoneDone": "{{title}}, imekamilika",
+    "removeMilestone": "Ondoa {{title}}"
+  }
+}

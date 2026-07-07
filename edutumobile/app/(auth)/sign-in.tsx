@@ -4,13 +4,14 @@ import { Link, useRouter } from 'expo-router';
 import { useAuth, useOAuth, useSignIn, useUser } from '@clerk/clerk-expo';
 import * as WebBrowser from 'expo-web-browser';
 import { ArrowRight, Eye, EyeOff, Lock, LogIn, Mail, ShieldCheck } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { AuthShell } from '../../components/auth/AuthShell';
 import { useTheme } from '../../components/context/ThemeContext';
+import i18n from '../../lib/i18n';
 
 WebBrowser.maybeCompleteAuthSession();
 
-const SOCIAL_SIGN_IN_HINT =
-  'That password did not work. If you created your account with Google or Apple, use that sign-in option above.';
+const SOCIAL_SIGN_IN_HINT = 'signIn.errors.socialSignInHint';
 
 const PASSWORD_ERROR_CODES = new Set([
   'form_password_incorrect',
@@ -60,15 +61,19 @@ function isDeliverable(strategy: SecondFactorStrategy) {
 
 function secondFactorHint(strategy: SecondFactorStrategy, safeIdentifier?: string) {
   if (strategy === 'email_code') {
-    return `Enter the 6-digit code we emailed to ${safeIdentifier ?? 'your email'}.`;
+    return i18n.t('auth:signIn.twoFactor.hintEmail', {
+      identifier: safeIdentifier ?? i18n.t('auth:signIn.twoFactor.fallbackEmail'),
+    });
   }
   if (strategy === 'phone_code') {
-    return `Enter the 6-digit code we texted to ${safeIdentifier ?? 'your phone'}.`;
+    return i18n.t('auth:signIn.twoFactor.hintPhone', {
+      identifier: safeIdentifier ?? i18n.t('auth:signIn.twoFactor.fallbackPhone'),
+    });
   }
   if (strategy === 'backup_code') {
-    return 'Enter one of your saved backup codes.';
+    return i18n.t('auth:signIn.twoFactor.hintBackup');
   }
-  return 'Enter the 6-digit code from your authenticator app.';
+  return i18n.t('auth:signIn.twoFactor.hintAuthenticator');
 }
 
 function isPasswordSignInError(error: any) {
@@ -112,6 +117,7 @@ export default function SignInPage() {
   const { user } = useUser();
   const { colors, isDark } = useTheme();
   const router = useRouter();
+  const { t } = useTranslation('auth');
 
   const { startOAuthFlow: googleOAuth } = useOAuth({ strategy: 'oauth_google' });
   const { startOAuthFlow: appleOAuth } = useOAuth({ strategy: 'oauth_apple' });
@@ -167,7 +173,7 @@ export default function SignInPage() {
         return;
       }
 
-      setError(err.errors?.[0]?.message || `${provider} sign-in failed.`);
+      setError(err.errors?.[0]?.message || t('oauth.failed', { provider }));
     } finally {
       setOauthLoading(null);
     }
@@ -201,7 +207,7 @@ export default function SignInPage() {
         setFailedAttempts(0);
         await beginSecondFactor(signInAttempt);
       } else {
-        setError('Sign in could not be completed. Try again.');
+        setError(t('signIn.errors.notCompleted'));
       }
     } catch (err: any) {
       if (isExistingSessionError(err)) {
@@ -218,9 +224,9 @@ export default function SignInPage() {
       }
 
       if (nextFailedAttempts >= 2 && isPasswordSignInError(err)) {
-        setError(SOCIAL_SIGN_IN_HINT);
+        setError(t(SOCIAL_SIGN_IN_HINT));
       } else {
-        setError(err.errors?.[0]?.message || 'Failed to sign in.');
+        setError(err.errors?.[0]?.message || t('signIn.errors.failed'));
       }
     } finally {
       setLoading(false);
@@ -235,7 +241,7 @@ export default function SignInPage() {
     const factor = pickSecondFactor(attempt);
 
     if (!factor) {
-      setError('This account needs two-factor authentication, but no verification method is set up. Contact support.');
+      setError(t('signIn.errors.noSecondFactor'));
       return;
     }
 
@@ -278,7 +284,7 @@ export default function SignInPage() {
       }
       return true;
     } catch (err: any) {
-      setError(err?.errors?.[0]?.message || 'We could not send your verification code. Try again.');
+      setError(err?.errors?.[0]?.message || t('signIn.errors.sendCodeFailed'));
       return false;
     }
   };
@@ -314,10 +320,10 @@ export default function SignInPage() {
         setCode('');
         await setActive({ session: result.createdSessionId });
       } else {
-        setError('That code was not accepted. Try again.');
+        setError(t('signIn.errors.codeRejected'));
       }
     } catch (err: any) {
-      setError(err?.errors?.[0]?.message || 'That code is invalid or expired. Try again.');
+      setError(err?.errors?.[0]?.message || t('signIn.errors.codeInvalid'));
     } finally {
       setLoading(false);
     }
@@ -333,7 +339,7 @@ export default function SignInPage() {
 
   const handleForgotPassword = () => {
     if (!emailAddress.trim()) {
-      Alert.alert('Email required', 'Enter your email address first.');
+      Alert.alert(t('signIn.alerts.emailRequired.title'), t('signIn.alerts.emailRequired.message'));
       return;
     }
 
@@ -361,12 +367,8 @@ export default function SignInPage() {
 
   return (
     <AuthShell
-      title={twoFactor ? "Verify it's you" : 'Welcome back'}
-      subtitle={
-        twoFactor
-          ? 'Two-factor authentication protects your account. Enter your code to finish signing in.'
-          : 'Continue where you left off and jump straight into your next opportunity.'
-      }
+      title={twoFactor ? t('signIn.twoFactor.title') : t('signIn.title')}
+      subtitle={twoFactor ? t('signIn.twoFactor.subtitle') : t('signIn.subtitle')}
       icon={twoFactor ? ShieldCheck : LogIn}
     >
       <View style={styles.formStack}>
@@ -395,7 +397,7 @@ export default function SignInPage() {
                 autoCorrect={false}
                 textContentType="oneTimeCode"
                 autoComplete="one-time-code"
-                placeholder={isBackupCode ? 'Backup code' : '••••••'}
+                placeholder={isBackupCode ? t('signIn.twoFactor.backupCodePlaceholder') : '••••••'}
                 placeholderTextColor={colors.textSecondary}
                 value={code}
                 onChangeText={(text) =>
@@ -418,7 +420,7 @@ export default function SignInPage() {
               ]}
             >
               <ShieldCheck color="#FFFFFF" size={18} />
-              <Text style={styles.signInButtonText}>{loading ? 'Verifying...' : 'Verify & sign in'}</Text>
+              <Text style={styles.signInButtonText}>{loading ? t('signIn.twoFactor.verifying') : t('signIn.twoFactor.verifyButton')}</Text>
             </Pressable>
 
             {twoFactor.deliverable ? (
@@ -428,13 +430,13 @@ export default function SignInPage() {
                 style={styles.forgotLink}
               >
                 <Text style={[styles.footerLink, { color: resendIn > 0 ? colors.textSecondary : '#2563EB' }]}>
-                  {resendIn > 0 ? `Resend code in ${resendIn}s` : 'Resend code'}
+                  {resendIn > 0 ? t('signIn.twoFactor.resendIn', { seconds: resendIn }) : t('signIn.twoFactor.resendCode')}
                 </Text>
               </Pressable>
             ) : null}
 
             <Pressable onPress={cancelTwoFactor} style={styles.forgotLink}>
-              <Text style={[styles.footerLink, { color: colors.textSecondary }]}>Use a different account</Text>
+              <Text style={[styles.footerLink, { color: colors.textSecondary }]}>{t('signIn.twoFactor.useDifferentAccount')}</Text>
             </Pressable>
           </>
         ) : (
@@ -449,7 +451,7 @@ export default function SignInPage() {
                   <Text style={styles.oauthG}>G</Text>
                 </View>
                 <Text style={[styles.oauthLabel, { color: colors.foreground }]}>
-                  {oauthLoading === 'google' ? 'Connecting...' : 'Google'}
+                  {oauthLoading === 'google' ? t('oauth.connecting') : 'Google'}
                 </Text>
               </Pressable>
 
@@ -460,14 +462,14 @@ export default function SignInPage() {
               >
                 <AppleIcon size={20} color={colors.foreground} />
                 <Text style={[styles.oauthLabel, { color: colors.foreground }]}>
-                  {oauthLoading === 'apple' ? 'Connecting...' : 'Apple'}
+                  {oauthLoading === 'apple' ? t('oauth.connecting') : 'Apple'}
                 </Text>
               </Pressable>
             </View>
 
             <View style={styles.dividerRow}>
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
-              <Text style={[styles.dividerText, { color: colors.textSecondary }]}>or continue with email</Text>
+              <Text style={[styles.dividerText, { color: colors.textSecondary }]}>{t('oauth.orContinueWithEmail')}</Text>
               <View style={[styles.divider, { backgroundColor: colors.border }]} />
             </View>
 
@@ -491,7 +493,7 @@ export default function SignInPage() {
               <View style={[styles.inputPill, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <Lock color={colors.textSecondary} size={18} />
                 <TextInput
-                  placeholder="Enter password"
+                  placeholder={t('signIn.passwordPlaceholder')}
                   placeholderTextColor={colors.textSecondary}
                   secureTextEntry={!showPassword}
                   value={password}
@@ -520,19 +522,19 @@ export default function SignInPage() {
               style={[styles.signInButton, { backgroundColor: '#2563EB' }, loading && styles.buttonDisabled]}
             >
               <ArrowRight color="#FFFFFF" size={18} />
-              <Text style={styles.signInButtonText}>{loading ? 'Signing in...' : 'Sign in'}</Text>
+              <Text style={styles.signInButtonText}>{loading ? t('signIn.signingIn') : t('signIn.signInButton')}</Text>
             </Pressable>
 
             <Pressable onPress={handleForgotPassword} style={styles.forgotLink}>
               <Text style={[styles.footerLink, { color: '#2563EB' }]}>
-                {shouldShowPasswordRecovery ? 'Forgot password? Reset it here' : 'Forgot password?'}
+                {shouldShowPasswordRecovery ? t('signIn.forgotPasswordReset') : t('signIn.forgotPassword')}
               </Text>
             </Pressable>
 
             <View style={styles.footerRow}>
-              <Text style={[styles.footerText, { color: colors.textSecondary }]}>New to Edutu?</Text>
+              <Text style={[styles.footerText, { color: colors.textSecondary }]}>{t('signIn.newToEdutu')}</Text>
               <Link href="/(auth)/sign-up">
-                <Text style={[styles.footerLink, { color: '#2563EB' }]}>Create account</Text>
+                <Text style={[styles.footerLink, { color: '#2563EB' }]}>{t('signIn.createAccount')}</Text>
               </Link>
             </View>
           </>

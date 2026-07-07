@@ -1,0 +1,284 @@
+{
+    "header": {
+        "title": "简历工坊"
+    },
+    "loading": "正在加载简历工坊…",
+    "defaults": {
+        "myCv": "我的简历",
+        "untitled": "未命名简历",
+        "aiDraft": "AI 简历草稿"
+    },
+    "proBanner": {
+        "upgrade": "升级 Pro，简历数量不设限",
+        "trial": "可免费试用——体验 Pro 功能！"
+    },
+    "quickActions": {
+        "title": "更快上手",
+        "subtitle": "从空白简历开始、用 LinkedIn 生成，或针对真实机会定制你的草稿。",
+        "create": {
+            "title": "新建一份简历",
+            "subtitle": "从结构化编辑器开始，预览样例后再选择模板。"
+        },
+        "linkedIn": {
+            "title": "从 LinkedIn 导入",
+            "subtitle": "利用你的档案信息，让 AI 起草一版更出色的初稿。"
+        },
+        "tailor": {
+            "title": "针对机会定制",
+            "subtitle": "将简历与你机会库中的奖学金、实习和项目进行匹配。"
+        }
+    },
+    "sections": {
+        "yourCvs": "你的简历",
+        "chooseTemplate": "选择模板"
+    },
+    "alerts": {
+        "aiDraftReadyTitle": "AI 草稿已就绪",
+        "draftReadyOfflineTitle": "草稿已就绪（离线模式）",
+        "draftReadyWithSuggestions": "你的简历草稿已在编辑器中。建议的下一步：\n{{suggestions}}",
+        "draftReadyMessage": "已根据你的资料信息生成简历草稿。",
+        "generateFailed": "简历草稿生成失败。",
+        "summaryUpdatedTitle": "个人总结已更新",
+        "summaryUpdatedOffline": "已基于你现有的信息离线优化。连接网络可获得完整的 AI 改写。",
+        "improveSummaryFailed": "暂时无法优化个人总结。",
+        "saveSuccess": "简历保存成功！",
+        "saveFailed": "简历保存失败",
+        "deleteTitle": "删除简历",
+        "deleteMessage": "确定要删除这份简历吗？",
+        "sharedAsTextTitle": "已以文本形式分享",
+        "sharedAsTextMessage": "PDF 导出暂不可用，简历已改为文本形式分享。",
+        "exportFailed": "简历导出失败",
+        "tailoredTitle": "简历已定制——匹配度 {{score}}%",
+        "tailorFailed": "未能针对这个机会定制简历。"
+    },
+    "upgrade": {
+        "templateFeature": "{{name}}模板"
+    },
+    "templates": {
+        "badgeFallback": "模板",
+        "proBadge": "Pro",
+        "unlock": "解锁模板",
+        "use": "使用模板",
+        "tapToPreview": "点击预览样例",
+        "samples": {
+            "academic": {
+                "name": "Amara Okafor",
+                "headline": "公共卫生硕士申请者",
+                "summary": "以研究为核心的简历结构，教育背景、发表成果、田野项目和学术成就都排在工作经历之前。",
+                "bullets": [
+                    "教育与研究优先",
+                    "发表成果与奖项一目了然",
+                    "适合奖学金与研究生申请"
+                ]
+            },
+            "professional": {
+                "name": "Daniel Mensah",
+                "headline": "运营分析师",
+                "summary": "以成果为导向的简历结构，突出可量化的工作影响，适合实习、工作、研修计划和职业起步项目。",
+                "bullets": [
+                    "工作成果排在课程之前",
+                    "技能与数据板块突出",
+                    "适合实习与求职"
+                ]
+            },
+            "creative": {
+                "name": "Leah Adeyemi",
+                "headline": "产品设计师",
+                "summary": "适合展示作品集的结构，突出项目、工具、链接和视觉成果，同时保持 ATS 可读性。",
+                "bullets": [
+                    "项目与作品集链接",
+                    "工具与案例亮点",
+                    "适合设计与媒体岗位"
+                ]
+            },
+            "general": {
+                "name": "Edutu Student",
+                "headline": "机会申请者",
+                "summary": "均衡的简历结构，适合同时申请奖学金、学校项目、实习和社区机会的学生。",
+                "bullets": [
+                    "清爽的学生档案",
+                    "板块顺序灵活",
+                    "适合广泛投递"
+                ]
+            }
+        }
+    },
+    "linkedInModal": {
+        "title": "用 AI 制作简历",
+        "description": "在下方粘贴你的 LinkedIn 个人主页链接，AI 会自动收集你的经历并生成简历。",
+        "generate": "生成简历"
+    },
+    "tailorModal": {
+        "title": "AI 简历定制",
+        "subtitle": "从你的机会库中选择一个机会，针对它定制这份简历。",
+        "empty": "暂无可用的机会。请先加载机会，再来定制这份简历。"
+    },
+    "listItem": {
+        "updated": "更新于 {{date}}",
+        "primary": "主简历"
+    },
+    "editor": {
+        "sections": {
+            "personalInfo": "个人信息",
+            "summary": "个人总结",
+            "skills": "技能",
+            "experience": "经历",
+            "education": "教育背景",
+            "projects": "项目",
+            "achievements": "成就"
+        },
+        "personal": {
+            "fullName": {
+                "label": "姓名",
+                "placeholder": "张小明"
+            },
+            "email": {
+                "label": "邮箱",
+                "placeholder": "john@example.com"
+            },
+            "phone": {
+                "label": "电话",
+                "placeholder": "+1 234 567 8900"
+            },
+            "location": {
+                "label": "所在地",
+                "placeholder": "尼日利亚拉各斯"
+            },
+            "linkedin": {
+                "label": "LinkedIn",
+                "placeholder": "linkedin.com/in/johndoe"
+            },
+            "portfolio": {
+                "label": "作品集",
+                "placeholder": "portfolio.site"
+            }
+        },
+        "summaryPlaceholder": "写一段简洁的个人总结…",
+        "improving": "优化中…",
+        "improveWithAi": "用 AI 优化",
+        "unlockAiAssist": "解锁 AI 助手",
+        "aiSummaryFeature": "AI 总结生成器",
+        "skillsPlaceholder": "JavaScript、研究、Excel、公开演讲…",
+        "add": "添加",
+        "newExperience": "新增经历",
+        "newEducation": "新增教育背景",
+        "newProject": "新增项目",
+        "newAchievement": "新增成就",
+        "fields": {
+            "role": {
+                "label": "职位",
+                "placeholder": "软件实习生"
+            },
+            "company": {
+                "label": "公司",
+                "placeholder": "公司 / 机构"
+            },
+            "location": {
+                "label": "地点",
+                "placeholder": "远程 / 城市"
+            },
+            "startDate": {
+                "label": "开始日期",
+                "placeholder": "2024-01"
+            },
+            "endDate": {
+                "label": "结束日期",
+                "placeholder": "2025-01"
+            },
+            "currentlyWorkHere": "我目前在此工作",
+            "description": {
+                "label": "描述",
+                "placeholder": "描述你做了什么"
+            },
+            "highlights": {
+                "label": "亮点（每行一条）",
+                "placeholder": "注册量提升 30%\n带领 4 人团队"
+            },
+            "institution": {
+                "label": "院校",
+                "placeholder": "大学 / 学校"
+            },
+            "degree": {
+                "label": "学位",
+                "placeholder": "学士 / 硕士 / 文凭"
+            },
+            "fieldOfStudy": {
+                "label": "专业",
+                "placeholder": "计算机科学"
+            },
+            "eduStartDate": {
+                "placeholder": "2021-09"
+            },
+            "eduEndDate": {
+                "placeholder": "2025-06（或预计）"
+            },
+            "projectName": {
+                "label": "项目名称",
+                "placeholder": "奖学金查找应用"
+            },
+            "projectDescription": {
+                "placeholder": "描述项目的影响"
+            },
+            "technologies": {
+                "label": "技术栈",
+                "placeholder": "React、Node.js"
+            },
+            "achievementTitle": {
+                "label": "标题",
+                "placeholder": "院长嘉许名单"
+            },
+            "issuer": {
+                "label": "颁发方",
+                "placeholder": "大学 / 机构"
+            },
+            "achievementDescription": {
+                "placeholder": "它的意义所在"
+            }
+        },
+        "tailor": {
+            "title": "针对机会定制",
+            "subtitle": "将这份简历与你机会库中的机会进行匹配"
+        },
+        "save": "保存简历",
+        "preparing": "准备中…",
+        "downloadPdf": "下载 PDF"
+    },
+    "preview": {
+        "backToEdit": "返回编辑",
+        "downloadAccessibility": "将简历下载为 PDF",
+        "preparing": "准备中…",
+        "pdf": "PDF",
+        "yourName": "你的姓名",
+        "sections": {
+            "summary": "总结",
+            "skills": "技能",
+            "experience": "经历",
+            "education": "教育背景",
+            "projects": "项目",
+            "achievements": "成就"
+        },
+        "startFallback": "开始",
+        "present": "- 至今"
+    },
+    "proUpgrade": {
+        "title": "解锁{{feature}}",
+        "subtitle": "无限畅享全部高级功能",
+        "priceFrom": "低至",
+        "price": "$5.99",
+        "pricePeriod": "/月",
+        "features": {
+            "roadmaps": "无限次 AI 路线图生成",
+            "templates": "高级简历模板",
+            "tailoring": "AI 智能简历定制",
+            "creatorListing": "创作者优先展示",
+            "filters": "高级机会筛选",
+            "pdfExport": "PDF 导出与下载"
+        },
+        "upgradeCta": "升级 Pro",
+        "trialActivatedTitle": "试用已开通",
+        "trialActivatedMessage": "你已获得 7 天的 Pro 功能使用权！",
+        "trialCta": "免费试用 7 天",
+        "secure": "安全",
+        "cancelAnytime": "随时可取消"
+    }
+}

@@ -11,40 +11,43 @@ import { Shield, Lock, Eye, Trash2 } from 'lucide-react-native';
 import { Card } from '../../components/ui/Card';
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import { useTheme } from "../../components/context/ThemeContext";
+import { useTranslation } from 'react-i18next';
 
+// `title`/`desc` hold i18n keys (home namespace); translated at render time.
 const PRIVACY_SECTIONS = [
     {
-        title: "Data We Collect",
-        desc: "We collect your name, email, and academic progress to personalize your learning experience and track your goals.",
+        title: "privacy.sections.dataWeCollect.title",
+        desc: "privacy.sections.dataWeCollect.desc",
         icon: Eye,
         color: "#3b82f6"
     },
     {
-        title: "How We Use It",
-        desc: "Your data helps us recommend courses, provide AI guidance, and ensure you earn Credits for your achievements.",
+        title: "privacy.sections.howWeUseIt.title",
+        desc: "privacy.sections.howWeUseIt.desc",
         icon: Shield,
         color: "#3b82f6"
     },
     {
-        title: "Data Protection",
-        desc: "All personal information is encrypted. We use industry-standard security protocols to keep your data safe from unauthorized access.",
+        title: "privacy.sections.dataProtection.title",
+        desc: "privacy.sections.dataProtection.desc",
         icon: Lock,
         color: "#10b981"
     },
     {
-        title: "Your Rights",
-        desc: "You can request to delete your account or download your data at any time through our help center or by contacting support.",
+        title: "privacy.sections.yourRights.title",
+        desc: "privacy.sections.yourRights.desc",
         icon: Trash2,
         color: "#ef4444"
     }
 ];
 
 export default function PrivacyScreen() {
+    const { t } = useTranslation('home');
     const { isDark, colors } = useTheme();
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-            <ScreenHeader title="Privacy Policy" showBack={true} />
+            <ScreenHeader title={t('privacy.title')} showBack={true} />
 
             <ScrollView
                 style={styles.scrollView}
@@ -57,10 +60,10 @@ export default function PrivacyScreen() {
                         <Shield size={32} color={colors.accent} />
                     </View>
                     <Text style={[styles.headerTitle, { color: colors.foreground }]}>
-                        Your Privacy Matters
+                        {t('privacy.headerTitle')}
                     </Text>
                     <Text style={[styles.headerSubtitle, { color: isDark ? "#94A3B8" : "#64748B" }]}>
-                        Last updated: April 2026
+                        {t('privacy.lastUpdated')}
                     </Text>
                 </View>
 
@@ -72,18 +75,18 @@ export default function PrivacyScreen() {
                                 <section.icon size={20} color={section.color} />
                             </View>
                             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-                                {section.title}
+                                {t(section.title)}
                             </Text>
                         </View>
                         <Text style={[styles.sectionDesc, { color: isDark ? "#94A3B8" : "#64748B" }]}>
-                            {section.desc}
+                            {t(section.desc)}
                         </Text>
                     </Card>
                 ))}
 
                 <View style={[styles.noticeBox, { backgroundColor: 'rgba(99,102,241,0.05)', borderColor: 'rgba(99,102,241,0.1)' }]}>
                     <Text style={[styles.noticeText, { color: isDark ? "#475569" : "#94A3B8" }]}>
-                        By using Edutu, you agree to our terms of service and this privacy policy. We never sell your personal data to third parties.
+                        {t('privacy.notice')}
                     </Text>
                 </View>
 
@@ -94,7 +97,7 @@ export default function PrivacyScreen() {
                         style={styles.footerLogo}
                         resizeMode="contain"
                     />
-                    <Text style={[styles.footerText, { color: isDark ? "#475569" : "#94A3B8" }]}>Edutu Legal</Text>
+                    <Text style={[styles.footerText, { color: isDark ? "#475569" : "#94A3B8" }]}>{t('privacy.footer')}</Text>
                 </View>
             </ScrollView>
         </SafeAreaView>

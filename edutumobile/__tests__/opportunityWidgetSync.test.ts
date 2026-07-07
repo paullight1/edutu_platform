@@ -63,6 +63,9 @@ describe('opportunity widget sync bridge', () => {
       location: 'Remote',
       match: undefined,
       urgent: false,
+      tone: 'green',
+      daysLeft: expect.any(Number),
+      logoUri: undefined,
       deepLink: 'edutu://opportunity/opp-1',
       items: [
         {
@@ -73,6 +76,8 @@ describe('opportunity widget sync bridge', () => {
           location: 'Remote',
           match: undefined,
           urgent: false,
+          tone: 'green',
+          daysLeft: expect.any(Number),
           deepLink: 'edutu://opportunity/opp-1',
         },
       ],

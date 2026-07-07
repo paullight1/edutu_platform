@@ -1,0 +1,122 @@
+{
+  "header": {
+    "title": "Kocin AI"
+  },
+  "loading": {
+    "conversation": "Ana loda hira..."
+  },
+  "deadline": {
+    "rolling": "Ba tare da ƙayyadadden wa'adi ba",
+    "set": "An saka wa'adi"
+  },
+  "location": {
+    "remote": "Daga nesa"
+  },
+  "answers": {
+    "checkingOpportunities": "Ina duba damammakin Edutu dominka.",
+    "matchesFound": "Na samo damammaki {{count}} da suka dace daga Edutu.\nZame katunan ko taƙaita binciken.",
+    "roadmapChecking": "Ina duba damammakinka.\nSai kuma in gina taswirar hanya.",
+    "roadmapMatchFound": "Na samo wata dama mai yiwuwar dacewa.\nDanna Gina don ƙirƙirar manufofi da tunatarwa.",
+    "roadmapWhichOpportunity": "Wace dama ce wannan?\nAiko da sunan ko ka binciko Damammaki."
+  },
+  "quickPrompts": {
+    "findScholarships": {
+      "title": "Nemo tallafin karatu",
+      "subtitle": "Masu samuwa wannan watan"
+    },
+    "mastercard": {
+      "title": "Damammakin Mastercard",
+      "subtitle": "Tallafin karatu daga Edutu"
+    },
+    "buildRoadmap": {
+      "title": "Gina taswirar hanya",
+      "subtitle": "Shirya buƙatata ta gaba"
+    },
+    "internships": {
+      "title": "Wa'adodin horon aiki",
+      "subtitle": "Damammaki masu zuwa"
+    }
+  },
+  "alerts": {
+    "noDeadlineTitle": "Ba a samu wa'adi ba",
+    "noDeadlineMessage": "Wannan damar ba ta da wa'adin da aka ajiye tukuna.",
+    "alreadyTrackedTitle": "Ana bin diddigi tuni",
+    "alreadyTrackedMessage": "Wannan wa'adin yana cikin shirinka tuni.",
+    "deadlineAddedTitle": "An saka wa'adi",
+    "deadlineAddedMessage": "Na saka wannan a shirinka na kuma shirya tunatarwa.",
+    "couldNotAddDeadlineTitle": "Ba a iya saka wa'adi ba",
+    "tryAgainFromOpportunity": "Da fatan za a sake gwadawa daga shafin damar.",
+    "signInRequiredTitle": "Ana buƙatar shiga",
+    "signInRequiredMessage": "Da fatan za a shiga don ƙirƙirar manufofin taswirar hanya.",
+    "roadmapExistsTitle": "Taswirar hanya ta riga ta wanzu",
+    "roadmapExistsMessage": "Wannan damar tana da manufofi a cikin shirinka tuni.",
+    "openGoals": "Buɗe Manufofi",
+    "stayHere": "Tsaya a Nan",
+    "roadmapCreatedTitle": "An ƙirƙiri taswirar hanya",
+    "roadmapCreatedMessage": "An saka manufofi {{count}} tare da tunatarwa inda wa'adodi suka wanzu.",
+    "couldNotCreateRoadmapTitle": "Ba a iya ƙirƙirar taswirar hanya ba"
+  },
+  "goals": {
+    "applyTitle": "Nema: {{title}}",
+    "applyDescription": "Wa'adin neman {{organization}}.",
+    "thisOpportunity": "wannan damar",
+    "submitTitle": "Mika {{title}}",
+    "submitDescription": "{{strategy}}\n\nKayan aiki:\n{{resources}}",
+    "milestoneDescription": "Muhimmin mataki na {{title}}",
+    "dailyDescription": "{{description}}\n\nAbin mayar da hankali: {{focus}}\nLokaci: mintuna {{minutes}}",
+    "checklistDescription": "Abu a jerin dubawa na {{title}}"
+  },
+  "messages": {
+    "recommendedTitle": "Shawarwari daga Damammaki",
+    "viewMore": "Duba ƙari",
+    "openAllOpportunities": "Buɗe duk damammaki",
+    "narrowBy": "Taƙaita da:",
+    "view": "Duba",
+    "categoryFallback": "Dama",
+    "typing": "Edutu yana duba damammaki"
+  },
+  "followUp": {
+    "country": "Ƙasa",
+    "deadline": "Wa'adi",
+    "funding": "Kuɗaɗe"
+  },
+  "roadmapPanel": {
+    "title": "Gina taswirar hanya",
+    "subtitle": "Manufofi, wa'adodi, tunatarwa",
+    "searching": "Ana bincika damammaki...",
+    "matchMeta": "{{category}} · wa'adi {{deadline}}",
+    "daysLeft": "Sauran kwanaki {{count}}",
+    "dailySteps": "Matakan yau da kullum {{count}}",
+    "build": "Gina"
+  },
+  "empty": {
+    "title": "Ni ne Edutu, Kocin ka na AI",
+    "description": "Tambaya game da tallafin karatu na gaske, wa'adodi, taswirorin hanya, ko matakan neman dama na gaba."
+  },
+  "input": {
+    "placeholder": "Rubuta wa Edutu saƙo..."
+  },
+  "threads": {
+    "modalTitle": "Hirarraki",
+    "newConversation": "Sabuwar Hira",
+    "empty": "Babu hirarrakin kwanan nan",
+    "groups": {
+      "today": "Yau",
+      "yesterday": "Jiya",
+      "thisWeek": "Wannan Makon",
+      "older": "Tsofaffi"
+    }
+  },
+  "voice": {
+    "titleTranscript": "Saƙon Murya",
+    "titleListening": "Ana sauraro...",
+    "titleProcessing": "Ana sarrafawa...",
+    "titleIdle": "Danna don Magana",
+    "sendingAutomatically": "Ana aikawa kai tsaye...",
+    "genericError": "Wani abu ya ɓaci",
+    "hintStop": "Danna makirufo don tsayawa",
+    "hintSendOrWait": "Danna aika ko ka jira",
+    "hintTranscribing": "Ana rubuta saƙonka...",
+    "hintStart": "Danna makirufo don fara ɗaukar murya"
+  }
+}

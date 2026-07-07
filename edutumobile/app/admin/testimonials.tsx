@@ -3,6 +3,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useUser } from "@clerk/clerk-expo";
+import { useTranslation, Trans } from "react-i18next";
 import {
     Star,
     StarOff,
@@ -47,6 +48,7 @@ function extractYouTubeId(url: string): string {
 }
 
 function AdminTestimonialsContent() {
+    const { t } = useTranslation('misc');
     const { isDark, colors } = useTheme();
     const router = useRouter();
     const { user } = useUser();
@@ -83,7 +85,7 @@ function AdminTestimonialsContent() {
             setTestimonials(data || []);
         } catch (e: any) {
             console.error('Failed to fetch testimonials:', e);
-            Alert.alert('Error', 'Failed to load testimonials.');
+            Alert.alert(t('common:states.error'), t('admin.testimonials.alerts.loadFailed'));
         } finally {
             setLoading(false);
         }
@@ -120,7 +122,7 @@ function AdminTestimonialsContent() {
 
     const handleSubmit = async () => {
         if (!formName.trim() || !formRole.trim() || !formReviewText.trim()) {
-            Alert.alert('Validation Error', 'Name, Role, and Review text are required.');
+            Alert.alert(t('admin.testimonials.alerts.validationTitle'), t('admin.testimonials.alerts.validationMessage'));
             return;
         }
 
@@ -143,7 +145,7 @@ function AdminTestimonialsContent() {
                     .eq('id', editingTestimonial.id);
 
                 if (error) throw error;
-                Alert.alert('Success', 'Testimonial updated successfully.');
+                Alert.alert(t('common:states.success'), t('admin.testimonials.alerts.updated'));
             } else {
                 const { error } = await supabase
                     .from('testimonials')
@@ -160,14 +162,14 @@ function AdminTestimonialsContent() {
                     });
 
                 if (error) throw error;
-                Alert.alert('Success', 'Testimonial added successfully.');
+                Alert.alert(t('common:states.success'), t('admin.testimonials.alerts.added'));
             }
 
             closeModal();
             fetchTestimonials();
         } catch (e: any) {
             console.error('Submit error:', e);
-            Alert.alert('Error', e.message || 'Failed to save testimonial.');
+            Alert.alert(t('common:states.error'), e.message || t('admin.testimonials.alerts.saveFailed'));
         } finally {
             setSubmitting(false);
         }
@@ -175,12 +177,12 @@ function AdminTestimonialsContent() {
 
     const handleDelete = (item: Testimonial) => {
         Alert.alert(
-            'Delete Testimonial',
-            `Are you sure you want to delete "${item.name}"? This action cannot be undone.`,
+            t('admin.testimonials.alerts.deleteTitle'),
+            t('admin.testimonials.alerts.deleteMessage', { name: item.name }),
             [
-                { text: 'Cancel', style: 'cancel' },
+                { text: t('common:actions.cancel'), style: 'cancel' },
                 {
-                    text: 'Delete',
+                    text: t('common:actions.delete'),
                     style: 'destructive',
                     onPress: async () => {
                         try {
@@ -190,11 +192,11 @@ function AdminTestimonialsContent() {
                                 .eq('id', item.id);
 
                             if (error) throw error;
-                            Alert.alert('Success', 'Testimonial deleted.');
+                            Alert.alert(t('common:states.success'), t('admin.testimonials.alerts.deleted'));
                             fetchTestimonials();
                         } catch (e: any) {
                             console.error('Delete error:', e);
-                            Alert.alert('Error', 'Failed to delete testimonial.');
+                            Alert.alert(t('common:states.error'), t('admin.testimonials.alerts.deleteFailed'));
                         }
                     },
                 },
@@ -213,7 +215,7 @@ function AdminTestimonialsContent() {
             fetchTestimonials();
         } catch (e: any) {
             console.error('Toggle error:', e);
-            Alert.alert('Error', 'Failed to update status.');
+            Alert.alert(t('common:states.error'), t('admin.testimonials.alerts.statusUpdateFailed'));
         }
     };
 
@@ -266,7 +268,7 @@ function AdminTestimonialsContent() {
                     </View>
                     <View style={[styles.statusBadge, { backgroundColor: item.is_active ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)' }]}>
                         <Text style={[styles.statusText, { color: item.is_active ? '#10B981' : '#EF4444' }]}>
-                            {item.is_active ? 'Active' : 'Inactive'}
+                            {item.is_active ? t('admin.testimonials.status.active') : t('admin.testimonials.status.inactive')}
                         </Text>
                     </View>
                 </View>
@@ -286,7 +288,7 @@ function AdminTestimonialsContent() {
                     <View style={styles.videoRow}>
                         <Video size={12} color={colors.primary} />
                         <Text style={[styles.videoText, { color: colors.primary }]} numberOfLines={1}>
-                            YouTube video linked
+                            {t('admin.testimonials.videoLinked')}
                         </Text>
                     </View>
                 )}
@@ -317,31 +319,31 @@ function AdminTestimonialsContent() {
                 </View>
             </AnimatedPressable>
         );
-    }, [cardBg, borderColor, textPrimary, textSecondary, colors.primary, isDark]);
+    }, [cardBg, borderColor, textPrimary, textSecondary, colors.primary, isDark, t]);
 
     const filters: { key: typeof filter; label: string }[] = [
-        { key: 'all', label: 'All' },
-        { key: 'active', label: 'Active' },
-        { key: 'inactive', label: 'Inactive' },
+        { key: 'all', label: t('admin.testimonials.filters.all') },
+        { key: 'active', label: t('admin.testimonials.status.active') },
+        { key: 'inactive', label: t('admin.testimonials.status.inactive') },
     ];
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-            <ScreenHeader title="Testimonials" subtitle="Manage client testimonials" showBack />
+            <ScreenHeader title={t('admin.testimonials.title')} subtitle={t('admin.testimonials.subtitle')} showBack />
 
             <View style={styles.header}>
                 <View style={styles.statsRow}>
                     <View style={[styles.statCard, { backgroundColor: cardBg, borderColor }]}>
                         <Text style={[styles.statValue, { color: textPrimary }]}>{stats.total}</Text>
-                        <Text style={[styles.statLabel, { color: textSecondary }]}>Total</Text>
+                        <Text style={[styles.statLabel, { color: textSecondary }]}>{t('admin.testimonials.stats.total')}</Text>
                     </View>
                     <View style={[styles.statCard, { backgroundColor: cardBg, borderColor }]}>
                         <Text style={[styles.statValue, { color: '#10B981' }]}>{stats.active}</Text>
-                        <Text style={[styles.statLabel, { color: textSecondary }]}>Active</Text>
+                        <Text style={[styles.statLabel, { color: textSecondary }]}>{t('admin.testimonials.stats.active')}</Text>
                     </View>
                     <View style={[styles.statCard, { backgroundColor: cardBg, borderColor }]}>
                         <Text style={[styles.statValue, { color: '#EF4444' }]}>{stats.inactive}</Text>
-                        <Text style={[styles.statLabel, { color: textSecondary }]}>Inactive</Text>
+                        <Text style={[styles.statLabel, { color: textSecondary }]}>{t('admin.testimonials.stats.inactive')}</Text>
                     </View>
                 </View>
 
@@ -374,14 +376,14 @@ function AdminTestimonialsContent() {
                     onPress={openAddModal}
                 >
                     <Plus size={18} color="#FFFFFF" />
-                    <Text style={styles.addButtonText}>Add Testimonial</Text>
+                    <Text style={styles.addButtonText}>{t('admin.testimonials.addButton')}</Text>
                 </TouchableOpacity>
             </View>
 
             {loading ? (
                 <View style={styles.loadingContainer}>
                     <Loader2 size={32} color={colors.primary} />
-                    <Text style={[styles.loadingText, { color: textSecondary }]}>Loading testimonials...</Text>
+                    <Text style={[styles.loadingText, { color: textSecondary }]}>{t('admin.testimonials.loading')}</Text>
                 </View>
             ) : (
                 <FlatList
@@ -393,9 +395,9 @@ function AdminTestimonialsContent() {
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <MessageSquare size={48} color={textSecondary} />
-                            <Text style={[styles.emptyTitle, { color: textPrimary }]}>No Testimonials</Text>
+                            <Text style={[styles.emptyTitle, { color: textPrimary }]}>{t('admin.testimonials.empty.title')}</Text>
                             <Text style={[styles.emptyText, { color: textSecondary }]}>
-                                {filter !== 'all' ? 'No testimonials match the current filter.' : 'Tap the button above to add your first testimonial.'}
+                                {filter !== 'all' ? t('admin.testimonials.empty.filtered') : t('admin.testimonials.empty.none')}
                             </Text>
                         </View>
                     }
@@ -407,7 +409,7 @@ function AdminTestimonialsContent() {
                     <View style={[styles.modalSheet, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' }]}>
                         <View style={styles.modalHeader}>
                             <Text style={[styles.modalTitle, { color: textPrimary }]}>
-                                {editingTestimonial ? 'Edit Testimonial' : 'Add Testimonial'}
+                                {editingTestimonial ? t('admin.testimonials.modal.editTitle') : t('admin.testimonials.addButton')}
                             </Text>
                             <TouchableOpacity onPress={closeModal} style={styles.modalClose}>
                                 <X size={20} color={textSecondary} />
@@ -417,30 +419,30 @@ function AdminTestimonialsContent() {
                         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
                             <View style={styles.modalBody}>
                                 <View style={styles.formGroup}>
-                                    <Text style={[styles.formLabel, { color: textSecondary }]}>Name *</Text>
+                                    <Text style={[styles.formLabel, { color: textSecondary }]}>{t('admin.testimonials.modal.nameLabel')}</Text>
                                     <TextInput
                                         style={[styles.formInput, { backgroundColor: colors.card, color: textPrimary, borderColor }]}
                                         value={formName}
                                         onChangeText={setFormName}
-                                        placeholder="e.g. John Doe"
+                                        placeholder={t('admin.testimonials.modal.namePlaceholder')}
                                         placeholderTextColor={textSecondary}
                                     />
                                 </View>
 
                                 <View style={styles.formGroup}>
-                                    <Text style={[styles.formLabel, { color: textSecondary }]}>Role *</Text>
+                                    <Text style={[styles.formLabel, { color: textSecondary }]}>{t('admin.testimonials.modal.roleLabel')}</Text>
                                     <TextInput
                                         style={[styles.formInput, { backgroundColor: colors.card, color: textPrimary, borderColor }]}
                                         value={formRole}
                                         onChangeText={setFormRole}
-                                        placeholder="e.g. Software Engineer"
+                                        placeholder={t('admin.testimonials.modal.rolePlaceholder')}
                                         placeholderTextColor={textSecondary}
                                     />
                                 </View>
 
                                 <View style={styles.formGroup}>
                                     <Text style={[styles.formLabel, { color: textSecondary }]}>
-                                        Country <Text style={{ opacity: 0.6 }}>(optional)</Text>
+                                        <Trans t={t} i18nKey="admin.testimonials.modal.countryLabel" components={{ dim: <Text style={{ opacity: 0.6 }} /> }} />
                                     </Text>
                                     <View style={[styles.formInputWithIcon, { backgroundColor: colors.card, borderColor }]}>
                                         <Globe size={16} color={textSecondary} />
@@ -448,14 +450,14 @@ function AdminTestimonialsContent() {
                                             style={[styles.formInputIconed, { color: textPrimary }]}
                                             value={formCountry}
                                             onChangeText={setFormCountry}
-                                            placeholder="e.g. 🇳🇬 Nigeria"
+                                            placeholder={t('admin.testimonials.modal.countryPlaceholder')}
                                             placeholderTextColor={textSecondary}
                                         />
                                     </View>
                                 </View>
 
                                 <View style={styles.formGroup}>
-                                    <Text style={[styles.formLabel, { color: textSecondary }]}>Rating</Text>
+                                    <Text style={[styles.formLabel, { color: textSecondary }]}>{t('admin.testimonials.modal.ratingLabel')}</Text>
                                     <View style={styles.ratingPicker}>
                                         {[1, 2, 3, 4, 5].map(num => (
                                             <TouchableOpacity
@@ -478,12 +480,12 @@ function AdminTestimonialsContent() {
                                 </View>
 
                                 <View style={styles.formGroup}>
-                                    <Text style={[styles.formLabel, { color: textSecondary }]}>Review Text *</Text>
+                                    <Text style={[styles.formLabel, { color: textSecondary }]}>{t('admin.testimonials.modal.reviewLabel')}</Text>
                                     <TextInput
                                         style={[styles.formInputMultiline, { backgroundColor: colors.card, color: textPrimary, borderColor }]}
                                         value={formReviewText}
                                         onChangeText={setFormReviewText}
-                                        placeholder="Write the testimonial review..."
+                                        placeholder={t('admin.testimonials.modal.reviewPlaceholder')}
                                         placeholderTextColor={textSecondary}
                                         multiline
                                         numberOfLines={4}
@@ -493,7 +495,7 @@ function AdminTestimonialsContent() {
 
                                 <View style={styles.formGroup}>
                                     <Text style={[styles.formLabel, { color: textSecondary }]}>
-                                        YouTube URL <Text style={{ opacity: 0.6 }}>(optional)</Text>
+                                        <Trans t={t} i18nKey="admin.testimonials.modal.youtubeLabel" components={{ dim: <Text style={{ opacity: 0.6 }} /> }} />
                                     </Text>
                                     <View style={[styles.formInputWithIcon, { backgroundColor: colors.card, borderColor }]}>
                                         <Video size={16} color={textSecondary} />
@@ -510,8 +512,8 @@ function AdminTestimonialsContent() {
                                     {formVideoUrl && (
                                         <Text style={[styles.formHint, { color: textSecondary }]}>
                                             {extractYouTubeId(formVideoUrl)
-                                                ? `Video ID: ${extractYouTubeId(formVideoUrl)}`
-                                                : 'Could not extract video ID from URL'}
+                                                ? t('admin.testimonials.modal.videoId', { id: extractYouTubeId(formVideoUrl) })
+                                                : t('admin.testimonials.modal.videoIdError')}
                                         </Text>
                                     )}
                                 </View>
@@ -526,7 +528,7 @@ function AdminTestimonialsContent() {
                                         <ActivityIndicator color="#FFFFFF" size="small" />
                                     ) : (
                                         <Text style={styles.submitButtonText}>
-                                            {editingTestimonial ? 'Update Testimonial' : 'Add Testimonial'}
+                                            {editingTestimonial ? t('admin.testimonials.modal.update') : t('admin.testimonials.addButton')}
                                         </Text>
                                     )}
                                 </TouchableOpacity>

@@ -10,13 +10,15 @@ import {
     Dimensions,
 } from 'react-native';
 import { CalendarDays, X, Map, Target, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../context/ThemeContext';
 import type { Goal } from '@edutu/core/src/hooks/useGoals';
 
 const { width } = Dimensions.get('window');
 
-const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+// i18n keys (goals namespace) — translated at render time.
+const DAYS_SHORT = ['calendar.days.sun', 'calendar.days.mon', 'calendar.days.tue', 'calendar.days.wed', 'calendar.days.thu', 'calendar.days.fri', 'calendar.days.sat'];
+const MONTHS = ['calendar.months.january', 'calendar.months.february', 'calendar.months.march', 'calendar.months.april', 'calendar.months.may', 'calendar.months.june', 'calendar.months.july', 'calendar.months.august', 'calendar.months.september', 'calendar.months.october', 'calendar.months.november', 'calendar.months.december'];
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 function isSameDay(a: Date, b: Date) {
@@ -55,6 +57,7 @@ interface Props {
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 export function GoalCalendar({ goals, opportunities = [] }: Props) {
+    const { t } = useTranslation('goals');
     const { colors, isDark } = useTheme();
     const [showModal, setShowModal] = useState(false);
     const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -79,7 +82,7 @@ export function GoalCalendar({ goals, opportunities = [] }: Props) {
             .map(o => ({
                 type: 'opportunity',
                 color: '#14b8a6',
-                title: `Deadline: ${o.title}`,
+                title: t('calendar.deadlinePrefix', { title: o.title }),
                 date: new Date(o.closeDate),
                 opportunityId: o.id,
             }));
@@ -124,7 +127,7 @@ export function GoalCalendar({ goals, opportunities = [] }: Props) {
                     styles.stripDayName,
                     { color: isSelected ? 'rgba(255,255,255,0.8)' : textSecondary }
                 ]}>
-                    {DAYS_SHORT[date.getDay()]}
+                    {t(DAYS_SHORT[date.getDay()])}
                 </Text>
                 <Text style={[
                     styles.stripDayNum,
@@ -171,7 +174,7 @@ export function GoalCalendar({ goals, opportunities = [] }: Props) {
                         <ChevronLeft size={20} color={colors.foreground} />
                     </TouchableOpacity>
                     <Text style={[styles.monthTitle, { color: colors.foreground }]}>
-                        {MONTHS[month]} {year}
+                        {t(MONTHS[month])} {year}
                     </Text>
                     <TouchableOpacity onPress={nextMonth} style={styles.navBtn}>
                         <ChevronRight size={20} color={colors.foreground} />
@@ -180,7 +183,7 @@ export function GoalCalendar({ goals, opportunities = [] }: Props) {
 
                 <View style={styles.weekRow}>
                     {DAYS_SHORT.map(d => (
-                        <Text key={d} style={[styles.weekLabel, { color: textSecondary }]}>{d}</Text>
+                        <Text key={d} style={[styles.weekLabel, { color: textSecondary }]}>{t(d)}</Text>
                     ))}
                 </View>
 
@@ -229,7 +232,7 @@ export function GoalCalendar({ goals, opportunities = [] }: Props) {
                                 <View style={styles.eventInfo}>
                                     <View style={[styles.eventBadge, { backgroundColor: `${e.color}15` }]}>
                                         <Text style={[styles.eventBadgeText, { color: e.color }]}>
-                                            {e.type === 'roadmap' ? 'ROADMAP' : e.type === 'opportunity' ? 'OPPORTUNITY' : 'GOAL'}
+                                            {e.type === 'roadmap' ? t('calendar.badge.roadmap') : e.type === 'opportunity' ? t('calendar.badge.opportunity') : t('calendar.badge.goal')}
                                         </Text>
                                     </View>
                                     <Text style={[styles.eventTitle, { color: colors.foreground }]} numberOfLines={2}>
@@ -245,7 +248,7 @@ export function GoalCalendar({ goals, opportunities = [] }: Props) {
                             {selectedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
                         </Text>
                         <Text style={{ color: textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 8 }}>
-                            No goals or deadlines on this day.
+                            {t('calendar.noEvents')}
                         </Text>
                     </View>
                 )}
@@ -282,7 +285,7 @@ export function GoalCalendar({ goals, opportunities = [] }: Props) {
                 <View style={[styles.modalSheet, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' }]}>
                     <View style={styles.dragHandle} />
                     <View style={styles.modalHeader}>
-                        <Text style={[styles.modalTitle, { color: colors.foreground }]}>My Calendar</Text>
+                        <Text style={[styles.modalTitle, { color: colors.foreground }]}>{t('calendar.title')}</Text>
                         <TouchableOpacity onPress={() => setShowModal(false)} style={styles.closeBtn}>
                             <X size={20} color={textSecondary} />
                         </TouchableOpacity>
@@ -290,15 +293,15 @@ export function GoalCalendar({ goals, opportunities = [] }: Props) {
                     <View style={styles.legend}>
                         <View style={styles.legendItem}>
                             <View style={[styles.legendDot, { backgroundColor: colors.accent }]} />
-                            <Text style={{ color: textSecondary, fontSize: 12 }}>Personal Goal</Text>
+                            <Text style={{ color: textSecondary, fontSize: 12 }}>{t('calendar.legend.personalGoal')}</Text>
                         </View>
                         <View style={styles.legendItem}>
                             <View style={[styles.legendDot, { backgroundColor: '#f59e0b' }]} />
-                            <Text style={{ color: textSecondary, fontSize: 12 }}>Roadmap</Text>
+                            <Text style={{ color: textSecondary, fontSize: 12 }}>{t('calendar.legend.roadmap')}</Text>
                         </View>
                         <View style={styles.legendItem}>
                             <View style={[styles.legendDot, { backgroundColor: '#14b8a6' }]} />
-                            <Text style={{ color: textSecondary, fontSize: 12 }}>Opportunity</Text>
+                            <Text style={{ color: textSecondary, fontSize: 12 }}>{t('calendar.legend.opportunity')}</Text>
                         </View>
                     </View>
                     <ScrollView showsVerticalScrollIndicator={false}>

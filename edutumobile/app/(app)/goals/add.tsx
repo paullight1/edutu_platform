@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useUser } from '@clerk/clerk-expo';
+import { useTranslation } from 'react-i18next';
 import {
     Target,
     Calendar,
@@ -32,6 +33,7 @@ import { useGoals } from '@edutu/core/src/hooks/useGoals';
 import { PRIORITY_OPTIONS_WITH_DESC } from '../../../components/goals';
 
 export default function AddGoalScreen() {
+    const { t } = useTranslation('goals');
     const { colors, isDark } = useTheme();
     const router = useRouter();
     const { user } = useUser();
@@ -59,15 +61,15 @@ export default function AddGoalScreen() {
 
     const handleCreate = async () => {
         if (!isTitleValid) {
-            Alert.alert('Invalid Title', 'Goal title must be at least 3 characters');
+            Alert.alert(t('add.alerts.invalidTitle'), t('add.alerts.titleTooShort'));
             return;
         }
         if (isTitleTooLong) {
-            Alert.alert('Title Too Long', 'Goal title must be less than 100 characters');
+            Alert.alert(t('add.alerts.titleTooLongTitle'), t('add.alerts.titleTooLongMessage'));
             return;
         }
         if (isDeadlinePast) {
-            Alert.alert('Invalid Deadline', 'Deadline cannot be in the past');
+            Alert.alert(t('add.alerts.invalidDeadline'), t('add.validation.deadlinePast'));
             return;
         }
 
@@ -81,19 +83,19 @@ export default function AddGoalScreen() {
                 progress: 0,
                 source: 'custom',
             });
-            Alert.alert('Success', 'Goal created successfully!', [
+            Alert.alert(t('common:states.success'), t('add.alerts.created'), [
                 {
-                    text: 'Create Another', onPress: () => {
+                    text: t('add.alerts.createAnother'), onPress: () => {
                         setTitle('');
                         setDescription('');
                         setDeadline('');
                         setPriority('medium');
                     }
                 },
-                { text: 'Done', onPress: () => router.push('/goals') }
+                { text: t('common:actions.done'), onPress: () => router.push('/goals') }
             ]);
         } catch {
-            Alert.alert('Error', 'Failed to create goal. Please try again.');
+            Alert.alert(t('common:states.error'), t('add.alerts.createFailed'));
         } finally {
             setLoading(false);
         }
@@ -103,7 +105,7 @@ export default function AddGoalScreen() {
 
     return (
         <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-            <ScreenHeader title="Create New Goal" showBack />
+            <ScreenHeader title={t('add.title')} showBack />
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -120,8 +122,8 @@ export default function AddGoalScreen() {
                             <Target size={26} color={colors.accent} />
                         </View>
                         <View style={styles.introText}>
-                            <Text style={[styles.title, { color: textPrimary }]}>Set Your Target</Text>
-                            <Text style={[styles.subtitle, { color: textSecondary }]}>Define your goal and track progress towards achievement.</Text>
+                            <Text style={[styles.title, { color: textPrimary }]}>{t('add.heading')}</Text>
+                            <Text style={[styles.subtitle, { color: textSecondary }]}>{t('add.subheading')}</Text>
                         </View>
                     </View>
 
@@ -130,7 +132,7 @@ export default function AddGoalScreen() {
                         {/* Title Field */}
                         <View style={styles.inputGroup}>
                             <View style={styles.labelRow}>
-                                <Text style={[styles.label, { color: textPrimary }]}>Goal Title</Text>
+                                <Text style={[styles.label, { color: textPrimary }]}>{t('add.titleLabel')}</Text>
                                 <Text style={[styles.charCount, { color: isTitleTooLong ? '#ef4444' : textSecondary }]}>
                                     {title.length}/100
                                 </Text>
@@ -144,7 +146,7 @@ export default function AddGoalScreen() {
                                 ]}
                                 value={title}
                                 onChangeText={setTitle}
-                                placeholder="What do you want to achieve?"
+                                placeholder={t('add.titlePlaceholder')}
                                 placeholderTextColor={textSecondary}
                                 autoFocus
                                 maxLength={100}
@@ -152,25 +154,25 @@ export default function AddGoalScreen() {
                             {title.length > 0 && !isTitleValid && (
                                 <View style={styles.validationRow}>
                                     <AlertCircle size={12} color="#ef4444" />
-                                    <Text style={styles.validationText}>Title must be at least 3 characters</Text>
+                                    <Text style={styles.validationText}>{t('add.validation.titleTooShort')}</Text>
                                 </View>
                             )}
                             {isTitleValid && (
                                 <View style={styles.validationRow}>
                                     <Check size={12} color="#10b981" />
-                                    <Text style={[styles.validationText, { color: '#10b981' }]}>Looks good!</Text>
+                                    <Text style={[styles.validationText, { color: '#10b981' }]}>{t('add.validation.looksGood')}</Text>
                                 </View>
                             )}
                         </View>
 
                         {/* Description Field */}
                         <View style={styles.inputGroup}>
-                            <Text style={[styles.label, { color: textPrimary }]}>Description</Text>
+                            <Text style={[styles.label, { color: textPrimary }]}>{t('add.descriptionLabel')}</Text>
                             <TextInput
                                 style={[styles.input, styles.textArea, { backgroundColor: inputBg, color: textPrimary, borderColor }]}
                                 value={description}
                                 onChangeText={setDescription}
-                                placeholder="Add more details about this goal..."
+                                placeholder={t('add.descriptionPlaceholder')}
                                 placeholderTextColor={textSecondary}
                                 multiline
                                 numberOfLines={3}
@@ -180,7 +182,7 @@ export default function AddGoalScreen() {
 
                         {/* Priority Selector */}
                         <View style={styles.inputGroup}>
-                            <Text style={[styles.label, { color: textPrimary }]}>Priority</Text>
+                            <Text style={[styles.label, { color: textPrimary }]}>{t('labels.priority')}</Text>
                             <View style={styles.priorityOptions}>
                                 {PRIORITY_OPTIONS_WITH_DESC.map(option => {
                                     const isSelected = priority === option.id;
@@ -202,12 +204,12 @@ export default function AddGoalScreen() {
                                                     styles.priorityOptionLabel,
                                                     { color: isSelected ? option.color : textPrimary }
                                                 ]}>
-                                                    {option.label}
+                                                    {t(`priority.${option.id}Full`)}
                                                 </Text>
                                             </View>
                                             {isSelected && (
                                                 <Text style={[styles.priorityDesc, { color: textSecondary }]}>
-                                                    {option.description}
+                                                    {t(`priority.${option.id}Desc`)}
                                                 </Text>
                                             )}
                                         </TouchableOpacity>
@@ -218,7 +220,7 @@ export default function AddGoalScreen() {
 
                         {/* Deadline Field */}
                         <View style={styles.inputGroup}>
-                            <Text style={[styles.label, { color: textPrimary }]}>Deadline</Text>
+                            <Text style={[styles.label, { color: textPrimary }]}>{t('labels.deadline')}</Text>
                             <View style={[styles.dateInputWrapper, {
                                 backgroundColor: inputBg,
                                 borderColor: isDeadlinePast ? '#ef4444' : borderColor,
@@ -228,7 +230,7 @@ export default function AddGoalScreen() {
                                     style={[styles.dateInput, { color: textPrimary }]}
                                     value={deadline}
                                     onChangeText={setDeadline}
-                                    placeholder="YYYY-MM-DD"
+                                    placeholder={t('labels.datePlaceholder')}
                                     placeholderTextColor={textSecondary}
                                     keyboardType="numbers-and-punctuation"
                                 />
@@ -236,14 +238,14 @@ export default function AddGoalScreen() {
                             {isDeadlinePast && (
                                 <View style={styles.validationRow}>
                                     <AlertCircle size={12} color="#ef4444" />
-                                    <Text style={styles.validationText}>Deadline cannot be in the past</Text>
+                                    <Text style={styles.validationText}>{t('add.validation.deadlinePast')}</Text>
                                 </View>
                             )}
                             {isDeadlineValid && (
                                 <View style={styles.validationRow}>
                                     <Info size={12} color={colors.accent} />
                                     <Text style={[styles.validationText, { color: colors.accent }]}>
-                                        {Math.ceil((deadlineDate!.getTime() - Date.now()) / (1000 * 60 * 60 * 24))} days from now
+                                        {t('time.daysFromNow', { count: Math.ceil((deadlineDate!.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) })}
                                     </Text>
                                 </View>
                             )}
@@ -255,7 +257,7 @@ export default function AddGoalScreen() {
                         <View style={[styles.previewCard, { backgroundColor: `${colors.accent}06`, borderColor: `${colors.accent}18` }]}>
                             <View style={styles.previewHeader}>
                                 <Layout size={14} color={colors.accent} />
-                                <Text style={[styles.previewTag, { color: colors.accent }]}>PREVIEW</Text>
+                                <Text style={[styles.previewTag, { color: colors.accent }]}>{t('add.preview')}</Text>
                             </View>
                             <Text style={[styles.previewTitle, { color: textPrimary }]}>{title}</Text>
                             {description.length > 0 && (
@@ -264,13 +266,13 @@ export default function AddGoalScreen() {
                             <View style={styles.previewMeta}>
                                 <View style={[styles.previewMetaItem, { backgroundColor: `${priorityConfig.color}12` }]}>
                                     <Flag size={12} color={priorityConfig.color} />
-                                    <Text style={[styles.previewMetaText, { color: priorityConfig.color }]}>{priorityConfig.label}</Text>
+                                    <Text style={[styles.previewMetaText, { color: priorityConfig.color }]}>{t(`priority.${priorityConfig.id}Full`)}</Text>
                                 </View>
                                 {deadline && (
                                     <View style={[styles.previewMetaItem, { backgroundColor: `${isDeadlinePast ? '#ef4444' : colors.accent}12` }]}>
                                         <Clock size={12} color={isDeadlinePast ? '#ef4444' : colors.accent} />
                                         <Text style={[styles.previewMetaText, { color: isDeadlinePast ? '#ef4444' : colors.accent }]}>
-                                            {isDeadlinePast ? 'Past date' : deadlineDate!.toLocaleDateString()}
+                                            {isDeadlinePast ? t('add.pastDate') : deadlineDate!.toLocaleDateString()}
                                         </Text>
                                     </View>
                                 )}
@@ -293,7 +295,7 @@ export default function AddGoalScreen() {
                         ) : (
                             <>
                                 <Check size={20} color="white" strokeWidth={3} />
-                                <Text style={styles.createBtnText}>Create Goal</Text>
+                                <Text style={styles.createBtnText}>{t('createGoal')}</Text>
                             </>
                         )}
                     </TouchableOpacity>

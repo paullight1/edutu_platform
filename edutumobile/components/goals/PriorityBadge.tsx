@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { PRIORITY_CONFIG } from './constants';
 
 interface PriorityBadgeProps {
@@ -8,6 +9,7 @@ interface PriorityBadgeProps {
 }
 
 export function PriorityBadge({ priority, size = 'sm' }: PriorityBadgeProps) {
+    const { t } = useTranslation('goals');
     const config = PRIORITY_CONFIG[priority || 'medium'];
 
     return (
@@ -16,7 +18,7 @@ export function PriorityBadge({ priority, size = 'sm' }: PriorityBadgeProps) {
             style={{ backgroundColor: config.bg }}
         >
             <Text style={{ color: config.color }} className={`text-xs font-bold ${size === 'md' ? '' : ''}`}>
-                {config.label}
+                {t(`priority.${priority || 'medium'}`)}
             </Text>
         </View>
     );

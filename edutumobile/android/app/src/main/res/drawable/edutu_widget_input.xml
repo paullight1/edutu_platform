@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Faux chat input pill. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+  <solid android:color="@color/edutu_widget_bg_inset" />
+  <corners android:radius="999dp" />
+</shape>

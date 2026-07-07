@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, ScrollView, RefreshControl, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { ErrorBoundary } from './ErrorBoundary';
 import { EmptyState, EmptyStateVariant } from './EmptyState';
 import {
@@ -87,15 +88,16 @@ export function ScreenWrapper({
   scrollable = true,
   children,
 }: ScreenWrapperProps) {
+  const { t } = useTranslation('common');
   const errorMessage = typeof error === 'string' ? error : error?.message;
 
   if (error) {
     return (
       <EmptyState
         variant="error"
-        title={errorMessage || 'Something went wrong'}
+        title={errorMessage || t('emptyState.error.title')}
         onAction={onRetry}
-        actionLabel="Retry"
+        actionLabel={t('emptyState.error.actionLabel')}
       />
     );
   }

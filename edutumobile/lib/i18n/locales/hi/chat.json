@@ -1,0 +1,122 @@
+{
+  "header": {
+    "title": "AI कोच"
+  },
+  "loading": {
+    "conversation": "बातचीत लोड हो रही है..."
+  },
+  "deadline": {
+    "rolling": "रोलिंग",
+    "set": "डेडलाइन सेट है"
+  },
+  "location": {
+    "remote": "रिमोट"
+  },
+  "answers": {
+    "checkingOpportunities": "आपके लिए Edutu के अवसर देख रहा हूँ।",
+    "matchesFound": "मुझे Edutu से {{count}} मैच मिले।\nकार्ड स्वाइप करें या सर्च को और सीमित करें।",
+    "roadmapChecking": "मैं आपके अवसर देख रहा हूँ।\nफिर रोडमैप बनाऊँगा।",
+    "roadmapMatchFound": "मुझे एक संभावित मैच मिला।\nलक्ष्य और रिमाइंडर बनाने के लिए 'बनाएँ' पर टैप करें।",
+    "roadmapWhichOpportunity": "यह किस अवसर के लिए है?\nनाम भेजें या अवसर ब्राउज़ करें।"
+  },
+  "quickPrompts": {
+    "findScholarships": {
+      "title": "स्कॉलरशिप खोजें",
+      "subtitle": "इस महीने उपलब्ध"
+    },
+    "mastercard": {
+      "title": "Mastercard मैच",
+      "subtitle": "Edutu से स्कॉलरशिप"
+    },
+    "buildRoadmap": {
+      "title": "रोडमैप बनाएँ",
+      "subtitle": "मेरा अगला आवेदन प्लान करें"
+    },
+    "internships": {
+      "title": "इंटर्नशिप डेडलाइन",
+      "subtitle": "आने वाले अवसर"
+    }
+  },
+  "alerts": {
+    "noDeadlineTitle": "कोई डेडलाइन नहीं मिली",
+    "noDeadlineMessage": "इस अवसर की कोई सेव की गई डेडलाइन अभी नहीं है।",
+    "alreadyTrackedTitle": "पहले से ट्रैक हो रहा है",
+    "alreadyTrackedMessage": "यह डेडलाइन पहले से आपके प्लान में है।",
+    "deadlineAddedTitle": "डेडलाइन जोड़ी गई",
+    "deadlineAddedMessage": "मैंने इसे आपके प्लान में जोड़ दिया और रिमाइंडर शेड्यूल कर दिए।",
+    "couldNotAddDeadlineTitle": "डेडलाइन नहीं जोड़ी जा सकी",
+    "tryAgainFromOpportunity": "कृपया अवसर पेज से फिर से कोशिश करें।",
+    "signInRequiredTitle": "साइन इन ज़रूरी है",
+    "signInRequiredMessage": "रोडमैप लक्ष्य बनाने के लिए कृपया साइन इन करें।",
+    "roadmapExistsTitle": "रोडमैप पहले से मौजूद है",
+    "roadmapExistsMessage": "इस अवसर के लक्ष्य पहले से आपके प्लान में हैं।",
+    "openGoals": "लक्ष्य खोलें",
+    "stayHere": "यहीं रहें",
+    "roadmapCreatedTitle": "रोडमैप बन गया",
+    "roadmapCreatedMessage": "{{count}} लक्ष्य जोड़े गए, और जहाँ डेडलाइन थीं वहाँ रिमाइंडर भी।",
+    "couldNotCreateRoadmapTitle": "रोडमैप नहीं बनाया जा सका"
+  },
+  "goals": {
+    "applyTitle": "अप्लाई करें: {{title}}",
+    "applyDescription": "{{organization}} के लिए आवेदन की डेडलाइन।",
+    "thisOpportunity": "यह अवसर",
+    "submitTitle": "{{title}} सबमिट करें",
+    "submitDescription": "{{strategy}}\n\nसंसाधन:\n{{resources}}",
+    "milestoneDescription": "{{title}} के लिए माइलस्टोन",
+    "dailyDescription": "{{description}}\n\nफ़ोकस: {{focus}}\nसमय: {{minutes}} मिनट",
+    "checklistDescription": "{{title}} के लिए चेकलिस्ट आइटम"
+  },
+  "messages": {
+    "recommendedTitle": "अवसरों से सुझाए गए",
+    "viewMore": "और देखें",
+    "openAllOpportunities": "सभी अवसर खोलें",
+    "narrowBy": "इनसे सीमित करें:",
+    "view": "देखें",
+    "categoryFallback": "अवसर",
+    "typing": "Edutu अवसर देख रहा है"
+  },
+  "followUp": {
+    "country": "देश",
+    "deadline": "डेडलाइन",
+    "funding": "फ़ंडिंग"
+  },
+  "roadmapPanel": {
+    "title": "रोडमैप बनाएँ",
+    "subtitle": "लक्ष्य, डेडलाइन, रिमाइंडर",
+    "searching": "अवसर खोजे जा रहे हैं...",
+    "matchMeta": "{{category}} · डेडलाइन {{deadline}}",
+    "daysLeft": "{{count}} दिन बाकी",
+    "dailySteps": "{{count}} दैनिक स्टेप",
+    "build": "बनाएँ"
+  },
+  "empty": {
+    "title": "मैं Edutu हूँ, आपका AI कोच",
+    "description": "असली स्कॉलरशिप, डेडलाइन, रोडमैप या आवेदन के अगले क़दमों के बारे में पूछें।"
+  },
+  "input": {
+    "placeholder": "Edutu को मैसेज करें..."
+  },
+  "threads": {
+    "modalTitle": "बातचीतें",
+    "newConversation": "नई बातचीत",
+    "empty": "कोई हालिया बातचीत नहीं",
+    "groups": {
+      "today": "आज",
+      "yesterday": "कल",
+      "thisWeek": "इस हफ़्ते",
+      "older": "पुरानी"
+    }
+  },
+  "voice": {
+    "titleTranscript": "वॉइस मैसेज",
+    "titleListening": "सुन रहा हूँ...",
+    "titleProcessing": "प्रोसेस हो रहा है...",
+    "titleIdle": "बोलने के लिए टैप करें",
+    "sendingAutomatically": "अपने आप भेजा जा रहा है...",
+    "genericError": "कुछ गड़बड़ हो गई",
+    "hintStop": "रोकने के लिए माइक्रोफ़ोन टैप करें",
+    "hintSendOrWait": "भेजें पर टैप करें या रुकें",
+    "hintTranscribing": "आपका मैसेज लिखा जा रहा है...",
+    "hintStart": "रिकॉर्डिंग शुरू करने के लिए माइक्रोफ़ोन टैप करें"
+  }
+}

@@ -1,0 +1,122 @@
+{
+    "header": {
+        "title": "AI 教练"
+    },
+    "loading": {
+        "conversation": "正在加载对话…"
+    },
+    "deadline": {
+        "rolling": "滚动招募",
+        "set": "已设截止日期"
+    },
+    "location": {
+        "remote": "远程"
+    },
+    "answers": {
+        "checkingOpportunities": "正在为你查找 Edutu 上的机会。",
+        "matchesFound": "我在 Edutu 上找到了 {{count}} 个匹配。\n滑动卡片查看，或缩小搜索范围。",
+        "roadmapChecking": "我正在查看你的机会，\n接着就为你搭建路线图。",
+        "roadmapMatchFound": "我找到了一个可能的匹配。\n点击「搭建」即可创建目标和提醒。",
+        "roadmapWhichOpportunity": "这是为哪个机会准备的？\n发送名称，或去「机会」里逛逛。"
+    },
+    "quickPrompts": {
+        "findScholarships": {
+            "title": "找奖学金",
+            "subtitle": "本月开放中"
+        },
+        "mastercard": {
+            "title": "Mastercard 匹配",
+            "subtitle": "来自 Edutu 的奖学金"
+        },
+        "buildRoadmap": {
+            "title": "搭建路线图",
+            "subtitle": "规划我的下一份申请"
+        },
+        "internships": {
+            "title": "实习截止日期",
+            "subtitle": "即将到来的机会"
+        }
+    },
+    "alerts": {
+        "noDeadlineTitle": "未找到截止日期",
+        "noDeadlineMessage": "这个机会还没有保存截止日期。",
+        "alreadyTrackedTitle": "已在追踪中",
+        "alreadyTrackedMessage": "这个截止日期已在你的计划里。",
+        "deadlineAddedTitle": "截止日期已添加",
+        "deadlineAddedMessage": "我已把它加入你的计划并安排好提醒。",
+        "couldNotAddDeadlineTitle": "无法添加截止日期",
+        "tryAgainFromOpportunity": "请从机会页面再试一次。",
+        "signInRequiredTitle": "需要登录",
+        "signInRequiredMessage": "请登录后再创建路线图目标。",
+        "roadmapExistsTitle": "路线图已存在",
+        "roadmapExistsMessage": "这个机会已经在你的计划中有目标了。",
+        "openGoals": "打开目标",
+        "stayHere": "留在此页",
+        "roadmapCreatedTitle": "路线图已创建",
+        "roadmapCreatedMessage": "已添加 {{count}} 个目标，有截止日期的都设好了提醒。",
+        "couldNotCreateRoadmapTitle": "无法创建路线图"
+    },
+    "goals": {
+        "applyTitle": "申请：{{title}}",
+        "applyDescription": "{{organization}} 的申请截止日期。",
+        "thisOpportunity": "这个机会",
+        "submitTitle": "提交 {{title}}",
+        "submitDescription": "{{strategy}}\n\n资源：\n{{resources}}",
+        "milestoneDescription": "「{{title}}」的里程碑",
+        "dailyDescription": "{{description}}\n\n重点：{{focus}}\n时长：{{minutes}} 分钟",
+        "checklistDescription": "「{{title}}」的清单事项"
+    },
+    "messages": {
+        "recommendedTitle": "来自「机会」的推荐",
+        "viewMore": "查看更多",
+        "openAllOpportunities": "打开全部机会",
+        "narrowBy": "按条件筛选：",
+        "view": "查看",
+        "categoryFallback": "机会",
+        "typing": "Edutu 正在查找机会"
+    },
+    "followUp": {
+        "country": "国家/地区",
+        "deadline": "截止日期",
+        "funding": "资助"
+    },
+    "roadmapPanel": {
+        "title": "搭建路线图",
+        "subtitle": "目标、截止日期、提醒",
+        "searching": "正在搜索机会…",
+        "matchMeta": "{{category}} · {{deadline}} 截止",
+        "daysLeft": "还剩 {{count}} 天",
+        "dailySteps": "{{count}} 个每日步骤",
+        "build": "搭建"
+    },
+    "empty": {
+        "title": "我是 Edutu，你的 AI 教练",
+        "description": "问我真实的奖学金、截止日期、路线图，或申请的下一步怎么走。"
+    },
+    "input": {
+        "placeholder": "给 Edutu 发消息…"
+    },
+    "threads": {
+        "modalTitle": "对话",
+        "newConversation": "新建对话",
+        "empty": "暂无最近对话",
+        "groups": {
+            "today": "今天",
+            "yesterday": "昨天",
+            "thisWeek": "本周",
+            "older": "更早"
+        }
+    },
+    "voice": {
+        "titleTranscript": "语音消息",
+        "titleListening": "正在聆听…",
+        "titleProcessing": "处理中…",
+        "titleIdle": "点击说话",
+        "sendingAutomatically": "即将自动发送…",
+        "genericError": "出了点问题",
+        "hintStop": "点击麦克风停止",
+        "hintSendOrWait": "点击发送或稍候",
+        "hintTranscribing": "正在转写你的消息…",
+        "hintStart": "点击麦克风开始录音"
+    }
+}

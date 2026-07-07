@@ -7,6 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
+import { useTranslation, Trans } from 'react-i18next';
 import {
     TrendingUp, BookOpen, Calendar, Users, Plus,
     DollarSign, Star, X, CheckCircle, ChevronRight,
@@ -56,6 +57,7 @@ interface Resource {
 }
 
 export default function CreatorDashboard() {
+    const { t } = useTranslation('misc');
     const { user } = useUser();
     const { getToken } = useAuth();
     const router = useRouter();
@@ -201,9 +203,9 @@ export default function CreatorDashboard() {
 
             if (error) throw error;
             setNewListing(p => ({ ...p, image_url: url || '' }));
-            Alert.alert('Success', 'Thumbnail uploaded!');
+            Alert.alert(t('common:states.success'), t('creatorDashboard.alerts.thumbnailUploaded'));
         } catch (err: any) {
-            Alert.alert('Upload Failed', err.message);
+            Alert.alert(t('creatorDashboard.alerts.uploadFailedTitle'), err.message);
         } finally {
             setUploadingThumb(false);
         }
@@ -230,19 +232,19 @@ export default function CreatorDashboard() {
             const updated = [...resources];
             updated[index] = { ...updated[index], url: url || '', fileName: file.name };
             setResources(updated);
-            Alert.alert('Success', 'File uploaded successfully.');
+            Alert.alert(t('common:states.success'), t('creatorDashboard.alerts.fileUploaded'));
         } catch (err: any) {
-            Alert.alert('Upload Failed', err.message);
+            Alert.alert(t('creatorDashboard.alerts.uploadFailedTitle'), err.message);
         }
     };
 
     const handleCreateListing = async () => {
         if (!newListing.title || !newListing.description) {
-            Alert.alert('Missing Info', 'Please fill in the title and description.');
+            Alert.alert(t('creatorDashboard.alerts.missingInfoTitle'), t('creatorDashboard.alerts.missingInfoMessage'));
             return;
         }
         if (roadmapStages.length === 0) {
-            Alert.alert('Missing Curriculum', 'Add at least one roadmap stage.');
+            Alert.alert(t('creatorDashboard.alerts.missingCurriculumTitle'), t('creatorDashboard.alerts.missingCurriculumMessage'));
             return;
         }
 
@@ -302,7 +304,7 @@ export default function CreatorDashboard() {
 
             if (!response.ok) {
                 const data = await response.json().catch(() => null);
-                throw new Error(data?.message || data?.error || 'Unable to publish roadmap.');
+                throw new Error(data?.message || data?.error || t('creatorDashboard.alerts.publishFailed'));
             }
 
             setShowWizard(false);
@@ -312,9 +314,9 @@ export default function CreatorDashboard() {
             setResources([]);
             setChecklistItems([]);
             await fetchDashboard();
-            Alert.alert('Success!', 'Your roadmap is published and visible to learners.');
+            Alert.alert(t('creatorDashboard.alerts.publishedTitle'), t('creatorDashboard.alerts.publishedMessage'));
         } catch (error: any) {
-            Alert.alert('Failed', error.message || 'Please try again.');
+            Alert.alert(t('creatorDashboard.alerts.failedTitle'), error.message || t('creatorDashboard.alerts.failedFallback'));
         } finally {
             setCreating(false);
         }
@@ -351,9 +353,9 @@ export default function CreatorDashboard() {
     if (accessLoading || loading) {
         return (
             <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-                <ScreenHeader title="Creator Studio" showBack />
+                <ScreenHeader title={t('creatorDashboard.title')} showBack />
                 <View style={styles.loadingCenter}>
-                    <BrandedLoader label="Loading Creator Studio..." />
+                    <BrandedLoader label={t('creatorDashboard.loading')} />
                     {showLongLoadNotice && (
                         <Animated.View
                             style={[
@@ -370,10 +372,10 @@ export default function CreatorDashboard() {
                             </View>
                             <View style={styles.longLoadCopy}>
                                 <Text style={[styles.longLoadTitle, { color: textPrimary }]}>
-                                    This is taking longer than expected
+                                    {t('creatorDashboard.longLoad.title')}
                                 </Text>
                                 <Text style={[styles.longLoadText, { color: textSecondary }]}>
-                                    Please try again later or go back while we reconnect.
+                                    {t('creatorDashboard.longLoad.text')}
                                 </Text>
                             </View>
                             <View style={styles.longLoadActions}>
@@ -388,10 +390,10 @@ export default function CreatorDashboard() {
                                     }}
                                 >
                                     <ChevronLeft size={14} color={textSecondary} />
-                                    <Text style={[styles.longLoadBtnText, { color: textSecondary }]}>Back</Text>
+                                    <Text style={[styles.longLoadBtnText, { color: textSecondary }]}>{t('common:actions.back')}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity style={[styles.longLoadBtn, { backgroundColor: colors.accent }]} onPress={retryLoading}>
-                                    <Text style={[styles.longLoadBtnText, { color: '#FFFFFF' }]}>Try Again</Text>
+                                    <Text style={[styles.longLoadBtnText, { color: '#FFFFFF' }]}>{t('creatorDashboard.longLoad.tryAgain')}</Text>
                                 </TouchableOpacity>
                             </View>
                         </Animated.View>
@@ -404,34 +406,34 @@ export default function CreatorDashboard() {
     if (creatorStatus !== 'approved') {
         return (
             <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-                <ScreenHeader title="Creator Studio" showBack />
+                <ScreenHeader title={t('creatorDashboard.title')} showBack />
                 <ScrollView contentContainerStyle={styles.accessGuardContent} showsVerticalScrollIndicator={false}>
                     <View style={styles.accessGuardCard}>
                         <View style={[styles.accessIconBox, { backgroundColor: `${colors.accent}12` }]}>
                             <Sparkles size={40} color={colors.accent} />
                         </View>
-                        <Text style={[styles.accessTitle, { color: textPrimary }]}>Creator Studio</Text>
+                        <Text style={[styles.accessTitle, { color: textPrimary }]}>{t('creatorDashboard.title')}</Text>
 
                         {creatorStatus === 'pending' && (
                             <>
                                 <View style={[styles.accessStatusBadge, { backgroundColor: 'rgba(245, 158, 11, 0.12)' }]}>
                                     <Clock size={16} color="#F59E0B" />
-                                    <Text style={[styles.accessStatusText, { color: '#F59E0B' }]}>Application Pending</Text>
+                                    <Text style={[styles.accessStatusText, { color: '#F59E0B' }]}>{t('creatorDashboard.access.pendingBadge')}</Text>
                                 </View>
                                 <Text style={[styles.accessDesc, { color: textSecondary }]}>
-                                    Your application is being reviewed by our team. We'll notify you once it's approved. This usually takes 2-3 business days.
+                                    {t('creatorDashboard.access.pendingDesc')}
                                 </Text>
                                 <View style={[styles.accessInfoBox, { backgroundColor: inputBg }]}>
                                     <Info size={16} color={textSecondary} />
                                     <Text style={[styles.accessInfoText, { color: textSecondary }]}>
-                                        While you wait, you can browse other creators' roadmaps for inspiration.
+                                        {t('creatorDashboard.access.pendingInfo')}
                                     </Text>
                                 </View>
                                 <TouchableOpacity
                                     style={[styles.accessBtn, { backgroundColor: colors.accent }]}
                                     onPress={() => router.push('/roadmaps')}
                                 >
-                                    <Text style={styles.accessBtnText}>Browse Roadmaps</Text>
+                                    <Text style={styles.accessBtnText}>{t('creatorDashboard.access.browseRoadmaps')}</Text>
                                 </TouchableOpacity>
                             </>
                         )}
@@ -440,16 +442,16 @@ export default function CreatorDashboard() {
                             <>
                                 <View style={[styles.accessStatusBadge, { backgroundColor: 'rgba(239, 68, 68, 0.12)' }]}>
                                     <AlertCircle size={16} color="#EF4444" />
-                                    <Text style={[styles.accessStatusText, { color: '#EF4444' }]}>Application Not Approved</Text>
+                                    <Text style={[styles.accessStatusText, { color: '#EF4444' }]}>{t('creatorDashboard.access.rejectedBadge')}</Text>
                                 </View>
                                 <Text style={[styles.accessDesc, { color: textSecondary }]}>
-                                    Unfortunately, your application wasn't approved. You can submit a new application with additional details.
+                                    {t('creatorDashboard.access.rejectedDesc')}
                                 </Text>
                                 <TouchableOpacity
                                     style={[styles.accessBtn, { backgroundColor: colors.accent }]}
                                     onPress={() => router.push('/creator-apply')}
                                 >
-                                    <Text style={styles.accessBtnText}>Reapply</Text>
+                                    <Text style={styles.accessBtnText}>{t('creatorDashboard.access.reapply')}</Text>
                                 </TouchableOpacity>
                             </>
                         )}
@@ -457,27 +459,27 @@ export default function CreatorDashboard() {
                         {!creatorStatus || creatorStatus === 'none' && (
                             <>
                                 <Text style={[styles.accessDesc, { color: textSecondary }]}>
-                                    Join our creator community and share your knowledge with thousands of learners. Earn credits while helping others achieve their goals.
+                                    {t('creatorDashboard.access.noneDesc')}
                                 </Text>
                                 <View style={styles.accessPerks}>
                                     <View style={[styles.perkItem, { backgroundColor: 'rgba(16, 185, 129, 0.08)' }]}>
                                         <DollarSign size={20} color="#10B981" />
-                                        <Text style={[styles.perkText, { color: textPrimary }]}>85% Revenue Share</Text>
+                                        <Text style={[styles.perkText, { color: textPrimary }]}>{t('creatorDashboard.access.perkRevenue')}</Text>
                                     </View>
                                     <View style={[styles.perkItem, { backgroundColor: 'rgba(59, 130, 246, 0.08)' }]}>
                                         <Users size={20} color="#3B82F6" />
-                                        <Text style={[styles.perkText, { color: textPrimary }]}>Reach 10K+ Students</Text>
+                                        <Text style={[styles.perkText, { color: textPrimary }]}>{t('creatorDashboard.access.perkReach')}</Text>
                                     </View>
                                     <View style={[styles.perkItem, { backgroundColor: 'rgba(59, 130, 246, 0.08)' }]}>
                                         <Award size={20} color="#3b82f6" />
-                                        <Text style={[styles.perkText, { color: textPrimary }]}>Verified Creator Badge</Text>
+                                        <Text style={[styles.perkText, { color: textPrimary }]}>{t('creatorDashboard.access.perkBadge')}</Text>
                                     </View>
                                 </View>
                                 <TouchableOpacity
                                     style={[styles.accessBtn, { backgroundColor: colors.accent }]}
                                     onPress={() => router.push('/creator-apply')}
                                 >
-                                    <Text style={styles.accessBtnText}>Apply to Become a Creator</Text>
+                                    <Text style={styles.accessBtnText}>{t('creatorDashboard.access.applyCta')}</Text>
                                 </TouchableOpacity>
                             </>
                         )}
@@ -490,7 +492,7 @@ export default function CreatorDashboard() {
     // ─── APPROVED CREATOR DASHBOARD ─────────────────────────────────────────
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-            <ScreenHeader title="Creator Studio" showBack subtitle="Create & manage your roadmaps" />
+            <ScreenHeader title={t('creatorDashboard.title')} showBack subtitle={t('creatorDashboard.subtitle')} />
 
             <ScrollView
                 showsVerticalScrollIndicator={false}
@@ -500,8 +502,8 @@ export default function CreatorDashboard() {
                 {/* Welcome Header */}
                 <View style={styles.headerSection}>
                     <View style={styles.welcomeTextGroup}>
-                        <Text style={[styles.welcomeGreeting, { color: textSecondary }]}>Welcome back,</Text>
-                        <Text style={[styles.welcomeName, { color: textPrimary }]}>{user?.firstName || 'Creator'}</Text>
+                        <Text style={[styles.welcomeGreeting, { color: textSecondary }]}>{t('creatorDashboard.welcomeGreeting')}</Text>
+                        <Text style={[styles.welcomeName, { color: textPrimary }]}>{user?.firstName || t('creatorDashboard.creatorFallback')}</Text>
                     </View>
                     <TouchableOpacity
                         style={[styles.createBtn, { backgroundColor: colors.accent }]}
@@ -509,12 +511,12 @@ export default function CreatorDashboard() {
                         activeOpacity={0.8}
                     >
                         <Plus color="white" size={18} />
-                        <Text style={styles.createBtnText}>Create Roadmap</Text>
+                        <Text style={styles.createBtnText}>{t('creatorDashboard.createRoadmap')}</Text>
                     </TouchableOpacity>
                 </View>
 
                 {/* Stats Cards - Horizontal Scrollable */}
-                <Text style={[styles.sectionLabel, { color: textSecondary }]}>Overview</Text>
+                <Text style={[styles.sectionLabel, { color: textSecondary }]}>{t('creatorDashboard.overview')}</Text>
                 <Animated.ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
@@ -524,9 +526,9 @@ export default function CreatorDashboard() {
                     decelerationRate="fast"
                 >
                     {[
-                        { label: 'Total Credits', value: data?.totalEarnings ?? 0, icon: DollarSign, color: '#10B981', gradient: ['#10B981', '#059669'] },
-                        { label: 'Total Students', value: data?.totalEnrollments ?? 0, icon: Users, color: '#3B82F6', gradient: ['#3B82F6', '#2563EB'] },
-                        { label: 'Roadmaps', value: data?.totalListings ?? 0, icon: LayoutGrid, color: '#3b82f6', gradient: ['#3b82f6', '#2563eb'] },
+                        { label: t('creatorDashboard.stats.totalCredits'), value: data?.totalEarnings ?? 0, icon: DollarSign, color: '#10B981', gradient: ['#10B981', '#059669'] },
+                        { label: t('creatorDashboard.stats.totalStudents'), value: data?.totalEnrollments ?? 0, icon: Users, color: '#3B82F6', gradient: ['#3B82F6', '#2563EB'] },
+                        { label: t('creatorDashboard.stats.roadmaps'), value: data?.totalListings ?? 0, icon: LayoutGrid, color: '#3b82f6', gradient: ['#3b82f6', '#2563eb'] },
                     ].map((stat, i) => (
                         <Animated.View
                             key={i}
@@ -573,9 +575,9 @@ export default function CreatorDashboard() {
                     >
                         <Award color={isDark ? "#818CF8" : "#4F46E5"} size={28} />
                         <View style={styles.rewardTextGroup}>
-                            <Text style={[styles.rewardTitle, { color: isDark ? "white" : "#1E1B4B" }]}>Creator Rewards</Text>
+                            <Text style={[styles.rewardTitle, { color: isDark ? "white" : "#1E1B4B" }]}>{t('creatorDashboard.rewards.title')}</Text>
                             <Text style={[styles.rewardText, { color: isDark ? "#A5B4FC" : "#4338CA" }]}>
-                                You earn <Text style={{ fontWeight: '800' }}>85%</Text> of every roadmap sale.
+                                <Trans t={t} i18nKey="creatorDashboard.rewards.text" components={{ bold: <Text style={{ fontWeight: '800' }} /> }} />
                             </Text>
                         </View>
                     </LinearGradient>
@@ -586,7 +588,7 @@ export default function CreatorDashboard() {
                     <View style={styles.sectionHeader}>
                         <View style={styles.sectionTitleRow}>
                             <Map size={18} color={colors.accent} />
-                            <Text style={[styles.sectionTitle, { color: textPrimary }]}>My Roadmaps</Text>
+                            <Text style={[styles.sectionTitle, { color: textPrimary }]}>{t('creatorDashboard.myRoadmaps')}</Text>
                         </View>
                     </View>
 
@@ -595,16 +597,16 @@ export default function CreatorDashboard() {
                             <View style={[styles.emptyIconBox, { backgroundColor: `${colors.accent}10` }]}>
                                 <BookOpen color={colors.accent} size={36} />
                             </View>
-                            <Text style={[styles.emptyTitle, { color: textPrimary }]}>No roadmaps yet</Text>
+                            <Text style={[styles.emptyTitle, { color: textPrimary }]}>{t('creatorDashboard.empty.title')}</Text>
                             <Text style={[styles.emptySubtext, { color: textSecondary }]}>
-                                Create your first roadmap and start sharing your knowledge with the community.
+                                {t('creatorDashboard.empty.subtext')}
                             </Text>
                             <TouchableOpacity
                                 style={[styles.emptyBtn, { backgroundColor: colors.accent }]}
                                 onPress={() => { setShowWizard(true); setWizardStep('basics'); }}
                             >
                                 <Plus size={18} color="white" />
-                                <Text style={styles.emptyBtnText}>Create Your First Roadmap</Text>
+                                <Text style={styles.emptyBtnText}>{t('creatorDashboard.empty.cta')}</Text>
                             </TouchableOpacity>
                         </View>
                     ) : (
@@ -639,7 +641,7 @@ export default function CreatorDashboard() {
                                     </View>
                                     <View style={styles.listingRight}>
                                         <Text style={[styles.listingPrice, { color: colors.accent }]}>
-                                            {listing.price === 0 ? 'Free' : `${listing.price} cr`}
+                                            {listing.price === 0 ? t('creatorDashboard.free') : t('creatorDashboard.priceCr', { price: listing.price })}
                                         </Text>
                                         <View style={styles.enrollBox}>
                                             <Users size={12} color={textSecondary} />
@@ -695,16 +697,16 @@ export default function CreatorDashboard() {
                         <View style={styles.wizardTitleBar}>
                             <View>
                                 <Text style={[styles.wizardStepTitle, { color: textPrimary }]}>
-                                    {wizardStep === 'basics' && 'Roadmap Basics'}
-                                    {wizardStep === 'curriculum' && 'Curriculum Stages'}
-                                    {wizardStep === 'resources' && 'Resources & Files'}
-                                    {wizardStep === 'review' && 'Review & Submit'}
+                                    {wizardStep === 'basics' && t('creatorDashboard.wizard.basicsTitle')}
+                                    {wizardStep === 'curriculum' && t('creatorDashboard.wizard.curriculumTitle')}
+                                    {wizardStep === 'resources' && t('creatorDashboard.wizard.resourcesTitle')}
+                                    {wizardStep === 'review' && t('creatorDashboard.wizard.reviewTitle')}
                                 </Text>
                                 <Text style={[styles.wizardStepDesc, { color: textSecondary }]}>
-                                    {wizardStep === 'basics' && 'Tell us about your roadmap'}
-                                    {wizardStep === 'curriculum' && 'Define the learning stages'}
-                                    {wizardStep === 'resources' && 'Add supporting materials'}
-                                    {wizardStep === 'review' && 'Double-check before submitting'}
+                                    {wizardStep === 'basics' && t('creatorDashboard.wizard.basicsDesc')}
+                                    {wizardStep === 'curriculum' && t('creatorDashboard.wizard.curriculumDesc')}
+                                    {wizardStep === 'resources' && t('creatorDashboard.wizard.resourcesDesc')}
+                                    {wizardStep === 'review' && t('creatorDashboard.wizard.reviewDesc')}
                                 </Text>
                             </View>
                         </View>
@@ -717,17 +719,17 @@ export default function CreatorDashboard() {
                                     <View style={[styles.infoCallout, { backgroundColor: `${colors.accent}08`, borderColor: `${colors.accent}20` }]}>
                                         <Info size={16} color={colors.accent} />
                                         <Text style={[styles.infoCalloutText, { color: textSecondary }]}>
-                                            You're creating a <Text style={{ fontWeight: '700', color: colors.accent }}>roadmap</Text> — a step-by-step learning guide that helps students achieve specific goals.
+                                            <Trans t={t} i18nKey="creatorDashboard.wizard.basicsCallout" components={{ bold: <Text style={{ fontWeight: '700', color: colors.accent }} /> }} />
                                         </Text>
                                     </View>
 
                                     <View style={styles.formGroup}>
-                                        <Text style={[styles.formLabel, { color: textPrimary }]}>Roadmap Title</Text>
+                                        <Text style={[styles.formLabel, { color: textPrimary }]}>{t('creatorDashboard.wizard.titleLabel')}</Text>
                                         <TextInput
                                             value={newListing.title}
                                             onChangeText={v => setNewListing(p => ({ ...p, title: v }))}
                                             style={[styles.wizardInput, { backgroundColor: inputBg, color: textPrimary, borderColor }]}
-                                            placeholder="e.g. Complete Web Development Roadmap"
+                                            placeholder={t('creatorDashboard.wizard.titlePlaceholder')}
                                             placeholderTextColor={textSecondary}
                                         />
                                         <Text style={[styles.charCount, { color: newListing.title.length > 60 ? '#EF4444' : textSecondary }]}>
@@ -736,12 +738,12 @@ export default function CreatorDashboard() {
                                     </View>
 
                                     <View style={styles.formGroup}>
-                                        <Text style={[styles.formLabel, { color: textPrimary }]}>Description</Text>
+                                        <Text style={[styles.formLabel, { color: textPrimary }]}>{t('creatorDashboard.wizard.descriptionLabel')}</Text>
                                         <TextInput
                                             value={newListing.description}
                                             onChangeText={v => setNewListing(p => ({ ...p, description: v }))}
                                             style={[styles.wizardInput, styles.wizardTextArea, { backgroundColor: inputBg, color: textPrimary, borderColor }]}
-                                            placeholder="What will students learn? What outcomes can they expect?"
+                                            placeholder={t('creatorDashboard.wizard.descriptionPlaceholder')}
                                             placeholderTextColor={textSecondary}
                                             multiline
                                             numberOfLines={4}
@@ -750,7 +752,7 @@ export default function CreatorDashboard() {
                                     </View>
 
                                     <View style={styles.formGroup}>
-                                        <Text style={[styles.formLabel, { color: textPrimary }]}>Category</Text>
+                                        <Text style={[styles.formLabel, { color: textPrimary }]}>{t('creatorDashboard.wizard.categoryLabel')}</Text>
                                         <View style={styles.categoryGrid}>
                                             {Object.entries(CATEGORY_COLORS).map(([cat, color]) => (
                                                 <TouchableOpacity
@@ -773,7 +775,7 @@ export default function CreatorDashboard() {
                                     </View>
 
                                     <View style={styles.formGroup}>
-                                        <Text style={[styles.formLabel, { color: textPrimary }]}>Thumbnail Image</Text>
+                                        <Text style={[styles.formLabel, { color: textPrimary }]}>{t('creatorDashboard.wizard.thumbnailLabel')}</Text>
                                         <TouchableOpacity
                                             style={[styles.thumbUpload, { backgroundColor: inputBg, borderColor: newListing.image_url ? '#10B981' : borderColor }]}
                                             onPress={handleUploadThumbnail}
@@ -786,7 +788,7 @@ export default function CreatorDashboard() {
                                                     <Image source={{ uri: newListing.image_url }} style={styles.thumbPreview} />
                                                     <View style={styles.thumbUploadedBadge}>
                                                         <CheckCircle size={14} color="white" />
-                                                        <Text style={styles.thumbBadgeText}>Uploaded</Text>
+                                                        <Text style={styles.thumbBadgeText}>{t('creatorDashboard.wizard.uploaded')}</Text>
                                                     </View>
                                                 </>
                                             ) : (
@@ -794,32 +796,32 @@ export default function CreatorDashboard() {
                                                     <View style={[styles.thumbUploadIcon, { backgroundColor: `${colors.accent}12` }]}>
                                                         <Upload size={24} color={colors.accent} />
                                                     </View>
-                                                    <Text style={[styles.thumbUploadText, { color: textPrimary }]}>Browse from device</Text>
-                                                    <Text style={[styles.thumbUploadSubtext, { color: textSecondary }]}>16:9 ratio recommended</Text>
+                                                    <Text style={[styles.thumbUploadText, { color: textPrimary }]}>{t('creatorDashboard.wizard.browseDevice')}</Text>
+                                                    <Text style={[styles.thumbUploadSubtext, { color: textSecondary }]}>{t('creatorDashboard.wizard.ratioHint')}</Text>
                                                 </>
                                             )}
                                         </TouchableOpacity>
                                     </View>
 
                                     <View style={styles.formGroup}>
-                                        <Text style={[styles.formLabel, { color: textPrimary }]}>Price (Credits)</Text>
+                                        <Text style={[styles.formLabel, { color: textPrimary }]}>{t('creatorDashboard.wizard.priceLabel')}</Text>
                                         <TextInput
                                             value={newListing.price}
                                             onChangeText={v => setNewListing(p => ({ ...p, price: v }))}
                                             style={[styles.wizardInput, { backgroundColor: inputBg, color: textPrimary, borderColor }]}
                                             keyboardType="numeric"
-                                            placeholder="0 for free roadmap"
+                                            placeholder={t('creatorDashboard.wizard.pricePlaceholder')}
                                             placeholderTextColor={textSecondary}
                                         />
                                     </View>
 
                                     <View style={styles.formGroup}>
-                                        <Text style={[styles.formLabel, { color: textPrimary }]}>Your Experience</Text>
+                                        <Text style={[styles.formLabel, { color: textPrimary }]}>{t('creatorDashboard.wizard.experienceLabel')}</Text>
                                         <TextInput
                                             value={newListing.experiences}
                                             onChangeText={v => setNewListing(p => ({ ...p, experiences: v }))}
                                             style={[styles.wizardInput, styles.wizardTextArea, { backgroundColor: inputBg, color: textPrimary, borderColor }]}
-                                            placeholder="Why are you qualified to create this roadmap?"
+                                            placeholder={t('creatorDashboard.wizard.experiencePlaceholder')}
                                             placeholderTextColor={textSecondary}
                                             multiline
                                             numberOfLines={3}
@@ -835,7 +837,7 @@ export default function CreatorDashboard() {
                                     <View style={[styles.infoCallout, { backgroundColor: 'rgba(59, 130, 246, 0.08)', borderColor: 'rgba(59, 130, 246, 0.2)' }]}>
                                         <Target size={16} color="#3b82f6" />
                                         <Text style={[styles.infoCalloutText, { color: textSecondary }]}>
-                                            Break your roadmap into <Text style={{ fontWeight: '700', color: '#3b82f6' }}>stages</Text>. Each stage represents a key milestone in the student's journey.
+                                            <Trans t={t} i18nKey="creatorDashboard.wizard.curriculumCallout" components={{ bold: <Text style={{ fontWeight: '700', color: '#3b82f6' }} /> }} />
                                         </Text>
                                     </View>
 
@@ -843,7 +845,7 @@ export default function CreatorDashboard() {
                                         <View key={stage.id} style={[styles.stageCard, { backgroundColor: cardBg, borderColor }]}>
                                             <View style={styles.stageHeader}>
                                                 <View style={[styles.stageNumber, { backgroundColor: `${colors.accent}15` }]}>
-                                                    <Text style={[styles.stageNumberText, { color: colors.accent }]}>Stage {i + 1}</Text>
+                                                    <Text style={[styles.stageNumberText, { color: colors.accent }]}>{t('creatorDashboard.wizard.stageNumber', { number: i + 1 })}</Text>
                                                 </View>
                                                 {roadmapStages.length > 1 && (
                                                     <TouchableOpacity
@@ -858,7 +860,7 @@ export default function CreatorDashboard() {
                                             </View>
 
                                             <TextInput
-                                                placeholder="Stage title (e.g. Fundamentals)"
+                                                placeholder={t('creatorDashboard.wizard.stageTitlePlaceholder')}
                                                 placeholderTextColor={textSecondary}
                                                 value={stage.title}
                                                 onChangeText={v => {
@@ -869,7 +871,7 @@ export default function CreatorDashboard() {
                                                 style={[styles.wizardInput, { backgroundColor: inputBg, color: textPrimary, borderColor, marginBottom: 10 }]}
                                             />
                                             <TextInput
-                                                placeholder="Brief description of this stage"
+                                                placeholder={t('creatorDashboard.wizard.stageDescPlaceholder')}
                                                 placeholderTextColor={textSecondary}
                                                 value={stage.description}
                                                 onChangeText={v => {
@@ -883,7 +885,7 @@ export default function CreatorDashboard() {
                                                 textAlignVertical="top"
                                             />
                                             <TextInput
-                                                placeholder="Duration (e.g. Week 1-2)"
+                                                placeholder={t('creatorDashboard.wizard.stageDurationPlaceholder')}
                                                 placeholderTextColor={textSecondary}
                                                 value={stage.duration}
                                                 onChangeText={v => {
@@ -901,7 +903,7 @@ export default function CreatorDashboard() {
                                         onPress={() => setRoadmapStages([...roadmapStages, { id: Math.random().toString(), title: '', description: '', duration: '' }])}
                                     >
                                         <Plus size={20} color={colors.accent} />
-                                        <Text style={[styles.addStageText, { color: colors.accent }]}>Add Stage</Text>
+                                        <Text style={[styles.addStageText, { color: colors.accent }]}>{t('creatorDashboard.wizard.addStage')}</Text>
                                     </TouchableOpacity>
                                 </View>
                             )}
@@ -912,7 +914,7 @@ export default function CreatorDashboard() {
                                     <View style={[styles.infoCallout, { backgroundColor: 'rgba(59, 130, 246, 0.08)', borderColor: 'rgba(59, 130, 246, 0.2)' }]}>
                                         <FileText size={16} color="#3B82F6" />
                                         <Text style={[styles.infoCalloutText, { color: textSecondary }]}>
-                                            Add resources like sample files, templates, or documents that students can download.
+                                            {t('creatorDashboard.wizard.resourcesCallout')}
                                         </Text>
                                     </View>
 
@@ -921,7 +923,7 @@ export default function CreatorDashboard() {
                                             <View style={styles.resourceHeader}>
                                                 <FileText size={18} color={colors.accent} />
                                                 <TextInput
-                                                    placeholder="Resource name"
+                                                    placeholder={t('creatorDashboard.wizard.resourceNamePlaceholder')}
                                                     placeholderTextColor={textSecondary}
                                                     value={res.title}
                                                     onChangeText={v => {
@@ -943,7 +945,7 @@ export default function CreatorDashboard() {
                                             >
                                                 <Upload size={14} color={textSecondary} />
                                                 <Text style={[styles.resourceUploadText, { color: res.fileName ? '#10B981' : textSecondary }]}>
-                                                    {res.fileName || 'Upload file'}
+                                                    {res.fileName || t('creatorDashboard.wizard.uploadFile')}
                                                 </Text>
                                             </TouchableOpacity>
                                         </View>
@@ -954,7 +956,7 @@ export default function CreatorDashboard() {
                                         onPress={() => setResources([...resources, { title: '', type: 'resource', url: '' }])}
                                     >
                                         <Plus size={20} color={colors.accent} />
-                                        <Text style={[styles.addStageText, { color: colors.accent }]}>Add Resource</Text>
+                                        <Text style={[styles.addStageText, { color: colors.accent }]}>{t('creatorDashboard.wizard.addResource')}</Text>
                                     </TouchableOpacity>
                                 </View>
                             )}
@@ -965,33 +967,33 @@ export default function CreatorDashboard() {
                                     <View style={[styles.infoCallout, { backgroundColor: 'rgba(16, 185, 129, 0.08)', borderColor: 'rgba(16, 185, 129, 0.2)' }]}>
                                         <Eye size={16} color="#10B981" />
                                         <Text style={[styles.infoCalloutText, { color: textSecondary }]}>
-                                            Review your roadmap details before publishing. As an approved creator, it goes live to learners immediately.
+                                            {t('creatorDashboard.wizard.reviewCallout')}
                                         </Text>
                                     </View>
 
                                     <View style={[styles.reviewCard, { backgroundColor: cardBg, borderColor }]}>
-                                        <Text style={[styles.reviewSectionTitle, { color: textPrimary }]}>Basics</Text>
+                                        <Text style={[styles.reviewSectionTitle, { color: textPrimary }]}>{t('creatorDashboard.wizard.reviewBasics')}</Text>
                                         <View style={styles.reviewRow}>
-                                            <Text style={[styles.reviewLabel, { color: textSecondary }]}>Title</Text>
+                                            <Text style={[styles.reviewLabel, { color: textSecondary }]}>{t('creatorDashboard.wizard.reviewTitleLabel')}</Text>
                                             <Text style={[styles.reviewValue, { color: textPrimary }]}>{newListing.title}</Text>
                                         </View>
                                         <View style={styles.reviewRow}>
-                                            <Text style={[styles.reviewLabel, { color: textSecondary }]}>Category</Text>
+                                            <Text style={[styles.reviewLabel, { color: textSecondary }]}>{t('creatorDashboard.wizard.reviewCategoryLabel')}</Text>
                                             <Text style={[styles.reviewValue, { color: textPrimary, textTransform: 'capitalize' }]}>{newListing.category}</Text>
                                         </View>
                                         <View style={styles.reviewRow}>
-                                            <Text style={[styles.reviewLabel, { color: textSecondary }]}>Price</Text>
-                                            <Text style={[styles.reviewValue, { color: textPrimary }]}>{newListing.price === '0' ? 'Free' : `${newListing.price} credits`}</Text>
+                                            <Text style={[styles.reviewLabel, { color: textSecondary }]}>{t('creatorDashboard.wizard.reviewPriceLabel')}</Text>
+                                            <Text style={[styles.reviewValue, { color: textPrimary }]}>{newListing.price === '0' ? t('creatorDashboard.free') : t('creatorDashboard.wizard.priceCredits', { price: newListing.price })}</Text>
                                         </View>
                                     </View>
 
                                     <View style={[styles.reviewCard, { backgroundColor: cardBg, borderColor }]}>
-                                        <Text style={[styles.reviewSectionTitle, { color: textPrimary }]}>Curriculum ({roadmapStages.length} stages)</Text>
+                                        <Text style={[styles.reviewSectionTitle, { color: textPrimary }]}>{t('creatorDashboard.wizard.reviewCurriculum', { total: roadmapStages.length })}</Text>
                                         {roadmapStages.map((stage, i) => (
                                             <View key={stage.id} style={styles.reviewStage}>
                                                 <View style={styles.reviewStageHeader}>
                                                     <View style={[styles.stageNumber, { backgroundColor: `${colors.accent}15` }]}>
-                                                        <Text style={[styles.stageNumberText, { color: colors.accent }]}>Stage {i + 1}</Text>
+                                                        <Text style={[styles.stageNumberText, { color: colors.accent }]}>{t('creatorDashboard.wizard.stageNumber', { number: i + 1 })}</Text>
                                                     </View>
                                                     <Text style={[styles.reviewStageTitle, { color: textPrimary }]}>{stage.title}</Text>
                                                 </View>
@@ -1004,12 +1006,12 @@ export default function CreatorDashboard() {
 
                                     {resources.length > 0 && (
                                         <View style={[styles.reviewCard, { backgroundColor: cardBg, borderColor }]}>
-                                            <Text style={[styles.reviewSectionTitle, { color: textPrimary }]}>Resources ({resources.length})</Text>
+                                            <Text style={[styles.reviewSectionTitle, { color: textPrimary }]}>{t('creatorDashboard.wizard.reviewResources', { total: resources.length })}</Text>
                                             {resources.map((res, i) => (
                                                 <View key={i} style={styles.reviewResource}>
                                                     <FileText size={14} color={textSecondary} />
-                                                    <Text style={[styles.reviewResourceText, { color: textPrimary }]}>{res.title || 'Untitled'}</Text>
-                                                    {res.fileName && <Text style={[styles.reviewResourceFile, { color: '#10B981' }]}>✓ {res.fileName}</Text>}
+                                                    <Text style={[styles.reviewResourceText, { color: textPrimary }]}>{res.title || t('creatorDashboard.wizard.untitled')}</Text>
+                                                    {res.fileName && <Text style={[styles.reviewResourceFile, { color: '#10B981' }]}>{t('creatorDashboard.wizard.fileAttached', { fileName: res.fileName })}</Text>}
                                                 </View>
                                             ))}
                                         </View>
@@ -1025,7 +1027,7 @@ export default function CreatorDashboard() {
                             {wizardStep !== 'basics' && (
                                 <TouchableOpacity onPress={prevStep} style={[styles.wizardFooterBtn, { backgroundColor: inputBg }]}>
                                     <ChevronLeft size={18} color={textSecondary} />
-                                    <Text style={[styles.wizardFooterBtnText, { color: textSecondary }]}>Back</Text>
+                                    <Text style={[styles.wizardFooterBtnText, { color: textSecondary }]}>{t('common:actions.back')}</Text>
                                 </TouchableOpacity>
                             )}
                             <TouchableOpacity
@@ -1042,7 +1044,7 @@ export default function CreatorDashboard() {
                                 ) : (
                                     <>
                                         <Text style={styles.wizardSubmitText}>
-                                            {wizardStep === 'review' ? 'Submit for Review' : 'Continue'}
+                                            {wizardStep === 'review' ? t('creatorDashboard.wizard.submitForReview') : t('common:actions.continue')}
                                         </Text>
                                         {wizardStep !== 'review' && <ChevronRight size={18} color="white" />}
                                     </>

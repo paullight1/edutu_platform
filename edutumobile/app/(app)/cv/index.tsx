@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth, useUser } from '@clerk/clerk-expo';
+import { useTranslation } from 'react-i18next';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Plus, ChevronLeft, Eye, Crown, ChevronRight, FilePlus, Import, Target } from 'lucide-react-native';
@@ -39,30 +40,31 @@ import { AITailorModal } from '../../../components/cv/AITailorModal';
 
 type CVSection = 'templates' | 'editor' | 'preview';
 
+// Values are i18n keys in the `cv` namespace; translate with t() at render time.
 const SAMPLE_BY_CATEGORY = {
     academic: {
-        name: 'Amara Okafor',
-        headline: 'MSc Public Health Applicant',
-        summary: 'Research-focused profile with education, publications, field projects, and academic achievements placed before work history.',
-        bullets: ['Education and research first', 'Publications and awards visible', 'Good for scholarships and graduate admissions'],
+        name: 'templates.samples.academic.name',
+        headline: 'templates.samples.academic.headline',
+        summary: 'templates.samples.academic.summary',
+        bullets: ['templates.samples.academic.bullets.0', 'templates.samples.academic.bullets.1', 'templates.samples.academic.bullets.2'],
     },
     professional: {
-        name: 'Daniel Mensah',
-        headline: 'Operations Analyst',
-        summary: 'Outcome-led profile for internships, jobs, fellowships, and early-career programs with measurable work impact.',
-        bullets: ['Work impact before coursework', 'Strong skills and metrics section', 'Good for internships and jobs'],
+        name: 'templates.samples.professional.name',
+        headline: 'templates.samples.professional.headline',
+        summary: 'templates.samples.professional.summary',
+        bullets: ['templates.samples.professional.bullets.0', 'templates.samples.professional.bullets.1', 'templates.samples.professional.bullets.2'],
     },
     creative: {
-        name: 'Leah Adeyemi',
-        headline: 'Product Designer',
-        summary: 'Portfolio-friendly structure that highlights projects, tools, links, and visual achievements without losing ATS readability.',
-        bullets: ['Projects and portfolio links', 'Tools and case-study highlights', 'Good for design and media roles'],
+        name: 'templates.samples.creative.name',
+        headline: 'templates.samples.creative.headline',
+        summary: 'templates.samples.creative.summary',
+        bullets: ['templates.samples.creative.bullets.0', 'templates.samples.creative.bullets.1', 'templates.samples.creative.bullets.2'],
     },
     general: {
-        name: 'Edutu Student',
-        headline: 'Opportunity Applicant',
-        summary: 'Balanced structure for students applying across scholarships, school programs, internships, and community opportunities.',
-        bullets: ['Clean student profile', 'Flexible section order', 'Good for broad applications'],
+        name: 'templates.samples.general.name',
+        headline: 'templates.samples.general.headline',
+        summary: 'templates.samples.general.summary',
+        bullets: ['templates.samples.general.bullets.0', 'templates.samples.general.bullets.1', 'templates.samples.general.bullets.2'],
     },
 };
 
@@ -144,6 +146,7 @@ function QuickActionCard({
 }
 
 export default function CVBuilderScreen() {
+    const { t } = useTranslation('cv');
     const { user } = useUser();
     const { getToken } = useAuth();
     const router = useRouter();
@@ -154,7 +157,7 @@ export default function CVBuilderScreen() {
     const [userCVs, setUserCVs] = useState<UserCV[]>([]);
     const [selectedTemplate, setSelectedTemplate] = useState<CVTemplate | null>(null);
     const [currentCV, setCurrentCV] = useState<Partial<UserCV>>({
-        name: 'My CV',
+        name: t('defaults.myCv'),
         data_json: {},
     });
     const [isPro, setIsPro] = useState(false);
@@ -188,7 +191,7 @@ export default function CVBuilderScreen() {
             });
             setCurrentCV((prev: Partial<UserCV>) => ({
                 ...prev,
-                name: prev.name || 'AI Draft CV',
+                name: prev.name || t('defaults.aiDraft'),
                 data_json: result.cv,
             }));
             setIsLinkedInImporting(false);
@@ -196,15 +199,15 @@ export default function CVBuilderScreen() {
             setActiveSection('editor');
             const suggestionText = result.suggestions.slice(0, 3).map((s) => `• ${s}`).join('\n');
             Alert.alert(
-                result.source === 'ai' ? 'AI draft ready' : 'Draft ready (offline mode)',
+                result.source === 'ai' ? t('alerts.aiDraftReadyTitle') : t('alerts.draftReadyOfflineTitle'),
                 suggestionText
-                    ? `Your CV draft is in the editor. Suggested next steps:\n${suggestionText}`
-                    : 'Your CV draft has been generated from your profile context.',
+                    ? t('alerts.draftReadyWithSuggestions', { suggestions: suggestionText })
+                    : t('alerts.draftReadyMessage'),
             );
         } catch (error) {
             console.error('AI CV generation error:', error);
             setIsLinkedInImporting(false);
-            Alert.alert('Error', 'Failed to generate CV draft.');
+            Alert.alert(t('common:states.error'), t('alerts.generateFailed'));
         }
     };
 
@@ -224,11 +227,11 @@ export default function CVBuilderScreen() {
                 data_json: { ...prev.data_json, summary: result.summary },
             }));
             if (result.source === 'local') {
-                Alert.alert('Summary updated', 'Improved offline from your existing details. Connect to the internet for the full AI rewrite.');
+                Alert.alert(t('alerts.summaryUpdatedTitle'), t('alerts.summaryUpdatedOffline'));
             }
         } catch (error) {
             console.error('Error improving summary:', error);
-            Alert.alert('Error', 'Could not improve the summary right now.');
+            Alert.alert(t('common:states.error'), t('alerts.improveSummaryFailed'));
         } finally {
             setIsImprovingSummary(false);
         }
@@ -293,7 +296,7 @@ export default function CVBuilderScreen() {
 
     const handleSelectTemplate = (template: CVTemplate) => {
         if (template.is_premium && !isPro) {
-            setUpgradeFeature(`${template.name} template`);
+            setUpgradeFeature(t('upgrade.templateFeature', { name: template.name }));
             setShowUpgradeModal(true);
             return;
         }
@@ -308,7 +311,7 @@ export default function CVBuilderScreen() {
 
     const handleCreateNewCV = () => {
         setSelectedTemplate(null);
-        setCurrentCV({ name: 'Untitled CV', data_json: {} });
+        setCurrentCV({ name: t('defaults.untitled'), data_json: {} });
         // Straight into a blank editor — picking a template stays optional.
         setActiveSection('editor');
     };
@@ -341,7 +344,7 @@ export default function CVBuilderScreen() {
                 }));
             const cvToSave: Partial<UserCV> = {
                 ...currentCV,
-                name: currentCV.name?.trim() || 'Untitled CV',
+                name: currentCV.name?.trim() || t('defaults.untitled'),
                 data_json: {
                     ...currentCV.data_json,
                     experience: cleanList(currentCV.data_json?.experience),
@@ -356,10 +359,10 @@ export default function CVBuilderScreen() {
                 setCurrentCV((prev: Partial<UserCV>) => ({ ...prev, id: newCV.id }));
             }
             await loadData();
-            Alert.alert('Success', 'CV saved successfully!');
+            Alert.alert(t('common:states.success'), t('alerts.saveSuccess'));
         } catch (error) {
             console.error('Error saving CV:', error);
-            Alert.alert('Error', 'Failed to save CV');
+            Alert.alert(t('common:states.error'), t('alerts.saveFailed'));
         } finally {
             setIsSaving(false);
         }
@@ -367,12 +370,12 @@ export default function CVBuilderScreen() {
 
     const handleDeleteCV = async (cvId: string) => {
         Alert.alert(
-            'Delete CV',
-            'Are you sure you want to delete this CV?',
+            t('alerts.deleteTitle'),
+            t('alerts.deleteMessage'),
             [
-                { text: 'Cancel', style: 'cancel' },
+                { text: t('common:actions.cancel'), style: 'cancel' },
                 {
-                    text: 'Delete',
+                    text: t('common:actions.delete'),
                     style: 'destructive',
                     onPress: async () => {
                         await cvService.deleteUserCV(supabase, cvId);
@@ -394,11 +397,11 @@ export default function CVBuilderScreen() {
         try {
             const mode = await exportCVAsPdf(currentCV);
             if (mode === 'text') {
-                Alert.alert('Shared as text', 'PDF export was unavailable, so the CV was shared as text instead.');
+                Alert.alert(t('alerts.sharedAsTextTitle'), t('alerts.sharedAsTextMessage'));
             }
         } catch (error) {
             console.error('Error exporting CV:', error);
-            Alert.alert('Error', 'Failed to export CV');
+            Alert.alert(t('common:states.error'), t('alerts.exportFailed'));
         } finally {
             setIsExporting(false);
         }
@@ -430,12 +433,12 @@ export default function CVBuilderScreen() {
             setShowAIModal(false);
             setActiveSection('editor');
             Alert.alert(
-                `CV tailored — ${result.match_score}% match`,
+                t('alerts.tailoredTitle', { score: result.match_score }),
                 result.improvements.slice(0, 4).map((i) => `• ${i}`).join('\n'),
             );
         } catch (error) {
             console.error('Error tailoring CV:', error);
-            Alert.alert('Error', 'Failed to tailor CV for this opportunity.');
+            Alert.alert(t('common:states.error'), t('alerts.tailorFailed'));
         } finally {
             setIsTailoring(false);
         }
@@ -444,9 +447,9 @@ export default function CVBuilderScreen() {
     if (isLoading) {
         return (
             <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-                <ScreenHeader title="CV Builder" showBack />
+                <ScreenHeader title={t('header.title')} showBack />
                 <View style={styles.loadingContainer}>
-                    <BrandedLoader label="Loading CV Builder..." />
+                    <BrandedLoader label={t('loading')} />
                 </View>
             </SafeAreaView>
         );
@@ -455,7 +458,7 @@ export default function CVBuilderScreen() {
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
             <ScreenHeader
-                title="CV Builder"
+                title={t('header.title')}
                 showBack
                 right={
                     <TouchableOpacity onPress={handleCreateNewCV}>
@@ -475,8 +478,8 @@ export default function CVBuilderScreen() {
                     </View>
                     <Text style={[styles.proBannerText, { color: isDark ? '#FBBF24' : '#D97706' }]}>
                         {trialUsed
-                            ? 'Upgrade to Pro for unlimited CVs'
-                            : 'Free trial available - Try Pro features!'}
+                            ? t('proBanner.upgrade')
+                            : t('proBanner.trial')}
                     </Text>
                     <ChevronRight size={18} color={isDark ? '#FBBF24' : '#D97706'} />
                 </TouchableOpacity>
@@ -486,13 +489,13 @@ export default function CVBuilderScreen() {
                 <ScrollView showsVerticalScrollIndicator={false}>
                     {/* Quick Actions Tabs */}
                     <Animated.View entering={FadeInDown} style={styles.quickActionsContainer}>
-                        <Text style={[styles.quickActionsTitle, { color: colors.foreground }]}>Build faster</Text>
+                        <Text style={[styles.quickActionsTitle, { color: colors.foreground }]}>{t('quickActions.title')}</Text>
                         <Text style={[styles.quickActionsSubtitle, { color: isDark ? '#94A3B8' : '#64748B' }]}>
-                            Start from a blank CV, generate from LinkedIn, or tailor your draft toward a real opportunity.
+                            {t('quickActions.subtitle')}
                         </Text>
                         <QuickActionCard
-                            title="Create a fresh CV"
-                            subtitle="Start with a structured editor and choose a template after previewing samples."
+                            title={t('quickActions.create.title')}
+                            subtitle={t('quickActions.create.subtitle')}
                             icon={FilePlus}
                             accent="#6366F1"
                             colors={colors}
@@ -500,8 +503,8 @@ export default function CVBuilderScreen() {
                             onPress={handleCreateNewCV}
                         />
                         <QuickActionCard
-                            title="Import from LinkedIn"
-                            subtitle="Use your profile context to draft a stronger first version with AI."
+                            title={t('quickActions.linkedIn.title')}
+                            subtitle={t('quickActions.linkedIn.subtitle')}
                             icon={Import}
                             accent="#0A66C2"
                             colors={colors}
@@ -509,8 +512,8 @@ export default function CVBuilderScreen() {
                             onPress={() => setShowLinkedInModal(true)}
                         />
                         <QuickActionCard
-                            title="Tailor to an opportunity"
-                            subtitle="Match your CV against scholarships, internships, and programs in your bank."
+                            title={t('quickActions.tailor.title')}
+                            subtitle={t('quickActions.tailor.subtitle')}
                             icon={Target}
                             accent="#8B5CF6"
                             colors={colors}
@@ -522,7 +525,7 @@ export default function CVBuilderScreen() {
                     {/* Existing CVs */}
                     {userCVs.length > 0 && (
                         <Animated.View entering={FadeInDown.delay(100)}>
-                            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Your CVs</Text>
+                            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t('sections.yourCvs')}</Text>
                             <FlatList
                                 data={userCVs}
                                 renderItem={({ item }) => (
@@ -543,7 +546,7 @@ export default function CVBuilderScreen() {
                     {/* Template Selection */}
                     <Animated.View entering={FadeInUp.delay(200)}>
                         <View style={styles.sectionHeaderRow}>
-                            <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 0 }]}>Choose a Template</Text>
+                            <Text style={[styles.sectionTitle, { color: colors.foreground, marginTop: 0 }]}>{t('sections.chooseTemplate')}</Text>
                         </View>
                         <FlatList
                             data={templates}
@@ -648,12 +651,12 @@ export default function CVBuilderScreen() {
                             <View style={styles.sampleHeroScrim} />
                             <View style={styles.sampleHeroTop}>
                                 <View style={styles.sampleBadge}>
-                                    <Text style={styles.sampleBadgeText}>{previewTemplate?.category || 'Template'}</Text>
+                                    <Text style={styles.sampleBadgeText}>{previewTemplate?.category || t('templates.badgeFallback')}</Text>
                                 </View>
                                 {previewTemplate?.is_premium && (
                                     <View style={styles.samplePremiumBadge}>
                                         <Crown size={13} color="#FFFFFF" />
-                                        <Text style={styles.sampleBadgeText}>Pro</Text>
+                                        <Text style={styles.sampleBadgeText}>{t('templates.proBadge')}</Text>
                                     </View>
                                 )}
                             </View>
@@ -661,31 +664,31 @@ export default function CVBuilderScreen() {
 
                         <Text style={[styles.sampleTitle, { color: colors.foreground }]}>{previewTemplate?.name}</Text>
                         <Text style={[styles.sampleDesc, { color: isDark ? '#CBD5E1' : '#475569' }]}>
-                            {previewTemplate?.description || getTemplateSample(previewTemplate).summary}
+                            {previewTemplate?.description || t(getTemplateSample(previewTemplate).summary)}
                         </Text>
 
                         <View style={[styles.resumeSample, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC', borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#E2E8F0' }]}>
                             <View style={styles.resumeSampleHeader}>
                                 <View>
-                                    <Text style={[styles.resumeName, { color: colors.foreground }]}>{getTemplateSample(previewTemplate).name}</Text>
-                                    <Text style={[styles.resumeHeadline, { color: '#6366F1' }]}>{getTemplateSample(previewTemplate).headline}</Text>
+                                    <Text style={[styles.resumeName, { color: colors.foreground }]}>{t(getTemplateSample(previewTemplate).name)}</Text>
+                                    <Text style={[styles.resumeHeadline, { color: '#6366F1' }]}>{t(getTemplateSample(previewTemplate).headline)}</Text>
                                 </View>
                                 <View style={styles.resumeAvatar} />
                             </View>
                             <Text style={[styles.resumeSummary, { color: isDark ? '#CBD5E1' : '#475569' }]}>
-                                {getTemplateSample(previewTemplate).summary}
+                                {t(getTemplateSample(previewTemplate).summary)}
                             </Text>
                             {getTemplateSample(previewTemplate).bullets.map((bullet) => (
                                 <View key={bullet} style={styles.resumeBulletRow}>
                                     <View style={styles.resumeBulletDot} />
-                                    <Text style={[styles.resumeBulletText, { color: isDark ? '#E2E8F0' : '#334155' }]}>{bullet}</Text>
+                                    <Text style={[styles.resumeBulletText, { color: isDark ? '#E2E8F0' : '#334155' }]}>{t(bullet)}</Text>
                                 </View>
                             ))}
                         </View>
 
                         <View style={styles.modalActions}>
                             <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setPreviewTemplate(null)}>
-                                <Text style={styles.modalBtnCancelText}>Close</Text>
+                                <Text style={styles.modalBtnCancelText}>{t('common:actions.close')}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.modalBtnConfirm, { backgroundColor: colors.primary }]}
@@ -696,7 +699,7 @@ export default function CVBuilderScreen() {
                                 }}
                             >
                                 <Text style={styles.modalBtnConfirmText}>
-                                    {previewTemplate?.is_premium && !isPro ? 'Unlock Template' : 'Use Template'}
+                                    {previewTemplate?.is_premium && !isPro ? t('templates.unlock') : t('templates.use')}
                                 </Text>
                             </TouchableOpacity>
                         </View>
@@ -712,8 +715,8 @@ export default function CVBuilderScreen() {
             >
                 <View style={styles.modalOverlay}>
                     <View style={[styles.modalCard, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}>
-                        <Text style={[styles.modalTitle, { color: colors.foreground }]}>Build CV with AI</Text>
-                        <Text style={styles.modalDesc}>Paste your LinkedIn profile URL below and our AI will automatically gather your experience and build your CV.</Text>
+                        <Text style={[styles.modalTitle, { color: colors.foreground }]}>{t('linkedInModal.title')}</Text>
+                        <Text style={styles.modalDesc}>{t('linkedInModal.description')}</Text>
 
                         <TextInput
                             style={[styles.linkInput, { backgroundColor: isDark ? '#0F172A' : '#F1F5F9', color: colors.foreground }]}
@@ -727,7 +730,7 @@ export default function CVBuilderScreen() {
 
                         <View style={styles.modalActions}>
                             <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setShowLinkedInModal(false)} disabled={isLinkedInImporting}>
-                                <Text style={styles.modalBtnCancelText}>Cancel</Text>
+                                <Text style={styles.modalBtnCancelText}>{t('common:actions.cancel')}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.modalBtnConfirm, { backgroundColor: colors.primary, opacity: isLinkedInImporting ? 0.7 : 1 }]}
@@ -737,7 +740,7 @@ export default function CVBuilderScreen() {
                                 {isLinkedInImporting ? (
                                     <ActivityIndicator size="small" color="#FFFFFF" />
                                 ) : (
-                                    <Text style={styles.modalBtnConfirmText}>Generate CV</Text>
+                                    <Text style={styles.modalBtnConfirmText}>{t('linkedInModal.generate')}</Text>
                                 )}
                             </TouchableOpacity>
                         </View>

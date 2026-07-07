@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 export type CurrentLevel = 'beginner' | 'intermediate' | 'advanced';
 
@@ -23,17 +24,18 @@ interface RoadmapIntakeProps {
 }
 
 // Time buckets map to a representative hours/week the LLM endpoint can reason about.
+// `label` holds an i18n key (goals namespace) translated at render time.
 const TIME_OPTIONS: { label: string; hoursPerWeek: number }[] = [
-  { label: 'Under 5 hrs', hoursPerWeek: 3 },
-  { label: '5–10 hrs', hoursPerWeek: 8 },
-  { label: '10–20 hrs', hoursPerWeek: 15 },
-  { label: '20+ hrs', hoursPerWeek: 25 },
+  { label: 'intake.time.under5', hoursPerWeek: 3 },
+  { label: 'intake.time.h5to10', hoursPerWeek: 8 },
+  { label: 'intake.time.h10to20', hoursPerWeek: 15 },
+  { label: 'intake.time.h20plus', hoursPerWeek: 25 },
 ];
 
 const LEVEL_OPTIONS: { label: string; value: CurrentLevel }[] = [
-  { label: 'New to this', value: 'beginner' },
-  { label: 'Some experience', value: 'intermediate' },
-  { label: 'Experienced', value: 'advanced' },
+  { label: 'intake.level.beginner', value: 'beginner' },
+  { label: 'intake.level.intermediate', value: 'intermediate' },
+  { label: 'intake.level.advanced', value: 'advanced' },
 ];
 
 /**
@@ -42,11 +44,12 @@ const LEVEL_OPTIONS: { label: string; value: CurrentLevel }[] = [
  * Both answers are optional; the roadmap generates fine without them.
  */
 export function RoadmapIntake({ value, onChange, colors }: RoadmapIntakeProps) {
+  const { t } = useTranslation('goals');
   return (
     <View style={styles.container}>
       <View style={styles.group}>
         <Text style={[styles.question, { color: colors.foreground }]}>
-          How much time can you commit each week?
+          {t('intake.timeQuestion')}
         </Text>
         <View style={styles.chips}>
           {TIME_OPTIONS.map((option) => {
@@ -72,7 +75,7 @@ export function RoadmapIntake({ value, onChange, colors }: RoadmapIntakeProps) {
                     { color: selected ? '#FFFFFF' : colors.textSecondary },
                   ]}
                 >
-                  {option.label}
+                  {t(option.label)}
                 </Text>
               </TouchableOpacity>
             );
@@ -82,7 +85,7 @@ export function RoadmapIntake({ value, onChange, colors }: RoadmapIntakeProps) {
 
       <View style={styles.group}>
         <Text style={[styles.question, { color: colors.foreground }]}>
-          Where are you starting from?
+          {t('intake.levelQuestion')}
         </Text>
         <View style={styles.chips}>
           {LEVEL_OPTIONS.map((option) => {
@@ -108,7 +111,7 @@ export function RoadmapIntake({ value, onChange, colors }: RoadmapIntakeProps) {
                     { color: selected ? '#FFFFFF' : colors.textSecondary },
                   ]}
                 >
-                  {option.label}
+                  {t(option.label)}
                 </Text>
               </TouchableOpacity>
             );

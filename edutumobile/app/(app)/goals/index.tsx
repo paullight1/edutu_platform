@@ -32,6 +32,7 @@ import {
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useUser } from '@clerk/clerk-expo';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../../components/context/ThemeContext';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { supabase } from '../../../lib/supabase';
@@ -130,6 +131,7 @@ function EmptySection({
 function MyOpportunitiesCard({ count, urgentCount }: { count: number; urgentCount: number }) {
     const { isDark } = useTheme();
     const router = useRouter();
+    const { t } = useTranslation('goals');
 
     return (
         <TouchableOpacity
@@ -147,13 +149,13 @@ function MyOpportunitiesCard({ count, urgentCount }: { count: number; urgentCoun
                         <Briefcase size={24} color="#FFFFFF" />
                     </View>
                     <View style={styles.myOppsInfo}>
-                        <Text style={styles.myOppsTitle}>My Opportunities</Text>
+                        <Text style={styles.myOppsTitle}>{t('dashboard.myOpportunities')}</Text>
                         <Text style={styles.myOppsSubtitle}>
-                            {count} saved{urgentCount > 0 ? ` · ${urgentCount} urgent` : ''}
+                            {urgentCount > 0 ? t('dashboard.savedSummaryWithUrgent', { count, urgent: urgentCount }) : t('dashboard.savedSummary', { count })}
                         </Text>
                     </View>
                     <View style={styles.myOppsArrow}>
-                        <Text style={styles.myOppsArrowText}>View All</Text>
+                        <Text style={styles.myOppsArrowText}>{t('viewAll')}</Text>
                     </View>
                 </View>
                 <View style={styles.myOppsBgPattern}>
@@ -169,6 +171,7 @@ function MyOpportunitiesCard({ count, urgentCount }: { count: number; urgentCoun
 function UpcomingStrip({ goals }: { goals: Goal[] }) {
     const { isDark } = useTheme();
     const router = useRouter();
+    const { t } = useTranslation('goals');
 
     const upcoming = useMemo(() => {
         const now = new Date();
@@ -191,7 +194,7 @@ function UpcomingStrip({ goals }: { goals: Goal[] }) {
             <View style={styles.upcomingHeader}>
                 <View style={styles.upcomingTitleRow}>
                     <Clock size={18} color="#ef4444" />
-                    <Text style={[styles.upcomingTitle, { color: isDark ? '#f8fafc' : '#1e293b' }]}>Upcoming Deadlines</Text>
+                    <Text style={[styles.upcomingTitle, { color: isDark ? '#f8fafc' : '#1e293b' }]}>{t('dashboard.upcomingDeadlines')}</Text>
                     <View style={[styles.upcomingBadge, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
                         <Text style={styles.upcomingBadgeText}>{upcoming.length}</Text>
                     </View>
@@ -222,7 +225,7 @@ function UpcomingStrip({ goals }: { goals: Goal[] }) {
                                     styles.upcomingDays,
                                     { color: days <= 0 ? '#f87171' : days <= 1 ? '#fbbf24' : '#818cf8' }
                                 ]}>
-                                    {days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : days < 0 ? `${Math.abs(days)}d overdue` : `${days}d left`}
+                                    {days === 0 ? t('time.today') : days === 1 ? t('time.tomorrow') : days < 0 ? t('time.overdueShort', { count: Math.abs(days) }) : t('time.leftShort', { count: days })}
                                 </Text>
                             </View>
                             <Text style={[styles.upcomingCardTitle, { color: isDark ? '#f8fafc' : '#1e293b' }]} numberOfLines={2}>
@@ -246,6 +249,7 @@ export default function GoalsDashboard() {
     const { colors, isDark } = useTheme();
     const { user } = useUser();
     const router = useRouter();
+    const { t } = useTranslation('goals');
 
     const { goals, isLoading, updateGoal, deleteGoal } = useGoals(supabase, user?.id || null, {
         onGoalCreated: async (goal) => {
@@ -281,7 +285,7 @@ export default function GoalsDashboard() {
             showToast({
                 emoji: '🎉',
                 variant: 'success',
-                message: `+${amount} credit${amount > 1 ? 's' : ''} for completing a goal`,
+                message: t('creditsEarned', { count: amount }),
             });
         },
     });
@@ -320,7 +324,7 @@ export default function GoalsDashboard() {
                 const formatted = opportunities
                     .map(o => ({
                         id: o.id,
-                        title: o.title || 'Opportunity',
+                        title: o.title || t('dashboard.opportunityFallback'),
                         closeDate: o.close_date,
                     }))
                     .filter(o => o.closeDate);
@@ -375,18 +379,18 @@ export default function GoalsDashboard() {
 
     const SHARE_OPPORTUNITIES_BANNER: BannerConfig = {
         id: 'share-opportunities',
-        title: 'Have Opportunities to Share?',
-        subtitle: 'Contact us if you have scholarships, jobs, or programs you\'d like to share with our community',
+        title: t('dashboard.shareBanner.title'),
+        subtitle: t('dashboard.shareBanner.subtitle'),
         gradient: ['#F59E0B', '#EA580C'],
         icon: Volume2,
-        actionLabel: 'Contact Us',
+        actionLabel: t('dashboard.shareBanner.action'),
         route: '/help',
     };
 
     const filterOptions: { label: string; value: GoalStatusFilter; icon: any }[] = [
-        { label: 'All Goals', value: 'all', icon: Award },
-        { label: 'Active', value: 'active', icon: Target },
-        { label: 'Completed', value: 'completed', icon: CheckCircle2 },
+        { label: t('filter.allGoals'), value: 'all', icon: Award },
+        { label: t('filter.active'), value: 'active', icon: Target },
+        { label: t('filter.completed'), value: 'completed', icon: CheckCircle2 },
     ];
 
     const textPrimary = colors.foreground;
@@ -399,9 +403,9 @@ export default function GoalsDashboard() {
     return (
         <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
             <ScreenHeader
-                title="Goals"
+                title={t('dashboard.title')}
                 showBack
-                subtitle={`${stats.active} active · ${completionRate}% completed`}
+                subtitle={t('dashboard.subtitle', { active: stats.active, rate: completionRate })}
             />
 
             <ScrollView
@@ -420,14 +424,14 @@ export default function GoalsDashboard() {
                 <View style={styles.statGrid}>
                     <View style={styles.statRow}>
                         <SlimStatCard
-                            title="Active"
+                            title={t('stats.active')}
                             value={stats.active}
                             color="#3b82f6"
                             icon={Target}
                             onPress={() => { setStatusFilter(statusFilter === 'active' ? 'all' : 'active'); }}
                         />
                         <SlimStatCard
-                            title="Completed"
+                            title={t('stats.completed')}
                             value={stats.completed}
                             color="#10b981"
                             icon={CheckCircle2}
@@ -436,13 +440,13 @@ export default function GoalsDashboard() {
                     </View>
                     <View style={styles.statRow}>
                         <SlimStatCard
-                            title="Roadmaps"
+                            title={t('stats.roadmaps')}
                             value={stats.roadmap}
                             color="#f59e0b"
                             icon={Map}
                         />
                         <SlimStatCard
-                            title="Completion"
+                            title={t('stats.completion')}
                             value={completionRate}
                             color={colors.accent}
                             icon={TrendingUp}
@@ -484,7 +488,7 @@ export default function GoalsDashboard() {
                     <Search size={18} color={isSearchFocused ? colors.accent : textSecondary} style={{ marginRight: 10 }} />
                     <TextInput
                         style={[styles.searchInput, { color: textPrimary }]}
-                        placeholder="Search your goals..."
+                        placeholder={t('dashboard.searchPlaceholder')}
                         placeholderTextColor={textSecondary}
                         value={searchTerm}
                         onChangeText={setSearchTerm}
@@ -512,10 +516,10 @@ export default function GoalsDashboard() {
                 {statusFilter !== 'all' && (
                     <View style={styles.activeFilterBar}>
                         <Text style={[styles.activeFilterText, { color: colors.accent }]}>
-                            Filter: {filterOptions.find(f => f.value === statusFilter)?.label}
+                            {t('filter.activeLabel', { label: filterOptions.find(f => f.value === statusFilter)?.label })}
                         </Text>
                         <TouchableOpacity onPress={() => setStatusFilter('all')}>
-                            <Text style={[styles.clearFilterText, { color: textSecondary }]}>Clear</Text>
+                            <Text style={[styles.clearFilterText, { color: textSecondary }]}>{t('filter.clear')}</Text>
                         </TouchableOpacity>
                     </View>
                 )}
@@ -526,7 +530,7 @@ export default function GoalsDashboard() {
                         <View style={styles.sectionHeader}>
                             <View style={styles.sectionTitleRow}>
                                 <Map size={18} color="#f59e0b" />
-                                <Text style={[styles.sectionTitle, { color: textPrimary }]}>Roadmaps</Text>
+                                <Text style={[styles.sectionTitle, { color: textPrimary }]}>{t('sections.roadmaps')}</Text>
                                 {roadmapGoals.length > 0 && (
                                     <View style={[styles.sectionCount, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
                                         <Text style={styles.sectionCountText}>{roadmapGoals.length}</Text>
@@ -534,7 +538,7 @@ export default function GoalsDashboard() {
                                 )}
                             </View>
                             <TouchableOpacity onPress={() => router.push('/goals/all-roadmaps')}>
-                                <Text style={[styles.viewMore, { color: colors.accent }]}>View All</Text>
+                                <Text style={[styles.viewMore, { color: colors.accent }]}>{t('viewAll')}</Text>
                             </TouchableOpacity>
                         </View>
 
@@ -550,9 +554,9 @@ export default function GoalsDashboard() {
                             <EmptySection
                                 icon={Map}
                                 color="#f59e0b"
-                                title="No Roadmaps"
-                                description="Import an opportunity roadmap to see goals here."
-                                actionLabel="Browse Roadmaps"
+                                title={t('empty.noRoadmaps.title')}
+                                description={t('empty.noRoadmaps.description')}
+                                actionLabel={t('empty.noRoadmaps.action')}
                                 onAction={() => router.push('/goals/all-roadmaps')}
                             />
                         )}
@@ -565,7 +569,7 @@ export default function GoalsDashboard() {
                         <View style={styles.sectionHeader}>
                             <View style={styles.sectionTitleRow}>
                                 <Sparkles size={18} color={colors.accent} />
-                                <Text style={[styles.sectionTitle, { color: textPrimary }]}>Personal Goals</Text>
+                                <Text style={[styles.sectionTitle, { color: textPrimary }]}>{t('sections.personalGoals')}</Text>
                                 {personalGoals.length > 0 && (
                                     <View style={[styles.sectionCount, { backgroundColor: `${colors.accent}15` }]}>
                                         <Text style={[styles.sectionCountText, { color: colors.accent }]}>{personalGoals.length}</Text>
@@ -573,7 +577,7 @@ export default function GoalsDashboard() {
                                 )}
                             </View>
                             <TouchableOpacity onPress={() => router.push('/goals/my-list')}>
-                                <Text style={[styles.viewMore, { color: colors.accent }]}>View All</Text>
+                                <Text style={[styles.viewMore, { color: colors.accent }]}>{t('viewAll')}</Text>
                             </TouchableOpacity>
                         </View>
 
@@ -594,9 +598,9 @@ export default function GoalsDashboard() {
                             <EmptySection
                                 icon={Target}
                                 color={colors.accent}
-                                title="No Personal Goals"
-                                description="Tap the plus icon to add your first goal."
-                                actionLabel="Create Goal"
+                                title={t('empty.noPersonalGoals.title')}
+                                description={t('empty.noPersonalGoals.description')}
+                                actionLabel={t('createGoal')}
                                 onAction={() => router.push('/goals/add')}
                             />
                         )}
@@ -607,7 +611,7 @@ export default function GoalsDashboard() {
                 {searchTerm.length > 0 && (
                     <View style={styles.resultsInfo}>
                         <Text style={[styles.resultsText, { color: textSecondary }]}>
-                            Found {filteredGoals.length} goal{filteredGoals.length !== 1 ? 's' : ''} matching "{searchTerm}"
+                            {t('dashboard.searchResults', { count: filteredGoals.length, term: searchTerm })}
                         </Text>
                     </View>
                 )}
@@ -625,10 +629,10 @@ export default function GoalsDashboard() {
                     >
                         <View style={[styles.filterMenu, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}>
                             <View style={styles.filterMenuHeader}>
-                                <Text style={[styles.menuTitle, { color: textPrimary }]}>Filter by Status</Text>
+                                <Text style={[styles.menuTitle, { color: textPrimary }]}>{t('filter.byStatus')}</Text>
                                 {statusFilter !== 'all' && (
                                     <TouchableOpacity onPress={() => { setStatusFilter('all'); setShowFilterMenu(false); }}>
-                                        <Text style={[styles.clearFilterBtn, { color: colors.accent }]}>Clear</Text>
+                                        <Text style={[styles.clearFilterBtn, { color: colors.accent }]}>{t('filter.clear')}</Text>
                                     </TouchableOpacity>
                                 )}
                             </View>

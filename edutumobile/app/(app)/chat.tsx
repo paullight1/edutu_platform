@@ -41,6 +41,8 @@ import {
 } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth, useUser } from '@clerk/clerk-expo';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../lib/i18n';
 import { useTheme } from '../../components/context/ThemeContext';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { supabase } from '../../lib/supabase';
@@ -105,9 +107,9 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const CHAT_RAIL_FULL_BLEED_OFFSET = 54;
 
 function formatOpportunityDeadline(deadline?: string | null) {
-    if (!deadline) return 'Rolling';
+    if (!deadline) return i18n.t('chat:deadline.rolling');
     const date = new Date(deadline);
-    if (Number.isNaN(date.getTime())) return 'Deadline set';
+    if (Number.isNaN(date.getTime())) return i18n.t('chat:deadline.set');
     return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
@@ -124,22 +126,22 @@ function isOpportunitySearchConversation(text?: string | null) {
 
 function compactOpportunityAnswer(count: number) {
     if (count <= 0) {
-        return 'Checking Edutu opportunities for you.';
+        return i18n.t('chat:answers.checkingOpportunities');
     }
 
-    return `I found ${count} matches from Edutu.\nSwipe the cards or narrow the search.`;
+    return i18n.t('chat:answers.matchesFound', { count });
 }
 
 function compactRoadmapAnswer(matchCount: number, loading: boolean) {
     if (loading && matchCount === 0) {
-        return 'I’m checking your opportunities.\nThen I’ll build the roadmap.';
+        return i18n.t('chat:answers.roadmapChecking');
     }
 
     if (matchCount > 0) {
-        return 'I found a possible match.\nTap Build to create goals and reminders.';
+        return i18n.t('chat:answers.roadmapMatchFound');
     }
 
-    return 'Which opportunity is this for?\nSend the name or browse Opportunities.';
+    return i18n.t('chat:answers.roadmapWhichOpportunity');
 }
 
 function toChatOpportunityCard(opportunity: Opportunity): ChatOpportunityCard {
@@ -148,7 +150,7 @@ function toChatOpportunityCard(opportunity: Opportunity): ChatOpportunityCard {
         title: opportunity.title,
         organization: opportunity.organization,
         category: opportunity.category,
-        location: opportunity.isRemote ? 'Remote' : opportunity.location,
+        location: opportunity.isRemote ? i18n.t('chat:location.remote') : opportunity.location,
         deadline: opportunity.deadline ?? null,
         summary: opportunity.aiSummary || opportunity.description,
         imageUrl: opportunity.image ?? opportunity.shareImageUrl ?? null,
@@ -248,6 +250,7 @@ function findRoadmapOpportunityMatches(opportunities: Opportunity[], query: stri
 }
 
 export default function ChatScreen() {
+    const { t } = useTranslation('chat');
     const { user } = useUser();
     const { getToken } = useAuth();
     const router = useRouter();
@@ -274,33 +277,33 @@ export default function ChatScreen() {
     const quickPrompts = useMemo(() => [
         {
             text: 'Find scholarships I can apply for this month',
-            title: 'Find scholarships',
-            subtitle: 'Available this month',
+            title: t('quickPrompts.findScholarships.title'),
+            subtitle: t('quickPrompts.findScholarships.subtitle'),
             icon: Sparkles,
             topic: 'Scholarships',
         },
         {
             text: 'What Mastercard Foundation opportunities fit me?',
-            title: 'Mastercard matches',
-            subtitle: 'Scholarships from Edutu',
+            title: t('quickPrompts.mastercard.title'),
+            subtitle: t('quickPrompts.mastercard.subtitle'),
             icon: Brain,
             topic: 'Scholarships',
         },
         {
             text: 'Build a roadmap for my next application',
-            title: 'Build roadmap',
-            subtitle: 'Plan my next application',
+            title: t('quickPrompts.buildRoadmap.title'),
+            subtitle: t('quickPrompts.buildRoadmap.subtitle'),
             icon: Route,
             topic: 'Roadmap',
         },
         {
             text: 'Show internships with upcoming deadlines',
-            title: 'Internship deadlines',
-            subtitle: 'Upcoming opportunities',
+            title: t('quickPrompts.internships.title'),
+            subtitle: t('quickPrompts.internships.subtitle'),
             icon: Calendar,
             topic: 'Internships',
         },
-    ], []);
+    ], [t]);
 
     const {
         goals,
@@ -380,7 +383,7 @@ export default function ChatScreen() {
 
     const handleAddDeadline = useCallback(async (opportunity: ChatOpportunityCard) => {
         if (!opportunity.deadline || !user?.id) {
-            Alert.alert('No deadline found', 'This opportunity does not have a saved deadline yet.');
+            Alert.alert(t('alerts.noDeadlineTitle'), t('alerts.noDeadlineMessage'));
             return;
         }
 
@@ -394,7 +397,7 @@ export default function ChatScreen() {
         );
 
         if (existingGoal) {
-            Alert.alert('Already tracked', 'This deadline is already in your plan.');
+            Alert.alert(t('alerts.alreadyTrackedTitle'), t('alerts.alreadyTrackedMessage'));
             router.push('/deadlines');
             return;
         }
@@ -402,8 +405,8 @@ export default function ChatScreen() {
         setDeadlineActionId(actionId);
         try {
             const createdGoal = await createGoal({
-                title: `Apply: ${opportunity.title}`,
-                description: `Application deadline for ${opportunity.organization || 'this opportunity'}.`,
+                title: t('goals.applyTitle', { title: opportunity.title }),
+                description: t('goals.applyDescription', { organization: opportunity.organization || t('goals.thisOpportunity') }),
                 category: 'Opportunity',
                 deadline: opportunity.deadline,
                 priority: 'high',
@@ -423,14 +426,14 @@ export default function ChatScreen() {
                 await updateGoal(createdGoal.id, { notification_id: notificationId });
             }
 
-            Alert.alert('Deadline added', 'I added this to your plan and scheduled reminders.');
+            Alert.alert(t('alerts.deadlineAddedTitle'), t('alerts.deadlineAddedMessage'));
         } catch (error) {
             console.error('Failed to add opportunity deadline:', error);
-            Alert.alert('Could not add deadline', 'Please try again from the opportunity page.');
+            Alert.alert(t('alerts.couldNotAddDeadlineTitle'), t('alerts.tryAgainFromOpportunity'));
         } finally {
             setDeadlineActionId(null);
         }
-    }, [createGoal, deadlineActionId, goals, router, updateGoal, user?.id]);
+    }, [createGoal, deadlineActionId, goals, router, t, updateGoal, user?.id]);
 
     const handleGenerateRoadmap = useCallback((opportunityId: string) => {
         router.push(`/opportunities/${opportunityId}`);
@@ -448,7 +451,7 @@ export default function ChatScreen() {
 
     const handleBuildRoadmapFromOpportunity = useCallback(async (opportunity: Opportunity) => {
         if (!user?.id) {
-            Alert.alert('Sign in required', 'Please sign in to create roadmap goals.');
+            Alert.alert(t('alerts.signInRequiredTitle'), t('alerts.signInRequiredMessage'));
             return;
         }
 
@@ -461,9 +464,9 @@ export default function ChatScreen() {
         );
 
         if (alreadyCreated) {
-            Alert.alert('Roadmap already exists', 'This opportunity already has goals in your plan.', [
-                { text: 'Open Goals', onPress: () => router.push('/goals') },
-                { text: 'Cancel', style: 'cancel' },
+            Alert.alert(t('alerts.roadmapExistsTitle'), t('alerts.roadmapExistsMessage'), [
+                { text: t('alerts.openGoals'), onPress: () => router.push('/goals') },
+                { text: t('common:actions.cancel'), style: 'cancel' },
             ]);
             return;
         }
@@ -477,26 +480,26 @@ export default function ChatScreen() {
                 .join('\n');
             const goalsToCreate = [
                 {
-                    title: `Submit ${opportunity.title}`,
-                    description: `${roadmap.winningStrategy}\n\nResources:\n${resourceText}`,
+                    title: t('goals.submitTitle', { title: opportunity.title }),
+                    description: t('goals.submitDescription', { strategy: roadmap.winningStrategy, resources: resourceText }),
                     deadline: roadmap.submissionTargetDate,
                     priority: 'high' as const,
                 },
                 ...roadmap.milestones.map((milestone, index) => ({
                     title: milestone.title,
-                    description: milestone.description || `Milestone for ${opportunity.title}`,
+                    description: milestone.description || t('goals.milestoneDescription', { title: opportunity.title }),
                     deadline: milestone.date,
                     priority: index === roadmap.milestones.length - 1 ? 'high' as const : 'medium' as const,
                 })),
                 ...roadmap.dailyPlan.map((day) => ({
                     title: day.title,
-                    description: `${day.description}\n\nFocus: ${day.focus}\nTime: ${day.durationMinutes} minutes`,
+                    description: t('goals.dailyDescription', { description: day.description, focus: day.focus, minutes: day.durationMinutes }),
                     deadline: day.date,
                     priority: day.focus === 'submission' || day.focus === 'writing' ? 'high' as const : 'medium' as const,
                 })),
                 ...roadmap.checklist.map((item) => ({
                     title: item.title,
-                    description: `Checklist item for ${opportunity.title}`,
+                    description: t('goals.checklistDescription', { title: opportunity.title }),
                     deadline: undefined,
                     priority: 'low' as const,
                 })),
@@ -533,20 +536,20 @@ export default function ChatScreen() {
             }
 
             Alert.alert(
-                'Roadmap created',
-                `${createdGoals.length} goals were added with reminders where deadlines exist.`,
+                t('alerts.roadmapCreatedTitle'),
+                t('alerts.roadmapCreatedMessage', { count: createdGoals.length }),
                 [
-                    { text: 'Open Goals', onPress: () => router.push('/goals') },
-                    { text: 'Stay Here', style: 'cancel' },
+                    { text: t('alerts.openGoals'), onPress: () => router.push('/goals') },
+                    { text: t('alerts.stayHere'), style: 'cancel' },
                 ],
             );
         } catch (error) {
             console.error('Failed to build AI roadmap from chat:', error);
-            Alert.alert('Could not create roadmap', 'Please try again from the opportunity page.');
+            Alert.alert(t('alerts.couldNotCreateRoadmapTitle'), t('alerts.tryAgainFromOpportunity'));
         } finally {
             setRoadmapActionId(null);
         }
-    }, [createGoal, goals, router, updateGoal, user?.id]);
+    }, [createGoal, goals, router, t, updateGoal, user?.id]);
 
     useEffect(() => {
         if (!isSpeaking && speakingMessageId) {
@@ -575,10 +578,10 @@ export default function ChatScreen() {
         const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
         const oneDay = 86400000;
         const groups = [
-            { title: 'Today', items: [] as ChatThread[] },
-            { title: 'Yesterday', items: [] as ChatThread[] },
-            { title: 'This Week', items: [] as ChatThread[] },
-            { title: 'Older', items: [] as ChatThread[] },
+            { title: t('threads.groups.today'), items: [] as ChatThread[] },
+            { title: t('threads.groups.yesterday'), items: [] as ChatThread[] },
+            { title: t('threads.groups.thisWeek'), items: [] as ChatThread[] },
+            { title: t('threads.groups.older'), items: [] as ChatThread[] },
         ];
 
         threads.forEach(thread => {
@@ -594,7 +597,7 @@ export default function ChatScreen() {
                 ? [{ type: 'header' as const, id: group.title, title: group.title }, ...group.items.map(item => ({ type: 'thread' as const, id: item.id, item }))]
                 : []
         );
-    }, [threads]);
+    }, [threads, t]);
 
     const userInitial = useMemo(() => {
         const source = user?.firstName || user?.fullName || user?.primaryEmailAddress?.emailAddress || 'U';
@@ -771,10 +774,10 @@ export default function ChatScreen() {
                             <View style={styles.opportunityShelf}>
                                 <View style={styles.opportunityShelfHeader}>
                                     <Text style={[styles.opportunityShelfTitle, { color: textPrimary }]}>
-                                        Recommended from Opportunities
+                                        {t('messages.recommendedTitle')}
                                     </Text>
                                     <TouchableOpacity onPress={() => router.push('/opportunities')}>
-                                        <Text style={[styles.opportunityShelfLink, { color: accentColor }]}>View more</Text>
+                                        <Text style={[styles.opportunityShelfLink, { color: accentColor }]}>{t('messages.viewMore')}</Text>
                                     </TouchableOpacity>
                                 </View>
                                 <ScrollView
@@ -832,7 +835,7 @@ export default function ChatScreen() {
                                         <View style={styles.opportunityBody}>
                                             <View style={styles.opportunityTopRow}>
                                                 <Text style={[styles.opportunityCategory, { color: accentColor }]} numberOfLines={1}>
-                                                    {opportunity.category || 'Opportunity'}
+                                                    {opportunity.category || t('messages.categoryFallback')}
                                                 </Text>
                                                 <Text style={[styles.opportunityMetaDot, { color: textSecondary }]}>·</Text>
                                                 <Text style={[styles.opportunityDeadline, { color: textSecondary }]} numberOfLines={1}>
@@ -849,7 +852,7 @@ export default function ChatScreen() {
                                                     onPress={() => handleViewOpportunity(opportunity.id)}
                                                     style={[styles.primaryCta, { backgroundColor: accentColor }]}
                                                 >
-                                                    <Text style={styles.primaryCtaText}>View</Text>
+                                                    <Text style={styles.primaryCtaText}>{t('messages.view')}</Text>
                                                 </TouchableOpacity>
                                             </View>
                                         </View>
@@ -870,23 +873,23 @@ export default function ChatScreen() {
                                     <View style={[styles.viewMoreIcon, { backgroundColor: accentColor }]}>
                                         <ChevronRight size={22} color="#FFFFFF" />
                                     </View>
-                                    <Text style={[styles.viewMoreTitle, { color: textPrimary }]}>View more</Text>
+                                    <Text style={[styles.viewMoreTitle, { color: textPrimary }]}>{t('messages.viewMore')}</Text>
                                     <Text style={[styles.viewMoreSubtitle, { color: textSecondary }]}>
-                                        Open all opportunities
+                                        {t('messages.openAllOpportunities')}
                                     </Text>
                                     </TouchableOpacity>
                                 ) : null}
                                 </ScrollView>
                                 {opportunityCards.length > 0 ? (
                                     <View style={styles.followUpBar}>
-                                        <Text style={[styles.followUpText, { color: textSecondary }]}>Narrow by:</Text>
-                                        {['Country', 'Deadline', 'Funding'].map((label) => (
+                                        <Text style={[styles.followUpText, { color: textSecondary }]}>{t('messages.narrowBy')}</Text>
+                                        {(['country', 'deadline', 'funding'] as const).map((filterKey) => (
                                             <TouchableOpacity
-                                                key={label}
-                                                onPress={() => handleSend(`Narrow these by ${label.toLowerCase()}`)}
+                                                key={filterKey}
+                                                onPress={() => handleSend(`Narrow these by ${filterKey}`)}
                                                 style={[styles.followUpChip, { borderColor, backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#F8FAFC' }]}
                                             >
-                                                <Text style={[styles.followUpChipText, { color: textPrimary }]}>{label}</Text>
+                                                <Text style={[styles.followUpChipText, { color: textPrimary }]}>{t(`followUp.${filterKey}`)}</Text>
                                             </TouchableOpacity>
                                         ))}
                                     </View>
@@ -897,10 +900,10 @@ export default function ChatScreen() {
                             <View style={styles.roadmapBuilderPanel}>
                                 <View style={styles.roadmapBuilderHeader}>
                                     <Text style={[styles.roadmapBuilderTitle, { color: textPrimary }]}>
-                                        Build roadmap
+                                        {t('roadmapPanel.title')}
                                     </Text>
                                     <Text style={[styles.roadmapBuilderSubtitle, { color: textSecondary }]}>
-                                        Goals, deadlines, reminders
+                                        {t('roadmapPanel.subtitle')}
                                     </Text>
                                 </View>
 
@@ -908,7 +911,7 @@ export default function ChatScreen() {
                                     <View style={[styles.roadmapStatusCard, { backgroundColor: cardBg, borderColor }]}>
                                         <ActivityIndicator size="small" color={accentColor} />
                                         <Text style={[styles.roadmapStatusText, { color: textSecondary }]}>
-                                            Searching opportunities...
+                                            {t('roadmapPanel.searching')}
                                         </Text>
                                     </View>
                                 ) : roadmapMatches.length > 0 ? (
@@ -931,24 +934,24 @@ export default function ChatScreen() {
                                                     ]}
                                                 >
                                                     <Text style={[styles.roadmapMatchMeta, { color: accentColor }]} numberOfLines={1}>
-                                                        {opportunity.category || 'Opportunity'} · due {formatOpportunityDeadline(opportunity.deadline)}
+                                                        {t('roadmapPanel.matchMeta', { category: opportunity.category || t('messages.categoryFallback'), deadline: formatOpportunityDeadline(opportunity.deadline) })}
                                                     </Text>
                                                     <Text style={[styles.roadmapMatchTitle, { color: textPrimary }]} numberOfLines={3}>
                                                         {opportunity.title}
                                                     </Text>
                                                     <View style={styles.roadmapPreviewGrid}>
                                                         <Text style={[styles.roadmapPreviewText, { color: textSecondary }]}>
-                                                            {preview.daysUntilDeadline} days left
+                                                            {t('roadmapPanel.daysLeft', { count: preview.daysUntilDeadline })}
                                                         </Text>
                                                         <Text style={[styles.roadmapPreviewText, { color: textSecondary }]}>
-                                                            {preview.dailyPlan.length} daily steps
+                                                            {t('roadmapPanel.dailySteps', { count: preview.dailyPlan.length })}
                                                         </Text>
                                                     </View>
                                                     <View style={[styles.roadmapBuildButton, { backgroundColor: accentColor }]}>
                                                         {roadmapActionId === opportunity.id ? (
                                                             <ActivityIndicator size="small" color="#FFFFFF" />
                                                         ) : (
-                                                            <Text style={styles.roadmapBuildButtonText}>Build</Text>
+                                                            <Text style={styles.roadmapBuildButtonText}>{t('roadmapPanel.build')}</Text>
                                                         )}
                                                     </View>
                                                 </TouchableOpacity>
@@ -987,7 +990,7 @@ export default function ChatScreen() {
         >
             <View style={styles.threadContent}>
                 <Text style={[styles.threadTitle, { color: textPrimary }]} numberOfLines={1}>
-                    {item.title || 'New Conversation'}
+                    {item.title || t('threads.newConversation')}
                 </Text>
                 <Text style={[
                     styles.threadDate,
@@ -1020,7 +1023,7 @@ export default function ChatScreen() {
     return (
         <SafeAreaView style={[styles.container, { backgroundColor }]} edges={['top', 'left', 'right']}>
             <ScreenHeader
-                title="AI Coach"
+                title={t('header.title')}
                 showBack
                 right={
                     <View style={styles.headerActions}>
@@ -1042,7 +1045,7 @@ export default function ChatScreen() {
                 <View style={styles.flex}>
                     {isLoadingMessages ? (
                         <View style={styles.loadingContainer}>
-                            <BrandedLoader label="Loading conversation..." />
+                            <BrandedLoader label={t('loading.conversation')} />
                         </View>
                     ) : (
                         <FlatList
@@ -1060,9 +1063,9 @@ export default function ChatScreen() {
                                     <View style={styles.emptyIcon}>
                                         <EdutuLogo size={48} frameless />
                                     </View>
-                                    <Text style={[styles.emptyTitle, { color: textPrimary }]}>I'm Edutu, your AI Coach</Text>
+                                    <Text style={[styles.emptyTitle, { color: textPrimary }]}>{t('empty.title')}</Text>
                                     <Text style={[styles.emptyDesc, { color: textSecondary }]}>
-                                        Ask for real scholarships, deadlines, roadmaps, or application next steps.
+                                        {t('empty.description')}
                                     </Text>
                                     <View style={styles.promptsContainer}>
                                         {quickPrompts.map((prompt) => (
@@ -1096,7 +1099,7 @@ export default function ChatScreen() {
                                                 <EdutuLogo size={22} frameless />
                                             </View>
                                             <View style={[styles.typingBubble, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor }]}>
-                                                <Text style={[styles.typingText, { color: textSecondary }]}>Edutu is checking opportunities</Text>
+                                                <Text style={[styles.typingText, { color: textSecondary }]}>{t('messages.typing')}</Text>
                                                 <View style={styles.typingDots}>
                                                     <View style={[styles.typingDot, { backgroundColor: accentColor }]} />
                                                     <View style={[styles.typingDot, { backgroundColor: accentColor, opacity: 0.7 }]} />
@@ -1146,7 +1149,7 @@ export default function ChatScreen() {
                             <TextInput
                                 ref={inputRef}
                                 style={[styles.input, { color: textPrimary }]}
-                                placeholder="Message Edutu..."
+                                placeholder={t('input.placeholder')}
                                 placeholderTextColor={textSecondary}
                                 value={input}
                                 onChangeText={setInput}
@@ -1187,7 +1190,7 @@ export default function ChatScreen() {
                 <View style={styles.modalOverlay}>
                     <View style={[styles.modalContent, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' }]}>
                         <View style={styles.modalHeader}>
-                            <Text style={[styles.modalTitle, { color: textPrimary }]}>Conversations</Text>
+                            <Text style={[styles.modalTitle, { color: textPrimary }]}>{t('threads.modalTitle')}</Text>
                             <TouchableOpacity onPress={() => setIsThreadsVisible(false)}>
                                 <X size={24} color={textSecondary} />
                             </TouchableOpacity>
@@ -1201,7 +1204,7 @@ export default function ChatScreen() {
                             style={[styles.newConvBtn, { backgroundColor: 'rgba(99,102,241,0.1)', borderColor: 'rgba(99,102,241,0.3)' }]}
                         >
                             <Plus size={20} color={accentColor} />
-                            <Text style={styles.newConvText}>New Conversation</Text>
+                            <Text style={styles.newConvText}>{t('threads.newConversation')}</Text>
                         </TouchableOpacity>
 
                         {isLoadingThreads ? (
@@ -1213,7 +1216,7 @@ export default function ChatScreen() {
                                 renderItem={renderGroupedThreadItem}
                                 showsVerticalScrollIndicator={false}
                                 ListEmptyComponent={
-                                    <Text style={[styles.emptyThreads, { color: textSecondary }]}>No recent conversations</Text>
+                                    <Text style={[styles.emptyThreads, { color: textSecondary }]}>{t('threads.empty')}</Text>
                                 }
                             />
                         )}

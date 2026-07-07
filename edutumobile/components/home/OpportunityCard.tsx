@@ -5,6 +5,7 @@ import { FadeInDown } from "react-native-reanimated";
 import { Opportunity } from "@edutu/core/src/types/opportunity";
 import { getDeadlineBadge, urgencyColor } from "@edutu/core/src/utils/deadline";
 import { AnimatedPressable } from "../ui/AnimatedPressable";
+import { useTranslation } from "react-i18next";
 
 const { width } = Dimensions.get("window");
 const CARD_GAP = 12;
@@ -41,6 +42,7 @@ function OpportunityCardBase({
     showMatchBadge = false,
     index = 0,
 }: OpportunityCardProps) {
+    const { t } = useTranslation('home');
     const deadlineBadge = useMemo(() => getDeadlineBadge(item.deadline), [item.deadline]);
     const deadlineText = deadlineBadge.shortLabel;
     const deadlineColor = deadlineBadge.level === "none"
@@ -67,12 +69,12 @@ function OpportunityCardBase({
     const promptNotInterested = () => {
         if (!onNotInterested) return;
         Alert.alert(
-            "Not interested?",
-            "We'll show you fewer opportunities like this one.",
+            t('opportunityCard.notInterestedTitle'),
+            t('opportunityCard.notInterestedMessage'),
             [
-                { text: "Cancel", style: "cancel" },
+                { text: t('common:actions.cancel'), style: "cancel" },
                 {
-                    text: "Not interested",
+                    text: t('opportunityCard.notInterestedConfirm'),
                     style: "destructive",
                     onPress: () => onNotInterested(item.id),
                 },
@@ -147,7 +149,7 @@ function OpportunityCardBase({
                 {showMatch && (
                     <View style={[styles.oppMatchBadge, { backgroundColor: isDark ? "rgba(99,102,241,0.18)" : "rgba(99,102,241,0.10)" }]}>
                         <Sparkles size={9} color={accent} />
-                        <Text style={[styles.oppMatchBadgeText, { color: accent }]}>{matchPct}% match</Text>
+                        <Text style={[styles.oppMatchBadgeText, { color: accent }]}>{t('opportunityCard.percentMatch', { percent: matchPct })}</Text>
                     </View>
                 )}
                 <Text style={[styles.oppTitle, { color: textPrimary }]} numberOfLines={2}>{item.title}</Text>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useAuth, useUser } from '@clerk/clerk-expo';
+import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { UserPlus, Map, ArrowRight } from 'lucide-react-native';
@@ -13,9 +14,10 @@ interface LandingCTAProps {
 }
 
 export default function LandingCTA({
-    title = 'Ready to Get Started?',
-    subtitle = 'Join as a mentor or explore personalized roadmaps',
+    title,
+    subtitle,
 }: LandingCTAProps) {
+    const { t } = useTranslation('common');
     const { isSignedIn } = useAuth();
     const { user } = useUser();
     const router = useRouter();
@@ -41,8 +43,8 @@ export default function LandingCTA({
 
     return (
         <View style={styles.container}>
-            <Text style={[styles.title, { color: colors.foreground }]}>{title}</Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
+            <Text style={[styles.title, { color: colors.foreground }]}>{title ?? t('landingCta.title')}</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle ?? t('landingCta.subtitle')}</Text>
 
             <View style={styles.buttonsContainer}>
                 <AnimatedPressable
@@ -57,7 +59,7 @@ export default function LandingCTA({
                         style={[styles.primaryButton, { borderRadius: 18 }]}
                     >
                         <UserPlus size={20} color="#ffffff" />
-                        <Text style={styles.primaryButtonText}>Apply as Mentor</Text>
+                        <Text style={styles.primaryButtonText}>{t('landingCta.applyAsMentor')}</Text>
                         <ArrowRight size={20} color="#ffffff" />
                     </LinearGradient>
                 </AnimatedPressable>
@@ -69,7 +71,7 @@ export default function LandingCTA({
                 >
                     <View style={[styles.secondaryButton, { borderColor: colors.border, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 18 }]}>
                         <Map size={20} color={colors.accent} />
-                        <Text style={[styles.secondaryButtonText, { color: colors.foreground }]}>See Roadmaps</Text>
+                        <Text style={[styles.secondaryButtonText, { color: colors.foreground }]}>{t('landingCta.seeRoadmaps')}</Text>
                         <ArrowRight size={20} color={colors.accent} />
                     </View>
                 </AnimatedPressable>

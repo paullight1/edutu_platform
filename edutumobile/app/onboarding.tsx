@@ -17,6 +17,7 @@ import {
 } from 'react-native'
 import { useUser } from '@clerk/clerk-expo'
 import { useRouter } from 'expo-router'
+import { useTranslation } from 'react-i18next'
 import Animated, { FadeInUp, FadeInDown, Layout, SlideInRight, SlideOutLeft } from 'react-native-reanimated'
 import {
     ArrowRight,
@@ -57,11 +58,12 @@ import type { Country } from '../data/onboarding-data'
 const { width: SCREEN_WIDTH } = Dimensions.get('window')
 let styles = {} as ReturnType<typeof getStyles>
 
+// `label`/`icon` hold i18n keys (auth namespace) translated at render time; `value` is the backend enum.
 const DEGREE_PURSUITS = [
-    { value: 'BSc', label: "Bachelor's", icon: 'BSc' },
-    { value: 'MSc', label: "Master's", icon: 'MSc' },
-    { value: 'PhD', label: 'PhD', icon: 'PhD' },
-    { value: 'Other', label: 'Other', icon: 'Alt' },
+    { value: 'BSc', label: 'onboarding.profile.degrees.bachelors', icon: 'onboarding.profile.degrees.bachelorsAbbr' },
+    { value: 'MSc', label: 'onboarding.profile.degrees.masters', icon: 'onboarding.profile.degrees.mastersAbbr' },
+    { value: 'PhD', label: 'onboarding.profile.degrees.phd', icon: 'onboarding.profile.degrees.phdAbbr' },
+    { value: 'Other', label: 'onboarding.profile.degrees.other', icon: 'onboarding.profile.degrees.otherAbbr' },
 ]
 
 const NIGERIAN_UNIVERSITIES = [
@@ -74,11 +76,12 @@ const NIGERIAN_UNIVERSITIES = [
     'Bingham University', 'Joseph Ayo Babalola University', 'Crescent University',
 ]
 
+// `title` holds an i18n key (auth namespace) translated at render time.
 const STEPS = [
-    { id: 'profile', title: 'Profile', icon: User },
-    { id: 'education', title: 'Education', icon: Building },
-    { id: 'interests', title: 'Interests', icon: Target },
-    { id: 'welcome', title: 'Welcome', icon: Sparkles },
+    { id: 'profile', title: 'onboarding.steps.profile', icon: User },
+    { id: 'education', title: 'onboarding.steps.education', icon: Building },
+    { id: 'interests', title: 'onboarding.steps.interests', icon: Target },
+    { id: 'welcome', title: 'onboarding.steps.welcome', icon: Sparkles },
 ]
 
 const ANIMATED_VIEW = Animated.View
@@ -107,6 +110,7 @@ function StepIndicator({ currentStep, totalSteps }: { currentStep: number; total
 }
 
 function CountryPickerModal({ visible, onClose, selectedCountry, onSelect }: any) {
+    const { t } = useTranslation('auth')
     const [search, setSearch] = useState('')
 
     const filteredCountries = useMemo(() => {
@@ -134,7 +138,7 @@ function CountryPickerModal({ visible, onClose, selectedCountry, onSelect }: any
                 >
                     <View style={styles.modalSheet}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Select Country</Text>
+                            <Text style={styles.modalTitle}>{t('onboarding.countryPicker.title')}</Text>
                             <TouchableOpacity onPress={onClose} style={styles.modalCloseBtn}>
                                 <X color="#94A3B8" size={22} />
                             </TouchableOpacity>
@@ -145,7 +149,7 @@ function CountryPickerModal({ visible, onClose, selectedCountry, onSelect }: any
                             <TextInput
                                 value={search}
                                 onChangeText={setSearch}
-                                placeholder="Search country or dial code..."
+                                placeholder={t('onboarding.countryPicker.searchPlaceholder')}
                                 placeholderTextColor="#64748B"
                                 style={styles.searchInput}
                                 returnKeyType="search"
@@ -184,6 +188,7 @@ function CountryPickerModal({ visible, onClose, selectedCountry, onSelect }: any
 }
 
 function ProfileStep({ formData, setFormData }: any) {
+    const { t } = useTranslation('auth')
     const { fullName, selectedCountry, age, degreePursuit } = formData
 
     return (
@@ -192,20 +197,20 @@ function ProfileStep({ formData, setFormData }: any) {
                 <View style={styles.stepIconBox}>
                     <User color="#F97316" size={28} />
                 </View>
-                <Text style={styles.stepTitle}>Basic Info</Text>
+                <Text style={styles.stepTitle}>{t('onboarding.profile.title')}</Text>
                 <Text style={styles.stepSubtitle}>
-                    Just a few details to get started
+                    {t('onboarding.profile.subtitle')}
                 </Text>
             </View>
 
             <View style={styles.form}>
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Name</Text>
+                    <Text style={styles.label}>{t('onboarding.profile.nameLabel')}</Text>
                     <View style={styles.inputContainer}>
                         <TextInput
                             value={fullName}
                             onChangeText={(text: string) => setFormData({ fullName: text })}
-                            placeholder="Your full name"
+                            placeholder={t('onboarding.profile.namePlaceholder')}
                             placeholderTextColor="#64748B"
                             style={styles.input}
                         />
@@ -213,7 +218,7 @@ function ProfileStep({ formData, setFormData }: any) {
                 </View>
 
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Country</Text>
+                    <Text style={styles.label}>{t('onboarding.profile.countryLabel')}</Text>
                     <TouchableOpacity
                         style={styles.pickerRow}
                         onPress={() => setFormData({ countryModal: true })}
@@ -227,12 +232,12 @@ function ProfileStep({ formData, setFormData }: any) {
 
                 <View style={styles.rowGroup}>
                     <View style={[styles.inputGroup, { flex: 1 }]}>
-                        <Text style={styles.label}>Age</Text>
+                        <Text style={styles.label}>{t('onboarding.profile.ageLabel')}</Text>
                         <View style={styles.inputContainer}>
                             <TextInput
                                 value={age}
                                 onChangeText={(text: string) => setFormData({ age: text })}
-                                placeholder="Age"
+                                placeholder={t('onboarding.profile.agePlaceholder')}
                                 placeholderTextColor="#64748B"
                                 style={styles.input}
                                 keyboardType="number-pad"
@@ -243,7 +248,7 @@ function ProfileStep({ formData, setFormData }: any) {
                 </View>
 
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Degree Level <Text style={styles.optionalLabel}>(optional)</Text></Text>
+                    <Text style={styles.label}>{t('onboarding.profile.degreeLabel')} <Text style={styles.optionalLabel}>{t('onboarding.optional')}</Text></Text>
                     <View style={styles.pursuitGrid}>
                         {DEGREE_PURSUITS.map((degree) => (
                             <TouchableOpacity
@@ -255,14 +260,14 @@ function ProfileStep({ formData, setFormData }: any) {
                                 onPress={() => setFormData({ degreePursuit: degree.value })}
                                 activeOpacity={0.7}
                             >
-                                <Text style={styles.pursuitIcon}>{degree.icon}</Text>
+                                <Text style={styles.pursuitIcon}>{t(degree.icon)}</Text>
                                 <Text
                                     style={[
                                         styles.pursuitLabel,
                                         degreePursuit === degree.value && styles.pursuitLabelSelected,
                                     ]}
                                 >
-                                    {degree.label}
+                                    {t(degree.label)}
                                 </Text>
                             </TouchableOpacity>
                         ))}
@@ -274,6 +279,7 @@ function ProfileStep({ formData, setFormData }: any) {
 }
 
 function EducationStep({ formData, setFormData }: any) {
+    const { t } = useTranslation('auth')
     const { isGraduate, gradeLevel, schoolName } = formData
     const [schoolDropdownVisible, setSchoolDropdownVisible] = useState(false)
 
@@ -290,29 +296,29 @@ function EducationStep({ formData, setFormData }: any) {
                 <View style={styles.stepIconBox}>
                     <Building color="#F97316" size={28} />
                 </View>
-                <Text style={styles.stepTitle}>Education</Text>
+                <Text style={styles.stepTitle}>{t('onboarding.education.title')}</Text>
                 <Text style={styles.stepSubtitle}>
-                    Tell us about your academic background
+                    {t('onboarding.education.subtitle')}
                 </Text>
             </View>
 
             <View style={styles.form}>
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Are you a graduate?</Text>
+                    <Text style={styles.label}>{t('onboarding.education.graduateQuestion')}</Text>
                     <View style={styles.yesNoRow}>
                         <TouchableOpacity
                             style={[styles.yesNoBtn, isGraduate === 'yes' && styles.yesNoBtnSelected]}
                             onPress={() => setFormData({ isGraduate: 'yes' })}
                             activeOpacity={0.7}
                         >
-                            <Text style={[styles.yesNoText, isGraduate === 'yes' && styles.yesNoTextSelected]}>Yes</Text>
+                            <Text style={[styles.yesNoText, isGraduate === 'yes' && styles.yesNoTextSelected]}>{t('onboarding.education.yes')}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={[styles.yesNoBtn, isGraduate === 'no' && styles.yesNoBtnSelected]}
                             onPress={() => setFormData({ isGraduate: 'no' })}
                             activeOpacity={0.7}
                         >
-                            <Text style={[styles.yesNoText, isGraduate === 'no' && styles.yesNoTextSelected]}>No</Text>
+                            <Text style={[styles.yesNoText, isGraduate === 'no' && styles.yesNoTextSelected]}>{t('onboarding.education.no')}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -320,7 +326,7 @@ function EducationStep({ formData, setFormData }: any) {
                 {isGraduate === 'no' && (
                     <ANIMATED_VIEW entering={FadeInUp.duration(300)}>
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Grade Level</Text>
+                            <Text style={styles.label}>{t('onboarding.education.gradeLevelLabel')}</Text>
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.gradeScroll}>
                                 {GRADE_LEVELS_DATA.map((level) => (
                                     <TouchableOpacity
@@ -344,7 +350,7 @@ function EducationStep({ formData, setFormData }: any) {
                 )}
 
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>School <Text style={styles.optionalLabel}>(optional)</Text></Text>
+                    <Text style={styles.label}>{t('onboarding.education.schoolLabel')} <Text style={styles.optionalLabel}>{t('onboarding.optional')}</Text></Text>
                     <View style={styles.schoolSearchContainer}>
                         <TextInput
                             value={schoolName}
@@ -353,7 +359,7 @@ function EducationStep({ formData, setFormData }: any) {
                                 setSchoolDropdownVisible(true)
                             }}
                             onFocus={() => setSchoolDropdownVisible(true)}
-                            placeholder="Search your school..."
+                            placeholder={t('onboarding.education.schoolPlaceholder')}
                             placeholderTextColor="#64748B"
                             style={styles.schoolInput}
                         />
@@ -391,6 +397,7 @@ function EducationStep({ formData, setFormData }: any) {
 }
 
 function InterestsStep({ formData, setFormData }: any) {
+    const { t } = useTranslation('auth')
     const { selectedInterests, selectedAmbitions } = formData
 
     const toggleInterest = useCallback((interest: string) => {
@@ -415,16 +422,16 @@ function InterestsStep({ formData, setFormData }: any) {
                 <View style={styles.stepIconBox}>
                     <Target color="#F97316" size={28} />
                 </View>
-                <Text style={styles.stepTitle}>Your Goals</Text>
+                <Text style={styles.stepTitle}>{t('onboarding.interests.title')}</Text>
                 <Text style={styles.stepSubtitle}>
-                    Pick what matters to you
+                    {t('onboarding.interests.subtitle')}
                 </Text>
             </View>
 
             <View style={styles.form}>
                 <View style={styles.inputGroup}>
                     <View style={styles.sectionHeaderRow}>
-                        <Text style={styles.label}>Interests</Text>
+                        <Text style={styles.label}>{t('onboarding.interests.interestsLabel')}</Text>
                         <Text style={styles.limitText}>{selectedInterests.length}/3</Text>
                     </View>
                     <View style={styles.interestsGrid}>
@@ -456,7 +463,7 @@ function InterestsStep({ formData, setFormData }: any) {
 
                 <View style={styles.inputGroup}>
                     <View style={styles.sectionHeaderRow}>
-                        <Text style={styles.label}>Ambitions</Text>
+                        <Text style={styles.label}>{t('onboarding.interests.ambitionsLabel')}</Text>
                         <Text style={styles.limitText}>{selectedAmbitions.length}/2</Text>
                     </View>
                     <View style={styles.ambitionsGrid}>
@@ -487,6 +494,7 @@ function InterestsStep({ formData, setFormData }: any) {
 }
 
 function WelcomeStep() {
+    const { t } = useTranslation('auth')
     return (
         <ANIMATED_VIEW entering={FadeInUp.duration(400)} style={styles.welcomeContainer}>
             <View style={styles.welcomeContent}>
@@ -497,9 +505,9 @@ function WelcomeStep() {
                     />
                     <Sparkles color="#F97316" size={48} />
                 </View>
-                <Text style={styles.welcomeTitle}>You're all set!</Text>
+                <Text style={styles.welcomeTitle}>{t('onboarding.welcome.title')}</Text>
                 <Text style={styles.welcomeSubtitle}>
-                    We'll find the best opportunities for you
+                    {t('onboarding.welcome.subtitle')}
                 </Text>
 
                 <View style={styles.welcomeFeatures}>
@@ -507,19 +515,19 @@ function WelcomeStep() {
                         <View style={[styles.featureIcon, { backgroundColor: 'rgba(249,115,22,0.18)' }]}>
                             <Sparkles size={22} color="#F97316" />
                         </View>
-                        <Text style={styles.featureText}>Personalized matches</Text>
+                        <Text style={styles.featureText}>{t('onboarding.welcome.featureMatches')}</Text>
                     </ANIMATED_VIEW>
                     <ANIMATED_VIEW entering={FadeInUp.delay(200).duration(350)} style={styles.featureItem}>
                         <View style={[styles.featureIcon, { backgroundColor: 'rgba(16,185,129,0.18)' }]}>
                             <Award size={22} color="#10B981" />
                         </View>
-                        <Text style={styles.featureText}>Scholarships & programs</Text>
+                        <Text style={styles.featureText}>{t('onboarding.welcome.featurePrograms')}</Text>
                     </ANIMATED_VIEW>
                     <ANIMATED_VIEW entering={FadeInUp.delay(300).duration(350)} style={styles.featureItem}>
                         <View style={[styles.featureIcon, { backgroundColor: 'rgba(59,130,246,0.18)' }]}>
                             <Target size={22} color="#3b82f6" />
                         </View>
-                        <Text style={styles.featureText}>Career guidance</Text>
+                        <Text style={styles.featureText}>{t('onboarding.welcome.featureCareer')}</Text>
                     </ANIMATED_VIEW>
                 </View>
             </View>
@@ -532,6 +540,7 @@ export default function OnboardingScreen() {
     const router = useRouter()
     const insets = useSafeAreaInsets()
     const { colors, isDark } = useTheme()
+    const { t } = useTranslation('auth')
     styles = useMemo(() => getStyles(isDark, colors), [colors, isDark])
 
     const [currentStep, setCurrentStep] = useState(0)
@@ -634,7 +643,7 @@ export default function OnboardingScreen() {
             router.replace('/(app)')
         } catch (err) {
             console.error('Error updating profile:', err)
-            Alert.alert('Error', 'Failed to save preferences. Please try again.')
+            Alert.alert(t('common:states.error'), t('onboarding.errors.saveFailed'))
             setLoading(false)
         }
     }
@@ -725,7 +734,7 @@ export default function OnboardingScreen() {
                             {currentStep > 0 && <ChevronLeft color="#FFFFFF" size={24} />}
                         </TouchableOpacity>
                         <View style={styles.headerCenter}>
-                            <Text style={styles.headerSubtitle}>Step {currentStep + 1} of {STEPS.length}</Text>
+                            <Text style={styles.headerSubtitle}>{t('onboarding.stepOf', { current: currentStep + 1, total: STEPS.length })}</Text>
                         </View>
                         {!isLastStep && (
                             <TouchableOpacity
@@ -734,7 +743,7 @@ export default function OnboardingScreen() {
                                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                                 activeOpacity={0.7}
                             >
-                                <Text style={styles.skipButtonText}>Skip</Text>
+                                <Text style={styles.skipButtonText}>{t('common:actions.skip')}</Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -778,7 +787,7 @@ export default function OnboardingScreen() {
                                 ) : (
                                     <>
                                         <Text style={styles.buttonText}>
-                                            {isLastStep ? "Get Started" : 'Continue'}
+                                            {isLastStep ? t('onboarding.getStarted') : t('common:actions.continue')}
                                         </Text>
                                         <ArrowRight color="#FFFFFF" size={20} />
                                     </>

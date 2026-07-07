@@ -1,0 +1,412 @@
+{
+    "createGoal": "Créer un objectif",
+    "viewAll": "Tout voir",
+    "creditsEarned_one": "+{{count}} crédit pour un objectif accompli",
+    "creditsEarned_other": "+{{count}} crédits pour un objectif accompli",
+    "priority": {
+        "high": "Haute",
+        "medium": "Moyenne",
+        "low": "Basse",
+        "highFull": "Priorité haute",
+        "mediumFull": "Priorité moyenne",
+        "lowFull": "Priorité basse",
+        "highDesc": "Urgent - nécessite une attention immédiate",
+        "mediumDesc": "Important - à traiter bientôt",
+        "lowDesc": "Peut être fait quand vous avez le temps"
+    },
+    "status": {
+        "completed": "Terminé",
+        "overdue": "En retard",
+        "inProgress": "En cours"
+    },
+    "labels": {
+        "progress": "Progression",
+        "priority": "Priorité",
+        "deadline": "Échéance",
+        "reminder": "Rappel",
+        "status": "Statut",
+        "datePlaceholder": "AAAA-MM-JJ"
+    },
+    "time": {
+        "today": "Aujourd'hui",
+        "tomorrow": "Demain",
+        "overdueShort": "{{count}} j de retard",
+        "leftShort": "{{count}} j restants",
+        "daysOverdue_one": "{{count}} jour de retard",
+        "daysOverdue_other": "{{count}} jours de retard",
+        "daysLeft_one": "{{count}} jour restant",
+        "daysLeft_other": "{{count}} jours restants",
+        "daysFromNow_one": "dans {{count}} jour",
+        "daysFromNow_other": "dans {{count}} jours",
+        "days_one": "{{count}} jour",
+        "days_other": "{{count}} jours"
+    },
+    "deleteConfirm": {
+        "title": "Supprimer l'objectif",
+        "message": "Voulez-vous vraiment supprimer « {{title}} » ?"
+    },
+    "stats": {
+        "active": "Actifs",
+        "completed": "Terminés",
+        "roadmaps": "Parcours",
+        "completion": "Réalisation",
+        "total": "Total",
+        "done": "Faits",
+        "progress": "Progression"
+    },
+    "sections": {
+        "roadmaps": "Parcours",
+        "personalGoals": "Objectifs personnels"
+    },
+    "filter": {
+        "byStatus": "Filtrer par statut",
+        "activeLabel": "Filtre : {{label}}",
+        "clear": "Effacer",
+        "allGoals": "Tous les objectifs",
+        "all": "Tous",
+        "active": "Actifs",
+        "completed": "Terminés"
+    },
+    "empty": {
+        "noRoadmaps": {
+            "title": "Aucun parcours",
+            "description": "Importez un parcours d'opportunité pour voir des objectifs ici.",
+            "action": "Parcourir les parcours"
+        },
+        "noPersonalGoals": {
+            "title": "Aucun objectif personnel",
+            "description": "Touchez l'icône plus pour ajouter votre premier objectif."
+        }
+    },
+    "dashboard": {
+        "title": "Objectifs",
+        "subtitle": "{{active}} actifs · {{rate}} % terminés",
+        "searchPlaceholder": "Recherchez vos objectifs...",
+        "upcomingDeadlines": "Échéances à venir",
+        "myOpportunities": "Mes opportunités",
+        "savedSummary": "{{count}} enregistrées",
+        "savedSummaryWithUrgent": "{{count}} enregistrées · {{urgent}} urgentes",
+        "opportunityFallback": "Opportunité",
+        "searchResults_one": "{{count}} objectif trouvé pour « {{term}} »",
+        "searchResults_other": "{{count}} objectifs trouvés pour « {{term}} »",
+        "shareBanner": {
+            "title": "Des opportunités à partager ?",
+            "subtitle": "Contactez-nous si vous avez des bourses, des emplois ou des programmes à partager avec notre communauté",
+            "action": "Nous contacter"
+        }
+    },
+    "detail": {
+        "title": "Détails de l'objectif",
+        "editTitle": "Modifier l'objectif",
+        "details": "Détails",
+        "fromRoadmap": "Issu d'un parcours",
+        "personalGoal": "Objectif personnel",
+        "titlePlaceholder": "Titre de l'objectif",
+        "descriptionPlaceholder": "Ajoutez une description...",
+        "noDeadline": "Aucune échéance",
+        "markComplete": "Marquer comme terminé",
+        "reopen": "Rouvrir l'objectif",
+        "cancelEditing": "Annuler les modifications",
+        "notFound": {
+            "title": "Objectif introuvable",
+            "description": "Cet objectif a peut-être été supprimé ou vous n'y avez pas accès.",
+            "back": "Retour aux objectifs"
+        },
+        "reminder": {
+            "enabled": "Activé",
+            "disabled": "Désactivé",
+            "enabledTitle": "Rappel activé",
+            "disabledTitle": "Rappel désactivé",
+            "enabledMessage": "Vous recevrez un rappel le {{date}}",
+            "disabledMessage": "Vous ne recevrez pas de rappels pour cet objectif."
+        },
+        "alerts": {
+            "enterTitle": "Veuillez saisir un titre d'objectif",
+            "updated": "Objectif mis à jour avec succès",
+            "updateFailed": "Échec de la mise à jour de l'objectif",
+            "congratsTitle": "🎉 Félicitations !",
+            "congratsMessage": "Vous avez atteint cet objectif !",
+            "completeFailed": "Échec de la validation de l'objectif",
+            "deleteFailed": "Échec de la suppression de l'objectif",
+            "noDeadlineTitle": "Aucune échéance",
+            "noDeadlineMessage": "Définissez d'abord une échéance pour activer les rappels.",
+            "reminderFailed": "Échec de l'activation du rappel"
+        }
+    },
+    "add": {
+        "title": "Créer un nouvel objectif",
+        "heading": "Fixez votre cible",
+        "subheading": "Définissez votre objectif et suivez votre progression jusqu'à la réussite.",
+        "titleLabel": "Titre de l'objectif",
+        "titlePlaceholder": "Que voulez-vous accomplir ?",
+        "descriptionLabel": "Description",
+        "descriptionPlaceholder": "Ajoutez plus de détails sur cet objectif...",
+        "preview": "APERÇU",
+        "pastDate": "Date passée",
+        "validation": {
+            "titleTooShort": "Le titre doit contenir au moins 3 caractères",
+            "looksGood": "C'est parfait !",
+            "deadlinePast": "L'échéance ne peut pas être dans le passé"
+        },
+        "alerts": {
+            "invalidTitle": "Titre invalide",
+            "titleTooShort": "Le titre de l'objectif doit contenir au moins 3 caractères",
+            "titleTooLongTitle": "Titre trop long",
+            "titleTooLongMessage": "Le titre de l'objectif doit contenir moins de 100 caractères",
+            "invalidDeadline": "Échéance invalide",
+            "created": "Objectif créé avec succès !",
+            "createAnother": "En créer un autre",
+            "createFailed": "Échec de la création de l'objectif. Veuillez réessayer."
+        }
+    },
+    "allRoadmaps": {
+        "title": "Objectifs de parcours",
+        "goalCount_one": "{{count}} objectif",
+        "goalCount_other": "{{count}} objectifs",
+        "otherGroup": "Autre",
+        "empty": {
+            "title": "Aucun objectif de parcours",
+            "searchHint": "Essayez d'ajuster votre recherche",
+            "description": "Importez des objectifs depuis un parcours pour les voir ici"
+        }
+    },
+    "myList": {
+        "title": "Mes objectifs",
+        "goalsTracked_one": "{{count}} objectif suivi",
+        "goalsTracked_other": "{{count}} objectifs suivis",
+        "heroTitle": "Restez concentré 🎯",
+        "heroCompleted_one": "Vous avez accompli {{count}} objectif. Gardez le rythme !",
+        "heroCompleted_other": "Vous avez accompli {{count}} objectifs. Gardez le rythme !",
+        "heroEmpty": "Transformez vos ambitions en objectifs atteignables. Commencez le suivi dès aujourd'hui !",
+        "ctaTitle": "Créez votre premier objectif",
+        "ctaSubtitle": "Fixez des cibles et suivez votre progression",
+        "highPriorityAlert_one": "{{count}} objectif prioritaire demande votre attention",
+        "highPriorityAlert_other": "{{count}} objectifs prioritaires demandent votre attention",
+        "searchPlaceholder": "Rechercher des objectifs...",
+        "sortLabel": "Tri : {{label}}",
+        "sortBy": "Trier par",
+        "sort": {
+            "newest": "Plus récents d'abord",
+            "oldest": "Plus anciens d'abord",
+            "priority": "Priorité",
+            "deadline": "Échéance",
+            "progress": "Progression",
+            "title": "Titre (A-Z)"
+        },
+        "empty": {
+            "title": "Aucun objectif pour le moment",
+            "noMatch": "Aucun objectif correspondant",
+            "searchHint": "Essayez d'ajuster votre recherche ou vos filtres",
+            "description": "Commencez par créer votre premier objectif pour suivre votre progression et rester motivé"
+        }
+    },
+    "roadmaps": {
+        "title": "Parcours",
+        "subtitle": "Des chemins d'apprentissage structurés pour atteindre vos objectifs",
+        "loading": "Chargement des parcours...",
+        "searchPlaceholder": "Rechercher des parcours...",
+        "empty": "Aucun parcours trouvé. Essayez d'ajuster votre recherche ou vos filtres !",
+        "noDescription": "Aucune description disponible",
+        "featured": "En vedette",
+        "stepsCount_one": "{{count}} étape",
+        "stepsCount_other": "{{count}} étapes",
+        "notAvailable": "N/D",
+        "varies": "Variable",
+        "achieveTitle": "Ce que vous accomplirez",
+        "learningPath": "Chemin d'apprentissage",
+        "startButton": "Commencer ce parcours",
+        "rateButton": "Noter ce parcours",
+        "categories": {
+            "all": "Tous",
+            "scholarship": "Bourse",
+            "career": "Carrière",
+            "education": "Éducation",
+            "skills": "Compétences",
+            "business": "Business",
+            "tech": "Tech"
+        },
+        "creatorBanner": {
+            "title": "Devenez créateur de parcours",
+            "subtitle": "Partagez votre expertise. Créez des chemins d'apprentissage. Gagnez en enseignant."
+        },
+        "templateBanner": {
+            "title": "Explorez les modèles de parcours",
+            "subtitle": "Partez d'un chemin éprouvé et transformez-le en objectif."
+        },
+        "detailInfo": {
+            "creatorProof": "Preuve du créateur : {{value}}",
+            "deadlineStrategy": "Stratégie d'échéance : {{value}}",
+            "targetDeadline": "Échéance cible : {{value}}",
+            "audience": "Pour : {{value}}",
+            "strategy": "Stratégie : {{value}}"
+        },
+        "statsLabels": {
+            "difficulty": "Difficulté",
+            "duration": "Durée",
+            "steps": "Étapes",
+            "enrolled": "Inscrits"
+        },
+        "deadline": {
+            "dueToday": "{{date}} - à rendre aujourd'hui",
+            "dueTomorrow": "{{date}} - à rendre demain",
+            "daysLeft_one": "{{date}} - {{count}} jour restant",
+            "daysLeft_other": "{{date}} - {{count}} jours restants",
+            "overdue": "{{date}} - en retard",
+            "daysBefore_one": "{{count}} jour avant l'échéance",
+            "daysBefore_other": "{{count}} jours avant l'échéance",
+            "dueOnDeadline": "À rendre le jour de l'échéance",
+            "dueDay": "À rendre le jour {{day}}"
+        },
+        "adoption": {
+            "fallback": "Vous êtes inscrit à ce parcours. Consultez vos objectifs pour commencer !",
+            "ready": "Votre parcours est prêt.",
+            "milestones_one": "{{count}} jalon ajouté à vos objectifs.",
+            "milestones_other": "{{count}} jalons ajoutés à vos objectifs.",
+            "deadline": "Échéance : {{date}}.",
+            "reminders": "Les rappels sont programmés.",
+            "calendarEvents_one": "{{count}} événement de calendrier préparé.",
+            "calendarEvents_other": "{{count}} événements de calendrier préparés.",
+            "community": "Une communauté de parcours correspondante est disponible."
+        },
+        "calendar": {
+            "unavailableTitle": "Calendrier indisponible",
+            "unavailableMessage": "Impossible de générer le calendrier. Veuillez réessayer.",
+            "exportFailedTitle": "Échec de l'export",
+            "exportFailedMessage": "Impossible d'ouvrir le fichier de calendrier."
+        },
+        "enroll": {
+            "adoptedTitle": "Parcours adopté",
+            "viewGoals": "Voir les objectifs",
+            "addToCalendar": "Ajouter au calendrier",
+            "openCommunity": "Ouvrir la communauté",
+            "continueBrowsing": "Continuer à parcourir",
+            "failedTitle": "Échec de l'inscription",
+            "failed": "Échec de l'inscription",
+            "failedMessage": "Inscription impossible."
+        },
+        "intent": {
+            "title": "Aidez-nous à trouver votre parcours idéal",
+            "subtitle": "Répondez à quelques questions pour que nous puissions vous recommander le meilleur chemin d'apprentissage.",
+            "answerPlaceholder": "Tapez votre réponse...",
+            "skip": "Passer pour l'instant",
+            "submit": "Trouver mes parcours",
+            "q1": "Quel est votre niveau d'expérience actuel ?",
+            "q2": "Combien de temps pouvez-vous consacrer par semaine ?",
+            "q3": "Quels sont vos objectifs principaux ?",
+            "levels": {
+                "beginner": "Débutant",
+                "intermediate": "Intermédiaire",
+                "advanced": "Avancé"
+            },
+            "time": {
+                "lessThan5": "Moins de 5 heures",
+                "hours5to10": "5-10 heures",
+                "hours10to20": "10-20 heures",
+                "hours20plus": "20 heures et plus"
+            }
+        },
+        "feedback": {
+            "title": "Comment avez-vous trouvé ce parcours ?",
+            "subtitle": "Votre avis nous aide à nous améliorer et aide les autres apprenants.",
+            "placeholder": "Qu'avez-vous aimé ou que pourrait-on améliorer ?",
+            "submit": "Envoyer mon avis",
+            "thanksTitle": "Merci !",
+            "thanksMessage": "Votre avis nous aide à améliorer les parcours pour tout le monde."
+        }
+    },
+    "templates": {
+        "title": "Explorer les modèles",
+        "subtitle": "Parcours en vedette",
+        "eyebrow": "MODÈLES DE PARCOURS EN VEDETTE",
+        "heading": "Choisissez un chemin éprouvé et planifiez plus vite",
+        "description": "Chaque modèle inclut des jalons, des ressources, un export vers le calendrier et des rappels d'étude.",
+        "count_one": "{{count}} modèle",
+        "count_other": "{{count}} modèles",
+        "weeksRange": "8-20 semaines",
+        "featuredPaths": "Chemins en vedette",
+        "available": "{{count}} disponibles",
+        "startRoadmap": "Commencer le parcours",
+        "calendar": "Calendrier",
+        "reminders": "Rappels",
+        "outcomes": "Résultats",
+        "guidance": "Conseils et ressources",
+        "week": "Semaine {{week}}",
+        "deliverableLabel": "Livrable : {{value}}",
+        "icsSummary": "{{title}} : Semaine {{week}}",
+        "shareDialogTitle": "Ajouter le parcours au calendrier",
+        "calendarReadyTitle": "Calendrier prêt",
+        "calendarReadyMessage": "L'export vers le calendrier est disponible sur les versions mobiles.",
+        "calendarFileCreated": "Fichier de calendrier créé",
+        "notificationsBlockedTitle": "Notifications bloquées",
+        "notificationsBlockedMessage": "Activez les notifications pour recevoir les rappels du parcours.",
+        "reminderTitle": "Rappel de parcours : Semaine {{week}}",
+        "remindersScheduledTitle": "Rappels programmés",
+        "remindersScheduledMessage_one": "{{count}} rappel de parcours est maintenant programmé.",
+        "remindersScheduledMessage_other": "{{count}} rappels de parcours sont maintenant programmés.",
+        "stepFallback": "Étape {{number}}",
+        "focus": "Focus : {{value}}",
+        "defaultSummary": "Un parcours guidé, étape par étape.",
+        "stepPlan": "Plan en {{count}} étapes",
+        "allLevels": "Tous niveaux",
+        "defaultCadence": "Rappels de jalons programmés à partir de votre date de début.",
+        "resourceFallback": "Ressource"
+    },
+    "calendar": {
+        "title": "Mon calendrier",
+        "deadlinePrefix": "Échéance : {{title}}",
+        "noEvents": "Aucun objectif ni échéance ce jour-là.",
+        "legend": {
+            "personalGoal": "Objectif personnel",
+            "roadmap": "Parcours",
+            "opportunity": "Opportunité"
+        },
+        "badge": {
+            "goal": "OBJECTIF",
+            "roadmap": "PARCOURS",
+            "opportunity": "OPPORTUNITÉ"
+        },
+        "days": {
+            "sun": "Dim",
+            "mon": "Lun",
+            "tue": "Mar",
+            "wed": "Mer",
+            "thu": "Jeu",
+            "fri": "Ven",
+            "sat": "Sam"
+        },
+        "months": {
+            "january": "Janvier",
+            "february": "Février",
+            "march": "Mars",
+            "april": "Avril",
+            "may": "Mai",
+            "june": "Juin",
+            "july": "Juillet",
+            "august": "Août",
+            "september": "Septembre",
+            "october": "Octobre",
+            "november": "Novembre",
+            "december": "Décembre"
+        }
+    },
+    "intake": {
+        "timeQuestion": "Combien de temps pouvez-vous y consacrer chaque semaine ?",
+        "levelQuestion": "D'où partez-vous ?",
+        "time": {
+            "under5": "Moins de 5 h",
+            "h5to10": "5–10 h",
+            "h10to20": "10–20 h",
+            "h20plus": "20 h et plus"
+        },
+        "level": {
+            "beginner": "Je débute",
+            "intermediate": "Un peu d'expérience",
+            "advanced": "Expérimenté"
+        }
+    },
+    "timeline": {
+        "today": "AUJOURD'HUI",
+        "milestoneDone": "{{title}}, terminé",
+        "removeMilestone": "Retirer {{title}}"
+    }
+}

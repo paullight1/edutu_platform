@@ -11,8 +11,10 @@ import { useCredits } from '@edutu/core/src/hooks/useCredits';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { CreditPackSheet } from '../../components/credits/CreditPackSheet';
 import { supabase } from '../../lib/supabase';
+import { useTranslation } from 'react-i18next';
 
 export default function WalletScreen() {
+    const { t } = useTranslation('home');
     const { user } = useUser();
     const router = useRouter();
     const { colors } = useTheme();
@@ -47,7 +49,7 @@ export default function WalletScreen() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-            <ScreenHeader title="Wallet" showBack />
+            <ScreenHeader title={t('wallet.title')} showBack />
 
             <ScrollView
                 ref={scrollRef}
@@ -58,13 +60,13 @@ export default function WalletScreen() {
                 {/* Balance Card */}
                 <LinearGradient colors={['#1E293B', '#0F172A']} style={styles.balanceCard}>
                     <View style={styles.balanceCenter}>
-                        <Text style={styles.balanceLabel}>Credits Balance</Text>
+                        <Text style={styles.balanceLabel}>{t('wallet.balanceTitle')}</Text>
                         {creditsLoading ? (
                             <ActivityIndicator color="#3B82F6" size="large" style={{ marginTop: 8 }} />
                         ) : (
                             <Text style={styles.balanceAmount}>{credits.toLocaleString()}</Text>
                         )}
-                        <Text style={styles.balanceSub}>Credits</Text>
+                        <Text style={styles.balanceSub}>{t('wallet.creditsUnit')}</Text>
                     </View>
 
                     {/* Pro Status Badge */}
@@ -76,7 +78,7 @@ export default function WalletScreen() {
                         >
                             <Crown size={14} color={isPro ? '#F59E0B' : '#94A3B8'} />
                             <Text style={[styles.proStatusText, { color: isPro ? '#F59E0B' : '#94A3B8' }]}>
-                                {isPro ? 'Pro Member' : 'Upgrade to Pro'}
+                                {isPro ? t('wallet.proMember') : t('wallet.upgradeToPro')}
                             </Text>
                         </TouchableOpacity>
                     )}
@@ -86,13 +88,13 @@ export default function WalletScreen() {
                             <View style={[styles.actionIcon, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
                                 <PlusCircle color="#10B981" size={22} />
                             </View>
-                            <Text style={styles.actionLabel}>Buy Credits</Text>
+                            <Text style={styles.actionLabel}>{t('wallet.buyCredits')}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.actionItem} onPress={handleViewHistory} activeOpacity={0.7}>
                             <View style={[styles.actionIcon, { backgroundColor: 'rgba(245, 158, 11, 0.2)' }]}>
                                 <CreditCard color="#F59E0B" size={22} />
                             </View>
-                            <Text style={styles.actionLabel}>History</Text>
+                            <Text style={styles.actionLabel}>{t('wallet.history')}</Text>
                         </TouchableOpacity>
                     </View>
                 </LinearGradient>
@@ -106,12 +108,12 @@ export default function WalletScreen() {
                             </View>
                             <View>
                                 <Text style={[styles.streakTitle, { color: colors.foreground }]}>
-                                    {loginStreak}-day streak
+                                    {t('wallet.dayStreak', { count: loginStreak })}
                                 </Text>
                                 <Text style={[styles.streakSub, { color: colors.textSecondary }]}>
                                     {loginStreak > 0 && loginStreak % 7 === 0
-                                        ? 'Bonus unlocked! Keep it going.'
-                                        : `Day 7 earns a credit bonus`}
+                                        ? t('wallet.streakBonusUnlocked')
+                                        : t('wallet.streakBonusHint')}
                                 </Text>
                             </View>
                         </View>
@@ -155,8 +157,8 @@ export default function WalletScreen() {
                         activeOpacity={0.7}
                     >
                         <Crown size={24} color={colors.accent} />
-                        <Text style={[styles.quickActionTitle, { color: colors.foreground }]}>Upgrade to Pro</Text>
-                        <Text style={[styles.quickActionDesc, { color: colors.textSecondary }]}>Unlimited premium features</Text>
+                        <Text style={[styles.quickActionTitle, { color: colors.foreground }]}>{t('wallet.upgradeToPro')}</Text>
+                        <Text style={[styles.quickActionDesc, { color: colors.textSecondary }]}>{t('wallet.unlimitedPremiumFeatures')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -165,8 +167,8 @@ export default function WalletScreen() {
                         activeOpacity={0.7}
                     >
                         <Zap size={24} color="#10B981" />
-                        <Text style={[styles.quickActionTitle, { color: colors.foreground }]}>Buy Credits</Text>
-                        <Text style={[styles.quickActionDesc, { color: colors.textSecondary }]}>Pay-per-use for AI features</Text>
+                        <Text style={[styles.quickActionTitle, { color: colors.foreground }]}>{t('wallet.buyCredits')}</Text>
+                        <Text style={[styles.quickActionDesc, { color: colors.textSecondary }]}>{t('wallet.payPerUse')}</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -177,7 +179,7 @@ export default function WalletScreen() {
                         txSectionY.current = e.nativeEvent.layout.y;
                     }}
                 >
-                    <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Recent Transactions</Text>
+                    <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t('wallet.recentTransactions')}</Text>
                 </View>
 
                 {creditsLoading ? (
@@ -185,12 +187,12 @@ export default function WalletScreen() {
                 ) : transactions.length === 0 ? (
                     <View style={styles.emptyState}>
                         <CreditCard color={colors.textSecondary} size={36} />
-                        <Text style={[styles.emptyText, { color: colors.foreground }]}>No transactions yet</Text>
+                        <Text style={[styles.emptyText, { color: colors.foreground }]}>{t('wallet.noTransactions')}</Text>
                         <Text style={[styles.emptySubText, { color: colors.textSecondary }]}>
-                            Buy credits or earn from your content to see activity here.
+                            {t('wallet.noTransactionsHint')}
                         </Text>
                         <TouchableOpacity style={[styles.emptyBtn, { backgroundColor: colors.accent }]} onPress={handleAddCredits}>
-                            <Text style={styles.emptyBtnText}>Buy Credits</Text>
+                            <Text style={styles.emptyBtnText}>{t('wallet.buyCredits')}</Text>
                         </TouchableOpacity>
                     </View>
                 ) : (
@@ -213,7 +215,7 @@ export default function WalletScreen() {
                                     </Text>
                                 </View>
                                 <Text style={[styles.txAmount, { color }]}>
-                                    {isCredit ? '+' : ''}{Math.abs(tx.amount)} cr
+                                    {t('wallet.txAmount', { sign: isCredit ? '+' : '', amount: Math.abs(tx.amount) })}
                                 </Text>
                             </View>
                         );

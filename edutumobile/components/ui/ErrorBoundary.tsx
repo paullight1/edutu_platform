@@ -2,6 +2,13 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { AlertTriangle, RefreshCcw, Home } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import i18n from '../../lib/i18n';
+
+// The boundary wraps the app root, so it must render even when providers (or
+// i18n itself) are broken — fall back to hardcoded English in that case.
+function safeT(key: string, fallback: string): string {
+    return i18n.isInitialized ? i18n.t(key) : fallback;
+}
 
 interface Props {
     children: ReactNode;
@@ -37,7 +44,7 @@ class ErrorBoundaryClass extends Component<Props, State> {
             return (
                 <ErrorFallback
                     error={this.state.error}
-                    message={this.props.message || 'Something went wrong'}
+                    message={this.props.message || safeT('common:errorBoundary.somethingWentWrong', 'Something went wrong')}
                 />
             );
         }
@@ -56,7 +63,7 @@ function ErrorFallback({ error, message }: { error: Error | null; message: strin
             </View>
             <Text style={styles.title}>{message}</Text>
             <Text style={styles.subtitle} numberOfLines={3}>
-                {error?.message || 'An unexpected error occurred'}
+                {error?.message || safeT('common:errorBoundary.unexpectedError', 'An unexpected error occurred')}
             </Text>
             <View style={styles.buttonRow}>
                 <TouchableOpacity
@@ -64,7 +71,7 @@ function ErrorFallback({ error, message }: { error: Error | null; message: strin
                     onPress={() => router.replace('/(app)')}
                 >
                     <Home size={18} color="#6366F1" />
-                    <Text style={[styles.buttonText, { color: '#6366F1' }]}>Home</Text>
+                    <Text style={[styles.buttonText, { color: '#6366F1' }]}>{safeT('common:errorBoundary.home', 'Home')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={[styles.button, styles.primaryButton]}
@@ -75,7 +82,7 @@ function ErrorFallback({ error, message }: { error: Error | null; message: strin
                     }}
                 >
                     <RefreshCcw size={18} color="white" />
-                    <Text style={[styles.buttonText, { color: 'white' }]}>Try Again</Text>
+                    <Text style={[styles.buttonText, { color: 'white' }]}>{safeT('common:errorBoundary.tryAgain', 'Try Again')}</Text>
                 </TouchableOpacity>
             </View>
         </View>

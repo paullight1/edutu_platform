@@ -1,0 +1,509 @@
+{
+  "creatorApply": {
+    "title": "Conviértete en creador",
+    "types": {
+      "scholarship": { "label": "Beca", "desc": "Becas académicas y subvenciones" },
+      "fellowship": { "label": "Fellowship", "desc": "Fellowships de investigación y profesionales" },
+      "internship": { "label": "Pasantía", "desc": "Programas de pasantías profesionales" },
+      "job": { "label": "Empleo de tiempo completo", "desc": "Ofertas de empleo de tiempo completo" },
+      "program": { "label": "Aceleradora/Programa", "desc": "Aceleradoras y programas de formación" },
+      "other": { "label": "Otro", "desc": "Otras oportunidades" }
+    },
+    "motivations": {
+      "helpOthers": "Quiero ayudar a otros a lograr lo que yo logré",
+      "mentor": "Disfruto ser mentor y compartir conocimiento",
+      "giveBack": "Quiero devolverle algo a la comunidad",
+      "document": "Quiero documentar mi camino para otros",
+      "payForward": "Creo en pasar la ayuda a los demás"
+    },
+    "alerts": {
+      "uploadImageFailed": "No se pudo subir la imagen. Inténtalo de nuevo.",
+      "submitFailed": "Falló la conexión. Inténtalo de nuevo."
+    },
+    "success": {
+      "headerTitle": "Solicitud enviada",
+      "title": "¡Bienvenido a la comunidad de creadores!",
+      "text": "Hemos recibido tu solicitud y nos entusiasma conocer tu historia. Nuestro equipo verificará tus credenciales en un plazo de 2 a 3 días hábiles.",
+      "applicationId": "ID de solicitud",
+      "status": "Estado",
+      "pendingReview": "Pendiente de revisión",
+      "responseTime": "Tiempo de respuesta",
+      "responseTimeValue": "2-3 días",
+      "backToProfile": "Volver al perfil"
+    },
+    "intro": {
+      "heroTitle": "Comparte tu historia de éxito",
+      "heroSubtitle": "Lograste algo increíble. Inspira a la próxima generación compartiendo tu camino hacia el éxito.",
+      "you": "Tú",
+      "yourName": "Tu nombre",
+      "futureCreator": "Futuro creador",
+      "statStudentsHelped": "Estudiantes ayudados",
+      "statSuccessStories": "Historias de éxito",
+      "statRevenueShare": "Participación en ingresos",
+      "benefit": "Como creador verificado, ganarás el <bold>85% de los ingresos</bold> de cada venta de roadmap y llegarás a miles de estudiantes en todo el mundo."
+    },
+    "motivation": {
+      "title": "¿Qué te motiva?",
+      "desc": "Selecciona la razón que mejor describe por qué quieres convertirte en creador."
+    },
+    "achievement": {
+      "title": "Tu logro",
+      "desc": "Cuéntanos sobre la oportunidad que conseguiste para que podamos ayudar a otros a seguir tu camino.",
+      "typeLabel": "Tipo de oportunidad",
+      "nameLabel": "Nombre de la oportunidad",
+      "namePlaceholder": "p. ej., Mastercard Foundation Scholarship 2024",
+      "linkedinLabel": "Perfil de LinkedIn",
+      "portfolioLabel": "URL de portafolio (opcional)",
+      "portfolioPlaceholder": "Enlace a tu portafolio o sitio web personal"
+    },
+    "verification": {
+      "title": "Verificación",
+      "desc": "Verificamos a todos los creadores para mantener la calidad y la confianza. Sube un documento que confirme tu logro.",
+      "documentLabel": "Documento de verificación",
+      "documentHint": "Sube tu carta de adjudicación, certificado, correo de aceptación o identificación",
+      "tapToUpload": "Toca para subir",
+      "acceptedFormats": "Se aceptan JPG y PNG",
+      "verified": "Verificado",
+      "storyLabel": "Tu historia",
+      "storyPlaceholder": "Comparte tu camino: cómo te preparaste, los retos que enfrentaste y consejos para otros...",
+      "socialLabel": "Redes sociales (opcional)",
+      "socialPlaceholder": "Twitter, YouTube, etc. (separados por comas)"
+    },
+    "review": {
+      "title": "Revisar solicitud",
+      "desc": "Verifica tus datos antes de enviar.",
+      "motivation": "Motivación",
+      "achievement": "Logro",
+      "type": "Tipo",
+      "name": "Nombre",
+      "verification": "Verificación",
+      "documentUploaded": "Documento subido",
+      "bio": "Biografía",
+      "callout": "Tu solicitud será revisada en un plazo de <bold>2 a 3 días hábiles</bold>. Te notificaremos cuando sea aprobada."
+    },
+    "submitApplication": "Enviar solicitud"
+  },
+  "creatorDashboard": {
+    "title": "Creator Studio",
+    "subtitle": "Crea y gestiona tus roadmaps",
+    "loading": "Cargando Creator Studio...",
+    "longLoad": {
+      "title": "Esto está tardando más de lo esperado",
+      "text": "Inténtalo más tarde o vuelve atrás mientras nos reconectamos.",
+      "tryAgain": "Intentar de nuevo"
+    },
+    "access": {
+      "pendingBadge": "Solicitud pendiente",
+      "pendingDesc": "Nuestro equipo está revisando tu solicitud. Te notificaremos cuando sea aprobada. Esto suele tardar de 2 a 3 días hábiles.",
+      "pendingInfo": "Mientras esperas, puedes explorar los roadmaps de otros creadores para inspirarte.",
+      "browseRoadmaps": "Explorar roadmaps",
+      "rejectedBadge": "Solicitud no aprobada",
+      "rejectedDesc": "Lamentablemente, tu solicitud no fue aprobada. Puedes enviar una nueva solicitud con más detalles.",
+      "reapply": "Volver a aplicar",
+      "noneDesc": "Únete a nuestra comunidad de creadores y comparte tu conocimiento con miles de estudiantes. Gana créditos mientras ayudas a otros a alcanzar sus metas.",
+      "perkRevenue": "85% de los ingresos",
+      "perkReach": "Llega a más de 10K estudiantes",
+      "perkBadge": "Insignia de creador verificado",
+      "applyCta": "Aplica para ser creador"
+    },
+    "welcomeGreeting": "Bienvenido de nuevo,",
+    "creatorFallback": "Creador",
+    "createRoadmap": "Crear roadmap",
+    "overview": "Resumen",
+    "stats": {
+      "totalCredits": "Créditos totales",
+      "totalStudents": "Estudiantes totales",
+      "roadmaps": "Roadmaps"
+    },
+    "rewards": {
+      "title": "Recompensas para creadores",
+      "text": "Ganas el <bold>85%</bold> de cada venta de roadmap."
+    },
+    "myRoadmaps": "Mis roadmaps",
+    "empty": {
+      "title": "Aún no hay roadmaps",
+      "subtext": "Crea tu primer roadmap y empieza a compartir tu conocimiento con la comunidad.",
+      "cta": "Crea tu primer roadmap"
+    },
+    "free": "Gratis",
+    "priceCr": "{{price}} cr",
+    "alerts": {
+      "thumbnailUploaded": "¡Miniatura subida!",
+      "uploadFailedTitle": "Error al subir",
+      "fileUploaded": "Archivo subido correctamente.",
+      "missingInfoTitle": "Falta información",
+      "missingInfoMessage": "Completa el título y la descripción.",
+      "missingCurriculumTitle": "Falta el plan de estudios",
+      "missingCurriculumMessage": "Agrega al menos una etapa al roadmap.",
+      "publishFailed": "No se pudo publicar el roadmap.",
+      "publishedTitle": "¡Éxito!",
+      "publishedMessage": "Tu roadmap está publicado y visible para los estudiantes.",
+      "failedTitle": "Error",
+      "failedFallback": "Inténtalo de nuevo."
+    },
+    "wizard": {
+      "basicsTitle": "Datos básicos del roadmap",
+      "basicsDesc": "Cuéntanos sobre tu roadmap",
+      "curriculumTitle": "Etapas del plan de estudios",
+      "curriculumDesc": "Define las etapas de aprendizaje",
+      "resourcesTitle": "Recursos y archivos",
+      "resourcesDesc": "Agrega materiales de apoyo",
+      "reviewTitle": "Revisar y enviar",
+      "reviewDesc": "Verifica todo antes de enviar",
+      "basicsCallout": "Estás creando un <bold>roadmap</bold>: una guía de aprendizaje paso a paso que ayuda a los estudiantes a alcanzar metas específicas.",
+      "titleLabel": "Título del roadmap",
+      "titlePlaceholder": "p. ej., Roadmap completo de desarrollo web",
+      "descriptionLabel": "Descripción",
+      "descriptionPlaceholder": "¿Qué aprenderán los estudiantes? ¿Qué resultados pueden esperar?",
+      "categoryLabel": "Categoría",
+      "thumbnailLabel": "Imagen de miniatura",
+      "uploaded": "Subida",
+      "browseDevice": "Buscar en el dispositivo",
+      "ratioHint": "Se recomienda proporción 16:9",
+      "priceLabel": "Precio (créditos)",
+      "pricePlaceholder": "0 para un roadmap gratuito",
+      "experienceLabel": "Tu experiencia",
+      "experiencePlaceholder": "¿Por qué estás calificado para crear este roadmap?",
+      "curriculumCallout": "Divide tu roadmap en <bold>etapas</bold>. Cada etapa representa un hito clave en el camino del estudiante.",
+      "stageNumber": "Etapa {{number}}",
+      "stageTitlePlaceholder": "Título de la etapa (p. ej., Fundamentos)",
+      "stageDescPlaceholder": "Breve descripción de esta etapa",
+      "stageDurationPlaceholder": "Duración (p. ej., Semana 1-2)",
+      "addStage": "Agregar etapa",
+      "resourcesCallout": "Agrega recursos como archivos de muestra, plantillas o documentos que los estudiantes puedan descargar.",
+      "resourceNamePlaceholder": "Nombre del recurso",
+      "uploadFile": "Subir archivo",
+      "addResource": "Agregar recurso",
+      "reviewCallout": "Revisa los detalles de tu roadmap antes de publicarlo. Como creador aprobado, estará disponible para los estudiantes de inmediato.",
+      "reviewBasics": "Datos básicos",
+      "reviewTitleLabel": "Título",
+      "reviewCategoryLabel": "Categoría",
+      "reviewPriceLabel": "Precio",
+      "priceCredits": "{{price}} créditos",
+      "reviewCurriculum": "Plan de estudios ({{total}} etapas)",
+      "reviewResources": "Recursos ({{total}})",
+      "untitled": "Sin título",
+      "fileAttached": "✓ {{fileName}}",
+      "submitForReview": "Enviar para revisión"
+    }
+  },
+  "mentorApply": {
+    "title": "Conviértete en mentor",
+    "alerts": {
+      "notSignedInTitle": "No has iniciado sesión",
+      "notSignedInMessage": "Inicia sesión para enviar una solicitud de mentor."
+    },
+    "success": {
+      "title": "¡Solicitud enviada!",
+      "desc": "Gracias por aplicar para ser mentor. Revisaremos tu solicitud y te responderemos en un plazo de 2 a 3 días hábiles.",
+      "backToProfile": "Volver al perfil"
+    },
+    "motivations": {
+      "helpOthers": "Quiero ayudar a otros a lograr lo que yo logré",
+      "mentor": "Disfruto ser mentor y compartir conocimiento",
+      "giveBack": "Quiero devolverle algo a la comunidad",
+      "document": "Quiero documentar mi camino para otros",
+      "payForward": "Creo en pasar la ayuda a los demás"
+    },
+    "contentTypes": {
+      "mentorship": { "label": "Mentoría", "desc": "Acompañamiento 1 a 1" },
+      "course": { "label": "Curso", "desc": "Rutas de aprendizaje" },
+      "template": { "label": "Plantillas", "desc": "Plantillas de CV y currículum" },
+      "resource": { "label": "Recursos", "desc": "Materiales de estudio" }
+    },
+    "intro": {
+      "heroTitle": "Comparte tu\n<accent>historia de éxito</accent>",
+      "heroDesc": "Lograste algo increíble. Ayuda a otros a llegar ahí compartiendo tu conocimiento y experiencia.",
+      "statLearners": "Estudiantes",
+      "statMentors": "Mentores",
+      "statRevenue": "Ingresos",
+      "info": "Llega a estudiantes de más de 31 países. Tu experiencia puede cambiar la vida de alguien en cualquier parte del mundo.",
+      "getStarted": "Comenzar"
+    },
+    "motivation": {
+      "title": "¿Qué te motiva?",
+      "desc": "Elige la razón que mejor describe por qué quieres ser mentor."
+    },
+    "details": {
+      "title": "Cuéntanos sobre ti",
+      "desc": "Ayuda a los estudiantes a entender tu experiencia.",
+      "displayNameLabel": "Nombre para mostrar",
+      "displayNamePlaceholder": "¿Cómo deberían conocerte los estudiantes?",
+      "teachLabel": "¿Qué vas a enseñar?",
+      "bioLabel": "Tu biografía",
+      "bioPlaceholder": "Comparte tu trayectoria, logros...",
+      "experienceLabel": "Años de experiencia",
+      "experiencePlaceholder": "p. ej., 5 años en ingeniería de software",
+      "linkedinLabel": "URL de LinkedIn",
+      "portfolioLabel": "URL de portafolio",
+      "reviewApplication": "Revisar solicitud"
+    },
+    "review": {
+      "title": "Revisa tu solicitud",
+      "desc": "Asegúrate de que todo esté bien antes de enviar.",
+      "displayName": "Nombre para mostrar",
+      "motivation": "Motivación",
+      "contentType": "Tipo de contenido",
+      "experience": "Experiencia",
+      "bio": "Biografía",
+      "linkedin": "LinkedIn",
+      "portfolio": "Portafolio",
+      "notProvided": "No proporcionado",
+      "submitting": "Enviando...",
+      "submit": "Enviar solicitud"
+    }
+  },
+  "admin": {
+    "creatorApplications": {
+      "title": "Solicitudes de creadores",
+      "subtitle": "Revisa y gestiona las solicitudes",
+      "alerts": {
+        "loadFailed": "No se pudieron cargar las solicitudes.",
+        "approvedSuccess": "Solicitud aprobada correctamente.",
+        "rejectedSuccess": "Solicitud rechazada correctamente.",
+        "reviewFailed": "No se pudo revisar la solicitud."
+      },
+      "unknown": "Desconocido",
+      "unknownUser": "Usuario desconocido",
+      "status": {
+        "pending": "Pendiente",
+        "approved": "Aprobada",
+        "rejected": "Rechazada"
+      },
+      "filters": { "all": "Todas" },
+      "stats": { "total": "Total" },
+      "loading": "Cargando solicitudes...",
+      "empty": {
+        "title": "Sin solicitudes",
+        "pending": "No hay solicitudes pendientes por revisar.",
+        "generic": "No se encontraron solicitudes."
+      },
+      "modal": {
+        "title": "Detalles de la solicitud",
+        "reviewedOn": "Revisada el {{date}}",
+        "applicant": "Solicitante",
+        "opportunity": "Oportunidad",
+        "motivation": "Motivación",
+        "bio": "Biografía",
+        "linkedin": "LinkedIn",
+        "verificationDocument": "Documento de verificación",
+        "proofUrl": "URL de comprobante",
+        "appliedOn": "Fecha de solicitud",
+        "reviewerNotes": "Notas del revisor",
+        "notePlaceholder": "Agrega una nota sobre esta decisión...",
+        "reject": "Rechazar",
+        "approve": "Aprobar"
+      }
+    },
+    "premiumFeatures": {
+      "title": "Funciones premium",
+      "subtitle": "Gestiona los feature flags OTA",
+      "alerts": {
+        "loadFailed": "No se pudieron cargar los feature flags.",
+        "validationTitle": "Error de validación",
+        "validationMessage": "La etiqueta y la descripción son obligatorias.",
+        "updated": "Feature flag actualizado correctamente.",
+        "saveFailed": "No se pudo guardar el feature flag.",
+        "statusUpdateFailed": "No se pudo actualizar el estado.",
+        "proUpdateFailed": "No se pudo actualizar el requisito Pro."
+      },
+      "stats": {
+        "total": "Total",
+        "enabled": "Activadas",
+        "proOnly": "Solo Pro"
+      },
+      "searchPlaceholder": "Buscar funciones...",
+      "filters": {
+        "all": "Todas",
+        "enabled": "Activadas",
+        "disabled": "Desactivadas",
+        "proOnly": "Solo Pro"
+      },
+      "status": {
+        "enabled": "Activada",
+        "disabled": "Desactivada"
+      },
+      "toggles": {
+        "enabled": "Activada",
+        "proOnly": "Solo Pro"
+      },
+      "loading": "Cargando feature flags...",
+      "empty": {
+        "title": "Sin feature flags",
+        "filtered": "Ninguna función coincide con el filtro actual.",
+        "none": "No se encontraron feature flags en la base de datos."
+      },
+      "modal": {
+        "title": "Editar feature flag",
+        "labelLabel": "Etiqueta *",
+        "labelPlaceholder": "p. ej., Tutor IA",
+        "descriptionLabel": "Descripción *",
+        "descriptionPlaceholder": "Describe qué hace esta función...",
+        "sortOrderLabel": "Orden de clasificación",
+        "submit": "Actualizar feature flag"
+      }
+    },
+    "testimonials": {
+      "title": "Testimonios",
+      "subtitle": "Gestiona los testimonios de clientes",
+      "alerts": {
+        "loadFailed": "No se pudieron cargar los testimonios.",
+        "validationTitle": "Error de validación",
+        "validationMessage": "El nombre, el rol y el texto de la reseña son obligatorios.",
+        "updated": "Testimonio actualizado correctamente.",
+        "added": "Testimonio agregado correctamente.",
+        "saveFailed": "No se pudo guardar el testimonio.",
+        "deleteTitle": "Eliminar testimonio",
+        "deleteMessage": "¿Seguro que quieres eliminar \"{{name}}\"? Esta acción no se puede deshacer.",
+        "deleted": "Testimonio eliminado.",
+        "deleteFailed": "No se pudo eliminar el testimonio.",
+        "statusUpdateFailed": "No se pudo actualizar el estado."
+      },
+      "stats": {
+        "total": "Total",
+        "active": "Activos",
+        "inactive": "Inactivos"
+      },
+      "filters": { "all": "Todos" },
+      "status": {
+        "active": "Activo",
+        "inactive": "Inactivo"
+      },
+      "videoLinked": "Video de YouTube vinculado",
+      "addButton": "Agregar testimonio",
+      "loading": "Cargando testimonios...",
+      "empty": {
+        "title": "Sin testimonios",
+        "filtered": "Ningún testimonio coincide con el filtro actual.",
+        "none": "Toca el botón de arriba para agregar tu primer testimonio."
+      },
+      "modal": {
+        "editTitle": "Editar testimonio",
+        "nameLabel": "Nombre *",
+        "namePlaceholder": "p. ej., Juan Pérez",
+        "roleLabel": "Rol *",
+        "rolePlaceholder": "p. ej., Ingeniero de software",
+        "countryLabel": "País <dim>(opcional)</dim>",
+        "countryPlaceholder": "p. ej., 🇳🇬 Nigeria",
+        "ratingLabel": "Calificación",
+        "reviewLabel": "Texto de la reseña *",
+        "reviewPlaceholder": "Escribe la reseña del testimonio...",
+        "youtubeLabel": "URL de YouTube <dim>(opcional)</dim>",
+        "videoId": "ID del video: {{id}}",
+        "videoIdError": "No se pudo extraer el ID del video de la URL",
+        "update": "Actualizar testimonio"
+      }
+    },
+    "roadmapCreate": {
+      "title": "Crear roadmap",
+      "alerts": {
+        "coverUploadFailed": "No se pudo subir la imagen de portada",
+        "resourceRequired": "Completa el título y la URL del recurso",
+        "fileUploadFailed": "No se pudo subir el archivo",
+        "requiredFields": "Completa el título, el resumen y al menos una etapa",
+        "created": "¡Roadmap creado correctamente!",
+        "createFailed": "No se pudo crear el roadmap. Inténtalo de nuevo."
+      },
+      "basicInfo": "Información básica",
+      "uploadCover": "Subir imagen de portada",
+      "titleLabel": "Título",
+      "titlePlaceholder": "p. ej., Bootcamp completo de desarrollo web",
+      "summaryLabel": "Resumen",
+      "summaryPlaceholder": "Breve descripción de este roadmap...",
+      "categoryLabel": "Categoría",
+      "categories": {
+        "education": "Educación",
+        "programming": "Programación",
+        "business": "Negocios",
+        "career": "Carrera",
+        "design": "Diseño",
+        "marketing": "Marketing",
+        "other": "Otro"
+      },
+      "difficultyLabel": "Dificultad",
+      "difficulty": {
+        "beginner": "Principiante",
+        "intermediate": "Intermedio",
+        "advanced": "Avanzado"
+      },
+      "priceLabel": "Precio",
+      "price": {
+        "free": "Gratis",
+        "premium": "Premium"
+      },
+      "durationLabel": "Duración",
+      "durationPlaceholder": "p. ej., 3 meses",
+      "tagsLabel": "Etiquetas (separadas por comas)",
+      "tagsPlaceholder": "p. ej., javascript, react, desarrollo web",
+      "outcomesLabel": "Resultados de aprendizaje (uno por línea)",
+      "outcomesPlaceholder": "- Crear aplicaciones full-stack\\n- Dominar React y Node.js\\n- Desplegar a producción",
+      "resources": "Recursos",
+      "resourceTitlePlaceholder": "Título del recurso",
+      "resourceDescriptionPlaceholder": "Descripción",
+      "resourceUrlPlaceholder": "URL",
+      "typeLabel": "Tipo",
+      "resourceTypes": {
+        "article": "artículo",
+        "video": "video",
+        "course": "curso",
+        "tool": "herramienta",
+        "book": "libro",
+        "other": "otro"
+      },
+      "costLabel": "Costo",
+      "cost": {
+        "free": "gratis",
+        "paid": "de pago"
+      },
+      "resourceMeta": "{{type}} • {{cost}}",
+      "addResource": "Agregar recurso",
+      "uploadDoc": "Subir PDF/documento (opcional)",
+      "stages": "Etapas del roadmap",
+      "stageTitlePlaceholder": "Título de la etapa {{number}}",
+      "stageDescriptionPlaceholder": "Descripción de la etapa",
+      "stageDurationPlaceholder": "Duración (p. ej., 2 semanas)",
+      "milestonePlaceholder": "Hito",
+      "tasks": "Tareas",
+      "taskTitlePlaceholder": "Título de la tarea",
+      "taskDescriptionPlaceholder": "Descripción de la tarea",
+      "taskDurationPlaceholder": "Duración",
+      "taskOutcomePlaceholder": "Resultado esperado",
+      "addTask": "Agregar tarea",
+      "checkpointPlaceholder": "Punto de control / Entregable"
+    }
+  },
+  "notifications": {
+    "goalDeadlineToday": {
+      "title": "¡Tu meta vence hoy! 🎯",
+      "body": "No olvides: {{title}}"
+    },
+    "deadlineTomorrow": {
+      "title": "¡Vence mañana! ⏱️",
+      "body": "Próximo: {{title}}"
+    },
+    "deadlineApproaching": {
+      "title": "Fecha límite cercana 🗓️",
+      "body": "Quedan 3 días para: {{title}}"
+    }
+  },
+  "share": {
+    "notSpecified": "No especificado",
+    "rollingDeadline": "Continua / No especificada",
+    "fundingAvailable": "Financiamiento disponible",
+    "openOpportunity": "Oportunidad abierta",
+    "openEligibility": "Abierta a candidatos elegibles",
+    "detailsInApp": "Detalles disponibles en Edutu.",
+    "fallbackTitle": "Oportunidad de Edutu",
+    "deadlinePassed": "¡La fecha límite pasó!",
+    "stillActive": "¡Sigue activa!",
+    "sponsor": "Patrocinador: {{name}}",
+    "benefits": "Beneficios:",
+    "category": "Categoría: {{category}}",
+    "categoryFallback": "Oportunidad",
+    "eligibleCountry": "País elegible: {{country}}",
+    "deadline": "Fecha límite: {{deadline}}",
+    "applyCta": "Haz clic en el enlace de abajo para aplicar📌",
+    "shareWithFriends": "Compártelo con tus amigos que puedan estar interesados.",
+    "dialogTitle": "Compartir oportunidad"
+  }
+}

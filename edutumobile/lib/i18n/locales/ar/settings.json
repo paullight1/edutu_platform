@@ -1,0 +1,74 @@
+{
+  "title": "الإعدادات",
+  "sections": {
+    "display": "تفضيلات العرض",
+    "language": "اللغة",
+    "notifications": "الإشعارات",
+    "privacySecurity": "الخصوصية والأمان",
+    "legal": "الشؤون القانونية",
+    "dangerZone": "منطقة الخطر"
+  },
+  "display": {
+    "systemAppearance": "مظهر النظام",
+    "systemAppearanceDesc": "يطابق إعدادات جهازك",
+    "auto": "تلقائي",
+    "selectTheme": "اختر السمة",
+    "themes": {
+      "default": "نبض النيلي",
+      "ocean": "نسيم المحيط",
+      "sunset": "غروب أفريقي",
+      "forest": "غابة الزمرد",
+      "royal": "المخمل الملكي"
+    }
+  },
+  "language": {
+    "label": "لغة التطبيق",
+    "desc": "اختر اللغة التي يستخدمها Edutu",
+    "restartTitle": "إعادة التشغيل مطلوبة",
+    "restartMessage": "التبديل إلى {{language}} يغيّر اتجاه الواجهة. يحتاج Edutu إلى إعادة التشغيل لتطبيق ذلك.",
+    "restartNow": "إعادة التشغيل الآن",
+    "restartLater": "لاحقًا"
+  },
+  "notifications": {
+    "push": "الإشعارات الفورية",
+    "pushDesc": "تحديثات في الوقت الفعلي",
+    "email": "تنبيهات البريد الإلكتروني",
+    "emailDesc": "ملخص أسبوعي وتحديثات",
+    "haptics": "الاهتزاز اللمسي",
+    "hapticsDesc": "استجابة بالاهتزاز"
+  },
+  "security": {
+    "passwordKeys": "كلمة المرور والمفاتيح",
+    "passwordKeysDesc": "إدارة الوصول إلى الحساب",
+    "privacy": "الخصوصية",
+    "privacyDesc": "إعدادات ظهور البيانات",
+    "addEmailPassword": "إضافة كلمة مرور للبريد الإلكتروني",
+    "addEmailPasswordDesc": "أنت تستخدم Google أو Apple حاليًا. أضف كلمة مرور ليعمل تسجيل الدخول بالبريد الإلكتروني أيضًا.",
+    "newPassword": "كلمة المرور الجديدة",
+    "confirmPassword": "تأكيد كلمة المرور",
+    "addPassword": "إضافة كلمة مرور",
+    "addingPassword": "جارٍ إضافة كلمة المرور...",
+    "passwordTooShortTitle": "كلمة المرور قصيرة جدًا",
+    "passwordTooShortMessage": "استخدم 8 أحرف على الأقل.",
+    "passwordMismatchTitle": "كلمتا المرور غير متطابقتين",
+    "passwordMismatchMessage": "أدخل كلمة المرور نفسها في الحقلين.",
+    "passwordAddedTitle": "تمت إضافة كلمة المرور",
+    "passwordAddedMessage": "يمكنك الآن تسجيل الدخول بالبريد الإلكتروني وكلمة المرور أيضًا.",
+    "passwordErrorTitle": "تعذّرت إضافة كلمة المرور",
+    "passwordErrorMessage": "يرجى المحاولة مرة أخرى."
+  },
+  "legal": {
+    "privacyPolicy": "سياسة الخصوصية",
+    "privacyPolicyDesc": "كيف نتعامل مع بياناتك",
+    "terms": "شروط الخدمة",
+    "termsDesc": "اتفاقية المستخدم والسياسات"
+  },
+  "account": {
+    "deleteAccount": "حذف الحساب",
+    "deleteConfirmMessage": "هل أنت متأكد من رغبتك في حذف حسابك؟ لا يمكن التراجع عن هذا الإجراء. ستتم إزالة جميع بياناتك وأهدافك وتقدمك نهائيًا.",
+    "userNotFound": "المستخدم غير موجود. يرجى المحاولة مرة أخرى.",
+    "dataDeleteError": "تعذّر حذف بيانات التطبيق الخاصة بك. يرجى المحاولة مرة أخرى قبل حذف حسابك.",
+    "deleteError": "فشل حذف الحساب. يرجى التواصل مع الدعم عبر support@edutu.org"
+  },
+  "helpCenter": "مركز المساعدة"
+}

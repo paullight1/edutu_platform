@@ -3,6 +3,7 @@ import { Link, useRouter } from 'expo-router'
 import { Text, TextInput, View, StyleSheet, Alert, Pressable } from 'react-native'
 import React from 'react'
 import { Eye, EyeOff, KeyRound, Lock, Mail } from 'lucide-react-native'
+import { useTranslation } from 'react-i18next'
 import { AuthShell } from '../../components/auth/AuthShell'
 import { useTheme } from '../../components/context/ThemeContext'
 
@@ -27,6 +28,7 @@ export default function ResetPasswordPage() {
     const { user } = useUser()
     const router = useRouter()
     const { colors, isDark } = useTheme()
+    const { t } = useTranslation('auth')
 
     const [emailAddress, setEmailAddress] = React.useState('')
     const [step, setStep] = React.useState<ResetStep>('email')
@@ -60,7 +62,7 @@ export default function ResetPasswordPage() {
                 identifier: emailAddress,
             })
             setStep('code')
-            Alert.alert('Email Sent', `A verification code has been sent to ${emailAddress}`)
+            Alert.alert(t('resetPassword.alerts.emailSent.title'), t('resetPassword.alerts.emailSent.message', { email: emailAddress }))
         } catch (err: any) {
             if (isExistingSessionError(err)) {
                 continueExistingSession()
@@ -68,7 +70,7 @@ export default function ResetPasswordPage() {
             }
 
             const error = err.errors?.[0]
-            setError(error?.longMessage || 'Failed to send reset email')
+            setError(error?.longMessage || t('resetPassword.errors.sendFailed'))
         } finally {
             setLoading(false)
         }
@@ -78,7 +80,7 @@ export default function ResetPasswordPage() {
         setError('')
 
         if (!code.trim()) {
-            setError('Enter the verification code sent to your email.')
+            setError(t('resetPassword.errors.codeRequired'))
             return
         }
 
@@ -96,12 +98,12 @@ export default function ResetPasswordPage() {
         setError('')
 
         if (newPassword.length < 8) {
-            setError('Use at least 8 characters for your new password.')
+            setError(t('resetPassword.errors.passwordTooShort'))
             return
         }
 
         if (newPassword !== repeatPassword) {
-            setError('Passwords do not match.')
+            setError(t('resetPassword.errors.passwordMismatch'))
             return
         }
 
@@ -115,11 +117,11 @@ export default function ResetPasswordPage() {
             })
 
             if (result.status === 'complete') {
-                Alert.alert('Success', 'Your password has been reset successfully', [
-                    { text: 'OK', onPress: () => router.replace('/(auth)/sign-in') }
+                Alert.alert(t('common:states.success'), t('resetPassword.alerts.success.message'), [
+                    { text: t('common:actions.ok'), onPress: () => router.replace('/(auth)/sign-in') }
                 ])
             } else {
-                setError('Failed to reset password. Please try again.')
+                setError(t('resetPassword.errors.resetFailedRetry'))
             }
         } catch (err: any) {
             if (isExistingSessionError(err)) {
@@ -128,7 +130,7 @@ export default function ResetPasswordPage() {
             }
 
             const error = err.errors?.[0]
-            setError(error?.longMessage || 'Failed to reset password')
+            setError(error?.longMessage || t('resetPassword.errors.resetFailed'))
         } finally {
             setLoading(false)
         }
@@ -151,19 +153,19 @@ export default function ResetPasswordPage() {
     if (step === 'code') {
         return (
             <AuthShell
-                title="Enter code"
-                subtitle={`Use the verification code sent to ${emailAddress}`}
+                title={t('resetPassword.code.title')}
+                subtitle={t('resetPassword.code.subtitle', { email: emailAddress })}
                 icon={KeyRound}
             >
                 {errorNode}
 
                 <View style={styles.fieldGroup}>
-                    <Text style={[styles.label, { color: colors.foreground }]}>Verification Code</Text>
+                    <Text style={[styles.label, { color: colors.foreground }]}>{t('resetPassword.code.label')}</Text>
                     <View style={[styles.inputRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
                         <KeyRound color={colors.textSecondary} size={18} />
                         <TextInput
                             value={code}
-                            placeholder="Enter code"
+                            placeholder={t('resetPassword.code.placeholder')}
                             placeholderTextColor={colors.textSecondary}
                             onChangeText={setCode}
                             style={[styles.input, { color: colors.foreground }]}
@@ -177,11 +179,11 @@ export default function ResetPasswordPage() {
                     onPress={onVerifyCode}
                     style={[styles.primaryButton, { backgroundColor: colors.accent }]}
                 >
-                    <Text style={[styles.primaryButtonText, { color: '#FFFFFF' }]}>Continue</Text>
+                    <Text style={[styles.primaryButtonText, { color: '#FFFFFF' }]}>{t('common:actions.continue')}</Text>
                 </Pressable>
 
                 <Pressable onPress={() => setStep('email')} style={styles.secondaryTextButton}>
-                    <Text style={[styles.footerLink, { color: colors.accent }]}>Use another email</Text>
+                    <Text style={[styles.footerLink, { color: colors.accent }]}>{t('resetPassword.code.useAnotherEmail')}</Text>
                 </Pressable>
             </AuthShell>
         )
@@ -190,19 +192,19 @@ export default function ResetPasswordPage() {
     if (step === 'password') {
         return (
             <AuthShell
-                title="New password"
-                subtitle="Create a new password for your Edutu account."
+                title={t('resetPassword.newPassword.title')}
+                subtitle={t('resetPassword.newPassword.subtitle')}
                 icon={KeyRound}
             >
                 {errorNode}
 
                 <View style={styles.fieldGroup}>
-                    <Text style={[styles.label, { color: colors.foreground }]}>New Password</Text>
+                    <Text style={[styles.label, { color: colors.foreground }]}>{t('resetPassword.newPassword.label')}</Text>
                     <View style={[styles.inputRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
                         <Lock color={colors.textSecondary} size={18} />
                         <TextInput
                             value={newPassword}
-                            placeholder="Enter new password"
+                            placeholder={t('resetPassword.newPassword.placeholder')}
                             placeholderTextColor={colors.textSecondary}
                             secureTextEntry={!showNewPassword}
                             onChangeText={setNewPassword}
@@ -219,12 +221,12 @@ export default function ResetPasswordPage() {
                 </View>
 
                 <View style={styles.fieldGroup}>
-                    <Text style={[styles.label, { color: colors.foreground }]}>Repeat Password</Text>
+                    <Text style={[styles.label, { color: colors.foreground }]}>{t('resetPassword.newPassword.repeatLabel')}</Text>
                     <View style={[styles.inputRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
                         <Lock color={colors.textSecondary} size={18} />
                         <TextInput
                             value={repeatPassword}
-                            placeholder="Repeat new password"
+                            placeholder={t('resetPassword.newPassword.repeatPlaceholder')}
                             placeholderTextColor={colors.textSecondary}
                             secureTextEntry={!showRepeatPassword}
                             onChangeText={setRepeatPassword}
@@ -246,18 +248,18 @@ export default function ResetPasswordPage() {
                     disabled={loading}
                 >
                     <Text style={[styles.primaryButtonText, { color: '#FFFFFF' }]}>
-                        {loading ? 'Saving...' : 'Save password'}
+                        {loading ? t('common:states.saving') : t('resetPassword.newPassword.saveButton')}
                     </Text>
                 </Pressable>
 
                 <Pressable onPress={() => setStep('code')} style={styles.secondaryTextButton}>
-                    <Text style={[styles.footerLink, { color: colors.accent }]}>Back to code</Text>
+                    <Text style={[styles.footerLink, { color: colors.accent }]}>{t('resetPassword.newPassword.backToCode')}</Text>
                 </Pressable>
 
                 <View style={styles.footerRow}>
-                    <Text style={[styles.footerText, { color: colors.textSecondary }]}>Remembered your password?</Text>
+                    <Text style={[styles.footerText, { color: colors.textSecondary }]}>{t('resetPassword.rememberedPassword')}</Text>
                     <Link href="/(auth)/sign-in">
-                        <Text style={[styles.footerLink, { color: colors.accent }]}>Sign in</Text>
+                        <Text style={[styles.footerLink, { color: colors.accent }]}>{t('resetPassword.signIn')}</Text>
                     </Link>
                 </View>
             </AuthShell>
@@ -266,20 +268,20 @@ export default function ResetPasswordPage() {
 
     return (
         <AuthShell
-            title="Reset Password"
-            subtitle="Enter your email to receive a reset code"
+            title={t('resetPassword.title')}
+            subtitle={t('resetPassword.subtitle')}
             icon={KeyRound}
         >
             {errorNode}
 
             <View style={styles.fieldGroup}>
-                <Text style={[styles.label, { color: colors.foreground }]}>Email Address</Text>
+                <Text style={[styles.label, { color: colors.foreground }]}>{t('resetPassword.emailLabel')}</Text>
                 <View style={[styles.inputRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <Mail color={colors.textSecondary} size={18} />
                     <TextInput
                         autoCapitalize="none"
                         value={emailAddress}
-                        placeholder="Enter email"
+                        placeholder={t('resetPassword.emailPlaceholder')}
                         placeholderTextColor={colors.textSecondary}
                         onChangeText={setEmailAddress}
                         style={[styles.input, { color: colors.foreground }]}
@@ -294,14 +296,14 @@ export default function ResetPasswordPage() {
                 disabled={loading}
             >
                 <Text style={[styles.primaryButtonText, { color: '#FFFFFF' }]}>
-                    {loading ? 'Sending...' : 'Send Reset Code'}
+                    {loading ? t('resetPassword.sending') : t('resetPassword.sendButton')}
                 </Text>
             </Pressable>
 
             <View style={styles.footerRow}>
-                <Text style={[styles.footerText, { color: colors.textSecondary }]}>Remembered your password?</Text>
+                <Text style={[styles.footerText, { color: colors.textSecondary }]}>{t('resetPassword.rememberedPassword')}</Text>
                 <Link href="/(auth)/sign-in">
-                    <Text style={[styles.footerLink, { color: colors.accent }]}>Sign in</Text>
+                    <Text style={[styles.footerLink, { color: colors.accent }]}>{t('resetPassword.signIn')}</Text>
                 </Link>
             </View>
         </AuthShell>

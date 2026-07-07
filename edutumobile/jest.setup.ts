@@ -4,6 +4,14 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
 
+// expo-localization is a native module; lib/i18n already tolerates it being
+// absent (falls back to English), so an empty mock is enough for tests.
+jest.mock('expo-localization', () => ({}), { virtual: true });
+
+// Initialize i18next (English catalogs) so components render real strings
+// instead of raw keys under test.
+require('./lib/i18n');
+
 process.env.EXPO_PUBLIC_SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://example.supabase.co';
 process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'test-anon-key';
 process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || 'pk_test_mock';

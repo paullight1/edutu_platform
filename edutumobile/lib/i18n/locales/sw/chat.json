@@ -1,0 +1,122 @@
+{
+    "header": {
+        "title": "Kocha wa AI"
+    },
+    "loading": {
+        "conversation": "Inapakia mazungumzo..."
+    },
+    "deadline": {
+        "rolling": "Inaendelea",
+        "set": "Tarehe ya mwisho imewekwa"
+    },
+    "location": {
+        "remote": "Mbali (Remote)"
+    },
+    "answers": {
+        "checkingOpportunities": "Ninakuangalilia fursa za Edutu.",
+        "matchesFound": "Nimepata fursa {{count}} zinazokufaa kutoka Edutu.\nTelezesha kadi au bana utafutaji.",
+        "roadmapChecking": "Ninaangalia fursa zako.\nKisha nitaunda ramani ya njia.",
+        "roadmapMatchFound": "Nimepata fursa inayoweza kufaa.\nGusa Unda ili kutengeneza malengo na vikumbusho.",
+        "roadmapWhichOpportunity": "Hii ni kwa fursa ipi?\nTuma jina au vinjari Fursa."
+    },
+    "quickPrompts": {
+        "findScholarships": {
+            "title": "Tafuta ufadhili wa masomo",
+            "subtitle": "Unaopatikana mwezi huu"
+        },
+        "mastercard": {
+            "title": "Fursa za Mastercard",
+            "subtitle": "Ufadhili wa masomo kutoka Edutu"
+        },
+        "buildRoadmap": {
+            "title": "Unda ramani ya njia",
+            "subtitle": "Panga ombi langu lijalo"
+        },
+        "internships": {
+            "title": "Tarehe za mwisho za mafunzo kazini",
+            "subtitle": "Fursa zinazokuja"
+        }
+    },
+    "alerts": {
+        "noDeadlineTitle": "Hakuna tarehe ya mwisho iliyopatikana",
+        "noDeadlineMessage": "Fursa hii bado haina tarehe ya mwisho iliyohifadhiwa.",
+        "alreadyTrackedTitle": "Tayari inafuatiliwa",
+        "alreadyTrackedMessage": "Tarehe hii ya mwisho tayari imo kwenye mpango wako.",
+        "deadlineAddedTitle": "Tarehe ya mwisho imeongezwa",
+        "deadlineAddedMessage": "Nimeiongeza kwenye mpango wako na kupanga vikumbusho.",
+        "couldNotAddDeadlineTitle": "Imeshindwa kuongeza tarehe ya mwisho",
+        "tryAgainFromOpportunity": "Tafadhali jaribu tena kutoka kwenye ukurasa wa fursa.",
+        "signInRequiredTitle": "Unahitaji kuingia",
+        "signInRequiredMessage": "Tafadhali ingia ili kutengeneza malengo ya ramani ya njia.",
+        "roadmapExistsTitle": "Ramani ya njia tayari ipo",
+        "roadmapExistsMessage": "Fursa hii tayari ina malengo kwenye mpango wako.",
+        "openGoals": "Fungua Malengo",
+        "stayHere": "Baki Hapa",
+        "roadmapCreatedTitle": "Ramani ya njia imetengenezwa",
+        "roadmapCreatedMessage": "Malengo {{count}} yameongezwa pamoja na vikumbusho pale tarehe za mwisho zilipo.",
+        "couldNotCreateRoadmapTitle": "Imeshindwa kutengeneza ramani ya njia"
+    },
+    "goals": {
+        "applyTitle": "Omba: {{title}}",
+        "applyDescription": "Tarehe ya mwisho ya maombi kwa {{organization}}.",
+        "thisOpportunity": "fursa hii",
+        "submitTitle": "Wasilisha {{title}}",
+        "submitDescription": "{{strategy}}\n\nRasilimali:\n{{resources}}",
+        "milestoneDescription": "Hatua muhimu ya {{title}}",
+        "dailyDescription": "{{description}}\n\nLengo kuu: {{focus}}\nMuda: dakika {{minutes}}",
+        "checklistDescription": "Kipengee cha orodha hakiki cha {{title}}"
+    },
+    "messages": {
+        "recommendedTitle": "Zinazopendekezwa kutoka Fursa",
+        "viewMore": "Tazama zaidi",
+        "openAllOpportunities": "Fungua fursa zote",
+        "narrowBy": "Bana kwa:",
+        "view": "Tazama",
+        "categoryFallback": "Fursa",
+        "typing": "Edutu inaangalia fursa"
+    },
+    "followUp": {
+        "country": "Nchi",
+        "deadline": "Tarehe ya mwisho",
+        "funding": "Ufadhili"
+    },
+    "roadmapPanel": {
+        "title": "Unda ramani ya njia",
+        "subtitle": "Malengo, tarehe za mwisho, vikumbusho",
+        "searching": "Inatafuta fursa...",
+        "matchMeta": "{{category}} · mwisho {{deadline}}",
+        "daysLeft": "Zimebaki siku {{count}}",
+        "dailySteps": "Hatua {{count}} za kila siku",
+        "build": "Unda"
+    },
+    "empty": {
+        "title": "Mimi ni Edutu, Kocha wako wa AI",
+        "description": "Uliza kuhusu ufadhili halisi wa masomo, tarehe za mwisho, ramani za njia, au hatua zinazofuata za maombi."
+    },
+    "input": {
+        "placeholder": "Andikia Edutu..."
+    },
+    "threads": {
+        "modalTitle": "Mazungumzo",
+        "newConversation": "Mazungumzo Mapya",
+        "empty": "Hakuna mazungumzo ya hivi karibuni",
+        "groups": {
+            "today": "Leo",
+            "yesterday": "Jana",
+            "thisWeek": "Wiki Hii",
+            "older": "Ya Zamani"
+        }
+    },
+    "voice": {
+        "titleTranscript": "Ujumbe wa Sauti",
+        "titleListening": "Inasikiliza...",
+        "titleProcessing": "Inachakata...",
+        "titleIdle": "Gusa ili Uzungumze",
+        "sendingAutomatically": "Inatuma kiotomatiki...",
+        "genericError": "Hitilafu imetokea",
+        "hintStop": "Gusa maikrofoni kusitisha",
+        "hintSendOrWait": "Gusa tuma au subiri",
+        "hintTranscribing": "Inanakili ujumbe wako...",
+        "hintStart": "Gusa maikrofoni kuanza kurekodi"
+    }
+}

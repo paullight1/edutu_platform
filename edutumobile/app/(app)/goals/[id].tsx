@@ -27,6 +27,7 @@ import {
     ArrowLeft,
 } from 'lucide-react-native';
 import { useUser } from '@clerk/clerk-expo';
+import { useTranslation } from 'react-i18next';
 import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import { useTheme } from '../../../components/context/ThemeContext';
 import { supabase } from '../../../lib/supabase';
@@ -37,6 +38,7 @@ import { PRIORITY_OPTIONS, PRIORITY_CONFIG } from '../../../components/goals';
 import { ProgressBar } from '../../../components/ui/ProgressBar';
 
 export default function GoalDetailScreen() {
+    const { t } = useTranslation('goals');
     const { colors, isDark } = useTheme();
     const { id } = useLocalSearchParams<{ id: string }>();
     const router = useRouter();
@@ -48,7 +50,7 @@ export default function GoalDetailScreen() {
             showToast({
                 emoji: '🎉',
                 variant: 'success',
-                message: `+${amount} credit${amount > 1 ? 's' : ''} for completing a goal`,
+                message: t('creditsEarned', { count: amount }),
             });
         },
     });
@@ -66,18 +68,18 @@ export default function GoalDetailScreen() {
     if (!goal) {
         return (
             <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-                <ScreenHeader title="Goal Not Found" showBack />
+                <ScreenHeader title={t('detail.notFound.title')} showBack />
                 <View style={styles.notFoundContainer}>
                     <AlertCircle size={48} color={isDark ? '#64748B' : '#94a3b8'} />
-                    <Text style={[styles.notFoundTitle, { color: colors.foreground }]}>Goal Not Found</Text>
+                    <Text style={[styles.notFoundTitle, { color: colors.foreground }]}>{t('detail.notFound.title')}</Text>
                     <Text style={[styles.notFoundDesc, { color: isDark ? '#94a3b8' : '#64748b' }]}>
-                        This goal may have been deleted or you don't have access to it.
+                        {t('detail.notFound.description')}
                     </Text>
                     <TouchableOpacity
                         onPress={() => router.push('/goals')}
                         style={[styles.notFoundBtn, { backgroundColor: colors.accent }]}
                     >
-                        <Text style={styles.notFoundBtnText}>Back to Goals</Text>
+                        <Text style={styles.notFoundBtnText}>{t('detail.notFound.back')}</Text>
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
@@ -92,7 +94,7 @@ export default function GoalDetailScreen() {
 
     const handleSave = async () => {
         if (!title.trim()) {
-            Alert.alert('Error', 'Please enter a goal title');
+            Alert.alert(t('common:states.error'), t('detail.alerts.enterTitle'));
             return;
         }
 
@@ -106,9 +108,9 @@ export default function GoalDetailScreen() {
                 deadline: deadline ? new Date(deadline).toISOString() : undefined,
             });
             setIsEditing(false);
-            Alert.alert('Success', 'Goal updated successfully');
+            Alert.alert(t('common:states.success'), t('detail.alerts.updated'));
         } catch {
-            Alert.alert('Error', 'Failed to update goal');
+            Alert.alert(t('common:states.error'), t('detail.alerts.updateFailed'));
         } finally {
             setLoading(false);
         }
@@ -117,29 +119,29 @@ export default function GoalDetailScreen() {
     const handleComplete = async () => {
         try {
             await updateGoal(goal.id, { status: 'completed', progress: 100 });
-            Alert.alert('🎉 Congratulations!', 'You\'ve completed this goal!');
+            Alert.alert(t('detail.alerts.congratsTitle'), t('detail.alerts.congratsMessage'));
             // Reward completion (server grants at most once/day; toast via onEarned).
             void award('COMPLETE_GOAL');
         } catch {
-            Alert.alert('Error', 'Failed to complete goal');
+            Alert.alert(t('common:states.error'), t('detail.alerts.completeFailed'));
         }
     };
 
     const handleDelete = () => {
         Alert.alert(
-            'Delete Goal',
-            `Are you sure you want to delete "${goal.title}"?`,
+            t('deleteConfirm.title'),
+            t('deleteConfirm.message', { title: goal.title }),
             [
-                { text: 'Cancel', style: 'cancel' },
+                { text: t('common:actions.cancel'), style: 'cancel' },
                 {
-                    text: 'Delete',
+                    text: t('common:actions.delete'),
                     style: 'destructive',
                     onPress: async () => {
                         try {
                             await deleteGoal(goal.id);
                             router.push('/goals');
                         } catch {
-                            Alert.alert('Error', 'Failed to delete goal');
+                            Alert.alert(t('common:states.error'), t('detail.alerts.deleteFailed'));
                         }
                     }
                 }
@@ -149,18 +151,18 @@ export default function GoalDetailScreen() {
 
     const handleToggleReminder = async () => {
         if (!goal.deadline) {
-            Alert.alert('No Deadline', 'Set a deadline first to enable reminders.');
+            Alert.alert(t('detail.alerts.noDeadlineTitle'), t('detail.alerts.noDeadlineMessage'));
             return;
         }
 
         try {
             await toggleReminder(goal.id, !goal.reminder_enabled, goal.deadline);
             Alert.alert(
-                goal.reminder_enabled ? 'Reminder Disabled' : 'Reminder Enabled',
-                goal.reminder_enabled ? 'You won\'t receive reminders for this goal.' : `You'll be reminded on ${new Date(goal.deadline).toLocaleDateString()}`
+                goal.reminder_enabled ? t('detail.reminder.disabledTitle') : t('detail.reminder.enabledTitle'),
+                goal.reminder_enabled ? t('detail.reminder.disabledMessage') : t('detail.reminder.enabledMessage', { date: new Date(goal.deadline).toLocaleDateString() })
             );
         } catch {
-            Alert.alert('Error', 'Failed to toggle reminder');
+            Alert.alert(t('common:states.error'), t('detail.alerts.reminderFailed'));
         }
     };
 
@@ -175,12 +177,12 @@ export default function GoalDetailScreen() {
 
     const deadlineLabel = goal.deadline
         ? isOverdue
-            ? `${Math.abs(daysUntil!)} days overdue`
+            ? t('time.daysOverdue', { count: Math.abs(daysUntil!) })
             : daysUntil === 0
-                ? 'Today'
+                ? t('time.today')
                 : daysUntil === 1
-                    ? 'Tomorrow'
-                    : `${daysUntil} days left`
+                    ? t('time.tomorrow')
+                    : t('time.daysLeft', { count: daysUntil! })
         : null;
 
     const deadlineColor = goal.deadline
@@ -199,7 +201,7 @@ export default function GoalDetailScreen() {
     return (
         <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
             <ScreenHeader
-                title={isEditing ? 'Edit Goal' : 'Goal Details'}
+                title={isEditing ? t('detail.editTitle') : t('detail.title')}
                 showBack
                 right={
                     <TouchableOpacity
@@ -232,7 +234,7 @@ export default function GoalDetailScreen() {
                         </View>
                         <View style={styles.headerInfo}>
                             <Text style={[styles.sourceLabel, { color: textSecondary }]}>
-                                {isFromRoadmap ? 'From Roadmap' : 'Personal Goal'}
+                                {isFromRoadmap ? t('detail.fromRoadmap') : t('detail.personalGoal')}
                             </Text>
                             {goal.opportunity_title && (
                                 <Text style={[styles.oppTitle, { color: colors.accent }]}>{goal.opportunity_title}</Text>
@@ -241,7 +243,7 @@ export default function GoalDetailScreen() {
                         <View style={[styles.priorityBadge, { backgroundColor: `${priorityConfig.color}15` }]}>
                             <View style={[styles.priorityDot, { backgroundColor: priorityConfig.color }]} />
                             <Text style={[styles.priorityText, { color: priorityConfig.color }]}>
-                                {priorityConfig.label}
+                                {t(`priority.${priority in PRIORITY_CONFIG ? priority : 'medium'}`)}
                             </Text>
                         </View>
                     </View>
@@ -252,7 +254,7 @@ export default function GoalDetailScreen() {
                             style={[styles.titleInput, { backgroundColor: inputBg, color: colors.foreground, borderColor }]}
                             value={title}
                             onChangeText={setTitle}
-                            placeholder="Goal title"
+                            placeholder={t('detail.titlePlaceholder')}
                             placeholderTextColor={textSecondary}
                         />
                     ) : (
@@ -265,7 +267,7 @@ export default function GoalDetailScreen() {
                             style={[styles.descInput, { backgroundColor: inputBg, color: colors.foreground, borderColor }]}
                             value={description}
                             onChangeText={setDescription}
-                            placeholder="Add a description..."
+                            placeholder={t('detail.descriptionPlaceholder')}
                             placeholderTextColor={textSecondary}
                             multiline
                             numberOfLines={3}
@@ -278,7 +280,7 @@ export default function GoalDetailScreen() {
                     {/* Progress Section */}
                     <View style={styles.progressSection}>
                         <View style={styles.progressHeader}>
-                            <Text style={[styles.progressLabel, { color: textSecondary }]}>Progress</Text>
+                            <Text style={[styles.progressLabel, { color: textSecondary }]}>{t('labels.progress')}</Text>
                             <Text style={[styles.progressValue, { color: colors.foreground }]}>{Math.round(isEditing ? progress : goal.progress)}%</Text>
                         </View>
                         <ProgressBar progress={isEditing ? progress : goal.progress} />
@@ -311,14 +313,14 @@ export default function GoalDetailScreen() {
 
                 {/* Details Card */}
                 <View style={[styles.detailsCard, { backgroundColor: cardBg, borderColor }]}>
-                    <Text style={[styles.detailsTitle, { color: colors.foreground }]}>Details</Text>
+                    <Text style={[styles.detailsTitle, { color: colors.foreground }]}>{t('detail.details')}</Text>
 
                     {/* Priority (Edit Mode) */}
                     {isEditing && (
                         <View style={styles.detailRow}>
                             <View style={styles.detailLabelRow}>
                                 <Target size={18} color={textSecondary} />
-                                <Text style={[styles.detailLabel, { color: textSecondary }]}>Priority</Text>
+                                <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('labels.priority')}</Text>
                             </View>
                             <View style={styles.priorityEditRow}>
                                 {PRIORITY_OPTIONS.map(p => (
@@ -338,7 +340,7 @@ export default function GoalDetailScreen() {
                                             styles.priorityEditLabel,
                                             { color: priority === p.id ? p.color : textSecondary }
                                         ]}>
-                                            {p.label}
+                                            {t(`priority.${p.id}`)}
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
@@ -350,14 +352,14 @@ export default function GoalDetailScreen() {
                     <View style={[styles.detailRow, styles.detailRowBorder, { borderTopColor: borderColor }]}>
                         <View style={styles.detailLabelRow}>
                             <Calendar size={18} color={textSecondary} />
-                            <Text style={[styles.detailLabel, { color: textSecondary }]}>Deadline</Text>
+                            <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('labels.deadline')}</Text>
                         </View>
                         {isEditing ? (
                             <TextInput
                                 style={[styles.deadlineInput, { backgroundColor: inputBg, color: colors.foreground, borderColor }]}
                                 value={deadline}
                                 onChangeText={setDeadline}
-                                placeholder="YYYY-MM-DD"
+                                placeholder={t('labels.datePlaceholder')}
                                 placeholderTextColor={textSecondary}
                             />
                         ) : goal.deadline ? (
@@ -370,7 +372,7 @@ export default function GoalDetailScreen() {
                                 </Text>
                             </View>
                         ) : (
-                            <Text style={[styles.noDeadline, { color: textSecondary }]}>No deadline</Text>
+                            <Text style={[styles.noDeadline, { color: textSecondary }]}>{t('detail.noDeadline')}</Text>
                         )}
                     </View>
 
@@ -379,7 +381,7 @@ export default function GoalDetailScreen() {
                         <View style={[styles.detailRow, styles.detailRowBorder, { borderTopColor: borderColor }]}>
                             <View style={styles.detailLabelRow}>
                                 <Zap size={18} color={goal.reminder_enabled ? colors.accent : textSecondary} />
-                                <Text style={[styles.detailLabel, { color: textSecondary }]}>Reminder</Text>
+                                <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('labels.reminder')}</Text>
                             </View>
                             <TouchableOpacity
                                 onPress={handleToggleReminder}
@@ -389,7 +391,7 @@ export default function GoalDetailScreen() {
                                     styles.reminderToggleText,
                                     { color: goal.reminder_enabled ? colors.accent : textSecondary }
                                 ]}>
-                                    {goal.reminder_enabled ? 'Enabled' : 'Disabled'}
+                                    {goal.reminder_enabled ? t('detail.reminder.enabled') : t('detail.reminder.disabled')}
                                 </Text>
                                 <ChevronRight size={16} color={goal.reminder_enabled ? colors.accent : textSecondary} />
                             </TouchableOpacity>
@@ -405,7 +407,7 @@ export default function GoalDetailScreen() {
                                 ) : (
                                     <Clock size={18} color={isOverdue ? '#ef4444' : textSecondary} />
                                 )}
-                                <Text style={[styles.detailLabel, { color: textSecondary }]}>Status</Text>
+                                <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('labels.status')}</Text>
                             </View>
                             <View style={[styles.statusBadge, {
                                 backgroundColor: isCompleted ? 'rgba(16, 185, 129, 0.15)' : isOverdue ? 'rgba(239, 68, 68, 0.15)' : 'rgba(59, 130, 246, 0.15)'
@@ -414,7 +416,7 @@ export default function GoalDetailScreen() {
                                     styles.statusText,
                                     { color: isCompleted ? '#10b981' : isOverdue ? '#ef4444' : '#3b82f6' }
                                 ]}>
-                                    {isCompleted ? 'Completed' : isOverdue ? 'Overdue' : 'In Progress'}
+                                    {isCompleted ? t('status.completed') : isOverdue ? t('status.overdue') : t('status.inProgress')}
                                 </Text>
                             </View>
                         </View>
@@ -430,7 +432,7 @@ export default function GoalDetailScreen() {
                                 style={[styles.primaryActionBtn, { backgroundColor: colors.accent }]}
                             >
                                 <CheckCircle2 size={20} color="white" />
-                                <Text style={styles.primaryActionText}>Mark as Complete</Text>
+                                <Text style={styles.primaryActionText}>{t('detail.markComplete')}</Text>
                             </TouchableOpacity>
                         ) : (
                             <TouchableOpacity
@@ -438,7 +440,7 @@ export default function GoalDetailScreen() {
                                 style={[styles.secondaryActionBtn, { backgroundColor: inputBg, borderColor }]}
                             >
                                 <Clock size={20} color={textSecondary} />
-                                <Text style={[styles.secondaryActionText, { color: textSecondary }]}>Reopen Goal</Text>
+                                <Text style={[styles.secondaryActionText, { color: textSecondary }]}>{t('detail.reopen')}</Text>
                             </TouchableOpacity>
                         )}
 
@@ -447,7 +449,7 @@ export default function GoalDetailScreen() {
                             style={[styles.dangerActionBtn, { borderColor }]}
                         >
                             <Trash2 size={18} color="#ef4444" />
-                            <Text style={styles.dangerActionText}>Delete Goal</Text>
+                            <Text style={styles.dangerActionText}>{t('deleteConfirm.title')}</Text>
                         </TouchableOpacity>
                     </View>
                 )}
@@ -458,7 +460,7 @@ export default function GoalDetailScreen() {
                         style={[styles.secondaryActionBtn, { backgroundColor: inputBg, borderColor }]}
                     >
                         <X size={20} color={textSecondary} />
-                        <Text style={[styles.secondaryActionText, { color: textSecondary }]}>Cancel Editing</Text>
+                        <Text style={[styles.secondaryActionText, { color: textSecondary }]}>{t('detail.cancelEditing')}</Text>
                     </TouchableOpacity>
                 )}
 

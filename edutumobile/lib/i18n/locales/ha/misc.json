@@ -1,0 +1,509 @@
+{
+  "creatorApply": {
+    "title": "Zama Mai Ƙirƙira",
+    "types": {
+      "scholarship": { "label": "Tallafin karatu", "desc": "Tallafin karatu na ilimi da kuɗaɗe" },
+      "fellowship": { "label": "Fellowship", "desc": "Fellowship na bincike da na ƙwararru" },
+      "internship": { "label": "Horon aiki", "desc": "Shirye-shiryen horon aiki na ƙwararru" },
+      "job": { "label": "Aikin Cikakken Lokaci", "desc": "Tayin aikin cikakken lokaci" },
+      "program": { "label": "Accelerator/Shiri", "desc": "Accelerator da shirye-shiryen horo" },
+      "other": { "label": "Sauran", "desc": "Sauran damammaki" }
+    },
+    "motivations": {
+      "helpOthers": "Ina son taimaka wa wasu su cimma abin da na cimma",
+      "mentor": "Ina jin daɗin jagoranci da raba ilimi",
+      "giveBack": "Ina son mayar da alheri ga al'umma",
+      "document": "Ina son rubuta tafiyata don wasu",
+      "payForward": "Na yi imani da ci gaba da yaɗa alheri"
+    },
+    "alerts": {
+      "uploadImageFailed": "An kasa loda hoto. Da fatan za a sake gwadawa.",
+      "submitFailed": "Haɗi ya kasa. Da fatan za a sake gwadawa."
+    },
+    "success": {
+      "headerTitle": "An Mika Buƙata",
+      "title": "Barka da zuwa Al'ummar Masu Ƙirƙira!",
+      "text": "Mun karɓi buƙatarka kuma muna farin cikin duba tafiyarka. Ƙungiyarmu za ta tantance shaidunka cikin kwanakin aiki 2-3.",
+      "applicationId": "Lambar Buƙata",
+      "status": "Matsayi",
+      "pendingReview": "Ana Jiran Dubawa",
+      "responseTime": "Lokacin Amsawa",
+      "responseTimeValue": "Kwanaki 2-3",
+      "backToProfile": "Koma zuwa Bayanan Martaba"
+    },
+    "intro": {
+      "heroTitle": "Raba Labarin Nasararka",
+      "heroSubtitle": "Ka cimma wani abu mai ban mamaki. Zaburar da tsara mai zuwa ta hanyar raba taswirar hanyarka zuwa nasara.",
+      "you": "Kai",
+      "yourName": "Sunanka",
+      "futureCreator": "Mai Ƙirƙira na Gaba",
+      "statStudentsHelped": "Ɗaliban da Aka Taimaka",
+      "statSuccessStories": "Labaran Nasara",
+      "statRevenueShare": "Rabon Kuɗin Shiga",
+      "benefit": "A matsayin tabbataccen mai ƙirƙira, za ka samu <bold>kashi 85% na kuɗin shiga</bold> daga kowane sayar da taswirar hanya, ka kuma kai ga dubban masu koyo a duniya."
+    },
+    "motivation": {
+      "title": "Me ke zaburar da kai?",
+      "desc": "Zaɓi dalilin da ya fi bayyana dalilin da ya sa kake son zama mai ƙirƙira."
+    },
+    "achievement": {
+      "title": "Nasararka",
+      "desc": "Faɗa mana game da damar da ka samu don mu taimaka wa wasu su bi hanyarka.",
+      "typeLabel": "Nau'in Dama",
+      "nameLabel": "Sunan Damar",
+      "namePlaceholder": "misali, Mastercard Foundation Scholarship 2024",
+      "linkedinLabel": "Bayanan Martaba na LinkedIn",
+      "portfolioLabel": "URL ɗin Portfolio (Zaɓi ne)",
+      "portfolioPlaceholder": "Hanyar haɗi zuwa portfolio ɗinka ko gidan yanar gizonka"
+    },
+    "verification": {
+      "title": "Tantancewa",
+      "desc": "Muna tantance duk masu ƙirƙira don kiyaye inganci da aminci. Loda takarda don tabbatar da nasararka.",
+      "documentLabel": "Takardar Tantancewa",
+      "documentHint": "Loda wasiƙar kyautarka, takardar shaida, email ɗin karɓa, ko shaidar kai",
+      "tapToUpload": "Danna don lodawa",
+      "acceptedFormats": "Ana karɓar JPG, PNG",
+      "verified": "An tantance",
+      "storyLabel": "Labarinka",
+      "storyPlaceholder": "Raba tafiyarka - yadda ka shirya, ƙalubalen da ka fuskanta, da shawara ga wasu...",
+      "socialLabel": "Hanyoyin Sada Zumunta (Zaɓi ne)",
+      "socialPlaceholder": "Twitter, YouTube, da sauransu (a raba da waƙafi)"
+    },
+    "review": {
+      "title": "Duba Buƙata",
+      "desc": "Sake duba bayananka kafin mikawa.",
+      "motivation": "Abin Zaburarwa",
+      "achievement": "Nasara",
+      "type": "Nau'i",
+      "name": "Suna",
+      "verification": "Tantancewa",
+      "documentUploaded": "An loda takarda",
+      "bio": "Tarihin kai",
+      "callout": "Za a duba buƙatarka cikin <bold>kwanakin aiki 2-3</bold>. Za a sanar da kai da zarar an amince."
+    },
+    "submitApplication": "Mika Buƙata"
+  },
+  "creatorDashboard": {
+    "title": "Sitidiyon Mai Ƙirƙira",
+    "subtitle": "Ƙirƙiri ka kuma sarrafa taswirorin hanyarka",
+    "loading": "Ana loda Sitidiyon Mai Ƙirƙira...",
+    "longLoad": {
+      "title": "Wannan yana ɗaukar lokaci fiye da yadda ake tsammani",
+      "text": "Da fatan za a sake gwadawa daga baya ko a koma baya yayin da muke sake haɗawa.",
+      "tryAgain": "Sake Gwadawa"
+    },
+    "access": {
+      "pendingBadge": "Buƙata Tana Jira",
+      "pendingDesc": "Ƙungiyarmu tana duba buƙatarka. Za mu sanar da kai da zarar an amince. Yawanci wannan yana ɗaukar kwanakin aiki 2-3.",
+      "pendingInfo": "Yayin da kake jira, za ka iya duba taswirorin hanya na sauran masu ƙirƙira don samun zaburarwa.",
+      "browseRoadmaps": "Binciko Taswirorin Hanya",
+      "rejectedBadge": "Ba a Amince da Buƙata ba",
+      "rejectedDesc": "Abin takaici, ba a amince da buƙatarka ba. Za ka iya mika sabuwar buƙata da ƙarin bayanai.",
+      "reapply": "Sake Nema",
+      "noneDesc": "Shiga al'ummar masu ƙirƙira ka raba iliminka da dubban masu koyo. Samu kirediti yayin da kake taimaka wa wasu su cimma manufofinsu.",
+      "perkRevenue": "Kashi 85% na Kuɗin Shiga",
+      "perkReach": "Kai ga Ɗalibai 10K+",
+      "perkBadge": "Lambar Tabbataccen Mai Ƙirƙira",
+      "applyCta": "Nema don Zama Mai Ƙirƙira"
+    },
+    "welcomeGreeting": "Barka da dawowa,",
+    "creatorFallback": "Mai Ƙirƙira",
+    "createRoadmap": "Ƙirƙiri Taswirar Hanya",
+    "overview": "Taƙaitawa",
+    "stats": {
+      "totalCredits": "Jimlar Kirediti",
+      "totalStudents": "Jimlar Ɗalibai",
+      "roadmaps": "Taswirorin Hanya"
+    },
+    "rewards": {
+      "title": "Ladan Mai Ƙirƙira",
+      "text": "Kana samun <bold>kashi 85%</bold> na kowane sayar da taswirar hanya."
+    },
+    "myRoadmaps": "Taswirorin Hanyata",
+    "empty": {
+      "title": "Babu taswirar hanya tukuna",
+      "subtext": "Ƙirƙiri taswirar hanyarka ta farko ka fara raba iliminka da al'umma.",
+      "cta": "Ƙirƙiri Taswirar Hanyarka ta Farko"
+    },
+    "free": "Kyauta",
+    "priceCr": "{{price}} cr",
+    "alerts": {
+      "thumbnailUploaded": "An loda ƙaramin hoto!",
+      "uploadFailedTitle": "Lodawa Ta Kasa",
+      "fileUploaded": "An loda fayil cikin nasara.",
+      "missingInfoTitle": "Bayanai Sun Rasa",
+      "missingInfoMessage": "Da fatan za a cika taken da bayanin.",
+      "missingCurriculumTitle": "Manhajar Karatu Ta Rasa",
+      "missingCurriculumMessage": "Saka aƙalla mataki ɗaya na taswirar hanya.",
+      "publishFailed": "Ba a iya wallafa taswirar hanya ba.",
+      "publishedTitle": "An yi nasara!",
+      "publishedMessage": "An wallafa taswirar hanyarka kuma masu koyo suna iya ganin ta.",
+      "failedTitle": "Ya Kasa",
+      "failedFallback": "Da fatan za a sake gwadawa."
+    },
+    "wizard": {
+      "basicsTitle": "Tushen Taswirar Hanya",
+      "basicsDesc": "Faɗa mana game da taswirar hanyarka",
+      "curriculumTitle": "Matakan Manhajar Karatu",
+      "curriculumDesc": "Bayyana matakan koyo",
+      "resourcesTitle": "Kayan Aiki da Fayiloli",
+      "resourcesDesc": "Saka kayan tallafi",
+      "reviewTitle": "Duba ka Mika",
+      "reviewDesc": "Sake dubawa kafin mikawa",
+      "basicsCallout": "Kana ƙirƙirar <bold>taswirar hanya</bold> — jagorar koyo mataki-mataki da ke taimaka wa ɗalibai cimma takamaiman manufofi.",
+      "titleLabel": "Taken Taswirar Hanya",
+      "titlePlaceholder": "misali, Cikakkiyar Taswirar Hanyar Gina Yanar Gizo",
+      "descriptionLabel": "Bayani",
+      "descriptionPlaceholder": "Me ɗalibai za su koya? Wane sakamako za su iya tsammani?",
+      "categoryLabel": "Rukuni",
+      "thumbnailLabel": "Ƙaramin Hoto",
+      "uploaded": "An loda",
+      "browseDevice": "Bincika daga na'ura",
+      "ratioHint": "Ana ba da shawarar ma'aunin 16:9",
+      "priceLabel": "Farashi (Kirediti)",
+      "pricePlaceholder": "0 don taswirar hanya ta kyauta",
+      "experienceLabel": "Ƙwarewarka",
+      "experiencePlaceholder": "Me ya cancantar da kai ka ƙirƙiri wannan taswirar hanya?",
+      "curriculumCallout": "Raba taswirar hanyarka zuwa <bold>matakai</bold>. Kowane mataki yana wakiltar muhimmin ci gaba a tafiyar ɗalibin.",
+      "stageNumber": "Mataki na {{number}}",
+      "stageTitlePlaceholder": "Taken mataki (misali, Tushe)",
+      "stageDescPlaceholder": "Taƙaitaccen bayanin wannan matakin",
+      "stageDurationPlaceholder": "Tsawon lokaci (misali, Mako 1-2)",
+      "addStage": "Saka Mataki",
+      "resourcesCallout": "Saka kayan aiki kamar fayilolin misali, samfurori, ko takardun da ɗalibai za su iya saukewa.",
+      "resourceNamePlaceholder": "Sunan kayan aiki",
+      "uploadFile": "Loda fayil",
+      "addResource": "Saka Kayan Aiki",
+      "reviewCallout": "Duba bayanan taswirar hanyarka kafin wallafawa. A matsayinka na amintaccen mai ƙirƙira, tana fita ga masu koyo nan take.",
+      "reviewBasics": "Tushe",
+      "reviewTitleLabel": "Take",
+      "reviewCategoryLabel": "Rukuni",
+      "reviewPriceLabel": "Farashi",
+      "priceCredits": "Kirediti {{price}}",
+      "reviewCurriculum": "Manhajar karatu (matakai {{total}})",
+      "reviewResources": "Kayan aiki ({{total}})",
+      "untitled": "Mara suna",
+      "fileAttached": "✓ {{fileName}}",
+      "submitForReview": "Mika don Dubawa"
+    }
+  },
+  "mentorApply": {
+    "title": "Zama Jagora",
+    "alerts": {
+      "notSignedInTitle": "Ba ka shiga ba",
+      "notSignedInMessage": "Da fatan za a shiga don mika buƙatar zama jagora."
+    },
+    "success": {
+      "title": "An Aika Buƙata!",
+      "desc": "Mun gode da neman zama jagora. Za mu duba buƙatarka mu kuma dawo maka cikin kwanakin aiki 2-3.",
+      "backToProfile": "Koma zuwa Bayanan Martaba"
+    },
+    "motivations": {
+      "helpOthers": "Ina son taimaka wa wasu su cimma abin da na cimma",
+      "mentor": "Ina jin daɗin jagoranci da raba ilimi",
+      "giveBack": "Ina son mayar da alheri ga al'umma",
+      "document": "Ina son rubuta tafiyata don wasu",
+      "payForward": "Na yi imani da ci gaba da yaɗa alheri"
+    },
+    "contentTypes": {
+      "mentorship": { "label": "Jagoranci", "desc": "Jagora ɗaya-da-ɗaya" },
+      "course": { "label": "Kwas", "desc": "Hanyoyin koyo" },
+      "template": { "label": "Samfurori", "desc": "Samfurorin CV da resume" },
+      "resource": { "label": "Kayan Aiki", "desc": "Kayan karatu" }
+    },
+    "intro": {
+      "heroTitle": "Raba\n<accent>Labarin Nasararka</accent>",
+      "heroDesc": "Ka cimma wani abu mai ban mamaki. Taimaka wa wasu su kai can su ma ta hanyar raba iliminka da ƙwarewarka.",
+      "statLearners": "Masu Koyo",
+      "statMentors": "Jagorori",
+      "statRevenue": "Kuɗin Shiga",
+      "info": "Kai ga masu koyo daga ƙasashe 31+. Ƙwarewarka na iya canza rayuwar wani a ko'ina cikin duniya.",
+      "getStarted": "Fara"
+    },
+    "motivation": {
+      "title": "Me ke zaburar da kai?",
+      "desc": "Zaɓi dalilin da ya fi bayyana dalilin da ya sa kake son zama jagora."
+    },
+    "details": {
+      "title": "Faɗa mana game da kanka",
+      "desc": "Taimaka wa masu koyo su fahimci ƙwarewarka.",
+      "displayNameLabel": "Sunan Nunawa",
+      "displayNamePlaceholder": "Ta yaya masu koyo za su san ka?",
+      "teachLabel": "Me za ka koyar?",
+      "bioLabel": "Tarihin Kanka",
+      "bioPlaceholder": "Raba asalinka, nasarorinka...",
+      "experienceLabel": "Shekarun Ƙwarewa",
+      "experiencePlaceholder": "misali, shekaru 5 a aikin injiniyan software",
+      "linkedinLabel": "URL ɗin LinkedIn",
+      "portfolioLabel": "URL ɗin Portfolio",
+      "reviewApplication": "Duba Buƙata"
+    },
+    "review": {
+      "title": "Duba buƙatarka",
+      "desc": "Tabbatar komai yayi kyau kafin mikawa.",
+      "displayName": "Sunan Nunawa",
+      "motivation": "Abin Zaburarwa",
+      "contentType": "Nau'in Abun Ciki",
+      "experience": "Ƙwarewa",
+      "bio": "Tarihin kai",
+      "linkedin": "LinkedIn",
+      "portfolio": "Portfolio",
+      "notProvided": "Ba a bayar ba",
+      "submitting": "Ana mikawa...",
+      "submit": "Mika Buƙata"
+    }
+  },
+  "admin": {
+    "creatorApplications": {
+      "title": "Buƙatun Masu Ƙirƙira",
+      "subtitle": "Duba ka kuma sarrafa buƙatu",
+      "alerts": {
+        "loadFailed": "An kasa loda buƙatu.",
+        "approvedSuccess": "An amince da buƙata cikin nasara.",
+        "rejectedSuccess": "An ƙi buƙata cikin nasara.",
+        "reviewFailed": "An kasa duba buƙata."
+      },
+      "unknown": "Ba a sani ba",
+      "unknownUser": "Mai Amfani da Ba a Sani ba",
+      "status": {
+        "pending": "Ana jira",
+        "approved": "An amince",
+        "rejected": "An ƙi"
+      },
+      "filters": { "all": "Duka" },
+      "stats": { "total": "Jimla" },
+      "loading": "Ana loda buƙatu...",
+      "empty": {
+        "title": "Babu Buƙatu",
+        "pending": "Babu buƙatun da ke jiran dubawa.",
+        "generic": "Ba a samu buƙatu ba."
+      },
+      "modal": {
+        "title": "Bayanan Buƙata",
+        "reviewedOn": "An duba {{date}}",
+        "applicant": "Mai nema",
+        "opportunity": "Dama",
+        "motivation": "Abin Zaburarwa",
+        "bio": "Tarihin kai",
+        "linkedin": "LinkedIn",
+        "verificationDocument": "Takardar Tantancewa",
+        "proofUrl": "URL ɗin Shaida",
+        "appliedOn": "Ranar Nema",
+        "reviewerNotes": "Bayanan Mai Dubawa",
+        "notePlaceholder": "Saka bayani game da wannan hukuncin...",
+        "reject": "Ƙi",
+        "approve": "Amince"
+      }
+    },
+    "premiumFeatures": {
+      "title": "Fasalolin Premium",
+      "subtitle": "Sarrafa tutocin fasali na OTA",
+      "alerts": {
+        "loadFailed": "An kasa loda tutocin fasali.",
+        "validationTitle": "Kuskuren Tantancewa",
+        "validationMessage": "Ana buƙatar lakabi da bayani.",
+        "updated": "An sabunta tutar fasali cikin nasara.",
+        "saveFailed": "An kasa ajiye tutar fasali.",
+        "statusUpdateFailed": "An kasa sabunta matsayi.",
+        "proUpdateFailed": "An kasa sabunta buƙatar pro."
+      },
+      "stats": {
+        "total": "Jimla",
+        "enabled": "An kunna",
+        "proOnly": "Pro Kawai"
+      },
+      "searchPlaceholder": "Bincika fasaloli...",
+      "filters": {
+        "all": "Duka",
+        "enabled": "An kunna",
+        "disabled": "An kashe",
+        "proOnly": "Pro Kawai"
+      },
+      "status": {
+        "enabled": "An kunna",
+        "disabled": "An kashe"
+      },
+      "toggles": {
+        "enabled": "An kunna",
+        "proOnly": "Pro Kawai"
+      },
+      "loading": "Ana loda tutocin fasali...",
+      "empty": {
+        "title": "Babu Tutocin Fasali",
+        "filtered": "Babu fasalolin da suka dace da matattarar yanzu.",
+        "none": "Ba a samu tutocin fasali a rumbun bayanai ba."
+      },
+      "modal": {
+        "title": "Gyara Tutar Fasali",
+        "labelLabel": "Lakabi *",
+        "labelPlaceholder": "misali, AI Tutor",
+        "descriptionLabel": "Bayani *",
+        "descriptionPlaceholder": "Bayyana abin da wannan fasalin ke yi...",
+        "sortOrderLabel": "Tsarin Jeri",
+        "submit": "Sabunta Tutar Fasali"
+      }
+    },
+    "testimonials": {
+      "title": "Shaidu",
+      "subtitle": "Sarrafa shaidun abokan ciniki",
+      "alerts": {
+        "loadFailed": "An kasa loda shaidu.",
+        "validationTitle": "Kuskuren Tantancewa",
+        "validationMessage": "Ana buƙatar Suna, Matsayi, da rubutun Sharhi.",
+        "updated": "An sabunta shaida cikin nasara.",
+        "added": "An saka shaida cikin nasara.",
+        "saveFailed": "An kasa ajiye shaida.",
+        "deleteTitle": "Goge Shaida",
+        "deleteMessage": "Ka tabbata kana son goge \"{{name}}\"? Ba za a iya sauya wannan aikin ba.",
+        "deleted": "An goge shaida.",
+        "deleteFailed": "An kasa goge shaida.",
+        "statusUpdateFailed": "An kasa sabunta matsayi."
+      },
+      "stats": {
+        "total": "Jimla",
+        "active": "Masu aiki",
+        "inactive": "Marasa aiki"
+      },
+      "filters": { "all": "Duka" },
+      "status": {
+        "active": "Yana aiki",
+        "inactive": "Baya aiki"
+      },
+      "videoLinked": "An haɗa bidiyon YouTube",
+      "addButton": "Saka Shaida",
+      "loading": "Ana loda shaidu...",
+      "empty": {
+        "title": "Babu Shaidu",
+        "filtered": "Babu shaidun da suka dace da matattarar yanzu.",
+        "none": "Danna maɓallin da ke sama don saka shaidarka ta farko."
+      },
+      "modal": {
+        "editTitle": "Gyara Shaida",
+        "nameLabel": "Suna *",
+        "namePlaceholder": "misali, John Doe",
+        "roleLabel": "Matsayi *",
+        "rolePlaceholder": "misali, Injiniyan Software",
+        "countryLabel": "Ƙasa <dim>(zaɓi ne)</dim>",
+        "countryPlaceholder": "misali, 🇳🇬 Nigeria",
+        "ratingLabel": "Kima",
+        "reviewLabel": "Rubutun Sharhi *",
+        "reviewPlaceholder": "Rubuta sharhin shaidar...",
+        "youtubeLabel": "URL ɗin YouTube <dim>(zaɓi ne)</dim>",
+        "videoId": "Lambar Bidiyo: {{id}}",
+        "videoIdError": "Ba a iya samo lambar bidiyo daga URL ba",
+        "update": "Sabunta Shaida"
+      }
+    },
+    "roadmapCreate": {
+      "title": "Ƙirƙiri Taswirar Hanya",
+      "alerts": {
+        "coverUploadFailed": "An kasa loda hoton bango",
+        "resourceRequired": "Da fatan za a cika taken kayan aiki da URL",
+        "fileUploadFailed": "An kasa loda fayil",
+        "requiredFields": "Da fatan za a cika take, taƙaitawa, da aƙalla mataki ɗaya",
+        "created": "An ƙirƙiri taswirar hanya cikin nasara!",
+        "createFailed": "An kasa ƙirƙirar taswirar hanya. Da fatan za a sake gwadawa."
+      },
+      "basicInfo": "Bayanan Tushe",
+      "uploadCover": "Loda Hoton Bango",
+      "titleLabel": "Take",
+      "titlePlaceholder": "misali, Cikakken Horon Gina Yanar Gizo",
+      "summaryLabel": "Taƙaitawa",
+      "summaryPlaceholder": "Taƙaitaccen bayanin wannan taswirar hanya...",
+      "categoryLabel": "Rukuni",
+      "categories": {
+        "education": "Ilimi",
+        "programming": "Shirye-shiryen kwamfuta",
+        "business": "Kasuwanci",
+        "career": "Sana'a",
+        "design": "Zane",
+        "marketing": "Talla",
+        "other": "Sauran"
+      },
+      "difficultyLabel": "Wahala",
+      "difficulty": {
+        "beginner": "Mafari",
+        "intermediate": "Matsakaici",
+        "advanced": "Gogagge"
+      },
+      "priceLabel": "Farashi",
+      "price": {
+        "free": "Kyauta",
+        "premium": "Premium"
+      },
+      "durationLabel": "Tsawon lokaci",
+      "durationPlaceholder": "misali, watanni 3",
+      "tagsLabel": "Alamomi (a raba da waƙafi)",
+      "tagsPlaceholder": "misali, javascript, react, gina yanar gizo",
+      "outcomesLabel": "Sakamakon Koyo (ɗaya a kowane layi)",
+      "outcomesPlaceholder": "- Gina cikakkun manhajoji\\n- Ƙware a React da Node.js\\n- Tura zuwa amfani na gaske",
+      "resources": "Kayan Aiki",
+      "resourceTitlePlaceholder": "Taken Kayan Aiki",
+      "resourceDescriptionPlaceholder": "Bayani",
+      "resourceUrlPlaceholder": "URL",
+      "typeLabel": "Nau'i",
+      "resourceTypes": {
+        "article": "makala",
+        "video": "bidiyo",
+        "course": "kwas",
+        "tool": "kayan aiki",
+        "book": "littafi",
+        "other": "sauran"
+      },
+      "costLabel": "Kuɗi",
+      "cost": {
+        "free": "kyauta",
+        "paid": "biya"
+      },
+      "resourceMeta": "{{type}} • {{cost}}",
+      "addResource": "Saka Kayan Aiki",
+      "uploadDoc": "Loda PDF/Takarda (zaɓi ne)",
+      "stages": "Matakan Taswirar Hanya",
+      "stageTitlePlaceholder": "Taken Mataki na {{number}}",
+      "stageDescriptionPlaceholder": "Bayanin Mataki",
+      "stageDurationPlaceholder": "Tsawon lokaci (misali, makonni 2)",
+      "milestonePlaceholder": "Muhimmin Mataki",
+      "tasks": "Ayyuka",
+      "taskTitlePlaceholder": "Taken Aiki",
+      "taskDescriptionPlaceholder": "Bayanin Aiki",
+      "taskDurationPlaceholder": "Tsawon lokaci",
+      "taskOutcomePlaceholder": "Sakamakon da Ake Tsammani",
+      "addTask": "Saka Aiki",
+      "checkpointPlaceholder": "Wurin Dubawa / Abin Mikawa"
+    }
+  },
+  "notifications": {
+    "goalDeadlineToday": {
+      "title": "Wa'adin Manufa Yau! 🎯",
+      "body": "Kada ka manta: {{title}}"
+    },
+    "deadlineTomorrow": {
+      "title": "Wa'adi Gobe! ⏱️",
+      "body": "Mai zuwa: {{title}}"
+    },
+    "deadlineApproaching": {
+      "title": "Wa'adi Yana Gabatowa 🗓️",
+      "body": "Sauran kwanaki 3 don: {{title}}"
+    }
+  },
+  "share": {
+    "notSpecified": "Ba a bayyana ba",
+    "rollingDeadline": "Ba ƙayyadadde ba / Ba a bayyana ba",
+    "fundingAvailable": "Akwai kuɗaɗe",
+    "openOpportunity": "Dama a buɗe take",
+    "openEligibility": "A buɗe take ga masu cancanta",
+    "detailsInApp": "Bayanai suna cikin Edutu.",
+    "fallbackTitle": "Damar Edutu",
+    "deadlinePassed": "Wa'adi Ya Wuce!",
+    "stillActive": "Har Yanzu Tana Nan!",
+    "sponsor": "Mai ɗaukar nauyi: {{name}}",
+    "benefits": "Fa'idodi:",
+    "category": "Rukuni: {{category}}",
+    "categoryFallback": "Dama",
+    "eligibleCountry": "Ƙasar da ta Cancanta: {{country}}",
+    "deadline": "Wa'adi: {{deadline}}",
+    "applyCta": "Danna hanyar haɗin da ke ƙasa don nema📌",
+    "shareWithFriends": "Da fatan za a raba wa abokanka da wataƙila suke da sha'awa.",
+    "dialogTitle": "Raba dama"
+  }
+}

@@ -1,0 +1,237 @@
+{
+  "tabs": {
+    "home": "首页",
+    "discover": "发现",
+    "plan": "规划",
+    "me": "我的",
+    "openEdutuAi": "打开 Edutu AI",
+    "badgeOverflow": "99+"
+  },
+  "rewards": {
+    "creditsEarned_one": "+{{count}} 积分 · {{label}}",
+    "creditsEarned_other": "+{{count}} 积分 · {{label}}"
+  },
+  "home": {
+    "exploreOpportunities": "探索机会",
+    "featuredOpportunities": "精选机会",
+    "quickActionsTitle": "快捷操作",
+    "recommendedOpportunities": "为你推荐",
+    "viewMore": "查看更多",
+    "emptyTitle": "暂无推荐",
+    "emptyDescription": "去探索机会，收藏你想追踪的那些吧。",
+    "emptyCta": "探索机会",
+    "quickActions": {
+      "roadmaps": "路线图",
+      "goals": "目标",
+      "cvBuilder": "简历工坊",
+      "saved": "收藏"
+    },
+    "discovery": {
+      "scholarships": {
+        "title": "奖学金",
+        "description": "学费资助与奖励"
+      },
+      "internships": {
+        "title": "实习",
+        "description": "职业起步的实践岗位"
+      },
+      "grants": {
+        "title": "项目",
+        "description": "资助项目与补助"
+      },
+      "fellowships": {
+        "title": "研修计划",
+        "description": "研修与领导力培养计划"
+      }
+    }
+  },
+  "notifications": {
+    "title": "通知",
+    "passwordPromptTitle": "为你的账号添加密码",
+    "passwordPromptBody": "你是用 Google 或 Apple 登录的。添加一个密码，这样即使忘记用了哪种方式，也能用邮箱登录。",
+    "setPassword": "设置密码",
+    "filterAll": "全部",
+    "filterUnread_one": "未读（{{count}}）",
+    "filterUnread_other": "未读（{{count}}）",
+    "loading": "正在加载通知…",
+    "emptyTitle": "暂无通知",
+    "emptySubtitle": "都处理完啦！"
+  },
+  "help": {
+    "title": "帮助与支持",
+    "headerTitle": "需要什么帮助？",
+    "headerSubtitle": "查找常见问题的答案，或直接联系我们。",
+    "faqSectionTitle": "常见问题",
+    "directSupport": "直接支持",
+    "emailSupport": "邮件支持",
+    "visitWebsite": "访问官网",
+    "footer": "Edutu 帮助中心",
+    "faqs": {
+      "ai": {
+        "question": "如何使用 Edutu AI？",
+        "answer": "点击导航栏中间的按钮即可打开 Edutu AI。直接输入你关于课程、职业规划或技能的问题，它会即时为你解答。"
+      },
+      "enroll": {
+        "question": "如何报名课程？",
+        "answer": "前往「市集」标签页，找到你感兴趣的课程，点击「立即获取」。部分课程需要积分，也有一些是免费的。"
+      },
+      "credits": {
+        "question": "如何赚取积分？",
+        "answer": "你可以通过参与精选机会、完成任务或以创作者身份贡献内容来赚取积分。详情请查看你的钱包。"
+      },
+      "security": {
+        "question": "我的数据安全吗？",
+        "answer": "安全。我们采用行业标准加密，并使用 Clerk 进行身份验证，确保你的个人信息和学习进度始终受到保护。"
+      }
+    }
+  },
+  "privacy": {
+    "title": "隐私政策",
+    "headerTitle": "你的隐私很重要",
+    "lastUpdated": "最近更新：2026 年 4 月",
+    "notice": "使用 Edutu 即表示你同意我们的服务条款和本隐私政策。我们绝不会将你的个人数据出售给第三方。",
+    "footer": "Edutu 法律条款",
+    "sections": {
+      "dataWeCollect": {
+        "title": "我们收集的数据",
+        "desc": "我们收集你的姓名、邮箱和学习进度，用于个性化你的学习体验并追踪你的目标。"
+      },
+      "howWeUseIt": {
+        "title": "我们如何使用",
+        "desc": "你的数据帮助我们推荐课程、提供 AI 指导，并确保你的成就能换取积分。"
+      },
+      "dataProtection": {
+        "title": "数据保护",
+        "desc": "所有个人信息均已加密。我们采用行业标准安全协议，防止你的数据被未经授权访问。"
+      },
+      "yourRights": {
+        "title": "你的权利",
+        "desc": "你可以随时通过帮助中心或联系客服，申请注销账号或下载你的数据。"
+      }
+    }
+  },
+  "deadlines": {
+    "title": "截止日期",
+    "subtitle": "共 {{total}} 个 • {{urgent}} 个紧急",
+    "loading": "正在加载你的截止日期…",
+    "emptyTitle": "暂无截止日期",
+    "emptyDescription": "申请或收藏机会，即可追踪申请截止日期。",
+    "browseOpportunities": "浏览机会",
+    "thisWeek": "本周",
+    "nextWeek": "下周",
+    "thisMonth": "本月",
+    "later": "更晚",
+    "pastDue": "已过期",
+    "daysLeft_one": "{{count}} 天",
+    "daysLeft_other": "{{count}} 天",
+    "applied": "已申请",
+    "bookmarked": "已收藏"
+  },
+  "applied": {
+    "title": "我的申请",
+    "status": {
+      "draft": "草稿",
+      "submitted": "已提交",
+      "interview": "面试",
+      "offer": "录取",
+      "rejected": "未通过",
+      "withdrawn": "已撤回"
+    },
+    "filters": {
+      "total": "全部",
+      "closed": "已结束"
+    },
+    "recently": "最近",
+    "statusNotUpdatedTitle": "状态未更新",
+    "statusNotUpdatedMessage": "请稍后再试。",
+    "updateStatusTitle": "更新申请状态",
+    "appliedCount_one": "已申请 {{count}} 个",
+    "appliedCount_other": "已申请 {{count}} 个",
+    "appliedOn": "申请于 {{date}}",
+    "advanceTo": "推进到「{{stage}}」",
+    "emptyTitle": "还没有申请记录",
+    "emptySubtitle": "你申请的机会会出现在这里。",
+    "emptyFilter": "该阶段暂无申请。",
+    "browseOpportunities": "浏览机会",
+    "loading": "正在加载申请记录…"
+  },
+  "paywall": {
+    "title": "高级版",
+    "loading": "正在加载高级版…",
+    "subscriptionActive": "你的订阅已生效",
+    "simpleAccess": "简单直接的订阅方式",
+    "premiumIsActive": "高级版已开通",
+    "unlockPremium": "解锁高级版",
+    "heroActive": "你已拥有高级工具和模板的使用权限。",
+    "heroUpsell": "订阅即可获得高级模板、AI 工具、导出功能和进阶匹配。",
+    "monthly": "按月",
+    "yearly": "按年",
+    "save": "省",
+    "billedMonthly": "按月计费",
+    "perMonthBilledYearly": "每月 {{price}}，按年计费",
+    "features": {
+      "unlimitedAi": "无限次 AI 生成",
+      "premiumTemplates": "高级简历模板",
+      "aiTailoring": "AI 智能定制",
+      "priorityTools": "机会优先工具",
+      "pdfExport": "PDF 导出",
+      "advancedFilters": "高级筛选"
+    },
+    "comingSoonTitle": "敬请期待",
+    "comingSoonMessage": "App Store 商品配置完成后即可订阅。",
+    "premiumActiveTitle": "高级版已开通",
+    "premiumActiveMessage": "你的高级版订阅现已生效。",
+    "purchaseFailed": "购买失败",
+    "restoredTitle": "已恢复",
+    "restoredMessage": "你的购买记录已恢复。",
+    "restoreFailed": "购买记录恢复失败",
+    "backToApp": "返回应用",
+    "subscribe": "订阅高级版",
+    "renewalNote": "订阅将自动续费，可在设备设置中管理。"
+  },
+  "wallet": {
+    "title": "钱包",
+    "balanceTitle": "积分余额",
+    "creditsUnit": "积分",
+    "proMember": "Pro 会员",
+    "upgradeToPro": "升级 Pro",
+    "buyCredits": "购买积分",
+    "history": "历史记录",
+    "dayStreak_one": "连续 {{count}} 天",
+    "dayStreak_other": "连续 {{count}} 天",
+    "streakBonusUnlocked": "奖励已解锁！继续保持。",
+    "streakBonusHint": "坚持到第 7 天可获得积分奖励",
+    "unlimitedPremiumFeatures": "高级功能不限量",
+    "payPerUse": "AI 功能按次付费",
+    "recentTransactions": "近期交易",
+    "noTransactions": "暂无交易记录",
+    "noTransactionsHint": "购买积分或通过创作内容赚取积分后，记录会显示在这里。",
+    "txAmount": "{{sign}}{{amount}} 积分"
+  },
+  "opportunityCard": {
+    "notInterestedTitle": "不感兴趣？",
+    "notInterestedMessage": "我们会减少向你展示此类机会。",
+    "notInterestedConfirm": "不感兴趣",
+    "percentMatch": "匹配度 {{percent}}%"
+  },
+  "creditPack": {
+    "title": "购买积分",
+    "subtitle": "积分为 AI 功能供能。选一个套餐——用多少，付多少。",
+    "packs": {
+      "starter": "入门包",
+      "popular": "人气包",
+      "pro": "专业包",
+      "megaValue": "超值包"
+    },
+    "creditsUnit": "积分",
+    "bestValue": "最划算",
+    "comingSoonTitle": "敬请期待",
+    "comingSoonMessage": "商店商品配置完成后即可购买积分包。",
+    "purchaseCompleteTitle": "购买成功",
+    "purchaseCompleteMessage_one": "{{count}} 积分正在路上，余额稍后会更新。",
+    "purchaseCompleteMessage_other": "{{count}} 积分正在路上，余额稍后会更新。",
+    "purchaseFailedTitle": "购买失败",
+    "somethingWentWrong": "出了点问题。",
+    "autoAddNote": "购买后积分会自动到账。"
+  }
+}

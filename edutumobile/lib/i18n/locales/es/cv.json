@@ -1,0 +1,284 @@
+{
+    "header": {
+        "title": "Creador de CV"
+    },
+    "loading": "Cargando el Creador de CV...",
+    "defaults": {
+        "myCv": "Mi CV",
+        "untitled": "CV sin título",
+        "aiDraft": "Borrador de CV con IA"
+    },
+    "proBanner": {
+        "upgrade": "Mejora a Pro para CVs ilimitados",
+        "trial": "Prueba gratis disponible: ¡prueba las funciones Pro!"
+    },
+    "quickActions": {
+        "title": "Crea más rápido",
+        "subtitle": "Empieza desde un CV en blanco, genera desde LinkedIn o adapta tu borrador a una oportunidad real.",
+        "create": {
+            "title": "Crear un CV desde cero",
+            "subtitle": "Empieza con un editor estructurado y elige una plantilla después de ver los ejemplos."
+        },
+        "linkedIn": {
+            "title": "Importar de LinkedIn",
+            "subtitle": "Usa el contexto de tu perfil para crear una primera versión más sólida con IA."
+        },
+        "tailor": {
+            "title": "Adaptar a una oportunidad",
+            "subtitle": "Compara tu CV con becas, pasantías y programas en tu banco."
+        }
+    },
+    "sections": {
+        "yourCvs": "Tus CVs",
+        "chooseTemplate": "Elige una plantilla"
+    },
+    "alerts": {
+        "aiDraftReadyTitle": "Borrador con IA listo",
+        "draftReadyOfflineTitle": "Borrador listo (modo sin conexión)",
+        "draftReadyWithSuggestions": "Tu borrador de CV está en el editor. Próximos pasos sugeridos:\n{{suggestions}}",
+        "draftReadyMessage": "Tu borrador de CV se generó a partir del contexto de tu perfil.",
+        "generateFailed": "No se pudo generar el borrador del CV.",
+        "summaryUpdatedTitle": "Resumen actualizado",
+        "summaryUpdatedOffline": "Mejorado sin conexión con tus datos existentes. Conéctate a internet para la reescritura completa con IA.",
+        "improveSummaryFailed": "No se pudo mejorar el resumen en este momento.",
+        "saveSuccess": "¡CV guardado con éxito!",
+        "saveFailed": "No se pudo guardar el CV",
+        "deleteTitle": "Eliminar CV",
+        "deleteMessage": "¿Seguro que quieres eliminar este CV?",
+        "sharedAsTextTitle": "Compartido como texto",
+        "sharedAsTextMessage": "La exportación a PDF no estaba disponible, así que el CV se compartió como texto.",
+        "exportFailed": "No se pudo exportar el CV",
+        "tailoredTitle": "CV adaptado — {{score}}% de coincidencia",
+        "tailorFailed": "No se pudo adaptar el CV a esta oportunidad."
+    },
+    "upgrade": {
+        "templateFeature": "Plantilla {{name}}"
+    },
+    "templates": {
+        "badgeFallback": "Plantilla",
+        "proBadge": "Pro",
+        "unlock": "Desbloquear plantilla",
+        "use": "Usar plantilla",
+        "tapToPreview": "Toca para ver un ejemplo",
+        "samples": {
+            "academic": {
+                "name": "Amara Okafor",
+                "headline": "Candidata a MSc en Salud Pública",
+                "summary": "Perfil enfocado en investigación con educación, publicaciones, proyectos de campo y logros académicos antes de la experiencia laboral.",
+                "bullets": [
+                    "Educación e investigación primero",
+                    "Publicaciones y premios visibles",
+                    "Ideal para becas y posgrados"
+                ]
+            },
+            "professional": {
+                "name": "Daniel Mensah",
+                "headline": "Analista de Operaciones",
+                "summary": "Perfil orientado a resultados para pasantías, empleos, fellowships y programas de inicio de carrera con impacto laboral medible.",
+                "bullets": [
+                    "Impacto laboral antes que estudios",
+                    "Sección sólida de habilidades y métricas",
+                    "Ideal para pasantías y empleos"
+                ]
+            },
+            "creative": {
+                "name": "Leah Adeyemi",
+                "headline": "Diseñadora de Producto",
+                "summary": "Estructura amigable con portafolios que destaca proyectos, herramientas, enlaces y logros visuales sin perder legibilidad ATS.",
+                "bullets": [
+                    "Proyectos y enlaces de portafolio",
+                    "Herramientas y casos destacados",
+                    "Ideal para diseño y medios"
+                ]
+            },
+            "general": {
+                "name": "Estudiante Edutu",
+                "headline": "Candidato a Oportunidades",
+                "summary": "Estructura equilibrada para estudiantes que postulan a becas, programas escolares, pasantías y oportunidades comunitarias.",
+                "bullets": [
+                    "Perfil estudiantil limpio",
+                    "Orden de secciones flexible",
+                    "Ideal para postulaciones variadas"
+                ]
+            }
+        }
+    },
+    "linkedInModal": {
+        "title": "Crear CV con IA",
+        "description": "Pega la URL de tu perfil de LinkedIn abajo y nuestra IA recopilará automáticamente tu experiencia y creará tu CV.",
+        "generate": "Generar CV"
+    },
+    "tailorModal": {
+        "title": "Adaptación de CV con IA",
+        "subtitle": "Selecciona una oportunidad de tu banco y adapta este CV hacia ella.",
+        "empty": "Aún no hay oportunidades disponibles. Primero carga oportunidades y luego adapta este CV."
+    },
+    "listItem": {
+        "updated": "Actualizado el {{date}}",
+        "primary": "Principal"
+    },
+    "editor": {
+        "sections": {
+            "personalInfo": "Información personal",
+            "summary": "Resumen profesional",
+            "skills": "Habilidades",
+            "experience": "Experiencia",
+            "education": "Educación",
+            "projects": "Proyectos",
+            "achievements": "Logros"
+        },
+        "personal": {
+            "fullName": {
+                "label": "Nombre completo",
+                "placeholder": "Juan Pérez"
+            },
+            "email": {
+                "label": "Correo",
+                "placeholder": "juan@ejemplo.com"
+            },
+            "phone": {
+                "label": "Teléfono",
+                "placeholder": "+1 234 567 8900"
+            },
+            "location": {
+                "label": "Ubicación",
+                "placeholder": "Lagos, Nigeria"
+            },
+            "linkedin": {
+                "label": "LinkedIn",
+                "placeholder": "linkedin.com/in/juanperez"
+            },
+            "portfolio": {
+                "label": "Portafolio",
+                "placeholder": "portafolio.site"
+            }
+        },
+        "summaryPlaceholder": "Escribe un resumen profesional conciso...",
+        "improving": "Mejorando…",
+        "improveWithAi": "Mejorar con IA",
+        "unlockAiAssist": "Desbloquear asistencia de IA",
+        "aiSummaryFeature": "Generador de resúmenes con IA",
+        "skillsPlaceholder": "JavaScript, Investigación, Excel, Hablar en público...",
+        "add": "Agregar",
+        "newExperience": "Nueva experiencia",
+        "newEducation": "Nueva educación",
+        "newProject": "Nuevo proyecto",
+        "newAchievement": "Nuevo logro",
+        "fields": {
+            "role": {
+                "label": "Puesto",
+                "placeholder": "Pasante de Software"
+            },
+            "company": {
+                "label": "Empresa",
+                "placeholder": "Empresa / Organización"
+            },
+            "location": {
+                "label": "Ubicación",
+                "placeholder": "Remoto / Ciudad"
+            },
+            "startDate": {
+                "label": "Fecha de inicio",
+                "placeholder": "2024-01"
+            },
+            "endDate": {
+                "label": "Fecha de fin",
+                "placeholder": "2025-01"
+            },
+            "currentlyWorkHere": "Actualmente trabajo aquí",
+            "description": {
+                "label": "Descripción",
+                "placeholder": "Describe lo que hiciste"
+            },
+            "highlights": {
+                "label": "Logros destacados (uno por línea)",
+                "placeholder": "Aumenté los registros en un 30%\nLideré un equipo de 4"
+            },
+            "institution": {
+                "label": "Institución",
+                "placeholder": "Universidad / Escuela"
+            },
+            "degree": {
+                "label": "Título",
+                "placeholder": "Licenciatura / Maestría / Diplomado"
+            },
+            "fieldOfStudy": {
+                "label": "Área",
+                "placeholder": "Ciencias de la Computación"
+            },
+            "eduStartDate": {
+                "placeholder": "2021-09"
+            },
+            "eduEndDate": {
+                "placeholder": "2025-06 (o esperada)"
+            },
+            "projectName": {
+                "label": "Nombre del proyecto",
+                "placeholder": "App Buscadora de Becas"
+            },
+            "projectDescription": {
+                "placeholder": "Describe el impacto del proyecto"
+            },
+            "technologies": {
+                "label": "Tecnologías",
+                "placeholder": "React, Node.js"
+            },
+            "achievementTitle": {
+                "label": "Título",
+                "placeholder": "Cuadro de honor"
+            },
+            "issuer": {
+                "label": "Otorgado por",
+                "placeholder": "Universidad / Organización"
+            },
+            "achievementDescription": {
+                "placeholder": "Por qué es importante"
+            }
+        },
+        "tailor": {
+            "title": "Adaptar a una oportunidad",
+            "subtitle": "Compara este CV con las oportunidades de tu banco"
+        },
+        "save": "Guardar CV",
+        "preparing": "Preparando…",
+        "downloadPdf": "Descargar PDF"
+    },
+    "preview": {
+        "backToEdit": "Volver a editar",
+        "downloadAccessibility": "Descargar CV como PDF",
+        "preparing": "Preparando…",
+        "pdf": "PDF",
+        "yourName": "Tu nombre",
+        "sections": {
+            "summary": "Resumen",
+            "skills": "Habilidades",
+            "experience": "Experiencia",
+            "education": "Educación",
+            "projects": "Proyectos",
+            "achievements": "Logros"
+        },
+        "startFallback": "Inicio",
+        "present": "- Actualidad"
+    },
+    "proUpgrade": {
+        "title": "Desbloquea {{feature}}",
+        "subtitle": "Obtén acceso ilimitado a todas las funciones premium",
+        "priceFrom": "Desde",
+        "price": "$5.99",
+        "pricePeriod": "/mes",
+        "features": {
+            "roadmaps": "Generación ilimitada de rutas con IA",
+            "templates": "Plantillas de CV premium",
+            "tailoring": "Adaptación de CV con IA",
+            "creatorListing": "Listado prioritario de creador",
+            "filters": "Filtros avanzados de oportunidades",
+            "pdfExport": "Exportación y descargas en PDF"
+        },
+        "upgradeCta": "Mejorar a Pro",
+        "trialActivatedTitle": "Prueba activada",
+        "trialActivatedMessage": "¡Ahora tienes acceso a las funciones Pro por 7 días!",
+        "trialCta": "Prueba gratis por 7 días",
+        "secure": "Seguro",
+        "cancelAnytime": "Cancela cuando quieras"
+    }
+}

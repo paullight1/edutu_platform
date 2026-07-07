@@ -1,0 +1,74 @@
+{
+  "title": "设置",
+  "sections": {
+    "display": "显示偏好",
+    "language": "语言",
+    "notifications": "通知",
+    "privacySecurity": "隐私与安全",
+    "legal": "法律条款",
+    "dangerZone": "危险操作"
+  },
+  "display": {
+    "systemAppearance": "跟随系统外观",
+    "systemAppearanceDesc": "与设备设置保持一致",
+    "auto": "自动",
+    "selectTheme": "选择主题",
+    "themes": {
+      "default": "靛蓝律动",
+      "ocean": "海风微澜",
+      "sunset": "非洲落日",
+      "forest": "翡翠森林",
+      "royal": "皇家丝绒"
+    }
+  },
+  "language": {
+    "label": "应用语言",
+    "desc": "选择 Edutu 使用的语言",
+    "restartTitle": "需要重启",
+    "restartMessage": "切换到{{language}}会改变界面排版方向，Edutu 需要重启才能生效。",
+    "restartNow": "立即重启",
+    "restartLater": "稍后"
+  },
+  "notifications": {
+    "push": "推送通知",
+    "pushDesc": "实时动态更新",
+    "email": "邮件提醒",
+    "emailDesc": "每周摘要与更新",
+    "haptics": "触感反馈",
+    "hapticsDesc": "震动反馈"
+  },
+  "security": {
+    "passwordKeys": "密码与密钥",
+    "passwordKeysDesc": "管理账号访问权限",
+    "privacy": "隐私",
+    "privacyDesc": "数据可见性设置",
+    "addEmailPassword": "添加邮箱密码",
+    "addEmailPasswordDesc": "你目前使用 Google 或 Apple 登录。添加一个密码，就也能用邮箱登录了。",
+    "newPassword": "新密码",
+    "confirmPassword": "确认密码",
+    "addPassword": "添加密码",
+    "addingPassword": "正在添加密码…",
+    "passwordTooShortTitle": "密码太短",
+    "passwordTooShortMessage": "请至少使用 8 个字符。",
+    "passwordMismatchTitle": "两次密码不一致",
+    "passwordMismatchMessage": "请在两个输入框中输入相同的密码。",
+    "passwordAddedTitle": "密码已添加",
+    "passwordAddedMessage": "现在你也可以用邮箱和密码登录了。",
+    "passwordErrorTitle": "无法添加密码",
+    "passwordErrorMessage": "请再试一次。"
+  },
+  "legal": {
+    "privacyPolicy": "隐私政策",
+    "privacyPolicyDesc": "我们如何处理你的数据",
+    "terms": "服务条款",
+    "termsDesc": "用户协议与相关政策"
+  },
+  "account": {
+    "deleteAccount": "注销账号",
+    "deleteConfirmMessage": "确定要注销账号吗？此操作无法撤销，你的所有数据、目标和进度都将被永久删除。",
+    "userNotFound": "未找到用户，请再试一次。",
+    "dataDeleteError": "应用数据删除失败，请重试后再注销账号。",
+    "deleteError": "账号注销失败，请联系客服：support@edutu.org"
+  },
+  "helpCenter": "帮助中心"
+}

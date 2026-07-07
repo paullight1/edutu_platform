@@ -1,0 +1,74 @@
+{
+  "title": "Ajustes",
+  "sections": {
+    "display": "Preferencias de pantalla",
+    "language": "Idioma",
+    "notifications": "Notificaciones",
+    "privacySecurity": "Privacidad y seguridad",
+    "legal": "Legal",
+    "dangerZone": "Zona de riesgo"
+  },
+  "display": {
+    "systemAppearance": "Apariencia del sistema",
+    "systemAppearanceDesc": "Se ajusta a la configuración de tu dispositivo",
+    "auto": "Auto",
+    "selectTheme": "Elegir tema",
+    "themes": {
+      "default": "Pulso Índigo",
+      "ocean": "Brisa Marina",
+      "sunset": "Atardecer Africano",
+      "forest": "Bosque Esmeralda",
+      "royal": "Terciopelo Real"
+    }
+  },
+  "language": {
+    "label": "Idioma de la app",
+    "desc": "Elige el idioma que usa Edutu",
+    "restartTitle": "Reinicio necesario",
+    "restartMessage": "Cambiar a {{language}} modifica la dirección del diseño. Edutu necesita reiniciarse para aplicarlo.",
+    "restartNow": "Reiniciar ahora",
+    "restartLater": "Más tarde"
+  },
+  "notifications": {
+    "push": "Notificaciones push",
+    "pushDesc": "Novedades en tiempo real",
+    "email": "Alertas por correo",
+    "emailDesc": "Resumen semanal y novedades",
+    "haptics": "Vibración",
+    "hapticsDesc": "Respuesta háptica"
+  },
+  "security": {
+    "passwordKeys": "Contraseña y claves",
+    "passwordKeysDesc": "Gestiona el acceso a tu cuenta",
+    "privacy": "Privacidad",
+    "privacyDesc": "Ajustes de visibilidad de datos",
+    "addEmailPassword": "Agregar contraseña de correo",
+    "addEmailPasswordDesc": "Hoy usas Google o Apple. Agrega una contraseña para que también funcione el inicio de sesión con correo.",
+    "newPassword": "Nueva contraseña",
+    "confirmPassword": "Confirmar contraseña",
+    "addPassword": "Agregar contraseña",
+    "addingPassword": "Agregando contraseña...",
+    "passwordTooShortTitle": "Contraseña muy corta",
+    "passwordTooShortMessage": "Usa al menos 8 caracteres.",
+    "passwordMismatchTitle": "Las contraseñas no coinciden",
+    "passwordMismatchMessage": "Escribe la misma contraseña en ambos campos.",
+    "passwordAddedTitle": "Contraseña agregada",
+    "passwordAddedMessage": "Ahora también puedes iniciar sesión con correo y contraseña.",
+    "passwordErrorTitle": "No se pudo agregar la contraseña",
+    "passwordErrorMessage": "Inténtalo de nuevo."
+  },
+  "legal": {
+    "privacyPolicy": "Política de privacidad",
+    "privacyPolicyDesc": "Cómo tratamos tus datos",
+    "terms": "Términos de servicio",
+    "termsDesc": "Acuerdo de usuario y políticas"
+  },
+  "account": {
+    "deleteAccount": "Eliminar cuenta",
+    "deleteConfirmMessage": "¿Seguro que quieres eliminar tu cuenta? Esta acción no se puede deshacer. Todos tus datos, metas y progreso se eliminarán de forma permanente.",
+    "userNotFound": "Usuario no encontrado. Inténtalo de nuevo.",
+    "dataDeleteError": "No pudimos eliminar los datos de tu app. Inténtalo de nuevo antes de eliminar tu cuenta.",
+    "deleteError": "No se pudo eliminar la cuenta. Contacta a soporte en support@edutu.org"
+  },
+  "helpCenter": "Centro de ayuda"
+}

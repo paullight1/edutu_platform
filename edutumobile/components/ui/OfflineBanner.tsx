@@ -1,10 +1,12 @@
 import { RefreshCw, WifiOff } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOffline } from '../context/OfflineContext';
 import { useTheme } from '../context/ThemeContext';
 
 export function OfflineBanner() {
+  const { t } = useTranslation('common');
   const { isOffline, showIndicator, refresh } = useOffline();
   const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -30,7 +32,7 @@ export function OfflineBanner() {
         <View style={styles.message}>
           <WifiOff color={isDark ? '#FDBA74' : '#C2410C'} size={18} />
           <Text style={[styles.text, { color: isDark ? '#FFEDD5' : '#9A3412' }]}>
-            You are offline
+            {t('offline.banner')}
           </Text>
         </View>
         <Pressable onPress={() => void refresh()} style={styles.refreshButton}>

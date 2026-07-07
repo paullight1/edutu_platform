@@ -15,10 +15,11 @@ import { AppState, type AppStateStatus, View, Text } from "react-native";
 import { setSupabaseAccessTokenGetter } from "../packages/core/src/services/supabase";
 import { useInAppUpdatePrompt } from "../lib/updatePrompt";
 import { MobileCampaignHost } from "../components/mobile-control/MobileCampaignHost";
-import { syncAndUpdateOpportunityWidgetSnapshot } from "../lib/opportunityWidgetSync";
+import { syncWidgetSuite } from "../lib/widgetSuiteSync";
 import { registerWidgetBackgroundRefresh } from "../lib/widgetBackgroundTask";
 import { getConfig } from "../lib/config";
-import "../widgets/OpportunityWidget";
+import { initStoredLanguage } from "../lib/i18n";
+import "../widgets";
 import "../global.css";
 
 // Resolve required config WITHOUT throwing at module-load time. The previous
@@ -104,8 +105,8 @@ function RootLayoutContent() {
     }, [getToken]);
 
     useEffect(() => {
-        void syncAndUpdateOpportunityWidgetSnapshot({ userId: userId || undefined });
-    }, [userId]);
+        void syncWidgetSuite({ userId: userId || undefined, getToken });
+    }, [userId, getToken]);
 
     // Register the background task once so iOS keeps the widget fresh even when
     // the app isn't opened. No-op in Expo Go / until the next native rebuild.
@@ -127,15 +128,16 @@ function RootLayoutContent() {
                     appState.current.match(/inactive|background/) &&
                     nextState === "active"
                 ) {
-                    void syncAndUpdateOpportunityWidgetSnapshot({
+                    void syncWidgetSuite({
                         userId: userId || undefined,
+                        getToken,
                     });
                 }
                 appState.current = nextState;
             },
         );
         return () => subscription.remove();
-    }, [userId]);
+    }, [userId, getToken]);
 
     return (
         <ErrorBoundary message="Something went wrong with the app">
@@ -155,6 +157,13 @@ function RootLayoutContent() {
 
 export default function RootLayout() {
     const config = resolveAppConfig();
+
+    // Restore the persisted app language (or device locale on first launch).
+    // i18next itself initializes synchronously at import time with English,
+    // so this only swaps the active language — safe to fire and forget.
+    useEffect(() => {
+        void initStoredLanguage();
+    }, []);
 
     // ErrorBoundary is now the OUTERMOST wrapper. Previously it lived inside
     // ClerkProvider/ClerkLoaded/ThemeProvider, so a render-time throw in any of

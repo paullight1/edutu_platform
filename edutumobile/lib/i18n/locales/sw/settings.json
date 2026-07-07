@@ -1,0 +1,74 @@
+{
+  "title": "Mipangilio",
+  "sections": {
+    "display": "Mapendeleo ya Onyesho",
+    "language": "Lugha",
+    "notifications": "Arifa",
+    "privacySecurity": "Faragha na Usalama",
+    "legal": "Kisheria",
+    "dangerZone": "Eneo la Hatari"
+  },
+  "display": {
+    "systemAppearance": "Mwonekano wa Mfumo",
+    "systemAppearanceDesc": "Hufuata mipangilio ya kifaa chako",
+    "auto": "Otomatiki",
+    "selectTheme": "Chagua Mandhari",
+    "themes": {
+      "default": "Mdundo wa Nili",
+      "ocean": "Upepo wa Bahari",
+      "sunset": "Machweo ya Afrika",
+      "forest": "Msitu wa Zumaridi",
+      "royal": "Mahameli ya Kifalme"
+    }
+  },
+  "language": {
+    "label": "Lugha ya Programu",
+    "desc": "Chagua lugha inayotumiwa na Edutu",
+    "restartTitle": "Inahitaji kuwashwa upya",
+    "restartMessage": "Kubadili kwenda {{language}} hubadilisha mwelekeo wa mpangilio. Edutu inahitaji kuwashwa upya ili kulitekeleza.",
+    "restartNow": "Washa upya sasa",
+    "restartLater": "Baadaye"
+  },
+  "notifications": {
+    "push": "Arifa za Papo Hapo",
+    "pushDesc": "Taarifa za wakati halisi",
+    "email": "Arifa za Barua Pepe",
+    "emailDesc": "Muhtasari wa kila wiki na taarifa",
+    "haptics": "Mtetemo",
+    "hapticsDesc": "Mrejesho wa mtetemo"
+  },
+  "security": {
+    "passwordKeys": "Nenosiri na Funguo",
+    "passwordKeysDesc": "Dhibiti ufikiaji wa akaunti",
+    "privacy": "Faragha",
+    "privacyDesc": "Mipangilio ya uonekanaji wa data",
+    "addEmailPassword": "Ongeza nenosiri la barua pepe",
+    "addEmailPasswordDesc": "Kwa sasa unatumia Google au Apple. Ongeza nenosiri ili kuingia kwa barua pepe kufanye kazi pia.",
+    "newPassword": "Nenosiri jipya",
+    "confirmPassword": "Thibitisha nenosiri",
+    "addPassword": "Ongeza nenosiri",
+    "addingPassword": "Inaongeza nenosiri...",
+    "passwordTooShortTitle": "Nenosiri ni fupi mno",
+    "passwordTooShortMessage": "Tumia angalau herufi 8.",
+    "passwordMismatchTitle": "Manenosiri hayalingani",
+    "passwordMismatchMessage": "Andika nenosiri lilelile katika sehemu zote mbili.",
+    "passwordAddedTitle": "Nenosiri limeongezwa",
+    "passwordAddedMessage": "Sasa unaweza pia kuingia kwa barua pepe na nenosiri.",
+    "passwordErrorTitle": "Imeshindwa kuongeza nenosiri",
+    "passwordErrorMessage": "Tafadhali jaribu tena."
+  },
+  "legal": {
+    "privacyPolicy": "Sera ya Faragha",
+    "privacyPolicyDesc": "Jinsi tunavyoshughulikia data yako",
+    "terms": "Masharti ya Huduma",
+    "termsDesc": "Makubaliano ya mtumiaji na sera"
+  },
+  "account": {
+    "deleteAccount": "Futa Akaunti",
+    "deleteConfirmMessage": "Una uhakika unataka kufuta akaunti yako? Kitendo hiki hakiwezi kutenduliwa. Data yako yote, malengo, na maendeleo vitaondolewa kabisa.",
+    "userNotFound": "Mtumiaji hajapatikana. Tafadhali jaribu tena.",
+    "dataDeleteError": "Hatukuweza kufuta data yako ya programu. Tafadhali jaribu tena kabla ya kufuta akaunti yako.",
+    "deleteError": "Imeshindwa kufuta akaunti. Tafadhali wasiliana na timu ya usaidizi kupitia support@edutu.org"
+  },
+  "helpCenter": "Kituo cha Usaidizi"
+}

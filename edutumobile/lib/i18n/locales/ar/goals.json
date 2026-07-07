@@ -1,0 +1,480 @@
+{
+  "createGoal": "إنشاء هدف",
+  "viewAll": "عرض الكل",
+  "creditsEarned_zero": "لا أرصدة لإكمال هدف",
+  "creditsEarned_one": "+{{count}} رصيد لإكمال هدف",
+  "creditsEarned_two": "+{{count}} رصيدان لإكمال هدف",
+  "creditsEarned_few": "+{{count}} أرصدة لإكمال هدف",
+  "creditsEarned_many": "+{{count}} رصيدًا لإكمال هدف",
+  "creditsEarned_other": "+{{count}} رصيد لإكمال هدف",
+  "priority": {
+    "high": "عالية",
+    "medium": "متوسطة",
+    "low": "منخفضة",
+    "highFull": "أولوية عالية",
+    "mediumFull": "أولوية متوسطة",
+    "lowFull": "أولوية منخفضة",
+    "highDesc": "عاجل - يحتاج إلى اهتمام فوري",
+    "mediumDesc": "مهم - اعمل عليه قريبًا",
+    "lowDesc": "يمكن إنجازه عندما يتوفر لديك وقت"
+  },
+  "status": {
+    "completed": "مكتمل",
+    "overdue": "متأخر",
+    "inProgress": "قيد التنفيذ"
+  },
+  "labels": {
+    "progress": "التقدم",
+    "priority": "الأولوية",
+    "deadline": "الموعد النهائي",
+    "reminder": "التذكير",
+    "status": "الحالة",
+    "datePlaceholder": "YYYY-MM-DD"
+  },
+  "time": {
+    "today": "اليوم",
+    "tomorrow": "غدًا",
+    "overdueShort": "متأخر {{count}} ي",
+    "leftShort": "متبقٍّ {{count}} ي",
+    "daysOverdue_zero": "غير متأخر",
+    "daysOverdue_one": "متأخر يومًا واحدًا",
+    "daysOverdue_two": "متأخر يومين",
+    "daysOverdue_few": "متأخر {{count}} أيام",
+    "daysOverdue_many": "متأخر {{count}} يومًا",
+    "daysOverdue_other": "متأخر {{count}} يوم",
+    "daysLeft_zero": "لم يتبقّ أي يوم",
+    "daysLeft_one": "متبقٍّ يوم واحد",
+    "daysLeft_two": "متبقٍّ يومان",
+    "daysLeft_few": "متبقٍّ {{count}} أيام",
+    "daysLeft_many": "متبقٍّ {{count}} يومًا",
+    "daysLeft_other": "متبقٍّ {{count}} يوم",
+    "daysFromNow_zero": "اليوم",
+    "daysFromNow_one": "بعد يوم واحد",
+    "daysFromNow_two": "بعد يومين",
+    "daysFromNow_few": "بعد {{count}} أيام",
+    "daysFromNow_many": "بعد {{count}} يومًا",
+    "daysFromNow_other": "بعد {{count}} يوم",
+    "days_zero": "{{count}} يوم",
+    "days_one": "يوم واحد",
+    "days_two": "يومان",
+    "days_few": "{{count}} أيام",
+    "days_many": "{{count}} يومًا",
+    "days_other": "{{count}} يوم"
+  },
+  "deleteConfirm": {
+    "title": "حذف الهدف",
+    "message": "هل أنت متأكد من أنك تريد حذف \"{{title}}\"؟"
+  },
+  "stats": {
+    "active": "نشطة",
+    "completed": "مكتملة",
+    "roadmaps": "خرائط الطريق",
+    "completion": "نسبة الإكمال",
+    "total": "الإجمالي",
+    "done": "منجزة",
+    "progress": "التقدم"
+  },
+  "sections": {
+    "roadmaps": "خرائط الطريق",
+    "personalGoals": "الأهداف الشخصية"
+  },
+  "filter": {
+    "byStatus": "التصفية حسب الحالة",
+    "activeLabel": "التصفية: {{label}}",
+    "clear": "مسح",
+    "allGoals": "جميع الأهداف",
+    "all": "الكل",
+    "active": "نشطة",
+    "completed": "مكتملة"
+  },
+  "empty": {
+    "noRoadmaps": {
+      "title": "لا توجد خرائط طريق",
+      "description": "استورد خارطة طريق لفرصة لترى الأهداف هنا.",
+      "action": "تصفح خرائط الطريق"
+    },
+    "noPersonalGoals": {
+      "title": "لا توجد أهداف شخصية",
+      "description": "اضغط على أيقونة الإضافة لإضافة هدفك الأول."
+    }
+  },
+  "dashboard": {
+    "title": "الأهداف",
+    "subtitle": "{{active}} نشط · {{rate}}% مكتمل",
+    "searchPlaceholder": "ابحث في أهدافك...",
+    "upcomingDeadlines": "المواعيد النهائية القادمة",
+    "myOpportunities": "فرصي",
+    "savedSummary": "{{count}} محفوظة",
+    "savedSummaryWithUrgent": "{{count}} محفوظة · {{urgent}} عاجلة",
+    "opportunityFallback": "فرصة",
+    "searchResults_zero": "لم يُعثر على أهداف مطابقة لـ \"{{term}}\"",
+    "searchResults_one": "عُثر على هدف واحد مطابق لـ \"{{term}}\"",
+    "searchResults_two": "عُثر على هدفين مطابقين لـ \"{{term}}\"",
+    "searchResults_few": "عُثر على {{count}} أهداف مطابقة لـ \"{{term}}\"",
+    "searchResults_many": "عُثر على {{count}} هدفًا مطابقًا لـ \"{{term}}\"",
+    "searchResults_other": "عُثر على {{count}} هدف مطابق لـ \"{{term}}\"",
+    "shareBanner": {
+      "title": "هل لديك فرص للمشاركة؟",
+      "subtitle": "تواصل معنا إذا كانت لديك منح دراسية أو وظائف أو برامج ترغب في مشاركتها مع مجتمعنا",
+      "action": "تواصل معنا"
+    }
+  },
+  "detail": {
+    "title": "تفاصيل الهدف",
+    "editTitle": "تعديل الهدف",
+    "details": "التفاصيل",
+    "fromRoadmap": "من خارطة طريق",
+    "personalGoal": "هدف شخصي",
+    "titlePlaceholder": "عنوان الهدف",
+    "descriptionPlaceholder": "أضف وصفًا...",
+    "noDeadline": "بدون موعد نهائي",
+    "markComplete": "وضع علامة مكتمل",
+    "reopen": "إعادة فتح الهدف",
+    "cancelEditing": "إلغاء التعديل",
+    "notFound": {
+      "title": "الهدف غير موجود",
+      "description": "ربما تم حذف هذا الهدف أو ليس لديك صلاحية الوصول إليه.",
+      "back": "العودة إلى الأهداف"
+    },
+    "reminder": {
+      "enabled": "مفعّل",
+      "disabled": "معطّل",
+      "enabledTitle": "تم تفعيل التذكير",
+      "disabledTitle": "تم تعطيل التذكير",
+      "enabledMessage": "سيتم تذكيرك في {{date}}",
+      "disabledMessage": "لن تتلقى تذكيرات لهذا الهدف."
+    },
+    "alerts": {
+      "enterTitle": "يرجى إدخال عنوان للهدف",
+      "updated": "تم تحديث الهدف بنجاح",
+      "updateFailed": "فشل تحديث الهدف",
+      "congratsTitle": "🎉 تهانينا!",
+      "congratsMessage": "لقد أكملت هذا الهدف!",
+      "completeFailed": "فشل إكمال الهدف",
+      "deleteFailed": "فشل حذف الهدف",
+      "noDeadlineTitle": "لا يوجد موعد نهائي",
+      "noDeadlineMessage": "حدّد موعدًا نهائيًا أولًا لتفعيل التذكيرات.",
+      "reminderFailed": "فشل تبديل حالة التذكير"
+    }
+  },
+  "add": {
+    "title": "إنشاء هدف جديد",
+    "heading": "حدّد وجهتك",
+    "subheading": "عرّف هدفك وتتبّع تقدمك نحو الإنجاز.",
+    "titleLabel": "عنوان الهدف",
+    "titlePlaceholder": "ماذا تريد أن تحقق؟",
+    "descriptionLabel": "الوصف",
+    "descriptionPlaceholder": "أضف مزيدًا من التفاصيل حول هذا الهدف...",
+    "preview": "معاينة",
+    "pastDate": "تاريخ سابق",
+    "validation": {
+      "titleTooShort": "يجب أن يتكون العنوان من 3 أحرف على الأقل",
+      "looksGood": "يبدو رائعًا!",
+      "deadlinePast": "لا يمكن أن يكون الموعد النهائي في الماضي"
+    },
+    "alerts": {
+      "invalidTitle": "عنوان غير صالح",
+      "titleTooShort": "يجب أن يتكون عنوان الهدف من 3 أحرف على الأقل",
+      "titleTooLongTitle": "العنوان طويل جدًا",
+      "titleTooLongMessage": "يجب أن يكون عنوان الهدف أقل من 100 حرف",
+      "invalidDeadline": "موعد نهائي غير صالح",
+      "created": "تم إنشاء الهدف بنجاح!",
+      "createAnother": "إنشاء هدف آخر",
+      "createFailed": "فشل إنشاء الهدف. يرجى المحاولة مرة أخرى."
+    }
+  },
+  "allRoadmaps": {
+    "title": "أهداف خرائط الطريق",
+    "goalCount_zero": "لا أهداف",
+    "goalCount_one": "هدف واحد",
+    "goalCount_two": "هدفان",
+    "goalCount_few": "{{count}} أهداف",
+    "goalCount_many": "{{count}} هدفًا",
+    "goalCount_other": "{{count}} هدف",
+    "otherGroup": "أخرى",
+    "empty": {
+      "title": "لا توجد أهداف خرائط طريق",
+      "searchHint": "جرّب تعديل بحثك",
+      "description": "استورد أهدافًا من خارطة طريق لتراها هنا"
+    }
+  },
+  "myList": {
+    "title": "أهدافي",
+    "goalsTracked_zero": "لا أهداف متتبَّعة",
+    "goalsTracked_one": "هدف واحد متتبَّع",
+    "goalsTracked_two": "هدفان متتبَّعان",
+    "goalsTracked_few": "{{count}} أهداف متتبَّعة",
+    "goalsTracked_many": "{{count}} هدفًا متتبَّعًا",
+    "goalsTracked_other": "{{count}} هدف متتبَّع",
+    "heroTitle": "حافظ على تركيزك 🎯",
+    "heroCompleted_zero": "لم تكمل أي هدف بعد. ابدأ الآن!",
+    "heroCompleted_one": "لقد أكملت هدفًا واحدًا. واصل هذا الزخم!",
+    "heroCompleted_two": "لقد أكملت هدفين. واصل هذا الزخم!",
+    "heroCompleted_few": "لقد أكملت {{count}} أهداف. واصل هذا الزخم!",
+    "heroCompleted_many": "لقد أكملت {{count}} هدفًا. واصل هذا الزخم!",
+    "heroCompleted_other": "لقد أكملت {{count}} هدف. واصل هذا الزخم!",
+    "heroEmpty": "حوّل طموحاتك إلى أهداف قابلة للتحقيق. ابدأ التتبع اليوم!",
+    "ctaTitle": "أنشئ هدفك الأول",
+    "ctaSubtitle": "حدّد الأهداف وتتبّع تقدمك",
+    "highPriorityAlert_zero": "لا توجد أهداف ذات أولوية عالية تحتاج إلى اهتمام",
+    "highPriorityAlert_one": "هدف واحد ذو أولوية عالية يحتاج إلى اهتمام",
+    "highPriorityAlert_two": "هدفان ذوا أولوية عالية يحتاجان إلى اهتمام",
+    "highPriorityAlert_few": "{{count}} أهداف ذات أولوية عالية تحتاج إلى اهتمام",
+    "highPriorityAlert_many": "{{count}} هدفًا ذا أولوية عالية يحتاج إلى اهتمام",
+    "highPriorityAlert_other": "{{count}} هدف ذو أولوية عالية يحتاج إلى اهتمام",
+    "searchPlaceholder": "ابحث في الأهداف...",
+    "sortLabel": "الترتيب: {{label}}",
+    "sortBy": "الترتيب حسب",
+    "sort": {
+      "newest": "الأحدث أولًا",
+      "oldest": "الأقدم أولًا",
+      "priority": "الأولوية",
+      "deadline": "الموعد النهائي",
+      "progress": "التقدم",
+      "title": "العنوان (أ-ي)"
+    },
+    "empty": {
+      "title": "لا توجد أهداف بعد",
+      "noMatch": "لا توجد أهداف مطابقة",
+      "searchHint": "جرّب تعديل بحثك أو عوامل التصفية",
+      "description": "ابدأ بإنشاء هدفك الأول لتتبع التقدم والحفاظ على حماسك"
+    }
+  },
+  "roadmaps": {
+    "title": "خرائط الطريق",
+    "subtitle": "مسارات تعلّم منظمة لتحقيق أهدافك",
+    "loading": "جارٍ تحميل خرائط الطريق...",
+    "searchPlaceholder": "ابحث في خرائط الطريق...",
+    "empty": "لم يُعثر على خرائط طريق. جرّب تعديل بحثك أو عوامل التصفية!",
+    "noDescription": "لا يوجد وصف متاح",
+    "featured": "مميزة",
+    "stepsCount_zero": "لا خطوات",
+    "stepsCount_one": "خطوة واحدة",
+    "stepsCount_two": "خطوتان",
+    "stepsCount_few": "{{count}} خطوات",
+    "stepsCount_many": "{{count}} خطوة",
+    "stepsCount_other": "{{count}} خطوة",
+    "notAvailable": "غير متوفر",
+    "varies": "متفاوت",
+    "achieveTitle": "ما الذي ستحققه",
+    "learningPath": "مسار التعلّم",
+    "startButton": "ابدأ خارطة الطريق هذه",
+    "rateButton": "قيّم خارطة الطريق هذه",
+    "categories": {
+      "all": "الكل",
+      "scholarship": "منحة دراسية",
+      "career": "مسار مهني",
+      "education": "تعليم",
+      "skills": "مهارات",
+      "business": "أعمال",
+      "tech": "تقنية"
+    },
+    "creatorBanner": {
+      "title": "كن منشئ خرائط طريق",
+      "subtitle": "شارك خبرتك. ابنِ مسارات تعلّم. واكسب وأنت تعلّم."
+    },
+    "templateBanner": {
+      "title": "استكشف قوالب خرائط الطريق",
+      "subtitle": "ابدأ من مسار مجرَّب وحوّله إلى هدف."
+    },
+    "detailInfo": {
+      "creatorProof": "إثبات المنشئ: {{value}}",
+      "deadlineStrategy": "استراتيجية الموعد النهائي: {{value}}",
+      "targetDeadline": "الموعد النهائي المستهدف: {{value}}",
+      "audience": "موجهة لـ: {{value}}",
+      "strategy": "الاستراتيجية: {{value}}"
+    },
+    "statsLabels": {
+      "difficulty": "الصعوبة",
+      "duration": "المدة",
+      "steps": "الخطوات",
+      "enrolled": "المسجّلون"
+    },
+    "deadline": {
+      "dueToday": "{{date}} - ينتهي اليوم",
+      "dueTomorrow": "{{date}} - ينتهي غدًا",
+      "daysLeft_zero": "{{date}} - لم يتبقّ أي يوم",
+      "daysLeft_one": "{{date}} - متبقٍّ يوم واحد",
+      "daysLeft_two": "{{date}} - متبقٍّ يومان",
+      "daysLeft_few": "{{date}} - متبقٍّ {{count}} أيام",
+      "daysLeft_many": "{{date}} - متبقٍّ {{count}} يومًا",
+      "daysLeft_other": "{{date}} - متبقٍّ {{count}} يوم",
+      "overdue": "{{date}} - متأخر",
+      "daysBefore_zero": "في يوم الموعد النهائي",
+      "daysBefore_one": "قبل الموعد النهائي بيوم واحد",
+      "daysBefore_two": "قبل الموعد النهائي بيومين",
+      "daysBefore_few": "قبل الموعد النهائي بـ {{count}} أيام",
+      "daysBefore_many": "قبل الموعد النهائي بـ {{count}} يومًا",
+      "daysBefore_other": "قبل الموعد النهائي بـ {{count}} يوم",
+      "dueOnDeadline": "يُستحق في يوم الموعد النهائي",
+      "dueDay": "يُستحق في اليوم {{day}}"
+    },
+    "adoption": {
+      "fallback": "لقد سجّلت في خارطة الطريق هذه. راجع أهدافك للبدء!",
+      "ready": "خارطة طريقك جاهزة.",
+      "milestones_zero": "لم تُضف أي محطات إنجاز إلى أهدافك.",
+      "milestones_one": "تمت إضافة محطة إنجاز واحدة إلى أهدافك.",
+      "milestones_two": "تمت إضافة محطتي إنجاز إلى أهدافك.",
+      "milestones_few": "تمت إضافة {{count}} محطات إنجاز إلى أهدافك.",
+      "milestones_many": "تمت إضافة {{count}} محطة إنجاز إلى أهدافك.",
+      "milestones_other": "تمت إضافة {{count}} محطة إنجاز إلى أهدافك.",
+      "deadline": "الموعد النهائي: {{date}}.",
+      "reminders": "تمت جدولة التذكيرات.",
+      "calendarEvents_zero": "لم تُجهَّز أي أحداث تقويم.",
+      "calendarEvents_one": "تم تجهيز حدث تقويم واحد.",
+      "calendarEvents_two": "تم تجهيز حدثي تقويم.",
+      "calendarEvents_few": "تم تجهيز {{count}} أحداث تقويم.",
+      "calendarEvents_many": "تم تجهيز {{count}} حدث تقويم.",
+      "calendarEvents_other": "تم تجهيز {{count}} حدث تقويم.",
+      "community": "يتوفر مجتمع مطابق لخارطة الطريق."
+    },
+    "calendar": {
+      "unavailableTitle": "التقويم غير متاح",
+      "unavailableMessage": "تعذّر إنشاء التقويم. يرجى المحاولة مرة أخرى.",
+      "exportFailedTitle": "فشل التصدير",
+      "exportFailedMessage": "تعذّر فتح ملف التقويم."
+    },
+    "enroll": {
+      "adoptedTitle": "تم اعتماد خارطة الطريق",
+      "viewGoals": "عرض الأهداف",
+      "addToCalendar": "إضافة إلى التقويم",
+      "openCommunity": "فتح المجتمع",
+      "continueBrowsing": "متابعة التصفح",
+      "failedTitle": "فشل التسجيل",
+      "failed": "فشل التسجيل",
+      "failedMessage": "تعذّر التسجيل."
+    },
+    "intent": {
+      "title": "ساعدنا في العثور على خارطة طريقك المثالية",
+      "subtitle": "أجب عن بضعة أسئلة لنوصي لك بأفضل مسار تعلّم.",
+      "answerPlaceholder": "اكتب إجابتك...",
+      "skip": "التخطي الآن",
+      "submit": "اعثر على خرائط طريقي",
+      "q1": "ما مستوى خبرتك الحالي؟",
+      "q2": "كم من الوقت يمكنك تخصيصه أسبوعيًا؟",
+      "q3": "ما أهدافك الرئيسية؟",
+      "levels": {
+        "beginner": "مبتدئ",
+        "intermediate": "متوسط",
+        "advanced": "متقدم"
+      },
+      "time": {
+        "lessThan5": "أقل من 5 ساعات",
+        "hours5to10": "5-10 ساعات",
+        "hours10to20": "10-20 ساعة",
+        "hours20plus": "أكثر من 20 ساعة"
+      }
+    },
+    "feedback": {
+      "title": "كيف كانت خارطة الطريق هذه؟",
+      "subtitle": "ملاحظاتك تساعدنا على التحسين وتساعد المتعلمين الآخرين.",
+      "placeholder": "ما الذي أعجبك أو ما الذي يمكن تحسينه؟",
+      "submit": "إرسال الملاحظات",
+      "thanksTitle": "شكرًا لك!",
+      "thanksMessage": "ملاحظاتك تساعدنا على تحسين خرائط الطريق للجميع."
+    }
+  },
+  "templates": {
+    "title": "استكشف القوالب",
+    "subtitle": "مسارات خرائط طريق مميزة",
+    "eyebrow": "قوالب خرائط طريق مميزة",
+    "heading": "اختر مسارًا مجرَّبًا وابدأ التخطيط أسرع",
+    "description": "يتضمن كل قالب محطات إنجاز وموارد وتصديرًا للتقويم وتذكيرات دراسية.",
+    "count_zero": "لا قوالب",
+    "count_one": "قالب واحد",
+    "count_two": "قالبان",
+    "count_few": "{{count}} قوالب",
+    "count_many": "{{count}} قالبًا",
+    "count_other": "{{count}} قالب",
+    "weeksRange": "8-20 أسبوعًا",
+    "featuredPaths": "مسارات مميزة",
+    "available": "{{count}} متاح",
+    "startRoadmap": "ابدأ خارطة الطريق",
+    "calendar": "التقويم",
+    "reminders": "التذكيرات",
+    "outcomes": "النتائج",
+    "guidance": "الإرشاد والموارد",
+    "week": "الأسبوع {{week}}",
+    "deliverableLabel": "الناتج المطلوب: {{value}}",
+    "icsSummary": "{{title}}: الأسبوع {{week}}",
+    "shareDialogTitle": "إضافة خارطة الطريق إلى التقويم",
+    "calendarReadyTitle": "التقويم جاهز",
+    "calendarReadyMessage": "تصدير التقويم متاح في إصدارات الهاتف.",
+    "calendarFileCreated": "تم إنشاء ملف التقويم",
+    "notificationsBlockedTitle": "الإشعارات محظورة",
+    "notificationsBlockedMessage": "فعّل الإشعارات لتلقي تذكيرات خارطة الطريق.",
+    "reminderTitle": "تذكير خارطة الطريق: الأسبوع {{week}}",
+    "remindersScheduledTitle": "تمت جدولة التذكيرات",
+    "remindersScheduledMessage_zero": "لم تُجدوَل أي تذكيرات لخارطة الطريق.",
+    "remindersScheduledMessage_one": "تمت الآن جدولة تذكير واحد لخارطة الطريق.",
+    "remindersScheduledMessage_two": "تمت الآن جدولة تذكيرين لخارطة الطريق.",
+    "remindersScheduledMessage_few": "تمت الآن جدولة {{count}} تذكيرات لخارطة الطريق.",
+    "remindersScheduledMessage_many": "تمت الآن جدولة {{count}} تذكيرًا لخارطة الطريق.",
+    "remindersScheduledMessage_other": "تمت الآن جدولة {{count}} تذكير لخارطة الطريق.",
+    "stepFallback": "الخطوة {{number}}",
+    "focus": "التركيز: {{value}}",
+    "defaultSummary": "خارطة طريق موجَّهة خطوة بخطوة.",
+    "stepPlan": "خطة من {{count}} خطوة",
+    "allLevels": "جميع المستويات",
+    "defaultCadence": "تُجدوَل تذكيرات محطات الإنجاز اعتبارًا من تاريخ بدئك.",
+    "resourceFallback": "مورد"
+  },
+  "calendar": {
+    "title": "تقويمي",
+    "deadlinePrefix": "الموعد النهائي: {{title}}",
+    "noEvents": "لا توجد أهداف أو مواعيد نهائية في هذا اليوم.",
+    "legend": {
+      "personalGoal": "هدف شخصي",
+      "roadmap": "خارطة طريق",
+      "opportunity": "فرصة"
+    },
+    "badge": {
+      "goal": "هدف",
+      "roadmap": "خارطة طريق",
+      "opportunity": "فرصة"
+    },
+    "days": {
+      "sun": "الأحد",
+      "mon": "الاثنين",
+      "tue": "الثلاثاء",
+      "wed": "الأربعاء",
+      "thu": "الخميس",
+      "fri": "الجمعة",
+      "sat": "السبت"
+    },
+    "months": {
+      "january": "يناير",
+      "february": "فبراير",
+      "march": "مارس",
+      "april": "أبريل",
+      "may": "مايو",
+      "june": "يونيو",
+      "july": "يوليو",
+      "august": "أغسطس",
+      "september": "سبتمبر",
+      "october": "أكتوبر",
+      "november": "نوفمبر",
+      "december": "ديسمبر"
+    }
+  },
+  "intake": {
+    "timeQuestion": "كم من الوقت يمكنك تخصيصه كل أسبوع؟",
+    "levelQuestion": "من أين تبدأ؟",
+    "time": {
+      "under5": "أقل من 5 ساعات",
+      "h5to10": "5–10 ساعات",
+      "h10to20": "10–20 ساعة",
+      "h20plus": "أكثر من 20 ساعة"
+    },
+    "level": {
+      "beginner": "جديد في هذا المجال",
+      "intermediate": "لديّ بعض الخبرة",
+      "advanced": "ذو خبرة"
+    }
+  },
+  "timeline": {
+    "today": "اليوم",
+    "milestoneDone": "{{title}}، منجزة",
+    "removeMilestone": "إزالة {{title}}"
+  }
+}

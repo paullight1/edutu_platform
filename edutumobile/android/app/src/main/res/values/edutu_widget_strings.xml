@@ -1,12 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-  <string name="edutu_widget_name">Edutu Opportunities</string>
+  <string name="edutu_widget_name">Edutu Top Matches</string>
   <string name="edutu_widget_title">Opportunities for you</string>
   <string name="edutu_widget_subtitle">Rotating scholarships, internships, and deadlines</string>
   <string name="edutu_widget_pick">Top pick</string>
   <string name="edutu_widget_open_now">Open now</string>
-  <string name="edutu_widget_radar">Opportunity radar</string>
-  <string name="edutu_widget_description">See a highlighted Edutu opportunity and its deadline at a glance.</string>
+  <string name="edutu_widget_radar">Top matches for you</string>
+  <string name="edutu_widget_description">Your best-matched opportunities and their deadlines.</string>
   <!-- Product API base the widget fetches opportunities from (no trailing slash). -->
   <string name="edutu_widget_api_base" translatable="false">https://edutu-platform.onrender.com</string>
+
+  <string name="edutu_deadline_widget_name">Edutu Deadlines</string>
+  <string name="edutu_deadline_widget_description">A calendar of your applied and saved opportunity deadlines.</string>
+  <string name="edutu_widget_deadlines">Deadlines</string>
+  <string name="edutu_widget_next_deadline">Next deadline</string>
+  <string name="edutu_widget_no_deadlines">No deadlines yet</string>
+  <string name="edutu_widget_no_deadlines_hint">Save or apply to opportunities to track them here.</string>
+
+  <string name="edutu_trending_widget_name">Edutu Trending</string>
+  <string name="edutu_trending_widget_description">What\'s hot on Edutu right now.</string>
+  <string name="edutu_widget_trending">Trending now</string>
+  <string name="edutu_widget_trending_empty">Discover what\'s hot</string>
+  <string name="edutu_widget_trending_empty_hint">Open Edutu to load trending opportunities.</string>
+
+  <string name="edutu_chat_widget_name">Ask Edutu</string>
+  <string name="edutu_chat_widget_description">Jump straight into a chat with your AI opportunity coach.</string>
+  <string name="edutu_widget_chat_prompt">Ask me anything…</string>
 </resources>

@@ -56,41 +56,73 @@ function hasReceiver(application, receiverName) {
   });
 }
 
+// Every widget receiver the app ships. Keep in step with the committed
+// AndroidManifest.xml and the provider classes under java/…/widgets/.
+const WIDGET_RECEIVERS = [
+  {
+    className: WIDGET_CLASS_NAME,
+    label: "@string/edutu_widget_name",
+    infoName: WIDGET_INFO_NAME,
+  },
+  {
+    className: "DeadlineWidgetProvider",
+    label: "@string/edutu_deadline_widget_name",
+    infoName: "edutu_deadline_widget_info",
+  },
+  {
+    className: "TrendingWidgetProvider",
+    label: "@string/edutu_trending_widget_name",
+    infoName: "edutu_trending_widget_info",
+  },
+  {
+    className: "ChatWidgetProvider",
+    label: "@string/edutu_chat_widget_name",
+    infoName: "edutu_chat_widget_info",
+  },
+];
+
 function addWidgetReceiver(androidManifest, props) {
   const application = getMainApplication(androidManifest);
-  const receiverName = `.widgets.${WIDGET_CLASS_NAME}`;
-
-  if (hasReceiver(application, receiverName)) {
-    return androidManifest;
-  }
-
   application.receiver = application.receiver || [];
-  application.receiver.push({
-    $: {
-      "android:name": receiverName,
-      "android:exported": "true",
-      "android:label": "@string/edutu_widget_name",
-    },
-    "intent-filter": [
-      {
-        action: [
-          {
-            $: {
-              "android:name": "android.appwidget.action.APPWIDGET_UPDATE",
+
+  for (const widget of WIDGET_RECEIVERS) {
+    const receiverName = `.widgets.${widget.className}`;
+    if (hasReceiver(application, receiverName)) {
+      continue;
+    }
+
+    const infoName =
+      widget.className === WIDGET_CLASS_NAME
+        ? props.widgetInfoName || widget.infoName
+        : widget.infoName;
+
+    application.receiver.push({
+      $: {
+        "android:name": receiverName,
+        "android:exported": "true",
+        "android:label": widget.label,
+      },
+      "intent-filter": [
+        {
+          action: [
+            {
+              $: {
+                "android:name": "android.appwidget.action.APPWIDGET_UPDATE",
+              },
             },
-          },
-        ],
-      },
-    ],
-    "meta-data": [
-      {
-        $: {
-          "android:name": "android.appwidget.provider",
-          "android:resource": `@xml/${props.widgetInfoName || WIDGET_INFO_NAME}`,
+          ],
         },
-      },
-    ],
-  });
+      ],
+      "meta-data": [
+        {
+          $: {
+            "android:name": "android.appwidget.provider",
+            "android:resource": `@xml/${infoName}`,
+          },
+        },
+      ],
+    });
+  }
 
   return androidManifest;
 }

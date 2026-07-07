@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dark variant: deep brand navy surfaces. See values/edutu_widget_colors.xml. -->
+<resources>
+  <color name="edutu_widget_bg">#171A4F</color>
+  <color name="edutu_widget_bg_inset">#232866</color>
+  <color name="edutu_widget_ink">#FFFFFF</color>
+  <color name="edutu_widget_sub">#C3CBEE</color>
+  <color name="edutu_widget_faint">#8A90C0</color>
+  <color name="edutu_widget_accent">#9DB4FF</color>
+  <color name="edutu_widget_pill_bg">#3563E9</color>
+  <color name="edutu_widget_pill_ink">#FFFFFF</color>
+
+  <color name="edutu_urgency_red">#F87171</color>
+  <color name="edutu_urgency_amber">#FBBF24</color>
+  <color name="edutu_urgency_green">#34D399</color>
+  <color name="edutu_urgency_slate">#94A3B8</color>
+</resources>

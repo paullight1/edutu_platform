@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { X } from 'lucide-react-native';
 import { useAuth } from '@clerk/clerk-expo';
@@ -14,6 +15,7 @@ import {
 } from '../../lib/mobileControl';
 
 export function MobileCampaignHost() {
+  const { t } = useTranslation('common');
   const router = useRouter();
   const { getToken } = useAuth();
   const { colors, isDark } = useTheme();
@@ -99,7 +101,7 @@ export function MobileCampaignHost() {
             <X size={20} color={colors.textSecondary} />
           </TouchableOpacity>
           <View style={[styles.badge, { backgroundColor: accentColor }]}>
-            <Text style={styles.badgeText}>Edu2Mobile</Text>
+            <Text style={styles.badgeText}>{t('campaign.badge')}</Text>
           </View>
           <Text style={[styles.title, { color: colors.foreground }]}>{campaign.title}</Text>
           {!!campaign.body && (
@@ -109,7 +111,7 @@ export function MobileCampaignHost() {
           )}
           <View style={styles.actions}>
             <TouchableOpacity style={[styles.secondaryButton, { borderColor: colors.border }]} onPress={() => void close()}>
-              <Text style={[styles.secondaryText, { color: colors.foreground }]}>Close</Text>
+              <Text style={[styles.secondaryText, { color: colors.foreground }]}>{t('actions.close')}</Text>
             </TouchableOpacity>
             {!!campaign.creative?.ctaLabel && (
               <TouchableOpacity style={[styles.primaryButton, { backgroundColor: accentColor }]} onPress={handleAction}>
