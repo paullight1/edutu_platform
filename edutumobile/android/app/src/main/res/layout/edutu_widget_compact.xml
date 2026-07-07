@@ -1,33 +1,50 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Top Matches — compact (small) size: poster-style hero. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:id="@+id/edutu_widget_root"
   android:layout_width="match_parent"
   android:layout_height="match_parent"
   android:orientation="vertical"
-  android:gravity="center_vertical"
-  android:padding="12dp"
+  android:padding="13dp"
   android:background="@drawable/edutu_widget_background">
+
+  <ImageView
+    android:id="@+id/edutu_widget_logo"
+    android:layout_width="20dp"
+    android:layout_height="20dp"
+    android:src="@drawable/edutu_widget_logo"
+    android:contentDescription="@null" />
 
   <TextView
     android:id="@+id/edutu_widget_title"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:layout_marginTop="7dp"
     android:ellipsize="end"
     android:maxLines="3"
     android:text="@string/edutu_widget_title"
-    android:textColor="@android:color/white"
+    android:textColor="@color/edutu_widget_ink"
     android:textSize="14sp"
     android:textStyle="bold" />
+
+  <View
+    android:layout_width="1dp"
+    android:layout_height="0dp"
+    android:layout_weight="1" />
 
   <TextView
     android:id="@+id/edutu_widget_deadline"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:layout_marginTop="8dp"
+    android:paddingLeft="8dp"
+    android:paddingRight="8dp"
+    android:paddingTop="3dp"
+    android:paddingBottom="3dp"
+    android:background="@drawable/edutu_widget_chip_slate"
     android:ellipsize="end"
     android:maxLines="1"
     android:text="@string/edutu_widget_open_now"
-    android:textColor="#10B981"
-    android:textSize="12sp"
+    android:textColor="#FFFFFF"
+    android:textSize="11sp"
     android:textStyle="bold" />
 </LinearLayout>

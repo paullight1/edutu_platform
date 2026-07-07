@@ -1,0 +1,509 @@
+{
+  "creatorApply": {
+    "title": "成为创作者",
+    "types": {
+      "scholarship": { "label": "奖学金", "desc": "学术奖学金与助学金" },
+      "fellowship": { "label": "研究金", "desc": "研究与职业研究金项目" },
+      "internship": { "label": "实习", "desc": "专业实习项目" },
+      "job": { "label": "全职工作", "desc": "全职工作机会" },
+      "program": { "label": "加速器/项目", "desc": "加速器与培训项目" },
+      "other": { "label": "其他", "desc": "其他机会" }
+    },
+    "motivations": {
+      "helpOthers": "我想帮助他人取得和我一样的成就",
+      "mentor": "我喜欢指导他人、分享知识",
+      "giveBack": "我想回馈社区",
+      "document": "我想把自己的经历记录下来供他人参考",
+      "payForward": "我相信把善意传递下去"
+    },
+    "alerts": {
+      "uploadImageFailed": "图片上传失败，请再试一次。",
+      "submitFailed": "连接失败，请再试一次。"
+    },
+    "success": {
+      "headerTitle": "申请已提交",
+      "title": "欢迎加入创作者社区！",
+      "text": "我们已收到你的申请，很期待了解你的经历。团队会在 2-3 个工作日内完成资质审核。",
+      "applicationId": "申请编号",
+      "status": "状态",
+      "pendingReview": "待审核",
+      "responseTime": "答复时间",
+      "responseTimeValue": "2-3 天",
+      "backToProfile": "返回个人资料"
+    },
+    "intro": {
+      "heroTitle": "分享你的成功故事",
+      "heroSubtitle": "你已经取得了了不起的成就。分享你的成功路线图，激励下一代。",
+      "you": "你",
+      "yourName": "你的名字",
+      "futureCreator": "未来创作者",
+      "statStudentsHelped": "帮助的学生",
+      "statSuccessStories": "成功故事",
+      "statRevenueShare": "收益分成",
+      "benefit": "成为认证创作者后，每售出一份路线图你都可获得 <bold>85% 的收益分成</bold>，并触达全球数千名学习者。"
+    },
+    "motivation": {
+      "title": "是什么激励着你？",
+      "desc": "选择最能描述你想成为创作者的原因。"
+    },
+    "achievement": {
+      "title": "你的成就",
+      "desc": "告诉我们你获得的机会，帮助他人沿着你的路径前进。",
+      "typeLabel": "机会类型",
+      "nameLabel": "机会名称",
+      "namePlaceholder": "例如：Mastercard Foundation Scholarship 2024",
+      "linkedinLabel": "LinkedIn 个人主页",
+      "portfolioLabel": "作品集链接（可选）",
+      "portfolioPlaceholder": "你的作品集或个人网站链接"
+    },
+    "verification": {
+      "title": "资质验证",
+      "desc": "我们会验证所有创作者，以保证质量与信任。请上传能证明你成就的文件。",
+      "documentLabel": "验证文件",
+      "documentHint": "上传你的获奖信、证书、录取邮件或身份证件",
+      "tapToUpload": "点击上传",
+      "acceptedFormats": "支持 JPG、PNG",
+      "verified": "已验证",
+      "storyLabel": "你的故事",
+      "storyPlaceholder": "分享你的经历——你是如何准备的、遇到过哪些挑战，以及给他人的建议……",
+      "socialLabel": "社交链接（可选）",
+      "socialPlaceholder": "Twitter、YouTube 等（用逗号分隔）"
+    },
+    "review": {
+      "title": "确认申请",
+      "desc": "提交前请再核对一遍信息。",
+      "motivation": "动机",
+      "achievement": "成就",
+      "type": "类型",
+      "name": "名称",
+      "verification": "资质验证",
+      "documentUploaded": "文件已上传",
+      "bio": "个人简介",
+      "callout": "你的申请将在 <bold>2-3 个工作日</bold>内完成审核，通过后会通知你。"
+    },
+    "submitApplication": "提交申请"
+  },
+  "creatorDashboard": {
+    "title": "创作者工作室",
+    "subtitle": "创建和管理你的路线图",
+    "loading": "正在加载创作者工作室…",
+    "longLoad": {
+      "title": "加载时间比预期长",
+      "text": "请稍后再试，或先返回，我们正在重新连接。",
+      "tryAgain": "再试一次"
+    },
+    "access": {
+      "pendingBadge": "申请审核中",
+      "pendingDesc": "你的申请正在由团队审核，通过后会通知你。通常需要 2-3 个工作日。",
+      "pendingInfo": "等待期间，你可以浏览其他创作者的路线图寻找灵感。",
+      "browseRoadmaps": "浏览路线图",
+      "rejectedBadge": "申请未通过",
+      "rejectedDesc": "很遗憾，你的申请未获通过。你可以补充更多信息后重新提交申请。",
+      "reapply": "重新申请",
+      "noneDesc": "加入创作者社区，与数千名学习者分享你的知识。在帮助他人实现目标的同时赚取积分。",
+      "perkRevenue": "85% 收益分成",
+      "perkReach": "触达 10K+ 学生",
+      "perkBadge": "认证创作者徽章",
+      "applyCta": "申请成为创作者"
+    },
+    "welcomeGreeting": "欢迎回来，",
+    "creatorFallback": "创作者",
+    "createRoadmap": "创建路线图",
+    "overview": "概览",
+    "stats": {
+      "totalCredits": "总积分",
+      "totalStudents": "学生总数",
+      "roadmaps": "路线图"
+    },
+    "rewards": {
+      "title": "创作者奖励",
+      "text": "每售出一份路线图，你可获得 <bold>85%</bold> 的收益。"
+    },
+    "myRoadmaps": "我的路线图",
+    "empty": {
+      "title": "还没有路线图",
+      "subtext": "创建你的第一个路线图，开始与社区分享你的知识。",
+      "cta": "创建你的第一个路线图"
+    },
+    "free": "免费",
+    "priceCr": "{{price}} 积分",
+    "alerts": {
+      "thumbnailUploaded": "缩略图已上传！",
+      "uploadFailedTitle": "上传失败",
+      "fileUploaded": "文件上传成功。",
+      "missingInfoTitle": "信息不完整",
+      "missingInfoMessage": "请填写标题和描述。",
+      "missingCurriculumTitle": "缺少课程内容",
+      "missingCurriculumMessage": "请至少添加一个路线图阶段。",
+      "publishFailed": "无法发布路线图。",
+      "publishedTitle": "成功！",
+      "publishedMessage": "你的路线图已发布，学习者可以看到了。",
+      "failedTitle": "失败",
+      "failedFallback": "请再试一次。"
+    },
+    "wizard": {
+      "basicsTitle": "路线图基础信息",
+      "basicsDesc": "介绍一下你的路线图",
+      "curriculumTitle": "课程阶段",
+      "curriculumDesc": "定义学习阶段",
+      "resourcesTitle": "资源与文件",
+      "resourcesDesc": "添加辅助材料",
+      "reviewTitle": "确认并提交",
+      "reviewDesc": "提交前再核对一遍",
+      "basicsCallout": "你正在创建一个<bold>路线图</bold>——一份帮助学生实现特定目标的分步学习指南。",
+      "titleLabel": "路线图标题",
+      "titlePlaceholder": "例如：Web 开发完整路线图",
+      "descriptionLabel": "描述",
+      "descriptionPlaceholder": "学生将学到什么？能获得怎样的成果？",
+      "categoryLabel": "分类",
+      "thumbnailLabel": "缩略图",
+      "uploaded": "已上传",
+      "browseDevice": "从设备中选择",
+      "ratioHint": "建议使用 16:9 比例",
+      "priceLabel": "价格（积分）",
+      "pricePlaceholder": "免费路线图填 0",
+      "experienceLabel": "你的经验",
+      "experiencePlaceholder": "你为什么有资格创建这个路线图？",
+      "curriculumCallout": "把路线图拆分为多个<bold>阶段</bold>。每个阶段代表学生学习旅程中的一个关键里程碑。",
+      "stageNumber": "阶段 {{number}}",
+      "stageTitlePlaceholder": "阶段标题（例如：基础入门）",
+      "stageDescPlaceholder": "该阶段的简要描述",
+      "stageDurationPlaceholder": "时长（例如：第 1-2 周）",
+      "addStage": "添加阶段",
+      "resourcesCallout": "添加示例文件、模板或文档等资源，供学生下载。",
+      "resourceNamePlaceholder": "资源名称",
+      "uploadFile": "上传文件",
+      "addResource": "添加资源",
+      "reviewCallout": "发布前请核对路线图信息。作为已认证的创作者，发布后学习者即可立即看到。",
+      "reviewBasics": "基础信息",
+      "reviewTitleLabel": "标题",
+      "reviewCategoryLabel": "分类",
+      "reviewPriceLabel": "价格",
+      "priceCredits": "{{price}} 积分",
+      "reviewCurriculum": "课程（{{total}} 个阶段）",
+      "reviewResources": "资源（{{total}}）",
+      "untitled": "未命名",
+      "fileAttached": "✓ {{fileName}}",
+      "submitForReview": "提交审核"
+    }
+  },
+  "mentorApply": {
+    "title": "成为导师",
+    "alerts": {
+      "notSignedInTitle": "未登录",
+      "notSignedInMessage": "请先登录再提交导师申请。"
+    },
+    "success": {
+      "title": "申请已发送！",
+      "desc": "感谢你申请成为导师。我们会审核你的申请，并在 2-3 个工作日内答复。",
+      "backToProfile": "返回个人资料"
+    },
+    "motivations": {
+      "helpOthers": "我想帮助他人取得和我一样的成就",
+      "mentor": "我喜欢指导他人、分享知识",
+      "giveBack": "我想回馈社区",
+      "document": "我想把自己的经历记录下来供他人参考",
+      "payForward": "我相信把善意传递下去"
+    },
+    "contentTypes": {
+      "mentorship": { "label": "导师指导", "desc": "一对一辅导" },
+      "course": { "label": "课程", "desc": "学习路径" },
+      "template": { "label": "模板", "desc": "简历模板" },
+      "resource": { "label": "资源", "desc": "学习资料" }
+    },
+    "intro": {
+      "heroTitle": "分享你的\n<accent>成功故事</accent>",
+      "heroDesc": "你已经取得了了不起的成就。分享你的知识和经验，帮助更多人走向成功。",
+      "statLearners": "学习者",
+      "statMentors": "导师",
+      "statRevenue": "收益",
+      "info": "触达来自 31+ 个国家的学习者。你的经验可以改变世界任何角落的某个人的人生。",
+      "getStarted": "开始"
+    },
+    "motivation": {
+      "title": "是什么激励着你？",
+      "desc": "选择最能描述你想成为导师的原因。"
+    },
+    "details": {
+      "title": "介绍一下你自己",
+      "desc": "帮助学习者了解你的专长。",
+      "displayNameLabel": "显示名称",
+      "displayNamePlaceholder": "想让学习者怎么称呼你？",
+      "teachLabel": "你想教什么？",
+      "bioLabel": "个人简介",
+      "bioPlaceholder": "分享你的背景和成就……",
+      "experienceLabel": "工作年限",
+      "experiencePlaceholder": "例如：5 年软件工程经验",
+      "linkedinLabel": "LinkedIn 链接",
+      "portfolioLabel": "作品集链接",
+      "reviewApplication": "确认申请"
+    },
+    "review": {
+      "title": "确认你的申请",
+      "desc": "提交前请确保所有信息无误。",
+      "displayName": "显示名称",
+      "motivation": "动机",
+      "contentType": "内容类型",
+      "experience": "经验",
+      "bio": "个人简介",
+      "linkedin": "LinkedIn",
+      "portfolio": "作品集",
+      "notProvided": "未提供",
+      "submitting": "提交中…",
+      "submit": "提交申请"
+    }
+  },
+  "admin": {
+    "creatorApplications": {
+      "title": "创作者申请",
+      "subtitle": "审核和管理申请",
+      "alerts": {
+        "loadFailed": "加载申请失败。",
+        "approvedSuccess": "申请已批准。",
+        "rejectedSuccess": "申请已拒绝。",
+        "reviewFailed": "审核申请失败。"
+      },
+      "unknown": "未知",
+      "unknownUser": "未知用户",
+      "status": {
+        "pending": "待审核",
+        "approved": "已批准",
+        "rejected": "已拒绝"
+      },
+      "filters": { "all": "全部" },
+      "stats": { "total": "总计" },
+      "loading": "正在加载申请…",
+      "empty": {
+        "title": "暂无申请",
+        "pending": "没有待审核的申请。",
+        "generic": "未找到申请。"
+      },
+      "modal": {
+        "title": "申请详情",
+        "reviewedOn": "审核于 {{date}}",
+        "applicant": "申请人",
+        "opportunity": "机会",
+        "motivation": "动机",
+        "bio": "个人简介",
+        "linkedin": "LinkedIn",
+        "verificationDocument": "验证文件",
+        "proofUrl": "证明链接",
+        "appliedOn": "申请日期",
+        "reviewerNotes": "审核备注",
+        "notePlaceholder": "为这个决定添加备注……",
+        "reject": "拒绝",
+        "approve": "批准"
+      }
+    },
+    "premiumFeatures": {
+      "title": "高级功能",
+      "subtitle": "管理 OTA 功能开关",
+      "alerts": {
+        "loadFailed": "加载功能开关失败。",
+        "validationTitle": "校验错误",
+        "validationMessage": "名称和描述为必填项。",
+        "updated": "功能开关已更新。",
+        "saveFailed": "保存功能开关失败。",
+        "statusUpdateFailed": "更新状态失败。",
+        "proUpdateFailed": "更新 Pro 限制失败。"
+      },
+      "stats": {
+        "total": "总计",
+        "enabled": "已启用",
+        "proOnly": "仅限 Pro"
+      },
+      "searchPlaceholder": "搜索功能…",
+      "filters": {
+        "all": "全部",
+        "enabled": "已启用",
+        "disabled": "已禁用",
+        "proOnly": "仅限 Pro"
+      },
+      "status": {
+        "enabled": "已启用",
+        "disabled": "已禁用"
+      },
+      "toggles": {
+        "enabled": "已启用",
+        "proOnly": "仅限 Pro"
+      },
+      "loading": "正在加载功能开关…",
+      "empty": {
+        "title": "暂无功能开关",
+        "filtered": "没有符合当前筛选条件的功能。",
+        "none": "数据库中未找到功能开关。"
+      },
+      "modal": {
+        "title": "编辑功能开关",
+        "labelLabel": "名称 *",
+        "labelPlaceholder": "例如：AI 辅导",
+        "descriptionLabel": "描述 *",
+        "descriptionPlaceholder": "描述这个功能的作用……",
+        "sortOrderLabel": "排序",
+        "submit": "更新功能开关"
+      }
+    },
+    "testimonials": {
+      "title": "用户评价",
+      "subtitle": "管理客户评价",
+      "alerts": {
+        "loadFailed": "加载评价失败。",
+        "validationTitle": "校验错误",
+        "validationMessage": "姓名、角色和评价内容为必填项。",
+        "updated": "评价已更新。",
+        "added": "评价已添加。",
+        "saveFailed": "保存评价失败。",
+        "deleteTitle": "删除评价",
+        "deleteMessage": "确定要删除“{{name}}”吗？此操作无法撤销。",
+        "deleted": "评价已删除。",
+        "deleteFailed": "删除评价失败。",
+        "statusUpdateFailed": "更新状态失败。"
+      },
+      "stats": {
+        "total": "总计",
+        "active": "已启用",
+        "inactive": "已停用"
+      },
+      "filters": { "all": "全部" },
+      "status": {
+        "active": "已启用",
+        "inactive": "已停用"
+      },
+      "videoLinked": "已关联 YouTube 视频",
+      "addButton": "添加评价",
+      "loading": "正在加载评价…",
+      "empty": {
+        "title": "暂无评价",
+        "filtered": "没有符合当前筛选条件的评价。",
+        "none": "点击上方按钮添加第一条评价。"
+      },
+      "modal": {
+        "editTitle": "编辑评价",
+        "nameLabel": "姓名 *",
+        "namePlaceholder": "例如：John Doe",
+        "roleLabel": "角色 *",
+        "rolePlaceholder": "例如：软件工程师",
+        "countryLabel": "国家 <dim>（可选）</dim>",
+        "countryPlaceholder": "例如：🇳🇬 尼日利亚",
+        "ratingLabel": "评分",
+        "reviewLabel": "评价内容 *",
+        "reviewPlaceholder": "撰写评价内容……",
+        "youtubeLabel": "YouTube 链接 <dim>（可选）</dim>",
+        "videoId": "视频 ID：{{id}}",
+        "videoIdError": "无法从链接中提取视频 ID",
+        "update": "更新评价"
+      }
+    },
+    "roadmapCreate": {
+      "title": "创建路线图",
+      "alerts": {
+        "coverUploadFailed": "封面图上传失败",
+        "resourceRequired": "请填写资源标题和链接",
+        "fileUploadFailed": "文件上传失败",
+        "requiredFields": "请填写标题、摘要，并至少添加一个阶段",
+        "created": "路线图创建成功！",
+        "createFailed": "创建路线图失败，请再试一次。"
+      },
+      "basicInfo": "基本信息",
+      "uploadCover": "上传封面图",
+      "titleLabel": "标题",
+      "titlePlaceholder": "例如：Web 开发完整训练营",
+      "summaryLabel": "摘要",
+      "summaryPlaceholder": "简要描述这个路线图……",
+      "categoryLabel": "分类",
+      "categories": {
+        "education": "教育",
+        "programming": "编程",
+        "business": "商业",
+        "career": "职业",
+        "design": "设计",
+        "marketing": "营销",
+        "other": "其他"
+      },
+      "difficultyLabel": "难度",
+      "difficulty": {
+        "beginner": "入门",
+        "intermediate": "进阶",
+        "advanced": "高级"
+      },
+      "priceLabel": "价格",
+      "price": {
+        "free": "免费",
+        "premium": "付费"
+      },
+      "durationLabel": "时长",
+      "durationPlaceholder": "例如：3 个月",
+      "tagsLabel": "标签（用逗号分隔）",
+      "tagsPlaceholder": "例如：javascript, react, web 开发",
+      "outcomesLabel": "学习成果（每行一条）",
+      "outcomesPlaceholder": "- 构建全栈应用\\n- 掌握 React 和 Node.js\\n- 部署到生产环境",
+      "resources": "资源",
+      "resourceTitlePlaceholder": "资源标题",
+      "resourceDescriptionPlaceholder": "描述",
+      "resourceUrlPlaceholder": "链接",
+      "typeLabel": "类型",
+      "resourceTypes": {
+        "article": "文章",
+        "video": "视频",
+        "course": "课程",
+        "tool": "工具",
+        "book": "书籍",
+        "other": "其他"
+      },
+      "costLabel": "费用",
+      "cost": {
+        "free": "免费",
+        "paid": "付费"
+      },
+      "resourceMeta": "{{type}} • {{cost}}",
+      "addResource": "添加资源",
+      "uploadDoc": "上传 PDF/文档（可选）",
+      "stages": "路线图阶段",
+      "stageTitlePlaceholder": "阶段 {{number}} 标题",
+      "stageDescriptionPlaceholder": "阶段描述",
+      "stageDurationPlaceholder": "时长（例如：2 周）",
+      "milestonePlaceholder": "里程碑",
+      "tasks": "任务",
+      "taskTitlePlaceholder": "任务标题",
+      "taskDescriptionPlaceholder": "任务描述",
+      "taskDurationPlaceholder": "时长",
+      "taskOutcomePlaceholder": "预期成果",
+      "addTask": "添加任务",
+      "checkpointPlaceholder": "检查点 / 交付物"
+    }
+  },
+  "notifications": {
+    "goalDeadlineToday": {
+      "title": "目标截止日就是今天！🎯",
+      "body": "别忘了：{{title}}"
+    },
+    "deadlineTomorrow": {
+      "title": "明天截止！⏱️",
+      "body": "即将到期：{{title}}"
+    },
+    "deadlineApproaching": {
+      "title": "截止日期临近 🗓️",
+      "body": "还剩 3 天：{{title}}"
+    }
+  },
+  "share": {
+    "notSpecified": "未指定",
+    "rollingDeadline": "滚动截止 / 未指定",
+    "fundingAvailable": "提供资助",
+    "openOpportunity": "开放机会",
+    "openEligibility": "面向符合条件的申请者开放",
+    "detailsInApp": "详情请在 Edutu 中查看。",
+    "fallbackTitle": "Edutu 机会",
+    "deadlinePassed": "已过截止日期！",
+    "stillActive": "仍在开放！",
+    "sponsor": "赞助方：{{name}}",
+    "benefits": "福利：",
+    "category": "分类：{{category}}",
+    "categoryFallback": "机会",
+    "eligibleCountry": "适用国家：{{country}}",
+    "deadline": "截止日期：{{deadline}}",
+    "applyCta": "点击下方链接申请📌",
+    "shareWithFriends": "欢迎分享给可能感兴趣的朋友。",
+    "dialogTitle": "分享机会"
+  }
+}

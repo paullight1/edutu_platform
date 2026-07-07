@@ -1,0 +1,237 @@
+{
+  "tabs": {
+    "home": "होम",
+    "discover": "खोजें",
+    "plan": "प्लान",
+    "me": "मैं",
+    "openEdutuAi": "Edutu AI खोलें",
+    "badgeOverflow": "99+"
+  },
+  "rewards": {
+    "creditsEarned_one": "+{{count}} क्रेडिट · {{label}}",
+    "creditsEarned_other": "+{{count}} क्रेडिट · {{label}}"
+  },
+  "home": {
+    "exploreOpportunities": "अवसर एक्सप्लोर करें",
+    "featuredOpportunities": "फ़ीचर्ड अवसर",
+    "quickActionsTitle": "क्विक एक्शन",
+    "recommendedOpportunities": "आपके लिए सुझाए गए अवसर",
+    "viewMore": "और देखें",
+    "emptyTitle": "अभी कोई सुझाव नहीं",
+    "emptyDescription": "अवसर एक्सप्लोर करें और जिन्हें ट्रैक करना चाहें उन्हें सेव करें।",
+    "emptyCta": "अवसर एक्सप्लोर करें",
+    "quickActions": {
+      "roadmaps": "रोडमैप",
+      "goals": "लक्ष्य",
+      "cvBuilder": "CV बिल्डर",
+      "saved": "सेव किए गए"
+    },
+    "discovery": {
+      "scholarships": {
+        "title": "स्कॉलरशिप",
+        "description": "ट्यूशन फ़ंडिंग और पुरस्कार"
+      },
+      "internships": {
+        "title": "इंटर्नशिप",
+        "description": "करियर की शुरुआत के प्रैक्टिकल रोल"
+      },
+      "grants": {
+        "title": "प्रोग्राम",
+        "description": "फ़ंडेड प्रोग्राम और ग्रांट"
+      },
+      "fellowships": {
+        "title": "फ़ेलोशिप",
+        "description": "फ़ेलोशिप और लीडरशिप ट्रैक"
+      }
+    }
+  },
+  "notifications": {
+    "title": "नोटिफ़िकेशन",
+    "passwordPromptTitle": "अपने अकाउंट में पासवर्ड जोड़ें",
+    "passwordPromptBody": "आपने Google या Apple से साइन इन किया है। पासवर्ड जोड़ें ताकि यह भूल जाने पर कि आपने कौन सा विकल्प चुना था, आप ईमेल से भी साइन इन कर सकें।",
+    "setPassword": "पासवर्ड सेट करें",
+    "filterAll": "सभी",
+    "filterUnread_one": "अपठित ({{count}})",
+    "filterUnread_other": "अपठित ({{count}})",
+    "loading": "नोटिफ़िकेशन लोड हो रहे हैं...",
+    "emptyTitle": "कोई नोटिफ़िकेशन नहीं",
+    "emptySubtitle": "आपने सब देख लिया है!"
+  },
+  "help": {
+    "title": "सहायता और सपोर्ट",
+    "headerTitle": "हम आपकी कैसे मदद कर सकते हैं?",
+    "headerSubtitle": "आम सवालों के जवाब पाएँ या हमसे संपर्क करें।",
+    "faqSectionTitle": "अक्सर पूछे जाने वाले सवाल",
+    "directSupport": "सीधा सपोर्ट",
+    "emailSupport": "ईमेल सपोर्ट",
+    "visitWebsite": "वेबसाइट देखें",
+    "footer": "Edutu सहायता केंद्र",
+    "faqs": {
+      "ai": {
+        "question": "मैं Edutu AI का उपयोग कैसे करूँ?",
+        "answer": "आप नेविगेशन बार के बीच वाले बटन से Edutu AI तक पहुँच सकते हैं। बस कोर्स, करियर मार्गदर्शन या स्किल्स के बारे में अपना सवाल टाइप करें, और यह तुरंत आपकी मदद करेगा।"
+      },
+      "enroll": {
+        "question": "मैं किसी कोर्स में एनरोल कैसे करूँ?",
+        "answer": "'Market' टैब पर जाएँ, अपनी पसंद का कोर्स ढूँढें और 'Access Now' पर टैप करें। कुछ कोर्स के लिए क्रेडिट चाहिए, जबकि कुछ मुफ़्त हैं।"
+      },
+      "credits": {
+        "question": "मैं क्रेडिट कैसे कमाऊँ?",
+        "answer": "आप फ़ीचर्ड अवसरों में भाग लेकर, क्वेस्ट पूरे करके या क्रिएटर के रूप में योगदान देकर क्रेडिट कमा सकते हैं। अधिक जानकारी के लिए अपना वॉलेट देखें।"
+      },
+      "security": {
+        "question": "क्या मेरा डेटा सुरक्षित है?",
+        "answer": "हाँ, हम इंडस्ट्री-स्टैंडर्ड एन्क्रिप्शन और प्रमाणीकरण के लिए Clerk का उपयोग करते हैं, ताकि आपकी व्यक्तिगत जानकारी और शैक्षणिक प्रगति हमेशा सुरक्षित रहे।"
+      }
+    }
+  },
+  "privacy": {
+    "title": "गोपनीयता नीति",
+    "headerTitle": "आपकी गोपनीयता महत्वपूर्ण है",
+    "lastUpdated": "अंतिम अपडेट: अप्रैल 2026",
+    "notice": "Edutu का उपयोग करके आप हमारी सेवा शर्तों और इस गोपनीयता नीति से सहमत होते हैं। हम आपका व्यक्तिगत डेटा कभी भी तीसरे पक्ष को नहीं बेचते।",
+    "footer": "Edutu Legal",
+    "sections": {
+      "dataWeCollect": {
+        "title": "हम कौन सा डेटा इकट्ठा करते हैं",
+        "desc": "हम आपके सीखने के अनुभव को व्यक्तिगत बनाने और आपके लक्ष्यों को ट्रैक करने के लिए आपका नाम, ईमेल और शैक्षणिक प्रगति इकट्ठा करते हैं।"
+      },
+      "howWeUseIt": {
+        "title": "हम इसका उपयोग कैसे करते हैं",
+        "desc": "आपका डेटा हमें कोर्स सुझाने, AI मार्गदर्शन देने और आपकी उपलब्धियों पर क्रेडिट दिलाने में मदद करता है।"
+      },
+      "dataProtection": {
+        "title": "डेटा सुरक्षा",
+        "desc": "सारी व्यक्तिगत जानकारी एन्क्रिप्टेड है। आपके डेटा को अनधिकृत पहुँच से सुरक्षित रखने के लिए हम इंडस्ट्री-स्टैंडर्ड सुरक्षा प्रोटोकॉल का उपयोग करते हैं।"
+      },
+      "yourRights": {
+        "title": "आपके अधिकार",
+        "desc": "आप कभी भी हमारे सहायता केंद्र से या सपोर्ट से संपर्क करके अपना अकाउंट हटाने या अपना डेटा डाउनलोड करने का अनुरोध कर सकते हैं।"
+      }
+    }
+  },
+  "deadlines": {
+    "title": "डेडलाइन",
+    "subtitle": "कुल {{total}} • {{urgent}} अर्जेंट",
+    "loading": "आपकी डेडलाइन लोड हो रही हैं...",
+    "emptyTitle": "अभी कोई डेडलाइन नहीं",
+    "emptyDescription": "आवेदन की डेडलाइन ट्रैक करने के लिए अवसरों पर अप्लाई करें या उन्हें बुकमार्क करें।",
+    "browseOpportunities": "अवसर ब्राउज़ करें",
+    "thisWeek": "इस हफ़्ते",
+    "nextWeek": "अगले हफ़्ते",
+    "thisMonth": "इस महीने",
+    "later": "बाद में",
+    "pastDue": "समय बीत चुका",
+    "daysLeft_one": "{{count}} दिन",
+    "daysLeft_other": "{{count}} दिन",
+    "applied": "अप्लाई किया",
+    "bookmarked": "बुकमार्क किया"
+  },
+  "applied": {
+    "title": "मेरे आवेदन",
+    "status": {
+      "draft": "ड्राफ़्ट",
+      "submitted": "सबमिट किया",
+      "interview": "इंटरव्यू",
+      "offer": "ऑफ़र",
+      "rejected": "अस्वीकृत",
+      "withdrawn": "वापस लिया"
+    },
+    "filters": {
+      "total": "कुल",
+      "closed": "बंद"
+    },
+    "recently": "हाल ही में",
+    "statusNotUpdatedTitle": "स्टेटस अपडेट नहीं हुआ",
+    "statusNotUpdatedMessage": "कृपया थोड़ी देर बाद फिर से कोशिश करें।",
+    "updateStatusTitle": "आवेदन का स्टेटस अपडेट करें",
+    "appliedCount_one": "{{count}} आवेदन",
+    "appliedCount_other": "{{count}} आवेदन",
+    "appliedOn": "{{date}} को अप्लाई किया",
+    "advanceTo": "{{stage}} पर ले जाएँ",
+    "emptyTitle": "अभी कोई आवेदन नहीं",
+    "emptySubtitle": "आप जिन अवसरों पर अप्लाई करेंगे, वे यहाँ दिखेंगे।",
+    "emptyFilter": "इस चरण में कोई आवेदन नहीं है।",
+    "browseOpportunities": "अवसर ब्राउज़ करें",
+    "loading": "आवेदन लोड हो रहे हैं..."
+  },
+  "paywall": {
+    "title": "प्रीमियम",
+    "loading": "प्रीमियम लोड हो रहा है...",
+    "subscriptionActive": "आपकी सब्सक्रिप्शन सक्रिय है",
+    "simpleAccess": "आसान सब्सक्रिप्शन एक्सेस",
+    "premiumIsActive": "प्रीमियम सक्रिय है",
+    "unlockPremium": "प्रीमियम अनलॉक करें",
+    "heroActive": "आपके पास पहले से प्रीमियम टूल्स और टेम्पलेट्स का एक्सेस है।",
+    "heroUpsell": "प्रीमियम टेम्पलेट्स, AI टूल्स, एक्सपोर्ट और एडवांस्ड मैचिंग के लिए सब्सक्राइब करें।",
+    "monthly": "मासिक",
+    "yearly": "वार्षिक",
+    "save": "बचत",
+    "billedMonthly": "मासिक बिलिंग",
+    "perMonthBilledYearly": "{{price}} प्रति माह, वार्षिक बिलिंग",
+    "features": {
+      "unlimitedAi": "अनलिमिटेड AI जनरेशन",
+      "premiumTemplates": "प्रीमियम CV टेम्पलेट्स",
+      "aiTailoring": "AI-संचालित टेलरिंग",
+      "priorityTools": "प्राथमिकता वाले अवसर टूल्स",
+      "pdfExport": "PDF एक्सपोर्ट",
+      "advancedFilters": "एडवांस्ड फ़िल्टर"
+    },
+    "comingSoonTitle": "जल्द आ रहा है",
+    "comingSoonMessage": "App Store प्रोडक्ट कॉन्फ़िगर होते ही सब्सक्रिप्शन उपलब्ध होंगी।",
+    "premiumActiveTitle": "प्रीमियम सक्रिय",
+    "premiumActiveMessage": "आपकी प्रीमियम सब्सक्रिप्शन अब सक्रिय है।",
+    "purchaseFailed": "खरीदारी विफल रही",
+    "restoredTitle": "रीस्टोर हो गया",
+    "restoredMessage": "आपकी खरीदारियाँ रीस्टोर कर दी गई हैं।",
+    "restoreFailed": "खरीदारियाँ रीस्टोर नहीं हो सकीं",
+    "backToApp": "ऐप पर वापस जाएँ",
+    "subscribe": "प्रीमियम सब्सक्राइब करें",
+    "renewalNote": "सब्सक्रिप्शन अपने आप रिन्यू होती है और इसे आपके डिवाइस की सेटिंग्स में मैनेज किया जा सकता है।"
+  },
+  "wallet": {
+    "title": "वॉलेट",
+    "balanceTitle": "क्रेडिट बैलेंस",
+    "creditsUnit": "क्रेडिट",
+    "proMember": "प्रो मेंबर",
+    "upgradeToPro": "प्रो में अपग्रेड करें",
+    "buyCredits": "क्रेडिट खरीदें",
+    "history": "इतिहास",
+    "dayStreak_one": "{{count}} दिन की स्ट्रीक",
+    "dayStreak_other": "{{count}} दिन की स्ट्रीक",
+    "streakBonusUnlocked": "बोनस अनलॉक हो गया! इसे जारी रखें।",
+    "streakBonusHint": "7वें दिन क्रेडिट बोनस मिलता है",
+    "unlimitedPremiumFeatures": "अनलिमिटेड प्रीमियम फ़ीचर",
+    "payPerUse": "AI फ़ीचर के लिए पे-पर-यूज़",
+    "recentTransactions": "हाल के लेनदेन",
+    "noTransactions": "अभी कोई लेनदेन नहीं",
+    "noTransactionsHint": "यहाँ गतिविधि देखने के लिए क्रेडिट खरीदें या अपने कंटेंट से कमाएँ।",
+    "txAmount": "{{sign}}{{amount}} cr"
+  },
+  "opportunityCard": {
+    "notInterestedTitle": "रुचि नहीं है?",
+    "notInterestedMessage": "हम आपको इस जैसे अवसर कम दिखाएँगे।",
+    "notInterestedConfirm": "रुचि नहीं है",
+    "percentMatch": "{{percent}}% मैच"
+  },
+  "creditPack": {
+    "title": "क्रेडिट खरीदें",
+    "subtitle": "क्रेडिट से AI फ़ीचर चलते हैं। एक पैक चुनें — आप सिर्फ़ उतना ही भुगतान करते हैं जितना उपयोग करते हैं।",
+    "packs": {
+      "starter": "स्टार्टर",
+      "popular": "पॉपुलर",
+      "pro": "प्रो",
+      "megaValue": "मेगा वैल्यू"
+    },
+    "creditsUnit": "क्रेडिट",
+    "bestValue": "सबसे किफ़ायती",
+    "comingSoonTitle": "जल्द आ रहा है",
+    "comingSoonMessage": "स्टोर प्रोडक्ट कॉन्फ़िगर होते ही क्रेडिट पैक उपलब्ध होंगे।",
+    "purchaseCompleteTitle": "खरीदारी पूरी हुई",
+    "purchaseCompleteMessage_one": "{{count}} क्रेडिट आ रहा है। आपका बैलेंस जल्द ही अपडेट हो जाएगा।",
+    "purchaseCompleteMessage_other": "{{count}} क्रेडिट आ रहे हैं। आपका बैलेंस जल्द ही अपडेट हो जाएगा।",
+    "purchaseFailedTitle": "खरीदारी विफल रही",
+    "somethingWentWrong": "कुछ गड़बड़ हो गई।",
+    "autoAddNote": "खरीदारी के बाद क्रेडिट अपने आप जुड़ जाते हैं।"
+  }
+}

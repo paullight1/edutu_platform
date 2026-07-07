@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Check, Trash2 } from 'lucide-react-native';
 
 export interface TimelineMilestone {
@@ -57,6 +58,7 @@ export function RoadmapTimeline({
   today = new Date(),
   visibleCount,
 }: RoadmapTimelineProps) {
+  const { t } = useTranslation('goals');
   const done = new Set(completedIds);
   const firstPendingIndex = milestones.findIndex((m) => !done.has(m.id));
   const todayMs = startOfDay(today);
@@ -84,7 +86,7 @@ export function RoadmapTimeline({
               <View style={styles.todayRow} accessibilityRole="text">
                 <View style={styles.todaySpacer} />
                 <View style={[styles.todayLine, { backgroundColor: colors.accent }]} />
-                <Text style={[styles.todayLabel, { color: colors.accent }]}>TODAY</Text>
+                <Text style={[styles.todayLabel, { color: colors.accent }]}>{t('timeline.today')}</Text>
                 <View style={[styles.todayRule, { backgroundColor: `${colors.accent}40` }]} />
               </View>
             )}
@@ -95,7 +97,7 @@ export function RoadmapTimeline({
               style={styles.row}
               accessibilityRole="button"
               accessibilityState={{ checked: isDone }}
-              accessibilityLabel={`${milestone.title}${isDone ? ', done' : ''}`}
+              accessibilityLabel={isDone ? t('timeline.milestoneDone', { title: milestone.title }) : milestone.title}
             >
               <Text style={[styles.date, { color: colors.textSecondary }]}>
                 {formatShort(milestone.date)}
@@ -152,7 +154,7 @@ export function RoadmapTimeline({
                   onPress={() => onRemove(milestone.id)}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   accessibilityRole="button"
-                  accessibilityLabel={`Remove ${milestone.title}`}
+                  accessibilityLabel={t('timeline.removeMilestone', { title: milestone.title })}
                   style={styles.removeButton}
                 >
                   <Trash2 size={15} color={colors.textSecondary} />

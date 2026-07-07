@@ -1,0 +1,237 @@
+{
+  "tabs": {
+    "home": "Inicio",
+    "discover": "Descubrir",
+    "plan": "Planear",
+    "me": "Yo",
+    "openEdutuAi": "Abrir Edutu AI",
+    "badgeOverflow": "99+"
+  },
+  "rewards": {
+    "creditsEarned_one": "+{{count}} crédito · {{label}}",
+    "creditsEarned_other": "+{{count}} créditos · {{label}}"
+  },
+  "home": {
+    "exploreOpportunities": "Explorar oportunidades",
+    "featuredOpportunities": "Oportunidades destacadas",
+    "quickActionsTitle": "Acciones rápidas",
+    "recommendedOpportunities": "Oportunidades recomendadas",
+    "viewMore": "Ver más",
+    "emptyTitle": "Aún sin recomendaciones",
+    "emptyDescription": "Explora oportunidades y guarda las que quieras seguir.",
+    "emptyCta": "Explorar oportunidades",
+    "quickActions": {
+      "roadmaps": "Rutas",
+      "goals": "Metas",
+      "cvBuilder": "Creador de CV",
+      "saved": "Guardadas"
+    },
+    "discovery": {
+      "scholarships": {
+        "title": "Becas",
+        "description": "Financiamiento y premios académicos"
+      },
+      "internships": {
+        "title": "Pasantías",
+        "description": "Roles prácticos para empezar tu carrera"
+      },
+      "grants": {
+        "title": "Programas",
+        "description": "Programas financiados y subvenciones"
+      },
+      "fellowships": {
+        "title": "Fellowships",
+        "description": "Fellowships y rutas de liderazgo"
+      }
+    }
+  },
+  "notifications": {
+    "title": "Notificaciones",
+    "passwordPromptTitle": "Agrega una contraseña a tu cuenta",
+    "passwordPromptBody": "Iniciaste sesión con Google o Apple. Agrega una contraseña para que también puedas entrar con tu correo si olvidas qué opción usaste.",
+    "setPassword": "Crear contraseña",
+    "filterAll": "Todas",
+    "filterUnread_one": "No leída ({{count}})",
+    "filterUnread_other": "No leídas ({{count}})",
+    "loading": "Cargando notificaciones...",
+    "emptyTitle": "Sin notificaciones",
+    "emptySubtitle": "¡Estás al día!"
+  },
+  "help": {
+    "title": "Ayuda y soporte",
+    "headerTitle": "¿Cómo podemos ayudarte?",
+    "headerSubtitle": "Encuentra respuestas a preguntas frecuentes o contáctanos.",
+    "faqSectionTitle": "Preguntas frecuentes",
+    "directSupport": "Soporte directo",
+    "emailSupport": "Soporte por correo",
+    "visitWebsite": "Visitar sitio web",
+    "footer": "Centro de ayuda de Edutu",
+    "faqs": {
+      "ai": {
+        "question": "¿Cómo uso Edutu AI?",
+        "answer": "Puedes acceder a Edutu AI desde el botón central de tu barra de navegación. Solo escribe tu pregunta sobre cursos, orientación profesional o habilidades, y te ayudará al instante."
+      },
+      "enroll": {
+        "question": "¿Cómo me inscribo en un curso?",
+        "answer": "Ve a la pestaña 'Mercado', encuentra un curso que te interese y toca 'Acceder ahora'. Algunos cursos requieren créditos, mientras que otros son gratis."
+      },
+      "credits": {
+        "question": "¿Cómo gano créditos?",
+        "answer": "Puedes ganar créditos participando en oportunidades destacadas, completando misiones o contribuyendo como creador. Revisa tu billetera para más detalles."
+      },
+      "security": {
+        "question": "¿Mis datos están seguros?",
+        "answer": "Sí, usamos cifrado estándar de la industria y Clerk para la autenticación, así garantizamos que tu información personal y tu progreso académico estén siempre protegidos."
+      }
+    }
+  },
+  "privacy": {
+    "title": "Política de privacidad",
+    "headerTitle": "Tu privacidad importa",
+    "lastUpdated": "Última actualización: abril de 2026",
+    "notice": "Al usar Edutu, aceptas nuestros términos de servicio y esta política de privacidad. Nunca vendemos tus datos personales a terceros.",
+    "footer": "Edutu Legal",
+    "sections": {
+      "dataWeCollect": {
+        "title": "Datos que recopilamos",
+        "desc": "Recopilamos tu nombre, correo y progreso académico para personalizar tu experiencia de aprendizaje y seguir tus metas."
+      },
+      "howWeUseIt": {
+        "title": "Cómo los usamos",
+        "desc": "Tus datos nos ayudan a recomendarte cursos, brindarte orientación con IA y asegurar que ganes créditos por tus logros."
+      },
+      "dataProtection": {
+        "title": "Protección de datos",
+        "desc": "Toda la información personal está cifrada. Usamos protocolos de seguridad estándar de la industria para proteger tus datos de accesos no autorizados."
+      },
+      "yourRights": {
+        "title": "Tus derechos",
+        "desc": "Puedes solicitar eliminar tu cuenta o descargar tus datos en cualquier momento desde nuestro centro de ayuda o contactando a soporte."
+      }
+    }
+  },
+  "deadlines": {
+    "title": "Fechas límite",
+    "subtitle": "{{total}} en total • {{urgent}} urgentes",
+    "loading": "Cargando tus fechas límite...",
+    "emptyTitle": "Aún sin fechas límite",
+    "emptyDescription": "Postula a oportunidades o guárdalas para seguir sus fechas límite.",
+    "browseOpportunities": "Explorar oportunidades",
+    "thisWeek": "Esta semana",
+    "nextWeek": "Próxima semana",
+    "thisMonth": "Este mes",
+    "later": "Más adelante",
+    "pastDue": "Vencidas",
+    "daysLeft_one": "{{count}} día",
+    "daysLeft_other": "{{count}} días",
+    "applied": "Postulada",
+    "bookmarked": "Guardada"
+  },
+  "applied": {
+    "title": "Mis postulaciones",
+    "status": {
+      "draft": "Borrador",
+      "submitted": "Enviada",
+      "interview": "Entrevista",
+      "offer": "Oferta",
+      "rejected": "Rechazada",
+      "withdrawn": "Retirada"
+    },
+    "filters": {
+      "total": "Total",
+      "closed": "Cerradas"
+    },
+    "recently": "Recientemente",
+    "statusNotUpdatedTitle": "Estado no actualizado",
+    "statusNotUpdatedMessage": "Inténtalo de nuevo en un momento.",
+    "updateStatusTitle": "Actualizar estado de la postulación",
+    "appliedCount_one": "{{count}} postulación",
+    "appliedCount_other": "{{count}} postulaciones",
+    "appliedOn": "Postulada el {{date}}",
+    "advanceTo": "Avanzar a {{stage}}",
+    "emptyTitle": "Aún no hay postulaciones",
+    "emptySubtitle": "Las oportunidades a las que postules aparecerán aquí.",
+    "emptyFilter": "No hay postulaciones en esta etapa.",
+    "browseOpportunities": "Explorar oportunidades",
+    "loading": "Cargando postulaciones..."
+  },
+  "paywall": {
+    "title": "Premium",
+    "loading": "Cargando premium...",
+    "subscriptionActive": "Tu suscripción está activa",
+    "simpleAccess": "Acceso por suscripción simple",
+    "premiumIsActive": "Premium está activo",
+    "unlockPremium": "Desbloquea premium",
+    "heroActive": "Ya tienes acceso a las herramientas y plantillas premium.",
+    "heroUpsell": "Suscríbete para plantillas premium, herramientas de IA, exportaciones y coincidencias avanzadas.",
+    "monthly": "Mensual",
+    "yearly": "Anual",
+    "save": "Ahorra",
+    "billedMonthly": "Facturación mensual",
+    "perMonthBilledYearly": "{{price}} al mes, con facturación anual",
+    "features": {
+      "unlimitedAi": "Generación con IA ilimitada",
+      "premiumTemplates": "Plantillas de CV premium",
+      "aiTailoring": "Adaptación potenciada por IA",
+      "priorityTools": "Herramientas de oportunidades prioritarias",
+      "pdfExport": "Exportar a PDF",
+      "advancedFilters": "Filtros avanzados"
+    },
+    "comingSoonTitle": "Próximamente",
+    "comingSoonMessage": "Las suscripciones estarán disponibles cuando se configuren los productos de la App Store.",
+    "premiumActiveTitle": "Premium activo",
+    "premiumActiveMessage": "Tu suscripción premium ya está activa.",
+    "purchaseFailed": "La compra falló",
+    "restoredTitle": "Restaurado",
+    "restoredMessage": "Tus compras han sido restauradas.",
+    "restoreFailed": "No se pudieron restaurar las compras",
+    "backToApp": "Volver a la app",
+    "subscribe": "Suscribirme a premium",
+    "renewalNote": "La suscripción se renueva automáticamente y puedes gestionarla en los ajustes de tu dispositivo."
+  },
+  "wallet": {
+    "title": "Billetera",
+    "balanceTitle": "Saldo de créditos",
+    "creditsUnit": "Créditos",
+    "proMember": "Miembro Pro",
+    "upgradeToPro": "Mejorar a Pro",
+    "buyCredits": "Comprar créditos",
+    "history": "Historial",
+    "dayStreak_one": "Racha de {{count}} día",
+    "dayStreak_other": "Racha de {{count}} días",
+    "streakBonusUnlocked": "¡Bono desbloqueado! Sigue así.",
+    "streakBonusHint": "El día 7 ganas un bono de créditos",
+    "unlimitedPremiumFeatures": "Funciones premium ilimitadas",
+    "payPerUse": "Paga por uso en funciones de IA",
+    "recentTransactions": "Transacciones recientes",
+    "noTransactions": "Aún no hay transacciones",
+    "noTransactionsHint": "Compra créditos o gana con tu contenido para ver actividad aquí.",
+    "txAmount": "{{sign}}{{amount}} cr"
+  },
+  "opportunityCard": {
+    "notInterestedTitle": "¿No te interesa?",
+    "notInterestedMessage": "Te mostraremos menos oportunidades como esta.",
+    "notInterestedConfirm": "No me interesa",
+    "percentMatch": "{{percent}}% de coincidencia"
+  },
+  "creditPack": {
+    "title": "Comprar créditos",
+    "subtitle": "Los créditos impulsan las funciones de IA. Elige un paquete: solo pagas por lo que usas.",
+    "packs": {
+      "starter": "Inicial",
+      "popular": "Popular",
+      "pro": "Pro",
+      "megaValue": "Mega Valor"
+    },
+    "creditsUnit": "créditos",
+    "bestValue": "Mejor valor",
+    "comingSoonTitle": "Próximamente",
+    "comingSoonMessage": "Los paquetes de créditos estarán disponibles cuando se configuren los productos de la tienda.",
+    "purchaseCompleteTitle": "Compra completada",
+    "purchaseCompleteMessage_one": "{{count}} crédito está en camino. Tu saldo se actualizará pronto.",
+    "purchaseCompleteMessage_other": "{{count}} créditos están en camino. Tu saldo se actualizará pronto.",
+    "purchaseFailedTitle": "Compra fallida",
+    "somethingWentWrong": "Algo salió mal.",
+    "autoAddNote": "Los créditos se agregan automáticamente después de la compra."
+  }
+}

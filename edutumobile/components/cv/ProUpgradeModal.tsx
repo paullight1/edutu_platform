@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, Alert, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { X, Crown, Check, Zap, Sparkles, Shield, Star } from 'lucide-react-native';
 import { useTheme } from '../../components/context/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -52,17 +53,18 @@ function PulsingCrown() {
 }
 
 export function ProUpgradeModal({ visible, onClose, feature, trialUsed, onTrialActivated }: Props) {
+    const { t } = useTranslation('cv');
     const { colors, isDark } = useTheme();
     const router = useRouter();
     const muted = isDark ? '#94A3B8' : '#64748B';
 
     const features = [
-        { icon: Sparkles, label: 'Unlimited AI Roadmap Generation' },
-        { icon: Check, label: 'Premium CV Templates' },
-        { icon: Zap, label: 'AI-Powered CV Tailoring' },
-        { icon: Star, label: 'Priority Creator Listing' },
-        { icon: Shield, label: 'Advanced Opportunity Filters' },
-        { icon: Check, label: 'PDF Export & Downloads' },
+        { icon: Sparkles, label: t('proUpgrade.features.roadmaps') },
+        { icon: Check, label: t('proUpgrade.features.templates') },
+        { icon: Zap, label: t('proUpgrade.features.tailoring') },
+        { icon: Star, label: t('proUpgrade.features.creatorListing') },
+        { icon: Shield, label: t('proUpgrade.features.filters') },
+        { icon: Check, label: t('proUpgrade.features.pdfExport') },
     ];
 
     return (
@@ -91,17 +93,17 @@ export function ProUpgradeModal({ visible, onClose, feature, trialUsed, onTrialA
                     </View>
 
                     <Text style={styles.modalTitle}>
-                        Unlock {feature}
+                        {t('proUpgrade.title', { feature })}
                     </Text>
 
                     <Text style={styles.modalSubtitle}>
-                        Get unlimited access to all premium features
+                        {t('proUpgrade.subtitle')}
                     </Text>
 
                     <View style={styles.priceTag}>
-                        <Text style={styles.priceLabel}>From</Text>
-                        <Text style={styles.priceValue}>$5.99</Text>
-                        <Text style={styles.pricePeriod}>/mo</Text>
+                        <Text style={styles.priceLabel}>{t('proUpgrade.priceFrom')}</Text>
+                        <Text style={styles.priceValue}>{t('proUpgrade.price')}</Text>
+                        <Text style={styles.pricePeriod}>{t('proUpgrade.pricePeriod')}</Text>
                     </View>
 
                     <View style={styles.proFeatures}>
@@ -131,7 +133,7 @@ export function ProUpgradeModal({ visible, onClose, feature, trialUsed, onTrialA
                             style={styles.upgradeBtnGradient}
                         >
                             <Zap size={20} color="#FFFFFF" />
-                            <Text style={styles.upgradeBtnText}>Upgrade to Pro</Text>
+                            <Text style={styles.upgradeBtnText}>{t('proUpgrade.upgradeCta')}</Text>
                         </LinearGradient>
                     </TouchableOpacity>
 
@@ -141,11 +143,11 @@ export function ProUpgradeModal({ visible, onClose, feature, trialUsed, onTrialA
                             onPress={async () => {
                                 await onTrialActivated();
                                 onClose();
-                                Alert.alert('Trial Activated', 'You now have access to Pro features for 7 days!');
+                                Alert.alert(t('proUpgrade.trialActivatedTitle'), t('proUpgrade.trialActivatedMessage'));
                             }}
                         >
                             <Text style={styles.trialBtnText}>
-                                Try Free for 7 Days
+                                {t('proUpgrade.trialCta')}
                             </Text>
                         </TouchableOpacity>
                     )}
@@ -153,11 +155,11 @@ export function ProUpgradeModal({ visible, onClose, feature, trialUsed, onTrialA
                     <View style={styles.trustBadges}>
                         <View style={styles.trustBadge}>
                             <Shield size={12} color={muted} />
-                            <Text style={styles.trustBadgeText}>Secure</Text>
+                            <Text style={styles.trustBadgeText}>{t('proUpgrade.secure')}</Text>
                         </View>
                         <View style={styles.trustBadge}>
                             <Check size={12} color={muted} />
-                            <Text style={styles.trustBadgeText}>Cancel anytime</Text>
+                            <Text style={styles.trustBadgeText}>{t('proUpgrade.cancelAnytime')}</Text>
                         </View>
                     </View>
                 </View>

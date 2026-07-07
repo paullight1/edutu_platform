@@ -1,0 +1,122 @@
+{
+    "header": {
+        "title": "Coach de IA"
+    },
+    "loading": {
+        "conversation": "Cargando conversación..."
+    },
+    "deadline": {
+        "rolling": "Continua",
+        "set": "Fecha límite definida"
+    },
+    "location": {
+        "remote": "Remoto"
+    },
+    "answers": {
+        "checkingOpportunities": "Revisando las oportunidades de Edutu para ti.",
+        "matchesFound": "Encontré {{count}} coincidencias en Edutu.\nDesliza las tarjetas o afina la búsqueda.",
+        "roadmapChecking": "Estoy revisando tus oportunidades.\nLuego construiré la ruta.",
+        "roadmapMatchFound": "Encontré una posible coincidencia.\nToca Construir para crear metas y recordatorios.",
+        "roadmapWhichOpportunity": "¿Para qué oportunidad es esto?\nEnvía el nombre o explora Oportunidades."
+    },
+    "quickPrompts": {
+        "findScholarships": {
+            "title": "Buscar becas",
+            "subtitle": "Disponibles este mes"
+        },
+        "mastercard": {
+            "title": "Coincidencias Mastercard",
+            "subtitle": "Becas de Edutu"
+        },
+        "buildRoadmap": {
+            "title": "Construir ruta",
+            "subtitle": "Planear mi próxima postulación"
+        },
+        "internships": {
+            "title": "Fechas de pasantías",
+            "subtitle": "Oportunidades próximas"
+        }
+    },
+    "alerts": {
+        "noDeadlineTitle": "Sin fecha límite",
+        "noDeadlineMessage": "Esta oportunidad aún no tiene una fecha límite guardada.",
+        "alreadyTrackedTitle": "Ya en seguimiento",
+        "alreadyTrackedMessage": "Esta fecha límite ya está en tu plan.",
+        "deadlineAddedTitle": "Fecha límite agregada",
+        "deadlineAddedMessage": "La agregué a tu plan y programé recordatorios.",
+        "couldNotAddDeadlineTitle": "No se pudo agregar la fecha límite",
+        "tryAgainFromOpportunity": "Inténtalo de nuevo desde la página de la oportunidad.",
+        "signInRequiredTitle": "Inicio de sesión requerido",
+        "signInRequiredMessage": "Inicia sesión para crear metas de la ruta.",
+        "roadmapExistsTitle": "La ruta ya existe",
+        "roadmapExistsMessage": "Esta oportunidad ya tiene metas en tu plan.",
+        "openGoals": "Abrir metas",
+        "stayHere": "Quedarme aquí",
+        "roadmapCreatedTitle": "Ruta creada",
+        "roadmapCreatedMessage": "Se agregaron {{count}} metas con recordatorios donde hay fechas límite.",
+        "couldNotCreateRoadmapTitle": "No se pudo crear la ruta"
+    },
+    "goals": {
+        "applyTitle": "Postular: {{title}}",
+        "applyDescription": "Fecha límite de postulación para {{organization}}.",
+        "thisOpportunity": "esta oportunidad",
+        "submitTitle": "Enviar {{title}}",
+        "submitDescription": "{{strategy}}\n\nRecursos:\n{{resources}}",
+        "milestoneDescription": "Hito para {{title}}",
+        "dailyDescription": "{{description}}\n\nEnfoque: {{focus}}\nTiempo: {{minutes}} minutos",
+        "checklistDescription": "Elemento de la lista para {{title}}"
+    },
+    "messages": {
+        "recommendedTitle": "Recomendado de Oportunidades",
+        "viewMore": "Ver más",
+        "openAllOpportunities": "Abrir todas las oportunidades",
+        "narrowBy": "Filtrar por:",
+        "view": "Ver",
+        "categoryFallback": "Oportunidad",
+        "typing": "Edutu está revisando oportunidades"
+    },
+    "followUp": {
+        "country": "País",
+        "deadline": "Fecha límite",
+        "funding": "Financiamiento"
+    },
+    "roadmapPanel": {
+        "title": "Construir ruta",
+        "subtitle": "Metas, fechas límite, recordatorios",
+        "searching": "Buscando oportunidades...",
+        "matchMeta": "{{category}} · vence {{deadline}}",
+        "daysLeft": "Quedan {{count}} días",
+        "dailySteps": "{{count}} pasos diarios",
+        "build": "Construir"
+    },
+    "empty": {
+        "title": "Soy Edutu, tu Coach de IA",
+        "description": "Pídeme becas reales, fechas límite, rutas o próximos pasos para postular."
+    },
+    "input": {
+        "placeholder": "Escríbele a Edutu..."
+    },
+    "threads": {
+        "modalTitle": "Conversaciones",
+        "newConversation": "Nueva conversación",
+        "empty": "No hay conversaciones recientes",
+        "groups": {
+            "today": "Hoy",
+            "yesterday": "Ayer",
+            "thisWeek": "Esta semana",
+            "older": "Anteriores"
+        }
+    },
+    "voice": {
+        "titleTranscript": "Mensaje de voz",
+        "titleListening": "Escuchando...",
+        "titleProcessing": "Procesando...",
+        "titleIdle": "Toca para hablar",
+        "sendingAutomatically": "Enviando automáticamente...",
+        "genericError": "Algo salió mal",
+        "hintStop": "Toca el micrófono para detener",
+        "hintSendOrWait": "Toca enviar o espera",
+        "hintTranscribing": "Transcribiendo tu mensaje...",
+        "hintStart": "Toca el micrófono para empezar a grabar"
+    }
+}

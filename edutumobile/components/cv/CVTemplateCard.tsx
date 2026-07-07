@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions, ImageBackground } from 'react-native';
 import { Crown, Lock } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { CVTemplate } from '@edutu/core/src/types/cv';
 import { useTheme } from '../../components/context/ThemeContext';
 
@@ -34,6 +35,7 @@ interface Props {
 }
 
 export function CVTemplateCard({ item, onSelect, isPro }: Props) {
+    const { t } = useTranslation('cv');
     const { colors, isDark } = useTheme();
     const muted = isDark ? '#94A3B8' : '#64748B';
     const visual = getTemplateVisual(item);
@@ -84,7 +86,7 @@ export function CVTemplateCard({ item, onSelect, isPro }: Props) {
                     )}
                 </View>
                 <Text style={[styles.templateCategory, { color: muted }]}>
-                    Tap to preview sample
+                    {t('templates.tapToPreview')}
                 </Text>
             </View>
             {item.is_premium && !isPro && (

@@ -1,0 +1,331 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Trending - ranked list (all sizes except compact poster). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/edutu_tw_root"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:background="@drawable/edutu_widget_background">
+
+  <LinearLayout
+    android:id="@+id/edutu_tw_content"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="14dp">
+
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="horizontal"
+      android:gravity="center_vertical">
+      <ImageView
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:src="@drawable/edutu_widget_logo"
+        android:contentDescription="@null" />
+      <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:maxLines="1"
+        android:text="@string/edutu_widget_trending"
+        android:textColor="@color/edutu_widget_ink"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+    </LinearLayout>
+
+  <!-- Row 1 -->
+  <LinearLayout
+    android:id="@+id/edutu_tw_r1"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:orientation="horizontal"
+    android:gravity="center_vertical">
+    <TextView
+      android:layout_width="18dp"
+      android:layout_height="wrap_content"
+      android:text="1"
+      android:textColor="@color/edutu_widget_accent"
+      android:textSize="15sp"
+      android:textStyle="bold" />
+    <LinearLayout
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:layout_marginLeft="8dp"
+      android:orientation="vertical">
+      <TextView
+        android:id="@+id/edutu_tw_r1_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/edutu_widget_ink"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+      <TextView
+        android:id="@+id/edutu_tw_r1_sub"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="1dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/edutu_widget_sub"
+        android:textSize="10sp" />
+    </LinearLayout>
+    <TextView
+      android:id="@+id/edutu_tw_r1_deadline"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginLeft="8dp"
+      android:ellipsize="end"
+      android:maxLines="1"
+      android:textColor="@color/edutu_urgency_green"
+      android:textSize="11sp"
+      android:textStyle="bold" />
+  </LinearLayout>
+
+  <!-- Row 2 -->
+  <LinearLayout
+    android:id="@+id/edutu_tw_r2"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:orientation="horizontal"
+    android:gravity="center_vertical">
+    <TextView
+      android:layout_width="18dp"
+      android:layout_height="wrap_content"
+      android:text="2"
+      android:textColor="@color/edutu_widget_accent"
+      android:textSize="15sp"
+      android:textStyle="bold" />
+    <LinearLayout
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:layout_marginLeft="8dp"
+      android:orientation="vertical">
+      <TextView
+        android:id="@+id/edutu_tw_r2_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/edutu_widget_ink"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+      <TextView
+        android:id="@+id/edutu_tw_r2_sub"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="1dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/edutu_widget_sub"
+        android:textSize="10sp" />
+    </LinearLayout>
+    <TextView
+      android:id="@+id/edutu_tw_r2_deadline"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginLeft="8dp"
+      android:ellipsize="end"
+      android:maxLines="1"
+      android:textColor="@color/edutu_urgency_green"
+      android:textSize="11sp"
+      android:textStyle="bold" />
+  </LinearLayout>
+
+  <!-- Row 3 -->
+  <LinearLayout
+    android:id="@+id/edutu_tw_r3"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:orientation="horizontal"
+    android:gravity="center_vertical">
+    <TextView
+      android:layout_width="18dp"
+      android:layout_height="wrap_content"
+      android:text="3"
+      android:textColor="@color/edutu_widget_accent"
+      android:textSize="15sp"
+      android:textStyle="bold" />
+    <LinearLayout
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:layout_marginLeft="8dp"
+      android:orientation="vertical">
+      <TextView
+        android:id="@+id/edutu_tw_r3_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/edutu_widget_ink"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+      <TextView
+        android:id="@+id/edutu_tw_r3_sub"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="1dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/edutu_widget_sub"
+        android:textSize="10sp" />
+    </LinearLayout>
+    <TextView
+      android:id="@+id/edutu_tw_r3_deadline"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginLeft="8dp"
+      android:ellipsize="end"
+      android:maxLines="1"
+      android:textColor="@color/edutu_urgency_green"
+      android:textSize="11sp"
+      android:textStyle="bold" />
+  </LinearLayout>
+
+  <!-- Row 4 -->
+  <LinearLayout
+    android:id="@+id/edutu_tw_r4"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:orientation="horizontal"
+    android:gravity="center_vertical">
+    <TextView
+      android:layout_width="18dp"
+      android:layout_height="wrap_content"
+      android:text="4"
+      android:textColor="@color/edutu_widget_accent"
+      android:textSize="15sp"
+      android:textStyle="bold" />
+    <LinearLayout
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:layout_marginLeft="8dp"
+      android:orientation="vertical">
+      <TextView
+        android:id="@+id/edutu_tw_r4_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/edutu_widget_ink"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+      <TextView
+        android:id="@+id/edutu_tw_r4_sub"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="1dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/edutu_widget_sub"
+        android:textSize="10sp" />
+    </LinearLayout>
+    <TextView
+      android:id="@+id/edutu_tw_r4_deadline"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginLeft="8dp"
+      android:ellipsize="end"
+      android:maxLines="1"
+      android:textColor="@color/edutu_urgency_green"
+      android:textSize="11sp"
+      android:textStyle="bold" />
+  </LinearLayout>
+
+  <!-- Row 5 -->
+  <LinearLayout
+    android:id="@+id/edutu_tw_r5"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:orientation="horizontal"
+    android:gravity="center_vertical">
+    <TextView
+      android:layout_width="18dp"
+      android:layout_height="wrap_content"
+      android:text="5"
+      android:textColor="@color/edutu_widget_accent"
+      android:textSize="15sp"
+      android:textStyle="bold" />
+    <LinearLayout
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:layout_marginLeft="8dp"
+      android:orientation="vertical">
+      <TextView
+        android:id="@+id/edutu_tw_r5_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/edutu_widget_ink"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+      <TextView
+        android:id="@+id/edutu_tw_r5_sub"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="1dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/edutu_widget_sub"
+        android:textSize="10sp" />
+    </LinearLayout>
+    <TextView
+      android:id="@+id/edutu_tw_r5_deadline"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginLeft="8dp"
+      android:ellipsize="end"
+      android:maxLines="1"
+      android:textColor="@color/edutu_urgency_green"
+      android:textSize="11sp"
+      android:textStyle="bold" />
+  </LinearLayout>
+  </LinearLayout>
+
+  <LinearLayout
+    android:id="@+id/edutu_tw_empty"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="14dp"
+    android:visibility="gone">
+    <ImageView
+      android:layout_width="20dp"
+      android:layout_height="20dp"
+      android:src="@drawable/edutu_widget_logo"
+      android:contentDescription="@null" />
+    <View
+      android:layout_width="1dp"
+      android:layout_height="0dp"
+      android:layout_weight="1" />
+    <TextView
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:maxLines="2"
+      android:text="@string/edutu_widget_trending_empty"
+      android:textColor="@color/edutu_widget_ink"
+      android:textSize="14sp"
+      android:textStyle="bold" />
+    <TextView
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="3dp"
+      android:maxLines="2"
+      android:text="@string/edutu_widget_trending_empty_hint"
+      android:textColor="@color/edutu_widget_sub"
+      android:textSize="11sp" />
+  </LinearLayout>
+</FrameLayout>

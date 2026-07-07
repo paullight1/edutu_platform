@@ -1,0 +1,237 @@
+{
+  "tabs": {
+    "home": "Mwanzo",
+    "discover": "Gundua",
+    "plan": "Panga",
+    "me": "Mimi",
+    "openEdutuAi": "Fungua Edutu AI",
+    "badgeOverflow": "99+"
+  },
+  "rewards": {
+    "creditsEarned_one": "+krediti {{count}} · {{label}}",
+    "creditsEarned_other": "+krediti {{count}} · {{label}}"
+  },
+  "home": {
+    "exploreOpportunities": "Chunguza fursa",
+    "featuredOpportunities": "Fursa Zilizoangaziwa",
+    "quickActionsTitle": "Vitendo vya Haraka",
+    "recommendedOpportunities": "Fursa Zinazopendekezwa",
+    "viewMore": "Tazama Zaidi",
+    "emptyTitle": "Bado Hakuna Mapendekezo",
+    "emptyDescription": "Chunguza fursa na uhifadhi zile unazotaka kufuatilia.",
+    "emptyCta": "Chunguza Fursa",
+    "quickActions": {
+      "roadmaps": "Ramani za Njia",
+      "goals": "Malengo",
+      "cvBuilder": "Mtengeneza CV",
+      "saved": "Zilizohifadhiwa"
+    },
+    "discovery": {
+      "scholarships": {
+        "title": "Ufadhili wa Masomo",
+        "description": "Ufadhili wa ada na tuzo"
+      },
+      "internships": {
+        "title": "Mafunzo Kazini",
+        "description": "Nafasi za vitendo za mwanzo wa kazi"
+      },
+      "grants": {
+        "title": "Programu",
+        "description": "Programu zenye ufadhili na ruzuku"
+      },
+      "fellowships": {
+        "title": "Ufadhili wa Kitaaluma",
+        "description": "Ufadhili wa kitaaluma na njia za uongozi"
+      }
+    }
+  },
+  "notifications": {
+    "title": "Arifa",
+    "passwordPromptTitle": "Ongeza nenosiri kwenye akaunti yako",
+    "passwordPromptBody": "Uliingia kwa Google au Apple. Ongeza nenosiri ili uweze pia kuingia kwa barua pepe ukisahau chaguo ulilotumia.",
+    "setPassword": "Weka nenosiri",
+    "filterAll": "Zote",
+    "filterUnread_one": "Ambazo hazijasomwa ({{count}})",
+    "filterUnread_other": "Ambazo hazijasomwa ({{count}})",
+    "loading": "Inapakia arifa...",
+    "emptyTitle": "Hakuna Arifa",
+    "emptySubtitle": "Uko sawa kabisa!"
+  },
+  "help": {
+    "title": "Usaidizi",
+    "headerTitle": "Tunaweza kukusaidiaje?",
+    "headerSubtitle": "Pata majibu ya maswali ya kawaida au wasiliana nasi.",
+    "faqSectionTitle": "Maswali Yanayoulizwa Mara kwa Mara",
+    "directSupport": "Usaidizi wa Moja kwa Moja",
+    "emailSupport": "Usaidizi kwa Barua Pepe",
+    "visitWebsite": "Tembelea Tovuti",
+    "footer": "Kituo cha Usaidizi cha Edutu",
+    "faqs": {
+      "ai": {
+        "question": "Ninatumiaje Edutu AI?",
+        "answer": "Unaweza kufikia Edutu AI kupitia kitufe cha katikati kwenye upau wako wa uabiri. Andika tu swali lako kuhusu kozi, mwongozo wa kikazi, au ujuzi, nayo itakusaidia papo hapo."
+      },
+      "enroll": {
+        "question": "Ninajisajilije kwenye kozi?",
+        "answer": "Nenda kwenye kichupo cha 'Soko', tafuta kozi inayokuvutia, kisha ubofye 'Fikia Sasa'. Baadhi ya kozi zinahitaji Krediti, huku nyingine zikiwa bure."
+      },
+      "credits": {
+        "question": "Ninapataje Krediti?",
+        "answer": "Unaweza kupata Krediti kwa kushiriki katika fursa zilizoangaziwa, kukamilisha changamoto, au kuchangia kama mtayarishi. Angalia pochi yako kwa maelezo zaidi."
+      },
+      "security": {
+        "question": "Je, data yangu iko salama?",
+        "answer": "Ndiyo, tunatumia usimbaji fiche wa viwango vya kimataifa na Clerk kwa uthibitishaji ili kuhakikisha taarifa zako binafsi na maendeleo yako ya kitaaluma vinalindwa daima."
+      }
+    }
+  },
+  "privacy": {
+    "title": "Sera ya Faragha",
+    "headerTitle": "Faragha Yako Ni Muhimu",
+    "lastUpdated": "Ilisasishwa mwisho: Aprili 2026",
+    "notice": "Kwa kutumia Edutu, unakubaliana na masharti yetu ya huduma na sera hii ya faragha. Kamwe hatuuzi data yako binafsi kwa wahusika wengine.",
+    "footer": "Sheria za Edutu",
+    "sections": {
+      "dataWeCollect": {
+        "title": "Data Tunayokusanya",
+        "desc": "Tunakusanya jina lako, barua pepe, na maendeleo yako ya kitaaluma ili kubinafsisha uzoefu wako wa kujifunza na kufuatilia malengo yako."
+      },
+      "howWeUseIt": {
+        "title": "Jinsi Tunavyoitumia",
+        "desc": "Data yako hutusaidia kupendekeza kozi, kutoa mwongozo wa AI, na kuhakikisha unapata Krediti kwa mafanikio yako."
+      },
+      "dataProtection": {
+        "title": "Ulinzi wa Data",
+        "desc": "Taarifa zote binafsi zimesimbwa kwa fiche. Tunatumia itifaki za usalama za viwango vya kimataifa ili kulinda data yako dhidi ya ufikiaji usioruhusiwa."
+      },
+      "yourRights": {
+        "title": "Haki Zako",
+        "desc": "Unaweza kuomba kufuta akaunti yako au kupakua data yako wakati wowote kupitia kituo chetu cha usaidizi au kwa kuwasiliana na timu ya usaidizi."
+      }
+    }
+  },
+  "deadlines": {
+    "title": "Tarehe za Mwisho",
+    "subtitle": "Jumla {{total}} • {{urgent}} za dharura",
+    "loading": "Inapakia tarehe zako za mwisho...",
+    "emptyTitle": "Bado Hakuna Tarehe za Mwisho",
+    "emptyDescription": "Tuma maombi ya fursa au ziwekee alamisho ili kufuatilia tarehe za mwisho za maombi.",
+    "browseOpportunities": "Vinjari Fursa",
+    "thisWeek": "Wiki Hii",
+    "nextWeek": "Wiki Ijayo",
+    "thisMonth": "Mwezi Huu",
+    "later": "Baadaye",
+    "pastDue": "Muda Umepita",
+    "daysLeft_one": "Siku {{count}}",
+    "daysLeft_other": "Siku {{count}}",
+    "applied": "Umeomba",
+    "bookmarked": "Imewekwa alamisho"
+  },
+  "applied": {
+    "title": "Maombi Yangu",
+    "status": {
+      "draft": "Rasimu",
+      "submitted": "Limewasilishwa",
+      "interview": "Usaili",
+      "offer": "Ofa",
+      "rejected": "Limekataliwa",
+      "withdrawn": "Limeondolewa"
+    },
+    "filters": {
+      "total": "Jumla",
+      "closed": "Zilizofungwa"
+    },
+    "recently": "Hivi karibuni",
+    "statusNotUpdatedTitle": "Hali haijasasishwa",
+    "statusNotUpdatedMessage": "Tafadhali jaribu tena baada ya muda mfupi.",
+    "updateStatusTitle": "Sasisha hali ya ombi",
+    "appliedCount_one": "Ombi {{count}}",
+    "appliedCount_other": "Maombi {{count}}",
+    "appliedOn": "Uliomba {{date}}",
+    "advanceTo": "Sogeza hadi {{stage}}",
+    "emptyTitle": "Bado hakuna maombi",
+    "emptySubtitle": "Fursa unazoomba zitaonekana hapa.",
+    "emptyFilter": "Hakuna maombi katika hatua hii.",
+    "browseOpportunities": "Vinjari Fursa",
+    "loading": "Inapakia maombi..."
+  },
+  "paywall": {
+    "title": "Premium",
+    "loading": "Inapakia premium...",
+    "subscriptionActive": "Usajili wako unatumika",
+    "simpleAccess": "Ufikiaji rahisi kwa usajili",
+    "premiumIsActive": "Premium inatumika",
+    "unlockPremium": "Fungua premium",
+    "heroActive": "Tayari una ufikiaji wa zana na violezo vya premium.",
+    "heroUpsell": "Jisajili upate violezo vya premium, zana za AI, uhamishaji wa faili, na ulinganishaji wa hali ya juu.",
+    "monthly": "Kila Mwezi",
+    "yearly": "Kila Mwaka",
+    "save": "Okoa",
+    "billedMonthly": "Hulipwa kila mwezi",
+    "perMonthBilledYearly": "{{price}} kwa mwezi, hulipwa kila mwaka",
+    "features": {
+      "unlimitedAi": "Utengenezaji wa AI bila kikomo",
+      "premiumTemplates": "Violezo vya CV vya premium",
+      "aiTailoring": "Uboreshaji unaotumia AI",
+      "priorityTools": "Zana za fursa za kipaumbele",
+      "pdfExport": "Kuhamisha kama PDF",
+      "advancedFilters": "Vichujio vya hali ya juu"
+    },
+    "comingSoonTitle": "Inakuja Hivi Karibuni",
+    "comingSoonMessage": "Usajili utapatikana mara bidhaa za App Store zitakapowekwa tayari.",
+    "premiumActiveTitle": "Premium Inatumika",
+    "premiumActiveMessage": "Usajili wako wa premium sasa unatumika.",
+    "purchaseFailed": "Ununuzi umeshindikana",
+    "restoredTitle": "Imerejeshwa",
+    "restoredMessage": "Manunuzi yako yamerejeshwa.",
+    "restoreFailed": "Imeshindwa kurejesha manunuzi",
+    "backToApp": "Rudi kwenye app",
+    "subscribe": "Jisajili kwa premium",
+    "renewalNote": "Usajili hujisasisha wenyewe na unaweza kudhibitiwa katika mipangilio ya kifaa chako."
+  },
+  "wallet": {
+    "title": "Pochi",
+    "balanceTitle": "Salio la Krediti",
+    "creditsUnit": "Krediti",
+    "proMember": "Mwanachama wa Pro",
+    "upgradeToPro": "Boresha hadi Pro",
+    "buyCredits": "Nunua Krediti",
+    "history": "Historia",
+    "dayStreak_one": "Mfululizo wa siku {{count}}",
+    "dayStreak_other": "Mfululizo wa siku {{count}}",
+    "streakBonusUnlocked": "Bonasi imefunguliwa! Endelea hivyo hivyo.",
+    "streakBonusHint": "Siku ya 7 hukupa bonasi ya krediti",
+    "unlimitedPremiumFeatures": "Vipengele vya premium bila kikomo",
+    "payPerUse": "Lipa kadri unavyotumia vipengele vya AI",
+    "recentTransactions": "Miamala ya Hivi Karibuni",
+    "noTransactions": "Bado hakuna miamala",
+    "noTransactionsHint": "Nunua krediti au pata kutoka kwa maudhui yako ili kuona shughuli hapa.",
+    "txAmount": "{{sign}}{{amount}} kr"
+  },
+  "opportunityCard": {
+    "notInterestedTitle": "Huvutiwi nayo?",
+    "notInterestedMessage": "Tutakuonyesha fursa chache zaidi kama hii.",
+    "notInterestedConfirm": "Sivutiwi",
+    "percentMatch": "Inakufaa kwa {{percent}}%"
+  },
+  "creditPack": {
+    "title": "Nunua Krediti",
+    "subtitle": "Krediti huendesha vipengele vya AI. Chagua kifurushi — unalipia tu unachotumia.",
+    "packs": {
+      "starter": "Kianzio",
+      "popular": "Maarufu",
+      "pro": "Pro",
+      "megaValue": "Thamani Kubwa"
+    },
+    "creditsUnit": "krediti",
+    "bestValue": "Thamani bora",
+    "comingSoonTitle": "Inakuja Hivi Karibuni",
+    "comingSoonMessage": "Vifurushi vya krediti vitapatikana mara bidhaa za duka zitakapowekwa tayari.",
+    "purchaseCompleteTitle": "Ununuzi Umekamilika",
+    "purchaseCompleteMessage_one": "Krediti {{count}} inakuja. Salio lako litasasishwa hivi punde.",
+    "purchaseCompleteMessage_other": "Krediti {{count}} zinakuja. Salio lako litasasishwa hivi punde.",
+    "purchaseFailedTitle": "Ununuzi Umeshindikana",
+    "somethingWentWrong": "Hitilafu imetokea.",
+    "autoAddNote": "Krediti huongezwa kiotomatiki baada ya ununuzi."
+  }
+}

@@ -3,6 +3,7 @@ import React, { useState, useCallback, useEffect, useMemo } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { Bookmark, Clock, Trash2, ExternalLink, Sparkles, AlertCircle } from "lucide-react-native";
 import { useTheme } from "../../../components/context/ThemeContext";
 import { supabase } from "../../../lib/supabase";
@@ -29,6 +30,7 @@ interface SavedOpportunity {
 }
 
 export default function SavedScreen() {
+    const { t } = useTranslation('opps');
     const { isDark, colors } = useTheme();
     const { user } = useUser();
     const { getToken } = useAuth();
@@ -63,8 +65,8 @@ export default function SavedScreen() {
                 return {
                     id: bookmark.opportunity_id,
                     bookmark_id: bookmark.id,
-                    title: bookmark.title || 'Opportunity',
-                    organization: bookmark.organization || 'Unknown',
+                    title: bookmark.title || t('shared.opportunity'),
+                    organization: bookmark.organization || t('shared.unknown'),
                     deadline: deadline || '',
                     category: bookmark.category || '',
                     location: bookmark.location || '',
@@ -82,7 +84,7 @@ export default function SavedScreen() {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [userId]);
+    }, [userId, t]);
 
     useEffect(() => {
         fetchSaved();
@@ -120,7 +122,7 @@ export default function SavedScreen() {
     if (loading) {
         return (
             <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'left', 'right']}>
-                <ScreenHeader title="Saved Opportunities" showBack />
+                <ScreenHeader title={t('saved.title')} showBack />
                 <ScrollView
                     style={{ flex: 1 }}
                     contentContainerStyle={styles.loadingContainer}
@@ -135,12 +137,12 @@ export default function SavedScreen() {
     }
 
     return (
-        <ErrorBoundary message="Failed to load saved opportunities">
+        <ErrorBoundary message={t('saved.errorBoundary')}>
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'left', 'right']}>
             <ScreenHeader
-                title="Saved Opportunities"
+                title={t('saved.title')}
                 showBack
-                subtitle={`${savedOpps.length} saved`}
+                subtitle={t('shared.savedCount', { count: savedOpps.length })}
             />
 
             <ScrollView
@@ -167,34 +169,34 @@ export default function SavedScreen() {
                             <TouchableOpacity
                                 style={[styles.filterTab, filter === 'all' && { backgroundColor: colors.accent }]}
                                 onPress={() => setFilter('all')}
-                                accessibilityLabel={`Show all saved opportunities, ${savedOpps.length} total`}
+                                accessibilityLabel={t('saved.a11yAll', { count: savedOpps.length })}
                                 accessibilityRole="button"
                             >
                                 <Bookmark size={16} color={filter === 'all' ? '#FFFFFF' : colors.foreground} />
                                 <Text style={[styles.filterTabText, { color: filter === 'all' ? '#FFFFFF' : colors.foreground }]}>
-                                    All ({savedOpps.length})
+                                    {t('filters.all', { count: savedOpps.length })}
                                 </Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.filterTab, filter === 'urgent' && { backgroundColor: '#EF4444' }]}
                                 onPress={() => setFilter('urgent')}
-                                accessibilityLabel={`Show urgent opportunities, ${savedOpps.filter(o => o.daysRemaining <= 7 && o.daysRemaining >= 0).length} due within 7 days`}
+                                accessibilityLabel={t('saved.a11yUrgent', { count: savedOpps.filter(o => o.daysRemaining <= 7 && o.daysRemaining >= 0).length })}
                                 accessibilityRole="button"
                             >
                                 <AlertCircle size={16} color={filter === 'urgent' ? '#FFFFFF' : '#EF4444'} />
                                 <Text style={[styles.filterTabText, { color: filter === 'urgent' ? '#FFFFFF' : '#EF4444' }]}>
-                                    Urgent ({savedOpps.filter(o => o.daysRemaining <= 7 && o.daysRemaining >= 0).length})
+                                    {t('filters.urgent', { count: savedOpps.filter(o => o.daysRemaining <= 7 && o.daysRemaining >= 0).length })}
                                 </Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.filterTab, filter === 'upcoming' && { backgroundColor: '#10B981' }]}
                                 onPress={() => setFilter('upcoming')}
-                                accessibilityLabel={`Show upcoming opportunities, ${savedOpps.filter(o => o.daysRemaining > 7).length} due later`}
+                                accessibilityLabel={t('saved.a11yUpcoming', { count: savedOpps.filter(o => o.daysRemaining > 7).length })}
                                 accessibilityRole="button"
                             >
                                 <Clock size={16} color={filter === 'upcoming' ? '#FFFFFF' : '#10B981'} />
                                 <Text style={[styles.filterTabText, { color: filter === 'upcoming' ? '#FFFFFF' : '#10B981' }]}>
-                                    Upcoming ({savedOpps.filter(o => o.daysRemaining > 7).length})
+                                    {t('filters.upcoming', { count: savedOpps.filter(o => o.daysRemaining > 7).length })}
                                 </Text>
                             </TouchableOpacity>
                         </Animated.View>
@@ -204,7 +206,7 @@ export default function SavedScreen() {
                             <View style={styles.emptyFilterState}>
                                 <Sparkles size={32} color={isDark ? '#64748B' : '#94A3B8'} />
                                 <Text style={[styles.emptyFilterText, { color: colors.foreground }]}>
-                                    No {filter} opportunities
+                                    {t(`filters.none.${filter}`)}
                                 </Text>
                             </View>
                         ) : (
@@ -269,7 +271,7 @@ export default function SavedScreen() {
                                                     onPress={() => router.push(`/opportunities/${opp.id}`)}
                                                 >
                                                     <ExternalLink size={16} color={colors.accent} />
-                                                    <Text style={[styles.viewBtnText, { color: colors.accent }]}>View Details</Text>
+                                                    <Text style={[styles.viewBtnText, { color: colors.accent }]}>{t('shared.viewDetails')}</Text>
                                                 </TouchableOpacity>
                                                 <TouchableOpacity
                                                     style={styles.removeBtn}

@@ -1,0 +1,284 @@
+{
+    "header": {
+        "title": "CV Builder"
+    },
+    "loading": "Loading CV Builder...",
+    "defaults": {
+        "myCv": "My CV",
+        "untitled": "Untitled CV",
+        "aiDraft": "AI Draft CV"
+    },
+    "proBanner": {
+        "upgrade": "Upgrade to Pro for unlimited CVs",
+        "trial": "Free trial available - Try Pro features!"
+    },
+    "quickActions": {
+        "title": "Build faster",
+        "subtitle": "Start from a blank CV, generate from LinkedIn, or tailor your draft toward a real opportunity.",
+        "create": {
+            "title": "Create a fresh CV",
+            "subtitle": "Start with a structured editor and choose a template after previewing samples."
+        },
+        "linkedIn": {
+            "title": "Import from LinkedIn",
+            "subtitle": "Use your profile context to draft a stronger first version with AI."
+        },
+        "tailor": {
+            "title": "Tailor to an opportunity",
+            "subtitle": "Match your CV against scholarships, internships, and programs in your bank."
+        }
+    },
+    "sections": {
+        "yourCvs": "Your CVs",
+        "chooseTemplate": "Choose a Template"
+    },
+    "alerts": {
+        "aiDraftReadyTitle": "AI draft ready",
+        "draftReadyOfflineTitle": "Draft ready (offline mode)",
+        "draftReadyWithSuggestions": "Your CV draft is in the editor. Suggested next steps:\n{{suggestions}}",
+        "draftReadyMessage": "Your CV draft has been generated from your profile context.",
+        "generateFailed": "Failed to generate CV draft.",
+        "summaryUpdatedTitle": "Summary updated",
+        "summaryUpdatedOffline": "Improved offline from your existing details. Connect to the internet for the full AI rewrite.",
+        "improveSummaryFailed": "Could not improve the summary right now.",
+        "saveSuccess": "CV saved successfully!",
+        "saveFailed": "Failed to save CV",
+        "deleteTitle": "Delete CV",
+        "deleteMessage": "Are you sure you want to delete this CV?",
+        "sharedAsTextTitle": "Shared as text",
+        "sharedAsTextMessage": "PDF export was unavailable, so the CV was shared as text instead.",
+        "exportFailed": "Failed to export CV",
+        "tailoredTitle": "CV tailored — {{score}}% match",
+        "tailorFailed": "Failed to tailor CV for this opportunity."
+    },
+    "upgrade": {
+        "templateFeature": "{{name}} template"
+    },
+    "templates": {
+        "badgeFallback": "Template",
+        "proBadge": "Pro",
+        "unlock": "Unlock Template",
+        "use": "Use Template",
+        "tapToPreview": "Tap to preview sample",
+        "samples": {
+            "academic": {
+                "name": "Amara Okafor",
+                "headline": "MSc Public Health Applicant",
+                "summary": "Research-focused profile with education, publications, field projects, and academic achievements placed before work history.",
+                "bullets": [
+                    "Education and research first",
+                    "Publications and awards visible",
+                    "Good for scholarships and graduate admissions"
+                ]
+            },
+            "professional": {
+                "name": "Daniel Mensah",
+                "headline": "Operations Analyst",
+                "summary": "Outcome-led profile for internships, jobs, fellowships, and early-career programs with measurable work impact.",
+                "bullets": [
+                    "Work impact before coursework",
+                    "Strong skills and metrics section",
+                    "Good for internships and jobs"
+                ]
+            },
+            "creative": {
+                "name": "Leah Adeyemi",
+                "headline": "Product Designer",
+                "summary": "Portfolio-friendly structure that highlights projects, tools, links, and visual achievements without losing ATS readability.",
+                "bullets": [
+                    "Projects and portfolio links",
+                    "Tools and case-study highlights",
+                    "Good for design and media roles"
+                ]
+            },
+            "general": {
+                "name": "Edutu Student",
+                "headline": "Opportunity Applicant",
+                "summary": "Balanced structure for students applying across scholarships, school programs, internships, and community opportunities.",
+                "bullets": [
+                    "Clean student profile",
+                    "Flexible section order",
+                    "Good for broad applications"
+                ]
+            }
+        }
+    },
+    "linkedInModal": {
+        "title": "Build CV with AI",
+        "description": "Paste your LinkedIn profile URL below and our AI will automatically gather your experience and build your CV.",
+        "generate": "Generate CV"
+    },
+    "tailorModal": {
+        "title": "AI CV Tailoring",
+        "subtitle": "Select an opportunity from your bank and tailor this CV toward it.",
+        "empty": "No opportunities available yet. Load opportunities first, then tailor this CV."
+    },
+    "listItem": {
+        "updated": "Updated {{date}}",
+        "primary": "Primary"
+    },
+    "editor": {
+        "sections": {
+            "personalInfo": "Personal Information",
+            "summary": "Professional Summary",
+            "skills": "Skills",
+            "experience": "Experience",
+            "education": "Education",
+            "projects": "Projects",
+            "achievements": "Achievements"
+        },
+        "personal": {
+            "fullName": {
+                "label": "Full Name",
+                "placeholder": "John Doe"
+            },
+            "email": {
+                "label": "Email",
+                "placeholder": "john@example.com"
+            },
+            "phone": {
+                "label": "Phone",
+                "placeholder": "+1 234 567 8900"
+            },
+            "location": {
+                "label": "Location",
+                "placeholder": "Lagos, Nigeria"
+            },
+            "linkedin": {
+                "label": "LinkedIn",
+                "placeholder": "linkedin.com/in/johndoe"
+            },
+            "portfolio": {
+                "label": "Portfolio",
+                "placeholder": "portfolio.site"
+            }
+        },
+        "summaryPlaceholder": "Write a concise professional summary...",
+        "improving": "Improving…",
+        "improveWithAi": "Improve with AI",
+        "unlockAiAssist": "Unlock AI Assist",
+        "aiSummaryFeature": "AI Summary Generator",
+        "skillsPlaceholder": "JavaScript, Research, Excel, Public speaking...",
+        "add": "Add",
+        "newExperience": "New experience",
+        "newEducation": "New education",
+        "newProject": "New project",
+        "newAchievement": "New achievement",
+        "fields": {
+            "role": {
+                "label": "Role",
+                "placeholder": "Software Intern"
+            },
+            "company": {
+                "label": "Company",
+                "placeholder": "Company / Organization"
+            },
+            "location": {
+                "label": "Location",
+                "placeholder": "Remote / City"
+            },
+            "startDate": {
+                "label": "Start Date",
+                "placeholder": "2024-01"
+            },
+            "endDate": {
+                "label": "End Date",
+                "placeholder": "2025-01"
+            },
+            "currentlyWorkHere": "I currently work here",
+            "description": {
+                "label": "Description",
+                "placeholder": "Describe what you did"
+            },
+            "highlights": {
+                "label": "Highlights (one per line)",
+                "placeholder": "Increased sign-ups by 30%\nLed a team of 4"
+            },
+            "institution": {
+                "label": "Institution",
+                "placeholder": "University / School"
+            },
+            "degree": {
+                "label": "Degree",
+                "placeholder": "BSc / MSc / Diploma"
+            },
+            "fieldOfStudy": {
+                "label": "Field",
+                "placeholder": "Computer Science"
+            },
+            "eduStartDate": {
+                "placeholder": "2021-09"
+            },
+            "eduEndDate": {
+                "placeholder": "2025-06 (or expected)"
+            },
+            "projectName": {
+                "label": "Project Name",
+                "placeholder": "Scholarship Finder App"
+            },
+            "projectDescription": {
+                "placeholder": "Describe the project impact"
+            },
+            "technologies": {
+                "label": "Technologies",
+                "placeholder": "React, Node.js"
+            },
+            "achievementTitle": {
+                "label": "Title",
+                "placeholder": "Dean's List"
+            },
+            "issuer": {
+                "label": "Issuer",
+                "placeholder": "University / Organization"
+            },
+            "achievementDescription": {
+                "placeholder": "Why it matters"
+            }
+        },
+        "tailor": {
+            "title": "Tailor for Opportunity",
+            "subtitle": "Match this CV against opportunities in your bank"
+        },
+        "save": "Save CV",
+        "preparing": "Preparing…",
+        "downloadPdf": "Download PDF"
+    },
+    "preview": {
+        "backToEdit": "Back to Edit",
+        "downloadAccessibility": "Download CV as PDF",
+        "preparing": "Preparing…",
+        "pdf": "PDF",
+        "yourName": "Your Name",
+        "sections": {
+            "summary": "Summary",
+            "skills": "Skills",
+            "experience": "Experience",
+            "education": "Education",
+            "projects": "Projects",
+            "achievements": "Achievements"
+        },
+        "startFallback": "Start",
+        "present": "- Present"
+    },
+    "proUpgrade": {
+        "title": "Unlock {{feature}}",
+        "subtitle": "Get unlimited access to all premium features",
+        "priceFrom": "From",
+        "price": "$5.99",
+        "pricePeriod": "/mo",
+        "features": {
+            "roadmaps": "Unlimited AI Roadmap Generation",
+            "templates": "Premium CV Templates",
+            "tailoring": "AI-Powered CV Tailoring",
+            "creatorListing": "Priority Creator Listing",
+            "filters": "Advanced Opportunity Filters",
+            "pdfExport": "PDF Export & Downloads"
+        },
+        "upgradeCta": "Upgrade to Pro",
+        "trialActivatedTitle": "Trial Activated",
+        "trialActivatedMessage": "You now have access to Pro features for 7 days!",
+        "trialCta": "Try Free for 7 Days",
+        "secure": "Secure",
+        "cancelAnytime": "Cancel anytime"
+    }
+}

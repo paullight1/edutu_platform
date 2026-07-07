@@ -1,0 +1,412 @@
+{
+  "createGoal": "Ƙirƙiri Manufa",
+  "viewAll": "Duba Dukansu",
+  "creditsEarned_one": "+kirediti {{count}} don kammala manufa",
+  "creditsEarned_other": "+kirediti {{count}} don kammala manufa",
+  "priority": {
+    "high": "Babba",
+    "medium": "Matsakaici",
+    "low": "Ƙarami",
+    "highFull": "Fifiko Babba",
+    "mediumFull": "Fifiko Matsakaici",
+    "lowFull": "Fifiko Ƙarami",
+    "highDesc": "Gaggawa - yana buƙatar kulawa nan take",
+    "mediumDesc": "Muhimmi - yi aiki a kansa nan ba da daɗewa ba",
+    "lowDesc": "Ana iya yin sa idan ka samu lokaci"
+  },
+  "status": {
+    "completed": "An kammala",
+    "overdue": "Wa'adi ya wuce",
+    "inProgress": "Ana kai"
+  },
+  "labels": {
+    "progress": "Ci gaba",
+    "priority": "Fifiko",
+    "deadline": "Wa'adi",
+    "reminder": "Tunatarwa",
+    "status": "Matsayi",
+    "datePlaceholder": "YYYY-MM-DD"
+  },
+  "time": {
+    "today": "Yau",
+    "tomorrow": "Gobe",
+    "overdueShort": "Kwana {{count}} da wuce wa'adi",
+    "leftShort": "Sauran kwana {{count}}",
+    "daysOverdue_one": "Kwana {{count}} da wuce wa'adi",
+    "daysOverdue_other": "Kwanaki {{count}} da wuce wa'adi",
+    "daysLeft_one": "Sauran kwana {{count}}",
+    "daysLeft_other": "Sauran kwanaki {{count}}",
+    "daysFromNow_one": "Nan da kwana {{count}}",
+    "daysFromNow_other": "Nan da kwanaki {{count}}",
+    "days_one": "Kwana {{count}}",
+    "days_other": "Kwanaki {{count}}"
+  },
+  "deleteConfirm": {
+    "title": "Goge Manufa",
+    "message": "Ka tabbata kana son goge \"{{title}}\"?"
+  },
+  "stats": {
+    "active": "Masu gudana",
+    "completed": "An kammala",
+    "roadmaps": "Taswirorin Hanya",
+    "completion": "Kammalawa",
+    "total": "Jimla",
+    "done": "An gama",
+    "progress": "Ci gaba"
+  },
+  "sections": {
+    "roadmaps": "Taswirorin Hanya",
+    "personalGoals": "Manufofin Kai"
+  },
+  "filter": {
+    "byStatus": "Tace bisa Matsayi",
+    "activeLabel": "Matattara: {{label}}",
+    "clear": "Goge",
+    "allGoals": "Duk Manufofi",
+    "all": "Duka",
+    "active": "Masu gudana",
+    "completed": "An kammala"
+  },
+  "empty": {
+    "noRoadmaps": {
+      "title": "Babu Taswirar Hanya",
+      "description": "Shigo da taswirar hanyar wata dama don ganin manufofi a nan.",
+      "action": "Binciko Taswirorin Hanya"
+    },
+    "noPersonalGoals": {
+      "title": "Babu Manufofin Kai",
+      "description": "Danna alamar ƙari don saka manufarka ta farko."
+    }
+  },
+  "dashboard": {
+    "title": "Manufofi",
+    "subtitle": "{{active}} masu gudana · an kammala {{rate}}%",
+    "searchPlaceholder": "Bincika manufofinka...",
+    "upcomingDeadlines": "Wa'adodi Masu Zuwa",
+    "myOpportunities": "Damammakina",
+    "savedSummary": "An ajiye {{count}}",
+    "savedSummaryWithUrgent": "An ajiye {{count}} · {{urgent}} na gaggawa",
+    "opportunityFallback": "Dama",
+    "searchResults_one": "An samo manufa {{count}} da ta dace da \"{{term}}\"",
+    "searchResults_other": "An samo manufofi {{count}} da suka dace da \"{{term}}\"",
+    "shareBanner": {
+      "title": "Kana da Damammakin da Za ka Raba?",
+      "subtitle": "Tuntuɓe mu idan kana da tallafin karatu, ayyuka, ko shirye-shiryen da kake son rabawa da al'ummarmu",
+      "action": "Tuntuɓe Mu"
+    }
+  },
+  "detail": {
+    "title": "Bayanan Manufa",
+    "editTitle": "Gyara Manufa",
+    "details": "Bayanai",
+    "fromRoadmap": "Daga Taswirar Hanya",
+    "personalGoal": "Manufar Kai",
+    "titlePlaceholder": "Taken manufa",
+    "descriptionPlaceholder": "Saka bayani...",
+    "noDeadline": "Babu wa'adi",
+    "markComplete": "Yi Alamar An Kammala",
+    "reopen": "Sake Buɗe Manufa",
+    "cancelEditing": "Soke Gyara",
+    "notFound": {
+      "title": "Ba a Samu Manufar ba",
+      "description": "Wataƙila an goge wannan manufar ko kuma ba ka da damar shiga gare ta.",
+      "back": "Koma zuwa Manufofi"
+    },
+    "reminder": {
+      "enabled": "An kunna",
+      "disabled": "An kashe",
+      "enabledTitle": "An Kunna Tunatarwa",
+      "disabledTitle": "An Kashe Tunatarwa",
+      "enabledMessage": "Za a tunatar da kai a {{date}}",
+      "disabledMessage": "Ba za ka karɓi tunatarwa kan wannan manufar ba."
+    },
+    "alerts": {
+      "enterTitle": "Da fatan za a shigar da taken manufa",
+      "updated": "An sabunta manufa cikin nasara",
+      "updateFailed": "An kasa sabunta manufa",
+      "congratsTitle": "🎉 Taya murna!",
+      "congratsMessage": "Ka kammala wannan manufar!",
+      "completeFailed": "An kasa kammala manufa",
+      "deleteFailed": "An kasa goge manufa",
+      "noDeadlineTitle": "Babu Wa'adi",
+      "noDeadlineMessage": "Fara saka wa'adi don kunna tunatarwa.",
+      "reminderFailed": "An kasa sauya tunatarwa"
+    }
+  },
+  "add": {
+    "title": "Ƙirƙiri Sabuwar Manufa",
+    "heading": "Saka Burinka",
+    "subheading": "Bayyana manufarka ka kuma bi diddigin ci gaba zuwa nasara.",
+    "titleLabel": "Taken Manufa",
+    "titlePlaceholder": "Me kake son cimmawa?",
+    "descriptionLabel": "Bayani",
+    "descriptionPlaceholder": "Saka ƙarin bayani game da wannan manufar...",
+    "preview": "SAMFOTO",
+    "pastDate": "Ranar da ta wuce",
+    "validation": {
+      "titleTooShort": "Taken dole ya kai aƙalla haruffa 3",
+      "looksGood": "Yayi kyau!",
+      "deadlinePast": "Wa'adi ba zai iya kasancewa a baya ba"
+    },
+    "alerts": {
+      "invalidTitle": "Taken bai inganta ba",
+      "titleTooShort": "Taken manufa dole ya kai aƙalla haruffa 3",
+      "titleTooLongTitle": "Taken Ya Yi Tsawo",
+      "titleTooLongMessage": "Taken manufa dole ya kasance ƙasa da haruffa 100",
+      "invalidDeadline": "Wa'adin bai inganta ba",
+      "created": "An ƙirƙiri manufa cikin nasara!",
+      "createAnother": "Ƙirƙiri Wata",
+      "createFailed": "An kasa ƙirƙirar manufa. Da fatan za a sake gwadawa."
+    }
+  },
+  "allRoadmaps": {
+    "title": "Manufofin Taswirar Hanya",
+    "goalCount_one": "Manufa {{count}}",
+    "goalCount_other": "Manufofi {{count}}",
+    "otherGroup": "Sauran",
+    "empty": {
+      "title": "Babu manufofin taswirar hanya",
+      "searchHint": "Gwada sauya binciken ka",
+      "description": "Shigo da manufofi daga taswirar hanya don ganin su a nan"
+    }
+  },
+  "myList": {
+    "title": "Manufofina",
+    "goalsTracked_one": "Ana bin diddigin manufa {{count}}",
+    "goalsTracked_other": "Ana bin diddigin manufofi {{count}}",
+    "heroTitle": "Ka Mai da Hankali 🎯",
+    "heroCompleted_one": "Ka kammala manufa {{count}}. Ci gaba da ƙwazon!",
+    "heroCompleted_other": "Ka kammala manufofi {{count}}. Ci gaba da ƙwazon!",
+    "heroEmpty": "Mayar da burikanka zuwa manufofin da za a iya cimmawa. Fara bin diddigi yau!",
+    "ctaTitle": "Ƙirƙiri Manufarka ta Farko",
+    "ctaSubtitle": "Saka buri ka kuma bi diddigin ci gabanka",
+    "highPriorityAlert_one": "Manufa {{count}} mai fifiko babba tana buƙatar kulawa",
+    "highPriorityAlert_other": "Manufofi {{count}} masu fifiko babba suna buƙatar kulawa",
+    "searchPlaceholder": "Bincika manufofi...",
+    "sortLabel": "Jeri: {{label}}",
+    "sortBy": "Jera Bisa",
+    "sort": {
+      "newest": "Sababbi na Farko",
+      "oldest": "Tsofaffi na Farko",
+      "priority": "Fifiko",
+      "deadline": "Wa'adi",
+      "progress": "Ci gaba",
+      "title": "Take (A-Z)"
+    },
+    "empty": {
+      "title": "Babu manufa tukuna",
+      "noMatch": "Babu manufofin da suka dace",
+      "searchHint": "Gwada sauya binciken ka ko matattara",
+      "description": "Fara da ƙirƙirar manufarka ta farko don bin diddigin ci gaba da kuma zaburarwa"
+    }
+  },
+  "roadmaps": {
+    "title": "Taswirorin Hanya",
+    "subtitle": "Tsararrun hanyoyin koyo don cimma manufofinka",
+    "loading": "Ana loda taswirorin hanya...",
+    "searchPlaceholder": "Bincika taswirorin hanya...",
+    "empty": "Ba a samu taswirar hanya ba. Gwada sauya binciken ka ko matattara!",
+    "noDescription": "Babu bayanin da ya samu",
+    "featured": "Fitacce",
+    "stepsCount_one": "Mataki {{count}}",
+    "stepsCount_other": "Matakai {{count}}",
+    "notAvailable": "Babu",
+    "varies": "Ya bambanta",
+    "achieveTitle": "Abin da Za ka Cimma",
+    "learningPath": "Hanyar Koyo",
+    "startButton": "Fara Wannan Taswirar Hanya",
+    "rateButton": "Kimanta wannan taswirar hanya",
+    "categories": {
+      "all": "Duka",
+      "scholarship": "Tallafin karatu",
+      "career": "Sana'a",
+      "education": "Ilimi",
+      "skills": "Ƙwarewa",
+      "business": "Kasuwanci",
+      "tech": "Fasaha"
+    },
+    "creatorBanner": {
+      "title": "Zama Mai Ƙirƙirar Taswirar Hanya",
+      "subtitle": "Raba ƙwarewarka. Gina hanyoyin koyo. Samu kuɗi yayin da kake koyarwa."
+    },
+    "templateBanner": {
+      "title": "Binciko Samfurorin Taswirar Hanya",
+      "subtitle": "Fara daga tabbatacciyar hanya ka mayar da ita manufa."
+    },
+    "detailInfo": {
+      "creatorProof": "Shaidar mai ƙirƙira: {{value}}",
+      "deadlineStrategy": "Dabarar wa'adi: {{value}}",
+      "targetDeadline": "Wa'adin buri: {{value}}",
+      "audience": "Domin: {{value}}",
+      "strategy": "Dabara: {{value}}"
+    },
+    "statsLabels": {
+      "difficulty": "Wahala",
+      "duration": "Tsawon lokaci",
+      "steps": "Matakai",
+      "enrolled": "Waɗanda suka shiga"
+    },
+    "deadline": {
+      "dueToday": "{{date}} - wa'adi yau",
+      "dueTomorrow": "{{date}} - wa'adi gobe",
+      "daysLeft_one": "{{date}} - sauran kwana {{count}}",
+      "daysLeft_other": "{{date}} - sauran kwanaki {{count}}",
+      "overdue": "{{date}} - wa'adi ya wuce",
+      "daysBefore_one": "Kwana {{count}} kafin wa'adi",
+      "daysBefore_other": "Kwanaki {{count}} kafin wa'adi",
+      "dueOnDeadline": "Wa'adi a ranar ƙarshe",
+      "dueDay": "Wa'adi rana ta {{day}}"
+    },
+    "adoption": {
+      "fallback": "Ka shiga wannan taswirar hanya. Duba manufofinka don farawa!",
+      "ready": "Taswirar hanyarka ta shirya.",
+      "milestones_one": "An saka muhimmin mataki {{count}} a manufofinka.",
+      "milestones_other": "An saka muhimman matakai {{count}} a manufofinka.",
+      "deadline": "Wa'adi: {{date}}.",
+      "reminders": "An shirya tunatarwa.",
+      "calendarEvents_one": "An shirya taron kalanda {{count}}.",
+      "calendarEvents_other": "An shirya taruka na kalanda {{count}}.",
+      "community": "Akwai al'ummar taswirar hanya mai dacewa."
+    },
+    "calendar": {
+      "unavailableTitle": "Kalanda ba ta samu ba",
+      "unavailableMessage": "Ba a iya gina kalandar ba. Da fatan za a sake gwadawa.",
+      "exportFailedTitle": "Fitarwa ta kasa",
+      "exportFailedMessage": "Ba a iya buɗe fayil ɗin kalandar ba."
+    },
+    "enroll": {
+      "adoptedTitle": "An karɓi taswirar hanya",
+      "viewGoals": "Duba Manufofi",
+      "addToCalendar": "Saka a Kalanda",
+      "openCommunity": "Buɗe Al'umma",
+      "continueBrowsing": "Ci gaba da Bincike",
+      "failedTitle": "Shiga Ya Kasa",
+      "failed": "Shiga ya kasa",
+      "failedMessage": "Ba a iya shiga ba."
+    },
+    "intent": {
+      "title": "Taimaka Mana Mu Samo Maka Cikakkiyar Taswirar Hanya",
+      "subtitle": "Amsa 'yan tambayoyi don mu ba ka shawarar hanyar koyo mafi dacewa da kai.",
+      "answerPlaceholder": "Rubuta amsarka...",
+      "skip": "Tsallake a yanzu",
+      "submit": "Nemo Taswirorin Hanyata",
+      "q1": "Menene matakin ƙwarewarka a halin yanzu?",
+      "q2": "Awanni nawa za ka iya bayarwa a mako?",
+      "q3": "Menene manyan manufofinka?",
+      "levels": {
+        "beginner": "Mafari",
+        "intermediate": "Matsakaici",
+        "advanced": "Gogagge"
+      },
+      "time": {
+        "lessThan5": "Ƙasa da awanni 5",
+        "hours5to10": "Awanni 5-10",
+        "hours10to20": "Awanni 10-20",
+        "hours20plus": "Awanni 20+"
+      }
+    },
+    "feedback": {
+      "title": "Yaya wannan taswirar hanya take?",
+      "subtitle": "Ra'ayinka yana taimaka mana mu inganta, yana kuma taimaka wa sauran masu koyo.",
+      "placeholder": "Me ka so ko me za a iya ingantawa?",
+      "submit": "Mika Ra'ayi",
+      "thanksTitle": "Mun gode!",
+      "thanksMessage": "Ra'ayinka yana taimaka mana mu inganta taswirorin hanya ga kowa."
+    }
+  },
+  "templates": {
+    "title": "Binciko Samfurori",
+    "subtitle": "Fitattun hanyoyin taswirar hanya",
+    "eyebrow": "FITATTUN SAMFURORIN TASWIRAR HANYA",
+    "heading": "Zaɓi tabbatacciyar hanya ka fara shiri cikin sauri",
+    "description": "Kowane samfuri ya haɗa da muhimman matakai, kayan aiki, fitar da kalanda, da tunatarwar karatu.",
+    "count_one": "Samfuri {{count}}",
+    "count_other": "Samfurori {{count}}",
+    "weeksRange": "Makonni 8-20",
+    "featuredPaths": "Fitattun hanyoyi",
+    "available": "{{count}} sun samu",
+    "startRoadmap": "Fara taswirar hanya",
+    "calendar": "Kalanda",
+    "reminders": "Tunatarwa",
+    "outcomes": "Sakamako",
+    "guidance": "Jagora da kayan aiki",
+    "week": "Mako na {{week}}",
+    "deliverableLabel": "Abin mikawa: {{value}}",
+    "icsSummary": "{{title}}: Mako na {{week}}",
+    "shareDialogTitle": "Saka taswirar hanya a kalanda",
+    "calendarReadyTitle": "Kalanda ta shirya",
+    "calendarReadyMessage": "Fitar da kalanda yana samuwa a manhajojin waya.",
+    "calendarFileCreated": "An ƙirƙiri fayil ɗin kalanda",
+    "notificationsBlockedTitle": "An toshe sanarwa",
+    "notificationsBlockedMessage": "Kunna sanarwa don karɓar tunatarwar taswirar hanya.",
+    "reminderTitle": "Tunatarwar taswirar hanya: Mako na {{week}}",
+    "remindersScheduledTitle": "An shirya tunatarwa",
+    "remindersScheduledMessage_one": "An shirya tunatarwar taswirar hanya {{count}}.",
+    "remindersScheduledMessage_other": "An shirya tunatarwar taswirar hanya {{count}}.",
+    "stepFallback": "Mataki na {{number}}",
+    "focus": "Abin mayar da hankali: {{value}}",
+    "defaultSummary": "Taswirar hanya mai jagora, mataki-mataki.",
+    "stepPlan": "Shirin matakai {{count}}",
+    "allLevels": "Duk Matakai",
+    "defaultCadence": "An shirya tunatarwar muhimman matakai daga ranar farawarka.",
+    "resourceFallback": "Kayan aiki"
+  },
+  "calendar": {
+    "title": "Kalandata",
+    "deadlinePrefix": "Wa'adi: {{title}}",
+    "noEvents": "Babu manufofi ko wa'adodi a wannan ranar.",
+    "legend": {
+      "personalGoal": "Manufar Kai",
+      "roadmap": "Taswirar Hanya",
+      "opportunity": "Dama"
+    },
+    "badge": {
+      "goal": "MANUFA",
+      "roadmap": "TASWIRAR HANYA",
+      "opportunity": "DAMA"
+    },
+    "days": {
+      "sun": "Lah",
+      "mon": "Lit",
+      "tue": "Tal",
+      "wed": "Lar",
+      "thu": "Alh",
+      "fri": "Jum",
+      "sat": "Asa"
+    },
+    "months": {
+      "january": "Janairu",
+      "february": "Fabrairu",
+      "march": "Maris",
+      "april": "Afrilu",
+      "may": "Mayu",
+      "june": "Yuni",
+      "july": "Yuli",
+      "august": "Agusta",
+      "september": "Satumba",
+      "october": "Oktoba",
+      "november": "Nuwamba",
+      "december": "Disamba"
+    }
+  },
+  "intake": {
+    "timeQuestion": "Awanni nawa za ka iya bayarwa a kowane mako?",
+    "levelQuestion": "Daga ina kake farawa?",
+    "time": {
+      "under5": "Ƙasa da awa 5",
+      "h5to10": "Awa 5–10",
+      "h10to20": "Awa 10–20",
+      "h20plus": "Awa 20+"
+    },
+    "level": {
+      "beginner": "Sabo a wannan",
+      "intermediate": "Ɗan ƙwarewa",
+      "advanced": "Gogagge"
+    }
+  },
+  "timeline": {
+    "today": "YAU",
+    "milestoneDone": "{{title}}, an gama",
+    "removeMilestone": "Cire {{title}}"
+  }
+}

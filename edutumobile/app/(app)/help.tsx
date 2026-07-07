@@ -20,27 +20,30 @@ import {
 import { Card } from '../../components/ui/Card';
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import { useTheme } from "../../components/context/ThemeContext";
+import { useTranslation } from 'react-i18next';
 
+// `question`/`answer` hold i18n keys (home namespace); translated at render time.
 const FAQS = [
     {
-        question: "How do I use Edutu AI?",
-        answer: "You can access Edutu AI from the center button on your navigation bar. Simply type your question about courses, career guidance, or skills, and it will assist you instantly."
+        question: "help.faqs.ai.question",
+        answer: "help.faqs.ai.answer"
     },
     {
-        question: "How do I enroll in a course?",
-        answer: "Navigate to the 'Market' tab, find a course you're interested in, and click 'Access Now'. Some courses require Credits, while others are free."
+        question: "help.faqs.enroll.question",
+        answer: "help.faqs.enroll.answer"
     },
     {
-        question: "How do I earn Credits?",
-        answer: "You can earn Credits by participating in featured opportunities, completing quests, or contributing as a creator. Check your wallet for more details."
+        question: "help.faqs.credits.question",
+        answer: "help.faqs.credits.answer"
     },
     {
-        question: "Is my data secure?",
-        answer: "Yes, we use industry-standard encryption and Clerk for authentication to ensure your personal information and academic progress are always protected."
+        question: "help.faqs.security.question",
+        answer: "help.faqs.security.answer"
     }
 ];
 
 function FAQItem({ item, isDark, colors }: { item: typeof FAQS[0], isDark: boolean, colors: any }) {
+    const { t } = useTranslation('home');
     const [expanded, setExpanded] = useState(false);
 
     return (
@@ -52,7 +55,7 @@ function FAQItem({ item, isDark, colors }: { item: typeof FAQS[0], isDark: boole
             <Card variant={isDark ? "glass" : "elevated"} style={[styles.faqCard, { borderColor: isDark ? 'rgba(51,65,85,0.3)' : '#e2e8f0' }]}>
                 <View style={styles.faqHeader}>
                     <Text style={[styles.faqQuestion, { color: colors.foreground }]}>
-                        {item.question}
+                        {t(item.question)}
                     </Text>
                     {expanded ? (
                         <ChevronUp size={18} color={colors.accent} />
@@ -62,7 +65,7 @@ function FAQItem({ item, isDark, colors }: { item: typeof FAQS[0], isDark: boole
                 </View>
                 {expanded && (
                     <Text style={[styles.faqAnswer, { color: isDark ? "#94A3B8" : "#64748B" }]}>
-                        {item.answer}
+                        {t(item.answer)}
                     </Text>
                 )}
             </Card>
@@ -71,6 +74,7 @@ function FAQItem({ item, isDark, colors }: { item: typeof FAQS[0], isDark: boole
 }
 
 export default function HelpScreen() {
+    const { t } = useTranslation('home');
     const { isDark, colors } = useTheme();
 
     const handleContactEmail = () => {
@@ -79,7 +83,7 @@ export default function HelpScreen() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-            <ScreenHeader title="Help & Support" showBack={true} />
+            <ScreenHeader title={t('help.title')} showBack={true} />
 
             <ScrollView
                 style={styles.scrollView}
@@ -92,16 +96,16 @@ export default function HelpScreen() {
                         <HelpCircle size={32} color={colors.accent} />
                     </View>
                     <Text style={[styles.headerTitle, { color: colors.foreground }]}>
-                        How can we help?
+                        {t('help.headerTitle')}
                     </Text>
                     <Text style={[styles.headerSubtitle, { color: isDark ? "#94A3B8" : "#64748B" }]}>
-                        Find answers to common questions or reach out.
+                        {t('help.headerSubtitle')}
                     </Text>
                 </View>
 
                 {/* FAQ Section */}
                 <Text style={[styles.sectionTitle, { color: isDark ? "#475569" : "#94A3B8" }]}>
-                    Frequently Asked Questions
+                    {t('help.faqSectionTitle')}
                 </Text>
 
                 {FAQS.map((faq, index) => (
@@ -110,7 +114,7 @@ export default function HelpScreen() {
 
                 {/* Contact Section */}
                 <Text style={[styles.sectionTitle, { color: isDark ? "#475569" : "#94A3B8", marginTop: 32 }]}>
-                    Direct Support
+                    {t('help.directSupport')}
                 </Text>
 
                 <TouchableOpacity
@@ -124,7 +128,7 @@ export default function HelpScreen() {
                                 <Mail size={22} color="#10b981" />
                             </View>
                             <View style={styles.contactText}>
-                                <Text style={[styles.contactTitle, { color: colors.foreground }]}>Email Support</Text>
+                                <Text style={[styles.contactTitle, { color: colors.foreground }]}>{t('help.emailSupport')}</Text>
                                 <Text style={styles.contactSubtitle}>support@edutu.org</Text>
                             </View>
                             <ChevronRight size={18} color={isDark ? "#475569" : "#94a3b8"} />
@@ -143,7 +147,7 @@ export default function HelpScreen() {
                                 <Globe size={22} color="#3b82f6" />
                             </View>
                             <View style={styles.contactText}>
-                                <Text style={[styles.contactTitle, { color: colors.foreground }]}>Visit Website</Text>
+                                <Text style={[styles.contactTitle, { color: colors.foreground }]}>{t('help.visitWebsite')}</Text>
                                 <Text style={[styles.contactSubtitle, { color: '#3b82f6' }]}>www.edutu.org</Text>
                             </View>
                             <ChevronRight size={18} color={isDark ? "#475569" : "#94a3b8"} />
@@ -158,7 +162,7 @@ export default function HelpScreen() {
                         style={styles.footerLogo}
                         resizeMode="contain"
                     />
-                    <Text style={[styles.footerText, { color: isDark ? "#475569" : "#94A3B8" }]}>Edutu Help Center</Text>
+                    <Text style={[styles.footerText, { color: isDark ? "#475569" : "#94A3B8" }]}>{t('help.footer')}</Text>
                 </View>
             </ScrollView>
         </SafeAreaView>

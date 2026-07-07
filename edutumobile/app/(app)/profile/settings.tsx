@@ -21,10 +21,13 @@ import {
     Lock,
     Vibrate,
     ExternalLink,
-    MonitorSmartphone
+    MonitorSmartphone,
+    Globe
 } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { Card } from '../../../components/ui/Card';
 import { ScreenHeader } from "../../../components/ui/ScreenHeader";
+import { LanguageSelector } from "../../../components/ui/LanguageSelector";
 import { useTheme, ThemePackage, ThemeMode } from "../../../components/context/ThemeContext";
 import { notificationService, NotificationSettings } from "../../../lib/notifications";
 import * as WebBrowser from 'expo-web-browser';
@@ -38,15 +41,16 @@ const APPEARANCE_MODES: { id: ThemeMode; label: string; icon: React.ComponentTyp
     { id: 'system', label: 'System', icon: MonitorSmartphone },
 ];
 
-const THEME_PACKAGES: { id: ThemePackage, name: string, color: string }[] = [
-    { id: 'default', name: 'Indigo Pulse', color: '#6366f1' },
-    { id: 'ocean', name: 'Ocean Breeze', color: '#0ea5e9' },
-    { id: 'sunset', name: 'African Sunset', color: '#f59e0b' },
-    { id: 'forest', name: 'Emerald Forest', color: '#10b981' },
-    { id: 'royal', name: 'Royal Velvet', color: '#3b82f6' },
+const THEME_PACKAGES: { id: ThemePackage, color: string }[] = [
+    { id: 'default', color: '#6366f1' },
+    { id: 'ocean', color: '#0ea5e9' },
+    { id: 'sunset', color: '#f59e0b' },
+    { id: 'forest', color: '#10b981' },
+    { id: 'royal', color: '#3b82f6' },
 ];
 
 export default function SettingsScreen() {
+    const { t } = useTranslation('settings');
     const { isDark, packageId, setPackage, colors, mode, setMode } = useTheme();
     const { signOut, getToken } = useAuth();
     const { user } = useUser();
@@ -101,12 +105,12 @@ export default function SettingsScreen() {
         }
 
         if (newPassword.length < 8) {
-            Alert.alert('Password too short', 'Use at least 8 characters.');
+            Alert.alert(t('security.passwordTooShortTitle'), t('security.passwordTooShortMessage'));
             return;
         }
 
         if (newPassword !== confirmPassword) {
-            Alert.alert('Passwords do not match', 'Enter the same password in both fields.');
+            Alert.alert(t('security.passwordMismatchTitle'), t('security.passwordMismatchMessage'));
             return;
         }
 
@@ -118,9 +122,9 @@ export default function SettingsScreen() {
             });
             setNewPassword('');
             setConfirmPassword('');
-            Alert.alert('Password added', 'You can now sign in with email and password too.');
+            Alert.alert(t('security.passwordAddedTitle'), t('security.passwordAddedMessage'));
         } catch (error: any) {
-            Alert.alert('Could not add password', error?.errors?.[0]?.message || 'Please try again.');
+            Alert.alert(t('security.passwordErrorTitle'), error?.errors?.[0]?.message || t('security.passwordErrorMessage'));
         } finally {
             setPasswordLoading(false);
         }
@@ -128,18 +132,18 @@ export default function SettingsScreen() {
 
     const handleDeleteAccount = () => {
         Alert.alert(
-            'Delete Account',
-            'Are you sure you want to delete your account? This action cannot be undone. All your data, goals, and progress will be permanently removed.',
+            t('account.deleteAccount'),
+            t('account.deleteConfirmMessage'),
             [
-                { text: 'Cancel', style: 'cancel' },
+                { text: t('common:actions.cancel'), style: 'cancel' },
                 {
-                    text: 'Delete Account',
+                    text: t('account.deleteAccount'),
                     style: 'destructive',
                     onPress: async () => {
                         try {
                             const userId = user?.id;
                             if (!userId) {
-                                Alert.alert('Error', 'User not found. Please try again.');
+                                Alert.alert(t('common:states.error'), t('account.userNotFound'));
                                 return;
                             }
 
@@ -154,7 +158,7 @@ export default function SettingsScreen() {
                                 if (__DEV__) {
                                     console.error('Supabase data deletion failed:', dbError);
                                 }
-                                Alert.alert('Error', 'We could not delete your app data. Please try again before deleting your account.');
+                                Alert.alert(t('common:states.error'), t('account.dataDeleteError'));
                                 return;
                             }
 
@@ -163,7 +167,7 @@ export default function SettingsScreen() {
                             await signOut();
                             router.replace('/(auth)/sign-in');
                         } catch (error) {
-                            Alert.alert('Error', 'Failed to delete account. Please contact support at support@edutu.org');
+                            Alert.alert(t('common:states.error'), t('account.deleteError'));
                         }
                     },
                 },
@@ -177,7 +181,7 @@ export default function SettingsScreen() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-            <ScreenHeader title="Settings" showBack />
+            <ScreenHeader title={t('title')} showBack />
 
             <ScrollView
                 style={styles.scrollView}
@@ -187,7 +191,7 @@ export default function SettingsScreen() {
                 {/* Display Preferences */}
                 <View style={styles.section}>
                     <Text style={[styles.sectionTitle, { color: sectionText }]}>
-                        Display Preferences
+                        {t('sections.display')}
                     </Text>
 
                     <Card variant="glass" style={[styles.card, { marginBottom: 16 }]}>
@@ -197,20 +201,20 @@ export default function SettingsScreen() {
                                     {isDark ? <Moon size={20} color="#818cf8" /> : <Sun size={20} color="#f59e0b" />}
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>System Appearance</Text>
+                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>{t('display.systemAppearance')}</Text>
                                     <Text style={[styles.settingDesc, { color: textSecondary }]}>
-                                        Matches your device settings
+                                        {t('display.systemAppearanceDesc')}
                                     </Text>
                                 </View>
                             </View>
                             <View style={[styles.systemBadge, { backgroundColor: `${colors.accent}18` }]}>
-                                <Text style={[styles.systemBadgeText, { color: colors.accent }]}>Auto</Text>
+                                <Text style={[styles.systemBadgeText, { color: colors.accent }]}>{t('display.auto')}</Text>
                             </View>
                         </View>
                     </Card>
 
                     <Text style={[styles.subTitle, { color: textSecondary }]}>
-                        Select Theme
+                        {t('display.selectTheme')}
                     </Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.themeScroll}>
                         {THEME_PACKAGES.map((pkg) => {
@@ -232,7 +236,7 @@ export default function SettingsScreen() {
                                         <View style={[styles.themeCircle, { backgroundColor: pkg.color }]}>
                                             <View style={styles.themeInner} />
                                         </View>
-                                        <Text style={[styles.themeName, { color: isActive ? colors.accent : textPrimary }]}>{pkg.name}</Text>
+                                        <Text style={[styles.themeName, { color: isActive ? colors.accent : textPrimary }]}>{t(`display.themes.${pkg.id}`)}</Text>
                                     </Card>
                                 </TouchableOpacity>
                             );
@@ -240,10 +244,34 @@ export default function SettingsScreen() {
                     </ScrollView>
                 </View>
 
+                {/* Language */}
+                <View style={styles.section}>
+                    <Text style={[styles.sectionTitle, { color: sectionText }]}>
+                        {t('sections.language')}
+                    </Text>
+
+                    <Card variant="glass" style={[styles.card, { marginBottom: 16 }]}>
+                        <View style={styles.settingRow}>
+                            <View style={styles.settingLeft}>
+                                <View style={[styles.iconContainer, { backgroundColor: 'rgba(99,102,241,0.1)' }]}>
+                                    <Globe size={20} color="#818cf8" />
+                                </View>
+                                <View>
+                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>{t('language.label')}</Text>
+                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>
+                                        {t('language.desc')}
+                                    </Text>
+                                </View>
+                            </View>
+                        </View>
+                        <LanguageSelector />
+                    </Card>
+                </View>
+
                 {/* Notification Settings */}
                 <View style={styles.section}>
                     <Text style={[styles.sectionTitle, { color: sectionText }]}>
-                        Notifications
+                        {t('sections.notifications')}
                     </Text>
 
                     <Card variant="solid" style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
@@ -253,8 +281,8 @@ export default function SettingsScreen() {
                                     <Smartphone size={20} color="#3b82f6" />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>Push Notifications</Text>
-                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>Real-time updates</Text>
+                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>{t('notifications.push')}</Text>
+                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>{t('notifications.pushDesc')}</Text>
                                 </View>
                             </View>
                             <Switch
@@ -271,8 +299,8 @@ export default function SettingsScreen() {
                                     <Mail size={20} color="#10b981" />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>Email Alerts</Text>
-                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>Weekly digest & updates</Text>
+                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>{t('notifications.email')}</Text>
+                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>{t('notifications.emailDesc')}</Text>
                                 </View>
                             </View>
                             <Switch
@@ -289,8 +317,8 @@ export default function SettingsScreen() {
                                     <Vibrate size={20} color="#3b82f6" />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>Haptics</Text>
-                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>Vibration feedback</Text>
+                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>{t('notifications.haptics')}</Text>
+                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>{t('notifications.hapticsDesc')}</Text>
                                 </View>
                             </View>
                             <Switch
@@ -306,7 +334,7 @@ export default function SettingsScreen() {
                 {/* Privacy & Security */}
                 <View style={styles.section}>
                     <Text style={[styles.sectionTitle, { color: sectionText }]}>
-                        Privacy & Security
+                        {t('sections.privacySecurity')}
                     </Text>
                     <Card variant="solid" style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
                         <TouchableOpacity style={[styles.settingRow, styles.borderBottom, { borderBottomColor: borderColor }]}>
@@ -315,23 +343,23 @@ export default function SettingsScreen() {
                                     <Lock size={20} color="#ef4444" />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>Password & Keys</Text>
-                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>Manage account access</Text>
+                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>{t('security.passwordKeys')}</Text>
+                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>{t('security.passwordKeysDesc')}</Text>
                                 </View>
                             </View>
                             <ChevronRight size={16} color={textSecondary} />
                         </TouchableOpacity>
                         {shouldShowPasswordSetup ? (
                             <View style={[styles.passwordSetup, styles.borderBottom, { borderBottomColor: borderColor }]}>
-                                <Text style={[styles.passwordSetupTitle, { color: textPrimary }]}>Add email password</Text>
+                                <Text style={[styles.passwordSetupTitle, { color: textPrimary }]}>{t('security.addEmailPassword')}</Text>
                                 <Text style={[styles.passwordSetupDesc, { color: textSecondary }]}>
-                                    You use Google or Apple today. Add a password so email sign-in works too.
+                                    {t('security.addEmailPasswordDesc')}
                                 </Text>
                                 <TextInput
                                     value={newPassword}
                                     onChangeText={setNewPassword}
                                     secureTextEntry
-                                    placeholder="New password"
+                                    placeholder={t('security.newPassword')}
                                     placeholderTextColor={textSecondary}
                                     style={[styles.passwordInput, { color: textPrimary, borderColor, backgroundColor: colors.background }]}
                                 />
@@ -339,7 +367,7 @@ export default function SettingsScreen() {
                                     value={confirmPassword}
                                     onChangeText={setConfirmPassword}
                                     secureTextEntry
-                                    placeholder="Confirm password"
+                                    placeholder={t('security.confirmPassword')}
                                     placeholderTextColor={textSecondary}
                                     style={[styles.passwordInput, { color: textPrimary, borderColor, backgroundColor: colors.background }]}
                                 />
@@ -349,7 +377,7 @@ export default function SettingsScreen() {
                                     style={[styles.passwordButton, passwordLoading && styles.passwordButtonDisabled]}
                                 >
                                     <Text style={styles.passwordButtonText}>
-                                        {passwordLoading ? 'Adding password...' : 'Add password'}
+                                        {passwordLoading ? t('security.addingPassword') : t('security.addPassword')}
                                     </Text>
                                 </TouchableOpacity>
                             </View>
@@ -360,8 +388,8 @@ export default function SettingsScreen() {
                                     <Shield size={20} color="#3b82f6" />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>Privacy</Text>
-                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>Data visibility settings</Text>
+                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>{t('security.privacy')}</Text>
+                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>{t('security.privacyDesc')}</Text>
                                 </View>
                             </View>
                             <ChevronRight size={16} color={textSecondary} />
@@ -372,7 +400,7 @@ export default function SettingsScreen() {
                 {/* Legal */}
                 <View style={styles.section}>
                     <Text style={[styles.sectionTitle, { color: sectionText }]}>
-                        Legal
+                        {t('sections.legal')}
                     </Text>
                     <Card variant="solid" style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
                         <TouchableOpacity
@@ -384,8 +412,8 @@ export default function SettingsScreen() {
                                     <Shield size={20} color="#3b82f6" />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>Privacy Policy</Text>
-                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>How we handle your data</Text>
+                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>{t('legal.privacyPolicy')}</Text>
+                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>{t('legal.privacyPolicyDesc')}</Text>
                                 </View>
                             </View>
                             <ExternalLink size={16} color={textSecondary} />
@@ -399,8 +427,8 @@ export default function SettingsScreen() {
                                     <Lock size={20} color="#3b82f6" />
                                 </View>
                                 <View>
-                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>Terms of Service</Text>
-                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>User agreement & policies</Text>
+                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>{t('legal.terms')}</Text>
+                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>{t('legal.termsDesc')}</Text>
                                 </View>
                             </View>
                             <ExternalLink size={16} color={textSecondary} />
@@ -411,13 +439,13 @@ export default function SettingsScreen() {
                 {/* Danger Zone */}
                 <View style={styles.section}>
                     <Text style={[styles.sectionTitle, { color: '#ef4444' }]}>
-                        Danger Zone
+                        {t('sections.dangerZone')}
                     </Text>
                     <TouchableOpacity
                         style={[styles.dangerBtn, { backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : 'rgba(239,68,68,0.05)' }]}
                         onPress={handleDeleteAccount}
                     >
-                        <Text style={[styles.dangerBtnText, { color: '#ef4444' }]}>Delete Account</Text>
+                        <Text style={[styles.dangerBtnText, { color: '#ef4444' }]}>{t('account.deleteAccount')}</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -427,7 +455,7 @@ export default function SettingsScreen() {
                     onPress={() => router.push('/help')}
                 >
                     <Zap size={14} color={colors.accent} style={{ marginRight: 8 }} />
-                    <Text style={[styles.helpText, { color: textSecondary }]}>Help Center</Text>
+                    <Text style={[styles.helpText, { color: textSecondary }]}>{t('helpCenter')}</Text>
                 </TouchableOpacity>
             </ScrollView>
         </SafeAreaView>

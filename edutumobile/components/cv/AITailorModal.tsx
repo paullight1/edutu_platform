@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, ActivityIndicator } from 'react-native';
 import { X, Sparkles, Target } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../components/context/ThemeContext';
 import { Opportunity } from '@edutu/core/src/types/opportunity';
 
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function AITailorModal({ visible, onClose, opportunities, isLoading, onSelectOpportunity }: Props) {
+    const { t } = useTranslation('cv');
     const { colors, isDark } = useTheme();
     const muted = isDark ? '#94A3B8' : '#64748B';
 
@@ -37,11 +39,11 @@ export function AITailorModal({ visible, onClose, opportunities, isLoading, onSe
                     </View>
 
                     <Text style={[styles.modalTitle, { color: colors.foreground }]}>
-                        AI CV Tailoring
+                        {t('tailorModal.title')}
                     </Text>
 
                     <Text style={[styles.modalSubtitle, { color: muted }]}>
-                        Select an opportunity from your bank and tailor this CV toward it.
+                        {t('tailorModal.subtitle')}
                     </Text>
 
                     {isLoading ? (
@@ -75,7 +77,7 @@ export function AITailorModal({ visible, onClose, opportunities, isLoading, onSe
                             ))}
                             {opportunities.length === 0 && (
                                 <Text style={[styles.emptyText, { color: muted }]}>
-                                    No opportunities available yet. Load opportunities first, then tailor this CV.
+                                    {t('tailorModal.empty')}
                                 </Text>
                             )}
                         </ScrollView>

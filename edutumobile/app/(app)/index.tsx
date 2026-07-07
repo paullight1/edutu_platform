@@ -26,6 +26,7 @@ import { AnimatedPressable } from "../../components/ui/AnimatedPressable";
 import { ShimmerCard } from "../../components/ui/Shimmer";
 import { syncAndUpdateOpportunityWidgetSnapshot } from "../../lib/opportunityWidgetSync";
 import { type DiscoveryCategoryIcon } from "../../lib/discoveryCategoryIcons";
+import { useTranslation } from "react-i18next";
 
 const { width } = Dimensions.get('window');
 const CARD_GAP = 12;
@@ -40,18 +41,20 @@ const DISCOVERY_BACKGROUNDS = {
 } as const;
 
 // ─── Quick Actions Grid Component ─────────────────────────────────────────────
+// `title` holds an i18n key (home namespace); translated at render time.
 const QUICK_ACTIONS = [
-    { id: '2', title: 'Roadmaps', icon: Store, route: '/roadmaps', gradient: ['#F59E0B', '#EF4444'] as [string, string] },
-    { id: '3', title: 'Goals', icon: Target, route: '/goals', gradient: ['#10B981', '#059669'] as [string, string] },
-    { id: '4', title: 'CV Builder', icon: FileText, route: '/cv', gradient: ['#3B82F6', '#6366F1'] as [string, string] },
-    { id: '5', title: 'Saved', icon: BookmarkPlus, route: '/saved', gradient: ['#EC4899', '#F43F5E'] as [string, string] },
+    { id: '2', title: 'home.quickActions.roadmaps', icon: Store, route: '/roadmaps', gradient: ['#F59E0B', '#EF4444'] as [string, string] },
+    { id: '3', title: 'home.quickActions.goals', icon: Target, route: '/goals', gradient: ['#10B981', '#059669'] as [string, string] },
+    { id: '4', title: 'home.quickActions.cvBuilder', icon: FileText, route: '/cv', gradient: ['#3B82F6', '#6366F1'] as [string, string] },
+    { id: '5', title: 'home.quickActions.saved', icon: BookmarkPlus, route: '/saved', gradient: ['#EC4899', '#F43F5E'] as [string, string] },
 ];
 
+// `title`/`description` hold i18n keys (home namespace); translated at render time.
 const DISCOVERY_CATEGORIES = [
     {
         id: 'scholarships',
-        title: 'Scholarships',
-        description: 'Tuition funding & awards',
+        title: 'home.discovery.scholarships.title',
+        description: 'home.discovery.scholarships.description',
         icon: 'scholarship',
         colors: ['rgba(239,68,35,0.94)', 'rgba(153,27,27,0.82)'] as [string, string],
         accent: '#EF4423',
@@ -59,8 +62,8 @@ const DISCOVERY_CATEGORIES = [
     },
     {
         id: 'internships',
-        title: 'Internships',
-        description: 'Hands-on early-career roles',
+        title: 'home.discovery.internships.title',
+        description: 'home.discovery.internships.description',
         icon: 'career',
         colors: ['rgba(37,99,235,0.92)', 'rgba(30,64,175,0.82)'] as [string, string],
         accent: '#2563EB',
@@ -68,8 +71,8 @@ const DISCOVERY_CATEGORIES = [
     },
     {
         id: 'grants',
-        title: 'Programs',
-        description: 'Funded programs & grants',
+        title: 'home.discovery.grants.title',
+        description: 'home.discovery.grants.description',
         icon: 'grant',
         colors: ['rgba(16,185,129,0.92)', 'rgba(4,120,87,0.82)'] as [string, string],
         accent: '#10B981',
@@ -77,8 +80,8 @@ const DISCOVERY_CATEGORIES = [
     },
     {
         id: 'fellowships',
-        title: 'Fellowships',
-        description: 'Fellowships & leadership tracks',
+        title: 'home.discovery.fellowships.title',
+        description: 'home.discovery.fellowships.description',
         icon: 'leadership',
         colors: ['rgba(249,115,22,0.94)', 'rgba(194,65,12,0.82)'] as [string, string],
         accent: '#F97316',
@@ -99,6 +102,7 @@ function getUserLookupIds(userId: string): string[] {
 }
 
 function DiscoveryCategoryGrid({ router }: { router: any }) {
+    const { t } = useTranslation('home');
     return (
         <View style={styles.discoveryGrid}>
             {DISCOVERY_CATEGORIES.map((item, index) => (
@@ -118,7 +122,7 @@ function DiscoveryCategoryGrid({ router }: { router: any }) {
                     >
                         <View style={styles.discoveryTint} />
                         <Text style={styles.discoveryTitle} numberOfLines={1}>
-                            {item.title}
+                            {t(item.title)}
                         </Text>
                     </ImageBackground>
                 </AnimatedPressable>
@@ -128,6 +132,7 @@ function DiscoveryCategoryGrid({ router }: { router: any }) {
 }
 
 function QuickActionsGrid({ router }: { router: any }) {
+    const { t } = useTranslation('home');
     return (
         <View style={styles.quickActionsContainer}>
             {QUICK_ACTIONS.map((item, index) => (
@@ -147,7 +152,7 @@ function QuickActionsGrid({ router }: { router: any }) {
                     >
                         <item.icon size={28} color="#FFFFFF" strokeWidth={1.5} />
                     </LinearGradient>
-                    <Text style={styles.quickActionTitle}>{item.title}</Text>
+                    <Text style={styles.quickActionTitle}>{t(item.title)}</Text>
                 </AnimatedPressable>
             ))}
         </View>
@@ -290,6 +295,7 @@ function OpportunitySection({
     router?: any;
     onOpenOpportunity?: (id: string) => void;
 }) {
+    const { t } = useTranslation('home');
     const displayData = grid ? data.slice(0, 8) : data;
     return (
         <Animated.View entering={FadeInDown.duration(400).delay(100)}>
@@ -298,7 +304,7 @@ function OpportunitySection({
                 <Text style={[styles.sectionTitle, { color: textPrimary }]}>{title}</Text>
                 {showViewMore && (
                     <AnimatedPressable onPress={onViewMorePress} style={styles.viewMoreBtn}>
-                        <Text style={styles.viewMoreText}>View More</Text>
+                        <Text style={styles.viewMoreText}>{t('home.viewMore')}</Text>
                         <ChevronRight size={13} color="#6366F1" />
                     </AnimatedPressable>
                 )}
@@ -332,6 +338,7 @@ function OpportunitySection({
 
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 export default function Dashboard() {
+    const { t } = useTranslation('home');
     const { isDark, colors } = useTheme();
     const { user } = useUser();
     const { getToken } = useAuth();
@@ -473,7 +480,7 @@ export default function Dashboard() {
 
                 <Animated.View entering={FadeInDown.duration(400).delay(50)}>
                     <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: textPrimary }]}>Explore opportunities</Text>
+                        <Text style={[styles.sectionTitle, { color: textPrimary }]}>{t('home.exploreOpportunities')}</Text>
                     </View>
                     <DiscoveryCategoryGrid router={router} />
                 </Animated.View>
@@ -482,7 +489,7 @@ export default function Dashboard() {
                 {featuredOpportunities.length > 0 && (
                     <Animated.View entering={FadeInDown.duration(400).delay(50)} style={styles.sectionSpacing}>
                         <OpportunitySection
-                            title="Featured Opportunities"
+                            title={t('home.featuredOpportunities')}
                             data={featuredOpportunities}
                             isDark={isDark}
                             showViewMore={true}
@@ -502,7 +509,7 @@ export default function Dashboard() {
                 {/* Quick Actions Grid */}
                 <Animated.View entering={FadeInDown.duration(400).delay(150)} style={{ marginTop: 4 }}>
                     <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: textPrimary }]}>Quick Actions</Text>
+                        <Text style={[styles.sectionTitle, { color: textPrimary }]}>{t('home.quickActionsTitle')}</Text>
                     </View>
                     <QuickActionsGrid router={router} />
                 </Animated.View>
@@ -511,7 +518,7 @@ export default function Dashboard() {
                 {otherOpportunities.length > 0 ? (
                     <Animated.View entering={FadeInDown.duration(400).delay(100)} style={styles.sectionSpacing}>
                         <OpportunitySection
-                            title="Recommended Opportunities"
+                            title={t('home.recommendedOpportunities')}
                             data={otherOpportunities}
                             isDark={isDark}
                             showViewMore={true}
@@ -529,7 +536,7 @@ export default function Dashboard() {
                 ) : opportunitiesLoading ? (
                     <View style={styles.sectionSpacing}>
                         <View style={styles.sectionHeader}>
-                            <Text style={[styles.sectionTitle, { color: textPrimary }]}>Recommended Opportunities</Text>
+                            <Text style={[styles.sectionTitle, { color: textPrimary }]}>{t('home.recommendedOpportunities')}</Text>
                         </View>
                         <ShimmerCard isDark={isDark} />
                         <ShimmerCard isDark={isDark} style={{ marginTop: 12 }} />
@@ -537,7 +544,7 @@ export default function Dashboard() {
                 ) : (
                     <View style={styles.sectionSpacing}>
                         <View style={styles.sectionHeader}>
-                            <Text style={[styles.sectionTitle, { color: textPrimary }]}>Recommended Opportunities</Text>
+                            <Text style={[styles.sectionTitle, { color: textPrimary }]}>{t('home.recommendedOpportunities')}</Text>
                         </View>
                     </View>
                 )}
@@ -549,17 +556,17 @@ export default function Dashboard() {
                             <Target size={32} color="#6366F1" />
                         </View>
                         <Text style={[styles.emptyStateTitle, { color: textPrimary }]}>
-                            No Recommendations Yet
+                            {t('home.emptyTitle')}
                         </Text>
                         <Text style={[styles.emptyStateDesc, { color: textSecondary }]}>
-                            Explore opportunities and save the ones you want to track.
+                            {t('home.emptyDescription')}
                         </Text>
                         <AnimatedPressable
                             style={styles.emptyStateBtn}
                             onPress={() => router.push('/opportunities')}
                             hapticFeedback="medium"
                         >
-                            <Text style={styles.emptyStateBtnText}>Explore Opportunities</Text>
+                            <Text style={styles.emptyStateBtnText}>{t('home.emptyCta')}</Text>
                         </AnimatedPressable>
                     </Animated.View>
                 )}

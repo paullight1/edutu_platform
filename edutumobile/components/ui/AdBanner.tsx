@@ -12,6 +12,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useTheme } from '../../components/context/ThemeContext';
+import i18n from '../../lib/i18n';
 
 const { width } = Dimensions.get('window');
 const SWIPE_THRESHOLD = 80;
@@ -27,59 +28,61 @@ export interface BannerConfig {
     route: string;
 }
 
+// Preset copy lives in the i18n catalog; getters resolve lazily so the strings
+// follow the active language at render time.
 export const BANNER_PRESETS: Record<string, BannerConfig> = {
     completeProfile: {
         id: 'complete-profile',
-        title: 'Get Personalized Opportunities',
-        subtitle: 'Complete your profile to see matches tailored to your skills and interests',
+        get title() { return i18n.t('common:adBanner.completeProfile.title'); },
+        get subtitle() { return i18n.t('common:adBanner.completeProfile.subtitle'); },
         gradient: ['#F97316', '#EA580C'],
         icon: Sparkles,
-        actionLabel: 'Complete Profile',
+        get actionLabel() { return i18n.t('common:adBanner.completeProfile.actionLabel'); },
         route: '/onboarding',
     },
     exploreOpportunities: {
         id: 'explore-opportunities',
-        title: 'Discover New Opportunities',
-        subtitle: 'Browse scholarships, internships, and programs matched to your profile',
+        get title() { return i18n.t('common:adBanner.exploreOpportunities.title'); },
+        get subtitle() { return i18n.t('common:adBanner.exploreOpportunities.subtitle'); },
         gradient: ['#10B981', '#059669'],
         icon: Target,
-        actionLabel: 'Explore Now',
+        get actionLabel() { return i18n.t('common:adBanner.exploreOpportunities.actionLabel'); },
         route: '/opportunities',
     },
     buildCV: {
         id: 'build-cv',
-        title: 'Build Your Perfect CV',
-        subtitle: 'Create a professional CV with AI-powered templates and smart suggestions',
+        get title() { return i18n.t('common:adBanner.buildCV.title'); },
+        get subtitle() { return i18n.t('common:adBanner.buildCV.subtitle'); },
         gradient: ['#0EA5E9', '#3B82F6'],
         icon: FileText,
-        actionLabel: 'Start Building',
+        get actionLabel() { return i18n.t('common:adBanner.buildCV.actionLabel'); },
         route: '/cv',
     },
     trackGoals: {
         id: 'track-goals',
-        title: 'Stay on Track with Goals',
-        subtitle: 'Set milestones and never miss an application deadline again',
+        get title() { return i18n.t('common:adBanner.trackGoals.title'); },
+        get subtitle() { return i18n.t('common:adBanner.trackGoals.subtitle'); },
         gradient: ['#F59E0B', '#EF4444'],
         icon: TrendingUp,
-        actionLabel: 'Set Goals',
+        get actionLabel() { return i18n.t('common:adBanner.trackGoals.actionLabel'); },
         route: '/goals',
     },
     upgradePro: {
         id: 'upgrade-pro',
-        title: 'Unlock Pro Features',
-        subtitle: 'AI CV tailoring, premium templates, and unlimited saves',
+        get title() { return i18n.t('common:adBanner.upgradePro.title'); },
+        get subtitle() { return i18n.t('common:adBanner.upgradePro.subtitle'); },
         gradient: ['#EC4899', '#F43F5E'],
         icon: Award,
-        actionLabel: 'Upgrade Now',
+        get actionLabel() { return i18n.t('common:adBanner.upgradePro.actionLabel'); },
         route: '/profile',
     },
     notifications: {
         id: 'enable-notifications',
-        title: 'Never Miss a Deadline',
-        subtitle: 'Turn on notifications to get reminders for upcoming opportunities',
+        get title() { return i18n.t('common:adBanner.notifications.title'); },
+        get subtitle() { return i18n.t('common:adBanner.notifications.subtitle'); },
         gradient: ['#6366F1', '#3b82f6'],
         icon: Bell,
-        actionLabel: 'Enable',
+        get actionLabel() { return i18n.t('common:adBanner.notifications.actionLabel'); },
         route: '/notifications',
     },
 };

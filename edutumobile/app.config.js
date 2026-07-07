@@ -117,6 +117,7 @@ export default {
     },
     plugins: [
       "expo-router",
+      "expo-localization",
       [
         "expo-notifications",
         {
@@ -144,8 +145,8 @@ export default {
           widgets: [
             {
               name: "OpportunityWidget",
-              displayName: "Opportunity",
-              description: "See a highlighted Edutu opportunity at a glance.",
+              displayName: "Top Matches",
+              description: "Your best-matched opportunities and their deadlines.",
               contentMarginsDisabled: true,
               supportedFamilies: [
                 "systemSmall",
@@ -155,6 +156,32 @@ export default {
                 "accessoryRectangular",
                 "accessoryInline"
               ]
+            },
+            {
+              name: "DeadlineWidget",
+              displayName: "Deadlines",
+              description: "A calendar of your applied and saved opportunity deadlines.",
+              contentMarginsDisabled: true,
+              supportedFamilies: [
+                "systemSmall",
+                "systemMedium",
+                "systemLarge",
+                "accessoryRectangular"
+              ]
+            },
+            {
+              name: "TrendingWidget",
+              displayName: "Trending",
+              description: "What's hot on Edutu right now.",
+              contentMarginsDisabled: true,
+              supportedFamilies: ["systemSmall", "systemMedium", "systemLarge"]
+            },
+            {
+              name: "ChatWidget",
+              displayName: "Ask Edutu",
+              description: "Jump straight into a chat with your AI opportunity coach.",
+              contentMarginsDisabled: true,
+              supportedFamilies: ["systemSmall", "accessoryCircular"]
             }
           ]
         }

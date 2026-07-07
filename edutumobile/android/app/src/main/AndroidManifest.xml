@@ -48,5 +48,23 @@
       </intent-filter>
       <meta-data android:name="android.appwidget.provider" android:resource="@xml/edutu_widget_info"/>
     </receiver>
+    <receiver android:name=".widgets.DeadlineWidgetProvider" android:exported="true" android:label="@string/edutu_deadline_widget_name">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/edutu_deadline_widget_info"/>
+    </receiver>
+    <receiver android:name=".widgets.TrendingWidgetProvider" android:exported="true" android:label="@string/edutu_trending_widget_name">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/edutu_trending_widget_info"/>
+    </receiver>
+    <receiver android:name=".widgets.ChatWidgetProvider" android:exported="true" android:label="@string/edutu_chat_widget_name">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/edutu_chat_widget_info"/>
+    </receiver>
   </application>
 </manifest>

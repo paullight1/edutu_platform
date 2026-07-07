@@ -1,0 +1,74 @@
+{
+  "title": "Configurações",
+  "sections": {
+    "display": "Preferências de exibição",
+    "language": "Idioma",
+    "notifications": "Notificações",
+    "privacySecurity": "Privacidade e segurança",
+    "legal": "Legal",
+    "dangerZone": "Zona de risco"
+  },
+  "display": {
+    "systemAppearance": "Aparência do sistema",
+    "systemAppearanceDesc": "Segue as configurações do seu aparelho",
+    "auto": "Auto",
+    "selectTheme": "Escolher tema",
+    "themes": {
+      "default": "Pulso Índigo",
+      "ocean": "Brisa do Oceano",
+      "sunset": "Pôr do Sol Africano",
+      "forest": "Floresta Esmeralda",
+      "royal": "Veludo Real"
+    }
+  },
+  "language": {
+    "label": "Idioma do app",
+    "desc": "Escolha o idioma que o Edutu usa",
+    "restartTitle": "Reinício necessário",
+    "restartMessage": "Mudar para {{language}} altera a direção do layout. O Edutu precisa reiniciar para aplicar.",
+    "restartNow": "Reiniciar agora",
+    "restartLater": "Depois"
+  },
+  "notifications": {
+    "push": "Notificações push",
+    "pushDesc": "Atualizações em tempo real",
+    "email": "Alertas por e-mail",
+    "emailDesc": "Resumo semanal e novidades",
+    "haptics": "Vibração",
+    "hapticsDesc": "Resposta tátil"
+  },
+  "security": {
+    "passwordKeys": "Senha e chaves",
+    "passwordKeysDesc": "Gerencie o acesso à conta",
+    "privacy": "Privacidade",
+    "privacyDesc": "Configurações de visibilidade dos dados",
+    "addEmailPassword": "Adicionar senha ao e-mail",
+    "addEmailPasswordDesc": "Hoje você usa Google ou Apple. Adicione uma senha para entrar também com e-mail.",
+    "newPassword": "Nova senha",
+    "confirmPassword": "Confirmar senha",
+    "addPassword": "Adicionar senha",
+    "addingPassword": "Adicionando senha...",
+    "passwordTooShortTitle": "Senha muito curta",
+    "passwordTooShortMessage": "Use pelo menos 8 caracteres.",
+    "passwordMismatchTitle": "As senhas não coincidem",
+    "passwordMismatchMessage": "Digite a mesma senha nos dois campos.",
+    "passwordAddedTitle": "Senha adicionada",
+    "passwordAddedMessage": "Agora você também pode entrar com e-mail e senha.",
+    "passwordErrorTitle": "Não foi possível adicionar a senha",
+    "passwordErrorMessage": "Tente novamente."
+  },
+  "legal": {
+    "privacyPolicy": "Política de Privacidade",
+    "privacyPolicyDesc": "Como tratamos seus dados",
+    "terms": "Termos de Serviço",
+    "termsDesc": "Acordo do usuário e políticas"
+  },
+  "account": {
+    "deleteAccount": "Excluir conta",
+    "deleteConfirmMessage": "Tem certeza de que deseja excluir sua conta? Esta ação não pode ser desfeita. Todos os seus dados, metas e progresso serão removidos permanentemente.",
+    "userNotFound": "Usuário não encontrado. Tente novamente.",
+    "dataDeleteError": "Não conseguimos excluir os dados do app. Tente novamente antes de excluir sua conta.",
+    "deleteError": "Falha ao excluir a conta. Entre em contato com o suporte em support@edutu.org"
+  },
+  "helpCenter": "Central de Ajuda"
+}

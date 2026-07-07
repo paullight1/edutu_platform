@@ -1,15 +1,17 @@
 import { Platform } from 'react-native';
 import type { Opportunity } from '../packages/core/src/types/opportunity';
-import { getDeadlineBadge } from '../packages/core/src/utils/deadline';
+import { getDeadlineBadge, type UrgencyLevel } from '../packages/core/src/utils/deadline';
 import {
   syncOpportunityWidgetSnapshot,
   type OpportunityWidgetSnapshot,
   type OpportunityWidgetItem,
 } from './mobileControl';
+import { getWidgetLogoUri } from './widgetLogo';
 import {
   updateOpportunityWidgetTimeline,
   type OpportunityWidgetProps,
   type OpportunityWidgetTimelineEntry,
+  type WidgetUrgencyTone,
 } from '../widgets/OpportunityWidget';
 
 // The native Android widget reads this file (from the app's documents dir) as
@@ -44,6 +46,14 @@ function isDeadlineUrgent(deadline?: string | null, now?: Date): boolean {
   );
 }
 
+/** Chip/text tone per urgency level — the same mapping every widget uses. */
+export function urgencyTone(level: UrgencyLevel): WidgetUrgencyTone {
+  if (level === 'today' || level === 'critical') return 'red';
+  if (level === 'tomorrow' || level === 'urgent') return 'amber';
+  if (level === 'soon' || level === 'normal' || level === 'rolling') return 'green';
+  return 'slate';
+}
+
 /** Items whose deadline has passed as of `now` must not occupy a widget slot. */
 function isExpired(item: OpportunityWidgetItem, now?: Date): boolean {
   return getDeadlineBadge(item.deadline, now).level === 'expired';
@@ -54,6 +64,7 @@ function renderableItems(snapshot: OpportunityWidgetSnapshot, now?: Date): Oppor
 }
 
 function mapWidgetItem(item: OpportunityWidgetItem, now?: Date) {
+  const badge = getDeadlineBadge(item.deadline, now);
   return {
     title: item.title,
     provider: item.organization || 'Edutu',
@@ -62,17 +73,26 @@ function mapWidgetItem(item: OpportunityWidgetItem, now?: Date) {
     location: item.location || 'Global',
     match: item.match,
     urgent: isDeadlineUrgent(item.deadline, now),
+    tone: urgencyTone(badge.level),
+    daysLeft: badge.daysLeft,
     deepLink: item.deepLink,
   };
+}
+
+export interface WidgetPropsExtras {
+  /** file:// URI of the shared logo mark (lib/widgetLogo.ts). */
+  logoUri?: string;
 }
 
 export function getOpportunityWidgetProps(
   snapshot: OpportunityWidgetSnapshot,
   now: Date = new Date(),
+  extras: WidgetPropsExtras = {},
 ): OpportunityWidgetProps {
   const renderable = renderableItems(snapshot, now);
   const item = renderable[0] ?? null;
   const items = renderable.map((renderableItem) => mapWidgetItem(renderableItem, now));
+  const heroBadge = getDeadlineBadge(item?.deadline, now);
 
   return {
     title: item?.title || snapshot.title || snapshot.emptyText,
@@ -82,7 +102,10 @@ export function getOpportunityWidgetProps(
     location: item?.location || 'Global',
     match: item?.match,
     urgent: isDeadlineUrgent(item?.deadline, now),
+    tone: urgencyTone(heroBadge.level),
+    daysLeft: heroBadge.daysLeft,
     deepLink: item?.deepLink || 'edutu://opportunities',
+    logoUri: extras.logoUri,
     items,
   };
 }
@@ -96,9 +119,10 @@ export function getOpportunityWidgetProps(
 export function getOpportunityWidgetTimeline(
   snapshot: OpportunityWidgetSnapshot,
   now: Date = new Date(),
+  extras: WidgetPropsExtras = {},
 ): OpportunityWidgetTimelineEntry[] {
   const entries: OpportunityWidgetTimelineEntry[] = [
-    { date: now, props: getOpportunityWidgetProps(snapshot, now) },
+    { date: now, props: getOpportunityWidgetProps(snapshot, now, extras) },
   ];
 
   // Relative labels only change day to day when an item has a parseable
@@ -110,7 +134,7 @@ export function getOpportunityWidgetTimeline(
 
   for (let day = 1; day <= TIMELINE_DAYS; day += 1) {
     const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + day);
-    entries.push({ date: midnight, props: getOpportunityWidgetProps(snapshot, midnight) });
+    entries.push({ date: midnight, props: getOpportunityWidgetProps(snapshot, midnight, extras) });
   }
   return entries;
 }
@@ -153,19 +177,26 @@ function writeAndroidWidgetItems(snapshot: OpportunityWidgetSnapshot): void {
   }
 }
 
-export async function updateOpportunityWidgetFromSnapshot(snapshot: OpportunityWidgetSnapshot): Promise<void> {
+export async function updateOpportunityWidgetFromSnapshot(
+  snapshot: OpportunityWidgetSnapshot,
+  extras: WidgetPropsExtras = {},
+): Promise<void> {
   try {
     writeAndroidWidgetItems(snapshot);
-    updateOpportunityWidgetTimeline(getOpportunityWidgetTimeline(snapshot));
+    // Default the logo so every caller (home screen, opportunities screen,
+    // background task) brands the widget identically.
+    const logoUri = extras.logoUri ?? (await getWidgetLogoUri());
+    updateOpportunityWidgetTimeline(getOpportunityWidgetTimeline(snapshot, new Date(), { logoUri }));
   } catch {
     // Native widget updates are best-effort and must never block app startup or data loading.
   }
 }
 
 export async function syncAndUpdateOpportunityWidgetSnapshot(
-  options: SyncOptions & { opportunities?: Opportunity[] } = {},
+  options: SyncOptions & { opportunities?: Opportunity[]; logoUri?: string } = {},
 ): Promise<OpportunityWidgetSnapshot> {
-  const snapshot = await syncOpportunityWidgetSnapshot(options);
-  await updateOpportunityWidgetFromSnapshot(snapshot);
+  const { logoUri, ...syncOptions } = options;
+  const snapshot = await syncOpportunityWidgetSnapshot(syncOptions);
+  await updateOpportunityWidgetFromSnapshot(snapshot, { logoUri });
   return snapshot;
 }

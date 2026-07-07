@@ -1,0 +1,74 @@
+{
+  "title": "Settings",
+  "sections": {
+    "display": "Display Preferences",
+    "language": "Language",
+    "notifications": "Notifications",
+    "privacySecurity": "Privacy & Security",
+    "legal": "Legal",
+    "dangerZone": "Danger Zone"
+  },
+  "display": {
+    "systemAppearance": "System Appearance",
+    "systemAppearanceDesc": "Matches your device settings",
+    "auto": "Auto",
+    "selectTheme": "Select Theme",
+    "themes": {
+      "default": "Indigo Pulse",
+      "ocean": "Ocean Breeze",
+      "sunset": "African Sunset",
+      "forest": "Emerald Forest",
+      "royal": "Royal Velvet"
+    }
+  },
+  "language": {
+    "label": "App Language",
+    "desc": "Choose the language Edutu uses",
+    "restartTitle": "Restart required",
+    "restartMessage": "Switching to {{language}} changes the layout direction. Edutu needs to restart to apply it.",
+    "restartNow": "Restart now",
+    "restartLater": "Later"
+  },
+  "notifications": {
+    "push": "Push Notifications",
+    "pushDesc": "Real-time updates",
+    "email": "Email Alerts",
+    "emailDesc": "Weekly digest & updates",
+    "haptics": "Haptics",
+    "hapticsDesc": "Vibration feedback"
+  },
+  "security": {
+    "passwordKeys": "Password & Keys",
+    "passwordKeysDesc": "Manage account access",
+    "privacy": "Privacy",
+    "privacyDesc": "Data visibility settings",
+    "addEmailPassword": "Add email password",
+    "addEmailPasswordDesc": "You use Google or Apple today. Add a password so email sign-in works too.",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm password",
+    "addPassword": "Add password",
+    "addingPassword": "Adding password...",
+    "passwordTooShortTitle": "Password too short",
+    "passwordTooShortMessage": "Use at least 8 characters.",
+    "passwordMismatchTitle": "Passwords do not match",
+    "passwordMismatchMessage": "Enter the same password in both fields.",
+    "passwordAddedTitle": "Password added",
+    "passwordAddedMessage": "You can now sign in with email and password too.",
+    "passwordErrorTitle": "Could not add password",
+    "passwordErrorMessage": "Please try again."
+  },
+  "legal": {
+    "privacyPolicy": "Privacy Policy",
+    "privacyPolicyDesc": "How we handle your data",
+    "terms": "Terms of Service",
+    "termsDesc": "User agreement & policies"
+  },
+  "account": {
+    "deleteAccount": "Delete Account",
+    "deleteConfirmMessage": "Are you sure you want to delete your account? This action cannot be undone. All your data, goals, and progress will be permanently removed.",
+    "userNotFound": "User not found. Please try again.",
+    "dataDeleteError": "We could not delete your app data. Please try again before deleting your account.",
+    "deleteError": "Failed to delete account. Please contact support at support@edutu.org"
+  },
+  "helpCenter": "Help Center"
+}

@@ -1,0 +1,173 @@
+{
+  "appName": "Edutu",
+  "actions": {
+    "ok": "Sawa",
+    "cancel": "Ghairi",
+    "save": "Hifadhi",
+    "delete": "Futa",
+    "done": "Imekamilika",
+    "back": "Rudi",
+    "next": "Endelea mbele",
+    "skip": "Ruka",
+    "retry": "Jaribu tena",
+    "close": "Funga",
+    "continue": "Endelea",
+    "share": "Shiriki",
+    "apply": "Tumia",
+    "search": "Tafuta",
+    "seeAll": "Ona zote",
+    "viewAll": "Tazama zote",
+    "learnMore": "Jifunze zaidi",
+    "getStarted": "Anza sasa",
+    "tryAgain": "Jaribu tena"
+  },
+  "states": {
+    "loading": "Inapakia...",
+    "saving": "Inahifadhi...",
+    "error": "Hitilafu",
+    "success": "Imefanikiwa",
+    "empty": "Bado hakuna kitu hapa",
+    "offline": "Hauko mtandaoni",
+    "comingSoon": "Inakuja hivi karibuni"
+  },
+  "errors": {
+    "generic": "Hitilafu imetokea. Tafadhali jaribu tena.",
+    "network": "Hitilafu ya mtandao. Angalia muunganisho wako kisha ujaribu tena.",
+    "notFound": "Haipatikani"
+  },
+  "errorBoundary": {
+    "somethingWentWrong": "Hitilafu imetokea",
+    "unexpectedError": "Hitilafu isiyotarajiwa imetokea",
+    "home": "Mwanzo",
+    "tryAgain": "Jaribu Tena"
+  },
+  "emptyState": {
+    "search": {
+      "title": "Hakuna matokeo yaliyopatikana",
+      "description": "Jaribu kubadilisha maneno ya utafutaji au vichujio ili kupata unachotafuta.",
+      "actionLabel": "Futa Utafutaji"
+    },
+    "saved": {
+      "title": "Hakuna fursa zilizohifadhiwa",
+      "description": "Fursa unazoweka alamisho zitaonekana hapa. Anza kuchunguza ili kupata ufadhili wa masomo na programu zinazolingana na malengo yako.",
+      "actionLabel": "Vinjari Fursa"
+    },
+    "goals": {
+      "title": "Bado hakuna malengo",
+      "description": "Unda lengo lako la kwanza ili uanze kufuatilia maendeleo yako kuelekea ufadhili wa masomo, ujuzi, na hatua muhimu za kikazi.",
+      "actionLabel": "Unda Lengo"
+    },
+    "applications": {
+      "title": "Bado hakuna maombi",
+      "description": "Fuatilia maombi yako ya ufadhili wa masomo na kazi hapa. Unapotuma ombi la fursa, liwekee alama ili kufuatilia maendeleo yako.",
+      "actionLabel": "Vinjari Fursa"
+    },
+    "notifications": {
+      "title": "Hakuna arifa",
+      "description": "Uko sawa kabisa! Tutakuarifu kuhusu tarehe za mwisho, fursa mpya, na vikumbusho vya malengo.",
+      "actionLabel": "Chunguza Fursa"
+    },
+    "deadlines": {
+      "title": "Hakuna tarehe za mwisho zinazokaribia",
+      "description": "Huna tarehe za mwisho zinazokaribia. Hifadhi fursa na uunde malengo ili kufuatilia tarehe muhimu.",
+      "actionLabel": "Vinjari Fursa"
+    },
+    "offline": {
+      "title": "Hauko mtandaoni",
+      "description": "Angalia muunganisho wako wa intaneti. Bado unaweza kuvinjari maudhui yaliyopakiwa awali.",
+      "actionLabel": "Jaribu Tena"
+    },
+    "error": {
+      "title": "Hitilafu imetokea",
+      "description": "Hatukuweza kupakia maudhui haya. Tafadhali jaribu tena au rudi baadaye.",
+      "actionLabel": "Jaribu Tena"
+    },
+    "generic": {
+      "title": "Bado hakuna kitu hapa",
+      "description": "Maudhui yataonekana hapa yatakapopatikana.",
+      "actionLabel": "Rudi Nyuma"
+    }
+  },
+  "offline": {
+    "banner": "Hauko mtandaoni"
+  },
+  "hints": {
+    "home": {
+      "title": "Mwanzo",
+      "body": "Anzia hapa kuona fursa zilizoangaziwa na mapendekezo yanayokufaa zaidi.",
+      "footer": "Tumia Mwanzo kama muhtasari wako wa kila siku."
+    },
+    "discover": {
+      "title": "Gundua",
+      "body": "Tafuta ufadhili wa masomo, kazi, ruzuku, na programu.",
+      "footer": "Hifadhi zile zinazokufaa zaidi."
+    },
+    "plan": {
+      "title": "Panga",
+      "body": "Fungua ramani za njia na malengo unapohitaji njia ya hatua kwa hatua.",
+      "footer": "Geuza fursa kuwa vitendo."
+    },
+    "ai": {
+      "title": "Uliza Edutu AI",
+      "body": "Gusa kitufe cha AI kilicho katikati kufungua mazungumzo na kuomba mwongozo.",
+      "footer": "Hakiki maelezo rasmi."
+    },
+    "bell": {
+      "title": "Tahadhari",
+      "body": "Tarehe za mwisho na vikumbusho huonekana hapa.",
+      "footer": "Pitia mambo yenye muda finyu."
+    },
+    "menu": {
+      "title": "Wasifu",
+      "body": "Sasisha mipangilio na mapendeleo yako hapa.",
+      "footer": "Wasifu bora, mapendekezo bora."
+    },
+    "skipHint": "Ruka vidokezo vya kukaribisha",
+    "finishHint": "Maliza vidokezo vya kukaribisha",
+    "nextHint": "Onyesha kidokezo kinachofuata"
+  },
+  "landingCta": {
+    "title": "Uko Tayari Kuanza?",
+    "subtitle": "Jiunge kama mshauri au chunguza ramani za njia zilizoandaliwa kwa ajili yako",
+    "applyAsMentor": "Omba Kuwa Mshauri",
+    "seeRoadmaps": "Ona Ramani za Njia"
+  },
+  "adBanner": {
+    "completeProfile": {
+      "title": "Pata Fursa Zinazokufaa",
+      "subtitle": "Kamilisha wasifu wako ili kuona fursa zinazolingana na ujuzi na mapendeleo yako",
+      "actionLabel": "Kamilisha Wasifu"
+    },
+    "exploreOpportunities": {
+      "title": "Gundua Fursa Mpya",
+      "subtitle": "Vinjari ufadhili wa masomo, mafunzo kazini, na programu zinazolingana na wasifu wako",
+      "actionLabel": "Chunguza Sasa"
+    },
+    "buildCV": {
+      "title": "Tengeneza CV Yako Bora",
+      "subtitle": "Unda CV ya kitaalamu kwa violezo vinavyotumia AI na mapendekezo mahiri",
+      "actionLabel": "Anza Kutengeneza"
+    },
+    "trackGoals": {
+      "title": "Baki kwenye Mstari na Malengo Yako",
+      "subtitle": "Weka hatua muhimu na usikose tena tarehe ya mwisho ya maombi",
+      "actionLabel": "Weka Malengo"
+    },
+    "upgradePro": {
+      "title": "Fungua Vipengele vya Pro",
+      "subtitle": "Uboreshaji wa CV kwa AI, violezo vya hali ya juu, na kuhifadhi bila kikomo",
+      "actionLabel": "Boresha Sasa"
+    },
+    "notifications": {
+      "title": "Usikose Tarehe ya Mwisho",
+      "subtitle": "Washa arifa ili upate vikumbusho vya fursa zinazokaribia",
+      "actionLabel": "Washa"
+    }
+  },
+  "brandedLoader": {
+    "loading": "Inapakia…"
+  },
+  "campaign": {
+    "badge": "Edu2Mobile"
+  }
+}

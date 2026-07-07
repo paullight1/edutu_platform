@@ -1,44 +1,58 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, Alert } from 'react-native';
 import { Check } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../context/ThemeContext';
-
-export type SupportedLanguage = 'en' | 'es' | 'fr' | 'de' | 'zh' | 'ar';
-
-interface Language {
-    code: SupportedLanguage;
-    name: string;
-    nativeName: string;
-}
-
-const LANGUAGES: Language[] = [
-    { code: 'en', name: 'English', nativeName: 'English' },
-    { code: 'es', name: 'Spanish', nativeName: 'Español' },
-    { code: 'fr', name: 'French', nativeName: 'Français' },
-    { code: 'de', name: 'German', nativeName: 'Deutsch' },
-    { code: 'zh', name: 'Chinese', nativeName: '中文' },
-    { code: 'ar', name: 'Arabic', nativeName: 'العربية' },
-];
+import {
+    SUPPORTED_LANGUAGES,
+    setAppLanguage,
+    restartApp,
+    getCurrentLanguage,
+    type LanguageCode,
+} from '../../lib/i18n';
 
 function getFlagEmoji(langCode: string): string {
     const flags: Record<string, string> = {
-        en: '🇺🇸', es: '🇪🇸', fr: '🇫🇷', de: '🇩🇪', zh: '🇨🇳', ar: '🇸🇦',
+        en: '🇬🇧', fr: '🇫🇷', sw: '🇹🇿', ha: '🇳🇬', ar: '🇸🇦',
+        zh: '🇨🇳', es: '🇪🇸', pt: '🇵🇹', hi: '🇮🇳',
     };
     return flags[langCode] || '🌐';
 }
 
 export function LanguageSelector() {
+    const { t } = useTranslation('settings');
     const { isDark, colors } = useTheme();
-    const currentLang = 'en'; // Hardcoded for now as we don't have i18n plumbing yet
+    const [currentLang, setCurrentLang] = useState<LanguageCode>(getCurrentLanguage());
+
+    const handleSelect = async (code: LanguageCode) => {
+        if (code === currentLang) {
+            return;
+        }
+        setCurrentLang(code);
+        const { needsRestart } = await setAppLanguage(code);
+        if (needsRestart) {
+            const languageName =
+                SUPPORTED_LANGUAGES.find((lang) => lang.code === code)?.nativeName ?? code;
+            Alert.alert(
+                t('language.restartTitle'),
+                t('language.restartMessage', { language: languageName }),
+                [
+                    { text: t('language.restartLater'), style: 'cancel' },
+                    { text: t('language.restartNow'), onPress: () => void restartApp() },
+                ],
+            );
+        }
+    };
 
     return (
         <View className="p-1">
-            {LANGUAGES.map((lang) => {
+            {SUPPORTED_LANGUAGES.map((lang) => {
                 const isActive = currentLang === lang.code;
                 return (
                     <TouchableOpacity
                         key={lang.code}
                         activeOpacity={0.7}
+                        onPress={() => void handleSelect(lang.code)}
                         className={`flex-row items-center justify-between p-4 rounded-xl mb-2 border ${isActive
                                 ? 'border-blue-500/30'
                                 : 'border-transparent'
@@ -54,7 +68,7 @@ export function LanguageSelector() {
                                 )}
                             </View>
                         </View>
-                        {isActive && <Check size={18} color="#6366f1" />}
+                        {isActive && <Check size={18} color={colors.accent} />}
                     </TouchableOpacity>
                 );
             })}

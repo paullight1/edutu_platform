@@ -1,0 +1,284 @@
+{
+  "header": {
+    "title": "CV बिल्डर"
+  },
+  "loading": "CV बिल्डर लोड हो रहा है...",
+  "defaults": {
+    "myCv": "मेरा CV",
+    "untitled": "बिना शीर्षक CV",
+    "aiDraft": "AI ड्राफ़्ट CV"
+  },
+  "proBanner": {
+    "upgrade": "अनलिमिटेड CV के लिए Pro में अपग्रेड करें",
+    "trial": "फ़्री ट्रायल उपलब्ध - Pro फ़ीचर्स आज़माएँ!"
+  },
+  "quickActions": {
+    "title": "तेज़ी से बनाएँ",
+    "subtitle": "खाली CV से शुरू करें, LinkedIn से जनरेट करें, या अपने ड्राफ़्ट को किसी असली अवसर के हिसाब से ढालें।",
+    "create": {
+      "title": "नया CV बनाएँ",
+      "subtitle": "स्ट्रक्चर्ड एडिटर से शुरू करें और सैंपल देखने के बाद टेम्पलेट चुनें।"
+    },
+    "linkedIn": {
+      "title": "LinkedIn से इंपोर्ट करें",
+      "subtitle": "AI के साथ बेहतर पहला वर्शन बनाने के लिए अपनी प्रोफ़ाइल का इस्तेमाल करें।"
+    },
+    "tailor": {
+      "title": "अवसर के हिसाब से ढालें",
+      "subtitle": "अपने बैंक की स्कॉलरशिप, इंटर्नशिप और प्रोग्राम से अपना CV मैच करें।"
+    }
+  },
+  "sections": {
+    "yourCvs": "आपके CV",
+    "chooseTemplate": "टेम्पलेट चुनें"
+  },
+  "alerts": {
+    "aiDraftReadyTitle": "AI ड्राफ़्ट तैयार है",
+    "draftReadyOfflineTitle": "ड्राफ़्ट तैयार है (ऑफ़लाइन मोड)",
+    "draftReadyWithSuggestions": "आपका CV ड्राफ़्ट एडिटर में है। सुझाए गए अगले क़दम:\n{{suggestions}}",
+    "draftReadyMessage": "आपकी प्रोफ़ाइल के आधार पर आपका CV ड्राफ़्ट जनरेट हो गया है।",
+    "generateFailed": "CV ड्राफ़्ट जनरेट नहीं हो सका।",
+    "summaryUpdatedTitle": "सारांश अपडेट हो गया",
+    "summaryUpdatedOffline": "आपकी मौजूदा जानकारी से ऑफ़लाइन सुधार किया गया। पूरे AI रीराइट के लिए इंटरनेट से कनेक्ट करें।",
+    "improveSummaryFailed": "अभी सारांश बेहतर नहीं किया जा सका।",
+    "saveSuccess": "CV सफलतापूर्वक सेव हो गया!",
+    "saveFailed": "CV सेव नहीं हो सका",
+    "deleteTitle": "CV हटाएँ",
+    "deleteMessage": "क्या आप वाक़ई यह CV हटाना चाहते हैं?",
+    "sharedAsTextTitle": "टेक्स्ट के रूप में शेयर किया गया",
+    "sharedAsTextMessage": "PDF एक्सपोर्ट उपलब्ध नहीं था, इसलिए CV टेक्स्ट के रूप में शेयर किया गया।",
+    "exportFailed": "CV एक्सपोर्ट नहीं हो सका",
+    "tailoredTitle": "CV तैयार — {{score}}% मैच",
+    "tailorFailed": "इस अवसर के लिए CV तैयार नहीं हो सका।"
+  },
+  "upgrade": {
+    "templateFeature": "{{name}} टेम्पलेट"
+  },
+  "templates": {
+    "badgeFallback": "टेम्पलेट",
+    "proBadge": "Pro",
+    "unlock": "टेम्पलेट अनलॉक करें",
+    "use": "टेम्पलेट इस्तेमाल करें",
+    "tapToPreview": "सैंपल देखने के लिए टैप करें",
+    "samples": {
+      "academic": {
+        "name": "Amara Okafor",
+        "headline": "MSc पब्लिक हेल्थ आवेदक",
+        "summary": "रिसर्च-केंद्रित प्रोफ़ाइल, जिसमें शिक्षा, प्रकाशन, फ़ील्ड प्रोजेक्ट और अकादमिक उपलब्धियाँ कार्य-इतिहास से पहले रखी गई हैं।",
+        "bullets": [
+          "शिक्षा और रिसर्च सबसे पहले",
+          "प्रकाशन और पुरस्कार साफ़ दिखते हैं",
+          "स्कॉलरशिप और ग्रेजुएट एडमिशन के लिए अच्छा"
+        ]
+      },
+      "professional": {
+        "name": "Daniel Mensah",
+        "headline": "ऑपरेशंस एनालिस्ट",
+        "summary": "इंटर्नशिप, नौकरियों, फ़ेलोशिप और शुरुआती करियर प्रोग्राम के लिए नतीजों पर केंद्रित प्रोफ़ाइल, जिसमें काम का मापने योग्य असर दिखता है।",
+        "bullets": [
+          "कोर्सवर्क से पहले काम का असर",
+          "मज़बूत स्किल्स और मेट्रिक्स सेक्शन",
+          "इंटर्नशिप और नौकरियों के लिए अच्छा"
+        ]
+      },
+      "creative": {
+        "name": "Leah Adeyemi",
+        "headline": "प्रोडक्ट डिज़ाइनर",
+        "summary": "पोर्टफ़ोलियो-फ़्रेंडली स्ट्रक्चर, जो ATS पठनीयता खोए बिना प्रोजेक्ट, टूल, लिंक और विज़ुअल उपलब्धियाँ हाइलाइट करता है।",
+        "bullets": [
+          "प्रोजेक्ट और पोर्टफ़ोलियो लिंक",
+          "टूल और केस-स्टडी हाइलाइट्स",
+          "डिज़ाइन और मीडिया रोल्स के लिए अच्छा"
+        ]
+      },
+      "general": {
+        "name": "Edutu Student",
+        "headline": "अवसर आवेदक",
+        "summary": "स्कॉलरशिप, स्कूल प्रोग्राम, इंटर्नशिप और सामुदायिक अवसरों में आवेदन करने वाले छात्रों के लिए संतुलित स्ट्रक्चर।",
+        "bullets": [
+          "साफ़-सुथरी स्टूडेंट प्रोफ़ाइल",
+          "सेक्शन का लचीला क्रम",
+          "हर तरह के आवेदन के लिए अच्छा"
+        ]
+      }
+    }
+  },
+  "linkedInModal": {
+    "title": "AI से CV बनाएँ",
+    "description": "नीचे अपनी LinkedIn प्रोफ़ाइल का URL पेस्ट करें और हमारा AI आपका अनुभव अपने आप जुटाकर आपका CV बना देगा।",
+    "generate": "CV जनरेट करें"
+  },
+  "tailorModal": {
+    "title": "AI CV टेलरिंग",
+    "subtitle": "अपने बैंक से एक अवसर चुनें और इस CV को उसके हिसाब से ढालें।",
+    "empty": "अभी कोई अवसर उपलब्ध नहीं है। पहले अवसर लोड करें, फिर यह CV ढालें।"
+  },
+  "listItem": {
+    "updated": "{{date}} को अपडेट किया गया",
+    "primary": "प्राइमरी"
+  },
+  "editor": {
+    "sections": {
+      "personalInfo": "निजी जानकारी",
+      "summary": "प्रोफ़ेशनल सारांश",
+      "skills": "स्किल्स",
+      "experience": "अनुभव",
+      "education": "शिक्षा",
+      "projects": "प्रोजेक्ट",
+      "achievements": "उपलब्धियाँ"
+    },
+    "personal": {
+      "fullName": {
+        "label": "पूरा नाम",
+        "placeholder": "John Doe"
+      },
+      "email": {
+        "label": "ईमेल",
+        "placeholder": "john@example.com"
+      },
+      "phone": {
+        "label": "फ़ोन",
+        "placeholder": "+1 234 567 8900"
+      },
+      "location": {
+        "label": "स्थान",
+        "placeholder": "Lagos, Nigeria"
+      },
+      "linkedin": {
+        "label": "LinkedIn",
+        "placeholder": "linkedin.com/in/johndoe"
+      },
+      "portfolio": {
+        "label": "पोर्टफ़ोलियो",
+        "placeholder": "portfolio.site"
+      }
+    },
+    "summaryPlaceholder": "एक संक्षिप्त प्रोफ़ेशनल सारांश लिखें...",
+    "improving": "बेहतर बनाया जा रहा है…",
+    "improveWithAi": "AI से बेहतर बनाएँ",
+    "unlockAiAssist": "AI असिस्ट अनलॉक करें",
+    "aiSummaryFeature": "AI सारांश जनरेटर",
+    "skillsPlaceholder": "JavaScript, रिसर्च, Excel, पब्लिक स्पीकिंग...",
+    "add": "जोड़ें",
+    "newExperience": "नया अनुभव",
+    "newEducation": "नई शिक्षा",
+    "newProject": "नया प्रोजेक्ट",
+    "newAchievement": "नई उपलब्धि",
+    "fields": {
+      "role": {
+        "label": "भूमिका",
+        "placeholder": "सॉफ़्टवेयर इंटर्न"
+      },
+      "company": {
+        "label": "कंपनी",
+        "placeholder": "कंपनी / संस्था"
+      },
+      "location": {
+        "label": "स्थान",
+        "placeholder": "रिमोट / शहर"
+      },
+      "startDate": {
+        "label": "शुरू होने की तारीख़",
+        "placeholder": "2024-01"
+      },
+      "endDate": {
+        "label": "ख़त्म होने की तारीख़",
+        "placeholder": "2025-01"
+      },
+      "currentlyWorkHere": "मैं अभी यहाँ काम करता/करती हूँ",
+      "description": {
+        "label": "विवरण",
+        "placeholder": "बताएँ कि आपने क्या किया"
+      },
+      "highlights": {
+        "label": "हाइलाइट्स (हर लाइन में एक)",
+        "placeholder": "साइन-अप 30% बढ़ाए\n4 लोगों की टीम लीड की"
+      },
+      "institution": {
+        "label": "संस्थान",
+        "placeholder": "यूनिवर्सिटी / स्कूल"
+      },
+      "degree": {
+        "label": "डिग्री",
+        "placeholder": "BSc / MSc / डिप्लोमा"
+      },
+      "fieldOfStudy": {
+        "label": "विषय",
+        "placeholder": "कंप्यूटर साइंस"
+      },
+      "eduStartDate": {
+        "placeholder": "2021-09"
+      },
+      "eduEndDate": {
+        "placeholder": "2025-06 (या अपेक्षित)"
+      },
+      "projectName": {
+        "label": "प्रोजेक्ट का नाम",
+        "placeholder": "स्कॉलरशिप फ़ाइंडर ऐप"
+      },
+      "projectDescription": {
+        "placeholder": "प्रोजेक्ट के असर का वर्णन करें"
+      },
+      "technologies": {
+        "label": "टेक्नोलॉजी",
+        "placeholder": "React, Node.js"
+      },
+      "achievementTitle": {
+        "label": "शीर्षक",
+        "placeholder": "Dean's List"
+      },
+      "issuer": {
+        "label": "जारीकर्ता",
+        "placeholder": "यूनिवर्सिटी / संस्था"
+      },
+      "achievementDescription": {
+        "placeholder": "यह क्यों महत्वपूर्ण है"
+      }
+    },
+    "tailor": {
+      "title": "अवसर के लिए ढालें",
+      "subtitle": "इस CV को अपने बैंक के अवसरों से मैच करें"
+    },
+    "save": "CV सेव करें",
+    "preparing": "तैयार हो रहा है…",
+    "downloadPdf": "PDF डाउनलोड करें"
+  },
+  "preview": {
+    "backToEdit": "एडिट पर वापस जाएँ",
+    "downloadAccessibility": "CV को PDF के रूप में डाउनलोड करें",
+    "preparing": "तैयार हो रहा है…",
+    "pdf": "PDF",
+    "yourName": "आपका नाम",
+    "sections": {
+      "summary": "सारांश",
+      "skills": "स्किल्स",
+      "experience": "अनुभव",
+      "education": "शिक्षा",
+      "projects": "प्रोजेक्ट",
+      "achievements": "उपलब्धियाँ"
+    },
+    "startFallback": "शुरुआत",
+    "present": "- वर्तमान"
+  },
+  "proUpgrade": {
+    "title": "{{feature}} अनलॉक करें",
+    "subtitle": "सभी प्रीमियम फ़ीचर्स की अनलिमिटेड एक्सेस पाएँ",
+    "priceFrom": "शुरुआत",
+    "price": "$5.99",
+    "pricePeriod": "/माह",
+    "features": {
+      "roadmaps": "अनलिमिटेड AI रोडमैप जनरेशन",
+      "templates": "प्रीमियम CV टेम्पलेट",
+      "tailoring": "AI-पावर्ड CV टेलरिंग",
+      "creatorListing": "प्रायोरिटी क्रिएटर लिस्टिंग",
+      "filters": "एडवांस्ड अवसर फ़िल्टर",
+      "pdfExport": "PDF एक्सपोर्ट और डाउनलोड"
+    },
+    "upgradeCta": "Pro में अपग्रेड करें",
+    "trialActivatedTitle": "ट्रायल शुरू हो गया",
+    "trialActivatedMessage": "अब आपके पास 7 दिनों के लिए Pro फ़ीचर्स की एक्सेस है!",
+    "trialCta": "7 दिन फ़्री आज़माएँ",
+    "secure": "सुरक्षित",
+    "cancelAnytime": "कभी भी रद्द करें"
+  }
+}

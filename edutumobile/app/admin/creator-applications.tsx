@@ -3,6 +3,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useUser } from "@clerk/clerk-expo";
+import { useTranslation } from "react-i18next";
 import {
     Check,
     X,
@@ -42,6 +43,7 @@ interface CreatorApplication {
 }
 
 function AdminCreatorApplicationsContent() {
+    const { t } = useTranslation('misc');
     const { isDark, colors } = useTheme();
     const router = useRouter();
     const { user } = useUser();
@@ -102,7 +104,7 @@ function AdminCreatorApplicationsContent() {
                 const cache: Record<string, { name: string; email: string; avatar: string }> = {};
                 profiles?.forEach(p => {
                     cache[p.user_id] = {
-                        name: p.full_name || 'Unknown',
+                        name: p.full_name || t('admin.creatorApplications.unknown'),
                         email: p.email || '',
                         avatar: '',
                     };
@@ -111,7 +113,7 @@ function AdminCreatorApplicationsContent() {
             }
         } catch (e: any) {
             console.error('Failed to fetch applications:', e);
-            Alert.alert('Error', 'Failed to load applications.');
+            Alert.alert(t('common:states.error'), t('admin.creatorApplications.alerts.loadFailed'));
         } finally {
             setLoading(false);
         }
@@ -131,7 +133,7 @@ function AdminCreatorApplicationsContent() {
             if (error) throw error;
 
             if (data?.error) {
-                Alert.alert('Error', data.error);
+                Alert.alert(t('common:states.error'), data.error);
                 setSubmitting(false);
                 return;
             }
@@ -154,8 +156,8 @@ function AdminCreatorApplicationsContent() {
             fetchApplications();
 
             Alert.alert(
-                'Success',
-                `Application ${newStatus === 'approved' ? 'approved' : 'rejected'} successfully.`
+                t('common:states.success'),
+                newStatus === 'approved' ? t('admin.creatorApplications.alerts.approvedSuccess') : t('admin.creatorApplications.alerts.rejectedSuccess')
             );
         } catch (e: any) {
             console.error('Review error:', e);
@@ -170,7 +172,7 @@ function AdminCreatorApplicationsContent() {
                 .eq('id', applicationId);
 
             if (appError) {
-                Alert.alert('Error', appError.message || 'Failed to review application.');
+                Alert.alert(t('common:states.error'), appError.message || t('admin.creatorApplications.alerts.reviewFailed'));
                 setSubmitting(false);
                 return;
             }
@@ -203,7 +205,7 @@ function AdminCreatorApplicationsContent() {
             setSelectedApp(null);
             setReviewNote('');
             fetchApplications();
-            Alert.alert('Success', `Application ${newStatus} successfully.`);
+            Alert.alert(t('common:states.success'), newStatus === 'approved' ? t('admin.creatorApplications.alerts.approvedSuccess') : t('admin.creatorApplications.alerts.rejectedSuccess'));
         } finally {
             setSubmitting(false);
         }
@@ -227,7 +229,7 @@ function AdminCreatorApplicationsContent() {
 
     const renderApplication = useCallback(({ item, index }: { item: CreatorApplication; index: number }) => {
         const profile = profileCache[item.user_id];
-        const applicantName = profile?.name || 'Unknown User';
+        const applicantName = profile?.name || t('admin.creatorApplications.unknownUser');
         const applicantEmail = profile?.email || '';
 
         return (
@@ -252,7 +254,7 @@ function AdminCreatorApplicationsContent() {
                     </View>
                     <View style={[styles.statusBadge, { backgroundColor: getStatusBg(item.status) }]}>
                         <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-                            {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                            {t(`admin.creatorApplications.status.${item.status}`)}
                         </Text>
                     </View>
                 </View>
@@ -280,13 +282,13 @@ function AdminCreatorApplicationsContent() {
                 </View>
             </AnimatedPressable>
         );
-    }, [cardBg, borderColor, textPrimary, textSecondary, colors.primary, profileCache]);
+    }, [cardBg, borderColor, textPrimary, textSecondary, colors.primary, profileCache, t]);
 
     const filters: { key: typeof filter; label: string }[] = [
-        { key: 'pending', label: 'Pending' },
-        { key: 'approved', label: 'Approved' },
-        { key: 'rejected', label: 'Rejected' },
-        { key: 'all', label: 'All' },
+        { key: 'pending', label: t('admin.creatorApplications.status.pending') },
+        { key: 'approved', label: t('admin.creatorApplications.status.approved') },
+        { key: 'rejected', label: t('admin.creatorApplications.status.rejected') },
+        { key: 'all', label: t('admin.creatorApplications.filters.all') },
     ];
 
     const stats = {
@@ -298,26 +300,26 @@ function AdminCreatorApplicationsContent() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-            <ScreenHeader title="Creator Applications" subtitle="Review and manage applications" showBack />
+            <ScreenHeader title={t('admin.creatorApplications.title')} subtitle={t('admin.creatorApplications.subtitle')} showBack />
 
             <View style={styles.header}>
                 {/* Stats */}
                 <View style={styles.statsRow}>
                     <View style={[styles.statCard, { backgroundColor: cardBg, borderColor }]}>
                         <Text style={[styles.statValue, { color: textPrimary }]}>{stats.total}</Text>
-                        <Text style={[styles.statLabel, { color: textSecondary }]}>Total</Text>
+                        <Text style={[styles.statLabel, { color: textSecondary }]}>{t('admin.creatorApplications.stats.total')}</Text>
                     </View>
                     <View style={[styles.statCard, { backgroundColor: cardBg, borderColor }]}>
                         <Text style={[styles.statValue, { color: '#F59E0B' }]}>{stats.pending}</Text>
-                        <Text style={[styles.statLabel, { color: textSecondary }]}>Pending</Text>
+                        <Text style={[styles.statLabel, { color: textSecondary }]}>{t('admin.creatorApplications.status.pending')}</Text>
                     </View>
                     <View style={[styles.statCard, { backgroundColor: cardBg, borderColor }]}>
                         <Text style={[styles.statValue, { color: '#10B981' }]}>{stats.approved}</Text>
-                        <Text style={[styles.statLabel, { color: textSecondary }]}>Approved</Text>
+                        <Text style={[styles.statLabel, { color: textSecondary }]}>{t('admin.creatorApplications.status.approved')}</Text>
                     </View>
                     <View style={[styles.statCard, { backgroundColor: cardBg, borderColor }]}>
                         <Text style={[styles.statValue, { color: '#EF4444' }]}>{stats.rejected}</Text>
-                        <Text style={[styles.statLabel, { color: textSecondary }]}>Rejected</Text>
+                        <Text style={[styles.statLabel, { color: textSecondary }]}>{t('admin.creatorApplications.status.rejected')}</Text>
                     </View>
                 </View>
 
@@ -348,7 +350,7 @@ function AdminCreatorApplicationsContent() {
             {loading ? (
                 <View style={styles.loadingContainer}>
                     <Loader2 size={32} color={colors.primary} />
-                    <Text style={[styles.loadingText, { color: textSecondary }]}>Loading applications...</Text>
+                    <Text style={[styles.loadingText, { color: textSecondary }]}>{t('admin.creatorApplications.loading')}</Text>
                 </View>
             ) : (
                 <FlatList
@@ -360,9 +362,9 @@ function AdminCreatorApplicationsContent() {
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <ShieldCheck size={48} color={textSecondary} />
-                            <Text style={[styles.emptyTitle, { color: textPrimary }]}>No Applications</Text>
+                            <Text style={[styles.emptyTitle, { color: textPrimary }]}>{t('admin.creatorApplications.empty.title')}</Text>
                             <Text style={[styles.emptyText, { color: textSecondary }]}>
-                                {filter === 'pending' ? 'No pending applications to review.' : 'No applications found.'}
+                                {filter === 'pending' ? t('admin.creatorApplications.empty.pending') : t('admin.creatorApplications.empty.generic')}
                             </Text>
                         </View>
                     }
@@ -374,7 +376,7 @@ function AdminCreatorApplicationsContent() {
                 <View style={styles.modalOverlay}>
                     <View style={[styles.modalSheet, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' }]}>
                         <View style={styles.modalHeader}>
-                            <Text style={[styles.modalTitle, { color: textPrimary }]}>Application Details</Text>
+                            <Text style={[styles.modalTitle, { color: textPrimary }]}>{t('admin.creatorApplications.modal.title')}</Text>
                             <TouchableOpacity onPress={() => { setSelectedApp(null); setReviewNote(''); }} style={styles.modalClose}>
                                 <X size={20} color={textSecondary} />
                             </TouchableOpacity>
@@ -385,24 +387,24 @@ function AdminCreatorApplicationsContent() {
                                 <View style={styles.modalBody}>
                                     <View style={[styles.statusRow, { backgroundColor: getStatusBg(selectedApp.status) }]}>
                                         <Text style={[styles.statusTextLarge, { color: getStatusColor(selectedApp.status) }]}>
-                                            {selectedApp.status.toUpperCase()}
+                                            {t(`admin.creatorApplications.status.${selectedApp.status}`).toUpperCase()}
                                         </Text>
                                         {selectedApp.reviewed_at && (
                                             <Text style={[styles.reviewedAt, { color: textSecondary }]}>
-                                                Reviewed {new Date(selectedApp.reviewed_at).toLocaleDateString()}
+                                                {t('admin.creatorApplications.modal.reviewedOn', { date: new Date(selectedApp.reviewed_at).toLocaleDateString() })}
                                             </Text>
                                         )}
                                     </View>
 
                                     <View style={styles.detailSection}>
-                                        <Text style={[styles.detailLabel, { color: textSecondary }]}>Applicant</Text>
+                                        <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.applicant')}</Text>
                                         <View style={styles.applicantRow}>
                                             <View style={[styles.avatar, { backgroundColor: colors.primary + '20' }]}>
                                                 <User size={20} color={colors.primary} />
                                             </View>
                                             <View>
                                                 <Text style={[styles.applicantName, { color: textPrimary }]}>
-                                                    {profileCache[selectedApp.user_id]?.name || 'Unknown User'}
+                                                    {profileCache[selectedApp.user_id]?.name || t('admin.creatorApplications.unknownUser')}
                                                 </Text>
                                                 <Text style={[styles.applicantEmail, { color: textSecondary }]}>
                                                     {profileCache[selectedApp.user_id]?.email || ''}
@@ -412,7 +414,7 @@ function AdminCreatorApplicationsContent() {
                                     </View>
 
                                     <View style={styles.detailSection}>
-                                        <Text style={[styles.detailLabel, { color: textSecondary }]}>Opportunity</Text>
+                                        <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.opportunity')}</Text>
                                         <Text style={[styles.detailValue, { color: textPrimary }]}>{selectedApp.opportunity_title}</Text>
                                         <Text style={[styles.detailType, { color: textSecondary }]}>
                                             {selectedApp.opportunity_type.charAt(0).toUpperCase() + selectedApp.opportunity_type.slice(1)}
@@ -420,18 +422,18 @@ function AdminCreatorApplicationsContent() {
                                     </View>
 
                                     <View style={styles.detailSection}>
-                                        <Text style={[styles.detailLabel, { color: textSecondary }]}>Motivation</Text>
+                                        <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.motivation')}</Text>
                                         <Text style={[styles.detailValue, { color: textPrimary }]}>{selectedApp.motivation}</Text>
                                     </View>
 
                                     <View style={styles.detailSection}>
-                                        <Text style={[styles.detailLabel, { color: textSecondary }]}>Bio</Text>
+                                        <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.bio')}</Text>
                                         <Text style={[styles.detailValue, { color: textPrimary }]}>{selectedApp.bio}</Text>
                                     </View>
 
                                     {selectedApp.linkedin_url && (
                                         <View style={styles.detailSection}>
-                                            <Text style={[styles.detailLabel, { color: textSecondary }]}>LinkedIn</Text>
+                                            <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.linkedin')}</Text>
                                             <TouchableOpacity
                                                 style={styles.linkRow}
                                                 onPress={() => {/* open link */}}
@@ -446,7 +448,7 @@ function AdminCreatorApplicationsContent() {
 
                                     {selectedApp.kyc_image_url && (
                                         <View style={styles.detailSection}>
-                                            <Text style={[styles.detailLabel, { color: textSecondary }]}>Verification Document</Text>
+                                            <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.verificationDocument')}</Text>
                                             {kycUrl ? (
                                                 <Image
                                                     source={{ uri: kycUrl }}
@@ -463,7 +465,7 @@ function AdminCreatorApplicationsContent() {
 
                                     {selectedApp.proof_url && (
                                         <View style={styles.detailSection}>
-                                            <Text style={[styles.detailLabel, { color: textSecondary }]}>Proof URL</Text>
+                                            <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.proofUrl')}</Text>
                                             <Text style={[styles.linkText, { color: colors.primary }]} numberOfLines={1}>
                                                 {selectedApp.proof_url}
                                             </Text>
@@ -471,7 +473,7 @@ function AdminCreatorApplicationsContent() {
                                     )}
 
                                     <View style={styles.detailSection}>
-                                        <Text style={[styles.detailLabel, { color: textSecondary }]}>Applied On</Text>
+                                        <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.appliedOn')}</Text>
                                         <Text style={[styles.detailValue, { color: textPrimary }]}>
                                             {new Date(selectedApp.applied_at).toLocaleDateString('en-US', {
                                                 year: 'numeric',
@@ -483,7 +485,7 @@ function AdminCreatorApplicationsContent() {
 
                                     {selectedApp.status === 'pending' && (
                                         <View style={styles.reviewSection}>
-                                            <Text style={[styles.detailLabel, { color: textSecondary }]}>Reviewer Notes</Text>
+                                            <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.reviewerNotes')}</Text>
                                             <TextInput
                                                 style={[styles.reviewInput, {
                                                     backgroundColor: colors.card,
@@ -492,7 +494,7 @@ function AdminCreatorApplicationsContent() {
                                                 }]}
                                                 value={reviewNote}
                                                 onChangeText={setReviewNote}
-                                                placeholder="Add a note about this decision..."
+                                                placeholder={t('admin.creatorApplications.modal.notePlaceholder')}
                                                 placeholderTextColor={textSecondary}
                                                 multiline
                                                 numberOfLines={3}
@@ -505,7 +507,7 @@ function AdminCreatorApplicationsContent() {
                                                     disabled={submitting}
                                                 >
                                                     <X size={18} color="#FFFFFF" />
-                                                    <Text style={styles.rejectBtnText}>Reject</Text>
+                                                    <Text style={styles.rejectBtnText}>{t('admin.creatorApplications.modal.reject')}</Text>
                                                 </TouchableOpacity>
                                                 <TouchableOpacity
                                                     style={[styles.actionBtn, styles.approveBtn]}
@@ -517,7 +519,7 @@ function AdminCreatorApplicationsContent() {
                                                     ) : (
                                                         <>
                                                             <Check size={18} color="#FFFFFF" />
-                                                            <Text style={styles.approveBtnText}>Approve</Text>
+                                                            <Text style={styles.approveBtnText}>{t('admin.creatorApplications.modal.approve')}</Text>
                                                         </>
                                                     )}
                                                 </TouchableOpacity>
@@ -527,7 +529,7 @@ function AdminCreatorApplicationsContent() {
 
                                     {selectedApp.reviewer_notes && (
                                         <View style={styles.detailSection}>
-                                            <Text style={[styles.detailLabel, { color: textSecondary }]}>Reviewer Notes</Text>
+                                            <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.reviewerNotes')}</Text>
                                             <Text style={[styles.detailValue, { color: textPrimary }]}>
                                                 {selectedApp.reviewer_notes}
                                             </Text>

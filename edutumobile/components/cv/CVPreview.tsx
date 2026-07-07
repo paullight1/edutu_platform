@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { Download } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { UserCV } from '@edutu/core/src/types/cv';
 import { useTheme } from '../../components/context/ThemeContext';
 
@@ -12,13 +13,14 @@ interface Props {
 }
 
 export function CVPreview({ currentCV, onBack, onExport, isExporting }: Props) {
+    const { t } = useTranslation('cv');
     const { colors } = useTheme();
 
     return (
         <View style={styles.previewContainer}>
             <View style={styles.previewHeader}>
                 <TouchableOpacity onPress={onBack}>
-                    <Text style={[styles.previewBackText, { color: colors.primary }]}>Back to Edit</Text>
+                    <Text style={[styles.previewBackText, { color: colors.primary }]}>{t('preview.backToEdit')}</Text>
                 </TouchableOpacity>
                 {onExport ? (
                     <TouchableOpacity
@@ -26,21 +28,21 @@ export function CVPreview({ currentCV, onBack, onExport, isExporting }: Props) {
                         onPress={onExport}
                         disabled={isExporting}
                         accessibilityRole="button"
-                        accessibilityLabel="Download CV as PDF"
+                        accessibilityLabel={t('preview.downloadAccessibility')}
                     >
                         {isExporting ? (
                             <ActivityIndicator color="#FFFFFF" size="small" />
                         ) : (
                             <Download size={16} color="#FFFFFF" />
                         )}
-                        <Text style={styles.previewExportText}>{isExporting ? 'Preparing…' : 'PDF'}</Text>
+                        <Text style={styles.previewExportText}>{isExporting ? t('preview.preparing') : t('preview.pdf')}</Text>
                     </TouchableOpacity>
                 ) : null}
             </View>
             <ScrollView style={styles.previewContent}>
                 <View style={[styles.previewCard, { backgroundColor: '#FFFFFF' }]}>
                     <Text style={styles.previewName}>
-                        {currentCV.data_json?.header?.full_name || 'Your Name'}
+                        {currentCV.data_json?.header?.full_name || t('preview.yourName')}
                     </Text>
                     <Text style={styles.previewContact}>
                         {[currentCV.data_json?.header?.email, currentCV.data_json?.header?.phone]
@@ -53,14 +55,14 @@ export function CVPreview({ currentCV, onBack, onExport, isExporting }: Props) {
 
                     {currentCV.data_json?.summary ? (
                         <>
-                            <Text style={styles.previewSectionTitle}>Summary</Text>
+                            <Text style={styles.previewSectionTitle}>{t('preview.sections.summary')}</Text>
                             <Text style={styles.previewText}>{currentCV.data_json.summary}</Text>
                         </>
                     ) : null}
 
                     {(currentCV.data_json?.skills || []).length > 0 ? (
                         <>
-                            <Text style={styles.previewSectionTitle}>Skills</Text>
+                            <Text style={styles.previewSectionTitle}>{t('preview.sections.skills')}</Text>
                             <Text style={styles.previewText}>
                                 {currentCV.data_json?.skills?.join(', ')}
                             </Text>
@@ -69,12 +71,12 @@ export function CVPreview({ currentCV, onBack, onExport, isExporting }: Props) {
 
                     {(currentCV.data_json?.experience || []).length > 0 ? (
                         <>
-                            <Text style={styles.previewSectionTitle}>Experience</Text>
+                            <Text style={styles.previewSectionTitle}>{t('preview.sections.experience')}</Text>
                             {currentCV.data_json?.experience?.map((item: any) => (
                                 <View key={item.id} style={styles.previewBlock}>
                                     <Text style={styles.previewItemTitle}>{item.role} - {item.company}</Text>
                                     <Text style={styles.previewMeta}>
-                                        {item.start_date || 'Start'} {item.end_date ? `- ${item.end_date}` : item.current ? '- Present' : ''}
+                                        {item.start_date || t('preview.startFallback')} {item.end_date ? `- ${item.end_date}` : item.current ? t('preview.present') : ''}
                                     </Text>
                                     <Text style={styles.previewText}>{item.description}</Text>
                                 </View>
@@ -84,7 +86,7 @@ export function CVPreview({ currentCV, onBack, onExport, isExporting }: Props) {
 
                     {(currentCV.data_json?.education || []).length > 0 ? (
                         <>
-                            <Text style={styles.previewSectionTitle}>Education</Text>
+                            <Text style={styles.previewSectionTitle}>{t('preview.sections.education')}</Text>
                             {currentCV.data_json?.education?.map((item: any) => (
                                 <View key={item.id} style={styles.previewBlock}>
                                     <Text style={styles.previewItemTitle}>
@@ -98,7 +100,7 @@ export function CVPreview({ currentCV, onBack, onExport, isExporting }: Props) {
 
                     {(currentCV.data_json?.projects || []).length > 0 ? (
                         <>
-                            <Text style={styles.previewSectionTitle}>Projects</Text>
+                            <Text style={styles.previewSectionTitle}>{t('preview.sections.projects')}</Text>
                             {currentCV.data_json?.projects?.map((item: any) => (
                                 <View key={item.id} style={styles.previewBlock}>
                                     <Text style={styles.previewItemTitle}>{item.name}</Text>
@@ -110,7 +112,7 @@ export function CVPreview({ currentCV, onBack, onExport, isExporting }: Props) {
 
                     {(currentCV.data_json?.achievements || []).length > 0 ? (
                         <>
-                            <Text style={styles.previewSectionTitle}>Achievements</Text>
+                            <Text style={styles.previewSectionTitle}>{t('preview.sections.achievements')}</Text>
                             {currentCV.data_json?.achievements?.map((item: any) => (
                                 <View key={item.id} style={styles.previewBlock}>
                                     <Text style={styles.previewItemTitle}>{item.title}</Text>

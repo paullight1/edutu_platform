@@ -1,0 +1,173 @@
+{
+  "appName": "Edutu",
+  "actions": {
+    "ok": "OK",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "done": "Done",
+    "back": "Back",
+    "next": "Next",
+    "skip": "Skip",
+    "retry": "Retry",
+    "close": "Close",
+    "continue": "Continue",
+    "share": "Share",
+    "apply": "Apply",
+    "search": "Search",
+    "seeAll": "See all",
+    "viewAll": "View all",
+    "learnMore": "Learn more",
+    "getStarted": "Get started",
+    "tryAgain": "Try again"
+  },
+  "states": {
+    "loading": "Loading...",
+    "saving": "Saving...",
+    "error": "Error",
+    "success": "Success",
+    "empty": "Nothing here yet",
+    "offline": "You're offline",
+    "comingSoon": "Coming soon"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "network": "Network error. Check your connection and try again.",
+    "notFound": "Not found"
+  },
+  "errorBoundary": {
+    "somethingWentWrong": "Something went wrong",
+    "unexpectedError": "An unexpected error occurred",
+    "home": "Home",
+    "tryAgain": "Try Again"
+  },
+  "emptyState": {
+    "search": {
+      "title": "No results found",
+      "description": "Try adjusting your search terms or filters to find what you're looking for.",
+      "actionLabel": "Clear Search"
+    },
+    "saved": {
+      "title": "No saved opportunities",
+      "description": "Opportunities you bookmark will appear here. Start exploring to find scholarships and programmes that match your goals.",
+      "actionLabel": "Browse Opportunities"
+    },
+    "goals": {
+      "title": "No goals yet",
+      "description": "Create your first goal to start tracking your progress toward scholarships, skills, and career milestones.",
+      "actionLabel": "Create Goal"
+    },
+    "applications": {
+      "title": "No applications yet",
+      "description": "Track your scholarship and job applications here. When you apply to an opportunity, mark it to monitor your progress.",
+      "actionLabel": "Browse Opportunities"
+    },
+    "notifications": {
+      "title": "No notifications",
+      "description": "You're all caught up! We'll notify you about deadlines, new opportunities, and goal reminders.",
+      "actionLabel": "Explore Opportunities"
+    },
+    "deadlines": {
+      "title": "No upcoming deadlines",
+      "description": "You don't have any approaching deadlines. Save opportunities and create goals to track important dates.",
+      "actionLabel": "Browse Opportunities"
+    },
+    "offline": {
+      "title": "You're offline",
+      "description": "Check your internet connection. You can still browse previously loaded content.",
+      "actionLabel": "Try Again"
+    },
+    "error": {
+      "title": "Something went wrong",
+      "description": "We couldn't load this content. Please try again or check back later.",
+      "actionLabel": "Retry"
+    },
+    "generic": {
+      "title": "Nothing here yet",
+      "description": "Content will appear here once it's available.",
+      "actionLabel": "Go Back"
+    }
+  },
+  "offline": {
+    "banner": "You are offline"
+  },
+  "hints": {
+    "home": {
+      "title": "Home",
+      "body": "Start here for featured opportunities and your most relevant recommendations.",
+      "footer": "Use Home as your daily overview."
+    },
+    "discover": {
+      "title": "Discover",
+      "body": "Search scholarships, jobs, grants, and programs.",
+      "footer": "Save strong matches."
+    },
+    "plan": {
+      "title": "Plan",
+      "body": "Open roadmaps and goals when you need a step-by-step path.",
+      "footer": "Turn opportunities into actions."
+    },
+    "ai": {
+      "title": "Ask Edutu AI",
+      "body": "Tap the center AI button to open chat and ask for guidance.",
+      "footer": "Verify official details."
+    },
+    "bell": {
+      "title": "Alerts",
+      "body": "Deadlines and reminders show here.",
+      "footer": "Review time-sensitive items."
+    },
+    "menu": {
+      "title": "Profile",
+      "body": "Update settings and preferences here.",
+      "footer": "Better profile, better matches."
+    },
+    "skipHint": "Skip welcome hints",
+    "finishHint": "Finish welcome hints",
+    "nextHint": "Show next welcome hint"
+  },
+  "landingCta": {
+    "title": "Ready to Get Started?",
+    "subtitle": "Join as a mentor or explore personalized roadmaps",
+    "applyAsMentor": "Apply as Mentor",
+    "seeRoadmaps": "See Roadmaps"
+  },
+  "adBanner": {
+    "completeProfile": {
+      "title": "Get Personalized Opportunities",
+      "subtitle": "Complete your profile to see matches tailored to your skills and interests",
+      "actionLabel": "Complete Profile"
+    },
+    "exploreOpportunities": {
+      "title": "Discover New Opportunities",
+      "subtitle": "Browse scholarships, internships, and programs matched to your profile",
+      "actionLabel": "Explore Now"
+    },
+    "buildCV": {
+      "title": "Build Your Perfect CV",
+      "subtitle": "Create a professional CV with AI-powered templates and smart suggestions",
+      "actionLabel": "Start Building"
+    },
+    "trackGoals": {
+      "title": "Stay on Track with Goals",
+      "subtitle": "Set milestones and never miss an application deadline again",
+      "actionLabel": "Set Goals"
+    },
+    "upgradePro": {
+      "title": "Unlock Pro Features",
+      "subtitle": "AI CV tailoring, premium templates, and unlimited saves",
+      "actionLabel": "Upgrade Now"
+    },
+    "notifications": {
+      "title": "Never Miss a Deadline",
+      "subtitle": "Turn on notifications to get reminders for upcoming opportunities",
+      "actionLabel": "Enable"
+    }
+  },
+  "brandedLoader": {
+    "loading": "Loading…"
+  },
+  "campaign": {
+    "badge": "Edu2Mobile"
+  }
+}

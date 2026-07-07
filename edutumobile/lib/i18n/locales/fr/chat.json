@@ -1,0 +1,122 @@
+{
+    "header": {
+        "title": "Coach IA"
+    },
+    "loading": {
+        "conversation": "Chargement de la conversation..."
+    },
+    "deadline": {
+        "rolling": "En continu",
+        "set": "Échéance fixée"
+    },
+    "location": {
+        "remote": "À distance"
+    },
+    "answers": {
+        "checkingOpportunities": "Je consulte les opportunités Edutu pour vous.",
+        "matchesFound": "J'ai trouvé {{count}} correspondances sur Edutu.\nFaites défiler les cartes ou affinez la recherche.",
+        "roadmapChecking": "Je vérifie vos opportunités.\nEnsuite, je construirai le parcours.",
+        "roadmapMatchFound": "J'ai trouvé une correspondance possible.\nTouchez Créer pour générer des objectifs et des rappels.",
+        "roadmapWhichOpportunity": "De quelle opportunité s'agit-il ?\nEnvoyez le nom ou parcourez les Opportunités."
+    },
+    "quickPrompts": {
+        "findScholarships": {
+            "title": "Trouver des bourses",
+            "subtitle": "Disponibles ce mois-ci"
+        },
+        "mastercard": {
+            "title": "Correspondances Mastercard",
+            "subtitle": "Bourses via Edutu"
+        },
+        "buildRoadmap": {
+            "title": "Créer un parcours",
+            "subtitle": "Planifier ma prochaine candidature"
+        },
+        "internships": {
+            "title": "Échéances de stages",
+            "subtitle": "Opportunités à venir"
+        }
+    },
+    "alerts": {
+        "noDeadlineTitle": "Aucune échéance trouvée",
+        "noDeadlineMessage": "Cette opportunité n'a pas encore d'échéance enregistrée.",
+        "alreadyTrackedTitle": "Déjà suivie",
+        "alreadyTrackedMessage": "Cette échéance est déjà dans votre plan.",
+        "deadlineAddedTitle": "Échéance ajoutée",
+        "deadlineAddedMessage": "Je l'ai ajoutée à votre plan et programmé des rappels.",
+        "couldNotAddDeadlineTitle": "Impossible d'ajouter l'échéance",
+        "tryAgainFromOpportunity": "Veuillez réessayer depuis la page de l'opportunité.",
+        "signInRequiredTitle": "Connexion requise",
+        "signInRequiredMessage": "Veuillez vous connecter pour créer des objectifs de parcours.",
+        "roadmapExistsTitle": "Le parcours existe déjà",
+        "roadmapExistsMessage": "Cette opportunité a déjà des objectifs dans votre plan.",
+        "openGoals": "Ouvrir les objectifs",
+        "stayHere": "Rester ici",
+        "roadmapCreatedTitle": "Parcours créé",
+        "roadmapCreatedMessage": "{{count}} objectifs ont été ajoutés, avec des rappels lorsque des échéances existent.",
+        "couldNotCreateRoadmapTitle": "Impossible de créer le parcours"
+    },
+    "goals": {
+        "applyTitle": "Postuler : {{title}}",
+        "applyDescription": "Date limite de candidature pour {{organization}}.",
+        "thisOpportunity": "cette opportunité",
+        "submitTitle": "Soumettre {{title}}",
+        "submitDescription": "{{strategy}}\n\nRessources :\n{{resources}}",
+        "milestoneDescription": "Jalon pour {{title}}",
+        "dailyDescription": "{{description}}\n\nFocus : {{focus}}\nTemps : {{minutes}} minutes",
+        "checklistDescription": "Élément de checklist pour {{title}}"
+    },
+    "messages": {
+        "recommendedTitle": "Recommandées depuis les Opportunités",
+        "viewMore": "Voir plus",
+        "openAllOpportunities": "Ouvrir toutes les opportunités",
+        "narrowBy": "Affiner par :",
+        "view": "Voir",
+        "categoryFallback": "Opportunité",
+        "typing": "Edutu consulte les opportunités"
+    },
+    "followUp": {
+        "country": "Pays",
+        "deadline": "Échéance",
+        "funding": "Financement"
+    },
+    "roadmapPanel": {
+        "title": "Créer un parcours",
+        "subtitle": "Objectifs, échéances, rappels",
+        "searching": "Recherche d'opportunités...",
+        "matchMeta": "{{category}} · échéance {{deadline}}",
+        "daysLeft": "{{count}} jours restants",
+        "dailySteps": "{{count}} étapes quotidiennes",
+        "build": "Créer"
+    },
+    "empty": {
+        "title": "Je suis Edutu, votre Coach IA",
+        "description": "Demandez de vraies bourses, des échéances, des parcours ou les prochaines étapes de candidature."
+    },
+    "input": {
+        "placeholder": "Écrivez à Edutu..."
+    },
+    "threads": {
+        "modalTitle": "Conversations",
+        "newConversation": "Nouvelle conversation",
+        "empty": "Aucune conversation récente",
+        "groups": {
+            "today": "Aujourd'hui",
+            "yesterday": "Hier",
+            "thisWeek": "Cette semaine",
+            "older": "Plus ancien"
+        }
+    },
+    "voice": {
+        "titleTranscript": "Message vocal",
+        "titleListening": "Écoute en cours...",
+        "titleProcessing": "Traitement...",
+        "titleIdle": "Touchez pour parler",
+        "sendingAutomatically": "Envoi automatique...",
+        "genericError": "Une erreur est survenue",
+        "hintStop": "Touchez le micro pour arrêter",
+        "hintSendOrWait": "Touchez envoyer ou patientez",
+        "hintTranscribing": "Transcription de votre message...",
+        "hintStart": "Touchez le micro pour commencer l'enregistrement"
+    }
+}

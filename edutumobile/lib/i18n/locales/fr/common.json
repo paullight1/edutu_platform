@@ -1,0 +1,173 @@
+{
+  "appName": "Edutu",
+  "actions": {
+    "ok": "OK",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "delete": "Supprimer",
+    "done": "Terminé",
+    "back": "Retour",
+    "next": "Suivant",
+    "skip": "Passer",
+    "retry": "Réessayer",
+    "close": "Fermer",
+    "continue": "Continuer",
+    "share": "Partager",
+    "apply": "Postuler",
+    "search": "Rechercher",
+    "seeAll": "Tout voir",
+    "viewAll": "Tout afficher",
+    "learnMore": "En savoir plus",
+    "getStarted": "Commencer",
+    "tryAgain": "Réessayer"
+  },
+  "states": {
+    "loading": "Chargement...",
+    "saving": "Enregistrement...",
+    "error": "Erreur",
+    "success": "Succès",
+    "empty": "Rien ici pour le moment",
+    "offline": "Vous êtes hors ligne",
+    "comingSoon": "Bientôt disponible"
+  },
+  "errors": {
+    "generic": "Une erreur est survenue. Veuillez réessayer.",
+    "network": "Erreur réseau. Vérifiez votre connexion et réessayez.",
+    "notFound": "Introuvable"
+  },
+  "errorBoundary": {
+    "somethingWentWrong": "Une erreur est survenue",
+    "unexpectedError": "Une erreur inattendue s'est produite",
+    "home": "Accueil",
+    "tryAgain": "Réessayer"
+  },
+  "emptyState": {
+    "search": {
+      "title": "Aucun résultat trouvé",
+      "description": "Essayez d'ajuster vos termes de recherche ou vos filtres pour trouver ce que vous cherchez.",
+      "actionLabel": "Effacer la recherche"
+    },
+    "saved": {
+      "title": "Aucune opportunité enregistrée",
+      "description": "Les opportunités que vous enregistrez apparaîtront ici. Commencez à explorer pour trouver des bourses et des programmes qui correspondent à vos objectifs.",
+      "actionLabel": "Parcourir les opportunités"
+    },
+    "goals": {
+      "title": "Aucun objectif pour le moment",
+      "description": "Créez votre premier objectif pour suivre vos progrès vers des bourses, des compétences et des étapes de carrière.",
+      "actionLabel": "Créer un objectif"
+    },
+    "applications": {
+      "title": "Aucune candidature pour le moment",
+      "description": "Suivez ici vos candidatures aux bourses et aux emplois. Quand vous postulez à une opportunité, marquez-la pour suivre votre progression.",
+      "actionLabel": "Parcourir les opportunités"
+    },
+    "notifications": {
+      "title": "Aucune notification",
+      "description": "Vous êtes à jour ! Nous vous préviendrons pour les échéances, les nouvelles opportunités et les rappels d'objectifs.",
+      "actionLabel": "Explorer les opportunités"
+    },
+    "deadlines": {
+      "title": "Aucune échéance à venir",
+      "description": "Vous n'avez aucune échéance qui approche. Enregistrez des opportunités et créez des objectifs pour suivre les dates importantes.",
+      "actionLabel": "Parcourir les opportunités"
+    },
+    "offline": {
+      "title": "Vous êtes hors ligne",
+      "description": "Vérifiez votre connexion internet. Vous pouvez toujours consulter le contenu déjà chargé.",
+      "actionLabel": "Réessayer"
+    },
+    "error": {
+      "title": "Une erreur est survenue",
+      "description": "Impossible de charger ce contenu. Veuillez réessayer ou revenir plus tard.",
+      "actionLabel": "Réessayer"
+    },
+    "generic": {
+      "title": "Rien ici pour le moment",
+      "description": "Le contenu apparaîtra ici dès qu'il sera disponible.",
+      "actionLabel": "Retour"
+    }
+  },
+  "offline": {
+    "banner": "Vous êtes hors ligne"
+  },
+  "hints": {
+    "home": {
+      "title": "Accueil",
+      "body": "Commencez ici pour découvrir les opportunités en vedette et vos recommandations les plus pertinentes.",
+      "footer": "Utilisez l'Accueil comme votre tableau de bord quotidien."
+    },
+    "discover": {
+      "title": "Découvrir",
+      "body": "Recherchez des bourses, des emplois, des subventions et des programmes.",
+      "footer": "Enregistrez les meilleures correspondances."
+    },
+    "plan": {
+      "title": "Planifier",
+      "body": "Ouvrez les parcours et les objectifs quand vous avez besoin d'un chemin étape par étape.",
+      "footer": "Transformez les opportunités en actions."
+    },
+    "ai": {
+      "title": "Demandez à Edutu AI",
+      "body": "Touchez le bouton AI central pour ouvrir le chat et demander des conseils.",
+      "footer": "Vérifiez les informations officielles."
+    },
+    "bell": {
+      "title": "Alertes",
+      "body": "Les échéances et les rappels s'affichent ici.",
+      "footer": "Consultez les éléments urgents."
+    },
+    "menu": {
+      "title": "Profil",
+      "body": "Mettez à jour vos paramètres et préférences ici.",
+      "footer": "Meilleur profil, meilleures correspondances."
+    },
+    "skipHint": "Passer les conseils de bienvenue",
+    "finishHint": "Terminer les conseils de bienvenue",
+    "nextHint": "Afficher le conseil suivant"
+  },
+  "landingCta": {
+    "title": "Prêt à vous lancer ?",
+    "subtitle": "Devenez mentor ou explorez des parcours personnalisés",
+    "applyAsMentor": "Devenir mentor",
+    "seeRoadmaps": "Voir les parcours"
+  },
+  "adBanner": {
+    "completeProfile": {
+      "title": "Recevez des opportunités personnalisées",
+      "subtitle": "Complétez votre profil pour voir des correspondances adaptées à vos compétences et intérêts",
+      "actionLabel": "Compléter mon profil"
+    },
+    "exploreOpportunities": {
+      "title": "Découvrez de nouvelles opportunités",
+      "subtitle": "Parcourez des bourses, des stages et des programmes adaptés à votre profil",
+      "actionLabel": "Explorer maintenant"
+    },
+    "buildCV": {
+      "title": "Créez le CV parfait",
+      "subtitle": "Créez un CV professionnel avec des modèles boostés à l'IA et des suggestions intelligentes",
+      "actionLabel": "Commencer"
+    },
+    "trackGoals": {
+      "title": "Gardez le cap avec vos objectifs",
+      "subtitle": "Fixez des jalons et ne manquez plus jamais une date limite de candidature",
+      "actionLabel": "Définir des objectifs"
+    },
+    "upgradePro": {
+      "title": "Débloquez les fonctionnalités Pro",
+      "subtitle": "CV adapté par IA, modèles premium et enregistrements illimités",
+      "actionLabel": "Passer à Pro"
+    },
+    "notifications": {
+      "title": "Ne manquez plus aucune échéance",
+      "subtitle": "Activez les notifications pour recevoir des rappels sur les opportunités à venir",
+      "actionLabel": "Activer"
+    }
+  },
+  "brandedLoader": {
+    "loading": "Chargement…"
+  },
+  "campaign": {
+    "badge": "Edu2Mobile"
+  }
+}

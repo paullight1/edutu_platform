@@ -7,6 +7,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
+import { useTranslation, Trans } from 'react-i18next';
 import {
     ChevronLeft, CheckCircle2, Sparkles, Users, Award, Star,
     Heart, BookOpen, Zap, ArrowRight, Check, Loader2, Globe
@@ -22,21 +23,22 @@ const MENTOR_STEPS = ['intro', 'motivation', 'details', 'review'] as const;
 type MentorStep = typeof MENTOR_STEPS[number];
 
 const MOTIVATION_OPTIONS = [
-    { id: 'help_others', text: "I want to help others achieve what I achieved", icon: Heart },
-    { id: 'mentor', text: "I enjoy mentoring and sharing knowledge", icon: Users },
-    { id: 'give_back', text: "I want to give back to the community", icon: Sparkles },
-    { id: 'document', text: "I want to document my journey for others", icon: BookOpen },
-    { id: 'pay_forward', text: "I believe in paying it forward", icon: Zap },
+    { id: 'help_others', textKey: 'mentorApply.motivations.helpOthers', icon: Heart },
+    { id: 'mentor', textKey: 'mentorApply.motivations.mentor', icon: Users },
+    { id: 'give_back', textKey: 'mentorApply.motivations.giveBack', icon: Sparkles },
+    { id: 'document', textKey: 'mentorApply.motivations.document', icon: BookOpen },
+    { id: 'pay_forward', textKey: 'mentorApply.motivations.payForward', icon: Zap },
 ];
 
 const CONTENT_TYPES = [
-    { id: 'mentorship', label: 'Mentorship', icon: Users, color: '#146ef5', desc: '1-on-1 guidance' },
-    { id: 'course', label: 'Course', icon: BookOpen, color: '#7a3dff', desc: 'Learning paths' },
-    { id: 'template', label: 'Templates', icon: Award, color: '#00d722', desc: 'CV & resume templates' },
-    { id: 'resource', label: 'Resources', icon: Star, color: '#ff6b00', desc: 'Study materials' },
+    { id: 'mentorship', labelKey: 'mentorApply.contentTypes.mentorship.label', icon: Users, color: '#146ef5', descKey: 'mentorApply.contentTypes.mentorship.desc' },
+    { id: 'course', labelKey: 'mentorApply.contentTypes.course.label', icon: BookOpen, color: '#7a3dff', descKey: 'mentorApply.contentTypes.course.desc' },
+    { id: 'template', labelKey: 'mentorApply.contentTypes.template.label', icon: Award, color: '#00d722', descKey: 'mentorApply.contentTypes.template.desc' },
+    { id: 'resource', labelKey: 'mentorApply.contentTypes.resource.label', icon: Star, color: '#ff6b00', descKey: 'mentorApply.contentTypes.resource.desc' },
 ];
 
 export default function MentorApply() {
+    const { t } = useTranslation('misc');
     const { user } = useUser();
     const router = useRouter();
     const { isDark, colors } = useTheme();
@@ -73,7 +75,7 @@ export default function MentorApply() {
 
     const handleSubmit = async () => {
         if (!user?.id) {
-            Alert.alert('Not signed in', 'Please sign in to submit a mentor application.');
+            Alert.alert(t('mentorApply.alerts.notSignedInTitle'), t('mentorApply.alerts.notSignedInMessage'));
             return;
         }
         setIsSubmitting(true);
@@ -102,7 +104,7 @@ export default function MentorApply() {
             setIsSubmitted(true);
         } catch (err: any) {
             console.error('Submission error:', err);
-            Alert.alert('Error', err?.message || 'Something went wrong. Please try again.');
+            Alert.alert(t('common:states.error'), err?.message || t('common:errors.generic'));
         } finally {
             setIsSubmitting(false);
         }
@@ -135,15 +137,15 @@ export default function MentorApply() {
                     <View style={[styles.successIcon, { backgroundColor: '#146ef5' }]}>
                         <CheckCircle2 size={40} color="#fff" />
                     </View>
-                    <Text style={[styles.successTitle, { color: textPrimary }]}>Application Sent!</Text>
+                    <Text style={[styles.successTitle, { color: textPrimary }]}>{t('mentorApply.success.title')}</Text>
                     <Text style={[styles.successDesc, { color: textSecondary }]}>
-                        Thanks for applying to be a mentor. We'll review your application and get back to you within 2-3 business days.
+                        {t('mentorApply.success.desc')}
                     </Text>
                     <TouchableOpacity
                         style={[styles.successBtn, { backgroundColor: '#146ef5' }]}
                         onPress={() => router.replace('/profile')}
                     >
-                        <Text style={styles.successBtnText}>Back to Profile</Text>
+                        <Text style={styles.successBtnText}>{t('mentorApply.success.backToProfile')}</Text>
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
@@ -152,7 +154,7 @@ export default function MentorApply() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={['top']}>
-            <ScreenHeader title="Become a Mentor" showBack />
+            <ScreenHeader title={t('mentorApply.title')} showBack />
 
             {/* Step Progress */}
             <View style={[styles.stepProgress, { borderBottomColor: borderColor }]}>
@@ -185,21 +187,20 @@ export default function MentorApply() {
                         <View>
                             <View style={styles.badge}>
                                 <Sparkles size={12} color="#146ef5" />
-                                <Text style={styles.badgeText}>Become a Mentor</Text>
+                                <Text style={styles.badgeText}>{t('mentorApply.title')}</Text>
                             </View>
                             <Text style={[styles.heroTitle, { color: textPrimary }]}>
-                                Share Your{'\n'}
-                                <Text style={{ color: '#146ef5' }}>Success Story</Text>
+                                <Trans t={t} i18nKey="mentorApply.intro.heroTitle" components={{ accent: <Text style={{ color: '#146ef5' }} /> }} />
                             </Text>
                             <Text style={[styles.heroDesc, { color: textSecondary }]}>
-                                You've achieved something incredible. Help others get there too by sharing your knowledge and experience.
+                                {t('mentorApply.intro.heroDesc')}
                             </Text>
 
                             <View style={styles.statsRow}>
                                 {[
-                                    { num: '10K+', label: 'Learners', color: '#146ef5' },
-                                    { num: '500+', label: 'Mentors', color: '#7a3dff' },
-                                    { num: '85%', label: 'Revenue', color: '#00d722' },
+                                    { num: '10K+', label: t('mentorApply.intro.statLearners'), color: '#146ef5' },
+                                    { num: '500+', label: t('mentorApply.intro.statMentors'), color: '#7a3dff' },
+                                    { num: '85%', label: t('mentorApply.intro.statRevenue'), color: '#00d722' },
                                 ].map((stat, i) => (
                                     <View key={i} style={[styles.statCard, { backgroundColor: cardBg, borderColor }]}>
                                         <Text style={[styles.statNum, { color: stat.color }]}>{stat.num}</Text>
@@ -211,7 +212,7 @@ export default function MentorApply() {
                             <View style={[styles.infoCard, { backgroundColor: `${colors.accent}08`, borderColor: `${colors.accent}20` }]}>
                                 <Globe size={18} color={colors.accent} />
                                 <Text style={[styles.infoText, { color: textSecondary }]}>
-                                    Reach learners from 31+ countries. Your experience can change someone's life anywhere in the world.
+                                    {t('mentorApply.intro.info')}
                                 </Text>
                             </View>
 
@@ -219,7 +220,7 @@ export default function MentorApply() {
                                 style={[styles.primaryBtn, { backgroundColor: '#146ef5' }]}
                                 onPress={nextStep}
                             >
-                                <Text style={styles.primaryBtnText}>Get Started</Text>
+                                <Text style={styles.primaryBtnText}>{t('mentorApply.intro.getStarted')}</Text>
                                 <ArrowRight size={16} color="#fff" />
                             </TouchableOpacity>
                         </View>
@@ -230,10 +231,10 @@ export default function MentorApply() {
                         <View>
                             <TouchableOpacity onPress={prevStep} style={styles.backBtn}>
                                 <ChevronLeft size={14} color={textSecondary} />
-                                <Text style={[styles.backText, { color: textSecondary }]}>Back</Text>
+                                <Text style={[styles.backText, { color: textSecondary }]}>{t('common:actions.back')}</Text>
                             </TouchableOpacity>
-                            <Text style={[styles.stepTitle, { color: textPrimary }]}>What motivates you?</Text>
-                            <Text style={[styles.stepDesc, { color: textSecondary }]}>Choose the reason that best describes why you want to mentor.</Text>
+                            <Text style={[styles.stepTitle, { color: textPrimary }]}>{t('mentorApply.motivation.title')}</Text>
+                            <Text style={[styles.stepDesc, { color: textSecondary }]}>{t('mentorApply.motivation.desc')}</Text>
 
                             <View style={styles.optionsList}>
                                 {MOTIVATION_OPTIONS.map((option) => {
@@ -256,7 +257,7 @@ export default function MentorApply() {
                                                 <option.icon size={16} color={isSelected ? '#fff' : textSecondary} />
                                             </View>
                                             <Text style={[styles.optionText, { color: isSelected ? '#146ef5' : textPrimary }]}>
-                                                {option.text}
+                                                {t(option.textKey)}
                                             </Text>
                                         </TouchableOpacity>
                                     );
@@ -270,7 +271,7 @@ export default function MentorApply() {
                                 onPress={nextStep}
                                 disabled={!canProceed()}
                             >
-                                <Text style={[styles.primaryBtnText, { color: canProceed() ? '#fff' : textSecondary }]}>Continue</Text>
+                                <Text style={[styles.primaryBtnText, { color: canProceed() ? '#fff' : textSecondary }]}>{t('common:actions.continue')}</Text>
                                 <ArrowRight size={16} color={canProceed() ? '#fff' : textSecondary} />
                             </TouchableOpacity>
                         </View>
@@ -281,16 +282,16 @@ export default function MentorApply() {
                         <View>
                             <TouchableOpacity onPress={prevStep} style={styles.backBtn}>
                                 <ChevronLeft size={14} color={textSecondary} />
-                                <Text style={[styles.backText, { color: textSecondary }]}>Back</Text>
+                                <Text style={[styles.backText, { color: textSecondary }]}>{t('common:actions.back')}</Text>
                             </TouchableOpacity>
-                            <Text style={[styles.stepTitle, { color: textPrimary }]}>Tell us about yourself</Text>
-                            <Text style={[styles.stepDesc, { color: textSecondary }]}>Help learners understand your expertise.</Text>
+                            <Text style={[styles.stepTitle, { color: textPrimary }]}>{t('mentorApply.details.title')}</Text>
+                            <Text style={[styles.stepDesc, { color: textSecondary }]}>{t('mentorApply.details.desc')}</Text>
 
                             <View style={styles.formGroup}>
-                                <Text style={[styles.label, { color: textPrimary }]}>Display Name</Text>
+                                <Text style={[styles.label, { color: textPrimary }]}>{t('mentorApply.details.displayNameLabel')}</Text>
                                 <TextInput
                                     style={[styles.input, { backgroundColor: cardBg, borderColor, color: textPrimary }]}
-                                    placeholder="How should learners know you?"
+                                    placeholder={t('mentorApply.details.displayNamePlaceholder')}
                                     placeholderTextColor={textSecondary}
                                     value={formData.displayName}
                                     onChangeText={(v) => updateField('displayName', v)}
@@ -298,7 +299,7 @@ export default function MentorApply() {
                             </View>
 
                             <View style={styles.formGroup}>
-                                <Text style={[styles.label, { color: textPrimary }]}>What will you teach?</Text>
+                                <Text style={[styles.label, { color: textPrimary }]}>{t('mentorApply.details.teachLabel')}</Text>
                                 <View style={styles.typeGrid}>
                                     {CONTENT_TYPES.map((type) => {
                                         const isSelected = formData.contentType === type.id;
@@ -315,8 +316,8 @@ export default function MentorApply() {
                                                 }]}
                                             >
                                                 <type.icon size={16} color={type.color} />
-                                                <Text style={[styles.typeLabel, { color: textPrimary }]}>{type.label}</Text>
-                                                <Text style={[styles.typeDesc, { color: textSecondary }]}>{type.desc}</Text>
+                                                <Text style={[styles.typeLabel, { color: textPrimary }]}>{t(type.labelKey)}</Text>
+                                                <Text style={[styles.typeDesc, { color: textSecondary }]}>{t(type.descKey)}</Text>
                                             </TouchableOpacity>
                                         );
                                     })}
@@ -324,10 +325,10 @@ export default function MentorApply() {
                             </View>
 
                             <View style={styles.formGroup}>
-                                <Text style={[styles.label, { color: textPrimary }]}>Your Bio</Text>
+                                <Text style={[styles.label, { color: textPrimary }]}>{t('mentorApply.details.bioLabel')}</Text>
                                 <TextInput
                                     style={[styles.textarea, { backgroundColor: cardBg, borderColor, color: textPrimary }]}
-                                    placeholder="Share your background, achievements..."
+                                    placeholder={t('mentorApply.details.bioPlaceholder')}
                                     placeholderTextColor={textSecondary}
                                     multiline
                                     numberOfLines={4}
@@ -337,10 +338,10 @@ export default function MentorApply() {
                             </View>
 
                             <View style={styles.formGroup}>
-                                <Text style={[styles.label, { color: textPrimary }]}>Years of Experience</Text>
+                                <Text style={[styles.label, { color: textPrimary }]}>{t('mentorApply.details.experienceLabel')}</Text>
                                 <TextInput
                                     style={[styles.input, { backgroundColor: cardBg, borderColor, color: textPrimary }]}
-                                    placeholder="e.g., 5 years in software engineering"
+                                    placeholder={t('mentorApply.details.experiencePlaceholder')}
                                     placeholderTextColor={textSecondary}
                                     value={formData.experience}
                                     onChangeText={(v) => updateField('experience', v)}
@@ -349,7 +350,7 @@ export default function MentorApply() {
 
                             <View style={styles.formRow}>
                                 <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
-                                    <Text style={[styles.label, { color: textPrimary }]}>LinkedIn URL</Text>
+                                    <Text style={[styles.label, { color: textPrimary }]}>{t('mentorApply.details.linkedinLabel')}</Text>
                                     <TextInput
                                         style={[styles.input, { backgroundColor: cardBg, borderColor, color: textPrimary }]}
                                         placeholder="linkedin.com/in/..."
@@ -359,7 +360,7 @@ export default function MentorApply() {
                                     />
                                 </View>
                                 <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
-                                    <Text style={[styles.label, { color: textPrimary }]}>Portfolio URL</Text>
+                                    <Text style={[styles.label, { color: textPrimary }]}>{t('mentorApply.details.portfolioLabel')}</Text>
                                     <TextInput
                                         style={[styles.input, { backgroundColor: cardBg, borderColor, color: textPrimary }]}
                                         placeholder="your-portfolio.com"
@@ -377,7 +378,7 @@ export default function MentorApply() {
                                 onPress={nextStep}
                                 disabled={!canProceed()}
                             >
-                                <Text style={[styles.primaryBtnText, { color: canProceed() ? '#fff' : textSecondary }]}>Review Application</Text>
+                                <Text style={[styles.primaryBtnText, { color: canProceed() ? '#fff' : textSecondary }]}>{t('mentorApply.details.reviewApplication')}</Text>
                                 <ArrowRight size={16} color={canProceed() ? '#fff' : textSecondary} />
                             </TouchableOpacity>
                         </View>
@@ -388,20 +389,20 @@ export default function MentorApply() {
                         <View>
                             <TouchableOpacity onPress={prevStep} style={styles.backBtn}>
                                 <ChevronLeft size={14} color={textSecondary} />
-                                <Text style={[styles.backText, { color: textSecondary }]}>Back</Text>
+                                <Text style={[styles.backText, { color: textSecondary }]}>{t('common:actions.back')}</Text>
                             </TouchableOpacity>
-                            <Text style={[styles.stepTitle, { color: textPrimary }]}>Review your application</Text>
-                            <Text style={[styles.stepDesc, { color: textSecondary }]}>Make sure everything looks good before submitting.</Text>
+                            <Text style={[styles.stepTitle, { color: textPrimary }]}>{t('mentorApply.review.title')}</Text>
+                            <Text style={[styles.stepDesc, { color: textSecondary }]}>{t('mentorApply.review.desc')}</Text>
 
                             <View style={styles.reviewList}>
                                 {[
-                                    { label: 'Display Name', value: formData.displayName },
-                                    { label: 'Motivation', value: MOTIVATION_OPTIONS.find(m => m.id === formData.motivation)?.text || '' },
-                                    { label: 'Content Type', value: CONTENT_TYPES.find(c => c.id === formData.contentType)?.label || '' },
-                                    { label: 'Experience', value: formData.experience },
-                                    { label: 'Bio', value: formData.bio },
-                                    { label: 'LinkedIn', value: formData.linkedInUrl || 'Not provided' },
-                                    { label: 'Portfolio', value: formData.portfolioUrl || 'Not provided' },
+                                    { label: t('mentorApply.review.displayName'), value: formData.displayName },
+                                    { label: t('mentorApply.review.motivation'), value: (() => { const selected = MOTIVATION_OPTIONS.find(m => m.id === formData.motivation); return selected ? t(selected.textKey) : ''; })() },
+                                    { label: t('mentorApply.review.contentType'), value: (() => { const selected = CONTENT_TYPES.find(c => c.id === formData.contentType); return selected ? t(selected.labelKey) : ''; })() },
+                                    { label: t('mentorApply.review.experience'), value: formData.experience },
+                                    { label: t('mentorApply.review.bio'), value: formData.bio },
+                                    { label: t('mentorApply.review.linkedin'), value: formData.linkedInUrl || t('mentorApply.review.notProvided') },
+                                    { label: t('mentorApply.review.portfolio'), value: formData.portfolioUrl || t('mentorApply.review.notProvided') },
                                 ].map((item, i) => (
                                     <View key={i} style={[styles.reviewItem, { backgroundColor: cardBg, borderColor }]}>
                                         <Text style={[styles.reviewLabel, { color: textSecondary }]}>{item.label}</Text>
@@ -418,11 +419,11 @@ export default function MentorApply() {
                                 {isSubmitting ? (
                                     <>
                                         <ActivityIndicator size="small" color="#fff" />
-                                        <Text style={styles.primaryBtnText}>Submitting...</Text>
+                                        <Text style={styles.primaryBtnText}>{t('mentorApply.review.submitting')}</Text>
                                     </>
                                 ) : (
                                     <>
-                                        <Text style={styles.primaryBtnText}>Submit Application</Text>
+                                        <Text style={styles.primaryBtnText}>{t('mentorApply.review.submit')}</Text>
                                         <ArrowRight size={16} color="#fff" />
                                     </>
                                 )}

@@ -19,6 +19,7 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../components/context/ThemeContext';
 import { EdutuLogo } from '../components/branding/EdutuLogo';
 
@@ -138,6 +139,7 @@ export default function OnboardingWelcome() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
+  const { t } = useTranslation('auth');
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const primaryTextColor = isDark ? '#F8FAFC' : '#141217';
@@ -161,9 +163,9 @@ export default function OnboardingWelcome() {
         <OrbitalHero />
 
         <View style={styles.copy}>
-          <Text style={[styles.title, { color: primaryTextColor }]}>Find real opportunities</Text>
+          <Text style={[styles.title, { color: primaryTextColor }]}>{t('welcome.title')}</Text>
           <Text style={[styles.helperLine, { color: mutedTextColor }]}>
-            Scholarships, jobs, and schools matched to you.
+            {t('welcome.subtitle')}
           </Text>
         </View>
 
@@ -178,7 +180,7 @@ export default function OnboardingWelcome() {
           onPress={() => setSheetOpen(true)}
         >
           <Text style={[styles.getStartedText, { color: isDark ? '#111217' : '#FFFFFF' }]}>
-            Get Started
+            {t('welcome.getStarted')}
           </Text>
         </Pressable>
       </View>
@@ -201,9 +203,9 @@ export default function OnboardingWelcome() {
               </View>
             </View>
 
-            <Text style={[styles.sheetTitle, { color: primaryTextColor }]}>Get Started</Text>
+            <Text style={[styles.sheetTitle, { color: primaryTextColor }]}>{t('welcome.getStarted')}</Text>
             <Text style={[styles.sheetDescription, { color: mutedTextColor }]}>
-              Scholarships, schools, grants, and jobs in one focused feed.
+              {t('welcome.sheetDescription')}
             </Text>
 
             <Pressable
@@ -211,7 +213,7 @@ export default function OnboardingWelcome() {
               onPress={() => router.push('/(auth)/sign-up')}
             >
               <Text style={[styles.sheetPrimaryText, { color: isDark ? '#111217' : '#FFFFFF' }]}>
-                Create account
+                {t('welcome.createAccount')}
               </Text>
               <ArrowRight color={isDark ? '#111217' : '#FFFFFF'} size={22} />
             </Pressable>
@@ -221,7 +223,7 @@ export default function OnboardingWelcome() {
               onPress={() => router.push('/(auth)/sign-in')}
             >
               <Text style={[styles.sheetSecondaryText, { color: primaryTextColor }]}>
-                Sign in
+                {t('welcome.signIn')}
               </Text>
             </Pressable>
           </View>

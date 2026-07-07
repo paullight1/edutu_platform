@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, Alert } from 'react-native';
 import { Calendar, Zap, CheckCircle2, RefreshCcw, Trash2, Map, Target, ChevronRight } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import type { Goal } from '@edutu/core/src/hooks/useGoals';
 import { useTheme } from '../context/ThemeContext';
 import { ProgressBar } from '../ui/ProgressBar';
@@ -27,6 +28,7 @@ export function GoalCard({
     compact = false
 }: GoalCardProps) {
     const router = useRouter();
+    const { t } = useTranslation('goals');
     const { colors, isDark } = useTheme();
     const isFromRoadmap = goal.source === 'imported';
     const hasDeadline = !!goal.deadline;
@@ -41,12 +43,12 @@ export function GoalCard({
 
     const handleDelete = () => {
         Alert.alert(
-            'Delete Goal',
-            `Are you sure you want to delete "${goal.title}"?`,
+            t('deleteConfirm.title'),
+            t('deleteConfirm.message', { title: goal.title }),
             [
-                { text: 'Cancel', style: 'cancel' },
+                { text: t('common:actions.cancel'), style: 'cancel' },
                 {
-                    text: 'Delete',
+                    text: t('common:actions.delete'),
                     style: 'destructive',
                     onPress: () => onDelete?.(goal)
                 }
@@ -78,7 +80,7 @@ export function GoalCard({
                             styles.compactDeadlineText,
                             { color: isOverdue ? '#f87171' : daysUntil! <= 2 ? '#fbbf24' : textSecondary }
                         ]}>
-                            {isOverdue ? `${Math.abs(daysUntil)}d overdue` : daysUntil === 0 ? 'Today' : daysUntil === 1 ? 'Tomorrow' : `${daysUntil}d left`}
+                            {isOverdue ? t('time.overdueShort', { count: Math.abs(daysUntil!) }) : daysUntil === 0 ? t('time.today') : daysUntil === 1 ? t('time.tomorrow') : t('time.leftShort', { count: daysUntil! })}
                         </Text>
                     </View>
                 )}
@@ -114,14 +116,14 @@ export function GoalCard({
 
                     <View style={[styles.priorityBadge, { backgroundColor: priorityConfig.bg }]}>
                         <Text style={[styles.priorityText, { color: priorityConfig.color }]}>
-                            {priorityConfig.label}
+                            {t(`priority.${goal.priority || 'medium'}`)}
                         </Text>
                     </View>
                 </View>
 
                 <View style={styles.progressContainer}>
                     <View style={styles.progressHeader}>
-                        <Text style={[styles.progressLabel, { color: textSecondary }]}>Progress</Text>
+                        <Text style={[styles.progressLabel, { color: textSecondary }]}>{t('labels.progress')}</Text>
                         <Text style={[styles.progressValue, { color: colors.foreground }]}>{Math.round(goal.progress)}%</Text>
                     </View>
                     <ProgressBar progress={goal.progress} />
@@ -139,7 +141,7 @@ export function GoalCard({
                                     styles.deadlineText,
                                     { color: isOverdue ? '#f87171' : daysUntil! <= 2 ? '#fbbf24' : textSecondary }
                                 ]}>
-                                    {isOverdue ? `${Math.abs(daysUntil!)}d overdue` : daysUntil === 0 ? 'Today' : daysUntil === 1 ? 'Tomorrow' : `${daysUntil}d left`}
+                                    {isOverdue ? t('time.overdueShort', { count: Math.abs(daysUntil!) }) : daysUntil === 0 ? t('time.today') : daysUntil === 1 ? t('time.tomorrow') : t('time.leftShort', { count: daysUntil! })}
                                 </Text>
                             </View>
                         )}

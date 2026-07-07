@@ -28,6 +28,7 @@ import {
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useUser } from '@clerk/clerk-expo';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../../components/context/ThemeContext';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { supabase } from '../../../lib/supabase';
@@ -76,6 +77,7 @@ interface Stage {
 }
 
 function CreateRoadmapScreenContent() {
+    const { t } = useTranslation('misc');
     const router = useRouter();
     const { user } = useUser();
     const { colors, isDark } = useTheme();
@@ -159,7 +161,7 @@ function CreateRoadmapScreenContent() {
                 setCoverImage(publicUrl);
             }
         } catch (error) {
-            Alert.alert('Error', 'Failed to upload cover image');
+            Alert.alert(t('common:states.error'), t('admin.roadmapCreate.alerts.coverUploadFailed'));
         } finally {
             setUploadingImage(false);
         }
@@ -167,7 +169,7 @@ function CreateRoadmapScreenContent() {
     
     const addResource = async () => {
         if (!newResource.title || !newResource.url) {
-            Alert.alert('Error', 'Please fill in resource title and URL');
+            Alert.alert(t('common:states.error'), t('admin.roadmapCreate.alerts.resourceRequired'));
             return;
         }
         
@@ -207,7 +209,7 @@ function CreateRoadmapScreenContent() {
                 ));
             }
         } catch (error) {
-            Alert.alert('Error', 'Failed to upload file');
+            Alert.alert(t('common:states.error'), t('admin.roadmapCreate.alerts.fileUploadFailed'));
         } finally {
             setUploadingFile(null);
         }
@@ -283,7 +285,7 @@ function CreateRoadmapScreenContent() {
     
     const handleSubmit = async () => {
         if (!title || !summary || stages.length === 0) {
-            Alert.alert('Error', 'Please fill in title, summary, and at least one stage');
+            Alert.alert(t('common:states.error'), t('admin.roadmapCreate.alerts.requiredFields'));
             return;
         }
         
@@ -331,13 +333,13 @@ function CreateRoadmapScreenContent() {
             if (error) throw error;
             
             Alert.alert(
-                'Success',
-                'Roadmap created successfully!',
-                [{ text: 'OK', onPress: () => router.push('/roadmaps') }]
+                t('common:states.success'),
+                t('admin.roadmapCreate.alerts.created'),
+                [{ text: t('common:actions.ok'), onPress: () => router.push('/roadmaps') }]
             );
         } catch (error) {
             console.error('Submit error:', error);
-            Alert.alert('Error', 'Failed to create roadmap. Please try again.');
+            Alert.alert(t('common:states.error'), t('admin.roadmapCreate.alerts.createFailed'));
         } finally {
             setLoading(false);
         }
@@ -354,7 +356,7 @@ function CreateRoadmapScreenContent() {
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
             <ScreenHeader
-                title="Create Roadmap"
+                title={t('admin.roadmapCreate.title')}
                 showBack
                 onBack={() => router.back()}
             />
@@ -366,7 +368,7 @@ function CreateRoadmapScreenContent() {
             >
                 {/* Basic Info Section */}
                 <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Basic Information</Text>
+                    <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t('admin.roadmapCreate.basicInfo')}</Text>
                     
                     {/* Cover Image */}
                     <TouchableOpacity 
@@ -383,7 +385,7 @@ function CreateRoadmapScreenContent() {
                                     <>
                                         <Upload size={32} color={colors.muted} />
                                         <Text style={[styles.coverText, { color: colors.muted }]}>
-                                            Upload Cover Image
+                                            {t('admin.roadmapCreate.uploadCover')}
                                         </Text>
                                     </>
                                 )}
@@ -393,32 +395,32 @@ function CreateRoadmapScreenContent() {
                     
                     {/* Title */}
                     <View style={styles.inputGroup}>
-                        <Text style={[styles.label, { color: colors.muted }]}>Title</Text>
+                        <Text style={[styles.label, { color: colors.muted }]}>{t('admin.roadmapCreate.titleLabel')}</Text>
                         <TextInput
-                            style={[styles.input, { 
+                            style={[styles.input, {
                                 backgroundColor: colors.card,
                                 color: colors.foreground,
                                 borderColor: colors.border,
                             }]}
                             value={title}
                             onChangeText={setTitle}
-                            placeholder="e.g., Complete Web Development Bootcamp"
+                            placeholder={t('admin.roadmapCreate.titlePlaceholder')}
                             placeholderTextColor={colors.muted}
                         />
                     </View>
                     
                     {/* Summary */}
                     <View style={styles.inputGroup}>
-                        <Text style={[styles.label, { color: colors.muted }]}>Summary</Text>
+                        <Text style={[styles.label, { color: colors.muted }]}>{t('admin.roadmapCreate.summaryLabel')}</Text>
                         <TextInput
-                            style={[styles.textArea, { 
+                            style={[styles.textArea, {
                                 backgroundColor: colors.card,
                                 color: colors.foreground,
                                 borderColor: colors.border,
                             }]}
                             value={summary}
                             onChangeText={setSummary}
-                            placeholder="Brief description of this roadmap..."
+                            placeholder={t('admin.roadmapCreate.summaryPlaceholder')}
                             placeholderTextColor={colors.muted}
                             multiline
                             numberOfLines={3}
@@ -428,7 +430,7 @@ function CreateRoadmapScreenContent() {
                     {/* Category & Difficulty */}
                     <View style={styles.row}>
                         <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                            <Text style={[styles.label, { color: colors.muted }]}>Category</Text>
+                            <Text style={[styles.label, { color: colors.muted }]}>{t('admin.roadmapCreate.categoryLabel')}</Text>
                             <View style={[styles.select, { backgroundColor: colors.card, borderColor: colors.border }]}>
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                                     {CATEGORIES.map(cat => (
@@ -444,7 +446,7 @@ function CreateRoadmapScreenContent() {
                                                 styles.selectText,
                                                 { color: category === cat ? '#fff' : colors.foreground }
                                             ]}>
-                                                {cat}
+                                                {t(`admin.roadmapCreate.categories.${cat.toLowerCase()}`)}
                                             </Text>
                                         </TouchableOpacity>
                                     ))}
@@ -453,7 +455,7 @@ function CreateRoadmapScreenContent() {
                         </View>
                         
                         <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                            <Text style={[styles.label, { color: colors.muted }]}>Difficulty</Text>
+                            <Text style={[styles.label, { color: colors.muted }]}>{t('admin.roadmapCreate.difficultyLabel')}</Text>
                             <View style={[styles.select, { backgroundColor: colors.card, borderColor: colors.border }]}>
                                 {DIFFICULTY_LEVELS.map(diff => (
                                     <TouchableOpacity
@@ -468,7 +470,7 @@ function CreateRoadmapScreenContent() {
                                             styles.selectText,
                                             { color: difficulty === diff ? '#fff' : colors.foreground }
                                         ]}>
-                                            {diff}
+                                            {t(`admin.roadmapCreate.difficulty.${diff.toLowerCase()}`)}
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
@@ -479,7 +481,7 @@ function CreateRoadmapScreenContent() {
                     {/* Price & Duration */}
                     <View style={styles.row}>
                         <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                            <Text style={[styles.label, { color: colors.muted }]}>Price</Text>
+                            <Text style={[styles.label, { color: colors.muted }]}>{t('admin.roadmapCreate.priceLabel')}</Text>
                             <View style={[styles.select, { backgroundColor: colors.card, borderColor: colors.border }]}>
                                 {PRICE_OPTIONS.map(p => (
                                     <TouchableOpacity
@@ -494,7 +496,7 @@ function CreateRoadmapScreenContent() {
                                             styles.selectText,
                                             { color: price === p ? '#fff' : colors.foreground }
                                         ]}>
-                                            {p}
+                                            {t(`admin.roadmapCreate.price.${p.toLowerCase()}`)}
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
@@ -502,16 +504,16 @@ function CreateRoadmapScreenContent() {
                         </View>
                         
                         <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                            <Text style={[styles.label, { color: colors.muted }]}>Duration</Text>
+                            <Text style={[styles.label, { color: colors.muted }]}>{t('admin.roadmapCreate.durationLabel')}</Text>
                             <TextInput
-                                style={[styles.input, { 
+                                style={[styles.input, {
                                     backgroundColor: colors.card,
                                     color: colors.foreground,
                                     borderColor: colors.border,
                                 }]}
                                 value={duration}
                                 onChangeText={setDuration}
-                                placeholder="e.g., 3 months"
+                                placeholder={t('admin.roadmapCreate.durationPlaceholder')}
                                 placeholderTextColor={colors.muted}
                             />
                         </View>
@@ -519,32 +521,32 @@ function CreateRoadmapScreenContent() {
                     
                     {/* Tags */}
                     <View style={styles.inputGroup}>
-                        <Text style={[styles.label, { color: colors.muted }]}>Tags (comma separated)</Text>
+                        <Text style={[styles.label, { color: colors.muted }]}>{t('admin.roadmapCreate.tagsLabel')}</Text>
                         <TextInput
-                            style={[styles.input, { 
+                            style={[styles.input, {
                                 backgroundColor: colors.card,
                                 color: colors.foreground,
                                 borderColor: colors.border,
                             }]}
                             value={tags}
                             onChangeText={setTags}
-                            placeholder="e.g., javascript, react, web development"
+                            placeholder={t('admin.roadmapCreate.tagsPlaceholder')}
                             placeholderTextColor={colors.muted}
                         />
                     </View>
                     
                     {/* Outcomes */}
                     <View style={styles.inputGroup}>
-                        <Text style={[styles.label, { color: colors.muted }]}>Learning Outcomes (one per line)</Text>
+                        <Text style={[styles.label, { color: colors.muted }]}>{t('admin.roadmapCreate.outcomesLabel')}</Text>
                         <TextInput
-                            style={[styles.textArea, { 
+                            style={[styles.textArea, {
                                 backgroundColor: colors.card,
                                 color: colors.foreground,
                                 borderColor: colors.border,
                             }]}
                             value={outcomes}
                             onChangeText={setOutcomes}
-                            placeholder="- Build full-stack applications\n- Master React and Node.js\n- Deploy to production"
+                            placeholder={t('admin.roadmapCreate.outcomesPlaceholder')}
                             placeholderTextColor={colors.muted}
                             multiline
                             numberOfLines={4}
@@ -555,7 +557,7 @@ function CreateRoadmapScreenContent() {
                 {/* Resources Section */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Resources</Text>
+                        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t('admin.roadmapCreate.resources')}</Text>
                         <TouchableOpacity 
                             onPress={() => setShowResourceForm(!showResourceForm)}
                             style={[styles.addButton, { backgroundColor: colors.primary }]}
@@ -573,7 +575,7 @@ function CreateRoadmapScreenContent() {
                                     color: colors.foreground,
                                     borderColor: colors.border,
                                 }]}
-                                placeholder="Resource Title"
+                                placeholder={t('admin.roadmapCreate.resourceTitlePlaceholder')}
                                 placeholderTextColor={colors.muted}
                                 value={newResource.title || ''}
                                 onChangeText={text => setNewResource({ ...newResource, title: text })}
@@ -585,7 +587,7 @@ function CreateRoadmapScreenContent() {
                                     borderColor: colors.border,
                                     marginTop: 8,
                                 }]}
-                                placeholder="Description"
+                                placeholder={t('admin.roadmapCreate.resourceDescriptionPlaceholder')}
                                 placeholderTextColor={colors.muted}
                                 value={newResource.description || ''}
                                 onChangeText={text => setNewResource({ ...newResource, description: text })}
@@ -597,7 +599,7 @@ function CreateRoadmapScreenContent() {
                                     borderColor: colors.border,
                                     marginTop: 8,
                                 }]}
-                                placeholder="URL"
+                                placeholder={t('admin.roadmapCreate.resourceUrlPlaceholder')}
                                 placeholderTextColor={colors.muted}
                                 value={newResource.url || ''}
                                 onChangeText={text => setNewResource({ ...newResource, url: text })}
@@ -607,7 +609,7 @@ function CreateRoadmapScreenContent() {
                             
                             <View style={[styles.row, { marginTop: 8 }]}>
                                 <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                                    <Text style={[styles.label, { color: colors.muted, fontSize: 12 }]}>Type</Text>
+                                    <Text style={[styles.label, { color: colors.muted, fontSize: 12 }]}>{t('admin.roadmapCreate.typeLabel')}</Text>
                                     <View style={[styles.select, { backgroundColor: colors.background, borderColor: colors.border }]}>
                                         {RESOURCE_TYPES.map(type => (
                                             <TouchableOpacity
@@ -622,7 +624,7 @@ function CreateRoadmapScreenContent() {
                                                     styles.selectTextSmall,
                                                     { color: newResource.type === type ? '#fff' : colors.foreground }
                                                 ]}>
-                                                    {type}
+                                                    {t(`admin.roadmapCreate.resourceTypes.${type}`)}
                                                 </Text>
                                             </TouchableOpacity>
                                         ))}
@@ -630,7 +632,7 @@ function CreateRoadmapScreenContent() {
                                 </View>
                                 
                                 <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                                    <Text style={[styles.label, { color: colors.muted, fontSize: 12 }]}>Cost</Text>
+                                    <Text style={[styles.label, { color: colors.muted, fontSize: 12 }]}>{t('admin.roadmapCreate.costLabel')}</Text>
                                     <View style={[styles.select, { backgroundColor: colors.background, borderColor: colors.border }]}>
                                         {['free', 'paid'].map(cost => (
                                             <TouchableOpacity
@@ -645,7 +647,7 @@ function CreateRoadmapScreenContent() {
                                                     styles.selectTextSmall,
                                                     { color: newResource.cost === cost ? '#fff' : colors.foreground }
                                                 ]}>
-                                                    {cost}
+                                                    {t(`admin.roadmapCreate.cost.${cost}`)}
                                                 </Text>
                                             </TouchableOpacity>
                                         ))}
@@ -657,7 +659,7 @@ function CreateRoadmapScreenContent() {
                                 onPress={addResource}
                                 style={[styles.submitResourceBtn, { backgroundColor: colors.primary, marginTop: 12 }]}
                             >
-                                <Text style={styles.submitResourceText}>Add Resource</Text>
+                                <Text style={styles.submitResourceText}>{t('admin.roadmapCreate.addResource')}</Text>
                             </TouchableOpacity>
                         </View>
                     )}
@@ -679,7 +681,7 @@ function CreateRoadmapScreenContent() {
                                             {resource.title}
                                         </Text>
                                         <Text style={[styles.resourceMeta, { color: colors.muted }]}>
-                                            {resource.type} • {resource.cost}
+                                            {t('admin.roadmapCreate.resourceMeta', { type: t(`admin.roadmapCreate.resourceTypes.${resource.type}`), cost: t(`admin.roadmapCreate.cost.${resource.cost}`) })}
                                         </Text>
                                     </View>
                                     <TouchableOpacity onPress={() => removeResource(resource.id)}>
@@ -706,7 +708,7 @@ function CreateRoadmapScreenContent() {
                                         <>
                                             <Upload size={16} color={colors.muted} />
                                             <Text style={[styles.fileText, { color: colors.muted }]}>
-                                                Upload PDF/Doc (optional)
+                                                {t('admin.roadmapCreate.uploadDoc')}
                                             </Text>
                                         </>
                                     )}
@@ -719,7 +721,7 @@ function CreateRoadmapScreenContent() {
                 {/* Roadmap Stages Section */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Roadmap Stages</Text>
+                        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t('admin.roadmapCreate.stages')}</Text>
                         <TouchableOpacity 
                             onPress={addStage}
                             style={[styles.addButton, { backgroundColor: colors.primary }]}
@@ -743,7 +745,7 @@ function CreateRoadmapScreenContent() {
                                 </View>
                                 <TextInput
                                     style={[styles.stageTitleInput, { color: colors.foreground, flex: 1 }]}
-                                    placeholder={`Stage ${stageIndex + 1} Title`}
+                                    placeholder={t('admin.roadmapCreate.stageTitlePlaceholder', { number: stageIndex + 1 })}
                                     placeholderTextColor={colors.muted}
                                     value={stage.title}
                                     onChangeText={text => updateStage(stage.id, 'title', text)}
@@ -767,7 +769,7 @@ function CreateRoadmapScreenContent() {
                                             color: colors.foreground,
                                             borderColor: colors.border,
                                         }]}
-                                        placeholder="Stage Description"
+                                        placeholder={t('admin.roadmapCreate.stageDescriptionPlaceholder')}
                                         placeholderTextColor={colors.muted}
                                         value={stage.description}
                                         onChangeText={text => updateStage(stage.id, 'description', text)}
@@ -784,7 +786,7 @@ function CreateRoadmapScreenContent() {
                                                 flex: 1,
                                                 marginRight: 8,
                                             }]}
-                                            placeholder="Duration (e.g., 2 weeks)"
+                                            placeholder={t('admin.roadmapCreate.stageDurationPlaceholder')}
                                             placeholderTextColor={colors.muted}
                                             value={stage.duration}
                                             onChangeText={text => updateStage(stage.id, 'duration', text)}
@@ -797,7 +799,7 @@ function CreateRoadmapScreenContent() {
                                                 flex: 1,
                                                 marginLeft: 8,
                                             }]}
-                                            placeholder="Milestone"
+                                            placeholder={t('admin.roadmapCreate.milestonePlaceholder')}
                                             placeholderTextColor={colors.muted}
                                             value={stage.milestone}
                                             onChangeText={text => updateStage(stage.id, 'milestone', text)}
@@ -806,7 +808,7 @@ function CreateRoadmapScreenContent() {
                                     
                                     {/* Tasks */}
                                     <Text style={[styles.subSectionTitle, { color: colors.muted, marginTop: 16 }]}>
-                                        Tasks
+                                        {t('admin.roadmapCreate.tasks')}
                                     </Text>
                                     
                                     {stage.tasks.map((task, taskIndex) => (
@@ -822,7 +824,7 @@ function CreateRoadmapScreenContent() {
                                                 </View>
                                                 <TextInput
                                                     style={[styles.taskTitleInput, { color: colors.foreground, flex: 1 }]}
-                                                    placeholder="Task Title"
+                                                    placeholder={t('admin.roadmapCreate.taskTitlePlaceholder')}
                                                     placeholderTextColor={colors.muted}
                                                     value={task.title}
                                                     onChangeText={text => updateTask(stage.id, task.id, 'title', text)}
@@ -839,7 +841,7 @@ function CreateRoadmapScreenContent() {
                                                     borderColor: colors.border,
                                                     marginTop: 8,
                                                 }]}
-                                                placeholder="Task Description"
+                                                placeholder={t('admin.roadmapCreate.taskDescriptionPlaceholder')}
                                                 placeholderTextColor={colors.muted}
                                                 value={task.description}
                                                 onChangeText={text => updateTask(stage.id, task.id, 'description', text)}
@@ -857,7 +859,7 @@ function CreateRoadmapScreenContent() {
                                                         marginRight: 8,
                                                         marginTop: 8,
                                                     }]}
-                                                    placeholder="Duration"
+                                                    placeholder={t('admin.roadmapCreate.taskDurationPlaceholder')}
                                                     placeholderTextColor={colors.muted}
                                                     value={task.duration}
                                                     onChangeText={text => updateTask(stage.id, task.id, 'duration', text)}
@@ -871,7 +873,7 @@ function CreateRoadmapScreenContent() {
                                                         marginLeft: 8,
                                                         marginTop: 8,
                                                     }]}
-                                                    placeholder="Expected Outcome"
+                                                    placeholder={t('admin.roadmapCreate.taskOutcomePlaceholder')}
                                                     placeholderTextColor={colors.muted}
                                                     value={task.outcome}
                                                     onChangeText={text => updateTask(stage.id, task.id, 'outcome', text)}
@@ -885,7 +887,7 @@ function CreateRoadmapScreenContent() {
                                         style={[styles.addTaskBtn, { borderColor: colors.primary }]}
                                     >
                                         <Plus size={16} color={colors.primary} />
-                                        <Text style={[styles.addTaskText, { color: colors.primary }]}>Add Task</Text>
+                                        <Text style={[styles.addTaskText, { color: colors.primary }]}>{t('admin.roadmapCreate.addTask')}</Text>
                                     </TouchableOpacity>
                                     
                                     {/* Checkpoint */}
@@ -896,7 +898,7 @@ function CreateRoadmapScreenContent() {
                                             borderColor: colors.border,
                                             marginTop: 16,
                                         }]}
-                                        placeholder="Checkpoint / Deliverable"
+                                        placeholder={t('admin.roadmapCreate.checkpointPlaceholder')}
                                         placeholderTextColor={colors.muted}
                                         value={stage.checkpoint}
                                         onChangeText={text => updateStage(stage.id, 'checkpoint', text)}
@@ -918,7 +920,7 @@ function CreateRoadmapScreenContent() {
                     ) : (
                         <>
                             <Check size={20} color="#fff" />
-                            <Text style={styles.submitBtnText}>Create Roadmap</Text>
+                            <Text style={styles.submitBtnText}>{t('admin.roadmapCreate.title')}</Text>
                         </>
                     )}
                 </TouchableOpacity>

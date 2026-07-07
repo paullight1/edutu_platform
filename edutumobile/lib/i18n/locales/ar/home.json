@@ -1,0 +1,251 @@
+{
+  "tabs": {
+    "home": "الرئيسية",
+    "discover": "استكشف",
+    "plan": "الخطة",
+    "me": "حسابي",
+    "openEdutuAi": "فتح Edutu AI",
+    "badgeOverflow": "+99"
+  },
+  "rewards": {
+    "creditsEarned_one": "+{{count}} نقطة · {{label}}",
+    "creditsEarned_few": "+{{count}} نقاط · {{label}}",
+    "creditsEarned_many": "+{{count}} نقطة · {{label}}",
+    "creditsEarned_other": "+{{count}} نقطة · {{label}}"
+  },
+  "home": {
+    "exploreOpportunities": "استكشف الفرص",
+    "featuredOpportunities": "فرص مميزة",
+    "quickActionsTitle": "إجراءات سريعة",
+    "recommendedOpportunities": "فرص موصى بها",
+    "viewMore": "عرض المزيد",
+    "emptyTitle": "لا توجد توصيات بعد",
+    "emptyDescription": "استكشف الفرص واحفظ ما تريد متابعته.",
+    "emptyCta": "استكشف الفرص",
+    "quickActions": {
+      "roadmaps": "خرائط الطريق",
+      "goals": "الأهداف",
+      "cvBuilder": "منشئ السيرة الذاتية",
+      "saved": "المحفوظات"
+    },
+    "discovery": {
+      "scholarships": {
+        "title": "المنح الدراسية",
+        "description": "تمويل الرسوم الدراسية والجوائز"
+      },
+      "internships": {
+        "title": "التدريبات",
+        "description": "أدوار عملية لبداية المسيرة المهنية"
+      },
+      "grants": {
+        "title": "البرامج",
+        "description": "برامج ومنح ممولة"
+      },
+      "fellowships": {
+        "title": "الزمالات",
+        "description": "زمالات ومسارات قيادية"
+      }
+    }
+  },
+  "notifications": {
+    "title": "الإشعارات",
+    "passwordPromptTitle": "أضف كلمة مرور إلى حسابك",
+    "passwordPromptBody": "لقد سجّلت الدخول عبر Google أو Apple. أضف كلمة مرور لتتمكن أيضًا من تسجيل الدخول بالبريد الإلكتروني إذا نسيت الخيار الذي استخدمته.",
+    "setPassword": "تعيين كلمة مرور",
+    "filterAll": "الكل",
+    "filterUnread_one": "غير مقروءة ({{count}})",
+    "filterUnread_few": "غير مقروءة ({{count}})",
+    "filterUnread_many": "غير مقروءة ({{count}})",
+    "filterUnread_other": "غير مقروءة ({{count}})",
+    "loading": "جارٍ تحميل الإشعارات...",
+    "emptyTitle": "لا توجد إشعارات",
+    "emptySubtitle": "أنت على اطلاع بكل شيء!"
+  },
+  "help": {
+    "title": "المساعدة والدعم",
+    "headerTitle": "كيف يمكننا مساعدتك؟",
+    "headerSubtitle": "اعثر على إجابات للأسئلة الشائعة أو تواصل معنا.",
+    "faqSectionTitle": "الأسئلة الشائعة",
+    "directSupport": "الدعم المباشر",
+    "emailSupport": "الدعم عبر البريد الإلكتروني",
+    "visitWebsite": "زيارة الموقع",
+    "footer": "مركز مساعدة Edutu",
+    "faqs": {
+      "ai": {
+        "question": "كيف أستخدم Edutu AI؟",
+        "answer": "يمكنك الوصول إلى Edutu AI من الزر الأوسط في شريط التنقل. اكتب سؤالك عن الدورات أو الإرشاد المهني أو المهارات، وسيساعدك فورًا."
+      },
+      "enroll": {
+        "question": "كيف أسجّل في دورة؟",
+        "answer": "انتقل إلى تبويب «المتجر»، واعثر على دورة تهمك، ثم اضغط «الوصول الآن». تتطلب بعض الدورات نقاطًا، بينما بعضها الآخر مجاني."
+      },
+      "credits": {
+        "question": "كيف أكسب النقاط؟",
+        "answer": "يمكنك كسب النقاط بالمشاركة في الفرص المميزة، أو إكمال المهام، أو المساهمة كمنشئ محتوى. راجع محفظتك لمزيد من التفاصيل."
+      },
+      "security": {
+        "question": "هل بياناتي آمنة؟",
+        "answer": "نعم، نستخدم تشفيرًا بمعايير الصناعة وخدمة Clerk للمصادقة لضمان حماية معلوماتك الشخصية وتقدمك الأكاديمي دائمًا."
+      }
+    }
+  },
+  "privacy": {
+    "title": "سياسة الخصوصية",
+    "headerTitle": "خصوصيتك تهمنا",
+    "lastUpdated": "آخر تحديث: أبريل 2026",
+    "notice": "باستخدامك Edutu، فأنت توافق على شروط الخدمة وسياسة الخصوصية هذه. نحن لا نبيع بياناتك الشخصية أبدًا لأطراف ثالثة.",
+    "footer": "الشؤون القانونية في Edutu",
+    "sections": {
+      "dataWeCollect": {
+        "title": "البيانات التي نجمعها",
+        "desc": "نجمع اسمك وبريدك الإلكتروني وتقدمك الأكاديمي لتخصيص تجربتك التعليمية وتتبع أهدافك."
+      },
+      "howWeUseIt": {
+        "title": "كيف نستخدمها",
+        "desc": "تساعدنا بياناتك في التوصية بالدورات، وتقديم إرشاد بالذكاء الاصطناعي، وضمان حصولك على نقاط مقابل إنجازاتك."
+      },
+      "dataProtection": {
+        "title": "حماية البيانات",
+        "desc": "جميع المعلومات الشخصية مشفّرة. نستخدم بروتوكولات أمان بمعايير الصناعة للحفاظ على بياناتك من الوصول غير المصرح به."
+      },
+      "yourRights": {
+        "title": "حقوقك",
+        "desc": "يمكنك طلب حذف حسابك أو تنزيل بياناتك في أي وقت عبر مركز المساعدة أو بالتواصل مع الدعم."
+      }
+    }
+  },
+  "deadlines": {
+    "title": "المواعيد النهائية",
+    "subtitle": "{{total}} إجمالًا • {{urgent}} عاجلة",
+    "loading": "جارٍ تحميل مواعيدك النهائية...",
+    "emptyTitle": "لا توجد مواعيد نهائية بعد",
+    "emptyDescription": "قدّم على الفرص أو احفظها لتتبع مواعيد التقديم النهائية.",
+    "browseOpportunities": "تصفح الفرص",
+    "thisWeek": "هذا الأسبوع",
+    "nextWeek": "الأسبوع القادم",
+    "thisMonth": "هذا الشهر",
+    "later": "لاحقًا",
+    "pastDue": "متأخرة",
+    "daysLeft_one": "{{count}} يوم",
+    "daysLeft_two": "{{count}} يوم",
+    "daysLeft_few": "{{count}} أيام",
+    "daysLeft_many": "{{count}} يومًا",
+    "daysLeft_other": "{{count}} يوم",
+    "applied": "تم التقديم",
+    "bookmarked": "محفوظة"
+  },
+  "applied": {
+    "title": "طلباتي",
+    "status": {
+      "draft": "مسودة",
+      "submitted": "مُرسل",
+      "interview": "مقابلة",
+      "offer": "عرض",
+      "rejected": "مرفوض",
+      "withdrawn": "منسحب"
+    },
+    "filters": {
+      "total": "الإجمالي",
+      "closed": "مغلقة"
+    },
+    "recently": "مؤخرًا",
+    "statusNotUpdatedTitle": "لم يتم تحديث الحالة",
+    "statusNotUpdatedMessage": "يرجى المحاولة مرة أخرى بعد قليل.",
+    "updateStatusTitle": "تحديث حالة الطلب",
+    "appliedCount_one": "{{count}} طلب",
+    "appliedCount_few": "{{count}} طلبات",
+    "appliedCount_many": "{{count}} طلبًا",
+    "appliedCount_other": "{{count}} طلب",
+    "appliedOn": "تم التقديم في {{date}}",
+    "advanceTo": "الانتقال إلى {{stage}}",
+    "emptyTitle": "لا توجد طلبات بعد",
+    "emptySubtitle": "ستظهر هنا الفرص التي تقدّم عليها.",
+    "emptyFilter": "لا توجد طلبات في هذه المرحلة.",
+    "browseOpportunities": "تصفح الفرص",
+    "loading": "جارٍ تحميل الطلبات..."
+  },
+  "paywall": {
+    "title": "بريميوم",
+    "loading": "جارٍ تحميل بريميوم...",
+    "subscriptionActive": "اشتراكك نشط",
+    "simpleAccess": "وصول بسيط بالاشتراك",
+    "premiumIsActive": "بريميوم مفعّل",
+    "unlockPremium": "افتح ميزات بريميوم",
+    "heroActive": "لديك بالفعل وصول إلى الأدوات والقوالب المميزة.",
+    "heroUpsell": "اشترك للحصول على قوالب مميزة وأدوات ذكاء اصطناعي وتصدير الملفات ومطابقة متقدمة.",
+    "monthly": "شهري",
+    "yearly": "سنوي",
+    "save": "وفّر",
+    "billedMonthly": "تُدفع شهريًا",
+    "perMonthBilledYearly": "{{price}} شهريًا، تُدفع سنويًا",
+    "features": {
+      "unlimitedAi": "توليد غير محدود بالذكاء الاصطناعي",
+      "premiumTemplates": "قوالب سيرة ذاتية مميزة",
+      "aiTailoring": "تخصيص مدعوم بالذكاء الاصطناعي",
+      "priorityTools": "أدوات فرص ذات أولوية",
+      "pdfExport": "تصدير PDF",
+      "advancedFilters": "عوامل تصفية متقدمة"
+    },
+    "comingSoonTitle": "قريبًا",
+    "comingSoonMessage": "ستتوفر الاشتراكات بمجرد تهيئة منتجات App Store.",
+    "premiumActiveTitle": "بريميوم مفعّل",
+    "premiumActiveMessage": "اشتراكك في بريميوم أصبح نشطًا الآن.",
+    "purchaseFailed": "فشلت عملية الشراء",
+    "restoredTitle": "تمت الاستعادة",
+    "restoredMessage": "تمت استعادة مشترياتك.",
+    "restoreFailed": "فشلت استعادة المشتريات",
+    "backToApp": "العودة إلى التطبيق",
+    "subscribe": "اشترك في بريميوم",
+    "renewalNote": "يتجدد الاشتراك تلقائيًا ويمكن إدارته من إعدادات جهازك."
+  },
+  "wallet": {
+    "title": "المحفظة",
+    "balanceTitle": "رصيد النقاط",
+    "creditsUnit": "نقاط",
+    "proMember": "عضو Pro",
+    "upgradeToPro": "الترقية إلى Pro",
+    "buyCredits": "شراء نقاط",
+    "history": "السجل",
+    "dayStreak_one": "سلسلة {{count}} يوم",
+    "dayStreak_two": "سلسلة {{count}} يوم",
+    "dayStreak_few": "سلسلة {{count}} أيام",
+    "dayStreak_many": "سلسلة {{count}} يومًا",
+    "dayStreak_other": "سلسلة {{count}} يوم",
+    "streakBonusUnlocked": "تم فتح المكافأة! واصل التقدم.",
+    "streakBonusHint": "اليوم السابع يمنحك مكافأة نقاط",
+    "unlimitedPremiumFeatures": "ميزات مميزة غير محدودة",
+    "payPerUse": "ادفع حسب الاستخدام لميزات الذكاء الاصطناعي",
+    "recentTransactions": "المعاملات الأخيرة",
+    "noTransactions": "لا توجد معاملات بعد",
+    "noTransactionsHint": "اشترِ نقاطًا أو اكسبها من محتواك لترى النشاط هنا.",
+    "txAmount": "{{sign}}{{amount}} نقطة"
+  },
+  "opportunityCard": {
+    "notInterestedTitle": "غير مهتم؟",
+    "notInterestedMessage": "سنعرض لك عددًا أقل من الفرص المشابهة لهذه.",
+    "notInterestedConfirm": "غير مهتم",
+    "percentMatch": "تطابق {{percent}}%"
+  },
+  "creditPack": {
+    "title": "شراء نقاط",
+    "subtitle": "النقاط تشغّل ميزات الذكاء الاصطناعي. اختر باقة — لا تدفع إلا مقابل ما تستخدمه.",
+    "packs": {
+      "starter": "البداية",
+      "popular": "الأكثر شيوعًا",
+      "pro": "احترافية",
+      "megaValue": "قيمة ضخمة"
+    },
+    "creditsUnit": "نقاط",
+    "bestValue": "أفضل قيمة",
+    "comingSoonTitle": "قريبًا",
+    "comingSoonMessage": "ستتوفر باقات النقاط بمجرد تهيئة منتجات المتجر.",
+    "purchaseCompleteTitle": "اكتمل الشراء",
+    "purchaseCompleteMessage_one": "{{count}} نقطة في الطريق إليك. سيتم تحديث رصيدك قريبًا.",
+    "purchaseCompleteMessage_few": "{{count}} نقاط في الطريق إليك. سيتم تحديث رصيدك قريبًا.",
+    "purchaseCompleteMessage_many": "{{count}} نقطة في الطريق إليك. سيتم تحديث رصيدك قريبًا.",
+    "purchaseCompleteMessage_other": "{{count}} نقطة في الطريق إليك. سيتم تحديث رصيدك قريبًا.",
+    "purchaseFailedTitle": "فشلت عملية الشراء",
+    "somethingWentWrong": "حدث خطأ ما.",
+    "autoAddNote": "تُضاف النقاط تلقائيًا بعد الشراء."
+  }
+}

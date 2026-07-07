@@ -1,0 +1,173 @@
+{
+  "appName": "Edutu",
+  "actions": {
+    "ok": "OK",
+    "cancel": "Cancelar",
+    "save": "Salvar",
+    "delete": "Excluir",
+    "done": "Concluído",
+    "back": "Voltar",
+    "next": "Avançar",
+    "skip": "Pular",
+    "retry": "Tentar de novo",
+    "close": "Fechar",
+    "continue": "Continuar",
+    "share": "Compartilhar",
+    "apply": "Candidatar-se",
+    "search": "Pesquisar",
+    "seeAll": "Ver tudo",
+    "viewAll": "Ver tudo",
+    "learnMore": "Saiba mais",
+    "getStarted": "Começar",
+    "tryAgain": "Tentar novamente"
+  },
+  "states": {
+    "loading": "Carregando...",
+    "saving": "Salvando...",
+    "error": "Erro",
+    "success": "Sucesso",
+    "empty": "Nada por aqui ainda",
+    "offline": "Você está offline",
+    "comingSoon": "Em breve"
+  },
+  "errors": {
+    "generic": "Algo deu errado. Tente novamente.",
+    "network": "Erro de rede. Verifique sua conexão e tente novamente.",
+    "notFound": "Não encontrado"
+  },
+  "errorBoundary": {
+    "somethingWentWrong": "Algo deu errado",
+    "unexpectedError": "Ocorreu um erro inesperado",
+    "home": "Início",
+    "tryAgain": "Tentar novamente"
+  },
+  "emptyState": {
+    "search": {
+      "title": "Nenhum resultado encontrado",
+      "description": "Ajuste os termos da pesquisa ou os filtros para encontrar o que procura.",
+      "actionLabel": "Limpar pesquisa"
+    },
+    "saved": {
+      "title": "Nenhuma oportunidade salva",
+      "description": "As oportunidades que você salvar aparecerão aqui. Comece a explorar para encontrar bolsas e programas alinhados aos seus objetivos.",
+      "actionLabel": "Explorar oportunidades"
+    },
+    "goals": {
+      "title": "Nenhuma meta ainda",
+      "description": "Crie sua primeira meta para acompanhar seu progresso rumo a bolsas, habilidades e conquistas de carreira.",
+      "actionLabel": "Criar meta"
+    },
+    "applications": {
+      "title": "Nenhuma candidatura ainda",
+      "description": "Acompanhe suas candidaturas a bolsas e vagas aqui. Quando se candidatar a uma oportunidade, marque-a para monitorar seu progresso.",
+      "actionLabel": "Explorar oportunidades"
+    },
+    "notifications": {
+      "title": "Nenhuma notificação",
+      "description": "Você está em dia! Vamos avisar sobre prazos, novas oportunidades e lembretes de metas.",
+      "actionLabel": "Explorar oportunidades"
+    },
+    "deadlines": {
+      "title": "Nenhum prazo próximo",
+      "description": "Você não tem prazos se aproximando. Salve oportunidades e crie metas para acompanhar datas importantes.",
+      "actionLabel": "Explorar oportunidades"
+    },
+    "offline": {
+      "title": "Você está offline",
+      "description": "Verifique sua conexão com a internet. Você ainda pode navegar pelo conteúdo já carregado.",
+      "actionLabel": "Tentar novamente"
+    },
+    "error": {
+      "title": "Algo deu errado",
+      "description": "Não foi possível carregar este conteúdo. Tente novamente ou volte mais tarde.",
+      "actionLabel": "Tentar de novo"
+    },
+    "generic": {
+      "title": "Nada por aqui ainda",
+      "description": "O conteúdo aparecerá aqui assim que estiver disponível.",
+      "actionLabel": "Voltar"
+    }
+  },
+  "offline": {
+    "banner": "Você está offline"
+  },
+  "hints": {
+    "home": {
+      "title": "Início",
+      "body": "Comece aqui para ver oportunidades em destaque e suas recomendações mais relevantes.",
+      "footer": "Use o Início como seu resumo diário."
+    },
+    "discover": {
+      "title": "Descobrir",
+      "body": "Pesquise bolsas, empregos, financiamentos e programas.",
+      "footer": "Salve as melhores combinações."
+    },
+    "plan": {
+      "title": "Planejar",
+      "body": "Abra roteiros e metas quando precisar de um caminho passo a passo.",
+      "footer": "Transforme oportunidades em ações."
+    },
+    "ai": {
+      "title": "Pergunte à IA do Edutu",
+      "body": "Toque no botão central de IA para abrir o chat e pedir orientação.",
+      "footer": "Confirme os detalhes oficiais."
+    },
+    "bell": {
+      "title": "Alertas",
+      "body": "Prazos e lembretes aparecem aqui.",
+      "footer": "Revise os itens urgentes."
+    },
+    "menu": {
+      "title": "Perfil",
+      "body": "Atualize configurações e preferências aqui.",
+      "footer": "Perfil melhor, combinações melhores."
+    },
+    "skipHint": "Pular dicas de boas-vindas",
+    "finishHint": "Concluir dicas de boas-vindas",
+    "nextHint": "Mostrar a próxima dica de boas-vindas"
+  },
+  "landingCta": {
+    "title": "Pronto para começar?",
+    "subtitle": "Entre como mentor ou explore roteiros personalizados",
+    "applyAsMentor": "Candidatar-se a mentor",
+    "seeRoadmaps": "Ver roteiros"
+  },
+  "adBanner": {
+    "completeProfile": {
+      "title": "Receba oportunidades personalizadas",
+      "subtitle": "Complete seu perfil para ver combinações feitas para suas habilidades e interesses",
+      "actionLabel": "Completar perfil"
+    },
+    "exploreOpportunities": {
+      "title": "Descubra novas oportunidades",
+      "subtitle": "Explore bolsas, estágios e programas alinhados ao seu perfil",
+      "actionLabel": "Explorar agora"
+    },
+    "buildCV": {
+      "title": "Crie o CV perfeito",
+      "subtitle": "Monte um CV profissional com modelos com IA e sugestões inteligentes",
+      "actionLabel": "Começar a criar"
+    },
+    "trackGoals": {
+      "title": "Mantenha o foco com metas",
+      "subtitle": "Defina marcos e nunca mais perca um prazo de candidatura",
+      "actionLabel": "Definir metas"
+    },
+    "upgradePro": {
+      "title": "Desbloqueie recursos Pro",
+      "subtitle": "CV ajustado por IA, modelos premium e salvamentos ilimitados",
+      "actionLabel": "Fazer upgrade"
+    },
+    "notifications": {
+      "title": "Nunca perca um prazo",
+      "subtitle": "Ative as notificações para receber lembretes das próximas oportunidades",
+      "actionLabel": "Ativar"
+    }
+  },
+  "brandedLoader": {
+    "loading": "Carregando…"
+  },
+  "campaign": {
+    "badge": "Edu2Mobile"
+  }
+}

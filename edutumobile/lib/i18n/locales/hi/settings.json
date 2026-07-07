@@ -1,0 +1,74 @@
+{
+  "title": "सेटिंग्स",
+  "sections": {
+    "display": "डिस्प्ले प्राथमिकताएँ",
+    "language": "भाषा",
+    "notifications": "नोटिफ़िकेशन",
+    "privacySecurity": "प्राइवेसी और सुरक्षा",
+    "legal": "क़ानूनी",
+    "dangerZone": "डेंजर ज़ोन"
+  },
+  "display": {
+    "systemAppearance": "सिस्टम अपीयरेंस",
+    "systemAppearanceDesc": "आपकी डिवाइस सेटिंग्स से मेल खाता है",
+    "auto": "ऑटो",
+    "selectTheme": "थीम चुनें",
+    "themes": {
+      "default": "नील धड़कन",
+      "ocean": "सागर की हवा",
+      "sunset": "अफ़्रीकी सूर्यास्त",
+      "forest": "पन्ना वन",
+      "royal": "शाही मख़मल"
+    }
+  },
+  "language": {
+    "label": "ऐप की भाषा",
+    "desc": "चुनें कि Edutu किस भाषा में चले",
+    "restartTitle": "रीस्टार्ट ज़रूरी है",
+    "restartMessage": "{{language}} पर स्विच करने से लेआउट की दिशा बदल जाती है। इसे लागू करने के लिए Edutu को रीस्टार्ट करना होगा।",
+    "restartNow": "अभी रीस्टार्ट करें",
+    "restartLater": "बाद में"
+  },
+  "notifications": {
+    "push": "पुश नोटिफ़िकेशन",
+    "pushDesc": "रीयल-टाइम अपडेट",
+    "email": "ईमेल अलर्ट",
+    "emailDesc": "साप्ताहिक डाइजेस्ट और अपडेट",
+    "haptics": "हैप्टिक्स",
+    "hapticsDesc": "वाइब्रेशन फ़ीडबैक"
+  },
+  "security": {
+    "passwordKeys": "पासवर्ड और कीज़",
+    "passwordKeysDesc": "अकाउंट एक्सेस मैनेज करें",
+    "privacy": "प्राइवेसी",
+    "privacyDesc": "डेटा दृश्यता सेटिंग्स",
+    "addEmailPassword": "ईमेल पासवर्ड जोड़ें",
+    "addEmailPasswordDesc": "अभी आप Google या Apple से साइन इन करते हैं। पासवर्ड जोड़ें ताकि ईमेल से साइन-इन भी काम करे।",
+    "newPassword": "नया पासवर्ड",
+    "confirmPassword": "पासवर्ड की पुष्टि करें",
+    "addPassword": "पासवर्ड जोड़ें",
+    "addingPassword": "पासवर्ड जोड़ा जा रहा है...",
+    "passwordTooShortTitle": "पासवर्ड बहुत छोटा है",
+    "passwordTooShortMessage": "कम से कम 8 अक्षर इस्तेमाल करें।",
+    "passwordMismatchTitle": "पासवर्ड मेल नहीं खाते",
+    "passwordMismatchMessage": "दोनों फ़ील्ड में एक ही पासवर्ड डालें।",
+    "passwordAddedTitle": "पासवर्ड जुड़ गया",
+    "passwordAddedMessage": "अब आप ईमेल और पासवर्ड से भी साइन इन कर सकते हैं।",
+    "passwordErrorTitle": "पासवर्ड नहीं जोड़ा जा सका",
+    "passwordErrorMessage": "कृपया फिर से कोशिश करें।"
+  },
+  "legal": {
+    "privacyPolicy": "प्राइवेसी पॉलिसी",
+    "privacyPolicyDesc": "हम आपका डेटा कैसे संभालते हैं",
+    "terms": "सेवा की शर्तें",
+    "termsDesc": "यूज़र एग्रीमेंट और नीतियाँ"
+  },
+  "account": {
+    "deleteAccount": "अकाउंट हटाएँ",
+    "deleteConfirmMessage": "क्या आप वाक़ई अपना अकाउंट हटाना चाहते हैं? यह क़दम वापस नहीं लिया जा सकता। आपका सारा डेटा, लक्ष्य और प्रगति हमेशा के लिए हट जाएँगे।",
+    "userNotFound": "यूज़र नहीं मिला। कृपया फिर से कोशिश करें।",
+    "dataDeleteError": "हम आपका ऐप डेटा नहीं हटा पाए। अकाउंट हटाने से पहले कृपया फिर से कोशिश करें।",
+    "deleteError": "अकाउंट हटाया नहीं जा सका। कृपया support@edutu.org पर सपोर्ट से संपर्क करें"
+  },
+  "helpCenter": "हेल्प सेंटर"
+}

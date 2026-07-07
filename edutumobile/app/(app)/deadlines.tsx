@@ -10,6 +10,7 @@ import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import { BrandedLoader } from "../../components/ui/BrandedLoader";
 import { DeadlineItem, fetchOpportunityDeadlines } from "../../packages/core/src/services/deadlines";
 import { LottieState } from "../../components/ui/LottieState";
+import { useTranslation } from "react-i18next";
 
 const DeadlineSection = ({
     title,
@@ -24,6 +25,7 @@ const DeadlineSection = ({
     colors: any;
     router: any;
 }) => {
+    const { t } = useTranslation('home');
     if (data.length === 0) return null;
 
     return (
@@ -71,7 +73,7 @@ const DeadlineSection = ({
                                             : '#10B981'
                                 }
                             ]}>
-                                {item.daysRemaining <= 0 ? 'Past Due' : item.daysRemaining === 1 ? '1 day' : `${item.daysRemaining} days`}
+                                {item.daysRemaining <= 0 ? t('deadlines.pastDue') : t('deadlines.daysLeft', { count: item.daysRemaining })}
                             </Text>
                         </View>
                     </View>
@@ -81,12 +83,12 @@ const DeadlineSection = ({
                             {item.type === 'applied' ? (
                                 <>
                                     <CheckCircle size={14} color="#10B981" />
-                                    <Text style={styles.typeText}>Applied</Text>
+                                    <Text style={styles.typeText}>{t('deadlines.applied')}</Text>
                                 </>
                             ) : (
                                 <>
                                     <Bookmark size={14} color="#6366F1" />
-                                    <Text style={styles.typeText}>Bookmarked</Text>
+                                    <Text style={styles.typeText}>{t('deadlines.bookmarked')}</Text>
                                 </>
                             )}
                         </View>
@@ -99,6 +101,7 @@ const DeadlineSection = ({
 };
 
 export default function DeadlinesScreen() {
+    const { t } = useTranslation('home');
     const { isDark, colors } = useTheme();
     const router = useRouter();
     const { user } = useUser();
@@ -164,9 +167,9 @@ export default function DeadlinesScreen() {
     if (loading) {
         return (
             <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'left', 'right']}>
-                <ScreenHeader title="Deadlines" showBack />
+                <ScreenHeader title={t('deadlines.title')} showBack />
                 <View style={styles.loadingContainer}>
-                    <BrandedLoader label="Loading your deadlines..." />
+                    <BrandedLoader label={t('deadlines.loading')} />
                 </View>
             </SafeAreaView>
         );
@@ -178,9 +181,9 @@ export default function DeadlinesScreen() {
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'left', 'right']}>
             <ScreenHeader
-                title="Deadlines"
+                title={t('deadlines.title')}
                 showBack
-                subtitle={`${totalDeadlines} total • ${urgentCount} urgent`}
+                subtitle={t('deadlines.subtitle', { total: totalDeadlines, urgent: urgentCount })}
             />
 
             <FlatList
@@ -191,9 +194,9 @@ export default function DeadlinesScreen() {
                         {totalDeadlines === 0 ? (
                             <LottieState
                                 preset="deadlineEmpty"
-                                title="No Deadlines Yet"
-                                description="Apply to opportunities or bookmark them to track application deadlines."
-                                actionLabel="Browse Opportunities"
+                                title={t('deadlines.emptyTitle')}
+                                description={t('deadlines.emptyDescription')}
+                                actionLabel={t('deadlines.browseOpportunities')}
                                 onActionPress={() => router.push('/opportunities')}
                                 size={164}
                                 style={styles.emptyState}
@@ -201,28 +204,28 @@ export default function DeadlinesScreen() {
                         ) : (
                             <>
                                 <DeadlineSection
-                                    title="This Week"
+                                    title={t('deadlines.thisWeek')}
                                     data={groupedDeadlines.thisWeek}
                                     isDark={isDark}
                                     colors={colors}
                                     router={router}
                                 />
                                 <DeadlineSection
-                                    title="Next Week"
+                                    title={t('deadlines.nextWeek')}
                                     data={groupedDeadlines.nextWeek}
                                     isDark={isDark}
                                     colors={colors}
                                     router={router}
                                 />
                                 <DeadlineSection
-                                    title="This Month"
+                                    title={t('deadlines.thisMonth')}
                                     data={groupedDeadlines.thisMonth}
                                     isDark={isDark}
                                     colors={colors}
                                     router={router}
                                 />
                                 <DeadlineSection
-                                    title="Later"
+                                    title={t('deadlines.later')}
                                     data={groupedDeadlines.later}
                                     isDark={isDark}
                                     colors={colors}

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { FileText, Trash2 } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { UserCV } from '@edutu/core/src/types/cv';
 import { useTheme } from '../../components/context/ThemeContext';
 
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function CVListItem({ item, onEdit, onDelete }: Props) {
+    const { t } = useTranslation('cv');
     const { colors, isDark } = useTheme();
     const muted = isDark ? '#94A3B8' : '#64748B';
 
@@ -30,12 +32,12 @@ export function CVListItem({ item, onEdit, onDelete }: Props) {
                     {item.name}
                 </Text>
                 <Text style={[styles.cvListDate, { color: muted }]}>
-                    Updated {new Date(item.updated_at).toLocaleDateString()}
+                    {t('listItem.updated', { date: new Date(item.updated_at).toLocaleDateString() })}
                 </Text>
             </View>
             {item.is_primary && (
                 <View style={[styles.primaryBadge, { backgroundColor: colors.primary + '20' }]}>
-                    <Text style={[styles.primaryBadgeText, { color: colors.primary }]}>Primary</Text>
+                    <Text style={[styles.primaryBadgeText, { color: colors.primary }]}>{t('listItem.primary')}</Text>
                 </View>
             )}
             <TouchableOpacity

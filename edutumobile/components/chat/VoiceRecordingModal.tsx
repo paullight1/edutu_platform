@@ -22,6 +22,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Mic, X, Send, Loader2, AlertCircle } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { useTranslation } from 'react-i18next';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -102,6 +103,7 @@ export default function VoiceRecordingModal({
     onStopRecording,
     onReset,
 }: VoiceRecordingModalProps) {
+    const { t } = useTranslation('chat');
     const [autoSendTimeout, setAutoSendTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
@@ -170,7 +172,7 @@ export default function VoiceRecordingModal({
                     <Animated.View entering={FadeIn.duration(300)} exiting={FadeOut.duration(200)} style={styles.innerContent}>
                         <View style={styles.header}>
                             <Text style={[styles.title, { color: isDark ? '#FFFFFF' : '#0F172A' }]}>
-                                {hasTranscript ? 'Voice Message' : (isRecording ? 'Listening...' : (isProcessing ? 'Processing...' : 'Tap to Speak'))}
+                                {hasTranscript ? t('voice.titleTranscript') : (isRecording ? t('voice.titleListening') : (isProcessing ? t('voice.titleProcessing') : t('voice.titleIdle')))}
                             </Text>
                             <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
                                 <X size={24} color={isDark ? '#94A3B8' : '#64748B'} />
@@ -210,7 +212,7 @@ export default function VoiceRecordingModal({
                                 <View style={styles.autoSendHint}>
                                     <Loader2 size={14} color={isDark ? '#64748B' : '#94A3B8'} />
                                     <Text style={[styles.autoSendText, { color: isDark ? '#64748B' : '#94A3B8' }]}>
-                                        Sending automatically...
+                                        {t('voice.sendingAutomatically')}
                                     </Text>
                                 </View>
                             </Animated.View>
@@ -223,7 +225,7 @@ export default function VoiceRecordingModal({
                                     borderColor: 'rgba(239,68,68,0.2)',
                                 }]}>
                                     <AlertCircle size={18} color="#EF4444" />
-                                    <Text style={styles.errorText}>{error || 'Something went wrong'}</Text>
+                                    <Text style={styles.errorText}>{error || t('voice.genericError')}</Text>
                                 </View>
                             </Animated.View>
                         )}
@@ -272,8 +274,8 @@ export default function VoiceRecordingModal({
 
                         <Text style={[styles.hintText, { color: isDark ? '#64748B' : '#94A3B8' }]}>
                             {isRecording
-                                ? 'Tap microphone to stop'
-                                : (hasTranscript ? 'Tap send or wait' : (isProcessing ? 'Transcribing your message...' : 'Tap microphone to start recording'))}
+                                ? t('voice.hintStop')
+                                : (hasTranscript ? t('voice.hintSendOrWait') : (isProcessing ? t('voice.hintTranscribing') : t('voice.hintStart')))}
                         </Text>
                     </Animated.View>
                 </View>

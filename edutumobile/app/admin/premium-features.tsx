@@ -1,6 +1,7 @@
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, Alert, ScrollView, TouchableOpacity, Modal, TextInput, Switch } from "react-native";
 import React, { useState, useCallback, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import {
     ToggleLeft,
     ToggleRight,
@@ -30,6 +31,7 @@ interface FeatureFlag {
 }
 
 function AdminPremiumFeaturesContent() {
+    const { t } = useTranslation('misc');
     const { isDark, colors } = useTheme();
 
     const [featureFlags, setFeatureFlags] = useState<FeatureFlag[]>([]);
@@ -61,7 +63,7 @@ function AdminPremiumFeaturesContent() {
             setFeatureFlags(data || []);
         } catch (e: any) {
             console.error('Failed to fetch feature flags:', e);
-            Alert.alert('Error', 'Failed to load feature flags.');
+            Alert.alert(t('common:states.error'), t('admin.premiumFeatures.alerts.loadFailed'));
         } finally {
             setLoading(false);
         }
@@ -84,7 +86,7 @@ function AdminPremiumFeaturesContent() {
 
     const handleSubmit = async () => {
         if (!formLabel.trim() || !formDescription.trim()) {
-            Alert.alert('Validation Error', 'Label and description are required.');
+            Alert.alert(t('admin.premiumFeatures.alerts.validationTitle'), t('admin.premiumFeatures.alerts.validationMessage'));
             return;
         }
 
@@ -101,12 +103,12 @@ function AdminPremiumFeaturesContent() {
                 .eq('id', editingFeature!.id);
 
             if (error) throw error;
-            Alert.alert('Success', 'Feature flag updated successfully.');
+            Alert.alert(t('common:states.success'), t('admin.premiumFeatures.alerts.updated'));
             closeModal();
             fetchFeatureFlags();
         } catch (e: any) {
             console.error('Submit error:', e);
-            Alert.alert('Error', e.message || 'Failed to save feature flag.');
+            Alert.alert(t('common:states.error'), e.message || t('admin.premiumFeatures.alerts.saveFailed'));
         } finally {
             setSubmitting(false);
         }
@@ -126,7 +128,7 @@ function AdminPremiumFeaturesContent() {
             fetchFeatureFlags();
         } catch (e: any) {
             console.error('Toggle error:', e);
-            Alert.alert('Error', 'Failed to update status.');
+            Alert.alert(t('common:states.error'), t('admin.premiumFeatures.alerts.statusUpdateFailed'));
         }
     };
 
@@ -144,7 +146,7 @@ function AdminPremiumFeaturesContent() {
             fetchFeatureFlags();
         } catch (e: any) {
             console.error('Toggle pro error:', e);
-            Alert.alert('Error', 'Failed to update pro requirement.');
+            Alert.alert(t('common:states.error'), t('admin.premiumFeatures.alerts.proUpdateFailed'));
         }
     };
 
@@ -191,7 +193,7 @@ function AdminPremiumFeaturesContent() {
                     </View>
                     <View style={[styles.statusBadge, { backgroundColor: item.is_enabled ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)' }]}>
                         <Text style={[styles.statusText, { color: item.is_enabled ? '#10B981' : '#EF4444' }]}>
-                            {item.is_enabled ? 'Enabled' : 'Disabled'}
+                            {item.is_enabled ? t('admin.premiumFeatures.status.enabled') : t('admin.premiumFeatures.status.disabled')}
                         </Text>
                     </View>
                 </View>
@@ -202,7 +204,7 @@ function AdminPremiumFeaturesContent() {
 
                 <View style={styles.togglesRow}>
                     <View style={styles.toggleItem}>
-                        <Text style={[styles.toggleLabel, { color: textSecondary }]}>Enabled</Text>
+                        <Text style={[styles.toggleLabel, { color: textSecondary }]}>{t('admin.premiumFeatures.toggles.enabled')}</Text>
                         <Switch
                             value={item.is_enabled}
                             onValueChange={() => handleToggleEnabled(item)}
@@ -213,7 +215,7 @@ function AdminPremiumFeaturesContent() {
                     <View style={styles.toggleItem}>
                         <View style={styles.toggleLabelRow}>
                             <Crown size={14} color={item.pro_required ? '#F59E0B' : textSecondary} />
-                            <Text style={[styles.toggleLabel, { color: item.pro_required ? '#F59E0B' : textSecondary }]}>Pro Only</Text>
+                            <Text style={[styles.toggleLabel, { color: item.pro_required ? '#F59E0B' : textSecondary }]}>{t('admin.premiumFeatures.toggles.proOnly')}</Text>
                         </View>
                         <Switch
                             value={item.pro_required}
@@ -234,32 +236,32 @@ function AdminPremiumFeaturesContent() {
                 </View>
             </AnimatedPressable>
         );
-    }, [cardBg, borderColor, textPrimary, textSecondary, colors.primary, isDark]);
+    }, [cardBg, borderColor, textPrimary, textSecondary, colors.primary, isDark, t]);
 
     const filters: { key: typeof filter; label: string }[] = [
-        { key: 'all', label: 'All' },
-        { key: 'enabled', label: 'Enabled' },
-        { key: 'disabled', label: 'Disabled' },
-        { key: 'pro', label: 'Pro Only' },
+        { key: 'all', label: t('admin.premiumFeatures.filters.all') },
+        { key: 'enabled', label: t('admin.premiumFeatures.filters.enabled') },
+        { key: 'disabled', label: t('admin.premiumFeatures.filters.disabled') },
+        { key: 'pro', label: t('admin.premiumFeatures.filters.proOnly') },
     ];
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-            <ScreenHeader title="Premium Features" subtitle="Manage OTA feature flags" showBack />
+            <ScreenHeader title={t('admin.premiumFeatures.title')} subtitle={t('admin.premiumFeatures.subtitle')} showBack />
 
             <View style={styles.header}>
                 <View style={styles.statsRow}>
                     <View style={[styles.statCard, { backgroundColor: cardBg, borderColor }]}>
                         <Text style={[styles.statValue, { color: textPrimary }]}>{stats.total}</Text>
-                        <Text style={[styles.statLabel, { color: textSecondary }]}>Total</Text>
+                        <Text style={[styles.statLabel, { color: textSecondary }]}>{t('admin.premiumFeatures.stats.total')}</Text>
                     </View>
                     <View style={[styles.statCard, { backgroundColor: cardBg, borderColor }]}>
                         <Text style={[styles.statValue, { color: '#10B981' }]}>{stats.enabled}</Text>
-                        <Text style={[styles.statLabel, { color: textSecondary }]}>Enabled</Text>
+                        <Text style={[styles.statLabel, { color: textSecondary }]}>{t('admin.premiumFeatures.stats.enabled')}</Text>
                     </View>
                     <View style={[styles.statCard, { backgroundColor: cardBg, borderColor }]}>
                         <Text style={[styles.statValue, { color: '#F59E0B' }]}>{stats.proOnly}</Text>
-                        <Text style={[styles.statLabel, { color: textSecondary }]}>Pro Only</Text>
+                        <Text style={[styles.statLabel, { color: textSecondary }]}>{t('admin.premiumFeatures.stats.proOnly')}</Text>
                     </View>
                 </View>
 
@@ -269,7 +271,7 @@ function AdminPremiumFeaturesContent() {
                         style={[styles.searchInput, { color: textPrimary }]}
                         value={searchQuery}
                         onChangeText={setSearchQuery}
-                        placeholder="Search features..."
+                        placeholder={t('admin.premiumFeatures.searchPlaceholder')}
                         placeholderTextColor={textSecondary}
                     />
                     {searchQuery.length > 0 && (
@@ -305,7 +307,7 @@ function AdminPremiumFeaturesContent() {
             {loading ? (
                 <View style={styles.loadingContainer}>
                     <Loader2 size={32} color={colors.primary} />
-                    <Text style={[styles.loadingText, { color: textSecondary }]}>Loading feature flags...</Text>
+                    <Text style={[styles.loadingText, { color: textSecondary }]}>{t('admin.premiumFeatures.loading')}</Text>
                 </View>
             ) : (
                 <FlatList
@@ -317,9 +319,9 @@ function AdminPremiumFeaturesContent() {
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <Flag size={48} color={textSecondary} />
-                            <Text style={[styles.emptyTitle, { color: textPrimary }]}>No Feature Flags</Text>
+                            <Text style={[styles.emptyTitle, { color: textPrimary }]}>{t('admin.premiumFeatures.empty.title')}</Text>
                             <Text style={[styles.emptyText, { color: textSecondary }]}>
-                                {searchQuery || filter !== 'all' ? 'No features match the current filter.' : 'No feature flags found in the database.'}
+                                {searchQuery || filter !== 'all' ? t('admin.premiumFeatures.empty.filtered') : t('admin.premiumFeatures.empty.none')}
                             </Text>
                         </View>
                     }
@@ -331,7 +333,7 @@ function AdminPremiumFeaturesContent() {
                     <View style={[styles.modalSheet, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' }]}>
                         <View style={styles.modalHeader}>
                             <Text style={[styles.modalTitle, { color: textPrimary }]}>
-                                Edit Feature Flag
+                                {t('admin.premiumFeatures.modal.title')}
                             </Text>
                             <TouchableOpacity onPress={closeModal} style={styles.modalClose}>
                                 <X size={20} color={textSecondary} />
@@ -341,23 +343,23 @@ function AdminPremiumFeaturesContent() {
                         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
                             <View style={styles.modalBody}>
                                 <View style={styles.formGroup}>
-                                    <Text style={[styles.formLabel, { color: textSecondary }]}>Label *</Text>
+                                    <Text style={[styles.formLabel, { color: textSecondary }]}>{t('admin.premiumFeatures.modal.labelLabel')}</Text>
                                     <TextInput
                                         style={[styles.formInput, { backgroundColor: colors.card, color: textPrimary, borderColor }]}
                                         value={formLabel}
                                         onChangeText={setFormLabel}
-                                        placeholder="e.g. AI Tutor"
+                                        placeholder={t('admin.premiumFeatures.modal.labelPlaceholder')}
                                         placeholderTextColor={textSecondary}
                                     />
                                 </View>
 
                                 <View style={styles.formGroup}>
-                                    <Text style={[styles.formLabel, { color: textSecondary }]}>Description *</Text>
+                                    <Text style={[styles.formLabel, { color: textSecondary }]}>{t('admin.premiumFeatures.modal.descriptionLabel')}</Text>
                                     <TextInput
                                         style={[styles.formInputMultiline, { backgroundColor: colors.card, color: textPrimary, borderColor }]}
                                         value={formDescription}
                                         onChangeText={setFormDescription}
-                                        placeholder="Describe what this feature does..."
+                                        placeholder={t('admin.premiumFeatures.modal.descriptionPlaceholder')}
                                         placeholderTextColor={textSecondary}
                                         multiline
                                         numberOfLines={4}
@@ -366,7 +368,7 @@ function AdminPremiumFeaturesContent() {
                                 </View>
 
                                 <View style={styles.formGroup}>
-                                    <Text style={[styles.formLabel, { color: textSecondary }]}>Sort Order</Text>
+                                    <Text style={[styles.formLabel, { color: textSecondary }]}>{t('admin.premiumFeatures.modal.sortOrderLabel')}</Text>
                                     <TextInput
                                         style={[styles.formInput, { backgroundColor: colors.card, color: textPrimary, borderColor }]}
                                         value={formSortOrder}
@@ -386,7 +388,7 @@ function AdminPremiumFeaturesContent() {
                                         <ActivityIndicator color="#FFFFFF" size="small" />
                                     ) : (
                                         <Text style={styles.submitButtonText}>
-                                            Update Feature Flag
+                                            {t('admin.premiumFeatures.modal.submit')}
                                         </Text>
                                     )}
                                 </TouchableOpacity>

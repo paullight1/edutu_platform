@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Bell, Compass, Home, MessageCircle, ShoppingBag, UserCircle } from 'lucide-react-native';
 
@@ -19,9 +20,6 @@ type HintFocus = 'homeContent' | 'bell' | 'homeTab' | 'discoverTab' | 'planTab' 
 
 interface HintStep {
   id: string;
-  title: string;
-  body: string;
-  footer: string;
   focus: HintFocus;
   icon: React.ComponentType<{ size: number; color: string; strokeWidth?: number }>;
 }
@@ -36,49 +34,31 @@ interface WelcomeHintSystemProps {
 const STEPS: HintStep[] = [
   {
     id: 'home',
-    title: 'Home',
-    body: 'Start here for featured opportunities and your most relevant recommendations.',
-    footer: 'Use Home as your daily overview.',
     focus: 'homeContent',
     icon: Home,
   },
   {
     id: 'discover',
-    title: 'Discover',
-    body: 'Search scholarships, jobs, grants, and programs.',
-    footer: 'Save strong matches.',
     focus: 'discoverTab',
     icon: Compass,
   },
   {
     id: 'plan',
-    title: 'Plan',
-    body: 'Open roadmaps and goals when you need a step-by-step path.',
-    footer: 'Turn opportunities into actions.',
     focus: 'planTab',
     icon: ShoppingBag,
   },
   {
     id: 'ai',
-    title: 'Ask Edutu AI',
-    body: 'Tap the center AI button to open chat and ask for guidance.',
-    footer: 'Verify official details.',
     focus: 'ai',
     icon: MessageCircle,
   },
   {
     id: 'bell',
-    title: 'Alerts',
-    body: 'Deadlines and reminders show here.',
-    footer: 'Review time-sensitive items.',
     focus: 'bell',
     icon: Bell,
   },
   {
     id: 'menu',
-    title: 'Profile',
-    body: 'Update settings and preferences here.',
-    footer: 'Better profile, better matches.',
     focus: 'profileTab',
     icon: UserCircle,
   },
@@ -161,6 +141,7 @@ function getFocusStyle(focus: HintFocus, bottomInset: number) {
 }
 
 export function WelcomeHintSystem({ userId, enabled, isDark, onComplete }: WelcomeHintSystemProps) {
+  const { t } = useTranslation('common');
   const insets = useSafeAreaInsets();
   const [ready, setReady] = useState(false);
   const [visible, setVisible] = useState(false);
@@ -321,27 +302,27 @@ export function WelcomeHintSystem({ userId, enabled, isDark, onComplete }: Welco
           </View>
         </View>
 
-        <Text style={[styles.title, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>{step.title}</Text>
-        <Text style={[styles.body, { color: isDark ? '#CBD5E1' : '#475569' }]}>{step.body}</Text>
-        <Text style={[styles.footer, { color: isDark ? '#94A3B8' : '#64748B' }]}>{step.footer}</Text>
+        <Text style={[styles.title, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>{t(`hints.${step.id}.title`)}</Text>
+        <Text style={[styles.body, { color: isDark ? '#CBD5E1' : '#475569' }]}>{t(`hints.${step.id}.body`)}</Text>
+        <Text style={[styles.footer, { color: isDark ? '#94A3B8' : '#64748B' }]}>{t(`hints.${step.id}.footer`)}</Text>
 
         <View style={styles.actions}>
           <Pressable
             onPress={close}
             style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
             accessibilityRole="button"
-            accessibilityLabel="Skip welcome hints"
+            accessibilityLabel={t('hints.skipHint')}
           >
-            <Text style={[styles.secondaryText, { color: isDark ? '#CBD5E1' : '#475569' }]}>Skip</Text>
+            <Text style={[styles.secondaryText, { color: isDark ? '#CBD5E1' : '#475569' }]}>{t('actions.skip')}</Text>
           </Pressable>
 
           <Pressable
             onPress={next}
             style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}
             accessibilityRole="button"
-            accessibilityLabel={isLast ? 'Finish welcome hints' : 'Show next welcome hint'}
+            accessibilityLabel={isLast ? t('hints.finishHint') : t('hints.nextHint')}
           >
-            <Text style={styles.primaryText}>{isLast ? 'Done' : 'Next'}</Text>
+            <Text style={styles.primaryText}>{isLast ? t('actions.done') : t('actions.next')}</Text>
           </Pressable>
         </View>
       </Animated.View>

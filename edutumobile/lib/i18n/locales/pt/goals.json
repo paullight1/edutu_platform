@@ -1,0 +1,412 @@
+{
+    "createGoal": "Criar meta",
+    "viewAll": "Ver tudo",
+    "creditsEarned_one": "+{{count}} crédito por concluir uma meta",
+    "creditsEarned_other": "+{{count}} créditos por concluir uma meta",
+    "priority": {
+        "high": "Alta",
+        "medium": "Média",
+        "low": "Baixa",
+        "highFull": "Prioridade alta",
+        "mediumFull": "Prioridade média",
+        "lowFull": "Prioridade baixa",
+        "highDesc": "Urgente - precisa de atenção imediata",
+        "mediumDesc": "Importante - trabalhe nela em breve",
+        "lowDesc": "Pode ser feita quando você tiver tempo"
+    },
+    "status": {
+        "completed": "Concluída",
+        "overdue": "Atrasada",
+        "inProgress": "Em andamento"
+    },
+    "labels": {
+        "progress": "Progresso",
+        "priority": "Prioridade",
+        "deadline": "Prazo",
+        "reminder": "Lembrete",
+        "status": "Status",
+        "datePlaceholder": "AAAA-MM-DD"
+    },
+    "time": {
+        "today": "Hoje",
+        "tomorrow": "Amanhã",
+        "overdueShort": "{{count}}d de atraso",
+        "leftShort": "{{count}}d restantes",
+        "daysOverdue_one": "{{count}} dia de atraso",
+        "daysOverdue_other": "{{count}} dias de atraso",
+        "daysLeft_one": "{{count}} dia restante",
+        "daysLeft_other": "{{count}} dias restantes",
+        "daysFromNow_one": "daqui a {{count}} dia",
+        "daysFromNow_other": "daqui a {{count}} dias",
+        "days_one": "{{count}} dia",
+        "days_other": "{{count}} dias"
+    },
+    "deleteConfirm": {
+        "title": "Excluir meta",
+        "message": "Tem certeza de que deseja excluir \"{{title}}\"?"
+    },
+    "stats": {
+        "active": "Ativas",
+        "completed": "Concluídas",
+        "roadmaps": "Roteiros",
+        "completion": "Conclusão",
+        "total": "Total",
+        "done": "Feitas",
+        "progress": "Progresso"
+    },
+    "sections": {
+        "roadmaps": "Roteiros",
+        "personalGoals": "Metas pessoais"
+    },
+    "filter": {
+        "byStatus": "Filtrar por status",
+        "activeLabel": "Filtro: {{label}}",
+        "clear": "Limpar",
+        "allGoals": "Todas as metas",
+        "all": "Todas",
+        "active": "Ativas",
+        "completed": "Concluídas"
+    },
+    "empty": {
+        "noRoadmaps": {
+            "title": "Nenhum roteiro",
+            "description": "Importe o roteiro de uma oportunidade para ver metas aqui.",
+            "action": "Explorar roteiros"
+        },
+        "noPersonalGoals": {
+            "title": "Nenhuma meta pessoal",
+            "description": "Toque no ícone de mais para adicionar sua primeira meta."
+        }
+    },
+    "dashboard": {
+        "title": "Metas",
+        "subtitle": "{{active}} ativas · {{rate}}% concluídas",
+        "searchPlaceholder": "Pesquise suas metas...",
+        "upcomingDeadlines": "Próximos prazos",
+        "myOpportunities": "Minhas oportunidades",
+        "savedSummary": "{{count}} salvas",
+        "savedSummaryWithUrgent": "{{count}} salvas · {{urgent}} urgentes",
+        "opportunityFallback": "Oportunidade",
+        "searchResults_one": "Encontrada {{count}} meta com \"{{term}}\"",
+        "searchResults_other": "Encontradas {{count}} metas com \"{{term}}\"",
+        "shareBanner": {
+            "title": "Tem oportunidades para compartilhar?",
+            "subtitle": "Fale com a gente se você tem bolsas, empregos ou programas para compartilhar com nossa comunidade",
+            "action": "Fale conosco"
+        }
+    },
+    "detail": {
+        "title": "Detalhes da meta",
+        "editTitle": "Editar meta",
+        "details": "Detalhes",
+        "fromRoadmap": "De um roteiro",
+        "personalGoal": "Meta pessoal",
+        "titlePlaceholder": "Título da meta",
+        "descriptionPlaceholder": "Adicione uma descrição...",
+        "noDeadline": "Sem prazo",
+        "markComplete": "Marcar como concluída",
+        "reopen": "Reabrir meta",
+        "cancelEditing": "Cancelar edição",
+        "notFound": {
+            "title": "Meta não encontrada",
+            "description": "Esta meta pode ter sido excluída ou você não tem acesso a ela.",
+            "back": "Voltar às metas"
+        },
+        "reminder": {
+            "enabled": "Ativado",
+            "disabled": "Desativado",
+            "enabledTitle": "Lembrete ativado",
+            "disabledTitle": "Lembrete desativado",
+            "enabledMessage": "Você será lembrado em {{date}}",
+            "disabledMessage": "Você não receberá lembretes para esta meta."
+        },
+        "alerts": {
+            "enterTitle": "Digite um título para a meta",
+            "updated": "Meta atualizada com sucesso",
+            "updateFailed": "Falha ao atualizar a meta",
+            "congratsTitle": "🎉 Parabéns!",
+            "congratsMessage": "Você concluiu esta meta!",
+            "completeFailed": "Falha ao concluir a meta",
+            "deleteFailed": "Falha ao excluir a meta",
+            "noDeadlineTitle": "Sem prazo",
+            "noDeadlineMessage": "Defina um prazo primeiro para ativar os lembretes.",
+            "reminderFailed": "Falha ao alternar o lembrete"
+        }
+    },
+    "add": {
+        "title": "Criar nova meta",
+        "heading": "Defina seu alvo",
+        "subheading": "Defina sua meta e acompanhe o progresso até a conquista.",
+        "titleLabel": "Título da meta",
+        "titlePlaceholder": "O que você quer alcançar?",
+        "descriptionLabel": "Descrição",
+        "descriptionPlaceholder": "Adicione mais detalhes sobre esta meta...",
+        "preview": "PRÉVIA",
+        "pastDate": "Data no passado",
+        "validation": {
+            "titleTooShort": "O título deve ter pelo menos 3 caracteres",
+            "looksGood": "Parece ótimo!",
+            "deadlinePast": "O prazo não pode estar no passado"
+        },
+        "alerts": {
+            "invalidTitle": "Título inválido",
+            "titleTooShort": "O título da meta deve ter pelo menos 3 caracteres",
+            "titleTooLongTitle": "Título muito longo",
+            "titleTooLongMessage": "O título da meta deve ter menos de 100 caracteres",
+            "invalidDeadline": "Prazo inválido",
+            "created": "Meta criada com sucesso!",
+            "createAnother": "Criar outra",
+            "createFailed": "Falha ao criar a meta. Tente novamente."
+        }
+    },
+    "allRoadmaps": {
+        "title": "Metas de roteiro",
+        "goalCount_one": "{{count}} meta",
+        "goalCount_other": "{{count}} metas",
+        "otherGroup": "Outros",
+        "empty": {
+            "title": "Nenhuma meta de roteiro",
+            "searchHint": "Tente ajustar sua pesquisa",
+            "description": "Importe metas de um roteiro para vê-las aqui"
+        }
+    },
+    "myList": {
+        "title": "Minhas metas",
+        "goalsTracked_one": "{{count}} meta acompanhada",
+        "goalsTracked_other": "{{count}} metas acompanhadas",
+        "heroTitle": "Mantenha o foco 🎯",
+        "heroCompleted_one": "Você concluiu {{count}} meta. Mantenha o ritmo!",
+        "heroCompleted_other": "Você concluiu {{count}} metas. Mantenha o ritmo!",
+        "heroEmpty": "Transforme suas ambições em metas alcançáveis. Comece a acompanhar hoje!",
+        "ctaTitle": "Crie sua primeira meta",
+        "ctaSubtitle": "Defina alvos e acompanhe seu progresso",
+        "highPriorityAlert_one": "{{count}} meta de alta prioridade precisa de atenção",
+        "highPriorityAlert_other": "{{count}} metas de alta prioridade precisam de atenção",
+        "searchPlaceholder": "Pesquisar metas...",
+        "sortLabel": "Ordenar: {{label}}",
+        "sortBy": "Ordenar por",
+        "sort": {
+            "newest": "Mais recentes primeiro",
+            "oldest": "Mais antigas primeiro",
+            "priority": "Prioridade",
+            "deadline": "Prazo",
+            "progress": "Progresso",
+            "title": "Título (A-Z)"
+        },
+        "empty": {
+            "title": "Nenhuma meta ainda",
+            "noMatch": "Nenhuma meta correspondente",
+            "searchHint": "Tente ajustar sua pesquisa ou os filtros",
+            "description": "Comece criando sua primeira meta para acompanhar o progresso e se manter motivado"
+        }
+    },
+    "roadmaps": {
+        "title": "Roteiros",
+        "subtitle": "Trilhas de aprendizado estruturadas para alcançar suas metas",
+        "loading": "Carregando roteiros...",
+        "searchPlaceholder": "Pesquisar roteiros...",
+        "empty": "Nenhum roteiro encontrado. Tente ajustar sua pesquisa ou os filtros!",
+        "noDescription": "Nenhuma descrição disponível",
+        "featured": "Destaque",
+        "stepsCount_one": "{{count}} etapa",
+        "stepsCount_other": "{{count}} etapas",
+        "notAvailable": "N/D",
+        "varies": "Varia",
+        "achieveTitle": "O que você vai conquistar",
+        "learningPath": "Trilha de aprendizado",
+        "startButton": "Começar este roteiro",
+        "rateButton": "Avaliar este roteiro",
+        "categories": {
+            "all": "Todos",
+            "scholarship": "Bolsa",
+            "career": "Carreira",
+            "education": "Educação",
+            "skills": "Habilidades",
+            "business": "Negócios",
+            "tech": "Tecnologia"
+        },
+        "creatorBanner": {
+            "title": "Torne-se um criador de roteiros",
+            "subtitle": "Compartilhe sua experiência. Crie trilhas de aprendizado. Ganhe enquanto ensina."
+        },
+        "templateBanner": {
+            "title": "Explore modelos de roteiro",
+            "subtitle": "Comece por um caminho comprovado e transforme-o em uma meta."
+        },
+        "detailInfo": {
+            "creatorProof": "Prova do criador: {{value}}",
+            "deadlineStrategy": "Estratégia de prazo: {{value}}",
+            "targetDeadline": "Prazo-alvo: {{value}}",
+            "audience": "Para: {{value}}",
+            "strategy": "Estratégia: {{value}}"
+        },
+        "statsLabels": {
+            "difficulty": "Dificuldade",
+            "duration": "Duração",
+            "steps": "Etapas",
+            "enrolled": "Inscritos"
+        },
+        "deadline": {
+            "dueToday": "{{date}} - vence hoje",
+            "dueTomorrow": "{{date}} - vence amanhã",
+            "daysLeft_one": "{{date}} - {{count}} dia restante",
+            "daysLeft_other": "{{date}} - {{count}} dias restantes",
+            "overdue": "{{date}} - atrasado",
+            "daysBefore_one": "{{count}} dia antes do prazo",
+            "daysBefore_other": "{{count}} dias antes do prazo",
+            "dueOnDeadline": "Vence no dia do prazo",
+            "dueDay": "Vence no dia {{day}}"
+        },
+        "adoption": {
+            "fallback": "Você se inscreveu neste roteiro. Confira suas metas para começar!",
+            "ready": "Seu roteiro está pronto.",
+            "milestones_one": "{{count}} marco adicionado às suas metas.",
+            "milestones_other": "{{count}} marcos adicionados às suas metas.",
+            "deadline": "Prazo: {{date}}.",
+            "reminders": "Os lembretes estão programados.",
+            "calendarEvents_one": "{{count}} evento de calendário preparado.",
+            "calendarEvents_other": "{{count}} eventos de calendário preparados.",
+            "community": "Há uma comunidade de roteiro correspondente disponível."
+        },
+        "calendar": {
+            "unavailableTitle": "Calendário indisponível",
+            "unavailableMessage": "Não foi possível montar o calendário. Tente novamente.",
+            "exportFailedTitle": "Falha na exportação",
+            "exportFailedMessage": "Não foi possível abrir o arquivo de calendário."
+        },
+        "enroll": {
+            "adoptedTitle": "Roteiro adotado",
+            "viewGoals": "Ver metas",
+            "addToCalendar": "Adicionar ao calendário",
+            "openCommunity": "Abrir comunidade",
+            "continueBrowsing": "Continuar explorando",
+            "failedTitle": "Falha na inscrição",
+            "failed": "Falha na inscrição",
+            "failedMessage": "Não foi possível se inscrever."
+        },
+        "intent": {
+            "title": "Ajude-nos a encontrar seu roteiro perfeito",
+            "subtitle": "Responda a algumas perguntas para recomendarmos a melhor trilha de aprendizado para você.",
+            "answerPlaceholder": "Digite sua resposta...",
+            "skip": "Pular por agora",
+            "submit": "Encontrar meus roteiros",
+            "q1": "Qual é o seu nível de experiência atual?",
+            "q2": "Quanto tempo você pode dedicar por semana?",
+            "q3": "Quais são suas principais metas?",
+            "levels": {
+                "beginner": "Iniciante",
+                "intermediate": "Intermediário",
+                "advanced": "Avançado"
+            },
+            "time": {
+                "lessThan5": "Menos de 5 horas",
+                "hours5to10": "5-10 horas",
+                "hours10to20": "10-20 horas",
+                "hours20plus": "Mais de 20 horas"
+            }
+        },
+        "feedback": {
+            "title": "O que achou deste roteiro?",
+            "subtitle": "Seu feedback nos ajuda a melhorar e ajuda outros estudantes.",
+            "placeholder": "O que você gostou ou o que poderia melhorar?",
+            "submit": "Enviar feedback",
+            "thanksTitle": "Obrigado!",
+            "thanksMessage": "Seu feedback nos ajuda a melhorar os roteiros para todos."
+        }
+    },
+    "templates": {
+        "title": "Explorar modelos",
+        "subtitle": "Roteiros em destaque",
+        "eyebrow": "MODELOS DE ROTEIRO EM DESTAQUE",
+        "heading": "Escolha um caminho comprovado e comece a planejar mais rápido",
+        "description": "Cada modelo inclui marcos, recursos, exportação de calendário e lembretes de estudo.",
+        "count_one": "{{count}} modelo",
+        "count_other": "{{count}} modelos",
+        "weeksRange": "8-20 semanas",
+        "featuredPaths": "Caminhos em destaque",
+        "available": "{{count}} disponíveis",
+        "startRoadmap": "Começar roteiro",
+        "calendar": "Calendário",
+        "reminders": "Lembretes",
+        "outcomes": "Resultados",
+        "guidance": "Orientação e recursos",
+        "week": "Semana {{week}}",
+        "deliverableLabel": "Entregável: {{value}}",
+        "icsSummary": "{{title}}: Semana {{week}}",
+        "shareDialogTitle": "Adicionar roteiro ao calendário",
+        "calendarReadyTitle": "Calendário pronto",
+        "calendarReadyMessage": "A exportação de calendário está disponível nas versões móveis.",
+        "calendarFileCreated": "Arquivo de calendário criado",
+        "notificationsBlockedTitle": "Notificações bloqueadas",
+        "notificationsBlockedMessage": "Ative as notificações para receber lembretes do roteiro.",
+        "reminderTitle": "Lembrete do roteiro: Semana {{week}}",
+        "remindersScheduledTitle": "Lembretes programados",
+        "remindersScheduledMessage_one": "{{count}} lembrete de roteiro foi programado.",
+        "remindersScheduledMessage_other": "{{count}} lembretes de roteiro foram programados.",
+        "stepFallback": "Etapa {{number}}",
+        "focus": "Foco: {{value}}",
+        "defaultSummary": "Um roteiro guiado, passo a passo.",
+        "stepPlan": "Plano de {{count}} etapas",
+        "allLevels": "Todos os níveis",
+        "defaultCadence": "Lembretes de marcos programados a partir da sua data de início.",
+        "resourceFallback": "Recurso"
+    },
+    "calendar": {
+        "title": "Meu calendário",
+        "deadlinePrefix": "Prazo: {{title}}",
+        "noEvents": "Nenhuma meta ou prazo neste dia.",
+        "legend": {
+            "personalGoal": "Meta pessoal",
+            "roadmap": "Roteiro",
+            "opportunity": "Oportunidade"
+        },
+        "badge": {
+            "goal": "META",
+            "roadmap": "ROTEIRO",
+            "opportunity": "OPORTUNIDADE"
+        },
+        "days": {
+            "sun": "Dom",
+            "mon": "Seg",
+            "tue": "Ter",
+            "wed": "Qua",
+            "thu": "Qui",
+            "fri": "Sex",
+            "sat": "Sáb"
+        },
+        "months": {
+            "january": "Janeiro",
+            "february": "Fevereiro",
+            "march": "Março",
+            "april": "Abril",
+            "may": "Maio",
+            "june": "Junho",
+            "july": "Julho",
+            "august": "Agosto",
+            "september": "Setembro",
+            "october": "Outubro",
+            "november": "Novembro",
+            "december": "Dezembro"
+        }
+    },
+    "intake": {
+        "timeQuestion": "Quanto tempo você pode dedicar por semana?",
+        "levelQuestion": "De onde você está partindo?",
+        "time": {
+            "under5": "Menos de 5 h",
+            "h5to10": "5–10 h",
+            "h10to20": "10–20 h",
+            "h20plus": "Mais de 20 h"
+        },
+        "level": {
+            "beginner": "Novo nisso",
+            "intermediate": "Alguma experiência",
+            "advanced": "Experiente"
+        }
+    },
+    "timeline": {
+        "today": "HOJE",
+        "milestoneDone": "{{title}}, concluído",
+        "removeMilestone": "Remover {{title}}"
+    }
+}

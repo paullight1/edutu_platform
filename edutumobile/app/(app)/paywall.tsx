@@ -34,19 +34,22 @@ import {
   purchasePackage,
   restorePurchases,
 } from '@edutu/core/src/services/payments';
+import { useTranslation } from 'react-i18next';
 
 type Plan = 'monthly' | 'yearly';
 
+// `text` holds an i18n key (home namespace); translated at render time.
 const PREMIUM_FEATURES = [
-  { icon: Sparkles, text: 'Unlimited AI generation' },
-  { icon: Palette, text: 'Premium CV templates' },
-  { icon: Zap, text: 'AI-powered tailoring' },
-  { icon: Star, text: 'Priority opportunity tools' },
-  { icon: Download, text: 'PDF export' },
-  { icon: Check, text: 'Advanced filters' },
+  { icon: Sparkles, text: 'paywall.features.unlimitedAi' },
+  { icon: Palette, text: 'paywall.features.premiumTemplates' },
+  { icon: Zap, text: 'paywall.features.aiTailoring' },
+  { icon: Star, text: 'paywall.features.priorityTools' },
+  { icon: Download, text: 'paywall.features.pdfExport' },
+  { icon: Check, text: 'paywall.features.advancedFilters' },
 ];
 
 export default function PaywallScreen() {
+  const { t } = useTranslation('home');
   const { user } = useUser();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -116,19 +119,19 @@ export default function PaywallScreen() {
     );
 
     if (pkg?.product?.priceString) {
-      if (plan === 'monthly') return 'Billed monthly';
+      if (plan === 'monthly') return t('paywall.billedMonthly');
 
       const numeric = Number(pkg.product.priceString.replace(/[^0-9.]/g, ''));
       const symbol = pkg.product.priceString.replace(/[0-9.,]/g, '').trim() || '$';
-      if (!Number.isNaN(numeric)) return `${symbol}${(numeric / 12).toFixed(2)} per month, billed yearly`;
+      if (!Number.isNaN(numeric)) return t('paywall.perMonthBilledYearly', { price: `${symbol}${(numeric / 12).toFixed(2)}` });
     }
 
-    return plan === 'monthly' ? 'Billed monthly' : '$5.99 per month, billed yearly';
+    return plan === 'monthly' ? t('paywall.billedMonthly') : t('paywall.perMonthBilledYearly', { price: '$5.99' });
   };
 
   const handleSubscribe = async () => {
     if (!selectedPackage) {
-      Alert.alert('Coming Soon', 'Subscriptions will be available once App Store products are configured.');
+      Alert.alert(t('paywall.comingSoonTitle'), t('paywall.comingSoonMessage'));
       return;
     }
 
@@ -136,13 +139,13 @@ export default function PaywallScreen() {
     try {
       const result = await purchasePackage(selectedPackage);
       if (result.success) {
-        Alert.alert('Premium Active', 'Your premium subscription is now active.');
+        Alert.alert(t('paywall.premiumActiveTitle'), t('paywall.premiumActiveMessage'));
         router.back();
       } else if (result.error && result.error !== 'User cancelled') {
-        Alert.alert('Error', result.error);
+        Alert.alert(t('common:states.error'), result.error);
       }
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Purchase failed');
+      Alert.alert(t('common:states.error'), error.message || t('paywall.purchaseFailed'));
     } finally {
       setLoading(false);
     }
@@ -153,12 +156,12 @@ export default function PaywallScreen() {
     try {
       const result = await restorePurchases();
       if (result.success) {
-        Alert.alert('Restored', 'Your purchases have been restored.');
+        Alert.alert(t('paywall.restoredTitle'), t('paywall.restoredMessage'));
       } else {
-        Alert.alert('Error', result.error || 'Failed to restore purchases');
+        Alert.alert(t('common:states.error'), result.error || t('paywall.restoreFailed'));
       }
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to restore purchases');
+      Alert.alert(t('common:states.error'), error.message || t('paywall.restoreFailed'));
     } finally {
       setRestoring(false);
     }
@@ -168,9 +171,9 @@ export default function PaywallScreen() {
     return (
       <LinearGradient colors={gradientColors} style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-          <ScreenHeader title="Premium" showBack />
+          <ScreenHeader title={t('paywall.title')} showBack />
           <View style={styles.centered}>
-            <BrandedLoader label="Loading premium..." />
+            <BrandedLoader label={t('paywall.loading')} />
           </View>
         </SafeAreaView>
       </LinearGradient>
@@ -181,8 +184,8 @@ export default function PaywallScreen() {
     <LinearGradient colors={gradientColors} style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <ScreenHeader
-          title="Premium"
-          subtitle={isPro ? 'Your subscription is active' : 'Simple subscription access'}
+          title={t('paywall.title')}
+          subtitle={isPro ? t('paywall.subscriptionActive') : t('paywall.simpleAccess')}
           showBack
           right={
             <TouchableOpacity
@@ -209,12 +212,12 @@ export default function PaywallScreen() {
               <Crown size={32} color={accent} />
             </View>
             <Text style={[styles.heroTitle, { color: colors.foreground }]}>
-              {isPro ? 'Premium is active' : 'Unlock premium'}
+              {isPro ? t('paywall.premiumIsActive') : t('paywall.unlockPremium')}
             </Text>
             <Text style={[styles.heroText, { color: textSecondary }]}>
               {isPro
-                ? 'You already have access to premium tools and templates.'
-                : 'Subscribe for premium templates, AI tools, exports, and advanced matching.'}
+                ? t('paywall.heroActive')
+                : t('paywall.heroUpsell')}
             </Text>
           </View>
 
@@ -231,11 +234,11 @@ export default function PaywallScreen() {
                       style={[styles.planOption, active && { backgroundColor: `${accent}18` }]}
                     >
                       <Text style={[styles.planLabel, { color: active ? accent : textSecondary }]}>
-                        {plan === 'monthly' ? 'Monthly' : 'Yearly'}
+                        {plan === 'monthly' ? t('paywall.monthly') : t('paywall.yearly')}
                       </Text>
                       {plan === 'yearly' && (
                         <Text style={[styles.planPill, { color: active ? accent : textSecondary }]}>
-                          Save
+                          {t('paywall.save')}
                         </Text>
                       )}
                     </TouchableOpacity>
@@ -264,7 +267,7 @@ export default function PaywallScreen() {
                   <feature.icon size={16} color={accent} />
                 </View>
                 <Text style={[styles.featureText, { color: colors.foreground }]}>
-                  {feature.text}
+                  {t(feature.text)}
                 </Text>
               </View>
             ))}
@@ -277,7 +280,7 @@ export default function PaywallScreen() {
               style={[styles.secondaryButton, { backgroundColor: surface, borderColor }]}
             >
               <Text style={[styles.secondaryButtonText, { color: colors.foreground }]}>
-                Back to app
+                {t('paywall.backToApp')}
               </Text>
             </TouchableOpacity>
           ) : (
@@ -299,7 +302,7 @@ export default function PaywallScreen() {
                   <>
                     <Crown size={18} color="#FFFFFF" />
                     <Text style={styles.subscribeText}>
-                      Subscribe to premium
+                      {t('paywall.subscribe')}
                     </Text>
                   </>
                 )}
@@ -308,7 +311,7 @@ export default function PaywallScreen() {
           )}
 
           <Text style={[styles.renewalText, { color: textSecondary }]}>
-            Subscription renews automatically and can be managed in your device settings.
+            {t('paywall.renewalNote')}
           </Text>
         </ScrollView>
       </SafeAreaView>

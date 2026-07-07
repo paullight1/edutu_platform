@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { View, ScrollView, StyleSheet, Dimensions, Text, TouchableOpacity, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUser } from '@clerk/clerk-expo';
+import { useTranslation } from 'react-i18next';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { useTheme } from '../../../components/context/ThemeContext';
 import { supabase } from '../../../lib/supabase';
@@ -17,6 +18,7 @@ const ITEM_WIDTH = (width - 44) / 2;
 type ViewMode = 'grid' | 'list';
 
 export default function AllRoadmapsScreen() {
+    const { t } = useTranslation('goals');
     const { colors, isDark } = useTheme();
     const { user } = useUser();
     const { goals, isLoading } = useGoals(supabase, user?.id || null);
@@ -48,7 +50,7 @@ export default function AllRoadmapsScreen() {
     const groupedByOpportunity = useMemo(() => {
         const groups: Record<string, typeof roadmapGoals> = {};
         roadmapGoals.forEach(goal => {
-            const key = goal.opportunity_title || 'Other';
+            const key = goal.opportunity_title || t('allRoadmaps.otherGroup');
             if (!groups[key]) groups[key] = [];
             groups[key].push(goal);
         });
@@ -68,9 +70,9 @@ export default function AllRoadmapsScreen() {
     if (isLoading) {
         return (
             <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-                <ScreenHeader title="Roadmap Goals" showBack />
+                <ScreenHeader title={t('allRoadmaps.title')} showBack />
                 <View style={styles.loadingContainer}>
-                    <BrandedLoader label="Loading roadmaps..." />
+                    <BrandedLoader label={t('roadmaps.loading')} />
                 </View>
             </SafeAreaView>
         );
@@ -79,9 +81,9 @@ export default function AllRoadmapsScreen() {
     return (
         <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
             <ScreenHeader
-                title="Roadmap Goals"
+                title={t('allRoadmaps.title')}
                 showBack
-                subtitle={`${roadmapGoals.length} goal${roadmapGoals.length !== 1 ? 's' : ''}`}
+                subtitle={t('allRoadmaps.goalCount', { count: roadmapGoals.length })}
             />
 
             {/* Search and View Toggle */}
@@ -90,7 +92,7 @@ export default function AllRoadmapsScreen() {
                     <Search size={18} color={textSecondary} />
                     <TextInput
                         style={[styles.searchInput, { color: textPrimary }]}
-                        placeholder="Search roadmaps..."
+                        placeholder={t('roadmaps.searchPlaceholder')}
                         placeholderTextColor={textSecondary}
                         value={searchTerm}
                         onChangeText={setSearchTerm}
@@ -161,9 +163,9 @@ export default function AllRoadmapsScreen() {
                 ) : (
                     <View style={styles.emptyState}>
                         <Map size={48} color={textSecondary} />
-                        <Text style={[styles.emptyTitle, { color: textPrimary }]}>No roadmap goals</Text>
+                        <Text style={[styles.emptyTitle, { color: textPrimary }]}>{t('allRoadmaps.empty.title')}</Text>
                         <Text style={[styles.emptyDesc, { color: textSecondary }]}>
-                            {searchTerm ? 'Try adjusting your search' : 'Import goals from a roadmap to see them here'}
+                            {searchTerm ? t('allRoadmaps.empty.searchHint') : t('allRoadmaps.empty.description')}
                         </Text>
                     </View>
                 )}

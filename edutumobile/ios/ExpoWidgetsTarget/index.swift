@@ -6,6 +6,9 @@ internal import ExpoWidgets
 struct ExportWidgets0: WidgetBundle {
   var body: some Widget {
     OpportunityWidget()
+    DeadlineWidget()
+    TrendingWidget()
+    ChatWidget()
     WidgetLiveActivity()
   }
 }

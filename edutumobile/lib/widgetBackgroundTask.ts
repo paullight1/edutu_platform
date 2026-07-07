@@ -1,7 +1,7 @@
 import * as BackgroundTask from 'expo-background-task';
 import * as TaskManager from 'expo-task-manager';
 
-import { syncAndUpdateOpportunityWidgetSnapshot } from './opportunityWidgetSync';
+import { syncWidgetSuite } from './widgetSuiteSync';
 
 /**
  * Keeps the home-screen widget fresh even while the app is never opened.
@@ -27,7 +27,10 @@ const MINIMUM_INTERVAL_MINUTES = 6 * 60;
 
 TaskManager.defineTask(WIDGET_REFRESH_TASK, async () => {
   try {
-    await syncAndUpdateOpportunityWidgetSnapshot({});
+    // Headless-safe: opportunities fall back to the unauthenticated feed and
+    // on-device cache, deadlines to their last synced list, trending to the
+    // public API — no auth token required for any of them.
+    await syncWidgetSuite({});
     return BackgroundTask.BackgroundTaskResult.Success;
   } catch {
     return BackgroundTask.BackgroundTaskResult.Failed;

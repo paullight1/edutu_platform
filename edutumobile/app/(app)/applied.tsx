@@ -17,6 +17,8 @@ import {
 } from "../../packages/core/src/services/applications";
 import { getDeadlineBadge } from "../../packages/core/src/utils/deadline";
 import { BrandedLoader } from "../../components/ui/BrandedLoader";
+import { useTranslation } from "react-i18next";
+import i18n from "../../lib/i18n";
 
 const STATUS_OPTIONS: ApplicationStatus[] = ['draft', 'submitted', 'interview', 'offer', 'rejected', 'withdrawn'];
 
@@ -25,11 +27,7 @@ const STATUS_OPTIONS: ApplicationStatus[] = ['draft', 'submitted', 'interview', 
 type StatFilter = 'all' | ApplicationStatus | 'closed';
 
 function formatStatus(value: ApplicationStatus) {
-  if (value === 'offer') return 'Offer';
-  return value
-    .split('_')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
+  return i18n.t(`home:applied.status.${value}`);
 }
 
 function getStatusColor(value: ApplicationStatus) {
@@ -51,9 +49,9 @@ function getStatusColor(value: ApplicationStatus) {
 }
 
 function formatDate(value?: string | null) {
-  if (!value) return 'Recently';
+  if (!value) return i18n.t('home:applied.recently');
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Recently';
+  if (Number.isNaN(date.getTime())) return i18n.t('home:applied.recently');
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
@@ -86,6 +84,7 @@ function PipelineStepper({ status, inactiveColor }: { status: ApplicationStatus;
 }
 
 export default function AppliedPage() {
+  const { t } = useTranslation('home');
   const { isDark, colors } = useTheme();
   const router = useRouter();
   const { user } = useUser();
@@ -141,9 +140,9 @@ export default function AppliedPage() {
       )));
     } catch (error) {
       console.error('Failed to update application status:', error);
-      Alert.alert('Status not updated', 'Please try again in a moment.');
+      Alert.alert(t('applied.statusNotUpdatedTitle'), t('applied.statusNotUpdatedMessage'));
     }
-  }, [getToken, user?.id]);
+  }, [getToken, user?.id, t]);
 
   const advanceStatus = useCallback((application: AppliedOpportunity) => {
     const next = getNextApplicationStage(application.status);
@@ -167,13 +166,13 @@ export default function AppliedPage() {
   }, [applications]);
 
   const statTiles = useMemo(() => ([
-    { key: 'all' as StatFilter, label: 'Total', count: applications.length, color: accentColor },
-    { key: 'draft' as StatFilter, label: 'Draft', count: stats.draft, color: getStatusColor('draft') },
-    { key: 'submitted' as StatFilter, label: 'Submitted', count: stats.submitted, color: getStatusColor('submitted') },
-    { key: 'interview' as StatFilter, label: 'Interview', count: stats.interview, color: getStatusColor('interview') },
-    { key: 'offer' as StatFilter, label: 'Offer', count: stats.offer, color: '#10B981' },
-    { key: 'closed' as StatFilter, label: 'Closed', count: stats.rejected + stats.withdrawn, color: '#EF4444' },
-  ]), [applications.length, stats, accentColor]);
+    { key: 'all' as StatFilter, label: t('applied.filters.total'), count: applications.length, color: accentColor },
+    { key: 'draft' as StatFilter, label: t('applied.status.draft'), count: stats.draft, color: getStatusColor('draft') },
+    { key: 'submitted' as StatFilter, label: t('applied.status.submitted'), count: stats.submitted, color: getStatusColor('submitted') },
+    { key: 'interview' as StatFilter, label: t('applied.status.interview'), count: stats.interview, color: getStatusColor('interview') },
+    { key: 'offer' as StatFilter, label: t('applied.status.offer'), count: stats.offer, color: '#10B981' },
+    { key: 'closed' as StatFilter, label: t('applied.filters.closed'), count: stats.rejected + stats.withdrawn, color: '#EF4444' },
+  ]), [applications.length, stats, accentColor, t]);
 
   const filteredApplications = useMemo(() => {
     if (activeFilter === 'all') return applications;
@@ -189,22 +188,22 @@ export default function AppliedPage() {
 
   const openStatusPicker = useCallback((application: AppliedOpportunity) => {
     Alert.alert(
-      'Update application status',
+      t('applied.updateStatusTitle'),
       application.title,
       [
         ...STATUS_OPTIONS.map((status) => ({
           text: formatStatus(status),
           onPress: () => updateStatus(application.id, status),
         })),
-        { text: 'Cancel', style: 'cancel' as const },
+        { text: t('common:actions.cancel'), style: 'cancel' as const },
       ],
     );
-  }, [updateStatus]);
+  }, [updateStatus, t]);
 
   const headerSubtitle = useMemo(() => {
-    if (loading) return 'Loading...';
-    return `${applications.length} applied`;
-  }, [applications.length, loading]);
+    if (loading) return t('common:states.loading');
+    return t('applied.appliedCount', { count: applications.length });
+  }, [applications.length, loading, t]);
 
   const renderApplication = useCallback(({ item }: { item: AppliedOpportunity }) => (
     <TouchableOpacity
@@ -235,7 +234,7 @@ export default function AppliedPage() {
         <View style={styles.metaRow}>
           <View style={styles.metaItem}>
             <Calendar size={12} color={textSecondary} />
-            <Text style={[styles.metaText, { color: textSecondary }]}>Applied {formatDate(item.submitted_at)}</Text>
+            <Text style={[styles.metaText, { color: textSecondary }]}>{t('applied.appliedOn', { date: formatDate(item.submitted_at) })}</Text>
           </View>
           <View style={styles.metaItem}>
             <Clock size={12} color={textSecondary} />
@@ -251,7 +250,7 @@ export default function AppliedPage() {
               activeOpacity={0.75}
             >
               <Text style={[styles.advanceText, { color: accentColor }]}>
-                {`Advance to ${formatStatus(getNextApplicationStage(item.status)!)}`}
+                {t('applied.advanceTo', { stage: formatStatus(getNextApplicationStage(item.status)!) })}
               </Text>
               <ArrowRight size={12} color={accentColor} />
             </TouchableOpacity>
@@ -260,7 +259,7 @@ export default function AppliedPage() {
       </View>
       <ChevronRight size={18} color={textSecondary} />
     </TouchableOpacity>
-  ), [accentColor, advanceStatus, cardBg, borderColor, isDark, openStatusPicker, router, stepInactiveColor, textPrimary, textSecondary]);
+  ), [accentColor, advanceStatus, cardBg, borderColor, isDark, openStatusPicker, router, stepInactiveColor, textPrimary, textSecondary, t]);
 
   const renderStatBoard = () => {
     if (applications.length === 0) return null;
@@ -297,22 +296,22 @@ export default function AppliedPage() {
   const renderEmpty = () => (
     <View style={styles.emptyState}>
       <Globe size={48} color={textSecondary} />
-      <Text style={[styles.emptyTitle, { color: textPrimary }]}>No applications yet</Text>
+      <Text style={[styles.emptyTitle, { color: textPrimary }]}>{t('applied.emptyTitle')}</Text>
       <Text style={[styles.emptySubtitle, { color: textSecondary }]}>
-        Opportunities you apply for will appear here.
+        {t('applied.emptySubtitle')}
       </Text>
       <TouchableOpacity
         style={[styles.emptyBtn, { backgroundColor: accentColor }]}
         onPress={() => router.push('/opportunities')}
       >
-        <Text style={styles.emptyBtnText}>Browse Opportunities</Text>
+        <Text style={styles.emptyBtnText}>{t('applied.browseOpportunities')}</Text>
       </TouchableOpacity>
     </View>
   );
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'left', 'right']}>
-      <ScreenHeader title="My Applications" showBack subtitle={headerSubtitle} />
+      <ScreenHeader title={t('applied.title')} showBack subtitle={headerSubtitle} />
 
       <FlatList
         data={filteredApplications}
@@ -322,7 +321,7 @@ export default function AppliedPage() {
         ListEmptyComponent={loading ? null : (applications.length > 0 ? (
           <View style={styles.filterEmpty}>
             <Text style={[styles.emptySubtitle, { color: textSecondary }]}>
-              No applications in this stage.
+              {t('applied.emptyFilter')}
             </Text>
           </View>
         ) : renderEmpty())}
@@ -335,7 +334,7 @@ export default function AppliedPage() {
 
       {loading && applications.length === 0 && (
         <View style={styles.loadingOverlay}>
-          <BrandedLoader label="Loading applications..." />
+          <BrandedLoader label={t('applied.loading')} />
         </View>
       )}
     </SafeAreaView>

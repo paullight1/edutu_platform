@@ -10,6 +10,7 @@ import {
     Switch,
 } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
 import { Check, Download, Sparkles, Target, ChevronRight, Plus, Trash2 } from 'lucide-react-native';
 import { CVHeader, UserCV } from '@edutu/core/src/types/cv';
 import { useTheme } from '../../components/context/ThemeContext';
@@ -69,6 +70,7 @@ export function CVEditor({
     onImproveSummary,
     onUpgradeFeature,
 }: Props) {
+    const { t } = useTranslation('cv');
     const { colors, isDark } = useTheme();
     const muted = isDark ? '#94A3B8' : '#64748B';
 
@@ -173,21 +175,21 @@ export function CVEditor({
     return (
         <ScrollView style={styles.editorContainer} showsVerticalScrollIndicator={false}>
             <Animated.View entering={FadeInDown.delay(100)}>
-                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Personal Information</Text>
+                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t('editor.sections.personalInfo')}</Text>
                 <View style={[styles.inputCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     {[
-                        ['full_name', 'Full Name', 'John Doe'],
-                        ['email', 'Email', 'john@example.com'],
-                        ['phone', 'Phone', '+1 234 567 8900'],
-                        ['location', 'Location', 'Lagos, Nigeria'],
-                        ['linkedin', 'LinkedIn', 'linkedin.com/in/johndoe'],
-                        ['portfolio', 'Portfolio', 'portfolio.site'],
+                        ['full_name', 'editor.personal.fullName.label', 'editor.personal.fullName.placeholder'],
+                        ['email', 'editor.personal.email.label', 'editor.personal.email.placeholder'],
+                        ['phone', 'editor.personal.phone.label', 'editor.personal.phone.placeholder'],
+                        ['location', 'editor.personal.location.label', 'editor.personal.location.placeholder'],
+                        ['linkedin', 'editor.personal.linkedin.label', 'editor.personal.linkedin.placeholder'],
+                        ['portfolio', 'editor.personal.portfolio.label', 'editor.personal.portfolio.placeholder'],
                     ].map(([key, label, placeholder]) => (
                         <View style={styles.inputRow} key={key}>
-                            <Text style={[styles.inputLabel, { color: muted }]}>{label}</Text>
+                            <Text style={[styles.inputLabel, { color: muted }]}>{t(label)}</Text>
                             <TextInput
                                 style={[styles.input, { backgroundColor: colors.background, color: colors.foreground }]}
-                                placeholder={placeholder}
+                                placeholder={t(placeholder)}
                                 placeholderTextColor={muted}
                                 value={(currentCV.data_json?.header as any)?.[key] || ''}
                                 onChangeText={(text) => updateHeader(key, text)}
@@ -198,11 +200,11 @@ export function CVEditor({
             </Animated.View>
 
             <Animated.View entering={FadeInDown.delay(180)}>
-                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Professional Summary</Text>
+                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t('editor.sections.summary')}</Text>
                 <View style={[styles.inputCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <TextInput
                         style={[styles.textArea, { backgroundColor: colors.background, color: colors.foreground }]}
-                        placeholder="Write a concise professional summary..."
+                        placeholder={t('editor.summaryPlaceholder')}
                         placeholderTextColor={muted}
                         multiline
                         numberOfLines={5}
@@ -219,7 +221,7 @@ export function CVEditor({
                         onPress={
                             isPro
                                 ? (onImproveSummary ?? onAITailor)
-                                : () => onUpgradeFeature('AI Summary Generator')
+                                : () => onUpgradeFeature(t('editor.aiSummaryFeature'))
                         }
                         disabled={isImprovingSummary}
                     >
@@ -229,18 +231,18 @@ export function CVEditor({
                             <Sparkles size={16} color="#FFFFFF" />
                         )}
                         <Text style={styles.aiGenerateText}>
-                            {isImprovingSummary ? 'Improving…' : isPro ? 'Improve with AI' : 'Unlock AI Assist'}
+                            {isImprovingSummary ? t('editor.improving') : isPro ? t('editor.improveWithAi') : t('editor.unlockAiAssist')}
                         </Text>
                     </TouchableOpacity>
                 </View>
             </Animated.View>
 
             <Animated.View entering={FadeInDown.delay(260)}>
-                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Skills</Text>
+                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t('editor.sections.skills')}</Text>
                 <View style={[styles.inputCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <TextInput
                         style={[styles.input, { backgroundColor: colors.background, color: colors.foreground }]}
-                        placeholder="JavaScript, Research, Excel, Public speaking..."
+                        placeholder={t('editor.skillsPlaceholder')}
                         placeholderTextColor={muted}
                         value={skillsValue}
                         onChangeText={(text) =>
@@ -267,36 +269,36 @@ export function CVEditor({
 
             <Animated.View entering={FadeInDown.delay(320)}>
                 <SectionHeader
-                    title="Experience"
+                    title={t('editor.sections.experience')}
                     color={colors.foreground}
                     onAdd={() => addItem('experience')}
                 />
                 {(currentCV.data_json?.experience || []).map((item: any) => (
                     <View key={item.id} style={[styles.inputCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                        <ItemHeader title={item.role || 'New experience'} onDelete={() => removeItem('experience', item.id)} />
-                        <Field label="Role" value={item.role} placeholder="Software Intern" muted={muted} colors={colors}
+                        <ItemHeader title={item.role || t('editor.newExperience')} onDelete={() => removeItem('experience', item.id)} />
+                        <Field label={t('editor.fields.role.label')} value={item.role} placeholder={t('editor.fields.role.placeholder')} muted={muted} colors={colors}
                             onChangeText={(text) => updateArrayItem('experience', item.id, 'role', text)} />
-                        <Field label="Company" value={item.company} placeholder="Company / Organization" muted={muted} colors={colors}
+                        <Field label={t('editor.fields.company.label')} value={item.company} placeholder={t('editor.fields.company.placeholder')} muted={muted} colors={colors}
                             onChangeText={(text) => updateArrayItem('experience', item.id, 'company', text)} />
-                        <Field label="Location" value={item.location || ''} placeholder="Remote / City" muted={muted} colors={colors}
+                        <Field label={t('editor.fields.location.label')} value={item.location || ''} placeholder={t('editor.fields.location.placeholder')} muted={muted} colors={colors}
                             onChangeText={(text) => updateArrayItem('experience', item.id, 'location', text)} />
-                        <Field label="Start Date" value={item.start_date} placeholder="2024-01" muted={muted} colors={colors}
+                        <Field label={t('editor.fields.startDate.label')} value={item.start_date} placeholder={t('editor.fields.startDate.placeholder')} muted={muted} colors={colors}
                             onChangeText={(text) => updateArrayItem('experience', item.id, 'start_date', text)} />
                         {!item.current && (
-                            <Field label="End Date" value={item.end_date || ''} placeholder="2025-01" muted={muted} colors={colors}
+                            <Field label={t('editor.fields.endDate.label')} value={item.end_date || ''} placeholder={t('editor.fields.endDate.placeholder')} muted={muted} colors={colors}
                                 onChangeText={(text) => updateArrayItem('experience', item.id, 'end_date', text)} />
                         )}
                         <View style={styles.switchRow}>
-                            <Text style={[styles.inputLabel, { color: muted, marginBottom: 0 }]}>I currently work here</Text>
+                            <Text style={[styles.inputLabel, { color: muted, marginBottom: 0 }]}>{t('editor.fields.currentlyWorkHere')}</Text>
                             <Switch
                                 value={Boolean(item.current)}
                                 onValueChange={(value) => updateArrayItem('experience', item.id, 'current', value)}
                                 trackColor={{ true: colors.primary }}
                             />
                         </View>
-                        <Field label="Description" value={item.description} placeholder="Describe what you did" muted={muted} colors={colors}
+                        <Field label={t('editor.fields.description.label')} value={item.description} placeholder={t('editor.fields.description.placeholder')} muted={muted} colors={colors}
                             multiline onChangeText={(text) => updateArrayItem('experience', item.id, 'description', text)} />
-                        <Field label="Highlights (one per line)" value={(item.highlights || []).join('\n')} placeholder={'Increased sign-ups by 30%\nLed a team of 4'} muted={muted} colors={colors}
+                        <Field label={t('editor.fields.highlights.label')} value={(item.highlights || []).join('\n')} placeholder={t('editor.fields.highlights.placeholder')} muted={muted} colors={colors}
                             multiline onChangeText={(text) => updateArrayItem('experience', item.id, 'highlights', text.split('\n'))} />
                     </View>
                 ))}
@@ -304,22 +306,22 @@ export function CVEditor({
 
             <Animated.View entering={FadeInDown.delay(380)}>
                 <SectionHeader
-                    title="Education"
+                    title={t('editor.sections.education')}
                     color={colors.foreground}
                     onAdd={() => addItem('education')}
                 />
                 {(currentCV.data_json?.education || []).map((item: any) => (
                     <View key={item.id} style={[styles.inputCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                        <ItemHeader title={item.degree || 'New education'} onDelete={() => removeItem('education', item.id)} />
-                        <Field label="Institution" value={item.institution} placeholder="University / School" muted={muted} colors={colors}
+                        <ItemHeader title={item.degree || t('editor.newEducation')} onDelete={() => removeItem('education', item.id)} />
+                        <Field label={t('editor.fields.institution.label')} value={item.institution} placeholder={t('editor.fields.institution.placeholder')} muted={muted} colors={colors}
                             onChangeText={(text) => updateArrayItem('education', item.id, 'institution', text)} />
-                        <Field label="Degree" value={item.degree} placeholder="BSc / MSc / Diploma" muted={muted} colors={colors}
+                        <Field label={t('editor.fields.degree.label')} value={item.degree} placeholder={t('editor.fields.degree.placeholder')} muted={muted} colors={colors}
                             onChangeText={(text) => updateArrayItem('education', item.id, 'degree', text)} />
-                        <Field label="Field" value={item.field || ''} placeholder="Computer Science" muted={muted} colors={colors}
+                        <Field label={t('editor.fields.fieldOfStudy.label')} value={item.field || ''} placeholder={t('editor.fields.fieldOfStudy.placeholder')} muted={muted} colors={colors}
                             onChangeText={(text) => updateArrayItem('education', item.id, 'field', text)} />
-                        <Field label="Start Date" value={item.start_date || ''} placeholder="2021-09" muted={muted} colors={colors}
+                        <Field label={t('editor.fields.startDate.label')} value={item.start_date || ''} placeholder={t('editor.fields.eduStartDate.placeholder')} muted={muted} colors={colors}
                             onChangeText={(text) => updateArrayItem('education', item.id, 'start_date', text)} />
-                        <Field label="End Date" value={item.end_date || ''} placeholder="2025-06 (or expected)" muted={muted} colors={colors}
+                        <Field label={t('editor.fields.endDate.label')} value={item.end_date || ''} placeholder={t('editor.fields.eduEndDate.placeholder')} muted={muted} colors={colors}
                             onChangeText={(text) => updateArrayItem('education', item.id, 'end_date', text)} />
                     </View>
                 ))}
@@ -327,18 +329,18 @@ export function CVEditor({
 
             <Animated.View entering={FadeInDown.delay(440)}>
                 <SectionHeader
-                    title="Projects"
+                    title={t('editor.sections.projects')}
                     color={colors.foreground}
                     onAdd={() => addItem('projects')}
                 />
                 {(currentCV.data_json?.projects || []).map((item: any) => (
                     <View key={item.id} style={[styles.inputCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                        <ItemHeader title={item.name || 'New project'} onDelete={() => removeItem('projects', item.id)} />
-                        <Field label="Project Name" value={item.name} placeholder="Scholarship Finder App" muted={muted} colors={colors}
+                        <ItemHeader title={item.name || t('editor.newProject')} onDelete={() => removeItem('projects', item.id)} />
+                        <Field label={t('editor.fields.projectName.label')} value={item.name} placeholder={t('editor.fields.projectName.placeholder')} muted={muted} colors={colors}
                             onChangeText={(text) => updateArrayItem('projects', item.id, 'name', text)} />
-                        <Field label="Description" value={item.description} placeholder="Describe the project impact" muted={muted} colors={colors}
+                        <Field label={t('editor.fields.description.label')} value={item.description} placeholder={t('editor.fields.projectDescription.placeholder')} muted={muted} colors={colors}
                             multiline onChangeText={(text) => updateArrayItem('projects', item.id, 'description', text)} />
-                        <Field label="Technologies" value={(item.technologies || []).join(', ')} placeholder="React, Node.js" muted={muted} colors={colors}
+                        <Field label={t('editor.fields.technologies.label')} value={(item.technologies || []).join(', ')} placeholder={t('editor.fields.technologies.placeholder')} muted={muted} colors={colors}
                             onChangeText={(text) => updateArrayItem('projects', item.id, 'technologies', text.split(',').map((value) => value.trim()).filter(Boolean))} />
                     </View>
                 ))}
@@ -346,18 +348,18 @@ export function CVEditor({
 
             <Animated.View entering={FadeInDown.delay(500)}>
                 <SectionHeader
-                    title="Achievements"
+                    title={t('editor.sections.achievements')}
                     color={colors.foreground}
                     onAdd={() => addItem('achievements')}
                 />
                 {(currentCV.data_json?.achievements || []).map((item: any) => (
                     <View key={item.id} style={[styles.inputCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                        <ItemHeader title={item.title || 'New achievement'} onDelete={() => removeItem('achievements', item.id)} />
-                        <Field label="Title" value={item.title} placeholder="Dean's List" muted={muted} colors={colors}
+                        <ItemHeader title={item.title || t('editor.newAchievement')} onDelete={() => removeItem('achievements', item.id)} />
+                        <Field label={t('editor.fields.achievementTitle.label')} value={item.title} placeholder={t('editor.fields.achievementTitle.placeholder')} muted={muted} colors={colors}
                             onChangeText={(text) => updateArrayItem('achievements', item.id, 'title', text)} />
-                        <Field label="Issuer" value={item.issuer || ''} placeholder="University / Organization" muted={muted} colors={colors}
+                        <Field label={t('editor.fields.issuer.label')} value={item.issuer || ''} placeholder={t('editor.fields.issuer.placeholder')} muted={muted} colors={colors}
                             onChangeText={(text) => updateArrayItem('achievements', item.id, 'issuer', text)} />
-                        <Field label="Description" value={item.description} placeholder="Why it matters" muted={muted} colors={colors}
+                        <Field label={t('editor.fields.description.label')} value={item.description} placeholder={t('editor.fields.achievementDescription.placeholder')} muted={muted} colors={colors}
                             multiline onChangeText={(text) => updateArrayItem('achievements', item.id, 'description', text)} />
                     </View>
                 ))}
@@ -366,13 +368,13 @@ export function CVEditor({
             <Animated.View entering={FadeInDown.delay(560)}>
                 <TouchableOpacity
                     style={[styles.tailorBtn, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', borderColor: colors.border }]}
-                    onPress={isPro ? onAITailor : () => onUpgradeFeature('Tailor for Opportunity')}
+                    onPress={isPro ? onAITailor : () => onUpgradeFeature(t('editor.tailor.title'))}
                 >
                     <Target size={20} color={isPro ? colors.primary : '#F59E0B'} />
                     <View style={styles.tailorContent}>
-                        <Text style={[styles.tailorTitle, { color: colors.foreground }]}>Tailor for Opportunity</Text>
+                        <Text style={[styles.tailorTitle, { color: colors.foreground }]}>{t('editor.tailor.title')}</Text>
                         <Text style={[styles.tailorSubtitle, { color: muted }]}>
-                            Match this CV against opportunities in your bank
+                            {t('editor.tailor.subtitle')}
                         </Text>
                     </View>
                     <ChevronRight size={20} color={muted} />
@@ -390,7 +392,7 @@ export function CVEditor({
                     ) : (
                         <>
                             <Check size={20} color="#FFFFFF" />
-                            <Text style={styles.saveBtnText}>Save CV</Text>
+                            <Text style={styles.saveBtnText}>{t('editor.save')}</Text>
                         </>
                     )}
                 </TouchableOpacity>
@@ -406,7 +408,7 @@ export function CVEditor({
                         <Download size={20} color={colors.primary} />
                     )}
                     <Text style={[styles.exportBtnText, { color: colors.primary }]}>
-                        {isExporting ? 'Preparing…' : 'Download PDF'}
+                        {isExporting ? t('editor.preparing') : t('editor.downloadPdf')}
                     </Text>
                 </TouchableOpacity>
             </Animated.View>
@@ -415,12 +417,13 @@ export function CVEditor({
 }
 
 function SectionHeader({ title, color, onAdd }: { title: string; color: string; onAdd: () => void }) {
+    const { t } = useTranslation('cv');
     return (
         <View style={styles.sectionHeaderRow}>
             <Text style={[styles.sectionTitle, { color, marginTop: 20 }]}>{title}</Text>
             <TouchableOpacity style={styles.addBtn} onPress={onAdd}>
                 <Plus size={16} color="#6366F1" />
-                <Text style={styles.addBtnText}>Add</Text>
+                <Text style={styles.addBtnText}>{t('editor.add')}</Text>
             </TouchableOpacity>
         </View>
     );
