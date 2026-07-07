@@ -1,4 +1,4 @@
-import { ExecutionContext, UnauthorizedException } from "@nestjs/common";
+import { ExecutionContext, ForbiddenException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { EdutuApiKeyGuard } from "./edutu-api-key.guard";
 import type { EdutuApiUsageService } from "./edutu-api-usage.service";
@@ -37,7 +37,9 @@ describe("EdutuApiKeyGuard", () => {
         resetAt: null,
         used: null,
       }),
-      reserveRequestCredit: jest.fn().mockResolvedValue(10),
+      reserveRequestCredit: jest
+        .fn()
+        .mockResolvedValue({ balance: 10, exhausted: false }),
       reserveRateLimit: jest.fn().mockReturnValue({
         allowed: true,
         limit: 60,
