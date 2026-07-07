@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Play flags "display over other apps" as a sensitive permission; only the debug
+         source set (dev error overlay) needs it. Strip it from store builds even if a
+         library manifest tries to merge it in. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" tools:node="remove"/>
+</manifest>

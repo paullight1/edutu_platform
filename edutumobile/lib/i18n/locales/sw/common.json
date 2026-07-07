@@ -169,5 +169,18 @@
   },
   "campaign": {
     "badge": "Edu2Mobile"
+  },
+  "aiReport": {
+    "button": "Ripoti",
+    "title": "Ripoti jibu hili la AI",
+    "message": "Tuambie tatizo la maudhui haya.",
+    "reasons": {
+      "inaccurate": "Si sahihi au yanapotosha",
+      "offensive": "Ya kuudhi au yenye madhara",
+      "other": "Jambo lingine"
+    },
+    "submittedTitle": "Ripoti imepokelewa",
+    "submittedMessage": "Asante — timu yetu itakagua maudhui haya.",
+    "failed": "Imeshindikana kutuma ripoti. Tafadhali jaribu tena."
   }
 }

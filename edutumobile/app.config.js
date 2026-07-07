@@ -64,7 +64,9 @@ export default {
       // Must match ios/Edutu.xcodeproj (PRODUCT_BUNDLE_IDENTIFIER) so a
       // `prebuild` regeneration stays consistent with the committed project.
       bundleIdentifier: "com.tegm.edutuios",
-      supportsTablet: true,
+      // iPhone-only for v1: the app is portrait-locked and iPad layouts are
+      // untested — shipping tablet support invites App Review layout rejections.
+      supportsTablet: false,
       buildNumber: "1",
       deploymentTarget: "16.4",
       ...(enableAssociatedDomains ? { associatedDomains: ["applinks:edutu.org"] } : {}),
@@ -121,7 +123,9 @@ export default {
       [
         "expo-notifications",
         {
-          "icon": "./assets/icon.png",
+          // Android renders notification icons as an alpha silhouette — must be
+          // white-on-transparent, never the full-color app icon.
+          "icon": "./assets/notification-icon.png",
           "color": "#171a4f",
           "sounds": []
         }

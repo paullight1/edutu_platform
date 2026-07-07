@@ -18,6 +18,16 @@
   status = 200
   force = true
 
+[[headers]]
+  for = "/.well-known/apple-app-site-association"
+  [headers.values]
+    Content-Type = "application/json"
+
+[[headers]]
+  for = "/.well-known/assetlinks.json"
+  [headers.values]
+    Content-Type = "application/json"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

@@ -169,5 +169,18 @@
   },
   "campaign": {
     "badge": "Edu2Mobile"
+  },
+  "aiReport": {
+    "button": "举报",
+    "title": "举报此AI回复",
+    "message": "请告诉我们此内容有什么问题。",
+    "reasons": {
+      "inaccurate": "不准确或具有误导性",
+      "offensive": "冒犯或有害",
+      "other": "其他问题"
+    },
+    "submittedTitle": "已收到举报",
+    "submittedMessage": "感谢反馈——我们的团队会审核此内容。",
+    "failed": "无法提交举报，请重试。"
   }
 }

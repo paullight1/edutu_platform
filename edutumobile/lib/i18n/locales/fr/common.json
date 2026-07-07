@@ -169,5 +169,18 @@
   },
   "campaign": {
     "badge": "Edu2Mobile"
+  },
+  "aiReport": {
+    "button": "Signaler",
+    "title": "Signaler cette réponse IA",
+    "message": "Dites-nous ce qui ne va pas avec ce contenu.",
+    "reasons": {
+      "inaccurate": "Inexact ou trompeur",
+      "offensive": "Offensant ou nuisible",
+      "other": "Autre chose"
+    },
+    "submittedTitle": "Signalement reçu",
+    "submittedMessage": "Merci — notre équipe examinera ce contenu.",
+    "failed": "Impossible d'envoyer le signalement. Veuillez réessayer."
   }
 }

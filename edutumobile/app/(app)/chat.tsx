@@ -38,6 +38,7 @@ import {
     Mic,
     AlertCircle,
     RotateCcw,
+    Flag,
 } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth, useUser } from '@clerk/clerk-expo';
@@ -57,6 +58,7 @@ import { EdutuLogo } from '../../components/branding/EdutuLogo';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { BrandedLoader } from '../../components/ui/BrandedLoader';
 import { notificationService } from '../../lib/notifications';
+import { useReportAIContent } from '../../lib/reportAiContent';
 
 function TypingReveal({
     content,
@@ -254,6 +256,7 @@ export default function ChatScreen() {
     const { user } = useUser();
     const { getToken } = useAuth();
     const router = useRouter();
+    const reportAIContent = useReportAIContent('chat');
     const { voiceMsg } = useLocalSearchParams<{ voiceMsg?: string }>();
     const { isDark, colors } = useTheme();
     const insets = useSafeAreaInsets();
@@ -766,6 +769,13 @@ export default function ChatScreen() {
                                         ) : (
                                             <Volume2 size={14} color={accentColor} />
                                         )}
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={() => reportAIContent(item.content, { messageId: item.id })}
+                                        style={[styles.speakBtn, { backgroundColor: 'rgba(148,163,184,0.12)' }]}
+                                        accessibilityLabel={t('common:aiReport.button')}
+                                    >
+                                        <Flag size={14} color={isDark ? '#94A3B8' : '#64748B'} />
                                     </TouchableOpacity>
                                 </View>
                             )}
@@ -1354,6 +1364,7 @@ const styles = StyleSheet.create({
     messageActions: {
         flexDirection: 'row',
         justifyContent: 'flex-end',
+        gap: 6,
         marginTop: 6,
     },
     speakBtn: {

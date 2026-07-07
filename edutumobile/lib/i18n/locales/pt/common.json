@@ -169,5 +169,18 @@
   },
   "campaign": {
     "badge": "Edu2Mobile"
+  },
+  "aiReport": {
+    "button": "Denunciar",
+    "title": "Denunciar esta resposta de IA",
+    "message": "Conte-nos o que está errado com este conteúdo.",
+    "reasons": {
+      "inaccurate": "Impreciso ou enganoso",
+      "offensive": "Ofensivo ou nocivo",
+      "other": "Outra coisa"
+    },
+    "submittedTitle": "Denúncia recebida",
+    "submittedMessage": "Obrigado — nossa equipe vai analisar este conteúdo.",
+    "failed": "Não foi possível enviar a denúncia. Tente novamente."
   }
 }

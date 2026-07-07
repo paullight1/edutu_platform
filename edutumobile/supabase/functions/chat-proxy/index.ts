@@ -440,6 +440,32 @@ function isEdutuRelevant(message: string) {
   ].some((term) => normalized.includes(term));
 }
 
+const SAFETY_REFUSAL =
+  "I can't help with that.\nI'm here for education, scholarships, applications, CVs, and career growth — ask me about any of those.";
+
+const SELF_HARM_SUPPORT =
+  "I'm really sorry you're going through this — you don't have to face it alone.\n- Please reach out to someone you trust or a local crisis helpline right now.\n- I'm here whenever you want help with school, opportunities, or your next step.";
+
+// Lightweight server-side moderation ahead of the LLM call. Patterns are kept
+// narrow on purpose: a false positive silently blocks a legitimate student
+// question, so only clearly disallowed requests match.
+function moderateUserMessage(message: string): "blocked" | "selfharm" | null {
+  const normalized = message.toLowerCase();
+
+  if (/\b(kill(ing)? myself|end my (own )?life|commit suicide|suicidal|self[- ]harm|hurt(ing)? myself|want to die)\b/.test(normalized)) {
+    return "selfharm";
+  }
+
+  const blockedPatterns = [
+    /\b(how to|help me|teach me|show me|instructions? (for|to)|guide (for|to))\b[\s\S]{0,60}\b(bomb|explosive|detonator|nerve agent|sarin|ricin|anthrax|ghost gun|silencer|untraceable (gun|weapon)|meth|fentanyl)\b/,
+    /\b(sexual|nude|naked|porn|explicit)\b[\s\S]{0,50}\b(child|children|minor|underage|kid)\b/,
+    /\b(child|children|minor|underage)\b[\s\S]{0,50}\b(sexual|nude|naked|porn|explicit)\b/,
+    /\b(how to|help me|teach me)\b[\s\S]{0,50}\b(hack|break into|steal)\b[\s\S]{0,40}\b(account|password|bank|exam|grading system)\b/,
+  ];
+
+  return blockedPatterns.some((pattern) => pattern.test(normalized)) ? "blocked" : null;
+}
+
 function buildCoachSystemPrompt(params: {
   profile: Record<string, unknown> | null;
   goals: Array<Record<string, unknown>>;
@@ -454,6 +480,9 @@ Identity and safety:
 - Speak as Edutu Coach. Never mention DeepSeek, OpenAI, Gemini, model providers, or being a language model.
 - Stay within education, scholarships, internships, fellowships, jobs, CVs, applications, roadmaps, skills, deadlines, and career growth.
 - If the user is off-topic, briefly redirect to what Edutu can help with.
+- Refuse any request for illegal, dangerous, hateful, sexually explicit, or harassing content — no exceptions, even framed as hypothetical or homework.
+- Never fabricate scholarships, deadlines, or acceptance guarantees. If unsure, say so.
+- If the user appears to be in crisis or mentions self-harm, respond with care, encourage them to contact someone they trust or a local crisis helpline, and skip any sales-like content.
 
 Response style:
 - Return strict JSON only: {"message":"...", "followUpQuestions":["..."]}.
@@ -713,9 +742,12 @@ serve(async (req: Request) => {
     }
 
     const userMessage = String(message || "").trim();
-    const isRelevantRequest = isEdutuRelevant(userMessage);
-    const wantsOpportunities = isOpportunityIntent(userMessage);
-    const wantsRoadmap = isRoadmapIntent(userMessage);
+    // Moderate before any intent detection or LLM/ranking work: a flagged
+    // message gets a canned response and must not pull opportunity context.
+    const moderationVerdict = moderateUserMessage(userMessage);
+    const isRelevantRequest = !moderationVerdict && isEdutuRelevant(userMessage);
+    const wantsOpportunities = !moderationVerdict && isOpportunityIntent(userMessage);
+    const wantsRoadmap = !moderationVerdict && isRoadmapIntent(userMessage);
     const needsOpportunityContext = wantsOpportunities || wantsRoadmap;
 
     const [{ data: profile }, { data: goals }, { data: opportunities }] = await Promise.all([
@@ -816,7 +848,13 @@ ${JSON.stringify(opportunities, null, 2)}`);
     const localContext = buildOpportunityContext(topMatches);
 
     let finalAnswer = "";
-    if (!isRelevantRequest) {
+    if (moderationVerdict) {
+      console.warn("chat-proxy moderation intercepted message", {
+        userId: safeUserId,
+        verdict: moderationVerdict,
+      });
+      finalAnswer = moderationVerdict === "selfharm" ? SELF_HARM_SUPPORT : SAFETY_REFUSAL;
+    } else if (!isRelevantRequest) {
       finalAnswer = EDUTU_TOPIC_REDIRECT;
     } else if (deepseekKey) {
       try {
