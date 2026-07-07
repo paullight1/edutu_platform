@@ -169,5 +169,18 @@
   },
   "campaign": {
     "badge": "Edu2Mobile"
+  },
+  "aiReport": {
+    "button": "Rahoto",
+    "title": "Kai rahoton wannan amsar AI",
+    "message": "Gaya mana abin da ba daidai ba a wannan abun ciki.",
+    "reasons": {
+      "inaccurate": "Ba daidai ba ko yaudara",
+      "offensive": "Mai batanci ko cutarwa",
+      "other": "Wani abu daban"
+    },
+    "submittedTitle": "An karɓi rahoto",
+    "submittedMessage": "Mun gode — ƙungiyarmu za ta duba wannan abun ciki.",
+    "failed": "An kasa aika rahoton. Da fatan za a sake gwadawa."
   }
 }

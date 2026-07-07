@@ -11,9 +11,10 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
-import { Check, Download, Sparkles, Target, ChevronRight, Plus, Trash2 } from 'lucide-react-native';
+import { Check, Download, Sparkles, Target, ChevronRight, Plus, Trash2, Flag } from 'lucide-react-native';
 import { CVHeader, UserCV } from '@edutu/core/src/types/cv';
 import { useTheme } from '../../components/context/ThemeContext';
+import { useReportAIContent } from '../../lib/reportAiContent';
 
 type CVData = NonNullable<UserCV['data_json']>;
 
@@ -73,6 +74,7 @@ export function CVEditor({
     const { t } = useTranslation('cv');
     const { colors, isDark } = useTheme();
     const muted = isDark ? '#94A3B8' : '#64748B';
+    const reportAIContent = useReportAIContent('cv');
 
     const updateHeader = (key: string, value: string) => {
         setCurrentCV((prev: Partial<UserCV>) => ({
@@ -234,6 +236,19 @@ export function CVEditor({
                             {isImprovingSummary ? t('editor.improving') : isPro ? t('editor.improveWithAi') : t('editor.unlockAiAssist')}
                         </Text>
                     </TouchableOpacity>
+                    {!!currentCV.data_json?.summary && (
+                        <TouchableOpacity
+                            style={styles.reportAiBtn}
+                            onPress={() =>
+                                reportAIContent(currentCV.data_json?.summary || '', { cvId: currentCV.id })
+                            }
+                        >
+                            <Flag size={12} color={muted} />
+                            <Text style={[styles.reportAiText, { color: muted }]}>
+                                {t('common:aiReport.button')}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
             </Animated.View>
 
@@ -541,6 +556,18 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         marginTop: 8,
         gap: 8,
+    },
+    reportAiBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 4,
+        marginTop: 8,
+        paddingVertical: 4,
+    },
+    reportAiText: {
+        fontSize: 12,
+        fontWeight: '600',
     },
     aiGenerateText: {
         color: '#FFFFFF',

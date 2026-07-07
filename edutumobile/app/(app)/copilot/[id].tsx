@@ -26,6 +26,7 @@ import {
   MessageCircle,
   PenLine,
   RefreshCw,
+  Flag,
   Sparkles,
   Target,
   X,
@@ -39,6 +40,7 @@ import { ProgressBar } from "../../../components/ui/ProgressBar";
 import { AnimatedPressable } from "../../../components/ui/AnimatedPressable";
 import { FadeInDown } from "react-native-reanimated";
 import { supabase } from "../../../lib/supabase";
+import { useReportAIContent } from "../../../lib/reportAiContent";
 import { getOpportunity } from "@edutu/core/src/services/opportunities";
 import {
   fetchApplicationKit,
@@ -85,6 +87,7 @@ export default function ApplicationCopilotScreen() {
   const { user } = useUser();
   const { getToken } = useAuth();
   const { isDark, colors } = useTheme();
+  const reportAIContent = useReportAIContent("copilot");
   const { credits, spendCredits } = useCredits(supabase, user?.id || null);
   const { isPro } = useProStatus(supabase, user?.id || null);
 
@@ -408,13 +411,27 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
         showBack
         right={
           kit ? (
-            <TouchableOpacity
-              onPress={confirmRefresh}
-              style={[styles.headerBtn, { backgroundColor: `${colors.accent}15` }]}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <RefreshCw size={17} color={colors.accent} />
-            </TouchableOpacity>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <TouchableOpacity
+                onPress={() =>
+                  reportAIContent(
+                    [kit.kit.fitNote, ...kit.kit.strategy].filter(Boolean).join("\n"),
+                    { opportunityId: id, generatedBy: kit.generatedBy },
+                  )
+                }
+                style={[styles.headerBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)" }]}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Flag size={17} color={textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={confirmRefresh}
+                style={[styles.headerBtn, { backgroundColor: `${colors.accent}15` }]}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <RefreshCw size={17} color={colors.accent} />
+              </TouchableOpacity>
+            </View>
           ) : undefined
         }
       />

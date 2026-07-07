@@ -169,5 +169,18 @@
   },
   "campaign": {
     "badge": "Edu2Mobile"
+  },
+  "aiReport": {
+    "button": "Report",
+    "title": "Report this AI response",
+    "message": "Tell us what's wrong with this content.",
+    "reasons": {
+      "inaccurate": "Inaccurate or misleading",
+      "offensive": "Offensive or harmful",
+      "other": "Something else"
+    },
+    "submittedTitle": "Report received",
+    "submittedMessage": "Thanks — our team will review this content.",
+    "failed": "Could not submit the report. Please try again."
   }
 }

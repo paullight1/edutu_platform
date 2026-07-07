@@ -369,6 +369,24 @@ export default function SignUpScreen() {
         {!loading ? <ArrowRight color="#FFFFFF" size={18} /> : null}
       </Pressable>
 
+      <Text style={[styles.consentText, { color: colors.textSecondary }]}>
+        {t('signUp.consent.prefix')}{' '}
+        <Text
+          style={[styles.consentLink, { color: '#2563EB' }]}
+          onPress={() => WebBrowser.openBrowserAsync('https://edutu.org/terms')}
+        >
+          {t('signUp.consent.terms')}
+        </Text>{' '}
+        {t('signUp.consent.and')}{' '}
+        <Text
+          style={[styles.consentLink, { color: '#2563EB' }]}
+          onPress={() => WebBrowser.openBrowserAsync('https://edutu.org/privacy')}
+        >
+          {t('signUp.consent.privacy')}
+        </Text>
+        {t('signUp.consent.suffix')}
+      </Text>
+
       <View style={styles.footerRow}>
         <Text style={[styles.footerText, { color: colors.textSecondary }]}>{t('signUp.haveAccount')}</Text>
         <Link href="/(auth)/sign-in">
@@ -519,6 +537,16 @@ const styles = StyleSheet.create({
   resendText: {
     fontSize: 14,
     fontWeight: '700',
+  },
+  consentText: {
+    marginTop: 14,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  consentLink: {
+    fontWeight: '700',
+    textDecorationLine: 'underline',
   },
   footerRow: {
     marginTop: 12,
