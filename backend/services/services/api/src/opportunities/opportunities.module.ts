@@ -6,9 +6,10 @@ import { OpportunityVerificationService } from "./opportunity-verification.servi
 import { OpportunityShareCardService } from "./opportunity-share-card.service";
 import { OpportunityEmbeddingService } from "./opportunity-embedding.service";
 import { AiModule } from "../ai";
+import { SavedSearchesModule } from "../saved-searches/saved-searches.module";
 
 @Module({
-  imports: [AiModule],
+  imports: [AiModule, SavedSearchesModule],
   controllers: [OpportunitiesController],
   providers: [
     OpportunitiesService,

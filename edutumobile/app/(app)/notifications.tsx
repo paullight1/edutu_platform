@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
     Bell,
+    BellRing,
     Target,
     Award,
     Users,
@@ -27,8 +28,10 @@ import { AppNotification } from '@edutu/core/src/types/notification';
 import { useTheme } from '../../components/context/ThemeContext';
 import { notificationService } from '../../lib/notifications';
 import { BrandedLoader } from '../../components/ui/BrandedLoader';
+import { useTranslation } from 'react-i18next';
 
 export default function NotificationsScreen() {
+    const { t } = useTranslation('home');
     const { getToken } = useAuth();
     const { user } = useUser();
     const router = useRouter();
@@ -69,8 +72,8 @@ export default function NotificationsScreen() {
         const passwordPrompt: AppNotification[] = shouldPromptForPassword ? [{
             id: 'local-password-setup',
             kind: 'system',
-            title: 'Add a password to your account',
-            body: 'You signed in with Google or Apple. Add a password so you can also sign in with email if you forget which option you used.',
+            title: t('notifications.passwordPromptTitle'),
+            body: t('notifications.passwordPromptBody'),
             severity: 'info',
             metadata: { actionRoute: '/profile/settings' },
             createdAt: new Date().toISOString(),
@@ -78,7 +81,7 @@ export default function NotificationsScreen() {
         }] : [];
 
         return [...passwordPrompt, ...notifications].filter(n => filter === 'unread' ? !n.readAt : true);
-    }, [notifications, filter, shouldPromptForPassword]);
+    }, [notifications, filter, shouldPromptForPassword, t]);
 
     const getIcon = (kind: AppNotification['kind']) => {
         const size = 18;
@@ -87,13 +90,14 @@ export default function NotificationsScreen() {
             case 'goal-weekly-digest': return <Calendar size={size} color="#4f46e5" />;
             case 'goal-progress': return <Award size={size} color="#10b981" />;
             case 'opportunity-highlight': return <Users size={size} color="#3b82f6" />;
+            case 'opportunity-alert': return <BellRing size={size} color="#10b981" />;
             case 'admin-broadcast': return <AlertTriangle size={size} color="#f59e0b" />;
             case 'system': return <Lock size={size} color="#2563EB" />;
             default: return <Bell size={size} color="#94A3B8" />;
         }
     };
 
-    const handleMarkAsRead = async (id: string) => {
+    const handleMarkAsRead = async (id: string, item?: AppNotification) => {
         if (id === 'local-password-setup') {
             router.push('/profile/settings');
             return;
@@ -101,6 +105,13 @@ export default function NotificationsScreen() {
 
         await markAsRead(id);
         await notificationService.triggerHaptic('light');
+
+        // Alert-style notifications deep-link to their target (opportunity
+        // detail, saved searches) via metadata.url — same contract as push.
+        const url = item?.metadata?.url;
+        if (typeof url === 'string' && url.startsWith('/')) {
+            router.push(url as never);
+        }
     };
 
     const handleDelete = async (id: string) => {
@@ -117,7 +128,7 @@ export default function NotificationsScreen() {
         const isUnread = !item.readAt;
         return (
             <TouchableOpacity
-                onPress={() => handleMarkAsRead(item.id)}
+                onPress={() => handleMarkAsRead(item.id, item)}
                 style={[
                     styles.notificationCard,
                     {
@@ -151,7 +162,7 @@ export default function NotificationsScreen() {
                                 onPress={() => router.push('/profile/settings')}
                                 style={styles.actionBtn}
                             >
-                                <Text style={styles.actionText}>Set password</Text>
+                                <Text style={styles.actionText}>{t('notifications.setPassword')}</Text>
                             </TouchableOpacity>
                         ) : null}
                         <TouchableOpacity
@@ -169,7 +180,7 @@ export default function NotificationsScreen() {
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor }} edges={['top', 'left', 'right']}>
             <ScreenHeader
-                title="Notifications"
+                title={t('notifications.title')}
                 showBack
                 right={
                     <TouchableOpacity
@@ -189,7 +200,7 @@ export default function NotificationsScreen() {
                         style={[styles.filterTab, filter === 'all' && styles.filterTabActive]}
                     >
                         <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
-                            All
+                            {t('notifications.filterAll')}
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -197,14 +208,14 @@ export default function NotificationsScreen() {
                         style={[styles.filterTab, filter === 'unread' && styles.filterTabActive]}
                     >
                         <Text style={[styles.filterText, filter === 'unread' && styles.filterTextActive]}>
-                            Unread ({unreadCount})
+                            {t('notifications.filterUnread', { count: unreadCount })}
                         </Text>
                     </TouchableOpacity>
                 </View>
 
                 {isLoading ? (
                     <View style={styles.loadingContainer}>
-                        <BrandedLoader label="Loading notifications..." />
+                        <BrandedLoader label={t('notifications.loading')} />
                     </View>
                 ) : (
                     <FlatList
@@ -216,8 +227,8 @@ export default function NotificationsScreen() {
                         ListEmptyComponent={
                             <View style={styles.emptyState}>
                                 <Bell size={48} color={textSecondary} />
-                                <Text style={[styles.emptyTitle, { color: textPrimary }]}>No Notifications</Text>
-                                <Text style={[styles.emptySubtitle, { color: textSecondary }]}>You're all caught up!</Text>
+                                <Text style={[styles.emptyTitle, { color: textPrimary }]}>{t('notifications.emptyTitle')}</Text>
+                                <Text style={[styles.emptySubtitle, { color: textSecondary }]}>{t('notifications.emptySubtitle')}</Text>
                             </View>
                         }
                     />

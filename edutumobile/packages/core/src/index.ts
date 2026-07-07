@@ -21,6 +21,8 @@ export * from './services/aiRoadmapGenerator';
 export * from './services/analytics';
 export * from './services/opportunitySignals';
 export * from './services/dismissedOpportunities';
+export * from './services/copilot';
+export * from './services/savedSearches';
 
 export * from './hooks/useChat';
 export * from './hooks/useOpportunities';

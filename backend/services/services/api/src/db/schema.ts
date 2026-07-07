@@ -1166,3 +1166,83 @@ export const calendarFeedTokens = pgTable("calendar_feed_tokens", {
 export type CalendarConnection = typeof calendarConnections.$inferSelect;
 export type CalendarEventLink = typeof calendarEventLinks.$inferSelect;
 export type CalendarFeedToken = typeof calendarFeedTokens.$inferSelect;
+
+// Saved searches power "alert me when a matching opportunity arrives": each row
+// stores the Discover filter state; new/approved opportunities are matched
+// against notify-enabled rows at ingest time (see SavedSearchesService).
+export const savedSearches = pgTable(
+  "saved_searches",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull(),
+    name: text("name").notNull(),
+    // Criteria mirror the Discover screen's filter state; all optional — an
+    // empty search matches everything in the chosen category.
+    query: text("query"),
+    category: text("category"),
+    fundingType: text("funding_type"),
+    targetRegion: text("target_region"),
+    remoteOnly: boolean("remote_only"),
+    notifyEnabled: boolean("notify_enabled").default(true).notNull(),
+    matchCount: integer("match_count").default(0).notNull(),
+    lastMatchedAt: timestamp("last_matched_at"),
+    lastNotifiedAt: timestamp("last_notified_at"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("saved_searches_user_idx").on(table.userId, table.createdAt),
+    index("saved_searches_notify_idx").on(table.notifyEnabled),
+  ],
+);
+
+// One row per (saved search, opportunity) hit. Doubles as the alert dedupe
+// ledger: onConflictDoNothing + RETURNING tells us which hits are truly new,
+// so re-approving an opportunity can never notify the same user twice.
+export const savedSearchMatches = pgTable(
+  "saved_search_matches",
+  {
+    savedSearchId: uuid("saved_search_id").notNull(),
+    opportunityId: uuid("opportunity_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    notifiedAt: timestamp("notified_at").defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.savedSearchId, table.opportunityId] }),
+    index("saved_search_matches_user_idx").on(table.userId, table.notifiedAt),
+  ],
+);
+
+// AI application co-pilot workspace: one kit per (user, opportunity). `kit` is
+// the AI-generated content (fit note, checklist, essay prompts, tips);
+// `essays` and `checklistState` hold the user's working state on top of it.
+export const applicationKits = pgTable(
+  "application_kits",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull(),
+    opportunityId: uuid("opportunity_id").notNull(),
+    kit: jsonb("kit").$type<Record<string, unknown>>().default({}).notNull(),
+    essays: jsonb("essays").$type<unknown[]>().default([]).notNull(),
+    checklistState: jsonb("checklist_state")
+      .$type<Record<string, boolean>>()
+      .default({})
+      .notNull(),
+    generatedBy: text("generated_by").default("ai"), // 'ai' | 'fallback'
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("application_kits_user_opportunity_idx").on(
+      table.userId,
+      table.opportunityId,
+    ),
+    index("application_kits_user_updated_idx").on(
+      table.userId,
+      table.updatedAt,
+    ),
+  ],
+);
+
+export type SavedSearch = typeof savedSearches.$inferSelect;
+export type ApplicationKit = typeof applicationKits.$inferSelect;

@@ -22,6 +22,7 @@ import * as Notifications from "expo-notifications";
 import { notificationService, registerForPushNotificationsAsync } from "../../lib/notifications";
 import { supabase } from "../../lib/supabase";
 import { useNotifications } from "@edutu/core/src/hooks/useNotifications";
+import { useTranslation } from "react-i18next";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -44,8 +45,9 @@ function getBottomNavOffset(bottomInset: number): number {
 
 // ─── Badge Component ─────────────────────────────────────────────────────────
 function Badge({ count, isDark }: { count?: number | "!"; isDark: boolean }) {
+    const { t } = useTranslation('home');
     if (count === undefined || count === null) return null;
-    const label = typeof count === "number" ? (count > 99 ? "99+" : String(count)) : count;
+    const label = typeof count === "number" ? (count > 99 ? t('tabs.badgeOverflow') : String(count)) : count;
     return (
         <View style={[styles.badge, { borderColor: isDark ? "#1E293B" : "#FFFFFF" }]}>
             <Text style={styles.badgeText}>{label}</Text>
@@ -279,6 +281,7 @@ function BottomNav({
     isDark: boolean;
     colors: any;
 }) {
+    const { t } = useTranslation('home');
     const insets = useSafeAreaInsets();
     // Brighter accent + higher-contrast inactive so labels stay legible on the
     // translucent glass over dark content.
@@ -352,7 +355,7 @@ function BottomNav({
                 activeOpacity={0.85}
                 style={styles.navCircle}
                 accessibilityRole="button"
-                accessibilityLabel="Open Edutu AI"
+                accessibilityLabel={t('tabs.openEdutuAi')}
             >
                 {glassBackground(999)}
                 <Sparkles size={24} color={accent} strokeWidth={2.2} />
@@ -367,6 +370,7 @@ function BottomNav({
 function DailyLoginRewards() {
     const { isSignedIn, userId } = useAuth();
     const { show } = useToast();
+    const { t } = useTranslation('home');
     const claimedForUserRef = React.useRef<string | null>(null);
 
     const { claimDaily } = useCreditRewards(supabase, userId ?? null, {
@@ -374,7 +378,7 @@ function DailyLoginRewards() {
             show({
                 emoji: "🔥",
                 variant: "success",
-                message: `+${amount} credit${amount > 1 ? "s" : ""} · ${label}`,
+                message: t('rewards.creditsEarned', { count: amount, label }),
             });
         },
     });
@@ -392,6 +396,7 @@ function DailyLoginRewards() {
 
 // ─── Root Layout ──────────────────────────────────────────────────────────────
 export default function AppLayout() {
+    const { t } = useTranslation('home');
     const { isSignedIn, isLoaded, getToken, userId } = useAuth();
     const { user } = useUser();
     const { isDark, colors } = useTheme();
@@ -472,6 +477,8 @@ export default function AppLayout() {
             normalizedPath.includes("roadmap-templates") ||
             normalizedPath.includes("/profile/") ||
             normalizedPath.includes("/opportunities/") ||
+            normalizedPath.includes("copilot") ||
+            normalizedPath.includes("saved-searches") ||
             (normalizedPath.startsWith("/goals/") && normalizedPath !== "/goals/all-roadmaps" && normalizedPath !== "/goals/my-list")
         ) {
             return "subpage";
@@ -515,10 +522,10 @@ export default function AppLayout() {
     }
 
     const tabs = [
-        { key: "home", route: "/", label: "Home", icon: Home, badge: undefined },
-        { key: "opportunities", route: "/opportunities", label: "Discover", icon: Compass, badge: undefined },
-        { key: "roadmaps", route: "/roadmaps", label: "Plan", icon: ShoppingBag, badge: undefined },
-        { key: "menu", route: "/profile", label: "Me", icon: UserCircle, badge: undefined },
+        { key: "home", route: "/", label: t('tabs.home'), icon: Home, badge: undefined },
+        { key: "opportunities", route: "/opportunities", label: t('tabs.discover'), icon: Compass, badge: undefined },
+        { key: "roadmaps", route: "/roadmaps", label: t('tabs.plan'), icon: ShoppingBag, badge: undefined },
+        { key: "menu", route: "/profile", label: t('tabs.me'), icon: UserCircle, badge: undefined },
     ];
 
     return (
@@ -561,6 +568,8 @@ export default function AppLayout() {
                     <Stack.Screen name="saved/index" />
                     <Stack.Screen name="goals" />
                     <Stack.Screen name="paywall" />
+                    <Stack.Screen name="copilot/[id]" />
+                    <Stack.Screen name="saved-searches" />
                 </Stack>
             </View>
 

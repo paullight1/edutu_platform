@@ -127,6 +127,27 @@ const DEFAULT_ROUTES: Record<
     responseMimeType: "application/json",
     isEnabled: true,
   },
+  "copilot.kit": {
+    provider: "deepseek",
+    model: "deepseek-chat",
+    temperature: 0.3,
+    responseMimeType: "application/json",
+    isEnabled: true,
+  },
+  "copilot.outline": {
+    provider: "deepseek",
+    model: "deepseek-chat",
+    temperature: 0.4,
+    responseMimeType: "application/json",
+    isEnabled: true,
+  },
+  "copilot.feedback": {
+    provider: "deepseek",
+    model: "deepseek-chat",
+    temperature: 0.3,
+    responseMimeType: "application/json",
+    isEnabled: true,
+  },
   // Embeddings power semantic recommendation retrieval. DeepSeek has no
   // embeddings API, so these route to Gemini; the engine degrades to the
   // heuristic ranker when the key/route is unavailable (embed() -> null).
