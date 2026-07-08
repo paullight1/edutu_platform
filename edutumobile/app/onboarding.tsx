@@ -1,29 +1,37 @@
-import React, { useState, useMemo, useRef, useCallback } from 'react'
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import {
     ActivityIndicator,
     Alert,
+    BackHandler,
+    Dimensions,
     FlatList,
+    Keyboard,
     KeyboardAvoidingView,
     Modal,
     Platform,
     ScrollView,
+    StatusBar,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View,
-    Dimensions,
-    StatusBar,
 } from 'react-native'
-import { useUser } from '@clerk/clerk-expo'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { useUser, useAuth } from '@clerk/clerk-expo'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
-import Animated, { FadeInUp, FadeInDown, Layout, SlideInRight, SlideOutLeft } from 'react-native-reanimated'
+import Animated, {
+    FadeIn,
+    FadeInUp,
+    SlideInRight,
+    SlideOutLeft,
+    SlideInLeft,
+    SlideOutRight,
+} from 'react-native-reanimated'
 import {
     ArrowRight,
     ChevronDown,
-    GraduationCap,
-    Phone,
     Search,
     Sparkles,
     Check,
@@ -32,20 +40,12 @@ import {
     Building,
     Target,
     Award,
-    Lightbulb,
-    Calendar,
-    BookOpen,
-    Plus,
     ChevronLeft,
-    Globe,
-    Zap,
-    Rocket,
 } from 'lucide-react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient'
-import { BlurView } from 'expo-blur'
-import { useTheme } from '../components/context/ThemeContext'
-import { supabase } from '../lib/supabase'
+import { useTheme, type ThemeColors } from '../components/context/ThemeContext'
+import { updateProfile } from '@edutu/core/src/services/profile'
 
 import {
     COUNTRIES,
@@ -56,6 +56,8 @@ import {
 import type { Country } from '../data/onboarding-data'
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window')
+const DRAFT_KEY = '@edutu/onboarding_draft'
+
 let styles = {} as ReturnType<typeof getStyles>
 
 // `label`/`icon` hold i18n keys (auth namespace) translated at render time; `value` is the backend enum.
@@ -84,7 +86,32 @@ const STEPS = [
     { id: 'welcome', title: 'onboarding.steps.welcome', icon: Sparkles },
 ]
 
-const ANIMATED_VIEW = Animated.View
+type FormData = {
+    fullName: string
+    selectedCountry: Country
+    countryModal: boolean
+    localPhone: string
+    age: string
+    degreePursuit: string | null
+    isGraduate: string | null
+    gradeLevel: string | null
+    schoolName: string
+    selectedInterests: string[]
+    selectedAmbitions: string[]
+}
+
+/**
+ * A short "why we ask this" note under each step header. Uses accent-tinted
+ * surface + system colors so the onboarding reads as one coherent product.
+ */
+function WhyCard({ text }: { text: string }) {
+    return (
+        <View style={styles.whyCard}>
+            <View style={styles.whyDot} />
+            <Text style={styles.whyText}>{text}</Text>
+        </View>
+    )
+}
 
 function StepIndicator({ currentStep, totalSteps }: { currentStep: number; totalSteps: number }) {
     return (
@@ -92,7 +119,6 @@ function StepIndicator({ currentStep, totalSteps }: { currentStep: number; total
             {STEPS.slice(0, totalSteps).map((step, index) => {
                 const isActive = index === currentStep
                 const isCompleted = index < currentStep
-
                 return (
                     <View key={step.id} style={styles.stepItem}>
                         <View
@@ -109,99 +135,141 @@ function StepIndicator({ currentStep, totalSteps }: { currentStep: number; total
     )
 }
 
-function CountryPickerModal({ visible, onClose, selectedCountry, onSelect }: any) {
+/**
+ * Full-screen, keyboard-safe country picker. The header + search bar are pinned
+ * at the top and the list fills the rest, so the search field can never be
+ * hidden behind the keyboard (the previous bottom-sheet + KeyboardAvoidingView
+ * combo broke on Android). The list is padded by the live keyboard height so
+ * every row stays reachable while typing.
+ */
+function CountryPickerModal({ visible, onClose, selectedCountry, onSelect, colors, isDark }: {
+    visible: boolean
+    onClose: () => void
+    selectedCountry: Country
+    onSelect: (c: Country) => void
+    colors: ThemeColors
+    isDark: boolean
+}) {
     const { t } = useTranslation('auth')
+    const insets = useSafeAreaInsets()
     const [search, setSearch] = useState('')
+    const [kbHeight, setKbHeight] = useState(0)
+
+    useEffect(() => {
+        if (!visible) return
+        const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow'
+        const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide'
+        const showSub = Keyboard.addListener(showEvt, (e) => setKbHeight(e.endCoordinates?.height ?? 0))
+        const hideSub = Keyboard.addListener(hideEvt, () => setKbHeight(0))
+        return () => {
+            showSub.remove()
+            hideSub.remove()
+        }
+    }, [visible])
+
+    // Reset the query each time the sheet is dismissed so it opens clean.
+    useEffect(() => {
+        if (!visible) setSearch('')
+    }, [visible])
 
     const filteredCountries = useMemo(() => {
-        if (!search.trim()) return COUNTRIES.slice(0, 50)
+        const q = search.trim().toLowerCase()
+        if (!q) return COUNTRIES
         return COUNTRIES.filter(
-            (c) =>
-                c.name.toLowerCase().includes(search.toLowerCase()) ||
-                c.dial.includes(search),
-        ).slice(0, 50)
+            (c) => c.name.toLowerCase().includes(q) || c.dial.includes(q),
+        )
     }, [search])
 
     const handleSelect = useCallback((country: Country) => {
         onSelect(country)
-        setSearch('')
+        Keyboard.dismiss()
         onClose()
     }, [onSelect, onClose])
 
     return (
-        <Modal visible={visible} animationType="slide" transparent statusBarTranslucent>
-            <View style={styles.modalOverlay}>
-                <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={onClose} />
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    style={styles.modalKeyboardAvoiding}
-                >
-                    <View style={styles.modalSheet}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>{t('onboarding.countryPicker.title')}</Text>
-                            <TouchableOpacity onPress={onClose} style={styles.modalCloseBtn}>
-                                <X color="#94A3B8" size={22} />
+        <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+            <View style={[styles.pickerScreen, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+                <View style={styles.pickerHeader}>
+                    <TouchableOpacity onPress={onClose} style={styles.pickerCloseBtn} hitSlop={8}>
+                        <X color={colors.foreground} size={22} />
+                    </TouchableOpacity>
+                    <Text style={styles.pickerTitle}>{t('onboarding.countryPicker.title')}</Text>
+                    <View style={styles.pickerCloseBtn} />
+                </View>
+
+                <View style={styles.searchRow}>
+                    <Search color={colors.textSecondary} size={18} />
+                    <TextInput
+                        value={search}
+                        onChangeText={setSearch}
+                        placeholder={t('onboarding.countryPicker.searchPlaceholder')}
+                        placeholderTextColor={colors.textSecondary}
+                        style={styles.searchInput}
+                        returnKeyType="search"
+                        autoCorrect={false}
+                        autoFocus
+                    />
+                    {search.length > 0 && (
+                        <TouchableOpacity onPress={() => setSearch('')} hitSlop={8}>
+                            <X color={colors.textSecondary} size={16} />
+                        </TouchableOpacity>
+                    )}
+                </View>
+
+                <FlatList
+                    data={filteredCountries}
+                    keyExtractor={(item) => item.code}
+                    style={styles.countryList}
+                    contentContainerStyle={{ paddingBottom: kbHeight + insets.bottom + 24 }}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="on-drag"
+                    initialNumToRender={20}
+                    ListEmptyComponent={
+                        <View style={styles.pickerEmpty}>
+                            <Text style={styles.pickerEmptyText}>{t('onboarding.countryPicker.empty')}</Text>
+                        </View>
+                    }
+                    renderItem={({ item }) => {
+                        const isSelected = selectedCountry.code === item.code
+                        return (
+                            <TouchableOpacity
+                                style={[styles.countryRow, isSelected && styles.countryRowSelected]}
+                                onPress={() => handleSelect(item)}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={styles.flag}>{item.flag}</Text>
+                                <Text style={styles.countryName}>{item.name}</Text>
+                                <Text style={styles.dialCode}>{item.dial}</Text>
+                                {isSelected && <Check color={colors.accent} size={18} />}
                             </TouchableOpacity>
-                        </View>
-
-                        <View style={styles.searchRow}>
-                            <Search color="#64748B" size={18} />
-                            <TextInput
-                                value={search}
-                                onChangeText={setSearch}
-                                placeholder={t('onboarding.countryPicker.searchPlaceholder')}
-                                placeholderTextColor="#64748B"
-                                style={styles.searchInput}
-                                returnKeyType="search"
-                            />
-                        </View>
-
-                        <FlatList
-                            data={filteredCountries}
-                            keyExtractor={(item) => item.code}
-                            renderItem={({ item }) => (
-                                <TouchableOpacity
-                                    style={[
-                                        styles.countryRow,
-                                        selectedCountry.code === item.code && styles.countryRowSelected,
-                                    ]}
-                                    onPress={() => handleSelect(item)}
-                                    activeOpacity={0.7}
-                                >
-                                    <Text style={styles.flag}>{item.flag}</Text>
-                                    <Text style={styles.countryName}>{item.name}</Text>
-                                    <Text style={styles.dialCode}>{item.dial}</Text>
-                                    {selectedCountry.code === item.code && (
-                                        <Check color="#6366F1" size={18} />
-                                    )}
-                                </TouchableOpacity>
-                            )}
-                            keyboardShouldPersistTaps="handled"
-                            keyboardDismissMode="on-drag"
-                            style={styles.countryList}
-                        />
-                    </View>
-                </KeyboardAvoidingView>
+                        )
+                    }}
+                />
             </View>
         </Modal>
     )
 }
 
-function ProfileStep({ formData, setFormData }: any) {
+function StepHeader({ Icon, title, subtitle }: { Icon: any; title: string; subtitle: string }) {
+    return (
+        <View style={styles.stepHeader}>
+            <View style={styles.stepIconBox}>
+                <Icon color={styles._accent.color} size={26} />
+            </View>
+            <Text style={styles.stepTitle}>{title}</Text>
+            <Text style={styles.stepSubtitle}>{subtitle}</Text>
+        </View>
+    )
+}
+
+function ProfileStep({ formData, setFormData }: { formData: FormData; setFormData: (u: Partial<FormData>) => void }) {
     const { t } = useTranslation('auth')
     const { fullName, selectedCountry, age, degreePursuit } = formData
 
     return (
-        <ANIMATED_VIEW entering={FadeInUp.duration(400)} style={styles.contentContainer}>
-            <View style={styles.stepHeader}>
-                <View style={styles.stepIconBox}>
-                    <User color="#F97316" size={28} />
-                </View>
-                <Text style={styles.stepTitle}>{t('onboarding.profile.title')}</Text>
-                <Text style={styles.stepSubtitle}>
-                    {t('onboarding.profile.subtitle')}
-                </Text>
-            </View>
+        <Animated.View entering={FadeInUp.duration(360)} style={styles.contentContainer}>
+            <StepHeader Icon={User} title={t('onboarding.profile.title')} subtitle={t('onboarding.profile.subtitle')} />
+            <WhyCard text={t('onboarding.profile.why')} />
 
             <View style={styles.form}>
                 <View style={styles.inputGroup}>
@@ -209,9 +277,9 @@ function ProfileStep({ formData, setFormData }: any) {
                     <View style={styles.inputContainer}>
                         <TextInput
                             value={fullName}
-                            onChangeText={(text: string) => setFormData({ fullName: text })}
+                            onChangeText={(text) => setFormData({ fullName: text })}
                             placeholder={t('onboarding.profile.namePlaceholder')}
-                            placeholderTextColor="#64748B"
+                            placeholderTextColor={styles._muted.color}
                             style={styles.input}
                         />
                     </View>
@@ -226,154 +294,138 @@ function ProfileStep({ formData, setFormData }: any) {
                     >
                         <Text style={styles.flagLarge}>{selectedCountry.flag}</Text>
                         <Text style={styles.pickerText}>{selectedCountry.name}</Text>
-                        <ChevronDown color="#64748B" size={18} />
+                        <ChevronDown color={styles._muted.color} size={18} />
                     </TouchableOpacity>
                 </View>
 
-                <View style={styles.rowGroup}>
-                    <View style={[styles.inputGroup, { flex: 1 }]}>
-                        <Text style={styles.label}>{t('onboarding.profile.ageLabel')}</Text>
-                        <View style={styles.inputContainer}>
-                            <TextInput
-                                value={age}
-                                onChangeText={(text: string) => setFormData({ age: text })}
-                                placeholder={t('onboarding.profile.agePlaceholder')}
-                                placeholderTextColor="#64748B"
-                                style={styles.input}
-                                keyboardType="number-pad"
-                                maxLength={3}
-                            />
-                        </View>
+                <View style={styles.inputGroup}>
+                    <Text style={styles.label}>
+                        {t('onboarding.profile.ageLabel')} <Text style={styles.optionalLabel}>{t('onboarding.optional')}</Text>
+                    </Text>
+                    <View style={styles.inputContainer}>
+                        <TextInput
+                            value={age}
+                            onChangeText={(text) => setFormData({ age: text.replace(/[^0-9]/g, '') })}
+                            placeholder={t('onboarding.profile.agePlaceholder')}
+                            placeholderTextColor={styles._muted.color}
+                            style={styles.input}
+                            keyboardType="number-pad"
+                            maxLength={3}
+                        />
                     </View>
                 </View>
 
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>{t('onboarding.profile.degreeLabel')} <Text style={styles.optionalLabel}>{t('onboarding.optional')}</Text></Text>
+                    <Text style={styles.label}>
+                        {t('onboarding.profile.degreeLabel')} <Text style={styles.optionalLabel}>{t('onboarding.optional')}</Text>
+                    </Text>
                     <View style={styles.pursuitGrid}>
-                        {DEGREE_PURSUITS.map((degree) => (
-                            <TouchableOpacity
-                                key={degree.value}
-                                style={[
-                                    styles.pursuitCard,
-                                    degreePursuit === degree.value && styles.pursuitCardSelected,
-                                ]}
-                                onPress={() => setFormData({ degreePursuit: degree.value })}
-                                activeOpacity={0.7}
-                            >
-                                <Text style={styles.pursuitIcon}>{t(degree.icon)}</Text>
-                                <Text
-                                    style={[
-                                        styles.pursuitLabel,
-                                        degreePursuit === degree.value && styles.pursuitLabelSelected,
-                                    ]}
+                        {DEGREE_PURSUITS.map((degree) => {
+                            const isSelected = degreePursuit === degree.value
+                            return (
+                                <TouchableOpacity
+                                    key={degree.value}
+                                    style={[styles.pursuitCard, isSelected && styles.pursuitCardSelected]}
+                                    onPress={() => setFormData({ degreePursuit: isSelected ? null : degree.value })}
+                                    activeOpacity={0.7}
                                 >
-                                    {t(degree.label)}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
+                                    <Text style={[styles.pursuitIcon, isSelected && styles.pursuitIconSelected]}>{t(degree.icon)}</Text>
+                                    <Text style={[styles.pursuitLabel, isSelected && styles.pursuitLabelSelected]}>{t(degree.label)}</Text>
+                                </TouchableOpacity>
+                            )
+                        })}
                     </View>
                 </View>
             </View>
-        </ANIMATED_VIEW>
+        </Animated.View>
     )
 }
 
-function EducationStep({ formData, setFormData }: any) {
+function EducationStep({ formData, setFormData }: { formData: FormData; setFormData: (u: Partial<FormData>) => void }) {
     const { t } = useTranslation('auth')
     const { isGraduate, gradeLevel, schoolName } = formData
     const [schoolDropdownVisible, setSchoolDropdownVisible] = useState(false)
 
     const filteredSchools = useMemo(() => {
         if (!schoolName.trim()) return NIGERIAN_UNIVERSITIES.slice(0, 10)
-        return NIGERIAN_UNIVERSITIES.filter(s =>
-            s.toLowerCase().includes(schoolName.toLowerCase())
-        ).slice(0, 8)
+        return NIGERIAN_UNIVERSITIES.filter((s) => s.toLowerCase().includes(schoolName.toLowerCase())).slice(0, 8)
     }, [schoolName])
 
     return (
-        <ANIMATED_VIEW entering={FadeInUp.duration(400)} style={styles.contentContainer}>
-            <View style={styles.stepHeader}>
-                <View style={styles.stepIconBox}>
-                    <Building color="#F97316" size={28} />
-                </View>
-                <Text style={styles.stepTitle}>{t('onboarding.education.title')}</Text>
-                <Text style={styles.stepSubtitle}>
-                    {t('onboarding.education.subtitle')}
-                </Text>
-            </View>
+        <Animated.View entering={FadeInUp.duration(360)} style={styles.contentContainer}>
+            <StepHeader Icon={Building} title={t('onboarding.education.title')} subtitle={t('onboarding.education.subtitle')} />
+            <WhyCard text={t('onboarding.education.why')} />
 
             <View style={styles.form}>
                 <View style={styles.inputGroup}>
                     <Text style={styles.label}>{t('onboarding.education.graduateQuestion')}</Text>
                     <View style={styles.yesNoRow}>
-                        <TouchableOpacity
-                            style={[styles.yesNoBtn, isGraduate === 'yes' && styles.yesNoBtnSelected]}
-                            onPress={() => setFormData({ isGraduate: 'yes' })}
-                            activeOpacity={0.7}
-                        >
-                            <Text style={[styles.yesNoText, isGraduate === 'yes' && styles.yesNoTextSelected]}>{t('onboarding.education.yes')}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.yesNoBtn, isGraduate === 'no' && styles.yesNoBtnSelected]}
-                            onPress={() => setFormData({ isGraduate: 'no' })}
-                            activeOpacity={0.7}
-                        >
-                            <Text style={[styles.yesNoText, isGraduate === 'no' && styles.yesNoTextSelected]}>{t('onboarding.education.no')}</Text>
-                        </TouchableOpacity>
+                        {(['yes', 'no'] as const).map((val) => {
+                            const isSelected = isGraduate === val
+                            return (
+                                <TouchableOpacity
+                                    key={val}
+                                    style={[styles.yesNoBtn, isSelected && styles.yesNoBtnSelected]}
+                                    onPress={() => setFormData({ isGraduate: val })}
+                                    activeOpacity={0.7}
+                                >
+                                    <Text style={[styles.yesNoText, isSelected && styles.yesNoTextSelected]}>
+                                        {t(`onboarding.education.${val}`)}
+                                    </Text>
+                                </TouchableOpacity>
+                            )
+                        })}
                     </View>
                 </View>
 
                 {isGraduate === 'no' && (
-                    <ANIMATED_VIEW entering={FadeInUp.duration(300)}>
+                    <Animated.View entering={FadeInUp.duration(260)}>
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>{t('onboarding.education.gradeLevelLabel')}</Text>
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.gradeScroll}>
-                                {GRADE_LEVELS_DATA.map((level) => (
-                                    <TouchableOpacity
-                                        key={level.value}
-                                        style={[
-                                            styles.gradeChip,
-                                            gradeLevel === level.value && styles.gradeChipSelected,
-                                        ]}
-                                        onPress={() => setFormData({ gradeLevel: level.value })}
-                                        activeOpacity={0.7}
-                                    >
-                                        <Text style={styles.gradeChipIcon}>{level.icon}</Text>
-                                        <Text style={[styles.gradeChipText, gradeLevel === level.value && styles.gradeChipTextSelected]}>
-                                            {level.label}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
+                                {GRADE_LEVELS_DATA.map((level) => {
+                                    const isSelected = gradeLevel === level.value
+                                    return (
+                                        <TouchableOpacity
+                                            key={level.value}
+                                            style={[styles.gradeChip, isSelected && styles.gradeChipSelected]}
+                                            onPress={() => setFormData({ gradeLevel: level.value })}
+                                            activeOpacity={0.7}
+                                        >
+                                            <Text style={styles.gradeChipIcon}>{level.icon}</Text>
+                                            <Text style={[styles.gradeChipText, isSelected && styles.gradeChipTextSelected]}>{level.label}</Text>
+                                        </TouchableOpacity>
+                                    )
+                                })}
                             </ScrollView>
                         </View>
-                    </ANIMATED_VIEW>
+                    </Animated.View>
                 )}
 
                 <View style={styles.inputGroup}>
-                    <Text style={styles.label}>{t('onboarding.education.schoolLabel')} <Text style={styles.optionalLabel}>{t('onboarding.optional')}</Text></Text>
+                    <Text style={styles.label}>
+                        {t('onboarding.education.schoolLabel')} <Text style={styles.optionalLabel}>{t('onboarding.optional')}</Text>
+                    </Text>
                     <View style={styles.schoolSearchContainer}>
                         <TextInput
                             value={schoolName}
-                            onChangeText={(text: string) => {
+                            onChangeText={(text) => {
                                 setFormData({ schoolName: text })
                                 setSchoolDropdownVisible(true)
                             }}
                             onFocus={() => setSchoolDropdownVisible(true)}
                             placeholder={t('onboarding.education.schoolPlaceholder')}
-                            placeholderTextColor="#64748B"
+                            placeholderTextColor={styles._muted.color}
                             style={styles.schoolInput}
                         />
-                        <TouchableOpacity
-                            style={styles.schoolDropdownToggle}
-                            onPress={() => setSchoolDropdownVisible(!schoolDropdownVisible)}
-                        >
-                            <ChevronDown color="#64748B" size={18} />
+                        <TouchableOpacity style={styles.schoolDropdownToggle} onPress={() => setSchoolDropdownVisible((v) => !v)}>
+                            <ChevronDown color={styles._muted.color} size={18} />
                         </TouchableOpacity>
                     </View>
 
                     {schoolDropdownVisible && filteredSchools.length > 0 && (
                         <View style={styles.schoolDropdown}>
-                            <ScrollView style={styles.schoolDropdownList} nestedScrollEnabled>
+                            <ScrollView style={styles.schoolDropdownList} nestedScrollEnabled keyboardShouldPersistTaps="handled">
                                 {filteredSchools.map((school, idx) => (
                                     <TouchableOpacity
                                         key={idx}
@@ -381,9 +433,10 @@ function EducationStep({ formData, setFormData }: any) {
                                         onPress={() => {
                                             setFormData({ schoolName: school })
                                             setSchoolDropdownVisible(false)
+                                            Keyboard.dismiss()
                                         }}
                                     >
-                                        <Building size={16} color="#64748B" />
+                                        <Building size={16} color={styles._muted.color} />
                                         <Text style={styles.schoolOptionText}>{school}</Text>
                                     </TouchableOpacity>
                                 ))}
@@ -392,41 +445,34 @@ function EducationStep({ formData, setFormData }: any) {
                     )}
                 </View>
             </View>
-        </ANIMATED_VIEW>
+        </Animated.View>
     )
 }
 
-function InterestsStep({ formData, setFormData }: any) {
+function InterestsStep({ formData, setFormData }: { formData: FormData; setFormData: (u: Partial<FormData>) => void }) {
     const { t } = useTranslation('auth')
     const { selectedInterests, selectedAmbitions } = formData
 
     const toggleInterest = useCallback((interest: string) => {
         setFormData({
             selectedInterests: selectedInterests.includes(interest)
-                ? selectedInterests.filter((i: string) => i !== interest)
-                : selectedInterests.length < 3 ? [...selectedInterests, interest] : selectedInterests
+                ? selectedInterests.filter((i) => i !== interest)
+                : selectedInterests.length < 3 ? [...selectedInterests, interest] : selectedInterests,
         })
     }, [selectedInterests, setFormData])
 
     const toggleAmbition = useCallback((ambition: string) => {
         setFormData({
             selectedAmbitions: selectedAmbitions.includes(ambition)
-                ? selectedAmbitions.filter((i: string) => i !== ambition)
-                : selectedAmbitions.length < 2 ? [...selectedAmbitions, ambition] : selectedAmbitions
+                ? selectedAmbitions.filter((i) => i !== ambition)
+                : selectedAmbitions.length < 2 ? [...selectedAmbitions, ambition] : selectedAmbitions,
         })
     }, [selectedAmbitions, setFormData])
 
     return (
-        <ANIMATED_VIEW entering={FadeInUp.duration(400)} style={styles.contentContainer}>
-            <View style={styles.stepHeader}>
-                <View style={styles.stepIconBox}>
-                    <Target color="#F97316" size={28} />
-                </View>
-                <Text style={styles.stepTitle}>{t('onboarding.interests.title')}</Text>
-                <Text style={styles.stepSubtitle}>
-                    {t('onboarding.interests.subtitle')}
-                </Text>
-            </View>
+        <Animated.View entering={FadeInUp.duration(360)} style={styles.contentContainer}>
+            <StepHeader Icon={Target} title={t('onboarding.interests.title')} subtitle={t('onboarding.interests.subtitle')} />
+            <WhyCard text={t('onboarding.interests.why')} />
 
             <View style={styles.form}>
                 <View style={styles.inputGroup}>
@@ -440,21 +486,11 @@ function InterestsStep({ formData, setFormData }: any) {
                             return (
                                 <TouchableOpacity
                                     key={interest}
-                                    style={[
-                                        styles.interestChip,
-                                        isSelected && styles.interestChipSelected,
-                                    ]}
+                                    style={[styles.interestChip, isSelected && styles.interestChipSelected]}
                                     onPress={() => toggleInterest(interest)}
                                     activeOpacity={0.7}
                                 >
-                                    <Text
-                                        style={[
-                                            styles.interestChipText,
-                                            isSelected && styles.interestChipTextSelected,
-                                        ]}
-                                    >
-                                        {interest}
-                                    </Text>
+                                    <Text style={[styles.interestChipText, isSelected && styles.interestChipTextSelected]}>{interest}</Text>
                                 </TouchableOpacity>
                             )
                         })}
@@ -472,214 +508,243 @@ function InterestsStep({ formData, setFormData }: any) {
                             return (
                                 <TouchableOpacity
                                     key={ambition.value}
-                                    style={[
-                                        styles.ambitionChip,
-                                        isSelected && styles.ambitionChipSelected,
-                                    ]}
+                                    style={[styles.ambitionChip, isSelected && styles.ambitionChipSelected]}
                                     onPress={() => toggleAmbition(ambition.value)}
                                     activeOpacity={0.7}
                                 >
                                     <Text style={styles.ambitionChipIcon}>{ambition.icon}</Text>
-                                    <Text style={[styles.ambitionChipText, isSelected && styles.ambitionChipTextSelected]}>
-                                        {ambition.label}
-                                    </Text>
+                                    <Text style={[styles.ambitionChipText, isSelected && styles.ambitionChipTextSelected]}>{ambition.label}</Text>
                                 </TouchableOpacity>
                             )
                         })}
                     </View>
                 </View>
             </View>
-        </ANIMATED_VIEW>
+        </Animated.View>
     )
 }
 
-function WelcomeStep() {
+function WelcomeStep({ formData }: { formData: FormData }) {
     const { t } = useTranslation('auth')
+    const hasProfile = formData.fullName.trim().length > 0
+
+    const features = [
+        { icon: Sparkles, tint: styles._accent.color, text: t('onboarding.welcome.featureMatches') },
+        { icon: Award, tint: styles._success.color, text: t('onboarding.welcome.featurePrograms') },
+        { icon: Target, tint: styles._info.color, text: t('onboarding.welcome.featureCareer') },
+    ]
+
     return (
-        <ANIMATED_VIEW entering={FadeInUp.duration(400)} style={styles.welcomeContainer}>
+        <Animated.View entering={FadeInUp.duration(360)} style={styles.welcomeContainer}>
             <View style={styles.welcomeContent}>
                 <View style={styles.welcomeIconBox}>
                     <LinearGradient
-                        colors={['rgba(249, 115, 22, 0.25)', 'rgba(249, 115, 22, 0.1)']}
+                        colors={[styles._accentSoft.color, 'transparent']}
                         style={StyleSheet.absoluteFill}
                     />
-                    <Sparkles color="#F97316" size={48} />
+                    <Sparkles color={styles._accent.color} size={44} />
                 </View>
-                <Text style={styles.welcomeTitle}>{t('onboarding.welcome.title')}</Text>
-                <Text style={styles.welcomeSubtitle}>
-                    {t('onboarding.welcome.subtitle')}
+                <Text style={styles.welcomeTitle}>
+                    {hasProfile ? t('onboarding.welcome.titleNamed', { name: formData.fullName.trim().split(' ')[0] }) : t('onboarding.welcome.title')}
                 </Text>
+                <Text style={styles.welcomeSubtitle}>{t('onboarding.welcome.subtitle')}</Text>
 
                 <View style={styles.welcomeFeatures}>
-                    <ANIMATED_VIEW entering={FadeInUp.delay(100).duration(350)} style={styles.featureItem}>
-                        <View style={[styles.featureIcon, { backgroundColor: 'rgba(249,115,22,0.18)' }]}>
-                            <Sparkles size={22} color="#F97316" />
-                        </View>
-                        <Text style={styles.featureText}>{t('onboarding.welcome.featureMatches')}</Text>
-                    </ANIMATED_VIEW>
-                    <ANIMATED_VIEW entering={FadeInUp.delay(200).duration(350)} style={styles.featureItem}>
-                        <View style={[styles.featureIcon, { backgroundColor: 'rgba(16,185,129,0.18)' }]}>
-                            <Award size={22} color="#10B981" />
-                        </View>
-                        <Text style={styles.featureText}>{t('onboarding.welcome.featurePrograms')}</Text>
-                    </ANIMATED_VIEW>
-                    <ANIMATED_VIEW entering={FadeInUp.delay(300).duration(350)} style={styles.featureItem}>
-                        <View style={[styles.featureIcon, { backgroundColor: 'rgba(59,130,246,0.18)' }]}>
-                            <Target size={22} color="#3b82f6" />
-                        </View>
-                        <Text style={styles.featureText}>{t('onboarding.welcome.featureCareer')}</Text>
-                    </ANIMATED_VIEW>
+                    {features.map((f, i) => (
+                        <Animated.View key={i} entering={FadeInUp.delay(100 + i * 100).duration(320)} style={styles.featureItem}>
+                            <View style={[styles.featureIcon, { backgroundColor: `${f.tint}22` }]}>
+                                <f.icon size={20} color={f.tint} />
+                            </View>
+                            <Text style={styles.featureText}>{f.text}</Text>
+                        </Animated.View>
+                    ))}
                 </View>
             </View>
-        </ANIMATED_VIEW>
+        </Animated.View>
     )
 }
 
 export default function OnboardingScreen() {
     const { user, isLoaded } = useUser()
+    const { getToken } = useAuth()
     const router = useRouter()
     const insets = useSafeAreaInsets()
-    const { colors, isDark } = useTheme()
+    const { colors, isDark, reducedMotion } = useTheme()
     const { t } = useTranslation('auth')
     styles = useMemo(() => getStyles(isDark, colors), [colors, isDark])
 
     const [currentStep, setCurrentStep] = useState(0)
-    const [formData, setFormDataState] = useState({
+    const directionRef = useRef<'forward' | 'back'>('forward')
+    const hydratedRef = useRef(false)
+    const [formData, setFormDataState] = useState<FormData>({
         fullName: '',
-        selectedCountry: COUNTRIES[0] as Country,
+        selectedCountry: COUNTRIES[0],
         countryModal: false,
         localPhone: '',
         age: '',
-        degreePursuit: null as string | null,
-        isGraduate: null as string | null,
-        gradeLevel: null as string | null,
+        degreePursuit: null,
+        isGraduate: null,
+        gradeLevel: null,
         schoolName: '',
-        selectedInterests: [] as string[],
-        showInterestInput: false,
-        customInterest: '',
-        selectedAmbitions: [] as string[],
-        showAmbitionInput: false,
-        customAmbition: '',
+        selectedInterests: [],
+        selectedAmbitions: [],
     })
-
     const [loading, setLoading] = useState(false)
 
-    React.useEffect(() => {
-        if (isLoaded && !user) {
-            router.replace('/(auth)/sign-in')
-        }
-    }, [isLoaded, router, user])
-
-    const setFormData = useCallback((updates: Partial<typeof formData>) => {
-        setFormDataState(prev => ({ ...prev, ...updates }))
+    const setFormData = useCallback((updates: Partial<FormData>) => {
+        setFormDataState((prev) => ({ ...prev, ...updates }))
     }, [])
 
-    const saveAndNavigate = async () => {
-        if (!isLoaded || !user) return
-        setLoading(true)
-        try {
-            const allInterests = [...formData.selectedInterests]
-            const profilePayload = {
-                user_id: user.id,
-                full_name: formData.fullName,
-                country: formData.selectedCountry.name,
-                age: formData.age ? parseInt(formData.age, 10) : null,
-                degree: formData.degreePursuit,
-                school: formData.schoolName,
-                major: formData.degreePursuit,
-                preferences: {
-                    countryCode: formData.selectedCountry.code,
-                    phone: formData.localPhone ? `${formData.selectedCountry.dial}${formData.localPhone}` : '',
-                    pursuit: formData.degreePursuit,
-                    isGraduate: formData.isGraduate,
-                    schoolName: formData.schoolName,
-                    gradeLevel: formData.gradeLevel,
-                    interests: allInterests.length > 0 ? allInterests : ['General'],
-                    ambitions: formData.selectedAmbitions,
-                },
-                updated_at: new Date().toISOString(),
-            }
+    // Bounce unauthenticated users to sign-in.
+    useEffect(() => {
+        if (isLoaded && !user) router.replace('/(auth)/sign-in')
+    }, [isLoaded, router, user])
 
+    // Prefill from a previously saved draft (Clerk metadata, then AsyncStorage)
+    // so a user who skipped and came back resumes exactly where they left off.
+    useEffect(() => {
+        if (hydratedRef.current || !isLoaded || !user) return
+        hydratedRef.current = true
+        const applyDraft = (d: Record<string, unknown> | null | undefined) => {
+            if (!d) return
+            const country = COUNTRIES.find((c) => c.code === d.countryCode || c.name === d.country)
+            setFormData({
+                fullName: typeof d.fullName === 'string' ? d.fullName : '',
+                selectedCountry: country || COUNTRIES[0],
+                localPhone: typeof d.phone === 'string' && typeof d.countryCode === 'string'
+                    ? String(d.phone).replace(country?.dial || '', '')
+                    : '',
+                age: d.age != null ? String(d.age) : '',
+                degreePursuit: (d.pursuit as string) ?? null,
+                isGraduate: (d.isGraduate as string) ?? null,
+                gradeLevel: (d.gradeLevel as string) ?? null,
+                schoolName: typeof d.schoolName === 'string' ? d.schoolName : '',
+                selectedInterests: Array.isArray(d.interests) ? (d.interests as string[]).filter((i) => i !== 'General') : [],
+                selectedAmbitions: Array.isArray(d.ambitions) ? (d.ambitions as string[]) : [],
+            })
+        }
+        const meta = user.unsafeMetadata as Record<string, unknown> | undefined
+        if (meta && (meta.fullName || meta.interests || meta.country)) {
+            applyDraft(meta)
+        } else {
+            AsyncStorage.getItem(DRAFT_KEY).then((raw) => {
+                if (raw) { try { applyDraft(JSON.parse(raw)) } catch { /* ignore */ } }
+            })
+        }
+    }, [isLoaded, user, setFormData])
+
+    const buildDraft = useCallback(() => {
+        const interests = formData.selectedInterests
+        return {
+            fullName: formData.fullName.trim(),
+            country: formData.selectedCountry.name,
+            countryCode: formData.selectedCountry.code,
+            phone: formData.localPhone ? `${formData.selectedCountry.dial}${formData.localPhone}` : '',
+            age: formData.age ? parseInt(formData.age, 10) : null,
+            pursuit: formData.degreePursuit,
+            isGraduate: formData.isGraduate,
+            schoolName: formData.schoolName.trim(),
+            gradeLevel: formData.gradeLevel,
+            interests: interests.length > 0 ? interests : [],
+            ambitions: formData.selectedAmbitions,
+        }
+    }, [formData])
+
+    // Fire-and-forget sync of the canonical profile row through the backend
+    // (service_role, keyed by toDatabaseUserId). This warms the recommendation
+    // embedding. It must never block navigation — a transient API failure is
+    // fine because Clerk metadata already holds the answers.
+    const syncBackendProfile = useCallback(async (draft: ReturnType<typeof buildDraft>) => {
+        const patch: Record<string, unknown> = {}
+        if (draft.fullName) patch.fullName = draft.fullName
+        if (draft.country) patch.country = draft.country
+        if (draft.schoolName) patch.school = draft.schoolName
+        if (draft.pursuit) patch.degree = draft.pursuit
+        if (draft.interests.length) patch.interests = draft.interests
+        if (Object.keys(patch).length === 0) return
+        try {
+            await updateProfile(getToken, patch)
+        } catch (e) {
+            console.warn('Backend profile sync failed (non-fatal):', e)
+        }
+    }, [getToken])
+
+    /**
+     * Persist onboarding and leave for the app.
+     * @param complete false when the user is skipping — we still save whatever
+     *        they entered but flag the profile as pending so we can nudge them
+     *        to finish later (see the resume card on the profile screen).
+     */
+    const persistAndLeave = useCallback(async (complete: boolean) => {
+        if (!isLoaded || !user || loading) return
+        setLoading(true)
+        Keyboard.dismiss()
+        const draft = buildDraft()
+        try {
+            // Primary persistence: Clerk metadata. Reliable (same channel as
+            // auth) and read by the profile header + personalization. Marking
+            // onboardingComplete keeps the splash router from forcing the user
+            // back here; profilePending drives the "finish your profile" nudge.
             await user.update({
                 unsafeMetadata: {
+                    ...(user.unsafeMetadata as Record<string, unknown>),
                     onboardingComplete: true,
-                    fullName: formData.fullName,
-                    country: formData.selectedCountry.name,
-                    countryCode: formData.selectedCountry.code,
-                    phone: formData.localPhone ? `${formData.selectedCountry.dial}${formData.localPhone}` : '',
-                    age: formData.age ? parseInt(formData.age, 10) : null,
-                    pursuit: formData.degreePursuit,
-                    isGraduate: formData.isGraduate,
-                    schoolName: formData.schoolName,
-                    gradeLevel: formData.gradeLevel,
-                    interests: allInterests.length > 0 ? allInterests : ['General'],
-                    ambitions: formData.selectedAmbitions,
+                    profilePending: !complete,
+                    ...draft,
+                    interests: draft.interests.length > 0 ? draft.interests : ['General'],
                 },
             })
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .upsert(profilePayload, { onConflict: 'user_id' })
-
-            if (profileError) {
-                throw profileError
-            }
-
-            const { error: preferencesError } = await supabase
-                .from('user_opportunity_preferences')
-                .upsert({
-                    user_id: user.id,
-                    preferred_categories: allInterests.length > 0 ? allInterests : ['General'],
-                    preferred_skills: [],
-                    preferred_regions: formData.selectedCountry.name ? [formData.selectedCountry.name] : [],
-                    remote_only: false,
-                    updated_at: new Date().toISOString(),
-                }, { onConflict: 'user_id' })
-
-            if (preferencesError) {
-                throw preferencesError
-            }
-
+            await AsyncStorage.removeItem(DRAFT_KEY).catch(() => {})
+            void syncBackendProfile(draft)
             await user.reload()
             router.replace('/(app)')
         } catch (err) {
-            console.error('Error updating profile:', err)
+            console.error('Onboarding save failed:', err)
+            // Never lose the user's input: stash a local draft they can resume.
+            await AsyncStorage.setItem(DRAFT_KEY, JSON.stringify(draft)).catch(() => {})
             Alert.alert(t('common:states.error'), t('onboarding.errors.saveFailed'))
             setLoading(false)
         }
-    }
+    }, [isLoaded, user, loading, buildDraft, syncBackendProfile, router, t])
 
-    const handleNext = () => {
-        if (currentStep < STEPS.length - 1) {
-            setCurrentStep(currentStep + 1)
-        } else {
-            saveAndNavigate()
-        }
-    }
+    const goToStep = useCallback((next: number) => {
+        directionRef.current = next > currentStep ? 'forward' : 'back'
+        setCurrentStep(next)
+    }, [currentStep])
 
-    const handleBack = () => {
-        if (currentStep > 0) {
-            setCurrentStep(currentStep - 1)
-        }
-    }
+    const handleNext = useCallback(() => {
+        Keyboard.dismiss()
+        if (currentStep < STEPS.length - 1) goToStep(currentStep + 1)
+        else persistAndLeave(true)
+    }, [currentStep, goToStep, persistAndLeave])
 
-    const handleSkip = () => {
-        setCurrentStep(STEPS.length - 1)
-    }
+    const handleBack = useCallback(() => {
+        if (currentStep > 0) goToStep(currentStep - 1)
+    }, [currentStep, goToStep])
 
-    const canProceed = () => {
+    // Skipping = "not now": save partial answers, go home, stay pending.
+    const handleSkip = useCallback(() => persistAndLeave(false), [persistAndLeave])
+
+    // Android hardware back walks steps instead of dropping out of onboarding.
+    useEffect(() => {
+        const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+            if (currentStep > 0) {
+                handleBack()
+                return true
+            }
+            return false
+        })
+        return () => sub.remove()
+    }, [currentStep, handleBack])
+
+    const canProceed = useCallback(() => {
         switch (currentStep) {
-            case 0:
-                return formData.fullName.trim().length > 0
-            case 1:
-                return formData.isGraduate !== null
-            case 2:
-                return formData.selectedInterests.length > 0 || formData.selectedAmbitions.length > 0
-            case 3:
-                return true
-            default:
-                return true
+            case 0: return formData.fullName.trim().length > 0
+            case 1: return formData.isGraduate !== null
+            case 2: return formData.selectedInterests.length > 0 || formData.selectedAmbitions.length > 0
+            default: return true
         }
-    }
+    }, [currentStep, formData])
 
     const isLastStep = currentStep === STEPS.length - 1
 
@@ -693,33 +758,37 @@ export default function OnboardingScreen() {
 
     const renderStepContent = () => {
         switch (currentStep) {
-            case 0:
-                return <ProfileStep formData={formData} setFormData={setFormData} />
-            case 1:
-                return <EducationStep formData={formData} setFormData={setFormData} />
-            case 2:
-                return <InterestsStep formData={formData} setFormData={setFormData} />
-            case 3:
-                return <WelcomeStep />
-            default:
-                return null
+            case 0: return <ProfileStep formData={formData} setFormData={setFormData} />
+            case 1: return <EducationStep formData={formData} setFormData={setFormData} />
+            case 2: return <InterestsStep formData={formData} setFormData={setFormData} />
+            case 3: return <WelcomeStep formData={formData} />
+            default: return null
         }
     }
 
+    const enterAnim = reducedMotion
+        ? FadeIn.duration(200)
+        : (directionRef.current === 'forward' ? SlideInRight : SlideInLeft).duration(280)
+    const exitAnim = reducedMotion
+        ? FadeIn.duration(0)
+        : (directionRef.current === 'forward' ? SlideOutLeft : SlideOutRight).duration(180)
+
     return (
         <>
-            <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
             <CountryPickerModal
                 visible={formData.countryModal}
                 onClose={() => setFormData({ countryModal: false })}
                 selectedCountry={formData.selectedCountry}
-                onSelect={(country: Country) => setFormData({ selectedCountry: country })}
+                onSelect={(country) => setFormData({ selectedCountry: country })}
+                colors={colors}
+                isDark={isDark}
             />
 
             <View style={styles.container}>
                 <LinearGradient
-                    colors={isDark ? [colors.background, '#111827', colors.background] : [colors.background, '#EEF2FF', colors.background]}
+                    colors={isDark ? [colors.background, colors.card, colors.background] : [colors.background, colors.muted, colors.background]}
                     style={StyleSheet.absoluteFill}
                 />
 
@@ -731,25 +800,28 @@ export default function OnboardingScreen() {
                             disabled={currentStep === 0}
                             activeOpacity={0.7}
                         >
-                            {currentStep > 0 && <ChevronLeft color="#FFFFFF" size={24} />}
+                            {currentStep > 0 && <ChevronLeft color={colors.foreground} size={24} />}
                         </TouchableOpacity>
                         <View style={styles.headerCenter}>
                             <Text style={styles.headerSubtitle}>{t('onboarding.stepOf', { current: currentStep + 1, total: STEPS.length })}</Text>
                         </View>
-                        {!isLastStep && (
+                        {!isLastStep ? (
                             <TouchableOpacity
                                 style={styles.skipButton}
                                 onPress={handleSkip}
+                                disabled={loading}
                                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                                 activeOpacity={0.7}
                             >
                                 <Text style={styles.skipButtonText}>{t('common:actions.skip')}</Text>
                             </TouchableOpacity>
+                        ) : (
+                            <View style={styles.skipButton} />
                         )}
                     </View>
 
                     <KeyboardAvoidingView
-                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                         style={styles.keyboardView}
                         keyboardVerticalOffset={0}
                     >
@@ -757,30 +829,29 @@ export default function OnboardingScreen() {
                             style={styles.mainContent}
                             contentContainerStyle={styles.mainContentScroll}
                             keyboardShouldPersistTaps="handled"
+                            keyboardDismissMode="on-drag"
                             showsVerticalScrollIndicator={false}
                         >
                             <StepIndicator currentStep={currentStep} totalSteps={STEPS.length} />
 
-                            <Animated.View
-                                key={currentStep}
-                                entering={SlideInRight.duration(280)}
-                                exiting={SlideOutLeft.duration(180)}
-                                style={styles.stepPage}
-                            >
+                            <Animated.View key={currentStep} entering={enterAnim} exiting={exitAnim} style={styles.stepPage}>
                                 {renderStepContent()}
                             </Animated.View>
                         </ScrollView>
 
-                        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+                        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+                            {isLastStep && (
+                                <Text style={styles.footerHint}>{t('onboarding.welcome.footerHint')}</Text>
+                            )}
                             <TouchableOpacity
                                 style={[
                                     styles.button,
-                                    !canProceed() && styles.buttonDisabled,
                                     { backgroundColor: canProceed() ? colors.accent : colors.muted },
+                                    !canProceed() && styles.buttonDisabled,
                                 ]}
                                 onPress={handleNext}
                                 disabled={!canProceed() || loading}
-                                activeOpacity={0.8}
+                                activeOpacity={0.85}
                             >
                                 {loading ? (
                                     <ActivityIndicator color="#FFFFFF" size="small" />
@@ -801,458 +872,340 @@ export default function OnboardingScreen() {
     )
 }
 
-const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#0F172A' },
-    safeArea: { flex: 1 },
-    keyboardView: { flex: 1 },
+const getStyles = (isDark: boolean, colors: ThemeColors) => {
+    const muted = colors.textSecondary
+    const surface = isDark ? 'rgba(255,255,255,0.05)' : colors.card
+    const surfaceBorder = isDark ? 'rgba(255,255,255,0.10)' : colors.border
 
-    headerRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingVertical: 12,
-    },
-    backBtnHeader: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.06)',
-    },
-    backBtnDisabled: { opacity: 0.3 },
-    headerCenter: {
-        flex: 1,
-        alignItems: 'center',
-    },
-    headerSubtitle: {
-        color: '#94A3B8',
-        fontSize: 11,
-        fontWeight: '700',
-        textTransform: 'uppercase',
-        letterSpacing: 2,
-    },
+    return StyleSheet.create({
+        // Non-style helpers so child components can read the resolved palette
+        // without threading `colors` through every prop.
+        _accent: { color: colors.accent },
+        _accentSoft: { color: `${colors.accent}33` },
+        _muted: { color: muted },
+        _success: { color: colors.success },
+        _info: { color: isDark ? '#60A5FA' : '#3b82f6' },
 
-    skipButton: {
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-    },
-    skipButtonText: {
-        color: '#64748B',
-        fontSize: 13,
-        fontWeight: '600',
-    },
+        container: { flex: 1, backgroundColor: colors.background },
+        safeArea: { flex: 1 },
+        keyboardView: { flex: 1 },
 
-    mainContent: {
-        flex: 1,
-    },
-    mainContentScroll: {
-        flexGrow: 1,
-        paddingTop: 8,
-        paddingBottom: 18,
-    },
-    stepPage: {
-        flexGrow: 1,
-        justifyContent: 'flex-start',
-    },
+        headerRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: 20,
+            paddingVertical: 12,
+        },
+        backBtnHeader: {
+            width: 40,
+            height: 40,
+            borderRadius: 12,
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: surface,
+        },
+        backBtnDisabled: { opacity: 0 },
+        headerCenter: { flex: 1, alignItems: 'center' },
+        headerSubtitle: {
+            color: muted,
+            fontSize: 11,
+            fontWeight: '700',
+            textTransform: 'uppercase',
+            letterSpacing: 2,
+        },
+        skipButton: { minWidth: 52, alignItems: 'flex-end', paddingVertical: 8, paddingHorizontal: 4 },
+        skipButtonText: { color: muted, fontSize: 14, fontWeight: '700' },
 
-    stepIndicator: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        marginBottom: 18,
-        gap: 8,
-        paddingHorizontal: 20,
-    },
-    stepItem: { flex: 1 },
-    stepBar: {
-        height: 4,
-        borderRadius: 2,
-        backgroundColor: 'rgba(255,255,255,0.12)',
-    },
-    stepBarActive: { backgroundColor: isDark ? '#FFFFFF' : colors.accent },
-    stepBarCompleted: { backgroundColor: '#10B981' },
+        mainContent: { flex: 1 },
+        mainContentScroll: { flexGrow: 1, paddingTop: 8, paddingBottom: 18 },
+        stepPage: { flexGrow: 1, justifyContent: 'flex-start' },
 
-    contentContainer: {
-        paddingHorizontal: 20,
-        paddingBottom: 12,
-    },
-    welcomeContainer: {
-        paddingHorizontal: 20,
-        paddingBottom: 8,
-        alignItems: 'flex-start',
-        justifyContent: 'center',
-        flex: 1,
-    },
-    welcomeContent: {
-        alignItems: 'flex-start',
-        width: '100%',
-    },
-    welcomeIconBox: {
-        width: 64,
-        height: 64,
-        borderRadius: 20,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 22,
-        borderWidth: 1,
-        borderColor: 'rgba(249, 115, 22, 0.35)',
-        overflow: 'hidden',
-    },
-    welcomeTitle: {
-        fontSize: 29,
-        fontWeight: '800',
-        color: isDark ? 'white' : colors.foreground,
-        marginBottom: 10,
-        textAlign: 'left',
-        lineHeight: 35,
-    },
-    welcomeSubtitle: {
-        fontSize: 16,
-        color: isDark ? '#94A3B8' : colors.textSecondary,
-        textAlign: 'left',
-        lineHeight: 24,
-        marginBottom: 24,
-    },
-    welcomeFeatures: {
-        width: '100%',
-        gap: 12,
-    },
-    featureItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 14,
-        backgroundColor: 'rgba(255,255,255,0.04)',
-        padding: 14,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.06)',
-    },
-    featureIcon: {
-        width: 44,
-        height: 44,
-        borderRadius: 12,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    featureText: {
-        color: isDark ? '#FFFFFF' : colors.foreground,
-        fontSize: 14,
-        fontWeight: '600',
-    },
+        stepIndicator: {
+            flexDirection: 'row',
+            justifyContent: 'center',
+            marginBottom: 18,
+            gap: 8,
+            paddingHorizontal: 20,
+        },
+        stepItem: { flex: 1 },
+        stepBar: { height: 4, borderRadius: 2, backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : colors.border },
+        stepBarActive: { backgroundColor: colors.accent },
+        stepBarCompleted: { backgroundColor: colors.success },
 
-    stepHeader: { alignItems: 'flex-start', marginBottom: 18 },
-    stepIconBox: {
-        width: 46,
-        height: 46,
-        borderRadius: 14,
-        backgroundColor: 'rgba(249, 115, 22, 0.18)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: 'rgba(249, 115, 22, 0.25)',
-    },
-    stepTitle: {
-        fontSize: 25,
-        fontWeight: '800',
-        color: isDark ? 'white' : colors.foreground,
-        marginBottom: 8,
-        textAlign: 'left',
-        lineHeight: 31,
-    },
-    stepSubtitle: {
-        fontSize: 14,
-        color: isDark ? '#94A3B8' : colors.textSecondary,
-        textAlign: 'left',
-        lineHeight: 22
-    },
+        contentContainer: { paddingHorizontal: 20, paddingBottom: 12 },
 
-    form: { gap: 16 },
-    inputGroup: { gap: 9 },
-    rowGroup: { flexDirection: 'row', gap: 12 },
-    label: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
-    optionalLabel: { fontSize: 12, color: '#64748B', fontWeight: '500' },
-    hint: { fontSize: 13, color: '#64748B', marginTop: -4 },
-    sectionHeaderRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    limitText: { fontSize: 12, color: colors.accent, fontWeight: '700' },
+        welcomeContainer: { paddingHorizontal: 20, paddingBottom: 8, alignItems: 'flex-start', justifyContent: 'center', flex: 1 },
+        welcomeContent: { alignItems: 'flex-start', width: '100%' },
+        welcomeIconBox: {
+            width: 64,
+            height: 64,
+            borderRadius: 20,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 22,
+            borderWidth: 1,
+            borderColor: `${colors.accent}59`,
+            overflow: 'hidden',
+        },
+        welcomeTitle: { fontSize: 29, fontWeight: '800', color: colors.foreground, marginBottom: 10, textAlign: 'left', lineHeight: 35 },
+        welcomeSubtitle: { fontSize: 16, color: muted, textAlign: 'left', lineHeight: 24, marginBottom: 24 },
+        welcomeFeatures: { width: '100%', gap: 12 },
+        featureItem: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 14,
+            backgroundColor: surface,
+            padding: 14,
+            borderRadius: 16,
+            borderWidth: 1,
+            borderColor: surfaceBorder,
+        },
+        featureIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+        featureText: { color: colors.foreground, fontSize: 14, fontWeight: '600', flex: 1 },
 
-    inputContainer: {
-        backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.card,
-        borderWidth: 1,
-        borderColor: isDark ? 'rgba(255,255,255,0.1)' : colors.border,
-        borderRadius: 16,
-        minHeight: 58,
-        justifyContent: 'center',
-        overflow: 'hidden',
-    },
-    input: {
-        flex: 1,
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        color: isDark ? 'white' : colors.foreground,
-        fontSize: 16,
-        minHeight: 56,
-    },
+        stepHeader: { alignItems: 'flex-start', marginBottom: 14 },
+        stepIconBox: {
+            width: 46,
+            height: 46,
+            borderRadius: 14,
+            backgroundColor: `${colors.accent}1F`,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 12,
+            borderWidth: 1,
+            borderColor: `${colors.accent}3D`,
+        },
+        stepTitle: { fontSize: 25, fontWeight: '800', color: colors.foreground, marginBottom: 8, textAlign: 'left', lineHeight: 31 },
+        stepSubtitle: { fontSize: 14, color: muted, textAlign: 'left', lineHeight: 22 },
 
-    pickerRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.card,
-        borderWidth: 1,
-        borderColor: isDark ? 'rgba(255,255,255,0.1)' : colors.border,
-        borderRadius: 16,
-        minHeight: 58,
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        gap: 10,
-    },
-    flagLarge: { fontSize: 22 },
-    pickerText: { flex: 1, color: isDark ? '#FFFFFF' : colors.foreground, fontSize: 15, fontWeight: '500' },
+        whyCard: {
+            flexDirection: 'row',
+            alignItems: 'flex-start',
+            gap: 10,
+            backgroundColor: `${colors.accent}12`,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: `${colors.accent}26`,
+            paddingHorizontal: 14,
+            paddingVertical: 12,
+            marginBottom: 18,
+        },
+        whyDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent, marginTop: 5 },
+        whyText: { flex: 1, fontSize: 13, lineHeight: 19, color: isDark ? '#CBD5E1' : colors.foreground, fontWeight: '500' },
 
-    yesNoRow: {
-        flexDirection: 'row',
-        gap: 10,
-    },
-    yesNoBtn: {
-        flex: 1,
-        minHeight: 54,
-        paddingVertical: 14,
-        borderRadius: 14,
-        backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.card,
-        borderWidth: 1,
-        borderColor: isDark ? 'rgba(255,255,255,0.1)' : colors.border,
-        alignItems: 'center',
-    },
-    yesNoBtnSelected: {
-        backgroundColor: `${colors.accent}20`,
-        borderColor: colors.accent,
-    },
-    yesNoText: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: isDark ? '#94A3B8' : colors.textSecondary,
-    },
-    yesNoTextSelected: {
-        color: colors.accent,
-    },
+        form: { gap: 16 },
+        inputGroup: { gap: 9 },
+        label: { fontSize: 14, fontWeight: '700', color: colors.foreground },
+        optionalLabel: { fontSize: 12, color: muted, fontWeight: '500' },
+        sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+        limitText: { fontSize: 12, color: colors.accent, fontWeight: '700' },
 
-    pursuitGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 2 },
-    pursuitCard: {
-        width: (SCREEN_WIDTH - 60) / 2,
-        backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.card,
-        borderWidth: 1,
-        borderColor: isDark ? 'rgba(255,255,255,0.1)' : colors.border,
-        borderRadius: 16,
-        minHeight: 82,
-        padding: 14,
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 10,
-    },
-    pursuitCardSelected: {
-        backgroundColor: `${colors.accent}15`,
-        borderColor: colors.accent,
-        borderWidth: 2,
-    },
-    pursuitIcon: { fontSize: 13, color: '#FFFFFF', fontWeight: '800' },
-    pursuitLabel: { fontSize: 13, color: isDark ? '#94A3B8' : colors.textSecondary, textAlign: 'center', fontWeight: '600' },
-    pursuitLabelSelected: { color: isDark ? '#FFFFFF' : colors.foreground },
+        inputContainer: {
+            backgroundColor: surface,
+            borderWidth: 1,
+            borderColor: surfaceBorder,
+            borderRadius: 16,
+            minHeight: 58,
+            justifyContent: 'center',
+            overflow: 'hidden',
+        },
+        input: { flex: 1, paddingHorizontal: 16, paddingVertical: 14, color: colors.foreground, fontSize: 16, minHeight: 56 },
 
-    gradeScroll: {
-        flexDirection: 'row',
-        gap: 8,
-        paddingRight: 10,
-    },
-    gradeChip: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderRadius: 20,
-        backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.card,
-        borderWidth: 1,
-        borderColor: isDark ? 'rgba(255,255,255,0.1)' : colors.border,
-    },
-    gradeChipSelected: {
-        backgroundColor: `${colors.accent}20`,
-        borderColor: colors.accent,
-    },
-    gradeChipIcon: { fontSize: 18 },
-    gradeChipText: { fontSize: 13, color: isDark ? '#94A3B8' : colors.textSecondary, fontWeight: '600' },
-    gradeChipTextSelected: { color: isDark ? '#FFFFFF' : colors.foreground },
+        pickerRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: surface,
+            borderWidth: 1,
+            borderColor: surfaceBorder,
+            borderRadius: 16,
+            minHeight: 58,
+            paddingHorizontal: 16,
+            paddingVertical: 14,
+            gap: 10,
+        },
+        flagLarge: { fontSize: 22 },
+        pickerText: { flex: 1, color: colors.foreground, fontSize: 15, fontWeight: '500' },
 
-    schoolSearchContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : colors.card,
-        borderWidth: 1,
-        borderColor: isDark ? 'rgba(255,255,255,0.1)' : colors.border,
-        borderRadius: 16,
-        minHeight: 58,
-    },
-    schoolInput: {
-        flex: 1,
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        color: isDark ? 'white' : colors.foreground,
-        fontSize: 16,
-        minHeight: 56,
-    },
-    schoolDropdownToggle: {
-        padding: 14,
-    },
-    schoolDropdown: {
-        backgroundColor: isDark ? '#1E293B' : colors.card,
-        borderWidth: 1,
-        borderColor: isDark ? 'rgba(255,255,255,0.2)' : colors.border,
-        borderRadius: 16,
-        marginTop: 8,
-        maxHeight: 200,
-        overflow: 'hidden',
-    },
-    schoolDropdownList: {
-        maxHeight: 200,
-    },
-    schoolOption: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 12,
-        gap: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.05)',
-    },
-    schoolOptionText: { color: isDark ? '#FFFFFF' : colors.foreground, fontSize: 14, fontWeight: '500' },
+        yesNoRow: { flexDirection: 'row', gap: 10 },
+        yesNoBtn: {
+            flex: 1,
+            minHeight: 54,
+            paddingVertical: 14,
+            borderRadius: 14,
+            backgroundColor: surface,
+            borderWidth: 1,
+            borderColor: surfaceBorder,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        yesNoBtnSelected: { backgroundColor: `${colors.accent}20`, borderColor: colors.accent },
+        yesNoText: { fontSize: 15, fontWeight: '600', color: muted },
+        yesNoTextSelected: { color: colors.accent },
 
-    interestsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 2 },
-    interestChip: {
-        paddingHorizontal: 12,
-        paddingVertical: 11,
-        minHeight: 42,
-        borderRadius: 20,
-        backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.card,
-        borderWidth: 1,
-        borderColor: isDark ? 'rgba(255,255,255,0.1)' : colors.border,
-    },
-    interestChipSelected: {
-        backgroundColor: colors.accent,
-        borderColor: colors.accent,
-    },
-    interestChipText: { color: isDark ? '#94A3B8' : colors.textSecondary, fontSize: 13, fontWeight: '600' },
-    interestChipTextSelected: { color: '#FFFFFF' },
+        pursuitGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 2 },
+        pursuitCard: {
+            width: (SCREEN_WIDTH - 60) / 2,
+            backgroundColor: surface,
+            borderWidth: 1,
+            borderColor: surfaceBorder,
+            borderRadius: 16,
+            minHeight: 82,
+            padding: 14,
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+        },
+        pursuitCardSelected: { backgroundColor: `${colors.accent}15`, borderColor: colors.accent, borderWidth: 2 },
+        pursuitIcon: { fontSize: 13, color: muted, fontWeight: '800' },
+        pursuitIconSelected: { color: colors.accent },
+        pursuitLabel: { fontSize: 13, color: muted, textAlign: 'center', fontWeight: '600' },
+        pursuitLabelSelected: { color: colors.foreground },
 
-    ambitionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 2 },
-    ambitionChip: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        paddingHorizontal: 12,
-        paddingVertical: 11,
-        minHeight: 42,
-        borderRadius: 20,
-        backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colors.card,
-        borderWidth: 1,
-        borderColor: isDark ? 'rgba(255,255,255,0.1)' : colors.border,
-    },
-    ambitionChipSelected: {
-        backgroundColor: colors.accent,
-        borderColor: colors.accent,
-    },
-    ambitionChipIcon: { fontSize: 16 },
-    ambitionChipText: { color: isDark ? '#94A3B8' : colors.textSecondary, fontSize: 13, fontWeight: '600' },
-    ambitionChipTextSelected: { color: '#FFFFFF' },
+        gradeScroll: { flexDirection: 'row', gap: 8, paddingRight: 10 },
+        gradeChip: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            borderRadius: 20,
+            backgroundColor: surface,
+            borderWidth: 1,
+            borderColor: surfaceBorder,
+        },
+        gradeChipSelected: { backgroundColor: `${colors.accent}20`, borderColor: colors.accent },
+        gradeChipIcon: { fontSize: 18 },
+        gradeChipText: { fontSize: 13, color: muted, fontWeight: '600' },
+        gradeChipTextSelected: { color: colors.foreground },
 
-    scrollContent: {
-        flexGrow: 1,
-    },
+        schoolSearchContainer: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: surface,
+            borderWidth: 1,
+            borderColor: surfaceBorder,
+            borderRadius: 16,
+            minHeight: 58,
+        },
+        schoolInput: { flex: 1, paddingHorizontal: 16, paddingVertical: 14, color: colors.foreground, fontSize: 16, minHeight: 56 },
+        schoolDropdownToggle: { padding: 14 },
+        schoolDropdown: {
+            backgroundColor: isDark ? colors.card : colors.card,
+            borderWidth: 1,
+            borderColor: surfaceBorder,
+            borderRadius: 16,
+            marginTop: 8,
+            maxHeight: 200,
+            overflow: 'hidden',
+        },
+        schoolDropdownList: { maxHeight: 200 },
+        schoolOption: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            padding: 12,
+            gap: 10,
+            borderBottomWidth: 1,
+            borderBottomColor: surfaceBorder,
+        },
+        schoolOptionText: { color: colors.foreground, fontSize: 14, fontWeight: '500' },
 
-    footer: {
-        paddingTop: 14,
-        paddingHorizontal: 20,
-        backgroundColor: isDark ? 'rgba(15, 23, 42, 0.96)' : 'rgba(255,255,255,0.96)',
-        borderTopWidth: 1,
-        borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)',
-    },
-    button: {
-        width: '100%',
-        backgroundColor: '#FFFFFF',
-        paddingVertical: 16,
-        borderRadius: 18,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 10,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.2,
-        shadowRadius: 12,
-        elevation: 8,
-    },
-    buttonDisabled: { opacity: 0.5 },
-    buttonText: { color: '#000000', fontSize: 16, fontWeight: '800' },
+        interestsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 2 },
+        interestChip: {
+            paddingHorizontal: 12,
+            paddingVertical: 11,
+            minHeight: 42,
+            borderRadius: 20,
+            backgroundColor: surface,
+            borderWidth: 1,
+            borderColor: surfaceBorder,
+        },
+        interestChipSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
+        interestChipText: { color: muted, fontSize: 13, fontWeight: '600' },
+        interestChipTextSelected: { color: '#FFFFFF' },
 
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
-    modalBackdrop: { flex: 1 },
-    modalKeyboardAvoiding: {
-        width: '100%',
-    },
-    modalSheet: {
-        backgroundColor: '#1E293B',
-        borderTopLeftRadius: 36,
-        borderTopRightRadius: 36,
-        maxHeight: '88%',
-        paddingBottom: Platform.OS === 'ios' ? 44 : 24,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
-        borderBottomWidth: 0,
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: 24,
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.08)',
-    },
-    modalTitle: { fontSize: 18, fontWeight: '800', color: '#FFFFFF' },
-    modalCloseBtn: {
-        width: 36,
-        height: 36,
-        borderRadius: 10,
-        backgroundColor: 'rgba(255,255,255,0.06)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    searchRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        margin: 20,
-        backgroundColor: '#0F172A',
-        borderRadius: 14,
-        paddingHorizontal: 14,
-        gap: 10,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
-    },
-    searchInput: { flex: 1, paddingVertical: 14, color: '#FFFFFF', fontSize: 14 },
-    countryList: { maxHeight: 400 },
-    countryRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 16,
-        gap: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.05)',
-    },
-    countryRowSelected: {
-        backgroundColor: 'rgba(99, 102, 241, 0.1)',
-    },
-    flag: { fontSize: 22 },
-    countryName: { flex: 1, color: '#FFFFFF', fontSize: 15, fontWeight: '500' },
-    dialCode: { color: '#94A3B8', fontSize: 14, fontWeight: '600' },
-})
+        ambitionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 2 },
+        ambitionChip: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+            paddingHorizontal: 12,
+            paddingVertical: 11,
+            minHeight: 42,
+            borderRadius: 20,
+            backgroundColor: surface,
+            borderWidth: 1,
+            borderColor: surfaceBorder,
+        },
+        ambitionChipSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
+        ambitionChipIcon: { fontSize: 16 },
+        ambitionChipText: { color: muted, fontSize: 13, fontWeight: '600' },
+        ambitionChipTextSelected: { color: '#FFFFFF' },
+
+        footer: {
+            paddingTop: 14,
+            paddingHorizontal: 20,
+            backgroundColor: isDark ? 'rgba(2,6,23,0.96)' : 'rgba(255,255,255,0.96)',
+            borderTopWidth: 1,
+            borderTopColor: surfaceBorder,
+        },
+        footerHint: { fontSize: 12, color: muted, textAlign: 'center', marginBottom: 10, lineHeight: 17 },
+        button: {
+            width: '100%',
+            paddingVertical: 16,
+            borderRadius: 18,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
+            shadowColor: colors.accent,
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.25,
+            shadowRadius: 12,
+            elevation: 6,
+        },
+        buttonDisabled: { shadowOpacity: 0, elevation: 0 },
+        buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+
+        // Full-screen country picker
+        pickerScreen: { flex: 1 },
+        pickerHeader: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+        },
+        pickerCloseBtn: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: surface },
+        pickerTitle: { fontSize: 18, fontWeight: '800', color: colors.foreground },
+        searchRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            marginHorizontal: 16,
+            marginBottom: 8,
+            backgroundColor: surface,
+            borderRadius: 14,
+            paddingHorizontal: 14,
+            gap: 10,
+            borderWidth: 1,
+            borderColor: surfaceBorder,
+        },
+        searchInput: { flex: 1, paddingVertical: 14, color: colors.foreground, fontSize: 15 },
+        countryList: { flex: 1 },
+        pickerEmpty: { paddingVertical: 48, alignItems: 'center' },
+        pickerEmptyText: { color: muted, fontSize: 14 },
+        countryRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: 20,
+            paddingVertical: 15,
+            gap: 12,
+            borderBottomWidth: 1,
+            borderBottomColor: surfaceBorder,
+        },
+        countryRowSelected: { backgroundColor: `${colors.accent}14` },
+        flag: { fontSize: 22 },
+        countryName: { flex: 1, color: colors.foreground, fontSize: 15, fontWeight: '500' },
+        dialCode: { color: muted, fontSize: 14, fontWeight: '600' },
+    })
+}

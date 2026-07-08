@@ -20,6 +20,13 @@ const SHARE_TEXT_LIMITS = {
   apply: 160,
 };
 
+// Public Edutu opportunity page. Shares must point here — a branded landing that
+// tracks and routes to Apply — NOT the raw third-party application link.
+const EDUTU_WEB_URL = 'https://www.edutu.org';
+export function buildOpportunityShareUrl(id: string): string {
+  return `${EDUTU_WEB_URL}/opportunity/${encodeURIComponent(id)}`;
+}
+
 export function cleanShareText(value?: string | null, fallback: string = i18n.t('misc:share.notSpecified')): string {
   const text = typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
   return text || fallback;
@@ -111,7 +118,7 @@ export function buildMobileOpportunityShareText(opportunity: Opportunity): strin
     i18n.t('misc:share.deadline', { deadline: formatShareDeadline(opportunity.deadline) }),
     '',
     i18n.t('misc:share.applyCta'),
-    opportunity.applyUrl || 'https://edutu.ai',
+    buildOpportunityShareUrl(opportunity.id),
     '',
     i18n.t('misc:share.shareWithFriends'),
   ].join('\n');
@@ -193,7 +200,7 @@ export async function shareOpportunity(opportunity: Opportunity): Promise<boolea
     await Share.share({
       title: opportunity.title,
       message: payload.shareText,
-      url: payload.shareUrl || opportunity.applyUrl || 'https://edutu.ai',
+      url: payload.shareUrl || buildOpportunityShareUrl(opportunity.id),
     });
     return true;
   } catch (error) {

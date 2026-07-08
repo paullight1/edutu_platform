@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getCachedOpportunitiesSnapshot } from '../packages/core/src/services/opportunities';
 import type { Opportunity } from '../packages/core/src/types/opportunity';
 import { normaliseAppControl, OPEN_APP_CONTROL, type AppControlConfig } from './appControl';
+import { normalisePricing, DEFAULT_PRICING, type PricingConfig } from './pricing';
 import { getConfig } from './config';
 
 export type CampaignType = 'popup' | 'banner' | 'notification' | 'interstitial' | 'announcement';
@@ -62,6 +63,7 @@ export interface MobileControlConfig {
   featureFlags: MobileFeatureFlag[];
   widgetFeeds: WidgetFeed[];
   appControl: AppControlConfig;
+  pricing: PricingConfig;
   serverTime: string;
 }
 
@@ -76,6 +78,7 @@ const EMPTY_MOBILE_CONTROL_CONFIG: MobileControlConfig = {
   featureFlags: [],
   widgetFeeds: [],
   appControl: OPEN_APP_CONTROL,
+  pricing: DEFAULT_PRICING,
   serverTime: new Date(0).toISOString(),
 };
 let hasLoggedMobileControlNetworkError = false;
@@ -167,6 +170,7 @@ function normaliseMobileControlConfig(payload: unknown): MobileControlConfig {
     featureFlags: Array.isArray(record.featureFlags) ? record.featureFlags : [],
     widgetFeeds: Array.isArray(record.widgetFeeds) ? record.widgetFeeds : [],
     appControl: normaliseAppControl(record.appControl),
+    pricing: normalisePricing((record as any).pricing),
     serverTime: typeof record.serverTime === 'string' ? record.serverTime : new Date().toISOString(),
   };
 }

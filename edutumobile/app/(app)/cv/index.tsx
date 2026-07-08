@@ -10,8 +10,6 @@ import {
     FlatList,
     ActivityIndicator,
     Modal,
-    ImageBackground,
-    Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -37,6 +35,7 @@ import { CVEditor } from '../../../components/cv/CVEditor';
 import { CVPreview } from '../../../components/cv/CVPreview';
 import { ProUpgradeModal } from '../../../components/cv/ProUpgradeModal';
 import { AITailorModal } from '../../../components/cv/AITailorModal';
+import { CVTailorResultModal, TailorResult } from '../../../components/cv/CVTailorResultModal';
 
 type CVSection = 'templates' | 'editor' | 'preview';
 
@@ -73,13 +72,18 @@ function getTemplateSample(template?: CVTemplate | null) {
     return SAMPLE_BY_CATEGORY[category as keyof typeof SAMPLE_BY_CATEGORY] || SAMPLE_BY_CATEGORY.general;
 }
 
-function getTemplatePreviewImage(template?: CVTemplate | null) {
-    if (template?.thumbnail_url) return template.thumbnail_url;
+// Self-contained gradient per category — no fragile external image hotlinks
+// that fail on weak connections and leave the preview blank.
+const TEMPLATE_PREVIEW_GRADIENTS: Record<string, [string, string]> = {
+    academic: ['#2563EB', '#1D4ED8'],
+    professional: ['#0F766E', '#0D9488'],
+    creative: ['#7C3AED', '#DB2777'],
+    general: ['#6366F1', '#8B5CF6'],
+};
+
+function getTemplatePreviewGradient(template?: CVTemplate | null): [string, string] {
     const category = template?.category?.toLowerCase() || 'general';
-    if (category === 'academic') return 'https://img.freepik.com/free-photo/still-life-books-versus-technology_23-2150063046.jpg';
-    if (category === 'professional') return 'https://img.freepik.com/free-photo/meeting-with-business-partners_1098-17048.jpg';
-    if (category === 'creative') return 'https://img.freepik.com/free-photo/businesswoman-posing_23-2148142829.jpg';
-    return 'https://img.freepik.com/free-vector/white-abstract-background_23-2148810113.jpg?w=2000';
+    return TEMPLATE_PREVIEW_GRADIENTS[category] || TEMPLATE_PREVIEW_GRADIENTS.general;
 }
 
 function QuickActionCard({
@@ -174,6 +178,8 @@ export default function CVBuilderScreen() {
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
     const [upgradeFeature, setUpgradeFeature] = useState<string>('');
     const [showAIModal, setShowAIModal] = useState(false);
+    const [tailorResult, setTailorResult] = useState<TailorResult | null>(null);
+    const [tailorTargetTitle, setTailorTargetTitle] = useState<string | undefined>(undefined);
     const [showLinkedInModal, setShowLinkedInModal] = useState(false);
     const [previewTemplate, setPreviewTemplate] = useState<CVTemplate | null>(null);
     const [linkedInUrl, setLinkedInUrl] = useState('');
@@ -242,19 +248,6 @@ export default function CVBuilderScreen() {
             loadData();
         }
     }, [user]);
-
-    useEffect(() => {
-        const urls = [
-            'https://img.freepik.com/free-photo/still-life-books-versus-technology_23-2150063046.jpg',
-            'https://img.freepik.com/free-photo/meeting-with-business-partners_1098-17048.jpg',
-            'https://img.freepik.com/free-photo/businesswoman-posing_23-2148142829.jpg',
-            'https://img.freepik.com/free-vector/white-abstract-background_23-2148810113.jpg?w=2000',
-        ];
-
-        urls.forEach((url) => {
-            Image.prefetch(url).catch(() => undefined);
-        });
-    }, []);
 
     async function loadData() {
         try {
@@ -432,10 +425,15 @@ export default function CVBuilderScreen() {
             }));
             setShowAIModal(false);
             setActiveSection('editor');
-            Alert.alert(
-                t('alerts.tailoredTitle', { score: result.match_score }),
-                result.improvements.slice(0, 4).map((i) => `• ${i}`).join('\n'),
-            );
+            // Surface a designed outcome sheet (with a direct PDF export) instead
+            // of a raw system alert.
+            setTailorTargetTitle(opportunities.find((o) => o.id === opportunityId)?.title);
+            setTailorResult({
+                match_score: result.match_score,
+                improvements: result.improvements || [],
+                matched_keywords: result.matched_keywords || [],
+                missing_keywords: result.missing_keywords || [],
+            });
         } catch (error) {
             console.error('Error tailoring CV:', error);
             Alert.alert(t('common:states.error'), t('alerts.tailorFailed'));
@@ -634,6 +632,29 @@ export default function CVBuilderScreen() {
                 onSelectOpportunity={handleTailorToOpportunity}
             />
 
+            <CVTailorResultModal
+                visible={!!tailorResult}
+                onClose={() => setTailorResult(null)}
+                result={tailorResult}
+                opportunityTitle={tailorTargetTitle}
+                isExporting={isExporting}
+                onExport={handleExport}
+                onViewCv={() => setTailorResult(null)}
+            />
+
+            {/* Tailoring in progress — the picker closes on select, so give the
+                user clear feedback while the AI reworks the CV. */}
+            <Modal visible={isTailoring} transparent animationType="fade">
+                <View style={styles.tailoringOverlay}>
+                    <View style={[styles.tailoringCard, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}>
+                        <ActivityIndicator size="large" color={colors.primary} />
+                        <Text style={[styles.tailoringText, { color: colors.foreground }]}>
+                            {t('tailorModal.working')}
+                        </Text>
+                    </View>
+                </View>
+            </Modal>
+
             {/* LinkedIn Import Modal */}
             <Modal
                 visible={!!previewTemplate}
@@ -643,12 +664,12 @@ export default function CVBuilderScreen() {
             >
                 <View style={styles.modalOverlay}>
                     <View style={[styles.sampleModalCard, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}>
-                        <ImageBackground
-                            source={{ uri: getTemplatePreviewImage(previewTemplate) }}
+                        <LinearGradient
+                            colors={getTemplatePreviewGradient(previewTemplate)}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
                             style={styles.sampleHero}
-                            imageStyle={styles.sampleHeroImage}
                         >
-                            <View style={styles.sampleHeroScrim} />
                             <View style={styles.sampleHeroTop}>
                                 <View style={styles.sampleBadge}>
                                     <Text style={styles.sampleBadgeText}>{previewTemplate?.category || t('templates.badgeFallback')}</Text>
@@ -660,7 +681,7 @@ export default function CVBuilderScreen() {
                                     </View>
                                 )}
                             </View>
-                        </ImageBackground>
+                        </LinearGradient>
 
                         <Text style={[styles.sampleTitle, { color: colors.foreground }]}>{previewTemplate?.name}</Text>
                         <Text style={[styles.sampleDesc, { color: isDark ? '#CBD5E1' : '#475569' }]}>
@@ -893,6 +914,26 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 20,
     },
+    tailoringOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.55)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    tailoringCard: {
+        paddingVertical: 28,
+        paddingHorizontal: 36,
+        borderRadius: 20,
+        alignItems: 'center',
+        gap: 16,
+        minWidth: 200,
+    },
+    tailoringText: {
+        fontSize: 15,
+        fontWeight: '600',
+        textAlign: 'center',
+    },
     modalCard: {
         width: '100%',
         borderRadius: 24,
@@ -920,13 +961,7 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         padding: 14,
         marginBottom: 16,
-    },
-    sampleHeroImage: {
-        borderRadius: 20,
-    },
-    sampleHeroScrim: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(15,23,42,0.42)',
+        justifyContent: 'flex-start',
     },
     sampleHeroTop: {
         flexDirection: 'row',

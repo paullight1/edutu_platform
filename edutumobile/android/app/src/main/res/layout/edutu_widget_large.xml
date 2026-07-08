@@ -43,13 +43,11 @@
     android:layout_marginTop="8dp"
     android:orientation="horizontal"
     android:gravity="center_vertical">
-    <TextView
-      android:layout_width="18dp"
-      android:layout_height="wrap_content"
-      android:text="1"
-      android:textColor="@color/edutu_widget_accent"
-      android:textSize="15sp"
-      android:textStyle="bold" />
+    <ImageView
+      android:layout_width="16dp"
+      android:layout_height="16dp"
+      android:src="@drawable/edutu_widget_opportunity_icon"
+      android:contentDescription="@null" />
     <LinearLayout
       android:layout_width="0dp"
       android:layout_height="wrap_content"
@@ -95,13 +93,11 @@
     android:layout_weight="1"
     android:orientation="horizontal"
     android:gravity="center_vertical">
-    <TextView
-      android:layout_width="18dp"
-      android:layout_height="wrap_content"
-      android:text="2"
-      android:textColor="@color/edutu_widget_accent"
-      android:textSize="15sp"
-      android:textStyle="bold" />
+    <ImageView
+      android:layout_width="16dp"
+      android:layout_height="16dp"
+      android:src="@drawable/edutu_widget_opportunity_icon"
+      android:contentDescription="@null" />
     <LinearLayout
       android:layout_width="0dp"
       android:layout_height="wrap_content"
@@ -147,13 +143,11 @@
     android:layout_weight="1"
     android:orientation="horizontal"
     android:gravity="center_vertical">
-    <TextView
-      android:layout_width="18dp"
-      android:layout_height="wrap_content"
-      android:text="3"
-      android:textColor="@color/edutu_widget_accent"
-      android:textSize="15sp"
-      android:textStyle="bold" />
+    <ImageView
+      android:layout_width="16dp"
+      android:layout_height="16dp"
+      android:src="@drawable/edutu_widget_opportunity_icon"
+      android:contentDescription="@null" />
     <LinearLayout
       android:layout_width="0dp"
       android:layout_height="wrap_content"
@@ -199,13 +193,11 @@
     android:layout_weight="1"
     android:orientation="horizontal"
     android:gravity="center_vertical">
-    <TextView
-      android:layout_width="18dp"
-      android:layout_height="wrap_content"
-      android:text="4"
-      android:textColor="@color/edutu_widget_accent"
-      android:textSize="15sp"
-      android:textStyle="bold" />
+    <ImageView
+      android:layout_width="16dp"
+      android:layout_height="16dp"
+      android:src="@drawable/edutu_widget_opportunity_icon"
+      android:contentDescription="@null" />
     <LinearLayout
       android:layout_width="0dp"
       android:layout_height="wrap_content"
@@ -233,6 +225,106 @@
     </LinearLayout>
     <TextView
       android:id="@+id/edutu_widget_r4_deadline"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginLeft="8dp"
+      android:ellipsize="end"
+      android:maxLines="1"
+      android:textColor="@color/edutu_urgency_green"
+      android:textSize="11sp"
+      android:textStyle="bold" />
+  </LinearLayout>
+
+  <!-- Row 5 -->
+  <LinearLayout
+    android:id="@+id/edutu_widget_r5"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:orientation="horizontal"
+    android:gravity="center_vertical">
+    <ImageView
+      android:layout_width="16dp"
+      android:layout_height="16dp"
+      android:src="@drawable/edutu_widget_opportunity_icon"
+      android:contentDescription="@null" />
+    <LinearLayout
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:layout_marginLeft="8dp"
+      android:orientation="vertical">
+      <TextView
+        android:id="@+id/edutu_widget_r5_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/edutu_widget_ink"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+      <TextView
+        android:id="@+id/edutu_widget_r5_sub"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="1dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/edutu_widget_sub"
+        android:textSize="11sp" />
+    </LinearLayout>
+    <TextView
+      android:id="@+id/edutu_widget_r5_deadline"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginLeft="8dp"
+      android:ellipsize="end"
+      android:maxLines="1"
+      android:textColor="@color/edutu_urgency_green"
+      android:textSize="11sp"
+      android:textStyle="bold" />
+  </LinearLayout>
+
+  <!-- Row 6 -->
+  <LinearLayout
+    android:id="@+id/edutu_widget_r6"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:orientation="horizontal"
+    android:gravity="center_vertical">
+    <ImageView
+      android:layout_width="16dp"
+      android:layout_height="16dp"
+      android:src="@drawable/edutu_widget_opportunity_icon"
+      android:contentDescription="@null" />
+    <LinearLayout
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:layout_marginLeft="8dp"
+      android:orientation="vertical">
+      <TextView
+        android:id="@+id/edutu_widget_r6_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/edutu_widget_ink"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+      <TextView
+        android:id="@+id/edutu_widget_r6_sub"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="1dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/edutu_widget_sub"
+        android:textSize="11sp" />
+    </LinearLayout>
+    <TextView
+      android:id="@+id/edutu_widget_r6_deadline"
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"
       android:layout_marginLeft="8dp"

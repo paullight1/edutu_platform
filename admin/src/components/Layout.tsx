@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { signOutAdmin } from "../lib/auth";
+import BackendHealthChip from "./BackendHealthChip";
 import {
   LayoutDashboard,
   Target,
@@ -171,6 +172,9 @@ const Layout = () => {
 
         {/* Bottom Section - Profile & Sign Out */}
         <div className="sidebar-bottom">
+          {/* Backend health indicator */}
+          <BackendHealthChip />
+
           {/* User Profile */}
           <NavLink
             to="/profile"

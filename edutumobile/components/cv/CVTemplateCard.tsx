@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, ImageBackground } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Crown, Lock } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { CVTemplate } from '@edutu/core/src/types/cv';
@@ -7,25 +8,28 @@ import { useTheme } from '../../components/context/ThemeContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const FALLBACK_IMAGES: Record<string, string> = {
-    academic: 'https://img.freepik.com/free-photo/still-life-books-versus-technology_23-2150063046.jpg',
-    professional: 'https://img.freepik.com/free-photo/meeting-with-business-partners_1098-17048.jpg',
-    creative: 'https://img.freepik.com/free-photo/businesswoman-posing_23-2148142829.jpg',
-    general: 'https://img.freepik.com/free-vector/white-abstract-background_23-2148810113.jpg?w=2000',
+// Self-contained gradient visuals — no external image dependency, so cards
+// always render (even offline / on a weak connection) instead of collapsing to
+// empty boxes when a remote thumbnail fails to load.
+const CATEGORY_GRADIENTS: Record<string, [string, string]> = {
+    academic: ['#2563EB', '#1D4ED8'],
+    professional: ['#0F766E', '#0D9488'],
+    creative: ['#7C3AED', '#DB2777'],
+    general: ['#6366F1', '#8B5CF6'],
 };
 
 const CATEGORY_ACCENTS: Record<string, string> = {
     academic: '#2563EB',
     professional: '#0F766E',
-    creative: '#2563eb',
+    creative: '#7C3AED',
     general: '#6366F1',
 };
 
 function getTemplateVisual(item: CVTemplate) {
-    const key = item.category.toLowerCase();
-    const image = item.thumbnail_url || FALLBACK_IMAGES[key] || FALLBACK_IMAGES.general;
+    const key = (item.category || 'general').toLowerCase();
+    const gradient = CATEGORY_GRADIENTS[key] || CATEGORY_GRADIENTS.general;
     const accent = CATEGORY_ACCENTS[key] || CATEGORY_ACCENTS.general;
-    return { image, accent };
+    return { gradient, accent };
 }
 
 interface Props {
@@ -49,14 +53,14 @@ export function CVTemplateCard({ item, onSelect, isPro }: Props) {
             onPress={() => onSelect(item)}
             activeOpacity={0.86}
         >
-            <ImageBackground
-                source={{ uri: visual.image }}
+            <LinearGradient
+                colors={visual.gradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
                 style={styles.templatePreview}
-                imageStyle={styles.templatePreviewImage}
             >
-                <View style={styles.imageScrim} />
                 <View style={styles.previewTopRow}>
-                    <View style={[styles.categoryPill, { backgroundColor: visual.accent }]}>
+                    <View style={styles.categoryPill}>
                         <Text style={styles.categoryPillText}>{item.category}</Text>
                     </View>
                 </View>
@@ -73,7 +77,7 @@ export function CVTemplateCard({ item, onSelect, isPro }: Props) {
                         <View style={styles.sampleLineShortAlt} />
                     </View>
                 </View>
-            </ImageBackground>
+            </LinearGradient>
             <View style={styles.templateInfo}>
                 <View style={styles.templateNameRow}>
                     <Text style={[styles.templateName, { color: colors.foreground }]} numberOfLines={1}>
@@ -116,14 +120,6 @@ const styles = StyleSheet.create({
         padding: 10,
         justifyContent: 'space-between',
     },
-    templatePreviewImage: {
-        borderTopLeftRadius: 16,
-        borderTopRightRadius: 16,
-    },
-    imageScrim: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(15,23,42,0.66)',
-    },
     previewTopRow: {
         flexDirection: 'row',
         justifyContent: 'center',
@@ -133,6 +129,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: 999,
+        backgroundColor: 'rgba(255,255,255,0.22)',
     },
     categoryPillText: {
         color: '#FFFFFF',

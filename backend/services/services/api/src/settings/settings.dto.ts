@@ -69,6 +69,25 @@ const MobileAppSettingsSchema = z.object({
   moduleLocks: z.record(z.string().max(60), ModuleAccessSchema),
 });
 
+// Admin-controlled subscription pricing shown on the paywall and used by
+// pay.edutu.org. PUBLIC (served on GET /mobile-control/config) — never put a
+// payment secret here; Paystack keys live on pay.edutu.org.
+const PricingPromoSchema = z.object({
+  active: z.boolean(),
+  label: z.string().trim().max(120),
+  monthlyPrice: z.number().min(0).max(10_000_000).nullable(),
+  yearlyPrice: z.number().min(0).max(10_000_000).nullable(),
+});
+
+const PricingSettingsSchema = z.object({
+  currency: z.string().trim().min(3).max(4),
+  monthlyPrice: z.number().min(0).max(10_000_000),
+  yearlyPrice: z.number().min(0).max(10_000_000),
+  checkoutBaseUrl: z.string().trim().url().max(300),
+  manageUrl: z.string().trim().url().max(300),
+  promo: PricingPromoSchema,
+});
+
 export const AdminSettingsSchema = z.object({
   platform: PlatformSettingsSchema,
   content: ContentSettingsSchema,
@@ -79,16 +98,21 @@ export const AdminSettingsSchema = z.object({
   // portal) can still PUT the old shape; updateSettings preserves the current
   // stored value when the group is absent from the payload.
   mobileApp: MobileAppSettingsSchema.optional(),
+  pricing: PricingSettingsSchema.optional(),
 });
 
 export type ModuleAccess = z.infer<typeof ModuleAccessSchema>;
 export type MobileAppSettings = z.infer<typeof MobileAppSettingsSchema>;
+export type PricingSettings = z.infer<typeof PricingSettingsSchema>;
 
 export type AdminSettingsDto = z.infer<typeof AdminSettingsSchema>;
 
-// Stored/merged settings always carry the mobileApp group (defaults fill it);
-// only inbound payloads may omit it.
-type ResolvedAdminSettings = AdminSettingsDto & { mobileApp: MobileAppSettings };
+// Stored/merged settings always carry the mobileApp + pricing groups (defaults
+// fill them); only inbound payloads may omit them.
+type ResolvedAdminSettings = AdminSettingsDto & {
+  mobileApp: MobileAppSettings;
+  pricing: PricingSettings;
+};
 
 export interface AdminSettingsResponse {
   success: boolean;
@@ -149,6 +173,14 @@ export const DEFAULT_ADMIN_SETTINGS: ResolvedAdminSettings = {
     },
     moduleLocks: {},
   },
+  pricing: {
+    currency: "USD",
+    monthlyPrice: 9.99,
+    yearlyPrice: 71.88,
+    checkoutBaseUrl: "https://pay.edutu.org",
+    manageUrl: "https://pay.edutu.org/account",
+    promo: { active: false, label: "", monthlyPrice: null, yearlyPrice: null },
+  },
 };
 
 export function mergeAdminSettings(value: unknown): ResolvedAdminSettings {
@@ -191,7 +223,15 @@ export function mergeAdminSettings(value: unknown): ResolvedAdminSettings {
         partial.mobileApp?.moduleLocks ??
         DEFAULT_ADMIN_SETTINGS.mobileApp.moduleLocks,
     },
-    // mobileApp is always constructed above; the schema marks it optional only
-    // for inbound payload compatibility.
+    pricing: {
+      ...DEFAULT_ADMIN_SETTINGS.pricing,
+      ...(partial.pricing ?? {}),
+      promo: {
+        ...DEFAULT_ADMIN_SETTINGS.pricing.promo,
+        ...(partial.pricing?.promo ?? {}),
+      },
+    },
+    // mobileApp + pricing are always constructed above; the schema marks them
+    // optional only for inbound payload compatibility.
   }) as ResolvedAdminSettings;
 }

@@ -88,7 +88,7 @@ function getWidgetItems(props: OpportunityWidgetProps): OpportunityWidgetItem[] 
       deepLink: props.deepLink,
     }];
 
-  return items.slice(0, 5);
+  return items.slice(0, 6);
 }
 
 function getWidgetLink(props: OpportunityWidgetProps, fallbackItem?: OpportunityWidgetItem): string {

@@ -53,7 +53,11 @@ import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import { BrandedLoader } from "../../../components/ui/BrandedLoader";
 import { ProgressBar } from "../../../components/ui/ProgressBar";
 import { supabase } from "../../../lib/supabase";
-import { getOpportunity } from "@edutu/core/src/services/opportunities";
+import {
+  getOpportunity,
+  getCachedOpportunitiesSnapshot,
+  getCachedOpportunity,
+} from "@edutu/core/src/services/opportunities";
 import {
   isOpportunitySaved,
   saveOpportunity,
@@ -62,6 +66,7 @@ import {
 import { trackOpportunityApplication } from "../../../packages/core/src/services/applications";
 import { recordOpportunitySignal } from "@edutu/core/src/services/opportunitySignals";
 import { Opportunity } from "@edutu/core/src/types/opportunity";
+import { CHAT_CONTEXT_SENTINEL } from "@edutu/core/src/types/chat";
 import { useGoals } from "@edutu/core/src/hooks/useGoals";
 import { useCredits } from "@edutu/core/src/hooks/useCredits";
 import { useProStatus } from "@edutu/core/src/hooks/useProStatus";
@@ -91,6 +96,13 @@ import { FadeInDown } from "react-native-reanimated";
 import Reanimated from "react-native-reanimated";
 
 const { width } = Dimensions.get("window");
+
+// Public Edutu opportunity page. Shares must point here — a branded landing that
+// tracks and routes to Apply — NOT the raw third-party application link.
+const EDUTU_WEB_URL = "https://www.edutu.org";
+function buildOpportunityShareUrl(id: string): string {
+  return `${EDUTU_WEB_URL}/opportunity/${encodeURIComponent(id)}`;
+}
 
 type RoadmapStep =
   | "overview"
@@ -231,7 +243,7 @@ function buildMobileOpportunityShareText(opportunity: Opportunity): string {
     }),
     "",
     i18n.t("opps:detail.share.applyCta"),
-    opportunity.applyUrl || "https://edutu.ai",
+    buildOpportunityShareUrl(opportunity.id),
     "",
     i18n.t("opps:detail.share.shareWithFriends"),
   ].join("\n");
@@ -368,20 +380,51 @@ export default function OpportunityDetailScreen() {
   const borderColor = colors.border;
 
   useEffect(() => {
+    let cancelled = false;
     const fetchOpportunity = async () => {
       if (!id) return;
       setLoading(true);
+
+      // Paint instantly from cache so the detail never sits on a blank spinner
+      // (or the "not found" scaffold) while the fresh record loads. Prefer the
+      // full per-id detail cache — it also covers opportunities opened from a
+      // deep link / push / widget that aren't in the list snapshot — then fall
+      // back to the lighter list snapshot.
+      try {
+        const cachedDetail = await getCachedOpportunity(id);
+        if (cachedDetail && !cancelled) {
+          setOpportunity(cachedDetail);
+          setLoading(false);
+        } else {
+          const snapshot = await getCachedOpportunitiesSnapshot(user?.id);
+          const cached = snapshot.find((o) => o.id === id);
+          if (cached && !cancelled) {
+            setOpportunity(cached);
+            setLoading(false);
+          }
+        }
+      } catch {
+        // Cache is best-effort; ignore and fall through to the network fetch.
+      }
+
       try {
         const data = await getOpportunity(id, supabase);
-        setOpportunity(data);
+        if (!cancelled && data) {
+          setOpportunity(data);
+        }
       } catch (error) {
         console.error("Failed to fetch opportunity:", error);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
     fetchOpportunity();
-  }, [id]);
+    return () => {
+      cancelled = true;
+    };
+  }, [id, user?.id]);
 
   useEffect(() => {
     const checkSaved = async () => {
@@ -454,42 +497,46 @@ export default function OpportunityDetailScreen() {
 
   const handleApply = useCallback(async () => {
     if (opportunity?.applyUrl && id) {
+      let applyUrlHost: string | undefined;
       try {
-        let applyUrlHost: string | undefined;
-        try {
-          applyUrlHost = new URL(opportunity.applyUrl).hostname;
-        } catch {
-          applyUrlHost = undefined;
-        }
-        void recordOpportunitySignal(
+        applyUrlHost = new URL(opportunity.applyUrl).hostname;
+      } catch {
+        applyUrlHost = undefined;
+      }
+      // Fire tracking in the background — never block opening the apply link on
+      // network round-trips (the product API can cold-start in production).
+      void recordOpportunitySignal(
+        {
+          opportunityId: id,
+          signalType: "apply",
+          signalValue: 5,
+          source: "mobile_detail",
+          context: "apply_url_open",
+          details: {
+            applyUrlHost,
+          },
+        },
+        getToken,
+      );
+      if (user?.id) {
+        void trackOpportunityApplication(
+          supabase,
+          user.id,
           {
             opportunityId: id,
-            signalType: "apply",
-            signalValue: 5,
-            source: "mobile_detail",
-            context: "apply_url_open",
-            details: {
+            status: "submitted",
+            metadata: {
+              source: "mobile_detail",
               applyUrlHost,
+              title: opportunity.title,
             },
           },
           getToken,
-        );
-        if (user?.id) {
-          await trackOpportunityApplication(
-            supabase,
-            user.id,
-            {
-              opportunityId: id,
-              status: "submitted",
-              metadata: {
-                source: "mobile_detail",
-                applyUrlHost,
-                title: opportunity.title,
-              },
-            },
-            getToken,
-          );
-        }
+        ).catch((error) => {
+          console.warn("Failed to track application:", error);
+        });
+      }
+      try {
         await Linking.openURL(opportunity.applyUrl);
       } catch (error) {
         console.error("Failed to open URL:", error);
@@ -511,7 +558,12 @@ export default function OpportunityDetailScreen() {
           opportunity.aiSummary || opportunity.description || t("detail.noDescription"),
       });
 
-      router.push({ pathname: "/chat", params: { voiceMsg: prompt } } as never);
+      // The template is "{{intent}}\n\n<context>". Swap the first blank line for the
+      // invisible sentinel so the chat sends the full context to Edutu but only shows
+      // the short intent to the user instead of the whole templated dump.
+      const message = prompt.replace(/\n\n/, `${CHAT_CONTEXT_SENTINEL}\n`);
+
+      router.push({ pathname: "/chat", params: { voiceMsg: message } } as never);
     },
     [opportunity, router, t],
   );
@@ -562,8 +614,7 @@ export default function OpportunityDetailScreen() {
                 message: sharePayload.shareText,
                 url:
                   sharePayload.shareUrl ||
-                  opportunity.applyUrl ||
-                  "https://edutu.ai",
+                  buildOpportunityShareUrl(opportunity.id),
               });
             }
           } finally {
@@ -1064,7 +1115,10 @@ export default function OpportunityDetailScreen() {
             <Image
               source={{ uri: opportunity.image }}
               style={{ width: "100%", height: "100%" }}
-              resizeMode="cover"
+              // Many opportunity images are portrait flyers/posters with the
+              // title and key info at the top. "cover" crops that off, so use
+              // "contain" to always show the whole graphic.
+              resizeMode="contain"
             />
           ) : (
             <LinearGradient
@@ -3007,7 +3061,11 @@ export default function OpportunityDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  heroImage: { height: 200, position: "relative" },
+  heroImage: {
+    height: 240,
+    position: "relative",
+    backgroundColor: "#0F172A",
+  },
   heroOverlay: {
     position: "absolute",
     bottom: 16,

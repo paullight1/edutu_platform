@@ -12,8 +12,10 @@ import type {
   MobileCampaign,
   MobileControlConfig,
   MobileFeatureFlag,
+  PricingConfig,
   WidgetFeed,
 } from "./mobile-control.types";
+import { DEFAULT_ADMIN_SETTINGS } from "../settings/settings.dto";
 
 // Safe posture when settings can't be read: nothing is gated.
 const OPEN_APP_CONTROL: AppControlConfig = {
@@ -59,7 +61,7 @@ export class MobileControlService {
   }
 
   async getConfig(): Promise<MobileControlConfig> {
-    const [campaigns, featureFlags, widgetFeeds, appControl] =
+    const [campaigns, featureFlags, widgetFeeds, adminGroups] =
       await Promise.all([
         this.listActive<MobileCampaign>(TABLES.campaigns).catch(
           () => [] as MobileCampaign[],
@@ -68,7 +70,12 @@ export class MobileControlService {
         this.listActive<WidgetFeed>(TABLES.widgetFeeds).catch(
           () => [] as WidgetFeed[],
         ),
-        this.getAppControl().catch(() => OPEN_APP_CONTROL),
+        // appControl + pricing come from the same admin_settings row — read it
+        // once and derive both (fail-open / defaults on error).
+        this.getAdminGroups().catch(() => ({
+          appControl: OPEN_APP_CONTROL,
+          pricing: DEFAULT_ADMIN_SETTINGS.pricing,
+        })),
       ]);
 
     return {
@@ -77,21 +84,42 @@ export class MobileControlService {
         (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
       ),
       widgetFeeds: this.sortByPriority(widgetFeeds),
-      appControl,
+      appControl: adminGroups.appControl,
+      pricing: adminGroups.pricing,
       serverTime: new Date().toISOString(),
     };
   }
 
-  private async getAppControl(): Promise<AppControlConfig> {
+  private async getAdminGroups(): Promise<{
+    appControl: AppControlConfig;
+    pricing: PricingConfig;
+  }> {
     const { settings } = await this.settingsService.getSettings();
     const mobileApp = settings.mobileApp;
-    if (!mobileApp) return OPEN_APP_CONTROL;
+    const appControl: AppControlConfig = mobileApp
+      ? {
+          forceUpdate: {
+            ...OPEN_APP_CONTROL.forceUpdate,
+            ...mobileApp.forceUpdate,
+          },
+          maintenance: {
+            ...OPEN_APP_CONTROL.maintenance,
+            ...mobileApp.maintenance,
+          },
+          moduleLocks: mobileApp.moduleLocks ?? {},
+        }
+      : OPEN_APP_CONTROL;
 
-    return {
-      forceUpdate: { ...OPEN_APP_CONTROL.forceUpdate, ...mobileApp.forceUpdate },
-      maintenance: { ...OPEN_APP_CONTROL.maintenance, ...mobileApp.maintenance },
-      moduleLocks: mobileApp.moduleLocks ?? {},
+    const pricing: PricingConfig = {
+      ...DEFAULT_ADMIN_SETTINGS.pricing,
+      ...(settings.pricing ?? {}),
+      promo: {
+        ...DEFAULT_ADMIN_SETTINGS.pricing.promo,
+        ...(settings.pricing?.promo ?? {}),
+      },
     };
+
+    return { appControl, pricing };
   }
 
   async listAdmin<T extends ControlRow>(table: ControlTable): Promise<T[]> {

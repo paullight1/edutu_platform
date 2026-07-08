@@ -24,12 +24,10 @@ import {
     History,
     X,
     Sparkles,
-    Brain,
     Zap,
     ChevronRight,
     Volume2,
     Pause,
-    Calendar,
     BellRing,
     Route,
     ListTodo,
@@ -48,7 +46,8 @@ import { useTheme } from '../../components/context/ThemeContext';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { supabase } from '../../lib/supabase';
 import { useChat } from '@edutu/core/src/hooks/useChat';
-import { ChatMessage, ChatOpportunityCard, ChatThread } from '@edutu/core/src/types/chat';
+import { ChatRateLimitError } from '@edutu/core/src/services/chat';
+import { ChatMessage, ChatOpportunityCard, ChatThread, stripChatContext } from '@edutu/core/src/types/chat';
 import { useGoals } from '@edutu/core/src/hooks/useGoals';
 import { useOpportunities } from '@edutu/core/src/hooks/useOpportunities';
 import { Opportunity } from '@edutu/core/src/types/opportunity';
@@ -260,7 +259,15 @@ export default function ChatScreen() {
     const { voiceMsg } = useLocalSearchParams<{ voiceMsg?: string }>();
     const { isDark, colors } = useTheme();
     const insets = useSafeAreaInsets();
-    const [input, setInput] = useState(voiceMsg || '');
+    // voiceMsg is an auto-sent launch prompt (e.g. from an opportunity's "Ask Edutu"),
+    // not draft text — it must not sit in the composer as a raw templated dump.
+    const [input, setInput] = useState('');
+    // Surfaces a persuasive banner when a send fails — a rate/usage limit turns
+    // into an upgrade nudge, any other failure into an inline retry. Without
+    // this the optimistic bubble just vanishes and it reads as a bug.
+    const [sendError, setSendError] = useState<{ type: 'limit' | 'generic'; message: string } | null>(null);
+    const lastAttemptRef = useRef<string | null>(null);
+    const voiceSentRef = useRef(false);
     const [isThreadsVisible, setIsThreadsVisible] = useState(false);
     const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
     const flatListRef = useRef<FlatList>(null);
@@ -277,6 +284,7 @@ export default function ChatScreen() {
     const inputBg = isDark ? "#1E293B" : "#F1F5F9";
     const accentColor = "#6366F1";
 
+    // Keep the welcome screen light: two focused starters instead of a wall of cards.
     const quickPrompts = useMemo(() => [
         {
             text: 'Find scholarships I can apply for this month',
@@ -286,25 +294,11 @@ export default function ChatScreen() {
             topic: 'Scholarships',
         },
         {
-            text: 'What Mastercard Foundation opportunities fit me?',
-            title: t('quickPrompts.mastercard.title'),
-            subtitle: t('quickPrompts.mastercard.subtitle'),
-            icon: Brain,
-            topic: 'Scholarships',
-        },
-        {
             text: 'Build a roadmap for my next application',
             title: t('quickPrompts.buildRoadmap.title'),
             subtitle: t('quickPrompts.buildRoadmap.subtitle'),
             icon: Route,
             topic: 'Roadmap',
-        },
-        {
-            text: 'Show internships with upcoming deadlines',
-            title: t('quickPrompts.internships.title'),
-            subtitle: t('quickPrompts.internships.subtitle'),
-            icon: Calendar,
-            topic: 'Internships',
         },
     ], [t]);
 
@@ -350,13 +344,28 @@ export default function ChatScreen() {
         const text = (overrideText || input).trim();
         if (!text) return;
         setInput('');
+        setSendError(null);
+        lastAttemptRef.current = text;
         lastBotMessageRef.current = null;
         try {
             await sendMessage(text);
+            lastAttemptRef.current = null;
         } catch (err) {
             console.error('Failed to send message:', err);
+            const isLimit = err instanceof ChatRateLimitError || (err as any)?.name === 'ChatRateLimitError';
+            setSendError({
+                type: isLimit ? 'limit' : 'generic',
+                message: isLimit ? t('limit.body') : t('limit.errorBody'),
+            });
         }
-    }, [input, sendMessage]);
+    }, [input, sendMessage, t]);
+
+    const handleRetrySend = useCallback(() => {
+        const text = lastAttemptRef.current;
+        if (!text) return;
+        setSendError(null);
+        handleSend(text);
+    }, [handleSend]);
 
     const handleSpeakMessage = useCallback((messageId: string, content: string) => {
         if (speakingMessageId === messageId) {
@@ -560,12 +569,36 @@ export default function ChatScreen() {
         }
     }, [isSpeaking, speakingMessageId]);
 
+    // Auto-send a launch prompt exactly once, but only after the user (and therefore
+    // sendMessage) is ready — otherwise sendMessage bails on the null userId and the
+    // chat sits blank with no reply. The ref guards against a double send when the
+    // param clears or the effect re-runs.
     useEffect(() => {
-        if (voiceMsg && voiceMsg.trim()) {
+        if (voiceSentRef.current) return;
+        if (voiceMsg && voiceMsg.trim() && user?.id) {
+            voiceSentRef.current = true;
             handleSend(voiceMsg.trim());
             router.setParams({ voiceMsg: undefined });
         }
-    }, [voiceMsg]);
+    }, [voiceMsg, user?.id, handleSend, router]);
+
+    // Resume the most recent conversation on open so chat history is continuous
+    // instead of landing on a blank thread every time. Runs once, and is skipped
+    // when arriving from an opportunity's "Ask Edutu" (voiceMsg) so that question
+    // starts its own fresh thread.
+    const didAutoResumeRef = useRef(false);
+    useEffect(() => {
+        if (didAutoResumeRef.current) return;
+        if (voiceMsg && voiceMsg.trim()) {
+            didAutoResumeRef.current = true;
+            return;
+        }
+        if (!selectedThreadId && !isLoadingThreads && threads.length > 0) {
+            didAutoResumeRef.current = true;
+            // threads come back ordered by updated_at desc, so [0] is the latest.
+            selectThread(threads[0].id);
+        }
+    }, [voiceMsg, selectedThreadId, isLoadingThreads, threads, selectThread]);
 
     const showWelcomePrompts = useMemo(() =>
         !isLoadingMessages && messages.length === 0 && !selectedThreadId,
@@ -701,7 +734,7 @@ export default function ChatScreen() {
         const isBot = item.role === 'assistant';
         const isCurrentlySpeaking = speakingMessageId === item.id;
         const previousUserMessage = isBot
-            ? [...messages.slice(0, index)].reverse().find(message => message.role === 'user')?.content
+            ? stripChatContext([...messages.slice(0, index)].reverse().find(message => message.role === 'user')?.content ?? '')
             : null;
         const isRoadmapRequest = isRoadmapConversation(previousUserMessage);
         const shouldShowOpportunityCards = isBot && !isRoadmapRequest && (
@@ -725,7 +758,8 @@ export default function ChatScreen() {
             ? compactRoadmapAnswer(roadmapMatches.length, isLoadingOpportunities)
             : shouldShowOpportunityCards
                 ? compactOpportunityAnswer(opportunityCards.length)
-                : item.content;
+                // User bubbles hide any opportunity context appended after the sentinel.
+                : isBot ? item.content : stripChatContext(item.content);
 
         return (
             <Animated.View
@@ -1146,6 +1180,63 @@ export default function ChatScreen() {
                             }
                         />
                     )}
+
+                    {sendError ? (
+                        <Animated.View
+                            entering={FadeInDown.duration(260)}
+                            style={[
+                                styles.sendErrorBanner,
+                                {
+                                    backgroundColor: sendError.type === 'limit'
+                                        ? (isDark ? 'rgba(99,102,241,0.14)' : '#EEF2FF')
+                                        : (isDark ? 'rgba(239,68,68,0.12)' : '#FEF2F2'),
+                                    borderColor: sendError.type === 'limit' ? accentColor + '55' : '#EF444455',
+                                },
+                            ]}
+                        >
+                            <View style={[styles.sendErrorIcon, { backgroundColor: sendError.type === 'limit' ? accentColor + '22' : 'rgba(239,68,68,0.15)' }]}>
+                                {sendError.type === 'limit'
+                                    ? <Sparkles size={18} color={accentColor} />
+                                    : <AlertCircle size={18} color="#EF4444" />}
+                            </View>
+                            <View style={styles.sendErrorCopy}>
+                                <Text style={[styles.sendErrorTitle, { color: textPrimary }]}>
+                                    {sendError.type === 'limit' ? t('limit.title') : t('limit.errorTitle')}
+                                </Text>
+                                <Text style={[styles.sendErrorBody, { color: textSecondary }]}>
+                                    {sendError.message}
+                                </Text>
+                                <View style={styles.sendErrorActions}>
+                                    {sendError.type === 'limit' ? (
+                                        <TouchableOpacity
+                                            style={[styles.sendErrorPrimary, { backgroundColor: accentColor }]}
+                                            onPress={() => { setSendError(null); router.push('/paywall'); }}
+                                            activeOpacity={0.85}
+                                        >
+                                            <Sparkles size={14} color="#FFFFFF" />
+                                            <Text style={styles.sendErrorPrimaryText}>{t('limit.upgradeCta')}</Text>
+                                        </TouchableOpacity>
+                                    ) : (
+                                        <TouchableOpacity
+                                            style={[styles.sendErrorPrimary, { backgroundColor: accentColor }]}
+                                            onPress={handleRetrySend}
+                                            activeOpacity={0.85}
+                                        >
+                                            <RotateCcw size={14} color="#FFFFFF" />
+                                            <Text style={styles.sendErrorPrimaryText}>{t('limit.retryCta')}</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                    <TouchableOpacity
+                                        style={styles.sendErrorSecondary}
+                                        onPress={() => setSendError(null)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Text style={[styles.sendErrorSecondaryText, { color: textSecondary }]}>{t('limit.dismissCta')}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </Animated.View>
+                    ) : null}
 
                     <View style={[
                         styles.inputWrapper,
@@ -1786,6 +1877,37 @@ const styles = StyleSheet.create({
     inputWrapper: {
         paddingHorizontal: 16,
     },
+    sendErrorBanner: {
+        flexDirection: 'row',
+        gap: 12,
+        marginHorizontal: 16,
+        marginBottom: 8,
+        padding: 12,
+        borderRadius: 16,
+        borderWidth: 1,
+    },
+    sendErrorIcon: {
+        width: 34,
+        height: 34,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    sendErrorCopy: { flex: 1, gap: 4 },
+    sendErrorTitle: { fontSize: 14, fontWeight: '700' },
+    sendErrorBody: { fontSize: 12.5, lineHeight: 18 },
+    sendErrorActions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+    sendErrorPrimary: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 14,
+        paddingVertical: 9,
+        borderRadius: 10,
+    },
+    sendErrorPrimaryText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+    sendErrorSecondary: { paddingHorizontal: 10, paddingVertical: 9 },
+    sendErrorSecondaryText: { fontSize: 13, fontWeight: '600' },
     inputRow: {
         flexDirection: 'row',
         alignItems: 'flex-end',

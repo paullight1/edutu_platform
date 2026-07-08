@@ -33,7 +33,9 @@
     ],
     "moduleNameMapper": {
       "^expo$": "<rootDir>/empty.js",
-      "^expo/src/winter/.*$": "<rootDir>/empty.js"
+      "^expo/src/winter/.*$": "<rootDir>/empty.js",
+      "^@edutu/core/src/(.*)$": "<rootDir>/packages/core/src/$1",
+      "^@edutu/core$": "<rootDir>/packages/core/src/index.ts"
     },
     "modulePathIgnorePatterns": [
       "<rootDir>/android/",
