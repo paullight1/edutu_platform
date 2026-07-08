@@ -192,29 +192,37 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
             <main className="relative z-10">
                 {/* ─── Hero ─────────────────────────────────────────────── */}
                 <section
-                    className="landing-hero relative flex min-h-[92vh] items-center overflow-hidden px-4 pt-28 pb-16 sm:px-6 md:min-h-dvh"
+                    className="landing-hero relative flex min-h-[92vh] items-center overflow-hidden px-4 pt-28 pb-20 sm:px-6 md:min-h-dvh"
                     id="platform"
                 >
-                    {/* Theme-aware gradient field (no external image = instant, reliable) */}
+                    {/* Theme-aware gradient field (dark = deep navy, light = soft mesh) */}
                     <div className="mesh-gradient pointer-events-none absolute inset-0" />
+                    {/* Fine grid lines add depth over the navy field */}
+                    <div className="landing-hero-grid pointer-events-none absolute inset-0" />
+                    {/* Soft brand glow from the top */}
                     <div
-                        className="pointer-events-none absolute inset-x-0 top-0 h-[520px]"
+                        className="pointer-events-none absolute inset-x-0 top-0 h-[560px]"
                         style={{
                             background:
-                                'radial-gradient(60% 60% at 50% 0%, rgb(var(--color-brand-500) / 0.18), transparent 70%)',
+                                'radial-gradient(56% 58% at 50% 0%, rgb(var(--color-brand-500) / 0.16), transparent 72%)',
                         }}
                     />
-                    <div className="landing-grain pointer-events-none absolute inset-0 opacity-[0.4]" />
+                    <div className="landing-grain pointer-events-none absolute inset-0 opacity-[0.35]" />
 
-                    <div className="relative z-10 mx-auto flex w-full max-w-[1120px] flex-col items-center text-center">
+                    <div className="relative z-10 mx-auto flex w-full max-w-[960px] flex-col items-center text-center">
                         <motion.div
                             initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
                             animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                             transition={{ duration: 0.5 }}
-                            className="inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-4 py-1.5"
+                            className="landing-hero-eyebrow inline-flex items-center gap-2.5 rounded-full px-4 py-1.5"
                         >
-                            <Sparkles size={14} className="text-brand" />
-                            <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand">
+                            <span className="relative flex h-2 w-2">
+                                {!reduceMotion && (
+                                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand/60" />
+                                )}
+                                <span className="relative inline-flex h-2 w-2 rounded-full bg-brand" />
+                            </span>
+                            <span className="text-[11px] font-bold uppercase tracking-[0.22em] text-brand">
                                 AI-powered opportunity coach
                             </span>
                         </motion.div>
@@ -223,11 +231,10 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             initial={reduceMotion ? undefined : { opacity: 0, y: 30 }}
                             animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                             transition={{ duration: 0.6, delay: 0.1 }}
-                            className="landing-hero-title mt-7 font-display text-[clamp(2.6rem,8vw,5rem)] font-semibold leading-[1.04] tracking-[-0.03em] text-balance text-text-primary sm:text-[clamp(3.8rem,7vw,5.5rem)] md:text-[80px]"
+                            className="landing-hero-title mt-8 font-display text-[clamp(2.6rem,8vw,5rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-balance text-text-primary sm:text-[clamp(3.8rem,7vw,5.5rem)] md:text-[82px]"
                         >
-                            Your AI guide to{' '}
+                            Your AI guide to global{' '}
                             <span className="landing-hero-highlight whitespace-nowrap">
-                                global{' '}
                                 <span className="landing-hero-word inline-block min-w-[6.8em] text-left align-baseline">
                                     <AnimatePresence mode="wait">
                                         <motion.span
@@ -236,7 +243,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                             animate={reduceMotion ? undefined : { opacity: 1, y: 0, filter: 'blur(0px)' }}
                                             exit={reduceMotion ? undefined : { opacity: 0, y: -24, filter: 'blur(8px)' }}
                                             transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
-                                            className="inline-block text-brand"
+                                            className="landing-hero-word-accent inline-block"
                                         >
                                             {heroOpportunityWords[heroWordIndex]}
                                         </motion.span>
@@ -249,7 +256,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
                             animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                             transition={{ duration: 0.6, delay: 0.2 }}
-                            className="landing-hero-copy mt-7 max-w-[680px] text-[20px] font-normal leading-[1.5] text-text-secondary"
+                            className="landing-hero-copy mt-7 max-w-[600px] text-[19px] font-normal leading-[1.55] text-text-secondary"
                         >
                             Edutu finds scholarships, fellowships, and career programs matched to
                             you — globally, automatically, before the deadline.
@@ -263,34 +270,29 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         >
                             <button
                                 onClick={onGetStarted}
-                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-9 py-4 text-[16px] font-semibold text-white shadow-elevated transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700 focus-visible:ring-2 focus-visible:ring-brand/40"
+                                className="group inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-9 py-4 text-[16px] font-semibold text-white shadow-elevated transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-700 focus-visible:ring-2 focus-visible:ring-brand/40"
                             >
-                                Get started <ArrowRight size={16} />
+                                Get started free
+                                <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-1" />
                             </button>
                             <Link
                                 to="/opportunities"
-                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-strong bg-surface-layer px-9 py-4 text-[16px] font-semibold text-text-primary no-underline transition-all duration-200 hover:-translate-y-0.5 hover:border-brand/50"
+                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-strong bg-surface-layer/70 px-9 py-4 text-[16px] font-semibold text-text-primary no-underline backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-brand/50"
                             >
                                 Browse opportunities
                             </Link>
                         </motion.div>
 
-                        {/* Flag trust row */}
-                        <div className="mt-10 flex flex-wrap items-center justify-center gap-2.5">
-                            {flags.slice(0, 10).map((flag) => (
-                                <img
-                                    key={flag}
-                                    src={flag}
-                                    alt=""
-                                    className="h-5 w-7 rounded-[3px] object-cover shadow-soft ring-1 ring-black/5"
-                                    loading="lazy"
-                                    decoding="async"
-                                />
-                            ))}
-                            <span className="ml-1 text-[13px] font-medium text-text-muted">
-                                Opportunities from 31+ countries
-                            </span>
-                        </div>
+                        {/* Reassurance microcopy (stats row removed) */}
+                        <motion.div
+                            initial={reduceMotion ? undefined : { opacity: 0 }}
+                            animate={reduceMotion ? undefined : { opacity: 1 }}
+                            transition={{ duration: 0.6, delay: 0.45 }}
+                            className="mt-8 inline-flex items-center gap-2 text-[13px] font-medium text-text-muted"
+                        >
+                            <ShieldCheck size={15} className="text-brand" />
+                            Free to start · No card required
+                        </motion.div>
                     </div>
                 </section>
 
