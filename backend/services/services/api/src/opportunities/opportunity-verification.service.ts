@@ -240,7 +240,8 @@ export class OpportunityVerificationService {
         title: candidate.title,
         url: this.preferredUrl(candidate),
         status: "expired",
-        opportunityStatus: "expired",
+        // Canonical vocabulary: deadline-passed opportunities are "closed"
+        opportunityStatus: "closed",
         httpStatus: null,
         error: null,
         nextCheckAt: null,

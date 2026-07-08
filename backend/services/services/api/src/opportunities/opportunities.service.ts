@@ -70,9 +70,26 @@ const OpportunityDtoSchema = z.object({
   eligibility: z.record(z.string(), z.unknown()).optional(),
   isFeatured: z.boolean().optional().default(false),
   isRemote: z.boolean().optional().default(true),
-  status: z.string().optional().default("pending"),
+  status: z.string().optional().default("pending_review"),
   tags: z.array(z.string()).optional(),
 });
+
+// Canonical status vocabulary is pending_review/active/draft/closed/rejected
+// (what the admin UI and DB queries key on). Legacy spellings still arrive
+// from older clients/imports — normalize instead of persisting the drift.
+const LEGACY_OPPORTUNITY_STATUS: Record<string, string> = {
+  pending: "pending_review",
+  expired: "closed",
+};
+
+export function canonicalOpportunityStatus(
+  status: string | null | undefined,
+  fallback = "pending_review",
+): string {
+  const value = (status || "").trim().toLowerCase();
+  if (!value) return fallback;
+  return LEGACY_OPPORTUNITY_STATUS[value] ?? value;
+}
 
 const ProcessedItemSchema = z.object({
   title: z.string(),
@@ -96,7 +113,7 @@ const ProcessedItemSchema = z.object({
   confidence: z.number().optional().default(0),
   notes: z.array(z.string()).optional().default([]),
   isRemote: z.boolean().optional().default(true),
-  status: z.string().optional().default("pending"),
+  status: z.string().optional().default("pending_review"),
   tags: z.array(z.string()).optional().default([]),
 });
 
@@ -997,7 +1014,7 @@ export class OpportunitiesService {
     if (this.supabase) {
       const { data, error } = await this.supabase
         .from("opportunities")
-        .insert(this.toCanonicalOpportunityPayload(dto, "pending"))
+        .insert(this.toCanonicalOpportunityPayload(dto, "pending_review"))
         .select()
         .single();
 
@@ -1031,7 +1048,7 @@ export class OpportunitiesService {
         eligibility: dto.eligibility,
         isFeatured: dto.isFeatured ?? false,
         isRemote: dto.isRemote ?? true,
-        status: dto.status || "pending",
+        status: canonicalOpportunityStatus(dto.status),
         originalJson: JSON.stringify(dto),
       })
       .returning()
@@ -1582,7 +1599,7 @@ export class OpportunitiesService {
       image_url: input.imageUrl,
       is_featured: input.isFeatured ?? false,
       tags: input.tags,
-      status: input.status || defaultStatus,
+      status: canonicalOpportunityStatus(input.status, defaultStatus),
       quality_score: record.qualityScore ?? record.quality_score,
       validation_status:
         record.validationStatus ?? record.validation_status ?? undefined,
@@ -2299,7 +2316,7 @@ ${sourceText || "No source page text was available. Improve wording only from st
               item.sourceUrl,
             imageUrl: item.imageUrl || null,
             isRemote: item.isRemote ?? true,
-            status: "pending",
+            status: "pending_review",
             tags: item.tags || [],
             requirements,
             benefits,
@@ -2309,7 +2326,7 @@ ${sourceText || "No source page text was available. Improve wording only from st
             validationStatus:
               qualityScore.score >= 70 ? "complete" : "needs_review",
           },
-          "pending",
+          "pending_review",
         );
 
         return {
@@ -2437,7 +2454,7 @@ ${sourceText || "No source page text was available. Improve wording only from st
         imageUrl: item.imageUrl || null,
         tags: item.tags || [],
         isRemote: true,
-        status: "pending",
+        status: "pending_review",
         qualityScore: qualityScore.score,
         validationStatus:
           qualityScore.score >= 70 ? "complete" : "needs_review",
@@ -2519,7 +2536,7 @@ ${sourceText || "No source page text was available. Improve wording only from st
                 item.sourceUrl,
               imageUrl: item.imageUrl || null,
               isRemote: true,
-              status: "pending",
+              status: "pending_review",
               originalJson: JSON.stringify(item),
             })
             .onConflictDoNothing({ target: opportunities.sourceUrl })

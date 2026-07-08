@@ -16,6 +16,7 @@ export const UpdateProfileSchema = z
     courseOfStudy: nullableTrimmedString,
     major: nullableTrimmedString,
     degree: nullableTrimmedString,
+    age: z.number().int().min(1).max(150).nullable().optional(),
     cgpa: z.number().min(0).max(10).nullable().optional(),
     gradYear: z.number().int().min(1900).max(2200).nullable().optional(),
     dateOfBirth: z

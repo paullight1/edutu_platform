@@ -22,7 +22,7 @@ export const CreateOpportunitySchema = z.object({
   eligibility: z.record(z.string(), z.unknown()).optional(),
   isFeatured: z.boolean().optional().default(false),
   isRemote: z.boolean().optional().default(true),
-  status: z.string().optional().default("pending"),
+  status: z.string().optional().default("pending_review"),
 });
 
 export type CreateOpportunityDto = z.infer<typeof CreateOpportunitySchema>;

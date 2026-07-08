@@ -23,9 +23,14 @@ const TRUSTED_ADMIN_ROLES = new Set([
   "support_agent",
 ]);
 
+// Stamp profiles.last_seen_at at most once per user per window — the
+// active-user metric is day/week-granular, so per-request writes are waste.
+const LAST_SEEN_THROTTLE_MS = 15 * 60 * 1000;
+
 @Injectable()
 export class ClerkAuthGuard implements CanActivate {
   private supabaseClients: SupabaseClient[] | null = null;
+  private lastSeenStamps = new Map<string, number>();
 
   constructor(
     private reflector: Reflector,
@@ -130,6 +135,11 @@ export class ClerkAuthGuard implements CanActivate {
         authProvider: "clerk",
       };
 
+      // Active-user tracking: mark the account active the moment any
+      // authenticated request arrives (covers Google/Clerk sign-ins that
+      // previously never wrote last_seen_at). Fire-and-forget.
+      this.touchLastSeen(dbUserId, request.user.email, request.user.firstName);
+
       return true;
     } catch {
       return false;
@@ -168,6 +178,12 @@ export class ClerkAuthGuard implements CanActivate {
           authProvider: "supabase",
         };
 
+        this.touchLastSeen(
+          dbUserId,
+          request.user.email,
+          request.user.firstName,
+        );
+
         return true;
       } catch {
         continue;
@@ -175,6 +191,43 @@ export class ClerkAuthGuard implements CanActivate {
     }
 
     return false;
+  }
+
+  /**
+   * Throttled, fire-and-forget active-user stamp. Upserts so brand-new
+   * users (e.g. first Google login, before any GET /profile) still count
+   * toward active-user metrics; on conflict only last_seen_at is touched.
+   */
+  private touchLastSeen(dbUserId: string, email?: string, firstName?: string) {
+    const now = Date.now();
+    const lastStamp = this.lastSeenStamps.get(dbUserId);
+    if (lastStamp && now - lastStamp < LAST_SEEN_THROTTLE_MS) return;
+    this.lastSeenStamps.set(dbUserId, now);
+
+    // Bound the in-memory throttle map (per-instance; a reset just means
+    // one extra write).
+    if (this.lastSeenStamps.size > 10_000) {
+      this.lastSeenStamps.clear();
+      this.lastSeenStamps.set(dbUserId, now);
+    }
+
+    void db
+      .insert(profiles)
+      .values({
+        userId: dbUserId,
+        email: email ?? null,
+        fullName: firstName ?? null,
+        lastSeenAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: profiles.userId,
+        set: { lastSeenAt: new Date() },
+      })
+      .execute()
+      .catch(() => {
+        // Never block or fail auth over metrics; allow a retry next window.
+        this.lastSeenStamps.delete(dbUserId);
+      });
   }
 
   private getSupabaseClients(): SupabaseClient[] {

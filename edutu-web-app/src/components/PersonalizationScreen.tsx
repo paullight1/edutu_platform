@@ -240,37 +240,28 @@ export default function PersonalizationScreen() {
         location: trimmedLocation,
       });
 
-      // 2. Richer profile fields the personalization sync doesn't cover.
-      try {
-        const token = await getProductApiToken(getToken);
-        if (token) {
-          await updateBackendProfile(token, {
-            ...(trimmedName ? { fullName: trimmedName } : {}),
-            ...(trimmedSchool ? { school: trimmedSchool } : {}),
-            ...(trimmedCourse ? { courseOfStudy: trimmedCourse } : {}),
-          });
-        }
-      } catch (profileError) {
-        console.warn("Onboarding: could not sync profile fields", profileError);
+      // 2. Profile fields the personalization sync doesn't cover — saved
+      //    through the backend /profile endpoint (direct Supabase writes
+      //    silently dropped under RLS). School goes in the same PATCH;
+      //    name/course/age are handled by saveOnboardingProfile below.
+      const token = await getProductApiToken(getToken);
+      if (token && trimmedSchool) {
+        await updateBackendProfile(token, { school: trimmedSchool });
       }
 
-      // 3. Best-effort onboarding record (captures age + a completed flag).
+      // 3. Onboarding record (name, course, age) — backend + Clerk metadata.
       if (user?.id) {
-        try {
-          await saveOnboardingProfile(user.id, {
-            fullName: trimmedName,
-            age: Number.isFinite(parsedAge) ? parsedAge : null,
-            courseOfStudy: trimmedCourse,
-            interests,
-            goals: careerGoals,
-            educationLevel,
-            location: trimmedLocation,
-            experience: experienceLevel,
-            preferredLearning: [],
-          });
-        } catch (onboardingError) {
-          console.warn("Onboarding: could not persist record", onboardingError);
-        }
+        await saveOnboardingProfile(token, {
+          fullName: trimmedName,
+          age: Number.isFinite(parsedAge) ? parsedAge : null,
+          courseOfStudy: trimmedCourse,
+          interests,
+          goals: careerGoals,
+          educationLevel,
+          location: trimmedLocation,
+          experience: experienceLevel,
+          preferredLearning: [],
+        });
       }
 
       success("Your feed is now personalized");
