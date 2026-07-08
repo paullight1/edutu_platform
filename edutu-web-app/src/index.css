@@ -963,11 +963,51 @@ body {
   mix-blend-mode: soft-light;
 }
 
-/* Dark-mode hero: near-solid deep navy with only a faint brand glow at the top. */
+/* Dark-mode hero: rich dark navy blue field with layered brand glow. */
 .dark .landing-hero {
   background:
-    radial-gradient(60% 44% at 50% -14%, rgba(59, 130, 246, 0.12), transparent 72%),
-    rgb(var(--surface-body));
+    radial-gradient(72% 52% at 50% -10%, rgba(56, 120, 255, 0.20), transparent 68%),
+    radial-gradient(46% 40% at 84% 8%, rgba(37, 99, 235, 0.14), transparent 70%),
+    radial-gradient(40% 44% at 12% 96%, rgba(29, 78, 216, 0.12), transparent 72%),
+    linear-gradient(180deg, #0a1c3f 0%, #0a1834 54%, #081124 100%);
+}
+
+/* Fine grid lines — carried by the dark navy hero, invisible in light mode. */
+.landing-hero-grid {
+  opacity: 0;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 64px 64px;
+  -webkit-mask-image: radial-gradient(72% 60% at 50% 32%, #000 0%, transparent 82%);
+  mask-image: radial-gradient(72% 60% at 50% 32%, #000 0%, transparent 82%);
+}
+
+.dark .landing-hero-grid {
+  opacity: 1;
+}
+
+/* Hero eyebrow chip — brand-tinted, legible over navy and light. */
+.landing-hero-eyebrow {
+  border: 1px solid rgb(var(--color-brand-500) / 0.28);
+  background: rgb(var(--color-brand-500) / 0.1);
+}
+
+.dark .landing-hero-eyebrow {
+  border-color: rgba(120, 170, 255, 0.28);
+  background: rgba(56, 120, 255, 0.12);
+}
+
+/* Rotating hero word — gradient accent that pops on the navy field. */
+.landing-hero-word-accent {
+  background-image: linear-gradient(
+    100deg,
+    rgb(var(--color-brand-300)),
+    rgb(var(--color-brand-500))
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 @keyframes landing-mesh-drift {
@@ -1077,29 +1117,6 @@ body {
     font-size: 1rem !important;
     line-height: 1.55 !important;
     margin-bottom: 2rem !important;
-  }
-
-  .landing-hero-stats {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    gap: 0.4rem !important;
-    margin-top: 2.25rem !important;
-  }
-
-  .landing-hero-stat-card {
-    background: transparent !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    padding: 0.25rem 0 !important;
-  }
-
-  .landing-hero-stat-value {
-    font-size: 1.05rem !important;
-  }
-
-  .landing-hero-stat-label {
-    font-size: 0.62rem !important;
-    letter-spacing: 0.18em !important;
   }
 
   .landing-section-title {
