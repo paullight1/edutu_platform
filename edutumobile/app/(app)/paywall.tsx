@@ -1,7 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
+  type AppStateStatus,
+  Linking,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,29 +18,33 @@ import {
   Check,
   Crown,
   Download,
+  ExternalLink,
   Palette,
-  RefreshCcw,
+  Settings2,
   Sparkles,
   Star,
+  Tag,
   Zap,
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import type { PurchasesPackage, PurchasesStoreProduct } from 'react-native-purchases';
 import { useUser } from '@clerk/clerk-expo';
 import { useTheme } from '../../components/context/ThemeContext';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { BrandedLoader } from '../../components/ui/BrandedLoader';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { supabase } from '../../lib/supabase';
+import { fetchMobileControlConfig } from '../../lib/mobileControl';
 import {
-  getOfferings,
-  initRevenueCat,
-  purchasePackage,
-  restorePurchases,
-} from '@edutu/core/src/services/payments';
+  DEFAULT_PRICING,
+  type PricingConfig,
+  type BillingPlan,
+  effectivePrice,
+  hasPromoDiscount,
+  formatMoney,
+  buildCheckoutUrl,
+  buildManageUrl,
+} from '../../lib/pricing';
 import { useTranslation } from 'react-i18next';
-
-type Plan = 'monthly' | 'yearly';
 
 // `text` holds an i18n key (home namespace); translated at render time.
 const PREMIUM_FEATURES = [
@@ -54,13 +62,14 @@ export default function PaywallScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isDark, colors } = useTheme();
-  const { isPro, isLoading: proLoading } = useProStatus(supabase, user?.id || null);
+  const { isPro, isLoading: proLoading, refreshStatus } = useProStatus(supabase, user?.id || null);
 
-  const [selectedPlan, setSelectedPlan] = useState<Plan>('yearly');
-  const [loading, setLoading] = useState(false);
-  const [restoring, setRestoring] = useState(false);
-  const [availablePackages, setAvailablePackages] = useState<PurchasesPackage[]>([]);
-  const [subscriptionProducts, setSubscriptionProducts] = useState<PurchasesStoreProduct[]>([]);
+  const [selectedPlan, setSelectedPlan] = useState<BillingPlan>('yearly');
+  const [pricing, setPricing] = useState<PricingConfig>(DEFAULT_PRICING);
+  const [redirecting, setRedirecting] = useState(false);
+  // Set true once we hand off to the browser, so the next foreground re-checks
+  // Pro (the pay.edutu.org webhook grants it while we're away).
+  const awaitingReturnRef = useRef(false);
 
   const accent = colors.accent;
   const textSecondary = isDark ? '#94A3B8' : '#64748B';
@@ -71,100 +80,76 @@ export default function PaywallScreen() {
     ? [colors.background, '#0F172A']
     : [colors.background, '#F8FAFC'];
 
+  // Admin-controlled prices/currency/promo (mobile-control config). Falls back
+  // to DEFAULT_PRICING if the feed is unreachable, so the paywall always works.
   useEffect(() => {
-    const loadProducts = async () => {
-      if (!user?.id) return;
+    let cancelled = false;
+    fetchMobileControlConfig()
+      .then((config) => { if (!cancelled) setPricing(config.pricing); })
+      .catch(() => { /* keep defaults */ });
+    return () => { cancelled = true; };
+  }, []);
 
-      try {
-        const configured = await initRevenueCat(user.id);
-        if (!configured) return;
-
-        const offering = await getOfferings();
-        if (offering) {
-          setSubscriptionProducts((offering as any).subscriptionProducts || []);
-          setAvailablePackages(offering.availablePackages || []);
-        }
-      } catch (error) {
-        console.error('Failed to load subscription products:', error);
+  // Re-check Pro whenever we come back from the hosted checkout.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state === 'active' && awaitingReturnRef.current) {
+        awaitingReturnRef.current = false;
+        void refreshStatus();
       }
-    };
+    });
+    return () => sub.remove();
+  }, [refreshStatus]);
 
-    void loadProducts();
-  }, [user?.id]);
-
-  const selectedPackage = useMemo(() => {
-    return availablePackages.find((pkg) =>
-      selectedPlan === 'monthly'
-        ? pkg.identifier.includes('monthly') || pkg.identifier.includes('month')
-        : pkg.identifier.includes('yearly') || pkg.identifier.includes('year'),
-    );
-  }, [availablePackages, selectedPlan]);
-
-  const getSubscriptionPrice = (plan: Plan): string => {
-    const pkg = availablePackages.find((item) =>
-      plan === 'monthly'
-        ? item.identifier.includes('monthly') || item.identifier.includes('month')
-        : item.identifier.includes('yearly') || item.identifier.includes('year'),
-    );
-
-    if (pkg?.product?.priceString) return pkg.product.priceString;
-    return plan === 'monthly' ? '$9.99' : '$71.88';
-  };
-
-  const getPlanCaption = (plan: Plan): string => {
-    const pkg = availablePackages.find((item) =>
-      plan === 'monthly'
-        ? item.identifier.includes('monthly') || item.identifier.includes('month')
-        : item.identifier.includes('yearly') || item.identifier.includes('year'),
-    );
-
-    if (pkg?.product?.priceString) {
-      if (plan === 'monthly') return t('paywall.billedMonthly');
-
-      const numeric = Number(pkg.product.priceString.replace(/[^0-9.]/g, ''));
-      const symbol = pkg.product.priceString.replace(/[0-9.,]/g, '').trim() || '$';
-      if (!Number.isNaN(numeric)) return t('paywall.perMonthBilledYearly', { price: `${symbol}${(numeric / 12).toFixed(2)}` });
-    }
-
-    return plan === 'monthly' ? t('paywall.billedMonthly') : t('paywall.perMonthBilledYearly', { price: '$5.99' });
-  };
-
-  const handleSubscribe = async () => {
-    if (!selectedPackage) {
-      Alert.alert(t('paywall.comingSoonTitle'), t('paywall.comingSoonMessage'));
-      return;
-    }
-
-    setLoading(true);
+  const openExternal = useCallback(async (url: string) => {
     try {
-      const result = await purchasePackage(selectedPackage);
-      if (result.success) {
-        Alert.alert(t('paywall.premiumActiveTitle'), t('paywall.premiumActiveMessage'));
-        router.back();
-      } else if (result.error && result.error !== 'User cancelled') {
-        Alert.alert(t('common:states.error'), result.error);
-      }
-    } catch (error: any) {
-      Alert.alert(t('common:states.error'), error.message || t('paywall.purchaseFailed'));
-    } finally {
-      setLoading(false);
+      const canOpen = await Linking.canOpenURL(url);
+      if (!canOpen) throw new Error('cannot open url');
+      awaitingReturnRef.current = true;
+      await Linking.openURL(url);
+    } catch (error) {
+      awaitingReturnRef.current = false;
+      Alert.alert(t('common:states.error'), t('paywall.checkoutFailed'));
     }
+  }, [t]);
+
+  const handleCheckout = useCallback(async () => {
+    if (!user?.id) return;
+    setRedirecting(true);
+    const url = buildCheckoutUrl(pricing, {
+      uid: user.id,
+      email: user.primaryEmailAddress?.emailAddress,
+      plan: selectedPlan,
+      platform: Platform.OS,
+    });
+    await openExternal(url);
+    // Give the app-switch a beat before releasing the button spinner.
+    setTimeout(() => setRedirecting(false), 800);
+  }, [user?.id, user?.primaryEmailAddress?.emailAddress, pricing, selectedPlan, openExternal]);
+
+  const handleManage = useCallback(() => {
+    if (!user?.id) return;
+    void openExternal(buildManageUrl(pricing, user.id));
+  }, [user?.id, pricing, openExternal]);
+
+  const renderPrice = (plan: BillingPlan) => {
+    const price = effectivePrice(pricing, plan);
+    const discounted = hasPromoDiscount(pricing, plan);
+    const regular = plan === 'monthly' ? pricing.monthlyPrice : pricing.yearlyPrice;
+    return (
+      <View style={styles.priceInline}>
+        <Text style={[styles.price, { color: colors.foreground }]}>{formatMoney(price, pricing.currency)}</Text>
+        {discounted && (
+          <Text style={[styles.priceStrike, { color: textSecondary }]}>{formatMoney(regular, pricing.currency)}</Text>
+        )}
+      </View>
+    );
   };
 
-  const handleRestore = async () => {
-    setRestoring(true);
-    try {
-      const result = await restorePurchases();
-      if (result.success) {
-        Alert.alert(t('paywall.restoredTitle'), t('paywall.restoredMessage'));
-      } else {
-        Alert.alert(t('common:states.error'), result.error || t('paywall.restoreFailed'));
-      }
-    } catch (error: any) {
-      Alert.alert(t('common:states.error'), error.message || t('paywall.restoreFailed'));
-    } finally {
-      setRestoring(false);
-    }
+  const priceCaption = (plan: BillingPlan) => {
+    if (plan === 'monthly') return t('paywall.billedMonthly');
+    const perMonth = effectivePrice(pricing, 'yearly') / 12;
+    return t('paywall.perMonthBilledYearly', { price: formatMoney(perMonth, pricing.currency) });
   };
 
   if (proLoading) {
@@ -187,25 +172,12 @@ export default function PaywallScreen() {
           title={t('paywall.title')}
           subtitle={isPro ? t('paywall.subscriptionActive') : t('paywall.simpleAccess')}
           showBack
-          right={
-            <TouchableOpacity
-              onPress={handleRestore}
-              disabled={restoring}
-              style={[styles.restoreButton, { backgroundColor: softSurface, borderColor }]}
-            >
-              {restoring ? (
-                <ActivityIndicator size="small" color={textSecondary} />
-              ) : (
-                <RefreshCcw size={18} color={textSecondary} />
-              )}
-            </TouchableOpacity>
-          }
         />
 
         <ScrollView
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 32 }]}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
         >
           <View style={[styles.hero, { backgroundColor: surface, borderColor }]}>
             <View style={[styles.heroIcon, { backgroundColor: `${accent}18` }]}>
@@ -215,16 +187,25 @@ export default function PaywallScreen() {
               {isPro ? t('paywall.premiumIsActive') : t('paywall.unlockPremium')}
             </Text>
             <Text style={[styles.heroText, { color: textSecondary }]}>
-              {isPro
-                ? t('paywall.heroActive')
-                : t('paywall.heroUpsell')}
+              {isPro ? t('paywall.heroActive') : t('paywall.heroUpsell')}
             </Text>
           </View>
+
+          {!isPro && pricing.promo.active && (
+            <View style={[styles.promoBanner, { backgroundColor: `${accent}14`, borderColor: `${accent}44` }]}>
+              <View style={[styles.promoIcon, { backgroundColor: accent }]}>
+                <Tag size={16} color="#FFFFFF" />
+              </View>
+              <Text style={[styles.promoText, { color: colors.foreground }]} numberOfLines={2}>
+                {pricing.promo.label || t('paywall.promoDefault')}
+              </Text>
+            </View>
+          )}
 
           {!isPro && (
             <>
               <View style={[styles.planSwitch, { backgroundColor: softSurface, borderColor }]}>
-                {(['monthly', 'yearly'] as Plan[]).map((plan) => {
+                {(['monthly', 'yearly'] as BillingPlan[]).map((plan) => {
                   const active = selectedPlan === plan;
                   return (
                     <TouchableOpacity
@@ -247,72 +228,64 @@ export default function PaywallScreen() {
               </View>
 
               <View style={[styles.priceCard, { backgroundColor: surface, borderColor }]}>
-                <Text style={[styles.price, { color: colors.foreground }]}>
-                  {getSubscriptionPrice(selectedPlan)}
-                </Text>
-                <Text style={[styles.priceCaption, { color: textSecondary }]}>
-                  {getPlanCaption(selectedPlan)}
-                </Text>
+                {renderPrice(selectedPlan)}
+                <Text style={[styles.priceCaption, { color: textSecondary }]}>{priceCaption(selectedPlan)}</Text>
               </View>
             </>
           )}
 
           <View style={styles.features}>
             {PREMIUM_FEATURES.map((feature) => (
-              <View
-                key={feature.text}
-                style={[styles.featureRow, { backgroundColor: surface, borderColor }]}
-              >
+              <View key={feature.text} style={[styles.featureRow, { backgroundColor: surface, borderColor }]}>
                 <View style={[styles.featureIcon, { backgroundColor: `${accent}14` }]}>
                   <feature.icon size={16} color={accent} />
                 </View>
-                <Text style={[styles.featureText, { color: colors.foreground }]}>
-                  {t(feature.text)}
-                </Text>
+                <Text style={[styles.featureText, { color: colors.foreground }]}>{t(feature.text)}</Text>
               </View>
             ))}
           </View>
 
           {isPro ? (
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => router.back()}
-              style={[styles.secondaryButton, { backgroundColor: surface, borderColor }]}
-            >
-              <Text style={[styles.secondaryButtonText, { color: colors.foreground }]}>
-                {t('paywall.backToApp')}
-              </Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              activeOpacity={0.9}
-              disabled={loading}
-              onPress={handleSubscribe}
-              style={styles.subscribeButton}
-            >
-              <LinearGradient
-                colors={[colors.primary, accent]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.subscribeGradient}
+            <>
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={handleManage}
+                style={[styles.secondaryButton, { backgroundColor: surface, borderColor }]}
               >
-                {loading ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Crown size={18} color="#FFFFFF" />
-                    <Text style={styles.subscribeText}>
-                      {t('paywall.subscribe')}
-                    </Text>
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
+                <Settings2 size={18} color={colors.foreground} />
+                <Text style={[styles.secondaryButtonText, { color: colors.foreground }]}>{t('paywall.manageSubscription')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity activeOpacity={0.85} onPress={() => router.back()} style={styles.textButton}>
+                <Text style={[styles.textButtonLabel, { color: textSecondary }]}>{t('paywall.backToApp')}</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <TouchableOpacity activeOpacity={0.9} disabled={redirecting} onPress={handleCheckout} style={styles.subscribeButton}>
+                <LinearGradient
+                  colors={[colors.primary, accent]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.subscribeGradient}
+                >
+                  {redirecting ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <ExternalLink size={18} color="#FFFFFF" />
+                      <Text style={styles.subscribeText}>{t('paywall.continueCheckout')}</Text>
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
 
-          <Text style={[styles.renewalText, { color: textSecondary }]}>
-            {t('paywall.renewalNote')}
-          </Text>
+              <Text style={[styles.secureNote, { color: textSecondary }]}>{t('paywall.secureNote')}</Text>
+
+              <TouchableOpacity activeOpacity={0.85} onPress={() => router.back()} style={styles.textButton}>
+                <Text style={[styles.textButtonLabel, { color: textSecondary }]}>{t('paywall.notNow')}</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </ScrollView>
       </SafeAreaView>
     </LinearGradient>
@@ -322,121 +295,51 @@ export default function PaywallScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   safeArea: { flex: 1 },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  restoreButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scrollView: { flex: 1 },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 18,
-  },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 18 },
   hero: {
     alignItems: 'center',
     borderWidth: 1,
     borderRadius: 20,
     paddingHorizontal: 20,
     paddingVertical: 24,
-    marginBottom: 18,
+    marginBottom: 16,
   },
-  heroIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-  },
-  heroTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  heroText: {
-    fontSize: 14,
-    lineHeight: 21,
-    textAlign: 'center',
-  },
-  planSwitch: {
-    flexDirection: 'row',
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 4,
-    marginBottom: 14,
-  },
-  planOption: {
-    flex: 1,
-    minHeight: 46,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 8,
-  },
-  planLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  planPill: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  priceCard: {
-    borderRadius: 18,
-    borderWidth: 1,
-    padding: 18,
-    alignItems: 'center',
-    marginBottom: 18,
-  },
-  price: {
-    fontSize: 36,
-    fontWeight: '600',
-  },
-  priceCaption: {
-    fontSize: 13,
-    marginTop: 4,
-  },
-  features: {
-    gap: 10,
-    marginBottom: 18,
-  },
-  featureRow: {
-    minHeight: 54,
-    borderRadius: 15,
-    borderWidth: 1,
-    paddingHorizontal: 14,
+  heroIcon: { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
+  heroTitle: { fontSize: 24, fontWeight: '600', textAlign: 'center', marginBottom: 8 },
+  heroText: { fontSize: 14, lineHeight: 21, textAlign: 'center' },
+
+  promoBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 14,
   },
-  featureIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  featureText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '500',
-  },
-  subscribeButton: {
-    borderRadius: 18,
-    overflow: 'hidden',
-    marginTop: 2,
-  },
+  promoIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  promoText: { flex: 1, fontSize: 13.5, fontWeight: '700', lineHeight: 19 },
+
+  planSwitch: { flexDirection: 'row', borderRadius: 16, borderWidth: 1, padding: 4, marginBottom: 14 },
+  planOption: { flex: 1, minHeight: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  planLabel: { fontSize: 14, fontWeight: '600' },
+  planPill: { fontSize: 11, fontWeight: '600' },
+
+  priceCard: { borderRadius: 18, borderWidth: 1, padding: 18, alignItems: 'center', marginBottom: 18 },
+  priceInline: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
+  price: { fontSize: 36, fontWeight: '700' },
+  priceStrike: { fontSize: 18, fontWeight: '600', textDecorationLine: 'line-through' },
+  priceCaption: { fontSize: 13, marginTop: 4 },
+
+  features: { gap: 10, marginBottom: 18 },
+  featureRow: { minHeight: 54, borderRadius: 15, borderWidth: 1, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  featureIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  featureText: { flex: 1, fontSize: 13, lineHeight: 18, fontWeight: '500' },
+
+  subscribeButton: { borderRadius: 18, overflow: 'hidden', marginTop: 2 },
   subscribeGradient: {
     minHeight: 56,
     flexDirection: 'row',
@@ -445,26 +348,20 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 18,
   },
-  subscribeText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
+  subscribeText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  secureNote: { fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 12 },
+
   secondaryButton: {
     minHeight: 54,
     borderRadius: 18,
     borderWidth: 1,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 10,
   },
-  secondaryButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  renewalText: {
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: 'center',
-    marginTop: 16,
-  },
+  secondaryButtonText: { fontSize: 15, fontWeight: '600' },
+
+  textButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
+  textButtonLabel: { fontSize: 15, fontWeight: '600' },
 });

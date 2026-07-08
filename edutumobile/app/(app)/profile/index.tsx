@@ -33,6 +33,7 @@ import {
     Target,
     CheckCircle2,
     Calendar,
+    Tag,
 } from 'lucide-react-native';
 import { useUser, useAuth } from '@clerk/clerk-expo';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -123,6 +124,9 @@ export default function ProfileScreen() {
     const { t } = useTranslation('profile');
 
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
+    // Set when the user skipped onboarding — we surface a resume card so they
+    // can finish personalizing without being trapped in the onboarding flow.
+    const profilePending = Boolean(user?.unsafeMetadata?.profilePending);
     const [isAdmin, setIsAdmin] = useState(false);
     // Canonical saved profile (backend row) — the header must reflect what the
     // user actually saved on the edit screen, not stale onboarding metadata.
@@ -265,6 +269,7 @@ export default function ProfileScreen() {
         { id: 'create-roadmap', title: t('view.admin.createRoadmap'), desc: t('view.admin.createRoadmapDesc'), icon: Megaphone, route: '/admin/roadmap/create', color: '#06B6D4', bg: 'rgba(6,182,212,0.15)' },
         { id: 'testimonials', title: t('view.admin.testimonials'), desc: t('view.admin.testimonialsDesc'), icon: MessageCircle, route: '/admin/testimonials', color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
         { id: 'premium-features', title: t('view.admin.premiumFeatures'), desc: t('view.admin.premiumFeaturesDesc'), icon: Crown, route: '/admin/premium-features', color: '#10B981', bg: 'rgba(16,185,129,0.15)' },
+        { id: 'pricing', title: t('view.admin.pricing'), desc: t('view.admin.pricingDesc'), icon: Tag, route: '/admin/pricing', color: '#8B5CF6', bg: 'rgba(139,92,246,0.15)' },
         { id: 'app-control', title: t('view.admin.appControl'), desc: t('view.admin.appControlDesc'), icon: Shield, route: '/admin/app-control', color: '#EF4444', bg: 'rgba(239,68,68,0.15)' },
     ];
 
@@ -336,6 +341,31 @@ export default function ProfileScreen() {
                         <Text style={styles.editProfileText}>{t('view.editProfile')}</Text>
                     </TouchableOpacity>
                 </View>
+
+                {profilePending && (
+                    <Animated.View entering={FadeInDown.duration(360)}>
+                        <TouchableOpacity
+                            style={[styles.completeProfileCard, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '33' }]}
+                            onPress={() => router.push('/onboarding')}
+                            activeOpacity={0.85}
+                        >
+                            <View style={[styles.completeProfileIcon, { backgroundColor: colors.primary }]}>
+                                <Sparkles size={22} color="#fff" />
+                            </View>
+                            <View style={styles.completeProfileContent}>
+                                <Text style={[styles.completeProfileTitle, { color: colors.foreground }]}>
+                                    {t('view.completeProfile.title')}
+                                </Text>
+                                <Text style={[styles.completeProfileDesc, { color: textSecondary }]}>
+                                    {t('view.completeProfile.desc')}
+                                </Text>
+                            </View>
+                            <View style={[styles.completeProfilePill, { backgroundColor: colors.primary }]}>
+                                <Text style={styles.completeProfilePillText}>{t('view.completeProfile.cta')}</Text>
+                            </View>
+                        </TouchableOpacity>
+                    </Animated.View>
+                )}
 
                 <View style={styles.statsSection}>
                     <View style={styles.statsGrid}>
@@ -580,6 +610,44 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 15,
         fontWeight: '600',
+    },
+    completeProfileCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        borderRadius: 18,
+        borderWidth: 1,
+        marginBottom: 24,
+        gap: 14,
+    },
+    completeProfileIcon: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    completeProfileContent: {
+        flex: 1,
+    },
+    completeProfileTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        marginBottom: 2,
+    },
+    completeProfileDesc: {
+        fontSize: 12,
+        lineHeight: 17,
+    },
+    completeProfilePill: {
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 10,
+    },
+    completeProfilePillText: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: '700',
     },
     statsSection: {
         marginBottom: 24,

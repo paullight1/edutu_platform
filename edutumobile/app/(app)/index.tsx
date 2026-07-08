@@ -11,6 +11,7 @@ import {
     Store,
     BookmarkPlus,
     Share2,
+    MapPin,
 } from "lucide-react-native";
 import { useTheme } from "../../components/context/ThemeContext";
 import { LinearGradient } from "expo-linear-gradient";
@@ -31,6 +32,9 @@ import { useTranslation } from "react-i18next";
 const { width } = Dimensions.get('window');
 const CARD_GAP = 12;
 const CARD_WIDTH = (width - 40 - CARD_GAP) / 2;
+// Wide enough to fit a full content card, narrow enough that the next card
+// peeks in — a visual cue that the row scrolls sideways.
+const RAIL_CARD_WIDTH = Math.min(Math.round(width * 0.74), 300);
 
 const DISCOVERY_BACKGROUNDS = {
     scholarships: require("../../assets/discovery/scholarships.png"),
@@ -160,17 +164,20 @@ function QuickActionsGrid({ router }: { router: any }) {
 }
 
 // ─── Opportunity Card Component ─────────────────────────────────────────────
-function OpportunityCard({ item, isDark, textPrimary, textSecondary, onPress, onBookmark, onShare, bookmarked = false, index = 0 }: {
+function OpportunityCard({ item, isDark, textPrimary, textSecondary, accent = '#6366F1', onPress, onBookmark, onShare, bookmarked = false, horizontal = false, index = 0 }: {
     item: Opportunity;
     isDark: boolean;
     textPrimary: string;
     textSecondary: string;
+    accent?: string;
     onPress?: () => void;
     onBookmark?: () => void;
     onShare?: () => void;
     bookmarked?: boolean;
+    horizontal?: boolean;
     index?: number;
 }) {
+    const { t } = useTranslation('home');
     const deadlineBadge = useMemo(() => getDeadlineBadge(item.deadline), [item.deadline]);
     const deadlineText = deadlineBadge.shortLabel;
     const deadlineColor = deadlineBadge.level === 'none'
@@ -178,7 +185,9 @@ function OpportunityCard({ item, isDark, textPrimary, textSecondary, onPress, on
         : urgencyColor(deadlineBadge.level);
 
     const topMatchReason = item.matchReasons?.[0];
-    const showMatchReason = Boolean(topMatchReason) && (item.match ?? 0) >= 40;
+    const matchPct = Math.round(item.match ?? 0);
+    const showMatch = matchPct >= 40;
+    const showMatchReason = Boolean(topMatchReason) && showMatch;
 
     // The org field often mirrors the title; only show the pill when it adds
     // something new, so the title isn't duplicated on the card.
@@ -192,24 +201,43 @@ function OpportunityCard({ item, isDark, textPrimary, textSecondary, onPress, on
         !title.startsWith(org) &&
         !org.startsWith(title);
 
+    const category = (item.category ?? "").trim();
+    const locationLabel = item.isRemote ? t('opportunityCard.remote') : (item.location ?? "").trim();
+    // A match badge takes the top-left slot when we have a score; otherwise the
+    // org pill fills it. The other value drops to a secondary line below the
+    // title so no content is lost.
+    const showOrgLine = showOrg && showMatch;
+
     return (
         <AnimatedPressable
             onPress={onPress}
-            style={[styles.opportunityCard, {
+            style={[styles.opportunityCard, horizontal && styles.oppRailCard, {
                 backgroundColor: isDark ? "rgba(255,255,255,0.03)" : "#FFFFFF",
             }]}
             entering={FadeInDown.delay(index * 60).duration(350).springify()}
         >
-            {item.image && (
-                <Image
-                    source={{ uri: item.image }}
-                    style={styles.oppCardImage}
-                    resizeMode="cover"
-                />
-            )}
+            {item.image ? (
+                <View>
+                    <Image
+                        source={{ uri: item.image }}
+                        style={[styles.oppCardImage, horizontal && styles.oppCardImageTall]}
+                        resizeMode="cover"
+                    />
+                    {category ? (
+                        <View style={styles.oppCategoryChip}>
+                            <Text style={styles.oppCategoryChipText} numberOfLines={1}>{category}</Text>
+                        </View>
+                    ) : null}
+                </View>
+            ) : null}
             <View style={styles.oppCardContent}>
                 <View style={styles.oppCardTop}>
-                    {showOrg ? (
+                    {showMatch ? (
+                        <View style={[styles.oppMatchBadge, { backgroundColor: isDark ? "rgba(99,102,241,0.18)" : "rgba(99,102,241,0.10)" }]}>
+                            <Sparkles size={9} color={accent} />
+                            <Text style={[styles.oppMatchBadgeText, { color: accent }]}>{t('opportunityCard.percentMatch', { percent: matchPct })}</Text>
+                        </View>
+                    ) : showOrg ? (
                         <View style={[styles.oppOrgBadge, { backgroundColor: isDark ? "rgba(99,102,241,0.15)" : "#F0F0FF" }]}>
                             <Text style={styles.oppOrgText} numberOfLines={1}>{orgLabel}</Text>
                         </View>
@@ -244,9 +272,27 @@ function OpportunityCard({ item, isDark, textPrimary, textSecondary, onPress, on
                     </View>
                 </View>
                 <Text style={[styles.oppTitle, { color: textPrimary }]} numberOfLines={2}>{item.title}</Text>
+                {showOrgLine ? (
+                    <Text style={[styles.oppOrgLine, { color: textSecondary }]} numberOfLines={1}>{orgLabel}</Text>
+                ) : null}
                 {showMatchReason && (
                     <Text style={styles.oppMatchReason} numberOfLines={1}>{topMatchReason}</Text>
                 )}
+                {(locationLabel || (!item.image && category)) ? (
+                    <View style={styles.oppMetaRow}>
+                        {locationLabel ? (
+                            <View style={styles.oppLocationRow}>
+                                <MapPin size={11} color={textSecondary} />
+                                <Text style={[styles.oppLocationText, { color: textSecondary }]} numberOfLines={1}>{locationLabel}</Text>
+                            </View>
+                        ) : null}
+                        {!item.image && category ? (
+                            <View style={[styles.oppCategoryPill, { backgroundColor: isDark ? "rgba(148,163,184,0.14)" : "#F1F5F9" }]}>
+                                <Text style={[styles.oppCategoryPillText, { color: textSecondary }]} numberOfLines={1}>{category}</Text>
+                            </View>
+                        ) : null}
+                    </View>
+                ) : null}
                 <View style={[styles.oppFooter, { borderTopColor: isDark ? "rgba(255,255,255,0.05)" : "#F1F5F9" }]}>
                     <View style={styles.deadlineRow}>
                         <View style={[styles.deadlineDot, { backgroundColor: deadlineColor }]} />
@@ -274,6 +320,7 @@ function OpportunitySection({
     textPrimary,
     textSecondary,
     grid = false,
+    horizontal = false,
     bookmarkedIds = [],
     onBookmark,
     onShare,
@@ -289,6 +336,7 @@ function OpportunitySection({
     textPrimary: string;
     textSecondary: string;
     grid?: boolean;
+    horizontal?: boolean;
     bookmarkedIds?: string[];
     onBookmark?: (id: string) => void;
     onShare?: (item: Opportunity) => void;
@@ -297,6 +345,25 @@ function OpportunitySection({
 }) {
     const { t } = useTranslation('home');
     const displayData = grid ? data.slice(0, 8) : data;
+
+    const renderCard = (item: Opportunity, idx: number) => (
+        <OpportunityCard
+            item={item}
+            isDark={isDark}
+            textPrimary={textPrimary}
+            textSecondary={textSecondary}
+            horizontal={horizontal}
+            onPress={() => {
+                onOpenOpportunity?.(item.id);
+                router?.push(`/opportunities/${item.id}`);
+            }}
+            onBookmark={onBookmark ? () => onBookmark(item.id) : undefined}
+            onShare={onShare ? () => onShare(item) : undefined}
+            bookmarked={bookmarkedIds.includes(item.id)}
+            index={idx}
+        />
+    );
+
     return (
         <Animated.View entering={FadeInDown.duration(400).delay(100)}>
             <View style={styles.sectionHeader}>
@@ -309,29 +376,32 @@ function OpportunitySection({
                     </AnimatedPressable>
                 )}
             </View>
-            <View style={grid ? styles.oppGridContainer : styles.oppListContainer}>
-                {displayData.map((item, idx) => (
-                    <View
-                        key={item.id}
-                        style={grid ? styles.oppGridItem : null}
-                    >
-                        <OpportunityCard
-                            item={item}
-                            isDark={isDark}
-                            textPrimary={textPrimary}
-                            textSecondary={textSecondary}
-                            onPress={() => {
-                                onOpenOpportunity?.(item.id);
-                                router?.push(`/opportunities/${item.id}`);
-                            }}
-                            onBookmark={onBookmark ? () => onBookmark(item.id) : undefined}
-                            onShare={onShare ? () => onShare(item) : undefined}
-                            bookmarked={bookmarkedIds.includes(item.id)}
-                            index={idx}
-                        />
-                    </View>
-                ))}
-            </View>
+            {horizontal ? (
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.oppRail}
+                    contentContainerStyle={styles.oppRailContainer}
+                    decelerationRate="fast"
+                    snapToInterval={RAIL_CARD_WIDTH + CARD_GAP}
+                    snapToAlignment="start"
+                >
+                    {displayData.map((item, idx) => (
+                        <View key={item.id}>{renderCard(item, idx)}</View>
+                    ))}
+                </ScrollView>
+            ) : (
+                <View style={grid ? styles.oppGridContainer : styles.oppListContainer}>
+                    {displayData.map((item, idx) => (
+                        <View
+                            key={item.id}
+                            style={grid ? styles.oppGridItem : null}
+                        >
+                            {renderCard(item, idx)}
+                        </View>
+                    ))}
+                </View>
+            )}
         </Animated.View>
     );
 }
@@ -525,7 +595,7 @@ export default function Dashboard() {
                             onViewMorePress={() => router.push('/opportunities')}
                             textPrimary={textPrimary}
                             textSecondary={textSecondary}
-                            grid
+                            horizontal
                             bookmarkedIds={bookmarkedIds}
                             onBookmark={toggleBookmark}
                             onShare={handleShareOpportunity}
@@ -801,9 +871,87 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(99,102,241,0.1)',
         overflow: 'hidden',
     },
+    oppRailCard: {
+        width: RAIL_CARD_WIDTH,
+        marginBottom: 0,
+    },
     oppCardImage: {
         width: '100%',
         height: 92,
+    },
+    oppCardImageTall: {
+        height: 120,
+    },
+    oppCategoryChip: {
+        position: 'absolute',
+        top: 8,
+        left: 8,
+        maxWidth: '72%',
+        paddingHorizontal: 9,
+        paddingVertical: 3,
+        borderRadius: 8,
+        backgroundColor: 'rgba(15,23,42,0.72)',
+    },
+    oppCategoryChipText: {
+        fontSize: 9,
+        fontWeight: '700',
+        color: '#FFFFFF',
+        textTransform: 'uppercase',
+        letterSpacing: 0.3,
+    },
+    oppMatchBadge: {
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        paddingHorizontal: 7,
+        paddingVertical: 3,
+        borderRadius: 7,
+    },
+    oppMatchBadgeText: {
+        fontSize: 10,
+        fontWeight: '700',
+    },
+    oppOrgLine: {
+        fontSize: 10,
+        fontWeight: '600',
+        marginTop: -4,
+        marginBottom: 6,
+    },
+    oppMetaRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginBottom: 8,
+    },
+    oppLocationRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        flexShrink: 1,
+    },
+    oppLocationText: {
+        fontSize: 10,
+        fontWeight: '600',
+    },
+    oppCategoryPill: {
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 6,
+    },
+    oppCategoryPillText: {
+        fontSize: 9,
+        fontWeight: '600',
+    },
+    oppRail: {
+        marginHorizontal: -20,
+    },
+    oppRailContainer: {
+        paddingHorizontal: 20,
+        paddingTop: 2,
+        paddingBottom: 4,
+        gap: CARD_GAP,
     },
     oppCardContent: {
         padding: 11,

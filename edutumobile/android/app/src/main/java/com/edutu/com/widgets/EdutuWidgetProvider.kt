@@ -199,8 +199,8 @@ class EdutuWidgetProvider : AppWidgetProvider() {
   }
 
   /**
-   * The ranked list — up to four opportunities, each its own tap target.
-   * Mirrors the iOS systemLarge widget.
+   * The ranked list — up to six opportunities, each its own tap target and
+   * marked with the opportunity icon. Mirrors the iOS systemLarge widget.
    */
   private fun largeViews(context: Context, items: JSONArray): RemoteViews {
     val views = RemoteViews(context.packageName, R.layout.edutu_widget_large)
@@ -210,7 +210,9 @@ class EdutuWidgetProvider : AppWidgetProvider() {
       listOf(R.id.edutu_widget_r1, R.id.edutu_widget_r1_title, R.id.edutu_widget_r1_sub, R.id.edutu_widget_r1_deadline),
       listOf(R.id.edutu_widget_r2, R.id.edutu_widget_r2_title, R.id.edutu_widget_r2_sub, R.id.edutu_widget_r2_deadline),
       listOf(R.id.edutu_widget_r3, R.id.edutu_widget_r3_title, R.id.edutu_widget_r3_sub, R.id.edutu_widget_r3_deadline),
-      listOf(R.id.edutu_widget_r4, R.id.edutu_widget_r4_title, R.id.edutu_widget_r4_sub, R.id.edutu_widget_r4_deadline)
+      listOf(R.id.edutu_widget_r4, R.id.edutu_widget_r4_title, R.id.edutu_widget_r4_sub, R.id.edutu_widget_r4_deadline),
+      listOf(R.id.edutu_widget_r5, R.id.edutu_widget_r5_title, R.id.edutu_widget_r5_sub, R.id.edutu_widget_r5_deadline),
+      listOf(R.id.edutu_widget_r6, R.id.edutu_widget_r6_title, R.id.edutu_widget_r6_sub, R.id.edutu_widget_r6_deadline)
     )
 
     for (i in rows.indices) {

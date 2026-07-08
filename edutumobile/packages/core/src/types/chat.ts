@@ -1,3 +1,19 @@
+/**
+ * Messages launched from an opportunity ("Ask Edutu") carry the full opportunity
+ * context (title, org, deadline, description) so the AI can answer accurately, but
+ * the user should only see the short intent — not the raw templated dump. The
+ * context is joined onto the intent with this invisible sentinel; the chat UI
+ * strips everything from the sentinel onward when rendering the user's bubble.
+ */
+export const CHAT_CONTEXT_SENTINEL = '⁣⁣EDUTU_CTX⁣⁣';
+
+/** Returns the user-facing portion of a chat message, dropping any hidden context block. */
+export function stripChatContext(content: string): string {
+  if (!content) return content;
+  const idx = content.indexOf(CHAT_CONTEXT_SENTINEL);
+  return idx === -1 ? content : content.slice(0, idx).trimEnd();
+}
+
 export interface ChatThread {
   id: string;
   title: string | null;

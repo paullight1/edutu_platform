@@ -156,7 +156,7 @@ function writeAndroidWidgetItems(snapshot: OpportunityWidgetSnapshot): void {
       require('expo-file-system') as typeof import('expo-file-system');
     const items = snapshot.items
       .filter((item) => Boolean(item.title))
-      .slice(0, 5)
+      .slice(0, 6)
       .map((item) => ({
         id: item.id,
         title: item.title,

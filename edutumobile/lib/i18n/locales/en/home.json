@@ -187,7 +187,13 @@
     "restoreFailed": "Failed to restore purchases",
     "backToApp": "Back to app",
     "subscribe": "Subscribe to premium",
-    "renewalNote": "Subscription renews automatically and can be managed in your device settings."
+    "renewalNote": "Subscription renews automatically and can be managed in your device settings.",
+    "continueCheckout": "Continue to secure checkout",
+    "secureNote": "You'll be taken to pay.edutu.org to complete payment securely. Your Pro access unlocks automatically once payment is confirmed.",
+    "notNow": "Not now",
+    "manageSubscription": "Manage subscription",
+    "checkoutFailed": "We couldn't open the checkout page. Please try again.",
+    "promoDefault": "Limited-time offer"
   },
   "wallet": {
     "title": "Wallet",
@@ -212,7 +218,8 @@
     "notInterestedTitle": "Not interested?",
     "notInterestedMessage": "We'll show you fewer opportunities like this one.",
     "notInterestedConfirm": "Not interested",
-    "percentMatch": "{{percent}}% match"
+    "percentMatch": "{{percent}}% match",
+    "remote": "Remote"
   },
   "creditPack": {
     "title": "Buy Credits",

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { AppNotification } from '../types/notification';
 
@@ -111,13 +111,23 @@ export function useNotifications(
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Clerk's `getToken` is a fresh function reference on most renders. If the
+  // callbacks below closed over it directly, `loadNotifications` would change
+  // identity every render, re-firing the mount effect on a loop — which flips
+  // `isLoading` on and off forever and makes the screen flicker without ever
+  // settling on the list. Hold it in a ref so the callbacks stay stable.
+  const getAuthTokenRef = useRef(getAuthToken);
+  useEffect(() => {
+    getAuthTokenRef.current = getAuthToken;
+  }, [getAuthToken]);
+
   const loadNotifications = useCallback(async () => {
     if (!userId) return;
 
     setIsLoading(true);
     setError(null);
     try {
-      const backendNotifications = await fetchBackendNotifications(getAuthToken);
+      const backendNotifications = await fetchBackendNotifications(getAuthTokenRef.current);
       if (backendNotifications) {
         setNotifications(backendNotifications);
         return;
@@ -148,13 +158,13 @@ export function useNotifications(
     } finally {
       setIsLoading(false);
     }
-  }, [getAuthToken, supabase, userId]);
+  }, [supabase, userId]);
 
   const markAsRead = useCallback(async (id: string) => {
     if (!userId) return;
 
     try {
-      const backendUpdated = await patchBackendNotification(id, true, getAuthToken);
+      const backendUpdated = await patchBackendNotification(id, true, getAuthTokenRef.current);
       if (backendUpdated) {
         const timestamp = new Date().toISOString();
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, readAt: timestamp } : n));
@@ -173,13 +183,13 @@ export function useNotifications(
     } catch (err: any) {
       console.error('Error marking notification as read:', err);
     }
-  }, [getAuthToken, supabase, userId]);
+  }, [supabase, userId]);
 
   const deleteNotification = useCallback(async (id: string) => {
     if (!userId) return;
 
     try {
-      const backendDeleted = await deleteBackendNotification(id, getAuthToken);
+      const backendDeleted = await deleteBackendNotification(id, getAuthTokenRef.current);
       if (backendDeleted) {
         setNotifications(prev => prev.filter(n => n.id !== id));
         return;
@@ -196,7 +206,7 @@ export function useNotifications(
     } catch (err: any) {
       console.error('Error deleting notification:', err);
     }
-  }, [getAuthToken, supabase, userId]);
+  }, [supabase, userId]);
 
   useEffect(() => {
     if (userId) {

@@ -7,6 +7,7 @@ import { categorizeOpportunity } from './opportunityCategorization';
 let cachedOpportunities: Opportunity[] | null = null;
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://edutu-platform.onrender.com';
 const OPPORTUNITIES_CACHE_KEY = 'edutu_opportunities_cache';
+const OPPORTUNITY_DETAIL_CACHE_PREFIX = 'edutu_opportunity_detail:';
 
 interface FetchOptions {
   supabase: SupabaseClient;
@@ -56,6 +57,38 @@ async function persistOpportunitiesSnapshot(opportunities: Opportunity[], userId
     await AsyncStorage.setItem(getCacheKey(userId), JSON.stringify(opportunities));
   } catch {
     // Ignore cache persistence failures.
+  }
+}
+
+function getDetailCacheKey(id: string): string {
+  return `${OPPORTUNITY_DETAIL_CACHE_PREFIX}${id}`;
+}
+
+/**
+ * Read a previously-fetched full opportunity record from the persistent
+ * per-id detail cache. This is what lets the detail screen paint instantly —
+ * and survive a slow/offline network — even when the opportunity was NOT part
+ * of the last-loaded list snapshot (e.g. opened from a deep link, push
+ * notification, home widget, or a search result outside the main feed).
+ */
+export async function getCachedOpportunity(id: string): Promise<Opportunity | null> {
+  if (!id) return null;
+  try {
+    const raw = await AsyncStorage.getItem(getDetailCacheKey(id));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Opportunity;
+    return parsed && (parsed as any).id ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+async function persistOpportunityDetail(opportunity: Opportunity): Promise<void> {
+  if (!opportunity?.id) return;
+  try {
+    await AsyncStorage.setItem(getDetailCacheKey(opportunity.id), JSON.stringify(opportunity));
+  } catch {
+    // Best-effort cache; ignore write failures.
   }
 }
 
@@ -557,24 +590,69 @@ export async function fetchOpportunities(options: FetchOptions): Promise<Opportu
   return normalised;
 }
 
-export async function getOpportunity(id: string, supabase?: SupabaseClient): Promise<Opportunity | null> {
-  if (!supabase) return null;
+async function fetchWithTimeout(url: string, ms: number, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
   try {
-    const { data, error } = await supabase
-      .from('opportunities')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (error || !data) {
-      throw error || new Error('No data found');
-    }
-
-    return normaliseOpportunity(data);
-  } catch (error) {
-    console.error('Error fetching single opportunity:', error);
-    return null;
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
   }
+}
+
+export async function getOpportunity(id: string, supabase?: SupabaseClient): Promise<Opportunity | null> {
+  if (!id) return null;
+
+  // Prefer the public backend endpoint. It's the same source the list/detail
+  // recommendations come from, so ids always resolve, and it returns the full
+  // record (description, benefits, requirements, aiSummary) rather than the
+  // possibly-narrower row the mobile Supabase anon client can read. The direct
+  // Supabase read stays as an offline fallback only.
+  if (API_BASE_URL) {
+    try {
+      const response = await fetchWithTimeout(
+        `${API_BASE_URL}/opportunities/${encodeURIComponent(id)}`,
+        12000,
+      );
+      if (response.ok) {
+        const row = await response.json();
+        if (row && row.id) {
+          const opportunity = normaliseOpportunity(row);
+          void persistOpportunityDetail(opportunity);
+          return opportunity;
+        }
+      }
+    } catch (error) {
+      if (__DEV__) {
+        console.warn('Backend opportunity fetch failed, falling back to Supabase:', error);
+      }
+    }
+  }
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('opportunities')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error || !data) {
+        throw error || new Error('No data found');
+      }
+
+      const opportunity = normaliseOpportunity(data);
+      void persistOpportunityDetail(opportunity);
+      return opportunity;
+    } catch (error) {
+      console.error('Error fetching single opportunity:', error);
+    }
+  }
+
+  // Both network sources failed (offline / cold-start / timeout). Fall back to
+  // the last-known full record so the detail screen shows content instead of
+  // the "not found" scaffold. Callers still revalidate on the next open.
+  return getCachedOpportunity(id);
 }
 
 export function clearOpportunitiesCache() {

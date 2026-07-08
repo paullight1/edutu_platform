@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { toSafeUUID } from '../utils/auth';
 
@@ -101,6 +101,15 @@ export function useCredits(supabase: SupabaseClient, userId: string | null): Use
     }
   }, [supabase, userId, refreshCredits]);
 
+  // Keep the latest refresh callback reachable from the realtime handler without
+  // making it a subscription dependency — re-running the effect tears down and
+  // recreates the channel, which is what triggers Supabase's "cannot add
+  // postgres_changes callbacks after subscribe" crash on a reused topic.
+  const refreshCreditsRef = useRef(refreshCredits);
+  useEffect(() => {
+    refreshCreditsRef.current = refreshCredits;
+  }, [refreshCredits]);
+
   useEffect(() => {
     refreshCredits();
   }, [refreshCredits]);
@@ -111,19 +120,34 @@ export function useCredits(supabase: SupabaseClient, userId: string | null): Use
   useEffect(() => {
     if (!userId) return;
 
-    const channel = supabase
-      .channel(`credits-status-${userId}`)
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `user_id=eq.${userId}` },
-        () => void refreshCredits(),
-      )
-      .subscribe();
+    // A stale channel with this exact topic (e.g. left joined after a fast
+    // remount) makes `.on()` throw synchronously and bubble to the app-level
+    // ErrorBoundary. Remove any prior channel on the topic first, and never let
+    // a realtime binding error crash the app.
+    let channel: ReturnType<SupabaseClient['channel']> | null = null;
+    try {
+      for (const existing of supabase.getChannels()) {
+        if (existing.topic === `realtime:credits-status-${userId}`) {
+          void supabase.removeChannel(existing);
+        }
+      }
+
+      channel = supabase
+        .channel(`credits-status-${userId}`)
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `user_id=eq.${userId}` },
+          () => void refreshCreditsRef.current(),
+        )
+        .subscribe();
+    } catch (error) {
+      console.warn('Credits realtime subscription failed:', error);
+    }
 
     return () => {
-      void supabase.removeChannel(channel);
+      if (channel) void supabase.removeChannel(channel);
     };
-  }, [refreshCredits, supabase, userId]);
+  }, [supabase, userId]);
 
   return {
     credits,

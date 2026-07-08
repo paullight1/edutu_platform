@@ -71,11 +71,29 @@ export interface AppControlConfig {
   moduleLocks: Record<string, ModuleAccess>;
 }
 
+// Admin-controlled subscription pricing (admin_settings.pricing), served
+// read-only so the paywall + pay.edutu.org share one source. Public — no
+// payment secrets here.
+export interface PricingConfig {
+  currency: string;
+  monthlyPrice: number;
+  yearlyPrice: number;
+  checkoutBaseUrl: string;
+  manageUrl: string;
+  promo: {
+    active: boolean;
+    label: string;
+    monthlyPrice: number | null;
+    yearlyPrice: number | null;
+  };
+}
+
 export interface MobileControlConfig {
   campaigns: MobileCampaign[];
   featureFlags: MobileFeatureFlag[];
   widgetFeeds: WidgetFeed[];
   appControl: AppControlConfig;
+  pricing: PricingConfig;
   serverTime: string;
 }
 

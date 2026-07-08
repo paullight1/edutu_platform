@@ -51,6 +51,22 @@
         "tailoredTitle": "CV tailored — {{score}}% match",
         "tailorFailed": "Failed to tailor CV for this opportunity."
     },
+    "tailorResult": {
+        "title": "CV Tailored",
+        "matchLabel": "match",
+        "appliedNote": "Your CV has been updated in the editor, tuned for {{title}}.",
+        "appliedNoteGeneric": "Your CV has been updated in the editor for this opportunity.",
+        "improvementsTitle": "What we improved",
+        "matchedTitle": "Keywords you already cover",
+        "missingTitle": "Consider adding",
+        "missingHint": "Weave these into your summary, skills, or experience to raise your match.",
+        "exportPdf": "Export as PDF",
+        "viewCv": "View & edit CV",
+        "exporting": "Preparing PDF…",
+        "scoreLow": "Room to grow",
+        "scoreMedium": "Solid fit",
+        "scoreHigh": "Strong match"
+    },
     "upgrade": {
         "templateFeature": "{{name}} template"
     },
@@ -111,7 +127,8 @@
     "tailorModal": {
         "title": "AI CV Tailoring",
         "subtitle": "Select an opportunity from your bank and tailor this CV toward it.",
-        "empty": "No opportunities available yet. Load opportunities first, then tailor this CV."
+        "empty": "No opportunities available yet. Load opportunities first, then tailor this CV.",
+        "working": "Tailoring your CV…"
     },
     "listItem": {
         "updated": "Updated {{date}}",

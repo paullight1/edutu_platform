@@ -161,6 +161,13 @@ interface Notification {
     type: 'success' | 'error' | 'warning' | 'info';
 }
 
+// Shape of GET /api/scraper/run/status — the server-side truth for the crawl.
+interface RunStatus {
+    running: boolean;
+    paused: boolean;
+    stopping: boolean;
+}
+
 
 interface Opportunity {
     id: string;
@@ -222,6 +229,7 @@ export default function ScraperDashboard() {
     const [liveFoundCount, setLiveFoundCount] = useState(0);
     // Live pause/stop + real progress tracking.
     const [isPaused, setIsPaused] = useState(false);
+    const [isStopping, setIsStopping] = useState(false);
     const [sourcesTotal, setSourcesTotal] = useState(0);
     const [sourcesDone, setSourcesDone] = useState(0);
     const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -252,17 +260,24 @@ export default function ScraperDashboard() {
     const abortControllerRef = useRef<AbortController | null>(null);
     // Mirrors isBackground for the async scrape closure (state would be stale).
     const isBackgroundRef = useRef(false);
+    // Rehydrated run: after a refresh/navigation we reconnected to a scrape that is
+    // still executing server-side. The SSE stream can't be re-attached (the backend
+    // Subject only feeds the tab that started the run), so we poll run/status instead.
+    const [isRehydratedRun, setIsRehydratedRun] = useState(false);
+    // Mirrors isRehydratedRun for async closures (startScrape guard).
+    const isRehydratedRunRef = useRef(false);
 
     useEffect(() => {
-        // Keep ticking while the modal is open OR minimized to the background pill.
-        if (!(showLoadingModal || isBackground) || !scrapingStartedAt || modalError || currentStep >= 4) return;
+        // Keep ticking while the modal is open, minimized to the background pill,
+        // OR reconnected to a server-side run after a refresh.
+        if (!(showLoadingModal || isBackground || isRehydratedRun) || !scrapingStartedAt || modalError || currentStep >= 4) return;
 
         const interval = window.setInterval(() => {
             setScrapingElapsedSeconds(Math.max(0, Math.floor((Date.now() - scrapingStartedAt) / 1000)));
         }, 1000);
 
         return () => window.clearInterval(interval);
-    }, [showLoadingModal, isBackground, scrapingStartedAt, modalError, currentStep]);
+    }, [showLoadingModal, isBackground, isRehydratedRun, scrapingStartedAt, modalError, currentStep]);
 
     const fetchSettings = useCallback(async () => {
         try {
@@ -539,6 +554,31 @@ export default function ScraperDashboard() {
         setLoading(false);
     }, [loadRecentOpportunities]);
 
+    // Server-side run status — the source of truth that survives page refreshes.
+    const fetchRunStatus = useCallback(async (): Promise<RunStatus | null> => {
+        try {
+            return await backendFetchJson<RunStatus>(
+                `/api/scraper/run/status`,
+                { headers: await getAuthHeaders() },
+            );
+        } catch {
+            return null; // treat as unknown — callers fail open
+        }
+    }, []);
+
+    // Enter the "reconnected to an in-flight server run" UI state.
+    const enterRehydratedRun = useCallback((status: RunStatus) => {
+        isRehydratedRunRef.current = true;
+        setIsRehydratedRun(true);
+        setScraping(true);
+        setIsPaused(Boolean(status.paused));
+        setIsStopping(Boolean(status.stopping));
+        // We don't know the real start time (the stream owner has it), so show
+        // elapsed time since we reconnected — enough to signal liveness.
+        setScrapingStartedAt(Date.now());
+        setScrapingElapsedSeconds(0);
+    }, []);
+
     useEffect(() => {
         void loadData();
         void loadRecentOpportunities();
@@ -572,6 +612,79 @@ export default function ScraperDashboard() {
         };
     }, [fetchSettings, loadData, loadRecentOpportunities]);
 
+    // ── Survive page refreshes: on mount, check whether a scrape is still running
+    // server-side (started before this page load) and rehydrate the running UI.
+    useEffect(() => {
+        let cancelled = false;
+        void (async () => {
+            const status = await fetchRunStatus();
+            if (cancelled || !status?.running) return;
+            // This tab already owns a live stream — nothing to rehydrate.
+            if (abortControllerRef.current || isRehydratedRunRef.current) return;
+            enterRehydratedRun(status);
+            showNotification(
+                'Reconnected to a scrape run started earlier — it is still running on the server.',
+                'info',
+            );
+        })();
+        return () => { cancelled = true; };
+        // showNotification is intentionally omitted (recreated every render).
+    }, [enterRehydratedRun, fetchRunStatus]);
+
+    // While rehydrated-running, poll run/status (and refresh the jobs list) every
+    // ~5s until the run finishes, then surface the completion like the normal
+    // background path does. The interval is cleared on unmount / state flip.
+    useEffect(() => {
+        if (!isRehydratedRun) return;
+        let disposed = false;
+        let inFlight = false;
+        const interval = window.setInterval(() => {
+            if (inFlight) return; // don't stack requests on slow responses
+            inFlight = true;
+            void (async () => {
+                try {
+                    const status = await fetchRunStatus();
+                    if (disposed || !status) return;
+                    if (status.running) {
+                        setIsPaused(Boolean(status.paused));
+                        setIsStopping(Boolean(status.stopping));
+                        // Keep Recent Scrapes fresh without the full loadData()
+                        // pass (which flashes the stat tiles into loading state).
+                        try {
+                            const jobsData = await backendFetchJson<ScrapeJob[]>(
+                                `/api/scraper/jobs`,
+                                { headers: await getAuthHeaders() },
+                            );
+                            if (!disposed && Array.isArray(jobsData)) setJobs(jobsData);
+                        } catch { /* transient — next poll retries */ }
+                    } else {
+                        // Run finished server-side — reuse the background completion flow.
+                        isRehydratedRunRef.current = false;
+                        setIsRehydratedRun(false);
+                        setScraping(false);
+                        setIsPaused(false);
+                        setIsStopping(false);
+                        setScrapingStartedAt(null);
+                        setScrapingElapsedSeconds(0);
+                        showNotification(
+                            'Background scrape complete — open it from Recent Scrapes below.',
+                            'success',
+                        );
+                        await loadData();
+                        await loadRecentOpportunities();
+                    }
+                } finally {
+                    inFlight = false;
+                }
+            })();
+        }, 5000);
+        return () => {
+            disposed = true;
+            window.clearInterval(interval);
+        };
+        // showNotification is intentionally omitted (recreated every render).
+    }, [isRehydratedRun, fetchRunStatus, loadData, loadRecentOpportunities]);
+
     // Explicit cancel: aborts the in-flight scrape and resets everything.
     function stopScrape() {
         if (abortControllerRef.current) {
@@ -585,6 +698,7 @@ export default function ScraperDashboard() {
         setScrapingStartedAt(null);
         setScrapingElapsedSeconds(0);
         setLiveFoundCount(0);
+        setIsStopping(false);
     }
 
     // Minimize: hide the modal but let the scrape keep running in the background.
@@ -618,6 +732,7 @@ export default function ScraperDashboard() {
     // Graceful stop: the backend finalizes with partial results and the stream
     // sends `done`, so the normal completion path renders what was gathered.
     const requestStopScrape = () => {
+        setIsStopping(true);
         void postRunControl('stop');
         showNotification('Stopping scrape — finishing the current item…', 'info');
     };
@@ -684,6 +799,25 @@ export default function ScraperDashboard() {
     const visibleJobGroups = showAllJobs ? groupedJobs : groupedJobs.slice(0, 6);
 
     async function startScrape(sourceId?: number) {
+        // Guard: the backend runs at most one crawl at a time — never double-start.
+        if (isRehydratedRunRef.current) {
+            showNotification('A scrape is already running on the server. Stop it or wait for it to finish.', 'warning');
+            return;
+        }
+        const existingRun = await fetchRunStatus();
+        if (existingRun?.running) {
+            if (abortControllerRef.current) {
+                // This tab already owns the live stream — just block the duplicate.
+                showNotification('A scrape is already running. Wait for it to finish or stop it first.', 'warning');
+                return;
+            }
+            // A run is active server-side (started before a refresh or from another
+            // tab) — reconnect to it instead of kicking off a duplicate.
+            enterRehydratedRun(existingRun);
+            showNotification('A scrape is already running on the server — reconnected to it instead of starting a new one.', 'warning');
+            return;
+        }
+
         // Guard: only scrape enabled sources
         const sourcesToScrape = sourceId
             ? sources.filter(s => s.id === sourceId)
@@ -707,6 +841,7 @@ export default function ScraperDashboard() {
         isBackgroundRef.current = false;
         setLiveFoundCount(0);
         setIsPaused(false);
+        setIsStopping(false);
         setSourcesTotal(0);
         setSourcesDone(0);
         setShowLoadingModal(true);
@@ -3152,6 +3287,57 @@ export default function ScraperDashboard() {
                             <X size={15} />
                         </button>
                     </div>
+                </div>
+            )}
+
+            {/* Floating pill for a rehydrated server-side run (started before a refresh).
+                The SSE stream can't be re-attached, so there is no live item feed here —
+                just run status, pause/resume/stop, and completion detection via polling. */}
+            {isRehydratedRun && (
+                <div
+                    style={{
+                        position: 'fixed', bottom: 24, right: 24, zIndex: 1100,
+                        display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 340,
+                        padding: '12px 14px', borderRadius: 18,
+                        background: 'var(--bg-primary)', border: '1px solid var(--border-medium)',
+                        boxShadow: '0 12px 30px -8px rgba(0,0,0,0.35)',
+                        color: 'var(--text-primary)', animation: 'slideUp 0.3s ease',
+                    }}
+                >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, background: isPaused ? 'var(--bg-tertiary)' : 'linear-gradient(135deg,#146ef5,#60a5fa)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isPaused ? 'var(--text-secondary)' : 'white' }}>
+                            {isPaused ? <Pause size={17} /> : <Loader2 size={18} className="animate-spin" />}
+                        </span>
+                        <span style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                            <span style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>
+                                {isStopping ? 'Stopping server scrape…' : isPaused ? 'Server scrape paused' : 'Server scrape running…'}
+                            </span>
+                            <span style={{ display: 'block', fontSize: 11, color: 'var(--text-tertiary)' }}>
+                                {formatElapsed(scrapingElapsedSeconds)} since reconnect · checking every 5s
+                            </span>
+                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <button
+                                onClick={isPaused ? resumeScrape : pauseScrape}
+                                title={isPaused ? 'Resume' : 'Pause'}
+                                disabled={isStopping}
+                                style={{ width: 32, height: 32, borderRadius: 9, border: '1px solid var(--border-light)', background: 'var(--bg-secondary)', color: 'var(--text-secondary)', cursor: isStopping ? 'not-allowed' : 'pointer', opacity: isStopping ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                                {isPaused ? <Play size={15} /> : <Pause size={15} />}
+                            </button>
+                            <button
+                                onClick={requestStopScrape}
+                                title="Stop (keep what was gathered)"
+                                disabled={isStopping}
+                                style={{ width: 32, height: 32, borderRadius: 9, border: '1px solid rgba(255,59,48,0.3)', background: 'rgba(255,59,48,0.1)', color: '#ff3b30', cursor: isStopping ? 'not-allowed' : 'pointer', opacity: isStopping ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                                <X size={15} />
+                            </button>
+                        </div>
+                    </div>
+                    <span style={{ fontSize: 11, lineHeight: 1.45, color: 'var(--text-tertiary)', borderTop: '1px solid var(--border-light)', paddingTop: 8 }}>
+                        Reconnected to a run started earlier — live item feed unavailable. Results will appear in Recent Scrapes when it finishes.
+                    </span>
                 </div>
             )}
 

@@ -165,6 +165,8 @@ async function writeBrowserCommandAndAwait(paths, command) {
     target: command.target ?? null,
     url: command.url ?? null,
     mode: command.mode ?? null,
+    viewport: command.viewport ?? null,
+    tabIndex: command.tabIndex ?? null,
   };
 
   await writeJsonAtomic(browserBridgeCommandFile(paths, id), payload);
@@ -342,6 +344,10 @@ function normalizeBrowserBridgeCommandRecord(record) {
     target: typeof record.target === 'string' && record.target.trim() ? record.target.trim() : null,
     url: typeof record.url === 'string' && record.url.trim() ? record.url.trim() : null,
     mode: typeof record.mode === 'string' && record.mode.trim() ? record.mode.trim() : null,
+    viewport: typeof record.viewport === 'string' && record.viewport.trim() ? record.viewport.trim() : null,
+    tabIndex: typeof record.tabIndex === 'number' && Number.isFinite(record.tabIndex)
+      ? Math.max(1, Math.floor(record.tabIndex))
+      : null,
   };
 }
 
@@ -392,6 +398,8 @@ async function listPendingBrowserBridgeCommands(paths) {
       target: command.target,
       url: command.url,
       mode: command.mode,
+      viewport: command.viewport,
+      tabIndex: command.tabIndex,
       resultExists,
     });
   }
@@ -444,6 +452,70 @@ function browserBridgeTools() {
     {
       name: 'reload',
       description: 'Reload the current browser page.',
+      inputSchema: noArgsSchema,
+    },
+    {
+      name: 'viewport',
+      description: 'Change the browser viewport size or preset.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          viewport: { type: 'string', minLength: 1 },
+        },
+        required: ['viewport'],
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'back',
+      description: 'Move back in browser history.',
+      inputSchema: noArgsSchema,
+    },
+    {
+      name: 'forward',
+      description: 'Move forward in browser history.',
+      inputSchema: noArgsSchema,
+    },
+    {
+      name: 'home',
+      description: 'Open the browser home page.',
+      inputSchema: noArgsSchema,
+    },
+    {
+      name: 'new-tab',
+      description: 'Open a new browser tab.',
+      inputSchema: noArgsSchema,
+    },
+    {
+      name: 'close-tab',
+      description: 'Close the active browser tab.',
+      inputSchema: noArgsSchema,
+    },
+    {
+      name: 'tab',
+      description: 'Switch to a browser tab by 1-based index.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          tabIndex: { type: 'integer', minimum: 1 },
+        },
+        required: ['tabIndex'],
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'toggle-recording',
+      description: 'Toggle browser action recording.',
+      inputSchema: noArgsSchema,
+    },
+    {
+      name: 'clear-recording',
+      description: 'Clear recorded browser actions.',
+      inputSchema: noArgsSchema,
+    },
+    {
+      name: 'clear-context',
+      description: 'Clear the browser agent context.',
       inputSchema: noArgsSchema,
     },
     {
@@ -529,6 +601,148 @@ async function callBrowserBridgeTool(name, args, paths) {
       return {
         commandId: result.id,
         kind: 'reload',
+        status: 'ok',
+        message: result.message,
+        appliedAt: result.appliedAt,
+      };
+    }
+    case 'viewport': {
+      const viewport = typeof args?.viewport === 'string' ? args.viewport.trim() : '';
+      if (!viewport) {
+        throw new Error('The viewport tool requires a viewport value.');
+      }
+
+      const result = await writeBrowserCommandAndAwait(paths, {
+        kind: 'viewport',
+        viewport,
+      });
+
+      return {
+        commandId: result.id,
+        kind: 'viewport',
+        status: 'ok',
+        message: result.message,
+        appliedAt: result.appliedAt,
+      };
+    }
+    case 'back': {
+      const result = await writeBrowserCommandAndAwait(paths, {
+        kind: 'back',
+      });
+
+      return {
+        commandId: result.id,
+        kind: 'back',
+        status: 'ok',
+        message: result.message,
+        appliedAt: result.appliedAt,
+      };
+    }
+    case 'forward': {
+      const result = await writeBrowserCommandAndAwait(paths, {
+        kind: 'forward',
+      });
+
+      return {
+        commandId: result.id,
+        kind: 'forward',
+        status: 'ok',
+        message: result.message,
+        appliedAt: result.appliedAt,
+      };
+    }
+    case 'home': {
+      const result = await writeBrowserCommandAndAwait(paths, {
+        kind: 'home',
+      });
+
+      return {
+        commandId: result.id,
+        kind: 'home',
+        status: 'ok',
+        message: result.message,
+        appliedAt: result.appliedAt,
+      };
+    }
+    case 'new-tab': {
+      const result = await writeBrowserCommandAndAwait(paths, {
+        kind: 'new-tab',
+      });
+
+      return {
+        commandId: result.id,
+        kind: 'new-tab',
+        status: 'ok',
+        message: result.message,
+        appliedAt: result.appliedAt,
+      };
+    }
+    case 'close-tab': {
+      const result = await writeBrowserCommandAndAwait(paths, {
+        kind: 'close-tab',
+      });
+
+      return {
+        commandId: result.id,
+        kind: 'close-tab',
+        status: 'ok',
+        message: result.message,
+        appliedAt: result.appliedAt,
+      };
+    }
+    case 'tab': {
+      const tabIndex = typeof args?.tabIndex === 'number' ? Math.floor(args.tabIndex) : NaN;
+      if (!Number.isInteger(tabIndex) || tabIndex < 1) {
+        throw new Error('The tab tool requires a tabIndex of 1 or greater.');
+      }
+
+      const result = await writeBrowserCommandAndAwait(paths, {
+        kind: 'tab',
+        tabIndex,
+      });
+
+      return {
+        commandId: result.id,
+        kind: 'tab',
+        status: 'ok',
+        message: result.message,
+        appliedAt: result.appliedAt,
+      };
+    }
+    case 'toggle-recording': {
+      const result = await writeBrowserCommandAndAwait(paths, {
+        kind: 'toggle-recording',
+      });
+
+      return {
+        commandId: result.id,
+        kind: 'toggle-recording',
+        status: 'ok',
+        message: result.message,
+        appliedAt: result.appliedAt,
+      };
+    }
+    case 'clear-recording': {
+      const result = await writeBrowserCommandAndAwait(paths, {
+        kind: 'clear-recording',
+      });
+
+      return {
+        commandId: result.id,
+        kind: 'clear-recording',
+        status: 'ok',
+        message: result.message,
+        appliedAt: result.appliedAt,
+      };
+    }
+    case 'clear-context': {
+      const result = await writeBrowserCommandAndAwait(paths, {
+        kind: 'clear-context',
+      });
+
+      return {
+        commandId: result.id,
+        kind: 'clear-context',
         status: 'ok',
         message: result.message,
         appliedAt: result.appliedAt,

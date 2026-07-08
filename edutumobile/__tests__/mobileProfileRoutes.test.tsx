@@ -113,6 +113,10 @@ function resolveQuery(table: string, state: { selectArg?: string }, single = fal
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, back: mockBack, replace: mockReplace }),
+  useFocusEffect: (cb: () => void | (() => void)) => {
+    const React = require('react');
+    React.useEffect(() => cb(), []);
+  },
 }));
 
 jest.mock('@clerk/clerk-expo', () => ({

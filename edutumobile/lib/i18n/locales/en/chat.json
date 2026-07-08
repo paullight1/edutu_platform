@@ -1,122 +1,131 @@
 {
-    "header": {
-        "title": "AI Coach"
+  "header": {
+    "title": "AI Coach"
+  },
+  "loading": {
+    "conversation": "Loading conversation..."
+  },
+  "deadline": {
+    "rolling": "Rolling",
+    "set": "Deadline set"
+  },
+  "location": {
+    "remote": "Remote"
+  },
+  "answers": {
+    "checkingOpportunities": "Checking Edutu opportunities for you.",
+    "matchesFound": "I found {{count}} matches from Edutu.\nSwipe the cards or narrow the search.",
+    "roadmapChecking": "I’m checking your opportunities.\nThen I’ll build the roadmap.",
+    "roadmapMatchFound": "I found a possible match.\nTap Build to create goals and reminders.",
+    "roadmapWhichOpportunity": "Which opportunity is this for?\nSend the name or browse Opportunities."
+  },
+  "quickPrompts": {
+    "findScholarships": {
+      "title": "Find scholarships",
+      "subtitle": "Available this month"
     },
-    "loading": {
-        "conversation": "Loading conversation..."
+    "mastercard": {
+      "title": "Mastercard matches",
+      "subtitle": "Scholarships from Edutu"
     },
-    "deadline": {
-        "rolling": "Rolling",
-        "set": "Deadline set"
+    "buildRoadmap": {
+      "title": "Build roadmap",
+      "subtitle": "Plan my next application"
     },
-    "location": {
-        "remote": "Remote"
-    },
-    "answers": {
-        "checkingOpportunities": "Checking Edutu opportunities for you.",
-        "matchesFound": "I found {{count}} matches from Edutu.\nSwipe the cards or narrow the search.",
-        "roadmapChecking": "I’m checking your opportunities.\nThen I’ll build the roadmap.",
-        "roadmapMatchFound": "I found a possible match.\nTap Build to create goals and reminders.",
-        "roadmapWhichOpportunity": "Which opportunity is this for?\nSend the name or browse Opportunities."
-    },
-    "quickPrompts": {
-        "findScholarships": {
-            "title": "Find scholarships",
-            "subtitle": "Available this month"
-        },
-        "mastercard": {
-            "title": "Mastercard matches",
-            "subtitle": "Scholarships from Edutu"
-        },
-        "buildRoadmap": {
-            "title": "Build roadmap",
-            "subtitle": "Plan my next application"
-        },
-        "internships": {
-            "title": "Internship deadlines",
-            "subtitle": "Upcoming opportunities"
-        }
-    },
-    "alerts": {
-        "noDeadlineTitle": "No deadline found",
-        "noDeadlineMessage": "This opportunity does not have a saved deadline yet.",
-        "alreadyTrackedTitle": "Already tracked",
-        "alreadyTrackedMessage": "This deadline is already in your plan.",
-        "deadlineAddedTitle": "Deadline added",
-        "deadlineAddedMessage": "I added this to your plan and scheduled reminders.",
-        "couldNotAddDeadlineTitle": "Could not add deadline",
-        "tryAgainFromOpportunity": "Please try again from the opportunity page.",
-        "signInRequiredTitle": "Sign in required",
-        "signInRequiredMessage": "Please sign in to create roadmap goals.",
-        "roadmapExistsTitle": "Roadmap already exists",
-        "roadmapExistsMessage": "This opportunity already has goals in your plan.",
-        "openGoals": "Open Goals",
-        "stayHere": "Stay Here",
-        "roadmapCreatedTitle": "Roadmap created",
-        "roadmapCreatedMessage": "{{count}} goals were added with reminders where deadlines exist.",
-        "couldNotCreateRoadmapTitle": "Could not create roadmap"
-    },
-    "goals": {
-        "applyTitle": "Apply: {{title}}",
-        "applyDescription": "Application deadline for {{organization}}.",
-        "thisOpportunity": "this opportunity",
-        "submitTitle": "Submit {{title}}",
-        "submitDescription": "{{strategy}}\n\nResources:\n{{resources}}",
-        "milestoneDescription": "Milestone for {{title}}",
-        "dailyDescription": "{{description}}\n\nFocus: {{focus}}\nTime: {{minutes}} minutes",
-        "checklistDescription": "Checklist item for {{title}}"
-    },
-    "messages": {
-        "recommendedTitle": "Recommended from Opportunities",
-        "viewMore": "View more",
-        "openAllOpportunities": "Open all opportunities",
-        "narrowBy": "Narrow by:",
-        "view": "View",
-        "categoryFallback": "Opportunity",
-        "typing": "Edutu is checking opportunities"
-    },
-    "followUp": {
-        "country": "Country",
-        "deadline": "Deadline",
-        "funding": "Funding"
-    },
-    "roadmapPanel": {
-        "title": "Build roadmap",
-        "subtitle": "Goals, deadlines, reminders",
-        "searching": "Searching opportunities...",
-        "matchMeta": "{{category}} · due {{deadline}}",
-        "daysLeft": "{{count}} days left",
-        "dailySteps": "{{count}} daily steps",
-        "build": "Build"
-    },
-    "empty": {
-        "title": "I'm Edutu, your AI Coach",
-        "description": "Ask for real scholarships, deadlines, roadmaps, or application next steps."
-    },
-    "input": {
-        "placeholder": "Message Edutu..."
-    },
-    "threads": {
-        "modalTitle": "Conversations",
-        "newConversation": "New Conversation",
-        "empty": "No recent conversations",
-        "groups": {
-            "today": "Today",
-            "yesterday": "Yesterday",
-            "thisWeek": "This Week",
-            "older": "Older"
-        }
-    },
-    "voice": {
-        "titleTranscript": "Voice Message",
-        "titleListening": "Listening...",
-        "titleProcessing": "Processing...",
-        "titleIdle": "Tap to Speak",
-        "sendingAutomatically": "Sending automatically...",
-        "genericError": "Something went wrong",
-        "hintStop": "Tap microphone to stop",
-        "hintSendOrWait": "Tap send or wait",
-        "hintTranscribing": "Transcribing your message...",
-        "hintStart": "Tap microphone to start recording"
+    "internships": {
+      "title": "Internship deadlines",
+      "subtitle": "Upcoming opportunities"
     }
+  },
+  "alerts": {
+    "noDeadlineTitle": "No deadline found",
+    "noDeadlineMessage": "This opportunity does not have a saved deadline yet.",
+    "alreadyTrackedTitle": "Already tracked",
+    "alreadyTrackedMessage": "This deadline is already in your plan.",
+    "deadlineAddedTitle": "Deadline added",
+    "deadlineAddedMessage": "I added this to your plan and scheduled reminders.",
+    "couldNotAddDeadlineTitle": "Could not add deadline",
+    "tryAgainFromOpportunity": "Please try again from the opportunity page.",
+    "signInRequiredTitle": "Sign in required",
+    "signInRequiredMessage": "Please sign in to create roadmap goals.",
+    "roadmapExistsTitle": "Roadmap already exists",
+    "roadmapExistsMessage": "This opportunity already has goals in your plan.",
+    "openGoals": "Open Goals",
+    "stayHere": "Stay Here",
+    "roadmapCreatedTitle": "Roadmap created",
+    "roadmapCreatedMessage": "{{count}} goals were added with reminders where deadlines exist.",
+    "couldNotCreateRoadmapTitle": "Could not create roadmap"
+  },
+  "goals": {
+    "applyTitle": "Apply: {{title}}",
+    "applyDescription": "Application deadline for {{organization}}.",
+    "thisOpportunity": "this opportunity",
+    "submitTitle": "Submit {{title}}",
+    "submitDescription": "{{strategy}}\n\nResources:\n{{resources}}",
+    "milestoneDescription": "Milestone for {{title}}",
+    "dailyDescription": "{{description}}\n\nFocus: {{focus}}\nTime: {{minutes}} minutes",
+    "checklistDescription": "Checklist item for {{title}}"
+  },
+  "messages": {
+    "recommendedTitle": "Recommended from Opportunities",
+    "viewMore": "View more",
+    "openAllOpportunities": "Open all opportunities",
+    "narrowBy": "Narrow by:",
+    "view": "View",
+    "categoryFallback": "Opportunity",
+    "typing": "Edutu is checking opportunities"
+  },
+  "followUp": {
+    "country": "Country",
+    "deadline": "Deadline",
+    "funding": "Funding"
+  },
+  "roadmapPanel": {
+    "title": "Build roadmap",
+    "subtitle": "Goals, deadlines, reminders",
+    "searching": "Searching opportunities...",
+    "matchMeta": "{{category}} · due {{deadline}}",
+    "daysLeft": "{{count}} days left",
+    "dailySteps": "{{count}} daily steps",
+    "build": "Build"
+  },
+  "empty": {
+    "title": "I'm Edutu, your AI Coach",
+    "description": "Ask for real scholarships, deadlines, roadmaps, or application next steps."
+  },
+  "input": {
+    "placeholder": "Message Edutu..."
+  },
+  "threads": {
+    "modalTitle": "Conversations",
+    "newConversation": "New Conversation",
+    "empty": "No recent conversations",
+    "groups": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "thisWeek": "This Week",
+      "older": "Older"
+    }
+  },
+  "voice": {
+    "titleTranscript": "Voice Message",
+    "titleListening": "Listening...",
+    "titleProcessing": "Processing...",
+    "titleIdle": "Tap to Speak",
+    "sendingAutomatically": "Sending automatically...",
+    "genericError": "Something went wrong",
+    "hintStop": "Tap microphone to stop",
+    "hintSendOrWait": "Tap send or wait",
+    "hintTranscribing": "Transcribing your message...",
+    "hintStart": "Tap microphone to start recording"
+  },
+  "limit": {
+    "title": "You've reached your AI limit",
+    "body": "You've used your free Edutu AI messages for now. Upgrade to Pro for unlimited coaching, roadmaps and tailored matches.",
+    "upgradeCta": "Upgrade to Pro",
+    "errorTitle": "Message didn't send",
+    "errorBody": "Something interrupted the connection. Tap retry to send it again.",
+    "retryCta": "Retry",
+    "dismissCta": "Not now"
+  }
 }

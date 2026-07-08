@@ -1,50 +1,17 @@
-import { useEffect, useRef } from 'react';
-import { useRouter } from 'expo-router';
-import * as Linking from 'expo-linking';
-import { parseDeepLink } from '@edutu/core/src/services/deepLinking';
-
+/**
+ * Deep-link navigation is now handled entirely by Expo Router's automatic
+ * linking plus the bridge routes under `app/opportunity`, `app/roadmap`, and
+ * `app/goal` (which redirect the singular scheme paths to their real plural
+ * screens). This hook previously ALSO pushed routes manually from a second
+ * `Linking` listener — that raced the automatic linker, so a tapped widget could
+ * land on "Unmatched Route" (auto-linker on the raw singular path) or double-push
+ * the destination. Keeping the manual handler off makes navigation deterministic:
+ * exactly one navigation per deep link, always to the right screen.
+ *
+ * The hook is intentionally kept as a no-op so its call site and any future
+ * deep-link side effects (analytics, etc.) have a home without reintroducing the
+ * duplicate navigation.
+ */
 export function useDeepLink() {
-  const router = useRouter();
-  const handledRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    const handleUrl = ({ url }: { url: string }) => {
-      // Prevent handling the same URL twice
-      if (handledRef.current.has(url)) return;
-      handledRef.current.add(url);
-
-      const route = parseDeepLink(url);
-      if (!route) return;
-
-      switch (route.screen) {
-        case 'opportunity':
-          router.push(`/opportunities/${route.id}`);
-          break;
-        case 'roadmap':
-          router.push(`/roadmaps`);
-          break;
-        case 'goal':
-          router.push(`/goals/${route.id}`);
-          break;
-        case 'profile':
-          router.push('/profile');
-          break;
-        case 'chat':
-          router.push('/chat');
-          break;
-      }
-    };
-
-    // Handle initial URL (cold start)
-    Linking.getInitialURL().then(url => {
-      if (url) handleUrl({ url });
-    });
-
-    // Handle URL when app is already running
-    const subscription = Linking.addEventListener('url', handleUrl);
-
-    return () => {
-      subscription.remove();
-    };
-  }, [router]);
+  // No-op: see the file comment above.
 }

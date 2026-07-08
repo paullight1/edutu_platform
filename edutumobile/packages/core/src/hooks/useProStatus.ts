@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { toSafeUUID } from '../utils/auth';
 import { initRevenueCat, isProSubscriber, getCustomerInfo } from '../services/payments';
@@ -75,6 +75,14 @@ export function useProStatus(supabase: SupabaseClient, userId: string | null): U
     }
   }, [supabase, userId]);
 
+  // Reach the latest checkStatus from the realtime handler without making it a
+  // subscription dependency; re-subscribing on a reused topic is what triggers
+  // Supabase's "cannot add postgres_changes callbacks after subscribe" crash.
+  const checkStatusRef = useRef(checkStatus);
+  useEffect(() => {
+    checkStatusRef.current = checkStatus;
+  }, [checkStatus]);
+
   useEffect(() => {
     checkStatus();
   }, [checkStatus]);
@@ -82,24 +90,37 @@ export function useProStatus(supabase: SupabaseClient, userId: string | null): U
   useEffect(() => {
     if (!userId) return;
 
-    const channel = supabase
-      .channel(`billing-status-${userId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'billing_entitlements', filter: `user_id=eq.${userId}` },
-        () => void checkStatus(),
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'profiles', filter: `user_id=eq.${userId}` },
-        () => void checkStatus(),
-      )
-      .subscribe();
+    // Guard against a stale channel of the same topic left joined after a fast
+    // remount, and never let a realtime binding error reach the ErrorBoundary.
+    let channel: ReturnType<SupabaseClient['channel']> | null = null;
+    try {
+      for (const existing of supabase.getChannels()) {
+        if (existing.topic === `realtime:billing-status-${userId}`) {
+          void supabase.removeChannel(existing);
+        }
+      }
+
+      channel = supabase
+        .channel(`billing-status-${userId}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'billing_entitlements', filter: `user_id=eq.${userId}` },
+          () => void checkStatusRef.current(),
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'profiles', filter: `user_id=eq.${userId}` },
+          () => void checkStatusRef.current(),
+        )
+        .subscribe();
+    } catch (error) {
+      console.warn('Billing realtime subscription failed:', error);
+    }
 
     return () => {
-      void supabase.removeChannel(channel);
+      if (channel) void supabase.removeChannel(channel);
     };
-  }, [checkStatus, supabase, userId]);
+  }, [supabase, userId]);
 
   return {
     isPro,
