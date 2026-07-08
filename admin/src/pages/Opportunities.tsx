@@ -972,8 +972,11 @@ export default function Opportunities() {
     });
   }, []);
 
-  const fetchOpportunities = useCallback(async () => {
-    setLoading(true);
+  const fetchOpportunities = useCallback(async (options?: { silent?: boolean }) => {
+    // Silent mode powers background auto-refresh (realtime + polling):
+    // no loading flash, no alert, and never clears the list on a blip.
+    const silent = options?.silent === true;
+    if (!silent) setLoading(true);
     try {
       const params = new URLSearchParams({
         page: String(currentPage),
@@ -1011,12 +1014,14 @@ export default function Opportunities() {
       }
     } catch (error: unknown) {
       console.error("Failed to load opportunities:", error);
-      alert(getErrorMessage(error, "Failed to load opportunities"));
-      setFilteredOpps([]);
-      setTotalOpportunities(0);
-      setTotalPages(1);
+      if (!silent) {
+        alert(getErrorMessage(error, "Failed to load opportunities"));
+        setFilteredOpps([]);
+        setTotalOpportunities(0);
+        setTotalPages(1);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [
     categoryFilter,
@@ -1068,13 +1073,38 @@ export default function Opportunities() {
         { event: "*", schema: "public", table: "opportunities" },
         (payload) => {
           console.log("[Realtime] Opportunity changed:", payload);
-          void fetchOpportunities();
+          void fetchOpportunities({ silent: true });
         },
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
+    };
+  }, [fetchOpportunities]);
+
+  // Auto-refresh fallback: short-poll the feed so freshly scraped
+  // opportunities appear without a manual reload even when Supabase
+  // Realtime is unavailable. Skips ticks while the tab is hidden and
+  // catches up as soon as it becomes visible again.
+  useEffect(() => {
+    const POLL_INTERVAL_MS = 30_000;
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void fetchOpportunities({ silent: true });
+      }
+    }, POLL_INTERVAL_MS);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void fetchOpportunities({ silent: true });
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [fetchOpportunities]);
 

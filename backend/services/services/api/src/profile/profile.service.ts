@@ -279,6 +279,12 @@ export class ProfileService {
       updateData.gradYear = dto.gradYear ?? null;
     }
 
+    // Explicit age (onboarding collects age, not DOB); a dateOfBirth in the
+    // same payload wins below since it derives age precisely.
+    if (Object.prototype.hasOwnProperty.call(dto, "age")) {
+      updateData.age = dto.age ?? null;
+    }
+
     if (Object.prototype.hasOwnProperty.call(dto, "dateOfBirth")) {
       updateData.dateOfBirth = dto.dateOfBirth ?? null;
       updateData.age = this.calculateAge(dto.dateOfBirth);

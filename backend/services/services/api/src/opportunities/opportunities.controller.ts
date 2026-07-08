@@ -376,13 +376,23 @@ export class OpportunitiesController {
   @Patch(":id/status")
   @UseGuards(AdminGuard)
   updateStatus(@Param("id") id: string, @Body("status") status: string) {
+    // Canonical vocabulary (matches admin UI + DB queries keyed on
+    // pending_review/closed); legacy spellings are normalized, not rejected.
+    const legacyStatusMap: Record<string, string> = {
+      pending: "pending_review",
+      expired: "closed",
+    };
+    const normalized = legacyStatusMap[status] ?? status;
+
     if (
-      !["pending", "active", "draft", "expired", "rejected"].includes(status)
+      !["pending_review", "active", "draft", "closed", "rejected"].includes(
+        normalized,
+      )
     ) {
       throw new BadRequestException("Unsupported opportunity status");
     }
 
-    return this.opportunitiesService.updateStatus(id, status);
+    return this.opportunitiesService.updateStatus(id, normalized);
   }
 
   @Post(":id/approve")

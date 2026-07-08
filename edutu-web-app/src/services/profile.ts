@@ -37,6 +37,7 @@ export interface ProfileUpdateInput {
   school?: string | null;
   courseOfStudy?: string | null;
   degree?: string | null;
+  age?: number | null;
   cgpa?: number | null;
   gradYear?: number | null;
   dateOfBirth?: string | null;
@@ -62,61 +63,44 @@ export function hasCompletedOnboarding(
   return Boolean(onboarding?.completed);
 }
 
+/**
+ * Persist onboarding profile details.
+ *
+ * All database writes go through the backend `/profile` endpoint — direct
+ * Supabase writes from the browser silently matched zero rows under RLS
+ * (raw Clerk id vs the derived-UUID keying) and dropped the data. Clerk
+ * metadata is still mirrored so the client can read name/age/course without
+ * a round trip.
+ */
 export async function saveOnboardingProfile(
-  userId: string,
+  token: string | null,
   data: OnboardingProfileData,
 ): Promise<OnboardingState> {
   const onboardingState = buildOnboardingState(data);
   const sanitizedName = data.fullName.trim();
   const sanitizedCourse = data.courseOfStudy.trim();
+  const age =
+    typeof data.age === "number" && Number.isFinite(data.age)
+      ? data.age
+      : null;
 
   await authService.updateUserProfile({
     name: sanitizedName,
     full_name: sanitizedName,
-    ...(typeof data.age === "number" && Number.isFinite(data.age)
-      ? { age: data.age }
-      : {}),
+    ...(age !== null ? { age } : {}),
     ...(sanitizedCourse ? { course_of_study: sanitizedCourse } : {}),
   });
 
-  const existingProfile = await authService.getProfile(userId);
-  const preferences = {
-    ...(existingProfile?.preferences ?? {}),
-    onboarding: onboardingState,
-  };
-
-  const timestamp = new Date().toISOString();
-
-  if (existingProfile) {
-    const updates: Partial<Profile> = {
-      name: sanitizedName,
-      full_name: sanitizedName,
-      preferences,
-      updated_at: timestamp,
-    };
-
-    if (typeof data.age === "number" && Number.isFinite(data.age)) {
-      updates.age = data.age;
-    }
-
-    await authService.updateProfile(userId, updates);
-    return onboardingState;
+  if (!token) {
+    throw new Error("Onboarding save requires a backend session token.");
   }
 
-  const profileToCreate: Profile = {
-    user_id: userId,
-    name: sanitizedName,
-    full_name: sanitizedName,
-    preferences,
-    created_at: timestamp,
-    updated_at: timestamp,
-  };
+  await updateBackendProfile(token, {
+    ...(sanitizedName ? { fullName: sanitizedName } : {}),
+    ...(sanitizedCourse ? { courseOfStudy: sanitizedCourse } : {}),
+    ...(age !== null ? { age } : {}),
+  });
 
-  if (typeof data.age === "number" && Number.isFinite(data.age)) {
-    profileToCreate.age = data.age;
-  }
-
-  await authService.upsertProfile(profileToCreate);
   return onboardingState;
 }
 

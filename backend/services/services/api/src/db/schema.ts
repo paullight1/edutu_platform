@@ -41,6 +41,9 @@ export const profiles = pgTable("profiles", {
     .default({}),
   settings: jsonb("settings").$type<Record<string, unknown>>().default({}),
   creatorRejectionReason: text("creator_rejection_reason"),
+  // Stamped (throttled) by ClerkAuthGuard on authenticated requests;
+  // drives the admin "active users" metric.
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -216,7 +219,7 @@ export const opportunities = pgTable(
     verificationNextCheckAt: timestamp("verification_next_check_at"),
     lastHttpStatus: integer("last_http_status"),
     brokenLinkCount: integer("broken_link_count").notNull().default(0),
-    status: text("status").default("pending"), // 'pending', 'active', 'draft', 'expired', 'rejected'
+    status: text("status").default("pending_review"), // 'pending_review', 'active', 'draft', 'closed', 'rejected'
     createdBy: uuid("created_by"),
     originalJson: text("original_json"), // Store the raw LLM output
     createdAt: timestamp("created_at").defaultNow(),
