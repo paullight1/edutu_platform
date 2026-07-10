@@ -1,6 +1,11 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
-import { Audio } from 'expo-av';
+import {
+  AudioModule,
+  RecordingPresets,
+  setAudioModeAsync,
+  useAudioRecorder,
+} from 'expo-audio';
 import { getConfig } from '../lib/config';
 
 interface UseVoiceRecordingOptions {
@@ -12,6 +17,13 @@ interface UseVoiceRecordingOptions {
   getAuthToken?: () => Promise<string | null>;
 }
 
+const RECORDING_OPTIONS = { ...RecordingPresets.HIGH_QUALITY };
+
+/**
+ * One-shot dictation: record a clip, transcribe it via Whisper (chat-proxy),
+ * and hand back the text. This is the "voice message" recorder behind the
+ * composer mic — distinct from voice mode's continuous conversation loop.
+ */
 export function useVoiceRecording({
   onTranscription,
   onError,
@@ -19,114 +31,80 @@ export function useVoiceRecording({
   language = 'en',
   getAuthToken,
 }: UseVoiceRecordingOptions = {}) {
+  const recorder = useAudioRecorder(RECORDING_OPTIONS);
+
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [duration, setDuration] = useState(0);
+  const [duration, setDuration] = useState(0); // seconds
   const [error, setError] = useState<string | null>(null);
   const [isPermissionGranted, setIsPermissionGranted] = useState(false);
 
-  const recordingRef = useRef<Audio.Recording | null>(null);
   const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const maxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopRef = useRef<() => void>(() => {});
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (durationTimerRef.current) clearInterval(durationTimerRef.current);
-      if (maxTimerRef.current) clearTimeout(maxTimerRef.current);
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-      recordingRef.current?.stopAndUnloadAsync().catch(() => {});
-    };
+  const clearTimers = useCallback(() => {
+    if (durationTimerRef.current) { clearInterval(durationTimerRef.current); durationTimerRef.current = null; }
+    if (maxTimerRef.current) { clearTimeout(maxTimerRef.current); maxTimerRef.current = null; }
   }, []);
 
-  // Check permission on mount
   useEffect(() => {
-    Audio.getPermissionsAsync().then(({ granted }) => setIsPermissionGranted(granted));
+    return () => {
+      clearTimers();
+      recorder.stop?.().catch?.(() => {});
+      setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    AudioModule.getRecordingPermissionsAsync()
+      .then(({ granted }) => setIsPermissionGranted(granted))
+      .catch(() => {});
   }, []);
 
   const requestPermission = useCallback(async (): Promise<boolean> => {
     try {
-      const { granted } = await Audio.requestPermissionsAsync();
+      const { granted } = await AudioModule.requestRecordingPermissionsAsync();
       setIsPermissionGranted(granted);
       return granted;
-    } catch (err) {
+    } catch {
       setError('Failed to request microphone permission');
       return false;
     }
   }, []);
 
-  const startRecording = useCallback(async () => {
-    try {
-      setError(null);
-      setDuration(0);
-
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-      });
-
-      const recording = new Audio.Recording();
-      await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      await recording.startAsync();
-      recordingRef.current = recording;
-      setIsRecording(true);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-      // Duration tracking
-      const startTime = Date.now();
-      durationTimerRef.current = setInterval(() => setDuration(Date.now() - startTime), 100);
-
-      // Auto-stop at max duration
-      maxTimerRef.current = setTimeout(() => {
-        if (recordingRef.current) stopRecording();
-      }, maxDurationMs);
-
-    } catch (err) {
-      const e = err instanceof Error ? err : new Error('Failed to start recording');
-      setError(e.message);
-      onError?.(e);
-      setIsRecording(false);
-    }
-  }, [maxDurationMs, onError]);
-
   const stopRecording = useCallback(async () => {
-    if (!recordingRef.current) return;
+    if (!isRecording) return;
     try {
       setIsRecording(false);
       setIsProcessing(true);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      clearTimers();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 
-      if (durationTimerRef.current) { clearInterval(durationTimerRef.current); durationTimerRef.current = null; }
-      if (maxTimerRef.current) { clearTimeout(maxTimerRef.current); maxTimerRef.current = null; }
-
-      await recordingRef.current.stopAndUnloadAsync();
-      const uri = recordingRef.current.getURI();
-      recordingRef.current = null;
+      await recorder.stop();
+      const uri = recorder.uri;
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
 
       if (uri && onTranscription) {
-        // Read audio file and send to edge function for Whisper transcription
         const response = await fetch(uri);
         const blob = await response.blob();
-        const base64 = await new Promise<string>((resolve) => {
+        const base64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+          reader.onerror = () => reject(new Error('Failed to read recording'));
           reader.readAsDataURL(blob);
         });
 
         const supabaseUrl = getConfig().supabaseUrl;
         // chat-proxy verifies a Clerk JWT — the anon key is rejected.
         const authToken = await getAuthToken?.();
-
-        if (!authToken) {
-          throw new Error('Sign in to use voice input');
-        }
+        if (!authToken) throw new Error('Sign in to use voice input');
 
         if (supabaseUrl) {
           const res = await fetch(`${supabaseUrl}/functions/v1/chat-proxy`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
             body: JSON.stringify({ mode: 'transcribe', audio: { mimeType: 'audio/m4a', data: base64 }, language }),
           });
           if (res.ok) {
@@ -146,19 +124,66 @@ export function useVoiceRecording({
       setIsProcessing(false);
       setIsRecording(false);
     }
-  }, [onTranscription, onError, language]);
+  }, [isRecording, recorder, onTranscription, onError, language, getAuthToken, clearTimers]);
+  stopRef.current = () => { void stopRecording(); };
+
+  const startRecording = useCallback(async () => {
+    try {
+      setError(null);
+      setDuration(0);
+
+      const current = await AudioModule.getRecordingPermissionsAsync();
+      if (!current.granted) {
+        const requested = await AudioModule.requestRecordingPermissionsAsync();
+        if (!requested.granted) {
+          const e = new Error('Microphone permission denied');
+          setError(e.message);
+          onError?.(e);
+          return;
+        }
+        setIsPermissionGranted(true);
+      }
+
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setIsRecording(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+
+      const startTime = Date.now();
+      durationTimerRef.current = setInterval(
+        () => setDuration(Math.floor((Date.now() - startTime) / 1000)),
+        250,
+      );
+      maxTimerRef.current = setTimeout(() => stopRef.current(), maxDurationMs);
+    } catch (err) {
+      const e = err instanceof Error ? err : new Error('Failed to start recording');
+      setError(e.message);
+      onError?.(e);
+      setIsRecording(false);
+    }
+  }, [maxDurationMs, onError, recorder]);
 
   const cancelRecording = useCallback(() => {
-    recordingRef.current?.stopAndUnloadAsync().catch(() => {});
-    recordingRef.current = null;
-    if (durationTimerRef.current) { clearInterval(durationTimerRef.current); durationTimerRef.current = null; }
-    if (maxTimerRef.current) { clearTimeout(maxTimerRef.current); maxTimerRef.current = null; }
+    clearTimers();
+    recorder.stop?.().catch?.(() => {});
+    setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
     setIsRecording(false);
     setIsProcessing(false);
     setDuration(0);
     setError(null);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-  }, []);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+  }, [recorder, clearTimers]);
 
-  return { isRecording, isProcessing, duration, error, startRecording, stopRecording, cancelRecording, isPermissionGranted, requestPermission };
+  return {
+    isRecording,
+    isProcessing,
+    duration,
+    error,
+    startRecording,
+    stopRecording,
+    cancelRecording,
+    isPermissionGranted,
+    requestPermission,
+  };
 }

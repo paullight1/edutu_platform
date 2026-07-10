@@ -97,6 +97,21 @@ const DEEPSEEK_API_URL =
   Deno.env.get("DEEPSEEK_API_URL") || "https://api.deepseek.com/chat/completions";
 const OPENAI_AUDIO_TRANSCRIBE_URL =
   Deno.env.get("OPENAI_AUDIO_TRANSCRIBE_URL") || "https://api.openai.com/v1/audio/transcriptions";
+const OPENAI_AUDIO_SPEECH_URL =
+  Deno.env.get("OPENAI_AUDIO_SPEECH_URL") || "https://api.openai.com/v1/audio/speech";
+// gpt-4o-mini-tts is the natural, tone-steerable neural voice; if the account
+// lacks access the classic tts-1 is a drop-in fallback (same params).
+const OPENAI_TTS_MODEL = Deno.env.get("OPENAI_TTS_MODEL") || "gpt-4o-mini-tts";
+const OPENAI_TTS_FALLBACK_MODEL = Deno.env.get("OPENAI_TTS_FALLBACK_MODEL") || "tts-1";
+// The branded Edutu coach voice. Warm, encouraging; steered by `instructions`.
+const OPENAI_TTS_VOICES = new Set([
+  "alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse",
+]);
+const DEFAULT_TTS_VOICE = "nova";
+const EDUTU_VOICE_INSTRUCTIONS =
+  "You are Edutu, a warm, upbeat global opportunities coach for young people. " +
+  "Speak clearly and encouragingly, at a natural conversational pace, like a supportive mentor.";
+const MAX_TTS_CHARS = 1200;
 
 async function callDeepSeek(apiKey: string, prompt: string, responseMimeType?: string) {
   return callDeepSeekWithParts(apiKey, [{ text: prompt }], responseMimeType);
@@ -237,7 +252,7 @@ function looksLikeRoadmapDump(message: string) {
   );
 }
 
-async function transcribeAudio(apiKey: string, audio: AudioPayload) {
+async function transcribeAudio(apiKey: string, audio: AudioPayload, language?: string) {
   const audioBytes = Uint8Array.from(atob(audio.data), (char) => char.charCodeAt(0));
   const audioBlob = new Blob([audioBytes], { type: audio.mimeType });
   const audioFile = new File([audioBlob], `voice-note.${audio.mimeType.split('/')[1] || 'm4a'}`, {
@@ -247,6 +262,12 @@ async function transcribeAudio(apiKey: string, audio: AudioPayload) {
   const formData = new FormData();
   formData.append("file", audioFile);
   formData.append("model", Deno.env.get("OPENAI_AUDIO_MODEL") || "whisper-1");
+  // Whisper takes an ISO-639-1 hint; without it, short clips in Swahili,
+  // Hausa, etc. frequently come back transcribed as English gibberish.
+  const langHint = String(language || "").trim().slice(0, 2).toLowerCase();
+  if (/^[a-z]{2}$/.test(langHint)) {
+    formData.append("language", langHint);
+  }
 
   const response = await fetch(OPENAI_AUDIO_TRANSCRIBE_URL, {
     method: "POST",
@@ -265,6 +286,55 @@ async function transcribeAudio(apiKey: string, audio: AudioPayload) {
   const transcript = String(payload?.text || payload?.transcript || "").trim();
 
   return transcript;
+}
+
+async function requestSpeech(apiKey: string, model: string, text: string, voice: string) {
+  return fetch(OPENAI_AUDIO_SPEECH_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      voice,
+      input: text,
+      response_format: "mp3",
+      // `instructions` is only honoured by the gpt-4o-mini-tts family; tts-1
+      // ignores it harmlessly, so it is safe to always send.
+      instructions: EDUTU_VOICE_INSTRUCTIONS,
+    }),
+  });
+}
+
+async function synthesizeSpeech(apiKey: string, rawText: string, requestedVoice?: string) {
+  const text = String(rawText || "").trim().slice(0, MAX_TTS_CHARS);
+  if (!text) throw new Error("Nothing to speak");
+
+  const voice = requestedVoice && OPENAI_TTS_VOICES.has(requestedVoice)
+    ? requestedVoice
+    : DEFAULT_TTS_VOICE;
+
+  let response = await requestSpeech(apiKey, OPENAI_TTS_MODEL, text, voice);
+  // Older accounts 404/400 on gpt-4o-mini-tts — retry once on the classic model.
+  if (!response.ok && OPENAI_TTS_MODEL !== OPENAI_TTS_FALLBACK_MODEL) {
+    response = await requestSpeech(apiKey, OPENAI_TTS_FALLBACK_MODEL, text, voice);
+  }
+
+  if (!response.ok) {
+    const failureText = await response.text();
+    throw new Error(`OpenAI speech failed: ${response.status} ${failureText}`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  // Chunked base64 encode — btoa on one giant string can blow the stack.
+  let binary = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return { audio: btoa(binary), mimeType: "audio/mpeg", voice };
 }
 
 function buildProfileContext(profile: Record<string, unknown> | null, goals: Array<Record<string, unknown>> | null) {
@@ -567,7 +637,7 @@ serve(async (req: Request) => {
 
   try {
     const claims = await verifyClerkRequest(req);
-    const { message, threadId, userId, mode, audio } = await req.json();
+    const { message, threadId, userId, mode, audio, language, text, voice } = await req.json();
     const authenticatedUserId = claims.sub;
 
     if (userId && userId !== authenticatedUserId) {
@@ -689,7 +759,7 @@ serve(async (req: Request) => {
       }
 
       try {
-        const transcript = await transcribeAudio(openaiKey, audio as AudioPayload);
+        const transcript = await transcribeAudio(openaiKey, audio as AudioPayload, language);
         return new Response(JSON.stringify({ transcript }), {
           headers: { ...corsHeaders, ...SECURITY_HEADERS },
         });
@@ -706,6 +776,37 @@ serve(async (req: Request) => {
             status: 501,
             headers: { ...corsHeaders, ...SECURITY_HEADERS },
           },
+        );
+      }
+    }
+
+    if (mode === "tts") {
+      const speakText = String(text || message || "").trim();
+      if (!speakText) {
+        return new Response(JSON.stringify({ error: "Missing text to speak" }), {
+          status: 400,
+          headers: { ...corsHeaders, ...SECURITY_HEADERS },
+        });
+      }
+
+      const openaiKey = Deno.env.get("OPENAI_API_KEY");
+      if (!openaiKey) {
+        return new Response(JSON.stringify({ error: "OPENAI_API_KEY is not configured for speech" }), {
+          status: 500,
+          headers: { ...corsHeaders, ...SECURITY_HEADERS },
+        });
+      }
+
+      try {
+        const speech = await synthesizeSpeech(openaiKey, speakText, typeof voice === "string" ? voice : undefined);
+        return new Response(JSON.stringify(speech), {
+          headers: { ...corsHeaders, ...SECURITY_HEADERS },
+        });
+      } catch (error) {
+        console.error("OpenAI speech failed:", error);
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : "Speech is unavailable" }),
+          { status: 502, headers: { ...corsHeaders, ...SECURITY_HEADERS } },
         );
       }
     }
