@@ -644,6 +644,10 @@ export class OpportunitiesService {
           from opportunities o
           where ${activeFilter}
             and o.search_tsv @@ websearch_to_tsquery('english', ${trimmed})
+          order by ts_rank_cd(
+            o.search_tsv,
+            websearch_to_tsquery('english', ${trimmed})
+          ) desc
           limit 100
         ),
         trgm as (
@@ -654,6 +658,7 @@ export class OpportunitiesService {
           from opportunities o
           where ${activeFilter}
             and similarity(lower(o.title), lower(${trimmed})) > 0.25
+          order by similarity(lower(o.title), lower(${trimmed})) desc
           limit 100
         )
         ${semanticCte},
@@ -752,7 +757,7 @@ export class OpportunitiesService {
       );
       const embed = (async () => {
         const result = await this.aiService.embed({
-          feature: "opportunities.search",
+          feature: "embeddings.query",
           input: term,
           taskType: "RETRIEVAL_QUERY",
           dimensions: 768,

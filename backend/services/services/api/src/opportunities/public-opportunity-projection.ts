@@ -46,6 +46,11 @@ const INTERNAL_FIELDS = [
   "source",
   "provider_id",
   "providerId",
+  "embedding",
+  "embedding_model",
+  "embeddingModel",
+  "search_tsv",
+  "searchTsv",
 ] as const;
 
 export type PublicOpportunity = Record<string, unknown>;
@@ -57,6 +62,13 @@ export function stripInternalOpportunityFields(
   for (const [key, value] of Object.entries(row)) {
     if ((INTERNAL_FIELDS as readonly string[]).includes(key)) continue;
     cleaned[key] = value;
+  }
+  // Hoist the scraper-recorded original image URL out of the (stripped)
+  // metadata so web clients keep their image fallback.
+  const metadata = row.metadata as Record<string, unknown> | null | undefined;
+  const sourceImageUrl = metadata?.source_image_url;
+  if (typeof sourceImageUrl === "string" && sourceImageUrl.length > 0) {
+    cleaned.source_image_url = sourceImageUrl;
   }
   return cleaned;
 }

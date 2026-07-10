@@ -92,6 +92,19 @@ async function persistOpportunityDetail(opportunity: Opportunity): Promise<void>
   }
 }
 
+/**
+ * Drop a stale per-id detail cache entry — used when a source definitively
+ * reports the record no longer exists so it can't be resurrected offline.
+ */
+export async function removeCachedOpportunity(id: string): Promise<void> {
+  if (!id) return;
+  try {
+    await AsyncStorage.removeItem(getDetailCacheKey(id));
+  } catch {
+    // Best-effort cache; ignore removal failures.
+  }
+}
+
 async function syncExternalSnapshot(
   onSyncSnapshot: FetchOptions['onSyncSnapshot'],
   opportunities: Opportunity[],
@@ -677,12 +690,20 @@ export async function getOpportunityWithStatus(id: string, supabase?: SupabaseCl
     }
   }
 
+  // A source that answered successfully said the record no longer exists.
+  // That wins over any cached copy — evict it so deleted opportunities can't
+  // be resurrected from the per-id detail cache forever.
+  if (definitiveMiss) {
+    void removeCachedOpportunity(id);
+    return { opportunity: null, status: 'not_found' };
+  }
+
   // Both network sources failed (offline / cold-start / timeout). Fall back to
   // the last-known full record so the detail screen shows content instead of
   // the "not found" scaffold. Callers still revalidate on the next open.
   const cached = await getCachedOpportunity(id);
   if (cached) return { opportunity: cached, status: 'ok' };
-  return { opportunity: null, status: definitiveMiss ? 'not_found' : 'error' };
+  return { opportunity: null, status: 'error' };
 }
 
 export function clearOpportunitiesCache() {
