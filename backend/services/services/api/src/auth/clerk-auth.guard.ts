@@ -14,6 +14,11 @@ import { db } from "../db";
 import { profiles } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { toDatabaseUserId } from "../common/user-id";
+import {
+  getExpectedClerkIssuer,
+  verifyClerkTokenViaJwks,
+  type ClerkJwksClaims,
+} from "./clerk-jwks";
 
 const BEARER_TOKEN_PATTERN = /^Bearer\s+(.+)$/i;
 const TRUSTED_ADMIN_ROLES = new Set([
@@ -104,16 +109,48 @@ export class ClerkAuthGuard implements CanActivate {
     return true;
   }
 
+  // Tracks whether Clerk verification is even possible, so we warn ONCE at
+  // boot-ish rather than on every request if the instance is unconfigured.
+  private warnedNoClerkConfig = false;
+
+  private async verifyClerkToken(
+    token: string,
+  ): Promise<{ sub: string } & Record<string, unknown> | null> {
+    // Primary: Clerk SDK (secret key, or CLERK_JWT_KEY for networkless verify).
+    const secretKey = process.env.CLERK_SECRET_KEY;
+    const jwtKey = process.env.CLERK_JWT_KEY;
+    if (secretKey || jwtKey) {
+      try {
+        return await verifyToken(token, { secretKey, jwtKey });
+      } catch {
+        // Fall through to the JWKS path — a wrong/missing secret key must not
+        // be the end of the line, or every Clerk user 401s (a real outage).
+      }
+    }
+
+    // Fallback: verify the signature directly against the instance JWKS. Needs
+    // no Clerk API key, so it self-heals when CLERK_SECRET_KEY is absent.
+    const viaJwks: ClerkJwksClaims | null = await verifyClerkTokenViaJwks(
+      token,
+    ).catch(() => null);
+    if (viaJwks) return viaJwks;
+
+    if (!secretKey && !jwtKey && !getExpectedClerkIssuer() && !this.warnedNoClerkConfig) {
+      this.warnedNoClerkConfig = true;
+      console.error(
+        "[ClerkAuthGuard] Clerk verification unavailable: set CLERK_SECRET_KEY (or CLERK_JWT_KEY / CLERK_ISSUER_URL / a CLERK_PUBLISHABLE_KEY). All Clerk-authenticated requests will 401 until then.",
+      );
+    }
+    return null;
+  }
+
   private async tryAuthenticateClerk(
     token: string,
     request: any,
   ): Promise<boolean> {
-    if (!process.env.CLERK_SECRET_KEY) return false;
-
     try {
-      const payload = await verifyToken(token, {
-        secretKey: process.env.CLERK_SECRET_KEY,
-      });
+      const payload = await this.verifyClerkToken(token);
+      if (!payload?.sub) return false;
 
       const dbUserId = toDatabaseUserId(payload.sub);
       const profile = await this.findProfile(dbUserId);
