@@ -139,32 +139,49 @@ async function readSnapshotOpportunities() {
   }
 }
 
+// Hard ceiling on how many opportunities we pull from the backend. Well under
+// the 50,000-URL sitemap limit — if the catalogue ever approaches that, split
+// into a sitemap index (<sitemapindex> of per-chunk sitemaps) instead.
+const MAX_OPPORTUNITIES = 5000;
+const PAGE_SIZE = 100;
+
 async function fetchBackendOpportunities() {
   if (!apiBaseUrl || typeof fetch !== "function") {
     return [];
   }
 
+  const all = [];
+
   try {
-    const url = new URL("/opportunities", apiBaseUrl);
-    url.searchParams.set("limit", "100");
-    url.searchParams.set("status", "active");
+    // Paginate until the backend is exhausted (short page) or we hit the cap.
+    for (let offset = 0; offset < MAX_OPPORTUNITIES; offset += PAGE_SIZE) {
+      const url = new URL("/opportunities", apiBaseUrl);
+      url.searchParams.set("limit", String(PAGE_SIZE));
+      url.searchParams.set("offset", String(offset));
+      url.searchParams.set("status", "active");
 
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/json",
-      },
-    });
+      const response = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+        },
+      });
 
-    if (!response.ok) {
-      return [];
+      if (!response.ok) {
+        break;
+      }
+
+      const rows = extractRows(await response.json());
+      all.push(...rows.map(normaliseOpportunity).filter(Boolean));
+
+      if (rows.length < PAGE_SIZE) {
+        break;
+      }
     }
-
-    return extractRows(await response.json())
-      .map(normaliseOpportunity)
-      .filter(Boolean);
   } catch {
-    return [];
+    // Fall through with whatever pages succeeded (possibly none).
   }
+
+  return all.slice(0, MAX_OPPORTUNITIES);
 }
 
 async function fetchBackendEvents() {
@@ -267,10 +284,20 @@ async function main() {
       changefreq: "daily",
       priority: "0.9",
     },
+    // Category collection landing pages (crawler meta injected by the
+    // opportunities-og edge function).
+    ...["scholarships", "internships", "fellowships", "programs"].map(
+      (category) => ({
+        loc: toAbsoluteUrl(`/opportunities?category=${category}`),
+        lastmod: today,
+        changefreq: "daily",
+        priority: "0.9",
+      }),
+    ),
     ...opportunities.map((opportunity) => ({
       loc: toAbsoluteUrl(`/opportunity/${encodeURIComponent(opportunity.id)}`),
       lastmod: toLastmod(opportunity.updatedAt),
-      changefreq: "weekly",
+      changefreq: "daily",
       priority: "0.8",
     })),
     ...backendEvents.map((event) => ({
@@ -291,6 +318,11 @@ async function main() {
   const robots = [
     "User-agent: *",
     "Allow: /",
+    "# Authenticated app shell and auth flows — no crawlable content.",
+    "Disallow: /app/",
+    "Disallow: /admin/",
+    "Disallow: /auth",
+    "Disallow: /auth/callback",
     "",
     `Sitemap: ${toAbsoluteUrl("/sitemap.xml")}`,
     "",

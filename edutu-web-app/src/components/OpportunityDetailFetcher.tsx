@@ -66,6 +66,10 @@ const OpportunityDetailFetcher: React.FC<OpportunityDetailFetcherProps> = ({
     resolveInitial,
   );
   const [loading, setLoading] = useState(() => !opportunity && Boolean(id));
+  // Transient fetch failure (network/5xx) — distinct from a definitive 404,
+  // which getOpportunity signals by resolving null.
+  const [fetchFailed, setFetchFailed] = useState(false);
+  const [fetchAttempt, setFetchAttempt] = useState(0);
 
   useEffect(() => {
     if (!id) {
@@ -77,6 +81,7 @@ const OpportunityDetailFetcher: React.FC<OpportunityDetailFetcherProps> = ({
     const known = resolveInitial();
     setOpportunity(known);
     setLoading(!known);
+    setFetchFailed(false);
 
     // Always revalidate so a stale cached row (edited deadline, fixed link)
     // self-corrects, but without blocking the already-painted view.
@@ -86,12 +91,16 @@ const OpportunityDetailFetcher: React.FC<OpportunityDetailFetcherProps> = ({
         if (result) {
           setOpportunity(result);
         } else if (!known) {
+          // Definitive 404/absent record — fall through to not-found below.
           setOpportunity(null);
         }
       })
       .catch(() => {
-        // Keep whatever we already rendered; cold loads fall through to the
-        // not-found state below.
+        // Keep whatever we already rendered; on a cold load show a retryable
+        // error state instead of the misleading "no longer available" copy.
+        if (isActive && !known) {
+          setFetchFailed(true);
+        }
       })
       .finally(() => {
         if (isActive) {
@@ -103,7 +112,7 @@ const OpportunityDetailFetcher: React.FC<OpportunityDetailFetcherProps> = ({
       isActive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, fetchAttempt]);
 
   if (!id) {
     return <Navigate to="/opportunities" replace />;
@@ -117,6 +126,52 @@ const OpportunityDetailFetcher: React.FC<OpportunityDetailFetcherProps> = ({
     return (
       <PublicEditorialShell>
         <DetailSkeleton />
+      </PublicEditorialShell>
+    );
+  }
+
+  if (!opportunity && fetchFailed) {
+    const retry = () => {
+      setFetchFailed(false);
+      setLoading(true);
+      setFetchAttempt((attempt) => attempt + 1);
+    };
+    const errorSection = (
+      <section
+        role="alert"
+        className="rounded-2xl border border-subtle bg-surface-layer p-6 shadow-soft"
+      >
+        <p className="text-sm font-semibold text-brand">
+          Something went wrong
+        </p>
+        <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-text-primary">
+          We couldn't load this opportunity
+        </h1>
+        <p className="mt-3 text-base leading-7 text-text-secondary">
+          This looks like a temporary connection or server problem — the
+          opportunity may still be available. Try again in a moment.
+        </p>
+        <button
+          type="button"
+          onClick={retry}
+          className="mt-5 inline-flex rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-elevated transition hover:bg-brand-700"
+        >
+          Retry
+        </button>
+      </section>
+    );
+
+    if (embedded) {
+      return (
+        <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
+          {errorSection}
+        </main>
+      );
+    }
+
+    return (
+      <PublicEditorialShell mainClassName="max-w-3xl py-8">
+        {errorSection}
       </PublicEditorialShell>
     );
   }
