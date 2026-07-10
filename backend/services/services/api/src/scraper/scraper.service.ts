@@ -1555,6 +1555,42 @@ export class ScraperService implements OnModuleInit {
     }
   }
 
+  /**
+   * Statuses of rows that already exist for these canonical_urls, so a
+   * re-scrape upsert never changes the status of an existing row (e.g.
+   * demoting an admin-approved 'active' row back to pending_review).
+   * One IN query per 200 URLs; fails open to an empty map.
+   */
+  private async fetchExistingStatuses(
+    canonicalUrls: string[],
+  ): Promise<Map<string, string>> {
+    const statusByUrl = new Map<string, string>();
+    const urls = canonicalUrls.filter(Boolean);
+    const CHUNK = 200;
+    try {
+      for (let i = 0; i < urls.length; i += CHUNK) {
+        const { data, error } = await this.supabase
+          .from("opportunities")
+          .select("id, canonical_url, status")
+          .in("canonical_url", urls.slice(i, i + CHUNK));
+        if (error) throw error;
+        for (const row of (data as Array<{
+          canonical_url: string | null;
+          status: string | null;
+        }>) ?? []) {
+          if (row.canonical_url && row.status) {
+            statusByUrl.set(row.canonical_url, row.status);
+          }
+        }
+      }
+    } catch (e: any) {
+      this.logger.warn(
+        `Could not fetch existing statuses (statuses may be overwritten this run): ${e.message}`,
+      );
+    }
+    return statusByUrl;
+  }
+
   private async persistOpportunities(
     results: RawItem[],
     sourceResults: SourceResult[],
@@ -1611,12 +1647,31 @@ export class ScraperService implements OnModuleInit {
       );
     }
 
+    // Re-scrape status preservation: the upsert below overwrites existing
+    // rows on canonical_url conflict, so an admin-approved 'active' row would
+    // be demoted every run by the review gates. Fetch existing statuses (one
+    // IN query, chunked) and pin them — gates only apply to NEW rows.
+    const existingStatusByUrl = await this.fetchExistingStatuses(
+      uniqueRecords.map((rec) => rec.canonical_url as string),
+    );
+    for (const rec of uniqueRecords) {
+      const existing = existingStatusByUrl.get(rec.canonical_url as string);
+      if (existing !== undefined) rec.status = existing;
+    }
+    const existingUrls = new Set(existingStatusByUrl.keys());
+
     // Duplicate detection (annotate-only: sets duplicate_of + routes the row
     // to pending_review — every row is still inserted/updated as before).
-    await this.opportunityDedupService.annotateDuplicates(uniqueRecords);
+    await this.opportunityDedupService.annotateDuplicates(
+      uniqueRecords,
+      existingUrls,
+    );
     // Trust gate: hold 'active' rows on new/unestablished apply-URL domains
     // for admin review. Toggle via SCRAPER_DOMAIN_TRUST_GATE (default ON).
-    await this.opportunityDedupService.applyDomainTrustGate(uniqueRecords);
+    await this.opportunityDedupService.applyDomainTrustGate(
+      uniqueRecords,
+      existingUrls,
+    );
 
     const SELECT_COLUMNS =
       "id, title, summary, description, organization, category, canonical_category, close_date, deadline, location, eligibility, funding_type, target_region, application_url, apply_url, canonical_url, image_url, stipend, currency, source, metadata";

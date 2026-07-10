@@ -161,8 +161,16 @@ export class OpportunityDedupService {
    * Two cheap tiers, each a single batched query — never per-row queries.
    */
   async annotateDuplicates(
-    records: Record<string, any>[],
+    allRecords: Record<string, any>[],
+    skipCanonicalUrls?: Set<string>,
   ): Promise<DedupAnnotationSummary> {
+    // Records whose canonical_url already exists in the DB keep their
+    // existing status (preserved by the caller) — only gate NEW rows.
+    const records = skipCanonicalUrls
+      ? allRecords.filter(
+          (r) => !skipCanonicalUrls.has(r.canonical_url as string),
+        )
+      : allRecords;
     const summary: DedupAnnotationSummary = {
       checked: records.length,
       duplicates: 0,
@@ -225,8 +233,13 @@ export class OpportunityDedupService {
       );
       if (orgs.length > 0) {
         // Values with spaces must be double-quoted inside a PostgREST or().
+        // PostgREST uses * as the ILIKE wildcard — join tokens with * (and
+        // wrap the pattern) so orgs differing only by internal whitespace
+        // still match; normalizeOrganization below stays the real filter.
         const orFilter = orgs
-          .map((o) => `organization.ilike."${o}"`)
+          .map(
+            (o) => `organization.ilike."*${o.split(/\s+/).join("*")}*"`,
+          )
           .join(",");
         const { data, error } = await this.supabase
           .from("opportunities")
@@ -302,11 +315,16 @@ export class OpportunityDedupService {
    */
   async applyDomainTrustGate(
     records: Record<string, any>[],
+    skipCanonicalUrls?: Set<string>,
   ): Promise<{ capped: number }> {
     if (!isDomainTrustGateEnabled()) return { capped: 0 };
     if (!this.supabase || records.length === 0) return { capped: 0 };
 
-    const wouldPublish = records.filter((r) => r.status === "active");
+    const wouldPublish = records.filter(
+      (r) =>
+        r.status === "active" &&
+        !skipCanonicalUrls?.has(r.canonical_url as string),
+    );
     if (wouldPublish.length === 0) return { capped: 0 };
 
     const domains = Array.from(
