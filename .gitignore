@@ -31,3 +31,6 @@
 .claude/
 **/*.tmp.*
 **/*.tmp.*
+
+# Local Render env template — contains secrets, never commit
+render.backend.env
