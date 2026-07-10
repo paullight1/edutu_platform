@@ -1,99 +1,61 @@
 import { useState, useCallback, useRef } from 'react';
-import * as Speech from 'expo-speech';
+import { speak as edutuSpeak, stopSpeaking } from '../lib/edutuSpeech';
+import { getVoiceSettings } from '../lib/voiceSettingsStore';
+import i18n from '../lib/i18n';
+
+export interface UseTextToSpeechConfig {
+    /** Clerk token getter — required for Edutu's server voice; without it the
+     *  device synthesizer is used as a fallback. */
+    getAuthToken?: () => Promise<string | null>;
+}
 
 export interface UseTextToSpeechReturn {
     isSpeaking: boolean;
     currentText: string | null;
-    speak: (text: string, options?: { rate?: number; pitch?: number }) => void;
+    speak: (text: string) => void;
     stop: () => void;
-    pause: () => void;
-    resume: () => void;
 }
 
-export function useTextToSpeech(): UseTextToSpeechReturn {
+/**
+ * Speaks chat replies in Edutu's branded neural voice (server TTS, with a
+ * device fallback). Shares the single global speaker with voice mode, so
+ * starting playback here cancels any voice-mode utterance and vice versa.
+ */
+export function useTextToSpeech(config: UseTextToSpeechConfig = {}): UseTextToSpeechReturn {
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [currentText, setCurrentText] = useState<string | null>(null);
-    const speakingTextRef = useRef<string | null>(null);
+    const { getAuthToken } = config;
+    const getAuthTokenRef = useRef(getAuthToken);
+    getAuthTokenRef.current = getAuthToken;
 
-    const cleanTextForSpeech = useCallback((text: string): string => {
-        return text
-            .replace(/#{1,6}\s?/g, '')
-            .replace(/\*\*(.*?)\*\*/g, '$1')
-            .replace(/\*(.*?)\*/g, '$1')
-            .replace(/`(.*?)`/g, '$1')
-            .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
-            .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-            .replace(/https?:\/\/\S+/g, 'link')
-            .replace(/\n{2,}/g, '. ')
-            .replace(/\n/g, ', ')
-            .replace(/\s+/g, ' ')
-            .trim();
-    }, []);
-
-    const speak = useCallback((text: string, options?: { rate?: number; pitch?: number }) => {
-        Speech.isSpeakingAsync().then(isSpeaking => {
-            if (isSpeaking) {
-                Speech.stop();
-            }
-        }).catch(() => {});
-
-        const cleanText = cleanTextForSpeech(text);
-        if (!cleanText) return;
-
-        setCurrentText(cleanText);
-        speakingTextRef.current = cleanText;
+    const speak = useCallback((text: string) => {
+        if (!text?.trim()) return;
+        setCurrentText(text);
         setIsSpeaking(true);
-
-        Speech.speak(cleanText, {
-            rate: options?.rate || 1.0,
-            pitch: options?.pitch || 1.0,
-            volume: 1.0,
-            language: 'en',
+        void edutuSpeak(text, {
+            voice: getVoiceSettings().ttsVoice,
+            language: i18n.language?.split('-')[0] || 'en',
+            getAuthToken: getAuthTokenRef.current,
             onDone: () => {
                 setIsSpeaking(false);
                 setCurrentText(null);
-                speakingTextRef.current = null;
-            },
-            onError: (error) => {
-                console.error('TTS Error:', error);
-                setIsSpeaking(false);
-                setCurrentText(null);
-                speakingTextRef.current = null;
             },
             onStopped: () => {
                 setIsSpeaking(false);
                 setCurrentText(null);
-                speakingTextRef.current = null;
             },
-            onPause: () => {
+            onError: () => {
                 setIsSpeaking(false);
+                setCurrentText(null);
             },
         });
-    }, [cleanTextForSpeech]);
+    }, []);
 
     const stop = useCallback(() => {
-        Speech.stop();
+        stopSpeaking();
         setIsSpeaking(false);
         setCurrentText(null);
-        speakingTextRef.current = null;
     }, []);
 
-    const pause = useCallback(() => {
-        Speech.pause();
-        setIsSpeaking(false);
-    }, []);
-
-    const resume = useCallback(() => {
-        Speech.resume();
-        setIsSpeaking(true);
-    }, []);
-
-    return {
-        isSpeaking,
-        currentText,
-        speak,
-        stop,
-        pause,
-        resume,
-    };
+    return { isSpeaking, currentText, speak, stop };
 }
