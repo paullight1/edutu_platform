@@ -37,6 +37,7 @@ const PersonalizationScreen = lazy(
 );
 const LandingPageV3 = lazy(() => import("./components/LandingPageV3"));
 const OpportunitiesPage = lazy(() => import("./components/OpportunitiesPage"));
+const SubmitOpportunityPage = lazy(() => import("./components/SubmitOpportunityPage"));
 const OpportunityDetailFetcher = lazy(
   () => import("./components/OpportunityDetailFetcher"),
 );
@@ -522,6 +523,14 @@ function App() {
         element={
           <AppWorkspaceRoute>
             <OpportunitiesPage embedded />
+          </AppWorkspaceRoute>
+        }
+      />
+      <Route
+        path="/app/submit-opportunity"
+        element={
+          <AppWorkspaceRoute>
+            <SubmitOpportunityPage />
           </AppWorkspaceRoute>
         }
       />
