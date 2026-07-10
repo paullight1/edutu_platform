@@ -19,7 +19,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../components/context/ThemeContext';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
-import { BrandedLoader } from '../../components/ui/BrandedLoader';
+import { LoadState } from '../../components/ui/LoadState';
 import { supabase } from '../../lib/supabase';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -31,6 +31,17 @@ const { width } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.75;
 const CARD_SPACING = 16;
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://edutu-platform.onrender.com').replace(/\/$/, '');
+
+/** fetch() that aborts after `ms` so a cold Render backend can't hang the UI forever. */
+async function fetchWithTimeout(url: string, init: RequestInit = {}, ms = 15000): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ms);
+    try {
+        return await fetch(url, { ...init, signal: controller.signal });
+    } finally {
+        clearTimeout(timer);
+    }
+}
 
 const CATEGORY_COLORS: Record<string, { primary: string; secondary: string; gradient: string[] }> = {
     course: { primary: '#3B82F6', secondary: '#60A5FA', gradient: ['#3B82F6', '#2563EB'] },
@@ -62,16 +73,22 @@ export default function CreatorDashboard() {
     const { getToken } = useAuth();
     const router = useRouter();
     const { isDark, colors } = useTheme();
-    const { status: creatorStatus, isLoading: accessLoading, isApproved, isPending, isRejected } = useCreatorAccess(supabase, user?.id || null);
+    const { isLoading: accessLoading, isApproved, checkAccess } = useCreatorAccess(supabase, user?.id || null);
 
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [dashError, setDashError] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
     const [showWizard, setShowWizard] = useState(false);
     const [wizardStep, setWizardStep] = useState<WizardStep>('basics');
     const [creating, setCreating] = useState(false);
     const [uploadingThumb, setUploadingThumb] = useState(false);
-    const [showLongLoadNotice, setShowLongLoadNotice] = useState(false);
+    // When set, the wizard edits an existing personal roadmap (PUT) instead of creating.
+    const [editingId, setEditingId] = useState<string | null>(null);
+    // Approved creators can promote a creation to the public catalog; everyone
+    // else creates a private "My Roadmaps" entry.
+    const [publishPublicly, setPublishPublicly] = useState(false);
+    const [rowBusyId, setRowBusyId] = useState<string | null>(null);
 
     const [newListing, setNewListing] = useState({
         title: '', description: '', category: 'course',
@@ -82,7 +99,6 @@ export default function CreatorDashboard() {
     const [checklistItems, setChecklistItems] = useState<any[]>([]);
 
     const scrollX = useRef(new Animated.Value(0)).current;
-    const longLoadOpacity = useRef(new Animated.Value(0)).current;
     const flatListRef = useRef<any>(null);
 
     const textPrimary = colors.foreground;
@@ -96,85 +112,84 @@ export default function CreatorDashboard() {
             setLoading(false);
             return;
         }
+        setDashError(null);
         try {
-            const { data: posts } = await supabase
-                .from('community_posts')
-                .select('*')
-                .eq('user_id', toSafeUUID(user.id));
+            const token = await getToken();
 
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('credits')
-                .eq('user_id', toSafeUUID(user.id))
-                .single();
-
-            if (posts) {
-                setData({
-                    listings: posts.map((p: any) => ({
-                        id: p.id,
-                        title: p.title,
-                        category: p.metadata?.category || 'General',
-                        status: p.visibility === 'public' ? 'active' : 'pending',
-                        price: p.metadata?.price === 'Premium' ? 50 : 0,
-                        enrollmentCount: p.metadata?.users || 0
-                    })),
-                    totalEarnings: profile?.credits || 0,
-                    totalEnrollments: posts.reduce((acc: number, p: any) => acc + (p.metadata?.users || 0), 0),
-                    totalListings: posts.length
+            // Real "My Roadmaps" — everything this user has authored (personal +
+            // any they've published). Source of truth is the roadmaps table via
+            // the backend, not community_posts.
+            //
+            // The roadmaps load must never hard-block Creator Studio: a creator
+            // with zero roadmaps, an offline device, or a backend that hasn't
+            // shipped /roadmaps/mine yet should all land on the same usable
+            // empty dashboard (they can still create). So any non-ok response or
+            // network error degrades to an empty list instead of an error screen.
+            let list: any[] = [];
+            try {
+                const res = await fetchWithTimeout(`${API_URL}/roadmaps/mine`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    },
                 });
+                if (res.ok) {
+                    const mine = await res.json();
+                    list = Array.isArray(mine) ? mine : [];
+                } else {
+                    console.warn(`Creator dashboard: /roadmaps/mine returned ${res.status}; showing empty state`);
+                }
+            } catch (e) {
+                console.warn('Creator dashboard: roadmaps request failed; showing empty state', e);
             }
-        } catch (e) {
+
+            // Credits are a nice-to-have stat — never let them block the screen.
+            let credits = 0;
+            try {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('credits')
+                    .eq('user_id', toSafeUUID(user.id))
+                    .single();
+                credits = profile?.credits || 0;
+            } catch { /* ignore */ }
+
+            setData({
+                listings: list.map((r: any) => ({
+                    id: r.id,
+                    title: r.title,
+                    category: r.category || 'general',
+                    status: r.status === 'published' ? 'published' : 'personal',
+                    enrollmentCount: r.enrollment_count ?? r.enrollmentCount ?? 0,
+                    raw: r,
+                })),
+                totalEarnings: credits,
+                totalEnrollments: list.reduce(
+                    (acc: number, r: any) => acc + (r.enrollment_count ?? r.enrollmentCount ?? 0),
+                    0,
+                ),
+                totalListings: list.length,
+            });
+        } catch (e: any) {
             console.error('Failed to load creator dashboard:', e);
+            setDashError(e?.message || t('creatorDashboard.errors.loadRoadmaps'));
         } finally {
             setLoading(false);
         }
-    }, [user]);
+    }, [user, getToken, t]);
 
+    // Everyone can use Creator Studio now (personal roadmaps). Load once the
+    // access check resolves so `isApproved` is known for the publish toggle.
     useEffect(() => {
-        if (user && !accessLoading) {
-            if (!isApproved) {
-                setLoading(false);
-                return;
-            }
-            fetchDashboard();
-        }
-    }, [user, accessLoading, isApproved, fetchDashboard]);
-
-    useEffect(() => {
-        if (user && creatorStatus === 'approved') fetchDashboard();
-    }, [user, creatorStatus, fetchDashboard]);
-
-    useEffect(() => {
-        const isStillLoading = accessLoading || loading;
-        if (!isStillLoading) {
-            setShowLongLoadNotice(false);
-            longLoadOpacity.setValue(0);
-            return;
-        }
-
-        const timeoutId = setTimeout(() => {
-            setShowLongLoadNotice(true);
-            Animated.timing(longLoadOpacity, {
-                toValue: 1,
-                duration: 260,
-                useNativeDriver: true,
-            }).start();
-        }, 7000);
-
-        return () => clearTimeout(timeoutId);
-    }, [accessLoading, loading, longLoadOpacity]);
+        if (user && !accessLoading) fetchDashboard();
+    }, [user, accessLoading, fetchDashboard]);
 
     const retryLoading = useCallback(() => {
-        setShowLongLoadNotice(false);
-        longLoadOpacity.setValue(0);
-        if (!isApproved) {
-            setLoading(false);
-            return;
-        }
-
+        setDashError(null);
         setLoading(true);
+        checkAccess();
         fetchDashboard();
-    }, [fetchDashboard, isApproved, longLoadOpacity]);
+    }, [checkAccess, fetchDashboard]);
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
@@ -258,8 +273,20 @@ export default function CreatorDashboard() {
                 template: 'skills',
                 resource: 'skills',
             };
-            const response = await fetch(`${API_URL}/roadmaps/creator`, {
-                method: 'POST',
+            // Route by intent:
+            //  - editing an existing roadmap → PUT /roadmaps/mine/:id
+            //  - approved creator opting to publish → POST /roadmaps/creator (public catalog)
+            //  - everyone else → POST /roadmaps/mine (private "My Roadmaps")
+            const goingPublic = !editingId && isApproved && publishPublicly;
+            const endpoint = editingId
+                ? `${API_URL}/roadmaps/mine/${editingId}`
+                : goingPublic
+                    ? `${API_URL}/roadmaps/creator`
+                    : `${API_URL}/roadmaps/mine`;
+            const method = editingId ? 'PUT' : 'POST';
+
+            const response = await fetchWithTimeout(endpoint, {
+                method,
                 headers: {
                     'Content-Type': 'application/json',
                     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -307,20 +334,130 @@ export default function CreatorDashboard() {
                 throw new Error(data?.message || data?.error || t('creatorDashboard.alerts.publishFailed'));
             }
 
+            const wasEditing = !!editingId;
+            resetWizard();
             setShowWizard(false);
-            setWizardStep('basics');
-            setNewListing({ title: '', description: '', category: 'course', price: '0', experiences: '', image_url: '' });
-            setRoadmapStages([]);
-            setResources([]);
-            setChecklistItems([]);
             await fetchDashboard();
-            Alert.alert(t('creatorDashboard.alerts.publishedTitle'), t('creatorDashboard.alerts.publishedMessage'));
+            Alert.alert(
+                wasEditing
+                    ? t('creatorDashboard.alerts.updatedTitle')
+                    : t('creatorDashboard.alerts.savedTitle'),
+                wasEditing
+                    ? t('creatorDashboard.alerts.updatedMessage')
+                    : goingPublic
+                        ? t('creatorDashboard.alerts.publishedMessage')
+                        : t('creatorDashboard.alerts.savedMessage'),
+            );
         } catch (error: any) {
-            Alert.alert(t('creatorDashboard.alerts.failedTitle'), error.message || t('creatorDashboard.alerts.failedFallback'));
+            const message = error?.name === 'AbortError'
+                ? t('creatorDashboard.errors.timeout')
+                : error?.message || t('creatorDashboard.alerts.failedFallback');
+            Alert.alert(t('creatorDashboard.alerts.failedTitle'), message);
         } finally {
             setCreating(false);
         }
     };
+
+    const resetWizard = useCallback(() => {
+        setWizardStep('basics');
+        setNewListing({ title: '', description: '', category: 'course', price: '0', experiences: '', image_url: '' });
+        setRoadmapStages([]);
+        setResources([]);
+        setChecklistItems([]);
+        setEditingId(null);
+        setPublishPublicly(false);
+    }, []);
+
+    const openCreateWizard = useCallback(() => {
+        resetWizard();
+        setShowWizard(true);
+    }, [resetWizard]);
+
+    // Prefill the wizard from an existing personal roadmap for editing.
+    const openEditWizard = useCallback((listing: any) => {
+        const r = listing?.raw || {};
+        const reverseCat: Record<string, string> = {
+            education: 'course', career: 'event', skills: 'template',
+        };
+        setEditingId(listing.id);
+        setPublishPublicly(false);
+        setNewListing({
+            title: r.title || '',
+            description: (r.description || '').split('\n\n')[0] || r.description || '',
+            category: reverseCat[r.category] || 'course',
+            price: String(r.creator_proof?.price ?? r.creatorProof?.price ?? '0'),
+            experiences: '',
+            image_url: r.cover_image || r.coverImage || '',
+        });
+        setRoadmapStages(
+            (Array.isArray(r.steps) ? r.steps : []).map((s: any) => ({
+                id: s.id || Math.random().toString(),
+                title: s.title || '',
+                description: s.description || '',
+                duration: s.duration || '',
+            })),
+        );
+        setResources(
+            (Array.isArray(r.resources) ? r.resources : []).map((res: any) => ({
+                title: res.title || '', type: res.type || 'resource', url: res.url || '',
+            })),
+        );
+        setChecklistItems([]);
+        setWizardStep('basics');
+        setShowWizard(true);
+    }, []);
+
+    const handleDeleteRoadmap = useCallback((listing: any) => {
+        Alert.alert(
+            t('creatorDashboard.deleteConfirm.title'),
+            t('creatorDashboard.deleteConfirm.message', { title: listing.title }),
+            [
+                { text: t('common:actions.cancel'), style: 'cancel' },
+                {
+                    text: t('common:actions.delete'),
+                    style: 'destructive',
+                    onPress: async () => {
+                        setRowBusyId(listing.id);
+                        try {
+                            const token = await getToken();
+                            const res = await fetchWithTimeout(`${API_URL}/roadmaps/mine/${listing.id}`, {
+                                method: 'DELETE',
+                                headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                            });
+                            if (!res.ok) throw new Error(t('creatorDashboard.errors.deleteFailed'));
+                            await fetchDashboard();
+                        } catch (e: any) {
+                            Alert.alert(t('creatorDashboard.alerts.failedTitle'), e?.message || t('creatorDashboard.errors.deleteFailed'));
+                        } finally {
+                            setRowBusyId(null);
+                        }
+                    },
+                },
+            ],
+        );
+    }, [getToken, fetchDashboard, t]);
+
+    // Turn a roadmap the user owns into trackable goals (adopt → Goals section).
+    const handleFollowRoadmap = useCallback(async (listing: any) => {
+        setRowBusyId(listing.id);
+        try {
+            const token = await getToken();
+            const res = await fetchWithTimeout(`${API_URL}/roadmaps/adopt/${listing.id}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({}),
+            });
+            if (!res.ok) throw new Error(t('creatorDashboard.errors.followFailed'));
+            Alert.alert(t('creatorDashboard.followSuccess.title'), t('creatorDashboard.followSuccess.message'));
+        } catch (e: any) {
+            Alert.alert(t('creatorDashboard.alerts.failedTitle'), e?.message || t('creatorDashboard.errors.followFailed'));
+        } finally {
+            setRowBusyId(null);
+        }
+    }, [getToken, t]);
 
     const canProceedToNextStep = (): boolean => {
         switch (wizardStep) {
@@ -349,147 +486,35 @@ export default function CreatorDashboard() {
         else if (wizardStep === 'review') setWizardStep('resources');
     };
 
-    // ─── ACCESS GUARD SCREENS ──────────────────────────────────────────────
+    // ─── LOADING / ERROR STATES ────────────────────────────────────────────
     if (accessLoading || loading) {
         return (
             <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
                 <ScreenHeader title={t('creatorDashboard.title')} showBack />
-                <View style={styles.loadingCenter}>
-                    <BrandedLoader label={t('creatorDashboard.loading')} />
-                    {showLongLoadNotice && (
-                        <Animated.View
-                            style={[
-                                styles.longLoadNotice,
-                                {
-                                    opacity: longLoadOpacity,
-                                    backgroundColor: cardBg,
-                                    borderColor,
-                                },
-                            ]}
-                        >
-                            <View style={[styles.longLoadIcon, { backgroundColor: `${colors.accent}14` }]}>
-                                <Info size={18} color={colors.accent} />
-                            </View>
-                            <View style={styles.longLoadCopy}>
-                                <Text style={[styles.longLoadTitle, { color: textPrimary }]}>
-                                    {t('creatorDashboard.longLoad.title')}
-                                </Text>
-                                <Text style={[styles.longLoadText, { color: textSecondary }]}>
-                                    {t('creatorDashboard.longLoad.text')}
-                                </Text>
-                            </View>
-                            <View style={styles.longLoadActions}>
-                                <TouchableOpacity
-                                    style={[styles.longLoadBtn, { backgroundColor: inputBg }]}
-                                    onPress={() => {
-                                        if (router.canGoBack()) {
-                                            router.back();
-                                            return;
-                                        }
-                                        router.replace('/(app)');
-                                    }}
-                                >
-                                    <ChevronLeft size={14} color={textSecondary} />
-                                    <Text style={[styles.longLoadBtnText, { color: textSecondary }]}>{t('common:actions.back')}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={[styles.longLoadBtn, { backgroundColor: colors.accent }]} onPress={retryLoading}>
-                                    <Text style={[styles.longLoadBtnText, { color: '#FFFFFF' }]}>{t('creatorDashboard.longLoad.tryAgain')}</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </Animated.View>
-                    )}
-                </View>
+                <LoadState
+                    label={t('creatorDashboard.loading')}
+                    onRetry={retryLoading}
+                    onBack={() => (router.canGoBack() ? router.back() : router.replace('/(app)'))}
+                />
             </SafeAreaView>
         );
     }
 
-    if (creatorStatus !== 'approved') {
+    if (dashError) {
         return (
             <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
                 <ScreenHeader title={t('creatorDashboard.title')} showBack />
-                <ScrollView contentContainerStyle={styles.accessGuardContent} showsVerticalScrollIndicator={false}>
-                    <View style={styles.accessGuardCard}>
-                        <View style={[styles.accessIconBox, { backgroundColor: `${colors.accent}12` }]}>
-                            <Sparkles size={40} color={colors.accent} />
-                        </View>
-                        <Text style={[styles.accessTitle, { color: textPrimary }]}>{t('creatorDashboard.title')}</Text>
-
-                        {creatorStatus === 'pending' && (
-                            <>
-                                <View style={[styles.accessStatusBadge, { backgroundColor: 'rgba(245, 158, 11, 0.12)' }]}>
-                                    <Clock size={16} color="#F59E0B" />
-                                    <Text style={[styles.accessStatusText, { color: '#F59E0B' }]}>{t('creatorDashboard.access.pendingBadge')}</Text>
-                                </View>
-                                <Text style={[styles.accessDesc, { color: textSecondary }]}>
-                                    {t('creatorDashboard.access.pendingDesc')}
-                                </Text>
-                                <View style={[styles.accessInfoBox, { backgroundColor: inputBg }]}>
-                                    <Info size={16} color={textSecondary} />
-                                    <Text style={[styles.accessInfoText, { color: textSecondary }]}>
-                                        {t('creatorDashboard.access.pendingInfo')}
-                                    </Text>
-                                </View>
-                                <TouchableOpacity
-                                    style={[styles.accessBtn, { backgroundColor: colors.accent }]}
-                                    onPress={() => router.push('/roadmaps')}
-                                >
-                                    <Text style={styles.accessBtnText}>{t('creatorDashboard.access.browseRoadmaps')}</Text>
-                                </TouchableOpacity>
-                            </>
-                        )}
-
-                        {creatorStatus === 'rejected' && (
-                            <>
-                                <View style={[styles.accessStatusBadge, { backgroundColor: 'rgba(239, 68, 68, 0.12)' }]}>
-                                    <AlertCircle size={16} color="#EF4444" />
-                                    <Text style={[styles.accessStatusText, { color: '#EF4444' }]}>{t('creatorDashboard.access.rejectedBadge')}</Text>
-                                </View>
-                                <Text style={[styles.accessDesc, { color: textSecondary }]}>
-                                    {t('creatorDashboard.access.rejectedDesc')}
-                                </Text>
-                                <TouchableOpacity
-                                    style={[styles.accessBtn, { backgroundColor: colors.accent }]}
-                                    onPress={() => router.push('/creator-apply')}
-                                >
-                                    <Text style={styles.accessBtnText}>{t('creatorDashboard.access.reapply')}</Text>
-                                </TouchableOpacity>
-                            </>
-                        )}
-
-                        {!creatorStatus || creatorStatus === 'none' && (
-                            <>
-                                <Text style={[styles.accessDesc, { color: textSecondary }]}>
-                                    {t('creatorDashboard.access.noneDesc')}
-                                </Text>
-                                <View style={styles.accessPerks}>
-                                    <View style={[styles.perkItem, { backgroundColor: 'rgba(16, 185, 129, 0.08)' }]}>
-                                        <DollarSign size={20} color="#10B981" />
-                                        <Text style={[styles.perkText, { color: textPrimary }]}>{t('creatorDashboard.access.perkRevenue')}</Text>
-                                    </View>
-                                    <View style={[styles.perkItem, { backgroundColor: 'rgba(59, 130, 246, 0.08)' }]}>
-                                        <Users size={20} color="#3B82F6" />
-                                        <Text style={[styles.perkText, { color: textPrimary }]}>{t('creatorDashboard.access.perkReach')}</Text>
-                                    </View>
-                                    <View style={[styles.perkItem, { backgroundColor: 'rgba(59, 130, 246, 0.08)' }]}>
-                                        <Award size={20} color="#3b82f6" />
-                                        <Text style={[styles.perkText, { color: textPrimary }]}>{t('creatorDashboard.access.perkBadge')}</Text>
-                                    </View>
-                                </View>
-                                <TouchableOpacity
-                                    style={[styles.accessBtn, { backgroundColor: colors.accent }]}
-                                    onPress={() => router.push('/creator-apply')}
-                                >
-                                    <Text style={styles.accessBtnText}>{t('creatorDashboard.access.applyCta')}</Text>
-                                </TouchableOpacity>
-                            </>
-                        )}
-                    </View>
-                </ScrollView>
+                <LoadState
+                    error
+                    label={t('creatorDashboard.loading')}
+                    onRetry={retryLoading}
+                    onBack={() => (router.canGoBack() ? router.back() : router.replace('/(app)'))}
+                />
             </SafeAreaView>
         );
     }
 
-    // ─── APPROVED CREATOR DASHBOARD ─────────────────────────────────────────
+    // ─── DASHBOARD (open to everyone — personal roadmaps for all) ────────────
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
             <ScreenHeader title={t('creatorDashboard.title')} showBack subtitle={t('creatorDashboard.subtitle')} />
@@ -507,7 +532,7 @@ export default function CreatorDashboard() {
                     </View>
                     <TouchableOpacity
                         style={[styles.createBtn, { backgroundColor: colors.accent }]}
-                        onPress={() => { setShowWizard(true); setWizardStep('basics'); }}
+                        onPress={openCreateWizard}
                         activeOpacity={0.8}
                     >
                         <Plus color="white" size={18} />
@@ -565,23 +590,45 @@ export default function CreatorDashboard() {
                     ))}
                 </Animated.ScrollView>
 
-                {/* Creator Rewards Banner */}
-                <View style={styles.rewardBanner}>
-                    <LinearGradient
-                        colors={isDark ? ['#1E1B4B', '#312E81'] : ['#E0E7FF', '#C7D2FE']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.rewardGradient}
+                {/* Rewards banner (approved creators) / publish upsell (everyone else) */}
+                {isApproved ? (
+                    <View style={styles.rewardBanner}>
+                        <LinearGradient
+                            colors={isDark ? ['#1E1B4B', '#312E81'] : ['#E0E7FF', '#C7D2FE']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.rewardGradient}
+                        >
+                            <Award color={isDark ? "#818CF8" : "#4F46E5"} size={28} />
+                            <View style={styles.rewardTextGroup}>
+                                <Text style={[styles.rewardTitle, { color: isDark ? "white" : "#1E1B4B" }]}>{t('creatorDashboard.rewards.title')}</Text>
+                                <Text style={[styles.rewardText, { color: isDark ? "#A5B4FC" : "#4338CA" }]}>
+                                    <Trans t={t} i18nKey="creatorDashboard.rewards.text" components={{ bold: <Text style={{ fontWeight: '800' }} /> }} />
+                                </Text>
+                            </View>
+                        </LinearGradient>
+                    </View>
+                ) : (
+                    <TouchableOpacity
+                        style={styles.rewardBanner}
+                        activeOpacity={0.85}
+                        onPress={() => router.push('/creator-apply')}
                     >
-                        <Award color={isDark ? "#818CF8" : "#4F46E5"} size={28} />
-                        <View style={styles.rewardTextGroup}>
-                            <Text style={[styles.rewardTitle, { color: isDark ? "white" : "#1E1B4B" }]}>{t('creatorDashboard.rewards.title')}</Text>
-                            <Text style={[styles.rewardText, { color: isDark ? "#A5B4FC" : "#4338CA" }]}>
-                                <Trans t={t} i18nKey="creatorDashboard.rewards.text" components={{ bold: <Text style={{ fontWeight: '800' }} /> }} />
-                            </Text>
-                        </View>
-                    </LinearGradient>
-                </View>
+                        <LinearGradient
+                            colors={isDark ? ['#1E1B4B', '#312E81'] : ['#E0E7FF', '#C7D2FE']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.rewardGradient}
+                        >
+                            <Sparkles color={isDark ? "#818CF8" : "#4F46E5"} size={28} />
+                            <View style={styles.rewardTextGroup}>
+                                <Text style={[styles.rewardTitle, { color: isDark ? "white" : "#1E1B4B" }]}>{t('creatorDashboard.upsell.title')}</Text>
+                                <Text style={[styles.rewardText, { color: isDark ? "#A5B4FC" : "#4338CA" }]}>{t('creatorDashboard.upsell.text')}</Text>
+                            </View>
+                            <ChevronRight color={isDark ? "#A5B4FC" : "#4338CA"} size={20} />
+                        </LinearGradient>
+                    </TouchableOpacity>
+                )}
 
                 {/* My Roadmaps Section */}
                 <View style={styles.section}>
@@ -603,7 +650,7 @@ export default function CreatorDashboard() {
                             </Text>
                             <TouchableOpacity
                                 style={[styles.emptyBtn, { backgroundColor: colors.accent }]}
-                                onPress={() => { setShowWizard(true); setWizardStep('basics'); }}
+                                onPress={openCreateWizard}
                             >
                                 <Plus size={18} color="white" />
                                 <Text style={styles.emptyBtnText}>{t('creatorDashboard.empty.cta')}</Text>
@@ -612,43 +659,58 @@ export default function CreatorDashboard() {
                     ) : (
                         data.listings.map((listing: any) => {
                             const catColor = CATEGORY_COLORS[listing.category]?.primary || '#94A3B8';
+                            const isPublished = listing.status === 'published';
+                            const busy = rowBusyId === listing.id;
                             return (
-                                <TouchableOpacity
+                                <View
                                     key={listing.id}
-                                    style={[styles.listingCard, { backgroundColor: cardBg, borderColor }]}
-                                    activeOpacity={0.8}
+                                    style={[styles.listingCard, styles.listingCardColumn, { backgroundColor: cardBg, borderColor }]}
                                 >
-                                    <View style={[styles.listingIcon, { backgroundColor: `${catColor}15` }]}>
-                                        <BookOpen color={catColor} size={22} />
-                                    </View>
-                                    <View style={styles.listingInfo}>
-                                        <Text style={[styles.listingTitle, { color: textPrimary }]} numberOfLines={1}>{listing.title}</Text>
-                                        <View style={styles.listingMeta}>
-                                            <View style={[styles.listingBadge, { backgroundColor: `${catColor}12` }]}>
-                                                <Text style={[styles.listingBadgeText, { color: catColor }]}>{listing.category}</Text>
-                                            </View>
-                                            <View style={[styles.listingBadge, {
-                                                backgroundColor: listing.status === 'active' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(100, 116, 139, 0.12)'
-                                            }]}>
-                                                <View style={[styles.statusDot, {
-                                                    backgroundColor: listing.status === 'active' ? '#10B981' : '#64748B'
-                                                }]} />
-                                                <Text style={[styles.listingBadgeText, {
-                                                    color: listing.status === 'active' ? '#10B981' : '#64748B'
-                                                }]}>{listing.status}</Text>
+                                    <View style={styles.listingTopRow}>
+                                        <View style={[styles.listingIcon, { backgroundColor: `${catColor}15` }]}>
+                                            <BookOpen color={catColor} size={22} />
+                                        </View>
+                                        <View style={styles.listingInfo}>
+                                            <Text style={[styles.listingTitle, { color: textPrimary }]} numberOfLines={1}>{listing.title}</Text>
+                                            <View style={styles.listingMeta}>
+                                                <View style={[styles.listingBadge, { backgroundColor: `${catColor}12` }]}>
+                                                    <Text style={[styles.listingBadgeText, { color: catColor, textTransform: 'capitalize' }]}>{listing.category}</Text>
+                                                </View>
+                                                <View style={[styles.listingBadge, {
+                                                    backgroundColor: isPublished ? 'rgba(16, 185, 129, 0.12)' : `${colors.accent}12`
+                                                }]}>
+                                                    <View style={[styles.statusDot, { backgroundColor: isPublished ? '#10B981' : colors.accent }]} />
+                                                    <Text style={[styles.listingBadgeText, { color: isPublished ? '#10B981' : colors.accent }]}>
+                                                        {isPublished ? t('creatorDashboard.badge.published') : t('creatorDashboard.badge.personal')}
+                                                    </Text>
+                                                </View>
                                             </View>
                                         </View>
+                                        {isPublished && (
+                                            <View style={styles.enrollBox}>
+                                                <Users size={12} color={textSecondary} />
+                                                <Text style={[styles.enrollText, { color: textSecondary }]}>{listing.enrollmentCount}</Text>
+                                            </View>
+                                        )}
                                     </View>
-                                    <View style={styles.listingRight}>
-                                        <Text style={[styles.listingPrice, { color: colors.accent }]}>
-                                            {listing.price === 0 ? t('creatorDashboard.free') : t('creatorDashboard.priceCr', { price: listing.price })}
-                                        </Text>
-                                        <View style={styles.enrollBox}>
-                                            <Users size={12} color={textSecondary} />
-                                            <Text style={[styles.enrollText, { color: textSecondary }]}>{listing.enrollmentCount}</Text>
-                                        </View>
+
+                                    <View style={[styles.rowActions, { borderTopColor: borderColor }]}>
+                                        <TouchableOpacity style={styles.rowActionBtn} disabled={busy} onPress={() => handleFollowRoadmap(listing)}>
+                                            {busy ? <ActivityIndicator size="small" color={colors.accent} /> : <Target size={15} color={colors.accent} />}
+                                            <Text style={[styles.rowActionText, { color: colors.accent }]}>{t('creatorDashboard.actions.follow')}</Text>
+                                        </TouchableOpacity>
+                                        <View style={[styles.rowActionDivider, { backgroundColor: borderColor }]} />
+                                        <TouchableOpacity style={styles.rowActionBtn} disabled={busy} onPress={() => openEditWizard(listing)}>
+                                            <PenLine size={15} color={textSecondary} />
+                                            <Text style={[styles.rowActionText, { color: textSecondary }]}>{t('creatorDashboard.actions.edit')}</Text>
+                                        </TouchableOpacity>
+                                        <View style={[styles.rowActionDivider, { backgroundColor: borderColor }]} />
+                                        <TouchableOpacity style={styles.rowActionBtn} disabled={busy} onPress={() => handleDeleteRoadmap(listing)}>
+                                            <Trash2 size={15} color="#EF4444" />
+                                            <Text style={[styles.rowActionText, { color: '#EF4444' }]}>{t('common:actions.delete')}</Text>
+                                        </TouchableOpacity>
                                     </View>
-                                </TouchableOpacity>
+                                </View>
                             );
                         })
                     )}
@@ -967,9 +1029,44 @@ export default function CreatorDashboard() {
                                     <View style={[styles.infoCallout, { backgroundColor: 'rgba(16, 185, 129, 0.08)', borderColor: 'rgba(16, 185, 129, 0.2)' }]}>
                                         <Eye size={16} color="#10B981" />
                                         <Text style={[styles.infoCalloutText, { color: textSecondary }]}>
-                                            {t('creatorDashboard.wizard.reviewCallout')}
+                                            {editingId ? t('creatorDashboard.wizard.editCallout') : t('creatorDashboard.wizard.reviewCallout')}
                                         </Text>
                                     </View>
+
+                                    {/* Where it lands: private My Roadmaps by default; approved creators
+                                        can flip it public into the shared catalog. */}
+                                    {!editingId && (
+                                        <TouchableOpacity
+                                            style={[styles.visibilityRow, { backgroundColor: cardBg, borderColor }]}
+                                            activeOpacity={isApproved ? 0.8 : 1}
+                                            onPress={() => isApproved && setPublishPublicly(v => !v)}
+                                        >
+                                            <View style={[styles.visibilityIcon, { backgroundColor: `${colors.accent}12` }]}>
+                                                {publishPublicly ? <Users size={18} color={colors.accent} /> : <BookOpen size={18} color={colors.accent} />}
+                                            </View>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={[styles.visibilityTitle, { color: textPrimary }]}>
+                                                    {publishPublicly ? t('creatorDashboard.visibility.publicTitle') : t('creatorDashboard.visibility.personalTitle')}
+                                                </Text>
+                                                <Text style={[styles.visibilityText, { color: textSecondary }]}>
+                                                    {publishPublicly
+                                                        ? t('creatorDashboard.visibility.publicText')
+                                                        : isApproved
+                                                            ? t('creatorDashboard.visibility.personalText')
+                                                            : t('creatorDashboard.visibility.lockedText')}
+                                                </Text>
+                                            </View>
+                                            {isApproved ? (
+                                                <View style={[styles.toggle, { backgroundColor: publishPublicly ? colors.accent : borderColor }]}>
+                                                    <View style={[styles.toggleKnob, { alignSelf: publishPublicly ? 'flex-end' : 'flex-start' }]} />
+                                                </View>
+                                            ) : (
+                                                <TouchableOpacity onPress={() => router.push('/creator-apply')}>
+                                                    <Text style={[styles.visibilityUnlock, { color: colors.accent }]}>{t('creatorDashboard.visibility.unlock')}</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                        </TouchableOpacity>
+                                    )}
 
                                     <View style={[styles.reviewCard, { backgroundColor: cardBg, borderColor }]}>
                                         <Text style={[styles.reviewSectionTitle, { color: textPrimary }]}>{t('creatorDashboard.wizard.reviewBasics')}</Text>
@@ -1044,7 +1141,13 @@ export default function CreatorDashboard() {
                                 ) : (
                                     <>
                                         <Text style={styles.wizardSubmitText}>
-                                            {wizardStep === 'review' ? t('creatorDashboard.wizard.submitForReview') : t('common:actions.continue')}
+                                            {wizardStep !== 'review'
+                                                ? t('common:actions.continue')
+                                                : editingId
+                                                    ? t('creatorDashboard.wizard.saveChanges')
+                                                    : (isApproved && publishPublicly)
+                                                        ? t('creatorDashboard.wizard.publishNow')
+                                                        : t('creatorDashboard.wizard.saveRoadmap')}
                                         </Text>
                                         {wizardStep !== 'review' && <ChevronRight size={18} color="white" />}
                                     </>
@@ -1176,6 +1279,19 @@ const styles = StyleSheet.create({
     listingPrice: { fontSize: 15, fontWeight: 'bold', marginBottom: 4 },
     enrollBox: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     enrollText: { fontSize: 11, fontWeight: '600' },
+    listingCardColumn: { flexDirection: 'column', alignItems: 'stretch', padding: 0, overflow: 'hidden' },
+    listingTopRow: { flexDirection: 'row', alignItems: 'center', padding: 16 },
+    rowActions: { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1 },
+    rowActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12 },
+    rowActionText: { fontSize: 12.5, fontWeight: '700' },
+    rowActionDivider: { width: 1, height: 20 },
+    visibilityRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, borderWidth: 1, marginBottom: 16 },
+    visibilityIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    visibilityTitle: { fontSize: 14, fontWeight: '700', marginBottom: 2 },
+    visibilityText: { fontSize: 12, lineHeight: 16 },
+    visibilityUnlock: { fontSize: 12, fontWeight: '800' },
+    toggle: { width: 44, height: 26, borderRadius: 13, padding: 3, justifyContent: 'center' },
+    toggleKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#FFFFFF' },
 
     // Wizard Modal
     wizardOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },
