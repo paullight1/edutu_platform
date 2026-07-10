@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { createHash } from "crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { EDUTU_LOGO_DATA_URI } from "./opportunity-share-logo";
 
 type OpportunityRecord = Record<string, any>;
 
@@ -37,7 +38,10 @@ const CARD_HEIGHT = 1350; // Instagram feed portrait (4:5)
 const FONT = "'Inter', 'Helvetica Neue', 'Segoe UI', Arial, sans-serif";
 
 // Bump when the card layout changes so cached cards regenerate on next fetch.
-const DESIGN_VERSION = "v5-brief-ig45";
+const DESIGN_VERSION = "v6-brief-logo-org";
+
+// Public marketing site — shown on the card CTA and used as the share landing.
+const BRAND_DOMAIN = "www.edutu.org";
 
 interface ShareStatus {
   label: string;
@@ -451,7 +455,7 @@ export class OpportunityShareCardService {
         `<circle cx="${W / 2}" cy="${mid - 30}" r="5" fill="#C7D6F5"/>`,
       );
       layers.push(
-        `<text x="${W / 2}" y="${mid + 8}" text-anchor="middle" font-family="${FONT}" font-size="20" font-weight="700" letter-spacing="0.4" fill="#94A3B8">Shared via Edutu — your AI opportunity coach</text>`,
+        `<text x="${W / 2}" y="${mid + 8}" text-anchor="middle" font-family="${FONT}" font-size="20" font-weight="700" letter-spacing="0.4" fill="#94A3B8">Shared via Edutu — ${BRAND_DOMAIN}</text>`,
       );
     }
 
@@ -460,7 +464,7 @@ export class OpportunityShareCardService {
     layers.push(this.footer(footerTop, W, FOOTER_H));
 
     return `<?xml version="1.0" encoding="UTF-8"?>
-<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
   <defs>
     <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#0B1E45"/>
@@ -477,11 +481,12 @@ export class OpportunityShareCardService {
   }
 
   private brandMark(x: number, y: number): string {
+    // Real Edutu logo mark on a white chip (was a plain "E" placeholder).
     return `<g transform="translate(${x} ${y})">
-    <rect x="0" y="0" width="54" height="54" rx="16" fill="#FFFFFF"/>
-    <text x="27" y="40" text-anchor="middle" font-family="${FONT}" font-size="34" font-weight="900" fill="#123C82">E</text>
-    <text x="70" y="26" font-family="${FONT}" font-size="30" font-weight="800" letter-spacing="-0.3" fill="#FFFFFF">Edutu</text>
-    <text x="70" y="49" font-family="${FONT}" font-size="13" font-weight="700" letter-spacing="3.5" fill="#8FB4FF">OPPORTUNITY BRIEF</text>
+    <rect x="0" y="0" width="58" height="58" rx="17" fill="#FFFFFF"/>
+    <image x="7" y="7" width="44" height="44" xlink:href="${EDUTU_LOGO_DATA_URI}" href="${EDUTU_LOGO_DATA_URI}" preserveAspectRatio="xMidYMid meet"/>
+    <text x="74" y="27" font-family="${FONT}" font-size="30" font-weight="800" letter-spacing="-0.3" fill="#FFFFFF">Edutu</text>
+    <text x="74" y="50" font-family="${FONT}" font-size="13" font-weight="700" letter-spacing="3.5" fill="#8FB4FF">OPPORTUNITY BRIEF</text>
   </g>`;
   }
 
@@ -679,9 +684,10 @@ export class OpportunityShareCardService {
     <rect x="0" y="${top}" width="${w}" height="${h}" fill="url(#footer)"/>
     <text x="72" y="${cy - 4}" font-family="${FONT}" font-size="24" font-weight="800" fill="#FFFFFF">Discover more opportunities</text>
     <text x="72" y="${cy + 26}" font-family="${FONT}" font-size="19" font-weight="600" fill="#AFC7FF">Personalized matches, roadmaps &amp; deadline reminders</text>
-    <g transform="translate(${w - 72 - 168} ${cy - 26})">
-      <rect x="0" y="0" width="168" height="52" rx="26" fill="#FFFFFF"/>
-      <text x="84" y="34" text-anchor="middle" font-family="${FONT}" font-size="22" font-weight="900" fill="#123C82">edutu.ai</text>
+    <g transform="translate(${w - 72 - 196} ${cy - 26})">
+      <rect x="0" y="0" width="196" height="52" rx="26" fill="#FFFFFF"/>
+      <image x="16" y="9" width="34" height="34" xlink:href="${EDUTU_LOGO_DATA_URI}" href="${EDUTU_LOGO_DATA_URI}" preserveAspectRatio="xMidYMid meet"/>
+      <text x="124" y="34" text-anchor="middle" font-family="${FONT}" font-size="22" font-weight="900" fill="#123C82">edutu.org</text>
     </g>
   </g>`;
   }

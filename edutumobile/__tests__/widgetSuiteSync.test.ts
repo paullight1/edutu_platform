@@ -26,6 +26,25 @@ jest.mock('../widgets/TrendingWidget', () => ({
   updateTrendingWidget: jest.fn(),
   updateTrendingWidgetTimeline: jest.fn(),
 }));
+jest.mock('../widgets/TrendingSpotlightWidget', () => ({
+  updateTrendingSpotlightWidget: jest.fn(),
+  updateTrendingSpotlightWidgetTimeline: jest.fn(),
+}));
+jest.mock('../widgets/TrendingGridWidget', () => ({
+  updateTrendingGridWidget: jest.fn(),
+  updateTrendingGridWidgetTimeline: jest.fn(),
+}));
+jest.mock('../widgets/TrendingTickerWidget', () => ({
+  updateTrendingTickerWidget: jest.fn(),
+  updateTrendingTickerWidgetTimeline: jest.fn(),
+}));
+jest.mock('../widgets/TrendingThumbListWidget', () => ({
+  updateTrendingThumbListWidget: jest.fn(),
+  updateTrendingThumbListWidgetTimeline: jest.fn(),
+}));
+jest.mock('../lib/widgetImageCache', () => ({
+  getWidgetImageUri: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock('../widgets/ChatWidget', () => ({
   updateChatWidget: jest.fn(),
 }));

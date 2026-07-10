@@ -38,10 +38,22 @@ import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import { BrandedLoader } from "../../../components/ui/BrandedLoader";
 import { ProgressBar } from "../../../components/ui/ProgressBar";
 import { AnimatedPressable } from "../../../components/ui/AnimatedPressable";
-import { FadeInDown } from "react-native-reanimated";
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  Easing,
+} from "react-native-reanimated";
 import { supabase } from "../../../lib/supabase";
 import { useReportAIContent } from "../../../lib/reportAiContent";
-import { getOpportunity } from "@edutu/core/src/services/opportunities";
+import {
+  getOpportunity,
+  getCachedOpportunity,
+} from "@edutu/core/src/services/opportunities";
 import {
   fetchApplicationKit,
   generateApplicationKit,
@@ -81,6 +93,82 @@ const CHECKLIST_SECTIONS: Array<{
   { key: "submission", label: "Submission" },
 ];
 
+// The three things the kit delivers — each with its own accent so the intro
+// reads as a colourful, scannable set rather than three identical grey rows.
+const KIT_FEATURES = [
+  {
+    icon: Target,
+    title: "Your winning angle",
+    desc: "Why you fit and exactly what to emphasize.",
+    color: "#6366F1",
+  },
+  {
+    icon: ListChecks,
+    title: "Everything to prepare",
+    desc: "Documents, eligibility proofs, submission steps.",
+    color: "#10B981",
+  },
+  {
+    icon: PenLine,
+    title: "Essay co-writer",
+    desc: "Predicted prompts, personalized outlines, honest feedback.",
+    color: "#F59E0B",
+  },
+] as const;
+
+/** Softly pulsing halo behind the hero icon. */
+function PulseIcon({
+  color,
+  children,
+}: {
+  color: string;
+  children: React.ReactNode;
+}) {
+  const progress = useSharedValue(0);
+  useEffect(() => {
+    progress.value = withRepeat(
+      withTiming(1, { duration: 1800, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true,
+    );
+  }, [progress]);
+  const halo = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 + progress.value * 0.35 }],
+    opacity: 0.55 - progress.value * 0.5,
+  }));
+  return (
+    <View style={styles.pulseWrap}>
+      <Animated.View
+        style={[styles.pulseHalo, { backgroundColor: color }, halo]}
+      />
+      <View style={[styles.pulseCore, { backgroundColor: `${color}1F` }]}>
+        {children}
+      </View>
+    </View>
+  );
+}
+
+/** Bobbing icon used inside the "opening the application" launch overlay. */
+function LaunchIcon({ color }: { color: string }) {
+  const scale = useSharedValue(0.92);
+  useEffect(() => {
+    scale.value = withRepeat(
+      withSequence(
+        withTiming(1.08, { duration: 620, easing: Easing.out(Easing.ease) }),
+        withTiming(0.92, { duration: 620, easing: Easing.in(Easing.ease) }),
+      ),
+      -1,
+      true,
+    );
+  }, [scale]);
+  const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return (
+    <Animated.View style={[styles.launchIcon, { backgroundColor: `${color}22` }, style]}>
+      <ExternalLink size={30} color={color} />
+    </Animated.View>
+  );
+}
+
 export default function ApplicationCopilotScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -96,6 +184,8 @@ export default function ApplicationCopilotScreen() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [generationPhase, setGenerationPhase] = useState(0);
+  // Drives the animated "opening the application…" launch overlay.
+  const [openingUrl, setOpeningUrl] = useState<string | null>(null);
 
   // Essay workspace modal
   const [activePrompt, setActivePrompt] = useState<KitEssayPrompt | null>(null);
@@ -107,29 +197,62 @@ export default function ApplicationCopilotScreen() {
   const [savingDraft, setSavingDraft] = useState(false);
   const draftDirtyRef = useRef(false);
 
+  // Clerk's getToken can be a new reference every render; keep it in a ref so
+  // the load effect can call the latest one without re-running (which would
+  // otherwise loop setLoading(true) forever and flicker the screen).
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
+
   const textSecondary = isDark ? "#94A3B8" : "#64748B";
 
   useEffect(() => {
+    let cancelled = false;
     const load = async () => {
       if (!id) return;
       setLoading(true);
+      // 1) Load the opportunity first — this is all the screen needs to render.
+      // Race the network fetch against an 8s timeout so a slow/offline query
+      // can never hang the screen; on timeout or error, fall back to the
+      // per-id AsyncStorage cache so a previously-opened opportunity still opens.
       try {
-        const [opp, existingKit] = await Promise.all([
+        const timeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("opportunity_load_timeout")), 8000),
+        );
+        const opp = await Promise.race([
           getOpportunity(id, supabase),
-          fetchApplicationKit(id, getToken),
+          timeout,
         ]);
-        setOpportunity(opp);
-        if (existingKit?.kit && (existingKit.kit.checklist?.length || existingKit.kit.essayPrompts?.length)) {
+        if (!cancelled) setOpportunity(opp);
+      } catch (error) {
+        console.error("Failed to load co-pilot opportunity:", error);
+        const cached = await getCachedOpportunity(id);
+        if (!cancelled && cached) setOpportunity(cached);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+
+      // 2) Fetch any existing application kit in the BACKGROUND. The backend
+      // can be slow/unreachable (cold start) — never let it block the screen.
+      try {
+        const existingKit = await fetchApplicationKit(id, getTokenRef.current);
+        if (
+          !cancelled &&
+          existingKit?.kit &&
+          (existingKit.kit.checklist?.length || existingKit.kit.essayPrompts?.length)
+        ) {
           setKit(existingKit);
         }
       } catch (error) {
-        console.error("Failed to load co-pilot:", error);
-      } finally {
-        setLoading(false);
+        console.error("Failed to load application kit:", error);
       }
     };
     load();
-  }, [id, getToken]);
+    return () => {
+      cancelled = true;
+    };
+    // Only re-run when the opportunity id changes — getToken is read via ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   useEffect(() => {
     if (!generating) {
@@ -373,7 +496,15 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
 
   const openApply = useCallback(() => {
     const url = opportunity?.applyUrl;
-    if (url) void Linking.openURL(url).catch(() => undefined);
+    if (!url) return;
+    // Show a branded launch animation, then hand off to the browser. Feels
+    // intentional instead of the app abruptly disappearing.
+    setOpeningUrl(url);
+    setTimeout(() => {
+      void Linking.openURL(url)
+        .catch(() => undefined)
+        .finally(() => setOpeningUrl(null));
+    }, 850);
   }, [opportunity?.applyUrl]);
 
   // -------------------------------------------------------------------------
@@ -381,7 +512,18 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
   // -------------------------------------------------------------------------
 
   if (loading) {
-    return <BrandedLoader label="Opening your co-pilot..." />;
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: colors.background,
+        }}
+      >
+        <BrandedLoader label="Opening your co-pilot..." />
+      </View>
+    );
   }
 
   if (!opportunity) {
@@ -466,70 +608,90 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
             ))}
           </View>
         ) : (
-          <ScrollView contentContainerStyle={styles.introScroll}>
-            <View style={[styles.introHero, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <ScrollView
+            contentContainerStyle={styles.introScroll}
+            showsVerticalScrollIndicator={false}
+          >
+            <Animated.View
+              entering={FadeIn.duration(450)}
+              style={[styles.introHero, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
               <LinearGradient
-                colors={[`${colors.accent}12`, `${colors.accent}03`]}
+                colors={[`${colors.accent}18`, `${colors.accent}05`, "transparent"]}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
                 style={StyleSheet.absoluteFill}
               />
-              <View style={[styles.generateIcon, { backgroundColor: `${colors.accent}18` }]}>
-                <FileText size={28} color={colors.accent} />
-              </View>
+              <PulseIcon color={colors.accent}>
+                <FileText size={30} color={colors.accent} />
+              </PulseIcon>
               <Text style={[styles.introTitle, { color: colors.foreground }]}>
                 Apply with Edutu
               </Text>
               <Text style={[styles.introDesc, { color: textSecondary }]}>
-                A personalized application kit for {"“"}{opportunity.title}{"”"}: your
-                winning angle, a document checklist, the likely essay questions —
-                plus AI outlines and draft feedback.
+                A personalized application kit for {"“"}
+                {opportunity.title}
+                {"”"} — your winning angle, a document checklist, the likely
+                essay questions, plus AI outlines and draft feedback.
               </Text>
               {deadlineBadge && (
                 <View
                   style={[
                     styles.deadlinePill,
-                    { backgroundColor: `${urgencyColor(deadlineBadge.level)}18` },
+                    { backgroundColor: `${urgencyColor(deadlineBadge.level)}1F` },
                   ]}
                 >
                   <Text
                     style={{
                       color: urgencyColor(deadlineBadge.level),
                       fontSize: 12,
-                      fontWeight: "700",
+                      fontWeight: "800",
                     }}
                   >
                     {deadlineBadge.label}
                   </Text>
                 </View>
               )}
-            </View>
+            </Animated.View>
 
-            {[
-              { icon: Target, title: "Your winning angle", desc: "Why you fit and what to emphasize." },
-              { icon: ListChecks, title: "Everything to prepare", desc: "Documents, eligibility proofs, submission steps." },
-              { icon: PenLine, title: "Essay co-writer", desc: "Predicted prompts, personalized outlines, honest feedback." },
-            ].map((row) => (
-              <View
+            <Text style={[styles.introSectionLabel, { color: textSecondary }]}>
+              WHAT YOU GET
+            </Text>
+
+            {KIT_FEATURES.map((row, index) => (
+              <Animated.View
                 key={row.title}
-                style={[styles.introRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+                entering={FadeInDown.delay(120 + index * 90).duration(420)}
+                style={[
+                  styles.introRow,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                    borderLeftColor: row.color,
+                    borderLeftWidth: 3,
+                  },
+                ]}
               >
-                <View style={[styles.introRowIcon, { backgroundColor: `${colors.accent}12` }]}>
-                  <row.icon size={18} color={colors.accent} />
+                <View style={[styles.introRowIcon, { backgroundColor: `${row.color}1A` }]}>
+                  <row.icon size={19} color={row.color} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.foreground, fontSize: 14, fontWeight: "700" }}>
+                  <Text style={{ color: colors.foreground, fontSize: 14.5, fontWeight: "800" }}>
                     {row.title}
                   </Text>
-                  <Text style={{ color: textSecondary, fontSize: 13, marginTop: 2 }}>
+                  <Text style={{ color: textSecondary, fontSize: 13, marginTop: 3, lineHeight: 18 }}>
                     {row.desc}
                   </Text>
                 </View>
-              </View>
+              </Animated.View>
             ))}
+
+            <View style={{ height: 8 }} />
 
             <AnimatedPressable
               onPress={() => void handleGenerate(false)}
               hapticFeedback="medium"
-              entering={FadeInDown.duration(400)}
+              entering={FadeInDown.delay(430).duration(420)}
               style={styles.generateCTA}
             >
               <LinearGradient
@@ -541,16 +703,17 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
                 <Sparkles size={18} color="#FFFFFF" />
                 <Text style={styles.generateCTAText}>
                   {isPro
-                    ? "Generate my application kit (Pro)"
+                    ? "Generate my application kit"
                     : `Generate my kit — ${KIT_CREDIT_COST} credits`}
                 </Text>
               </LinearGradient>
             </AnimatedPressable>
-            {!isPro && (
-              <Text style={{ color: textSecondary, fontSize: 12, textAlign: "center", marginTop: 8 }}>
-                You have {credits} credits · Outlines & feedback included
-              </Text>
-            )}
+
+            <Text style={[styles.introFootnote, { color: textSecondary }]}>
+              {isPro
+                ? "Included with Pro · Outlines & feedback included"
+                : `You have ${credits} credits · Outlines & feedback included`}
+            </Text>
           </ScrollView>
         )
       ) : (
@@ -991,6 +1154,27 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
+
+      {/* Animated launch overlay while we hand off to the application URL */}
+      <Modal visible={Boolean(openingUrl)} transparent animationType="fade">
+        <View style={styles.launchOverlay}>
+          <Animated.View
+            entering={FadeIn.duration(220)}
+            style={[
+              styles.launchCard,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <LaunchIcon color={colors.accent} />
+            <Text style={[styles.launchTitle, { color: colors.foreground }]}>
+              Opening the application…
+            </Text>
+            <Text style={[styles.launchSub, { color: textSecondary }]} numberOfLines={2}>
+              {opportunity.title}
+            </Text>
+          </Animated.View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1024,9 +1208,63 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     marginBottom: 14,
   },
-  introTitle: { fontSize: 21, fontWeight: "900", letterSpacing: -0.4 },
+  introTitle: { fontSize: 22, fontWeight: "900", letterSpacing: -0.4, marginTop: 14 },
   introDesc: { fontSize: 13.5, lineHeight: 20, textAlign: "center", marginTop: 8 },
-  deadlinePill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, marginTop: 12 },
+  deadlinePill: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, marginTop: 16 },
+  introSectionLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.4,
+    marginTop: 6,
+    marginBottom: 10,
+    marginLeft: 4,
+  },
+  introFootnote: { fontSize: 12, textAlign: "center", marginTop: 10 },
+  pulseWrap: {
+    width: 78,
+    height: 78,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pulseHalo: {
+    position: "absolute",
+    width: 64,
+    height: 64,
+    borderRadius: 22,
+  },
+  pulseCore: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  launchOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(2,6,23,0.62)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 32,
+  },
+  launchCard: {
+    width: "100%",
+    maxWidth: 320,
+    borderRadius: 24,
+    borderWidth: 1,
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    alignItems: "center",
+  },
+  launchIcon: {
+    width: 68,
+    height: 68,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 18,
+  },
+  launchTitle: { fontSize: 16, fontWeight: "800", textAlign: "center" },
+  launchSub: { fontSize: 13, textAlign: "center", marginTop: 6, lineHeight: 18 },
   introRow: {
     flexDirection: "row",
     alignItems: "center",

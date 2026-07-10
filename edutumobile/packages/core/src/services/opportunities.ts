@@ -486,7 +486,7 @@ export async function fetchOpportunities(options: FetchOptions): Promise<Opportu
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            limit: 300,
+            limit: 1000,
             minMatchScore: 0,
             ...(hasExclusions ? { excludeOpportunityIds } : {}),
           }),
@@ -518,7 +518,7 @@ export async function fetchOpportunities(options: FetchOptions): Promise<Opportu
         },
         body: JSON.stringify({
           profile,
-          limit: 300,
+          limit: 1000,
           minMatchScore: userId ? 0 : 30,
           ...(hasExclusions ? { excludeOpportunityIds } : {}),
         }),
@@ -600,8 +600,29 @@ async function fetchWithTimeout(url: string, ms: number, init?: RequestInit): Pr
   }
 }
 
+export type OpportunityFetchStatus = 'ok' | 'not_found' | 'error';
+
+export interface OpportunityFetchResult {
+  opportunity: Opportunity | null;
+  /**
+   * 'ok'        → record returned (fresh, or cached fallback when offline)
+   * 'not_found' → a source that answered successfully said the record is missing
+   * 'error'     → every network source failed (offline/timeout) and no cache
+   */
+  status: OpportunityFetchStatus;
+}
+
 export async function getOpportunity(id: string, supabase?: SupabaseClient): Promise<Opportunity | null> {
-  if (!id) return null;
+  const { opportunity } = await getOpportunityWithStatus(id, supabase);
+  return opportunity;
+}
+
+export async function getOpportunityWithStatus(id: string, supabase?: SupabaseClient): Promise<OpportunityFetchResult> {
+  if (!id) return { opportunity: null, status: 'not_found' };
+
+  // Tracks whether a source that successfully answered told us the record is
+  // definitively missing (vs. the request itself failing).
+  let definitiveMiss = false;
 
   // Prefer the public backend endpoint. It's the same source the list/detail
   // recommendations come from, so ids always resolve, and it returns the full
@@ -619,8 +640,12 @@ export async function getOpportunity(id: string, supabase?: SupabaseClient): Pro
         if (row && row.id) {
           const opportunity = normaliseOpportunity(row);
           void persistOpportunityDetail(opportunity);
-          return opportunity;
+          return { opportunity, status: 'ok' };
         }
+        // 2xx but no record in the payload → the id doesn't exist.
+        definitiveMiss = true;
+      } else if (response.status === 404 || response.status === 410) {
+        definitiveMiss = true;
       }
     } catch (error) {
       if (__DEV__) {
@@ -637,13 +662,16 @@ export async function getOpportunity(id: string, supabase?: SupabaseClient): Pro
         .eq('id', id)
         .single();
 
-      if (error || !data) {
-        throw error || new Error('No data found');
+      if (data && !error) {
+        const opportunity = normaliseOpportunity(data);
+        void persistOpportunityDetail(opportunity);
+        return { opportunity, status: 'ok' };
       }
-
-      const opportunity = normaliseOpportunity(data);
-      void persistOpportunityDetail(opportunity);
-      return opportunity;
+      // PGRST116 = query succeeded but returned zero rows → definitive miss.
+      if ((error as { code?: string } | null)?.code === 'PGRST116') {
+        definitiveMiss = true;
+      }
+      console.error('Error fetching single opportunity:', error || new Error('No data found'));
     } catch (error) {
       console.error('Error fetching single opportunity:', error);
     }
@@ -652,7 +680,9 @@ export async function getOpportunity(id: string, supabase?: SupabaseClient): Pro
   // Both network sources failed (offline / cold-start / timeout). Fall back to
   // the last-known full record so the detail screen shows content instead of
   // the "not found" scaffold. Callers still revalidate on the next open.
-  return getCachedOpportunity(id);
+  const cached = await getCachedOpportunity(id);
+  if (cached) return { opportunity: cached, status: 'ok' };
+  return { opportunity: null, status: definitiveMiss ? 'not_found' : 'error' };
 }
 
 export function clearOpportunitiesCache() {

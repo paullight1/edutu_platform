@@ -2,7 +2,16 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColorScheme, StatusBar } from 'react-native';
 
-export type ThemePackage = 'default' | 'ocean' | 'sunset' | 'forest' | 'royal';
+export type ThemePackage =
+  | 'default'
+  | 'ocean'
+  | 'sunset'
+  | 'forest'
+  | 'royal'
+  | 'rose'
+  | 'amethyst'
+  | 'graphite'
+  | 'crimson';
 export type ThemeMode = 'light' | 'dark' | 'system';
 
 export interface ThemeColors {
@@ -42,7 +51,36 @@ const THEMES: Record<ThemePackage, { dark: ThemeColors; light: ThemeColors }> = 
     dark: { background: '#0f172a', foreground: '#F5F3FF', card: '#3B0764', border: '#1e3a5f', accent: '#3b82f6', primary: '#3b82f6', accentLight: '#60a5fa', muted: '#1e3a5f', mutedForeground: '#C4B5FD', textSecondary: '#C4B5FD', success: '#10B981', warning: '#F59E0B', error: '#F87171' },
     light: { background: '#F5F3FF', foreground: '#0f172a', card: '#FFFFFF', border: '#bfdbfe', accent: '#2563eb', primary: '#2563eb', accentLight: '#3b82f6', muted: '#EDE9FE', mutedForeground: '#6B7280', textSecondary: '#6B7280', success: '#059669', warning: '#D97706', error: '#DC2626' },
   },
+  rose: {
+    dark: { background: '#1F0A17', foreground: '#FDF2F8', card: '#2D0F22', border: '#4A1D38', accent: '#EC4899', primary: '#EC4899', accentLight: '#F472B6', muted: '#4A1D38', mutedForeground: '#F9A8D4', textSecondary: '#F9A8D4', success: '#34D399', warning: '#FBBF24', error: '#F87171' },
+    light: { background: '#FFF1F7', foreground: '#500724', card: '#FFFFFF', border: '#FBCFE8', accent: '#DB2777', primary: '#DB2777', accentLight: '#EC4899', muted: '#FCE7F3', mutedForeground: '#9D174D', textSecondary: '#9D174D', success: '#059669', warning: '#D97706', error: '#DC2626' },
+  },
+  amethyst: {
+    dark: { background: '#1A0B2E', foreground: '#F5F3FF', card: '#2A1147', border: '#432466', accent: '#A855F7', primary: '#A855F7', accentLight: '#C084FC', muted: '#432466', mutedForeground: '#D8B4FE', textSecondary: '#D8B4FE', success: '#34D399', warning: '#FBBF24', error: '#F87171' },
+    light: { background: '#FAF5FF', foreground: '#2E1065', card: '#FFFFFF', border: '#E9D5FF', accent: '#9333EA', primary: '#9333EA', accentLight: '#A855F7', muted: '#F3E8FF', mutedForeground: '#6B21A8', textSecondary: '#6B21A8', success: '#059669', warning: '#D97706', error: '#DC2626' },
+  },
+  graphite: {
+    dark: { background: '#09090B', foreground: '#FAFAFA', card: '#18181B', border: '#27272A', accent: '#52525B', primary: '#52525B', accentLight: '#71717A', muted: '#27272A', mutedForeground: '#A1A1AA', textSecondary: '#A1A1AA', success: '#34D399', warning: '#FBBF24', error: '#F87171' },
+    light: { background: '#FAFAFA', foreground: '#18181B', card: '#FFFFFF', border: '#E4E4E7', accent: '#3F3F46', primary: '#3F3F46', accentLight: '#52525B', muted: '#F4F4F5', mutedForeground: '#71717A', textSecondary: '#71717A', success: '#059669', warning: '#D97706', error: '#DC2626' },
+  },
+  crimson: {
+    dark: { background: '#1A0505', foreground: '#FEF2F2', card: '#2B0A0A', border: '#4C1515', accent: '#EF4444', primary: '#EF4444', accentLight: '#F87171', muted: '#4C1515', mutedForeground: '#FCA5A5', textSecondary: '#FCA5A5', success: '#34D399', warning: '#FBBF24', error: '#F87171' },
+    light: { background: '#FEF2F2', foreground: '#450A0A', card: '#FFFFFF', border: '#FECACA', accent: '#DC2626', primary: '#DC2626', accentLight: '#EF4444', muted: '#FEE2E2', mutedForeground: '#991B1B', textSecondary: '#991B1B', success: '#059669', warning: '#D97706', error: '#DC2626' },
+  },
 };
+
+/** Ordered list of selectable theme packages (drives the settings gallery order). */
+export const THEME_ORDER: ThemePackage[] = [
+  'default', 'ocean', 'sunset', 'forest', 'royal', 'amethyst', 'rose', 'crimson', 'graphite',
+];
+
+/** Small color previews (from each theme's dark palette) for swatch UI. */
+export const THEME_SWATCHES: Record<ThemePackage, { bg: string; card: string; accent: string; accentLight: string }> =
+  (Object.keys(THEMES) as ThemePackage[]).reduce((acc, key) => {
+    const d = THEMES[key].dark;
+    acc[key] = { bg: d.background, card: d.card, accent: d.accent, accentLight: d.accentLight };
+    return acc;
+  }, {} as Record<ThemePackage, { bg: string; card: string; accent: string; accentLight: string }>);
 
 interface ThemeContextValue {
   theme: ThemePackage;

@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Trending Ticker — a wide banner that fades through the hottest opportunities
+  on-device (ViewFlipper, every few seconds). Each banner is a full-bleed photo
+  with a dark scrim and a one/two-line headline plus a meta + deadline row.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/edutu_tk_root"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:background="@drawable/edutu_widget_background">
+
+  <ViewFlipper
+    android:id="@+id/edutu_tk_flipper"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:autoStart="true"
+    android:flipInterval="5000"
+    android:inAnimation="@android:anim/fade_in"
+    android:outAnimation="@android:anim/fade_out">
+
+    <FrameLayout
+      android:id="@+id/edutu_tk_b1"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:background="@color/edutu_widget_bg">
+      <ImageView
+        android:id="@+id/edutu_tk_b1_image"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:contentDescription="@null" />
+      <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/edutu_widget_scrim" />
+      <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="12dp">
+        <TextView
+          android:id="@+id/edutu_tk_b1_title"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:ellipsize="end"
+          android:maxLines="2"
+          android:textColor="#FFFFFF"
+          android:textSize="16sp"
+          android:textStyle="bold" />
+        <LinearLayout
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="3dp"
+          android:orientation="horizontal"
+          android:gravity="center_vertical">
+          <TextView
+            android:id="@+id/edutu_tk_b1_meta"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#DCE2FF"
+            android:textSize="11sp" />
+          <TextView
+            android:id="@+id/edutu_tk_b1_deadline"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="8dp"
+            android:maxLines="1"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+        </LinearLayout>
+      </LinearLayout>
+    </FrameLayout>
+
+    <FrameLayout
+      android:id="@+id/edutu_tk_b2"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:background="@color/edutu_widget_bg">
+      <ImageView
+        android:id="@+id/edutu_tk_b2_image"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:contentDescription="@null" />
+      <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/edutu_widget_scrim" />
+      <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="12dp">
+        <TextView
+          android:id="@+id/edutu_tk_b2_title"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:ellipsize="end"
+          android:maxLines="2"
+          android:textColor="#FFFFFF"
+          android:textSize="16sp"
+          android:textStyle="bold" />
+        <LinearLayout
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="3dp"
+          android:orientation="horizontal"
+          android:gravity="center_vertical">
+          <TextView
+            android:id="@+id/edutu_tk_b2_meta"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#DCE2FF"
+            android:textSize="11sp" />
+          <TextView
+            android:id="@+id/edutu_tk_b2_deadline"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="8dp"
+            android:maxLines="1"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+        </LinearLayout>
+      </LinearLayout>
+    </FrameLayout>
+
+    <FrameLayout
+      android:id="@+id/edutu_tk_b3"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:background="@color/edutu_widget_bg">
+      <ImageView
+        android:id="@+id/edutu_tk_b3_image"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:contentDescription="@null" />
+      <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/edutu_widget_scrim" />
+      <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="12dp">
+        <TextView
+          android:id="@+id/edutu_tk_b3_title"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:ellipsize="end"
+          android:maxLines="2"
+          android:textColor="#FFFFFF"
+          android:textSize="16sp"
+          android:textStyle="bold" />
+        <LinearLayout
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="3dp"
+          android:orientation="horizontal"
+          android:gravity="center_vertical">
+          <TextView
+            android:id="@+id/edutu_tk_b3_meta"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#DCE2FF"
+            android:textSize="11sp" />
+          <TextView
+            android:id="@+id/edutu_tk_b3_deadline"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="8dp"
+            android:maxLines="1"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+        </LinearLayout>
+      </LinearLayout>
+    </FrameLayout>
+
+    <FrameLayout
+      android:id="@+id/edutu_tk_b4"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:background="@color/edutu_widget_bg">
+      <ImageView
+        android:id="@+id/edutu_tk_b4_image"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:contentDescription="@null" />
+      <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/edutu_widget_scrim" />
+      <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="12dp">
+        <TextView
+          android:id="@+id/edutu_tk_b4_title"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:ellipsize="end"
+          android:maxLines="2"
+          android:textColor="#FFFFFF"
+          android:textSize="16sp"
+          android:textStyle="bold" />
+        <LinearLayout
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="3dp"
+          android:orientation="horizontal"
+          android:gravity="center_vertical">
+          <TextView
+            android:id="@+id/edutu_tk_b4_meta"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#DCE2FF"
+            android:textSize="11sp" />
+          <TextView
+            android:id="@+id/edutu_tk_b4_deadline"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="8dp"
+            android:maxLines="1"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+        </LinearLayout>
+      </LinearLayout>
+    </FrameLayout>
+  </ViewFlipper>
+
+  <LinearLayout
+    android:id="@+id/edutu_tk_empty"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:padding="16dp"
+    android:visibility="gone">
+    <ImageView
+      android:layout_width="22dp"
+      android:layout_height="22dp"
+      android:src="@drawable/edutu_widget_logo"
+      android:contentDescription="@null" />
+    <TextView
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginLeft="10dp"
+      android:maxLines="1"
+      android:text="@string/edutu_widget_trending_empty"
+      android:textColor="@color/edutu_widget_ink"
+      android:textSize="14sp"
+      android:textStyle="bold" />
+  </LinearLayout>
+</FrameLayout>

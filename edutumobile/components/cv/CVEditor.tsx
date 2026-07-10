@@ -286,8 +286,12 @@ export function CVEditor({
                 <SectionHeader
                     title={t('editor.sections.experience')}
                     color={colors.foreground}
+                    count={(currentCV.data_json?.experience || []).length}
                     onAdd={() => addItem('experience')}
                 />
+                {(currentCV.data_json?.experience || []).length === 0 && (
+                    <EmptyHint label={t('editor.empty.experience')} />
+                )}
                 {(currentCV.data_json?.experience || []).map((item: any) => (
                     <View key={item.id} style={[styles.inputCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                         <ItemHeader title={item.role || t('editor.newExperience')} onDelete={() => removeItem('experience', item.id)} />
@@ -323,8 +327,12 @@ export function CVEditor({
                 <SectionHeader
                     title={t('editor.sections.education')}
                     color={colors.foreground}
+                    count={(currentCV.data_json?.education || []).length}
                     onAdd={() => addItem('education')}
                 />
+                {(currentCV.data_json?.education || []).length === 0 && (
+                    <EmptyHint label={t('editor.empty.education')} />
+                )}
                 {(currentCV.data_json?.education || []).map((item: any) => (
                     <View key={item.id} style={[styles.inputCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                         <ItemHeader title={item.degree || t('editor.newEducation')} onDelete={() => removeItem('education', item.id)} />
@@ -346,8 +354,12 @@ export function CVEditor({
                 <SectionHeader
                     title={t('editor.sections.projects')}
                     color={colors.foreground}
+                    count={(currentCV.data_json?.projects || []).length}
                     onAdd={() => addItem('projects')}
                 />
+                {(currentCV.data_json?.projects || []).length === 0 && (
+                    <EmptyHint label={t('editor.empty.projects')} />
+                )}
                 {(currentCV.data_json?.projects || []).map((item: any) => (
                     <View key={item.id} style={[styles.inputCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                         <ItemHeader title={item.name || t('editor.newProject')} onDelete={() => removeItem('projects', item.id)} />
@@ -365,8 +377,12 @@ export function CVEditor({
                 <SectionHeader
                     title={t('editor.sections.achievements')}
                     color={colors.foreground}
+                    count={(currentCV.data_json?.achievements || []).length}
                     onAdd={() => addItem('achievements')}
                 />
+                {(currentCV.data_json?.achievements || []).length === 0 && (
+                    <EmptyHint label={t('editor.empty.achievements')} />
+                )}
                 {(currentCV.data_json?.achievements || []).map((item: any) => (
                     <View key={item.id} style={[styles.inputCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                         <ItemHeader title={item.title || t('editor.newAchievement')} onDelete={() => removeItem('achievements', item.id)} />
@@ -431,12 +447,29 @@ export function CVEditor({
     );
 }
 
-function SectionHeader({ title, color, onAdd }: { title: string; color: string; onAdd: () => void }) {
+function SectionHeader({
+    title,
+    color,
+    count,
+    onAdd,
+}: {
+    title: string;
+    color: string;
+    count?: number;
+    onAdd: () => void;
+}) {
     const { t } = useTranslation('cv');
     return (
         <View style={styles.sectionHeaderRow}>
-            <Text style={[styles.sectionTitle, { color, marginTop: 20 }]}>{title}</Text>
-            <TouchableOpacity style={styles.addBtn} onPress={onAdd}>
+            <View style={styles.sectionTitleWrap}>
+                <Text style={[styles.sectionTitle, { color, marginTop: 20 }]}>{title}</Text>
+                {typeof count === 'number' && count > 0 && (
+                    <View style={styles.countBadge}>
+                        <Text style={styles.countBadgeText}>{count}</Text>
+                    </View>
+                )}
+            </View>
+            <TouchableOpacity style={styles.addBtn} onPress={onAdd} hitSlop={8}>
                 <Plus size={16} color="#6366F1" />
                 <Text style={styles.addBtnText}>{t('editor.add')}</Text>
             </TouchableOpacity>
@@ -445,12 +478,31 @@ function SectionHeader({ title, color, onAdd }: { title: string; color: string; 
 }
 
 function ItemHeader({ title, onDelete }: { title: string; onDelete: () => void }) {
+    const { colors } = useTheme();
     return (
         <View style={styles.itemHeader}>
-            <Text style={styles.itemHeaderText}>{title}</Text>
-            <TouchableOpacity onPress={onDelete}>
+            <Text style={[styles.itemHeaderText, { color: colors.foreground }]} numberOfLines={1}>
+                {title}
+            </Text>
+            <TouchableOpacity onPress={onDelete} hitSlop={8}>
                 <Trash2 size={16} color="#EF4444" />
             </TouchableOpacity>
+        </View>
+    );
+}
+
+function EmptyHint({ label }: { label: string }) {
+    const { isDark } = useTheme();
+    return (
+        <View
+            style={[
+                styles.emptyHint,
+                { borderColor: isDark ? 'rgba(148,163,184,0.28)' : 'rgba(148,163,184,0.5)' },
+            ]}
+        >
+            <Text style={[styles.emptyHintText, { color: isDark ? '#64748B' : '#94A3B8' }]}>
+                {label}
+            </Text>
         </View>
     );
 }
@@ -506,6 +558,40 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+    },
+    sectionTitleWrap: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    countBadge: {
+        minWidth: 20,
+        height: 20,
+        paddingHorizontal: 6,
+        borderRadius: 10,
+        marginTop: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(99,102,241,0.16)',
+    },
+    countBadgeText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#6366F1',
+    },
+    emptyHint: {
+        borderWidth: 1,
+        borderStyle: 'dashed',
+        borderRadius: 12,
+        paddingVertical: 18,
+        paddingHorizontal: 16,
+        marginBottom: 12,
+        alignItems: 'center',
+    },
+    emptyHintText: {
+        fontSize: 13,
+        fontWeight: '500',
+        textAlign: 'center',
     },
     addBtn: {
         flexDirection: 'row',
@@ -580,15 +666,19 @@ const styles = StyleSheet.create({
         marginTop: 8,
     },
     skillTag: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 11,
+        paddingVertical: 5,
+        borderRadius: 999,
         marginRight: 6,
         marginBottom: 6,
+        borderWidth: 1,
+        borderColor: 'rgba(99,102,241,0.28)',
     },
     skillTagText: {
         fontSize: 12,
-        fontWeight: '500',
+        fontWeight: '600',
     },
     itemHeader: {
         flexDirection: 'row',

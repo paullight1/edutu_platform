@@ -65,5 +65,29 @@
       </intent-filter>
       <meta-data android:name="android.appwidget.provider" android:resource="@xml/edutu_chat_widget_info"/>
     </receiver>
+    <receiver android:name=".widgets.TrendingSpotlightWidgetProvider" android:exported="true" android:label="@string/edutu_trending_spotlight_widget_name">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/edutu_trending_spotlight_widget_info"/>
+    </receiver>
+    <receiver android:name=".widgets.TrendingGridWidgetProvider" android:exported="true" android:label="@string/edutu_trending_grid_widget_name">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/edutu_trending_grid_widget_info"/>
+    </receiver>
+    <receiver android:name=".widgets.TrendingTickerWidgetProvider" android:exported="true" android:label="@string/edutu_trending_ticker_widget_name">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/edutu_trending_ticker_widget_info"/>
+    </receiver>
+    <receiver android:name=".widgets.TrendingThumbListWidgetProvider" android:exported="true" android:label="@string/edutu_trending_thumblist_widget_name">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+      </intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/edutu_trending_thumblist_widget_info"/>
+    </receiver>
   </application>
 </manifest>

@@ -36,6 +36,10 @@ import {
   type RecommendationQueryDto,
   type UserRecommendationRequestDto,
 } from "./dto/personalization.dto";
+import {
+  SearchOpportunitiesSchema,
+  type SearchOpportunitiesDto,
+} from "./dto/search-opportunities.dto";
 import { OpportunitiesService } from "./opportunities.service";
 import { OpportunityEmbeddingService } from "./opportunity-embedding.service";
 import { OpportunityVerificationService } from "./opportunity-verification.service";
@@ -93,6 +97,25 @@ export class OpportunitiesController {
       cappedOffset,
       "active",
       category,
+    );
+    return stripInternalOpportunityFieldsBatch(rows);
+  }
+
+  @Public()
+  // Hybrid search (FTS + trigram + optional semantic leg, RRF-fused) with a
+  // graceful ILIKE fallback until the search migration lands. Declared before
+  // @Get(":id") so "search" is never captured as an id.
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @Get("search")
+  async search(
+    @Query(new ZodValidationPipe(SearchOpportunitiesSchema))
+    query: SearchOpportunitiesDto,
+  ) {
+    const rows = await this.opportunitiesService.hybridSearch(
+      query.q,
+      { category: query.category },
+      Math.min(query.limit ?? 20, PUBLIC_FEED_MAX_LIMIT),
+      Math.min(query.offset ?? 0, PUBLIC_FEED_MAX_OFFSET),
     );
     return stripInternalOpportunityFieldsBatch(rows);
   }

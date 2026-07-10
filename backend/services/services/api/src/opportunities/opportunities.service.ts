@@ -13,7 +13,7 @@ import { opportunities } from "../db/schema";
 import axios from "axios";
 import * as cheerio from "cheerio";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { eq, or, and, sql, lt, isNull, desc } from "drizzle-orm";
+import { eq, or, and, sql, lt, gte, isNull, desc } from "drizzle-orm";
 import * as path from "path";
 import { z } from "zod";
 import { OpportunityRankingService } from "./opportunity-ranking.service";
@@ -484,6 +484,11 @@ export class OpportunitiesService {
     const normalizedOffset = Number(offset) || 0;
     const cacheKey = `${OPPS_CACHE_PREFIX}list:${statusFilter}:${category || ""}:${cappedLimit}:${normalizedOffset}`;
 
+    // Public "active" listings must not surface opportunities whose deadline
+    // has already passed (mirrors opportunity-ranking fetchCandidateOpportunities).
+    const excludeExpired = statusFilter === "active";
+    const today = new Date().toISOString().slice(0, 10);
+
     const run = async () => {
     try {
       if (this.supabase) {
@@ -493,6 +498,10 @@ export class OpportunitiesService {
           .eq("status", statusFilter)
           .order("created_at", { ascending: false })
           .range(normalizedOffset, normalizedOffset + cappedLimit - 1);
+
+        if (excludeExpired) {
+          request = request.or(`close_date.gte.${today},close_date.is.null`);
+        }
 
         if (category) {
           request = request.eq("category", category);
@@ -513,26 +522,26 @@ export class OpportunitiesService {
         }
       }
 
-      const query = category
-        ? db
-            .select()
-            .from(opportunities)
-            .where(
-              and(
-                eq(opportunities.status, statusFilter),
-                eq(opportunities.category, category),
-              ),
-            )
-            .limit(cappedLimit)
-            .offset(normalizedOffset)
-            .orderBy(desc(opportunities.createdAt))
-        : db
-            .select()
-            .from(opportunities)
-            .where(eq(opportunities.status, statusFilter))
-            .limit(cappedLimit)
-            .offset(normalizedOffset)
-            .orderBy(desc(opportunities.createdAt));
+      const conditions = [eq(opportunities.status, statusFilter)];
+      if (category) {
+        conditions.push(eq(opportunities.category, category));
+      }
+      if (excludeExpired) {
+        conditions.push(
+          or(
+            isNull(opportunities.closeDate),
+            gte(opportunities.closeDate, today),
+          )!,
+        );
+      }
+
+      const query = db
+        .select()
+        .from(opportunities)
+        .where(and(...conditions))
+        .limit(cappedLimit)
+        .offset(normalizedOffset)
+        .orderBy(desc(opportunities.createdAt));
 
       const rows = await query.execute();
       if (rows.length > 0) {
@@ -557,6 +566,213 @@ export class OpportunitiesService {
     };
 
     return this.cache ? this.cache.wrap(cacheKey, 45, run) : run();
+  }
+
+  // Logged once so a missing migration doesn't spam a warn per search request.
+  private hybridSearchDegradedLogged = false;
+
+  /**
+   * Hybrid search over active opportunities using Reciprocal Rank Fusion of:
+   *   (a) weighted full-text rank (websearch_to_tsquery over search_tsv),
+   *   (b) trigram similarity on lower(title) for typo tolerance (> 0.25),
+   *   (c) optional semantic leg (pgvector cosine) when a query embedding is
+   *       available within SEARCH_EMBED_TIMEOUT_MS.
+   * Requires migration 20260710170000_opportunity_hybrid_search; until it is
+   * applied the query errors and we gracefully fall back to the legacy ILIKE
+   * path (logged once).
+   */
+  async hybridSearch(
+    term: string,
+    filters: { category?: string } = {},
+    limit = 20,
+    offset = 0,
+  ) {
+    const cappedLimit = Math.min(Math.max(Number(limit) || 20, 1), 60);
+    const cappedOffset = Math.max(Number(offset) || 0, 0);
+    const trimmed = String(term || "").trim();
+    if (trimmed.length < 2) {
+      return [];
+    }
+    const category = filters.category?.trim() || null;
+
+    // Optional semantic leg — never let search latency hang on the embedding
+    // provider (hard 1500ms budget, proceed lexically-only on miss).
+    const queryEmbedding = await this.resolveSearchEmbedding(trimmed);
+    const vectorLiteral = queryEmbedding
+      ? `[${queryEmbedding.join(",")}]`
+      : null;
+
+    const activeFilter = sql`
+      o.status = 'active'
+      and (o.close_date is null or o.close_date >= current_date)
+      ${category ? sql`and o.category = ${category}` : sql``}
+    `;
+
+    try {
+      // RRF with the standard k=60 constant. FTS is weighted 1.0, trigram 0.8
+      // (typo rescue, not the primary signal), semantic 0.9 when present.
+      const semanticCte = vectorLiteral
+        ? sql`,
+          sem as (
+            select o.id,
+                   row_number() over (
+                     order by o.embedding <=> ${vectorLiteral}::vector
+                   ) as rank
+            from opportunities o
+            where ${activeFilter}
+              and o.embedding is not null
+            order by o.embedding <=> ${vectorLiteral}::vector
+            limit 100
+          )`
+        : sql``;
+      const semanticJoin = vectorLiteral
+        ? sql`full outer join sem s using (id)`
+        : sql``;
+      const semanticScore = vectorLiteral
+        ? sql`+ coalesce(0.9 / (60 + s.rank), 0)`
+        : sql``;
+
+      const result = await db.execute(sql`
+        with fts as (
+          select o.id,
+                 row_number() over (
+                   order by ts_rank_cd(
+                     o.search_tsv,
+                     websearch_to_tsquery('english', ${trimmed})
+                   ) desc
+                 ) as rank
+          from opportunities o
+          where ${activeFilter}
+            and o.search_tsv @@ websearch_to_tsquery('english', ${trimmed})
+          limit 100
+        ),
+        trgm as (
+          select o.id,
+                 row_number() over (
+                   order by similarity(lower(o.title), lower(${trimmed})) desc
+                 ) as rank
+          from opportunities o
+          where ${activeFilter}
+            and similarity(lower(o.title), lower(${trimmed})) > 0.25
+          limit 100
+        )
+        ${semanticCte},
+        fused as (
+          select id,
+                 coalesce(1.0 / (60 + f.rank), 0)
+                   + coalesce(0.8 / (60 + t.rank), 0)
+                   ${semanticScore}
+                   as score
+          from fts f
+          full outer join trgm t using (id)
+          ${semanticJoin}
+        )
+        select o.*, fused.score as search_score
+        from fused
+        join opportunities o on o.id = fused.id
+        order by fused.score desc, o.created_at desc
+        limit ${cappedLimit} offset ${cappedOffset}
+      `);
+
+      const rows = (
+        Array.isArray(result)
+          ? result
+          : ((result as { rows?: Record<string, unknown>[] }).rows ?? [])
+      ) as Record<string, any>[];
+      return rows.map((row) => this.sanitizeSearchRow(row));
+    } catch (error) {
+      if (!this.hybridSearchDegradedLogged) {
+        this.hybridSearchDegradedLogged = true;
+        this.logger.warn(
+          `Hybrid search unavailable (migration not applied yet?), serving ILIKE fallback: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+      return this.searchWithIlikeFallback(
+        trimmed,
+        category,
+        cappedLimit,
+        cappedOffset,
+      );
+    }
+  }
+
+  /** Legacy ILIKE search (same fields as the admin list search), parameterized. */
+  private async searchWithIlikeFallback(
+    term: string,
+    category: string | null,
+    limit: number,
+    offset: number,
+  ) {
+    const pattern = `%${term.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
+
+    try {
+      const result = await db.execute(sql`
+        select o.*
+        from opportunities o
+        where o.status = 'active'
+          and (o.close_date is null or o.close_date >= current_date)
+          ${category ? sql`and o.category = ${category}` : sql``}
+          and (
+            o.title ilike ${pattern}
+            or o.organization ilike ${pattern}
+            or o.category ilike ${pattern}
+            or o.source ilike ${pattern}
+          )
+        order by o.created_at desc
+        limit ${limit} offset ${offset}
+      `);
+
+      const rows = (
+        Array.isArray(result)
+          ? result
+          : ((result as { rows?: Record<string, unknown>[] }).rows ?? [])
+      ) as Record<string, any>[];
+      return rows.map((row) => this.sanitizeSearchRow(row));
+    } catch (error) {
+      this.logger.warn(
+        `ILIKE search fallback failed, returning empty result: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Query embedding for the semantic leg, raced against a hard timeout so
+   * search never blocks on the LLM provider. Null = skip the semantic leg.
+   */
+  private async resolveSearchEmbedding(term: string): Promise<number[] | null> {
+    const SEARCH_EMBED_TIMEOUT_MS = 1500;
+    try {
+      const timeout = new Promise<null>((resolve) =>
+        setTimeout(() => resolve(null), SEARCH_EMBED_TIMEOUT_MS),
+      );
+      const embed = (async () => {
+        const result = await this.aiService.embed({
+          feature: "opportunities.search",
+          input: term,
+          taskType: "RETRIEVAL_QUERY",
+          dimensions: 768,
+        });
+        return result?.embeddings?.[0] ?? null;
+      })().catch(() => null);
+
+      const embedding = await Promise.race([embed, timeout]);
+      return embedding?.length === 768 ? embedding : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Never let embeddings or internal scores leak into API payloads. */
+  private sanitizeSearchRow(row: Record<string, any>) {
+    delete row.embedding;
+    delete row.embedding_model;
+    delete row.search_tsv;
+    return withOpportunityUrlAliases(row);
   }
 
   async listSitemapOpportunities(

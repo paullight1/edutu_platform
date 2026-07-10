@@ -13,12 +13,15 @@ import {
 } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
+import * as Haptics from "expo-haptics";
 import { useTheme } from "../../components/context/ThemeContext";
 import { ToastProvider, useToast } from "../../components/context/ToastContext";
 import { useCreditRewards } from "@edutu/core/src/hooks/useCreditRewards";
 import { EdutuLogo } from "../../components/branding/EdutuLogo";
 import { WelcomeHintSystem } from "../../components/ui/WelcomeHintSystem";
 import { ModuleLockOverlay } from "../../components/mobile-control/ModuleLockOverlay";
+import { VoiceModeOverlay } from "../../components/chat/VoiceModeOverlay";
+import { openVoiceMode } from "../../lib/voiceModeStore";
 import * as Notifications from "expo-notifications";
 import { notificationService, registerForPushNotificationsAsync } from "../../lib/notifications";
 import { supabase } from "../../lib/supabase";
@@ -350,13 +353,20 @@ function BottomNav({
                 </View>
             </View>
 
-            {/* Detached glass circle — the Edutu AI accessory */}
+            {/* Detached glass circle — the Edutu AI accessory.
+                Tap opens the chat; holding it drops straight into voice mode. */}
             <TouchableOpacity
                 onPress={onAIPress}
+                onLongPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                    openVoiceMode('voice');
+                }}
+                delayLongPress={280}
                 activeOpacity={0.85}
                 style={styles.navCircle}
                 accessibilityRole="button"
                 accessibilityLabel={t('tabs.openEdutuAi')}
+                accessibilityHint={t('tabs.holdForVoice')}
             >
                 {glassBackground(999)}
                 <Sparkles size={24} color={accent} strokeWidth={2.2} />
@@ -418,9 +428,12 @@ export default function AppLayout() {
 
         registeredPushUserRef.current = userId;
         void (async () => {
-            const token = await getToken();
             await notificationService.requestPermissions();
-            await registerForPushNotificationsAsync(userId, token);
+            // Pass the token *getter*, not a pre-fetched token: registration does
+            // slow work (permission prompt + Expo push-token fetch) and Clerk
+            // session tokens expire in ~60s, so the token must be minted fresh
+            // right before the sync POST — otherwise it 401s as expired.
+            await registerForPushNotificationsAsync(userId, getToken);
         })();
     }, [getToken, isSignedIn, userId]);
 
@@ -552,7 +565,8 @@ export default function AppLayout() {
                     <Stack.Screen name="index" />
                     <Stack.Screen name="opportunities/index" />
                     <Stack.Screen name="roadmaps" />
-                    <Stack.Screen name="roadmap-templates" />
+                    <Stack.Screen name="roadmap-templates/index" />
+                    <Stack.Screen name="roadmap-templates/[id]" />
                     <Stack.Screen name="profile/index" />
                     <Stack.Screen name="notifications" />
                     <Stack.Screen name="chat" />
@@ -594,6 +608,10 @@ export default function AppLayout() {
             {/* Admin module locks (pro/disabled) — covers whatever route is
                 active, including deep links, without per-screen wiring. */}
             <ModuleLockOverlay />
+
+            {/* AI voice mode — mounted once at the root so the bottom-nav hold
+                gesture and the chat composer toggles share one overlay. */}
+            <VoiceModeOverlay />
         </View>
         </ToastProvider>
     );

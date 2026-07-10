@@ -157,7 +157,11 @@
             "publishedTitle": "Success!",
             "publishedMessage": "Your roadmap is published and visible to learners.",
             "failedTitle": "Failed",
-            "failedFallback": "Please try again."
+            "failedFallback": "Please try again.",
+            "savedTitle": "Roadmap saved",
+            "savedMessage": "It’s now in your Roadmaps → My Roadmaps.",
+            "updatedTitle": "Changes saved",
+            "updatedMessage": "Your roadmap has been updated."
         },
         "wizard": {
             "basicsTitle": "Roadmap Basics",
@@ -202,7 +206,45 @@
             "reviewResources": "Resources ({{total}})",
             "untitled": "Untitled",
             "fileAttached": "✓ {{fileName}}",
-            "submitForReview": "Submit for Review"
+            "submitForReview": "Submit for Review",
+            "editCallout": "Update your roadmap. Changes are saved to My Roadmaps.",
+            "saveChanges": "Save Changes",
+            "publishNow": "Publish Now",
+            "saveRoadmap": "Save Roadmap"
+        },
+        "errors": {
+            "loadRoadmaps": "Couldn’t load your roadmaps.",
+            "timeout": "Request timed out. Check your connection and try again.",
+            "deleteFailed": "Couldn’t delete this roadmap.",
+            "followFailed": "Couldn’t start this roadmap."
+        },
+        "badge": {
+            "personal": "Personal",
+            "published": "Published"
+        },
+        "actions": {
+            "follow": "Follow",
+            "edit": "Edit"
+        },
+        "upsell": {
+            "title": "Become a verified creator",
+            "text": "Publish your roadmaps to the public catalog and reach thousands of learners."
+        },
+        "visibility": {
+            "personalTitle": "Save to My Roadmaps",
+            "personalText": "Only you can see this. It appears in your Roadmaps → My Roadmaps.",
+            "publicTitle": "Publish to public catalog",
+            "publicText": "Everyone can discover and follow this roadmap.",
+            "lockedText": "Become a verified creator to publish this publicly.",
+            "unlock": "Unlock"
+        },
+        "deleteConfirm": {
+            "title": "Delete roadmap?",
+            "message": "“{{title}}” will be permanently removed. This can’t be undone."
+        },
+        "followSuccess": {
+            "title": "Added to your goals",
+            "message": "Each step is now a trackable goal in your Goals tab."
         }
     },
     "mentorApply": {

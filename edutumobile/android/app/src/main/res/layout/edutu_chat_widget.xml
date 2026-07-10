@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Ask Edutu — one-tap launcher into AI chat. Logo front and center. -->
+<!--
+  Ask Edutu — one-tap launcher into AI chat. A logo badge over a rotating stack
+  of prompt pills (the ViewFlipper cycles the prompts on-device every few
+  seconds), each ending in an accent send glyph so it reads as a live composer.
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:id="@+id/edutu_cw_root"
   android:layout_width="match_parent"
@@ -14,31 +18,171 @@
     android:layout_height="0dp"
     android:layout_weight="1" />
 
-  <ImageView
-    android:layout_width="48dp"
-    android:layout_height="48dp"
-    android:src="@drawable/edutu_widget_logo"
-    android:contentDescription="@null" />
+  <FrameLayout
+    android:layout_width="52dp"
+    android:layout_height="52dp"
+    android:background="@drawable/edutu_widget_chat_badge">
+    <ImageView
+      android:layout_width="30dp"
+      android:layout_height="30dp"
+      android:layout_gravity="center"
+      android:src="@drawable/edutu_widget_logo"
+      android:contentDescription="@null" />
+  </FrameLayout>
+
+  <TextView
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="10dp"
+    android:maxLines="1"
+    android:text="@string/edutu_widget_chat_title"
+    android:textColor="@color/edutu_widget_ink"
+    android:textSize="14sp"
+    android:textStyle="bold" />
 
   <View
     android:layout_width="1dp"
     android:layout_height="0dp"
     android:layout_weight="1" />
 
-  <TextView
-    android:id="@+id/edutu_cw_prompt"
+  <ViewFlipper
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:paddingLeft="12dp"
-    android:paddingRight="12dp"
-    android:paddingTop="8dp"
-    android:paddingBottom="8dp"
-    android:background="@drawable/edutu_widget_input"
-    android:ellipsize="end"
-    android:gravity="center"
-    android:maxLines="1"
-    android:text="@string/edutu_widget_chat_prompt"
-    android:textColor="@color/edutu_widget_sub"
-    android:textSize="11sp"
-    android:textStyle="bold" />
+    android:autoStart="true"
+    android:flipInterval="3500"
+    android:inAnimation="@android:anim/fade_in"
+    android:outAnimation="@android:anim/fade_out">
+
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="horizontal"
+      android:gravity="center_vertical"
+      android:background="@drawable/edutu_widget_input"
+      android:paddingLeft="14dp"
+      android:paddingRight="6dp"
+      android:paddingTop="6dp"
+      android:paddingBottom="6dp">
+      <TextView
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="@string/edutu_widget_chat_prompt"
+        android:textColor="@color/edutu_widget_sub"
+        android:textSize="11sp"
+        android:textStyle="bold" />
+      <FrameLayout
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:background="@drawable/edutu_widget_send_badge">
+        <ImageView
+          android:layout_width="12dp"
+          android:layout_height="12dp"
+          android:layout_gravity="center"
+          android:src="@drawable/edutu_widget_send_icon"
+          android:contentDescription="@null" />
+      </FrameLayout>
+    </LinearLayout>
+
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="horizontal"
+      android:gravity="center_vertical"
+      android:background="@drawable/edutu_widget_input"
+      android:paddingLeft="14dp"
+      android:paddingRight="6dp"
+      android:paddingTop="6dp"
+      android:paddingBottom="6dp">
+      <TextView
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="@string/edutu_widget_chat_prompt_2"
+        android:textColor="@color/edutu_widget_sub"
+        android:textSize="11sp"
+        android:textStyle="bold" />
+      <FrameLayout
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:background="@drawable/edutu_widget_send_badge">
+        <ImageView
+          android:layout_width="12dp"
+          android:layout_height="12dp"
+          android:layout_gravity="center"
+          android:src="@drawable/edutu_widget_send_icon"
+          android:contentDescription="@null" />
+      </FrameLayout>
+    </LinearLayout>
+
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="horizontal"
+      android:gravity="center_vertical"
+      android:background="@drawable/edutu_widget_input"
+      android:paddingLeft="14dp"
+      android:paddingRight="6dp"
+      android:paddingTop="6dp"
+      android:paddingBottom="6dp">
+      <TextView
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="@string/edutu_widget_chat_prompt_3"
+        android:textColor="@color/edutu_widget_sub"
+        android:textSize="11sp"
+        android:textStyle="bold" />
+      <FrameLayout
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:background="@drawable/edutu_widget_send_badge">
+        <ImageView
+          android:layout_width="12dp"
+          android:layout_height="12dp"
+          android:layout_gravity="center"
+          android:src="@drawable/edutu_widget_send_icon"
+          android:contentDescription="@null" />
+      </FrameLayout>
+    </LinearLayout>
+
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="horizontal"
+      android:gravity="center_vertical"
+      android:background="@drawable/edutu_widget_input"
+      android:paddingLeft="14dp"
+      android:paddingRight="6dp"
+      android:paddingTop="6dp"
+      android:paddingBottom="6dp">
+      <TextView
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="@string/edutu_widget_chat_prompt_4"
+        android:textColor="@color/edutu_widget_sub"
+        android:textSize="11sp"
+        android:textStyle="bold" />
+      <FrameLayout
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:background="@drawable/edutu_widget_send_badge">
+        <ImageView
+          android:layout_width="12dp"
+          android:layout_height="12dp"
+          android:layout_gravity="center"
+          android:src="@drawable/edutu_widget_send_icon"
+          android:contentDescription="@null" />
+      </FrameLayout>
+    </LinearLayout>
+  </ViewFlipper>
 </LinearLayout>

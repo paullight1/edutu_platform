@@ -44,7 +44,8 @@ export class OpportunityVerificationService {
 
   @Cron(CronExpression.EVERY_HOUR)
   async runScheduledVerification() {
-    if (process.env.OPPORTUNITY_VERIFICATION_ENABLED !== "true") return;
+    // Enabled by default; set OPPORTUNITY_VERIFICATION_ENABLED=false to opt out.
+    if (process.env.OPPORTUNITY_VERIFICATION_ENABLED === "false") return;
 
     const limit = Number(
       process.env.OPPORTUNITY_VERIFICATION_BATCH_SIZE || 250,

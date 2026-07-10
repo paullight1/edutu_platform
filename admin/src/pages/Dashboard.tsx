@@ -42,6 +42,51 @@ interface HealthStatus {
   };
 }
 
+interface AiUsageDayPoint {
+  day: string;
+  totalTokens: number;
+  estimatedCostUsd: number;
+  calls: number;
+}
+
+interface AiUsageRouteBreakdown {
+  route: string;
+  calls: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
+  errorCount: number;
+  avgLatencyMs: number | null;
+}
+
+interface AiUsageSummaryResponse {
+  success: boolean;
+  days: number;
+  totals: {
+    calls: number;
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    estimatedCostUsd: number;
+    errorCount: number;
+  };
+  perDay: AiUsageDayPoint[];
+  perRoute: AiUsageRouteBreakdown[];
+  error?: string;
+}
+
+function formatTokens(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
+  return value.toLocaleString();
+}
+
+function formatUsd(value: number): string {
+  if (value > 0 && value < 0.01) return "<$0.01";
+  return `$${value.toFixed(2)}`;
+}
+
 interface DashboardMetric {
   label: string;
   value: string | number;
@@ -116,6 +161,7 @@ const Dashboard = () => {
     [],
   );
   const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [aiUsage, setAiUsage] = useState<AiUsageSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [dataBanner, setDataBanner] = useState<{ type: string; message: string } | null>(
     null,
@@ -127,10 +173,20 @@ const Dashboard = () => {
   const fetchDashboard = useCallback(async () => {
     setLoading(true);
     try {
-      const [dashboardResult, healthResult] = await Promise.allSettled([
-        backendFetchJson<AdminDashboardResponse>("/admin/dashboard"),
-        backendFetchJson<HealthStatus>("/health"),
-      ]);
+      const [dashboardResult, healthResult, aiUsageResult] =
+        await Promise.allSettled([
+          backendFetchJson<AdminDashboardResponse>("/admin/dashboard"),
+          backendFetchJson<HealthStatus>("/health"),
+          backendFetchJson<AiUsageSummaryResponse>(
+            "/admin/ai-usage/summary?days=30",
+          ),
+        ]);
+
+      // AI usage is best-effort: 404 (backend not deployed yet) or any other
+      // failure just renders the empty state — never a dashboard error banner.
+      setAiUsage(
+        aiUsageResult.status === "fulfilled" ? aiUsageResult.value : null,
+      );
 
       const dashboardResponse =
         dashboardResult.status === "fulfilled" ? dashboardResult.value : null;
@@ -657,6 +713,158 @@ const Dashboard = () => {
                 OpenRouter: {health.ai.openrouter}
               </span>
             </div>
+          )}
+        </div>
+      </div>
+
+      <div className="card" style={{ overflow: "hidden" }}>
+        <div
+          style={{
+            padding: "20px 24px",
+            borderBottom: "1px solid var(--border-light)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "12px",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 600 }}>
+              AI Usage
+            </h3>
+            <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "var(--text-tertiary)" }}>
+              Tokens and estimated cost, last {aiUsage?.days ?? 30} days
+            </p>
+          </div>
+          {aiUsage && (
+            <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>Total tokens</div>
+                <div style={{ fontSize: "20px", fontWeight: 700 }}>
+                  {formatTokens(aiUsage.totals.totalTokens)}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>Estimated cost</div>
+                <div style={{ fontSize: "20px", fontWeight: 700, color: "#ff6600" }}>
+                  {formatUsd(aiUsage.totals.estimatedCostUsd)}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>Calls</div>
+                <div style={{ fontSize: "20px", fontWeight: 700 }}>
+                  {aiUsage.totals.calls.toLocaleString()}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: "12px", color: "var(--text-tertiary)" }}>Errors</div>
+                <div
+                  style={{
+                    fontSize: "20px",
+                    fontWeight: 700,
+                    color: aiUsage.totals.errorCount > 0 ? "#ef4444" : "var(--text-primary)",
+                  }}
+                >
+                  {aiUsage.totals.errorCount.toLocaleString()}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: "20px 24px" }}>
+          {!aiUsage || (aiUsage.totals.calls === 0 && aiUsage.perDay.length === 0) ? (
+            <div style={{ color: "var(--text-tertiary)", fontSize: "14px" }}>
+              {aiUsage
+                ? "No AI usage recorded in this period yet."
+                : "AI usage data unavailable — the tracking endpoint is not deployed yet."}
+            </div>
+          ) : (
+            <>
+              <svg
+                viewBox="0 0 300 48"
+                preserveAspectRatio="none"
+                style={{ width: "100%", height: "64px", display: "block" }}
+                role="img"
+                aria-label="AI token usage per day"
+              >
+                {(() => {
+                  const points = aiUsage.perDay;
+                  const max = Math.max(...points.map((p) => p.totalTokens), 1);
+                  const barWidth = 300 / Math.max(points.length, 1);
+                  return points.map((point, idx) => {
+                    const height = Math.max((point.totalTokens / max) * 44, 1);
+                    return (
+                      <rect
+                        key={point.day}
+                        x={idx * barWidth + barWidth * 0.15}
+                        y={48 - height}
+                        width={barWidth * 0.7}
+                        height={height}
+                        rx={1.5}
+                        fill="#0071e3"
+                        opacity={0.85}
+                      >
+                        <title>{`${point.day}: ${formatTokens(point.totalTokens)} tokens, ${formatUsd(point.estimatedCostUsd)} (${point.calls} calls)`}</title>
+                      </rect>
+                    );
+                  });
+                })()}
+              </svg>
+              {aiUsage.perDay.length > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: "11px",
+                    color: "var(--text-tertiary)",
+                    marginTop: "4px",
+                    marginBottom: "16px",
+                  }}
+                >
+                  <span>{aiUsage.perDay[0].day}</span>
+                  <span>{aiUsage.perDay[aiUsage.perDay.length - 1].day}</span>
+                </div>
+              )}
+
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                  <thead>
+                    <tr style={{ textAlign: "left", color: "var(--text-tertiary)" }}>
+                      <th style={{ padding: "8px 12px 8px 0", fontWeight: 500 }}>Route</th>
+                      <th style={{ padding: "8px 12px", fontWeight: 500, textAlign: "right" }}>Calls</th>
+                      <th style={{ padding: "8px 12px", fontWeight: 500, textAlign: "right" }}>Tokens</th>
+                      <th style={{ padding: "8px 12px", fontWeight: 500, textAlign: "right" }}>Est. cost</th>
+                      <th style={{ padding: "8px 12px", fontWeight: 500, textAlign: "right" }}>Errors</th>
+                      <th style={{ padding: "8px 0 8px 12px", fontWeight: 500, textAlign: "right" }}>Avg latency</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {aiUsage.perRoute.map((row) => (
+                      <tr key={row.route} style={{ borderTop: "1px solid var(--border-light)" }}>
+                        <td style={{ padding: "8px 12px 8px 0", fontWeight: 500 }}>{row.route}</td>
+                        <td style={{ padding: "8px 12px", textAlign: "right" }}>{row.calls.toLocaleString()}</td>
+                        <td style={{ padding: "8px 12px", textAlign: "right" }}>{formatTokens(row.totalTokens)}</td>
+                        <td style={{ padding: "8px 12px", textAlign: "right" }}>{formatUsd(row.estimatedCostUsd)}</td>
+                        <td
+                          style={{
+                            padding: "8px 12px",
+                            textAlign: "right",
+                            color: row.errorCount > 0 ? "#ef4444" : "inherit",
+                          }}
+                        >
+                          {row.errorCount}
+                        </td>
+                        <td style={{ padding: "8px 0 8px 12px", textAlign: "right" }}>
+                          {row.avgLatencyMs === null ? "—" : `${row.avgLatencyMs.toLocaleString()} ms`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </div>

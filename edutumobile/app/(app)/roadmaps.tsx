@@ -8,16 +8,16 @@ import {
     Search, BookOpen, Star, Users, Sparkles,
     X, Clock, ChevronRight, CalendarDays,
     ShieldCheck, CheckCircle, Zap, GraduationCap,
-    ThumbsUp, Pencil
+    ThumbsUp, Pencil, Plus
 } from "lucide-react-native";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../components/context/ThemeContext";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import { LinearGradient } from "expo-linear-gradient";
-import { BrandedLoader } from "../../components/ui/BrandedLoader";
+import { LoadState } from "../../components/ui/LoadState";
 import { shareIcsString } from "../../lib/roadmapCalendar";
 import { swr } from "../../packages/core/src/services/swrCache";
 
@@ -155,6 +155,7 @@ export default function RoadmapsScreen() {
     const { user } = useUser();
     const { getToken } = useAuth();
     const [roadmaps, setRoadmaps] = useState<Roadmap[]>([]);
+    const [myRoadmaps, setMyRoadmaps] = useState<Roadmap[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -212,6 +213,27 @@ export default function RoadmapsScreen() {
     }, [category, debouncedSearch]);
 
     useEffect(() => { fetchRoadmaps(); }, [fetchRoadmaps]);
+
+    // "My Roadmaps" — the user's own creations (personal + published). Refetched
+    // whenever the screen regains focus so a roadmap just made in Creator Studio
+    // shows up here immediately (no manual refresh needed).
+    const fetchMine = useCallback(async () => {
+        if (!user) { setMyRoadmaps([]); return; }
+        try {
+            const token = await getToken();
+            const res = await apiFetch('/roadmaps/mine', {
+                headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            });
+            if (res?.ok) {
+                const data = await res.json();
+                if (Array.isArray(data)) setMyRoadmaps(data);
+            }
+        } catch {
+            /* non-critical — the main catalog still renders */
+        }
+    }, [user, getToken]);
+
+    useFocusEffect(useCallback(() => { fetchMine(); }, [fetchMine]));
 
     const checkAndShowIntent = async () => {
         if (!user) { setShowIntentModal(false); return; }
@@ -561,105 +583,165 @@ export default function RoadmapsScreen() {
                 showBack
             />
 
-            {/* Creator Banner */}
-            <TouchableOpacity
-                style={[styles.creatorBanner, { borderColor }]}
-                onPress={() => router.push('/creator-apply')}
-                activeOpacity={0.85}
-            >
-                <LinearGradient
-                    colors={['#F59E0B', '#EA580C', '#DC2626']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={StyleSheet.absoluteFill}
-                />
-                <View style={styles.creatorBannerContent}>
-                    <View style={styles.creatorBannerLeft}>
-                        <View style={styles.creatorBannerIcon}>
-                            <Pencil size={20} color="#FFFFFF" />
+            {/*
+              The whole screen scrolls as one: the creator/template banners, search box,
+              and category filters live in the FlatList header (not pinned above it), so
+              they scroll away with the cards while the grid stays virtualized.
+            */}
+            <FlatList
+                data={filteredRoadmaps}
+                keyExtractor={(item) => item.id}
+                renderItem={renderCard}
+                numColumns={2}
+                columnWrapperStyle={styles.row}
+                contentContainerStyle={styles.listContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                initialNumToRender={6}
+                maxToRenderPerBatch={8}
+                windowSize={7}
+                removeClippedSubviews
+                refreshControl={
+                    <RefreshControl refreshing={loading} onRefresh={() => { fetchRoadmaps(); fetchMine(); }} tintColor="#6366F1" />
+                }
+                ListHeaderComponent={
+                    <>
+                        {/*
+                          Negative margin cancels listContent's horizontal padding so the
+                          banners/search restore their original full-width 20px insets.
+                        */}
+                        <View style={styles.headerBleed}>
+                            {/* Creator Banner → Creator Studio (anyone can build a roadmap now) */}
+                            <TouchableOpacity
+                                style={[styles.creatorBanner, { borderColor }]}
+                                onPress={() => router.push('/creator-dashboard')}
+                                activeOpacity={0.85}
+                            >
+                                <LinearGradient
+                                    colors={['#F59E0B', '#EA580C', '#DC2626']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 1 }}
+                                    style={StyleSheet.absoluteFill}
+                                />
+                                <View style={styles.creatorBannerContent}>
+                                    <View style={styles.creatorBannerLeft}>
+                                        <View style={styles.creatorBannerIcon}>
+                                            <Pencil size={20} color="#FFFFFF" />
+                                        </View>
+                                        <View style={styles.creatorBannerText}>
+                                            <Text style={styles.creatorBannerTitle}>{t('roadmaps.creatorBanner.title')}</Text>
+                                            <Text style={styles.creatorBannerSubtitle}>
+                                                {t('roadmaps.creatorBanner.subtitle')}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                    <View style={styles.creatorBannerArrow}>
+                                        <ChevronRight size={20} color="#FFFFFF" />
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.templateBanner, { backgroundColor: colors.primary + '14', borderColor: colors.primary + '28' }]}
+                                onPress={() => router.push('/roadmap-templates' as any)}
+                                activeOpacity={0.85}
+                            >
+                                <View style={[styles.templateBannerIcon, { backgroundColor: colors.primary }]}>
+                                    <BookOpen size={20} color="#FFFFFF" />
+                                </View>
+                                <View style={styles.templateBannerText}>
+                                    <Text style={[styles.templateBannerTitle, { color: textPrimary }]}>{t('roadmaps.templateBanner.title')}</Text>
+                                    <Text style={[styles.templateBannerSubtitle, { color: textSecondary }]}>
+                                        {t('roadmaps.templateBanner.subtitle')}
+                                    </Text>
+                                </View>
+                                <ChevronRight size={20} color={textSecondary} />
+                            </TouchableOpacity>
+
+                            <View style={styles.header}>
+                                <View style={[styles.searchBox, { backgroundColor: inputBg, borderColor }]}>
+                                    <Search color={textSecondary} size={18} />
+                                    <TextInput
+                                        placeholder={t('roadmaps.searchPlaceholder')}
+                                        placeholderTextColor={textSecondary}
+                                        style={[styles.searchInput, { color: textPrimary }]}
+                                        value={search}
+                                        onChangeText={setSearch}
+                                    />
+                                </View>
+
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={styles.filterScroll} contentContainerStyle={{ gap: 8 }}>
+                                    {CATEGORY_FILTERS.map(cat => (
+                                        <TouchableOpacity
+                                            key={cat}
+                                            style={[styles.filterChip, { borderColor }, category === cat && styles.filterChipActive]}
+                                            onPress={() => setCategory(cat)}
+                                        >
+                                            <Text style={[styles.filterChipText, { color: textSecondary }, category === cat && styles.filterChipTextActive]}>
+                                                {t(`roadmaps.categories.${cat.toLowerCase()}`)}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            </View>
                         </View>
-                        <View style={styles.creatorBannerText}>
-                            <Text style={styles.creatorBannerTitle}>{t('roadmaps.creatorBanner.title')}</Text>
-                            <Text style={styles.creatorBannerSubtitle}>
-                                {t('roadmaps.creatorBanner.subtitle')}
-                            </Text>
-                        </View>
-                    </View>
-                    <View style={styles.creatorBannerArrow}>
-                        <ChevronRight size={20} color="#FFFFFF" />
-                    </View>
-                </View>
-            </TouchableOpacity>
 
-            <TouchableOpacity
-                style={[styles.templateBanner, { backgroundColor: colors.primary + '14', borderColor: colors.primary + '28' }]}
-                onPress={() => router.push('/roadmap-templates' as any)}
-                activeOpacity={0.85}
-            >
-                <View style={[styles.templateBannerIcon, { backgroundColor: colors.primary }]}>
-                    <BookOpen size={20} color="#FFFFFF" />
-                </View>
-                <View style={styles.templateBannerText}>
-                    <Text style={[styles.templateBannerTitle, { color: textPrimary }]}>{t('roadmaps.templateBanner.title')}</Text>
-                    <Text style={[styles.templateBannerSubtitle, { color: textSecondary }]}>
-                        {t('roadmaps.templateBanner.subtitle')}
-                    </Text>
-                </View>
-                <ChevronRight size={20} color={textSecondary} />
-            </TouchableOpacity>
-
-            <View style={styles.header}>
-                <View style={[styles.searchBox, { backgroundColor: inputBg, borderColor }]}>
-                    <Search color={textSecondary} size={18} />
-                    <TextInput
-                        placeholder={t('roadmaps.searchPlaceholder')}
-                        placeholderTextColor={textSecondary}
-                        style={[styles.searchInput, { color: textPrimary }]}
-                        value={search}
-                        onChangeText={setSearch}
-                    />
-                </View>
-
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={{ gap: 8 }}>
-                    {CATEGORY_FILTERS.map(cat => (
-                        <TouchableOpacity
-                            key={cat}
-                            style={[styles.filterChip, { borderColor }, category === cat && styles.filterChipActive]}
-                            onPress={() => setCategory(cat)}
-                        >
-                            <Text style={[styles.filterChipText, { color: textSecondary }, category === cat && styles.filterChipTextActive]}>
-                                {t(`roadmaps.categories.${cat.toLowerCase()}`)}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
-                </ScrollView>
-            </View>
-
-            {loading ? (
-                <View style={styles.centerState}>
-                    <BrandedLoader label={t('roadmaps.loading')} />
-                </View>
-            ) : (
-                <FlatList
-                    data={filteredRoadmaps}
-                    keyExtractor={(item) => item.id}
-                    renderItem={renderCard}
-                    numColumns={2}
-                    columnWrapperStyle={styles.row}
-                    contentContainerStyle={styles.listContent}
-                    showsVerticalScrollIndicator={false}
-                    initialNumToRender={6}
-                    maxToRenderPerBatch={8}
-                    windowSize={7}
-                    removeClippedSubviews
-                    refreshControl={
-                        <RefreshControl refreshing={loading} onRefresh={fetchRoadmaps} tintColor="#6366F1" />
-                    }
-                    ListEmptyComponent={
+                        {/* "My Roadmaps" — sits at the grid inset (no bleed) */}
+                        {myRoadmaps.length > 0 ? (
+                            <View style={styles.mySection}>
+                                <View style={styles.myHeaderRow}>
+                                    <View style={styles.myTitleGroup}>
+                                        <Text style={[styles.myTitle, { color: textPrimary }]}>{t('roadmaps.myRoadmaps.title')}</Text>
+                                        <View style={[styles.myCountPill, { backgroundColor: colors.primary + '18' }]}>
+                                            <Text style={[styles.myCountText, { color: colors.primary }]}>{myRoadmaps.length}</Text>
+                                        </View>
+                                    </View>
+                                    <TouchableOpacity style={styles.myCreateBtn} onPress={() => router.push('/creator-dashboard')} activeOpacity={0.8}>
+                                        <Plus size={14} color={colors.primary} />
+                                        <Text style={[styles.myCreateText, { color: colors.primary }]}>{t('roadmaps.myRoadmaps.create')}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.myScroll}>
+                                    {myRoadmaps.map((item) => {
+                                        const isPublished = (item as any).status === 'published';
+                                        return (
+                                            <TouchableOpacity
+                                                key={item.id}
+                                                style={[styles.myCard, { backgroundColor: cardBg, borderColor }]}
+                                                activeOpacity={0.85}
+                                                onPress={() => setSelectedItem(item)}
+                                            >
+                                                <View style={[styles.myCardIcon, { backgroundColor: `${getCategoryColor(item.category)}15` }]}>
+                                                    <BookOpen size={18} color={getCategoryColor(item.category)} />
+                                                </View>
+                                                <Text style={[styles.myCardTitle, { color: textPrimary }]} numberOfLines={2}>{item.title}</Text>
+                                                <View style={[styles.myCardBadge, { backgroundColor: isPublished ? 'rgba(16,185,129,0.12)' : colors.primary + '14' }]}>
+                                                    <Text style={[styles.myCardBadgeText, { color: isPublished ? '#10B981' : colors.primary }]}>
+                                                        {isPublished ? t('roadmaps.myRoadmaps.published') : t('roadmaps.myRoadmaps.personal')}
+                                                    </Text>
+                                                </View>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </ScrollView>
+                                <Text style={[styles.mySectionLabel, { color: textSecondary }]}>{t('roadmaps.myRoadmaps.discover')}</Text>
+                            </View>
+                        ) : null}
+                    </>
+                }
+                ListEmptyComponent={
+                    loading ? (
+                        <LoadState
+                            label={t('roadmaps.loading')}
+                            onRetry={() => { fetchRoadmaps(); fetchMine(); }}
+                            onBack={() => (router.canGoBack() ? router.back() : router.replace('/(app)'))}
+                        />
+                    ) : (
                         <Text style={[styles.emptyText, { color: textSecondary }]}>{t('roadmaps.empty')}</Text>
-                    }
-                />
-            )}
+                    )
+                }
+            />
 
             {/* Roadmap Detail Modal */}
             <Modal visible={!!selectedItem} transparent animationType="slide" onRequestClose={() => setSelectedItem(null)}>
@@ -1046,8 +1128,24 @@ const styles = StyleSheet.create({
     filterChipActive: { backgroundColor: '#6366F1', borderColor: '#6366F1' },
     filterChipText: { fontSize: 13, fontWeight: '600' },
     filterChipTextActive: { color: 'white' },
-    listContent: { paddingHorizontal: 14, paddingBottom: 100 },
+    listContent: { paddingHorizontal: 14, paddingBottom: 100, flexGrow: 1 },
+    headerBleed: { marginHorizontal: -14 },
     row: { justifyContent: 'space-between', marginBottom: 16 },
+    mySection: { marginBottom: 4 },
+    myHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, paddingRight: 2 },
+    myTitleGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    myTitle: { fontSize: 16, fontWeight: '800' },
+    myCountPill: { minWidth: 22, height: 20, borderRadius: 10, paddingHorizontal: 7, alignItems: 'center', justifyContent: 'center' },
+    myCountText: { fontSize: 11, fontWeight: '800' },
+    myCreateBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    myCreateText: { fontSize: 13, fontWeight: '700' },
+    myScroll: { gap: 12, paddingRight: 14, paddingBottom: 4 },
+    myCard: { width: 150, borderRadius: 18, borderWidth: 1, padding: 14, justifyContent: 'space-between', minHeight: 130 },
+    myCardIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+    myCardTitle: { fontSize: 13.5, fontWeight: '700', lineHeight: 18, flex: 1 },
+    myCardBadge: { alignSelf: 'flex-start', marginTop: 10, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+    myCardBadgeText: { fontSize: 10.5, fontWeight: '800' },
+    mySectionLabel: { fontSize: 15, fontWeight: '800', marginTop: 20, marginBottom: 12 },
     centerState: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     loadingText: { marginTop: 12, fontSize: 14 },
     emptyText: { textAlign: 'center', marginTop: 40, fontSize: 14, paddingHorizontal: 20 },

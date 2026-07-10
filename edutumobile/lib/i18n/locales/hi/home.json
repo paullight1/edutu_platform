@@ -5,7 +5,8 @@
     "plan": "प्लान",
     "me": "मैं",
     "openEdutuAi": "Edutu AI खोलें",
-    "badgeOverflow": "99+"
+    "badgeOverflow": "99+",
+    "holdForVoice": "वॉइस मोड के लिए दबाकर रखें"
   },
   "rewards": {
     "creditsEarned_one": "+{{count}} क्रेडिट · {{label}}",

@@ -5,7 +5,8 @@
     "plan": "الخطة",
     "me": "حسابي",
     "openEdutuAi": "فتح Edutu AI",
-    "badgeOverflow": "+99"
+    "badgeOverflow": "+99",
+    "holdForVoice": "اضغط مطولًا للوضع الصوتي"
   },
   "rewards": {
     "creditsEarned_one": "+{{count}} نقطة · {{label}}",

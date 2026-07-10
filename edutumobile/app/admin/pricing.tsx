@@ -2,17 +2,19 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
     Alert,
     KeyboardAvoidingView,
+    Linking,
     Platform,
     ScrollView,
     StyleSheet,
     Switch,
     Text,
     TextInput,
+    TouchableOpacity,
     View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@clerk/clerk-expo';
-import { DollarSign, Save, Tag } from 'lucide-react-native';
+import { BarChart3, DollarSign, ExternalLink, Save, Tag } from 'lucide-react-native';
 import { requestProductApi } from '@edutu/core/src/services/productApi';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { AnimatedPressable } from '../../components/ui/AnimatedPressable';
@@ -257,6 +259,26 @@ function AdminPricingContent() {
                         <Save size={18} color="#FFFFFF" />
                         <Text style={styles.saveButtonText}>{saving ? 'Saving…' : 'Save pricing'}</Text>
                     </AnimatedPressable>
+
+                    {/* Revenue: opens the pay.edutu.org admin dashboard (amount
+                        generated, active Pro users, recent payments). */}
+                    <TouchableOpacity
+                        style={[styles.revenueButton, { borderColor: inputBorder }]}
+                        activeOpacity={0.8}
+                        onPress={() => {
+                            const base = (form.checkoutBaseUrl.trim() || 'https://pay.edutu.org').replace(/\/$/, '');
+                            Linking.openURL(`${base}/admin`).catch(() =>
+                                Alert.alert('Error', 'Could not open the revenue dashboard.'),
+                            );
+                        }}
+                    >
+                        <BarChart3 size={18} color={textPrimary} />
+                        <View style={styles.flex}>
+                            <Text style={[styles.revenueTitle, { color: textPrimary }]}>Revenue & payments</Text>
+                            <Text style={[styles.revenueHint, { color: textSecondary }]}>See amount generated, subscribers & recent payments</Text>
+                        </View>
+                        <ExternalLink size={16} color={textSecondary} />
+                    </TouchableOpacity>
                 </ScrollView>
             </KeyboardAvoidingView>
         </SafeAreaView>
@@ -292,4 +314,7 @@ const styles = StyleSheet.create({
     switchHint: { fontSize: 12, lineHeight: 17, marginTop: 2 },
     saveButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, borderRadius: 16, paddingVertical: 16, marginTop: 4 },
     saveButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+    revenueButton: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, padding: 16, marginTop: 14 },
+    revenueTitle: { fontSize: 15, fontWeight: '700' },
+    revenueHint: { fontSize: 12, marginTop: 2 },
 });

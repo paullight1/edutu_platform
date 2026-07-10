@@ -13,9 +13,21 @@ const mockAlert = jest.spyOn(Alert, 'alert');
 const mockOpenUrl = jest.spyOn(Linking, 'openURL').mockResolvedValue(true as never);
 const mockShareAsync = jest.fn().mockResolvedValue(undefined);
 
-jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: mockPush, back: mockBack }),
-}));
+let mockRouteParams: Record<string, string> = {};
+
+jest.mock('expo-router', () => {
+  const React = require('react');
+  return {
+    useRouter: () => ({ push: mockPush, back: mockBack }),
+    useLocalSearchParams: () => mockRouteParams,
+    useFocusEffect: (callback: () => void | (() => void)) => {
+      React.useEffect(() => {
+        const cleanup = callback?.();
+        return cleanup;
+      }, [callback]);
+    },
+  };
+});
 
 jest.mock('@clerk/clerk-expo', () => ({
   useUser: () => mockUserState,
@@ -106,7 +118,8 @@ jest.mock('../lib/notifications', () => ({
 }));
 
 const RoadmapsScreen = require('../app/(app)/roadmaps').default;
-const RoadmapTemplatesScreen = require('../app/(app)/roadmap-templates').default;
+const RoadmapTemplatesScreen = require('../app/(app)/roadmap-templates/index').default;
+const RoadmapTemplateDetailScreen = require('../app/(app)/roadmap-templates/[id]').default;
 
 function pressNearestTouchTarget(node: any) {
   let current = node;
@@ -179,6 +192,7 @@ describe('mobile roadmaps and templates routes', () => {
     mockOpenUrl.mockClear();
     mockShareAsync.mockClear();
     mockUserState = { user: { id: 'user-1' } };
+    mockRouteParams = {};
     mockRequestPermissions.mockResolvedValue(true);
     mockScheduleNotificationAsync.mockResolvedValue('nid');
     mockFetch = jest.fn(async (input: RequestInfo | URL) => {
@@ -218,18 +232,67 @@ describe('mobile roadmaps and templates routes', () => {
     expect(mockPush).toHaveBeenCalledWith('/roadmap-templates');
   });
 
-  it('renders roadmap templates and exports calendar reminders', async () => {
-    const { getByText, getAllByText } = render(<RoadmapTemplatesScreen />);
+  it('renders the templates gallery and navigates to the detail route', async () => {
+    const { getByText } = render(<RoadmapTemplatesScreen />);
 
     await waitFor(() => expect(getByText('Explore Templates')).toBeTruthy());
+    // Curated fallback set renders offline, with author metadata.
+    expect(getByText('Land Your First Remote Tech Job')).toBeTruthy();
+    expect(getByText('Kwame Osei')).toBeTruthy();
+
     await act(async () => {
-      pressNearestTouchTarget(getByText('Complete Python Programming Course'));
+      pressNearestTouchTarget(getByText('Land Your First Remote Tech Job'));
     });
 
+    expect(mockPush).toHaveBeenCalledWith('/roadmap-templates/fallback-remote-tech-job');
+  });
+
+  it('renders backend-authored templates when the templates endpoint returns data', async () => {
+    mockFetch.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/roadmaps/templates')) {
+        return {
+          ok: true,
+          json: async () => [
+            {
+              id: 'db-roadmap-1',
+              title: 'Chevening Scholarship Prep',
+              description: 'A backend-authored roadmap.',
+              category: 'scholarship',
+              difficulty: 'intermediate',
+              estimated_duration: '6 weeks',
+              creator_name: 'Edutu Team',
+              steps: [
+                { id: 's1', title: 'Draft your SOP', description: 'Write the first draft.', relativeDueDays: 7 },
+              ],
+              resources: [],
+            },
+          ],
+        } as Response;
+      }
+      return { ok: false, json: async () => ({}) } as Response;
+    });
+
+    const { getByText, queryByText } = render(<RoadmapTemplatesScreen />);
+
+    // Backend template replaces the curated fallback set.
+    await waitFor(() => expect(getByText('Chevening Scholarship Prep')).toBeTruthy());
+    expect(queryByText('Land Your First Remote Tech Job')).toBeNull();
+  });
+
+  it('shows the template journey and exports calendar reminders from the detail screen', async () => {
+    mockRouteParams = { id: 'fallback-remote-tech-job' };
+    const { getByText, getAllByText } = render(<RoadmapTemplateDetailScreen />);
+
     await waitFor(() => expect(getByText('Start roadmap')).toBeTruthy());
+    // Hero + author + sequence render from the curated fallback template.
+    expect(getByText('Curated by Kwame Osei')).toBeTruthy();
+    expect(getByText('Your journey')).toBeTruthy();
+    // First step is auto-expanded and exposes its typed resources (also in the library).
+    expect(getAllByText('Developer Roadmaps').length).toBeGreaterThan(0);
 
     await act(async () => {
-      pressNearestTouchTarget(getAllByText('Calendar').pop());
+      pressNearestTouchTarget(getByText('Calendar'));
     });
 
     expect(mockAlert).toHaveBeenCalledWith(
@@ -249,47 +312,56 @@ describe('mobile roadmaps and templates routes', () => {
     );
   });
 
-  it('renders backend-authored templates when the templates endpoint returns data', async () => {
+  it('loads a backend template with comments on the detail screen', async () => {
     mockFetch.mockImplementation(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.includes('/roadmaps/templates')) {
+      if (url.endsWith('/roadmaps/db-roadmap-1/comments')) {
         return {
           ok: true,
           json: async () => [
             {
-              id: 'db-roadmap-1',
-              title: 'Chevening Scholarship Prep',
-              description: 'A backend-authored roadmap.',
-              category: 'scholarship',
-              difficulty: 'intermediate',
-              estimated_duration: '6 weeks',
-              outcomes: 'Draft essays\nSecure references',
-              steps: [
-                { id: 's1', title: 'Draft your SOP', description: 'Write the first draft.', relativeDueDays: 7, phase: 'writing', resources: ['res-1'] },
-                { id: 's2', title: 'Secure references', description: 'Ask referees early.', relativeDueDays: 21 },
-              ],
-              resources: [{ id: 'res-1', title: 'SOP Guide', url: 'https://example.com/sop', type: 'guide' }],
+              id: 'c1',
+              author_name: 'Grace Achieng',
+              body: 'This roadmap got me shortlisted!',
+              rating: 5,
+              created_at: '2026-07-01T00:00:00.000Z',
             },
           ],
+        } as Response;
+      }
+      if (url.endsWith('/roadmaps/db-roadmap-1')) {
+        return {
+          ok: true,
+          json: async () => ({
+            id: 'db-roadmap-1',
+            title: 'Chevening Scholarship Prep',
+            description: 'A backend-authored roadmap.',
+            category: 'scholarship',
+            difficulty: 'intermediate',
+            estimated_duration: '6 weeks',
+            creator_name: 'Edutu Team',
+            author_role: 'Scholarship Guidance',
+            steps: [
+              { id: 's1', title: 'Draft your SOP', description: 'Write the first draft.', relativeDueDays: 7, phase: 'writing', resources: ['res-1'] },
+              { id: 's2', title: 'Secure references', description: 'Ask referees early.', relativeDueDays: 21 },
+            ],
+            resources: [{ id: 'res-1', title: 'SOP Guide', url: 'https://example.com/sop', type: 'guide' }],
+          }),
         } as Response;
       }
       return { ok: false, json: async () => ({}) } as Response;
     });
 
-    const { getByText, queryByText } = render(<RoadmapTemplatesScreen />);
+    mockRouteParams = { id: 'db-roadmap-1' };
+    const { getByText, getAllByText } = render(<RoadmapTemplateDetailScreen />);
 
-    // Backend template replaces the curated fallback set.
-    await waitFor(() => expect(getByText('Chevening Scholarship Prep')).toBeTruthy());
-    expect(queryByText('Complete Python Programming Course')).toBeNull();
-
-    await act(async () => {
-      pressNearestTouchTarget(getByText('Chevening Scholarship Prep'));
-    });
-
-    // Steps map to milestones; relativeDueDays (7) → Week 1, and step resources resolve to clickable chips.
+    // relativeDueDays (7) → Week 1; the first step auto-expands with its resource.
     await waitFor(() => expect(getByText('Week 1')).toBeTruthy());
     expect(getByText('Draft your SOP')).toBeTruthy();
-    expect(getByText('SOP Guide')).toBeTruthy();
+    expect(getAllByText('SOP Guide').length).toBeGreaterThan(0);
+    // Learner comments load from the comments endpoint.
+    await waitFor(() => expect(getByText('Grace Achieng')).toBeTruthy());
+    expect(getByText('This roadmap got me shortlisted!')).toBeTruthy();
   });
 
   it('renders roadmap cards and their detail stats', async () => {

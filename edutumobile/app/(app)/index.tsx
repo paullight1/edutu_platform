@@ -87,8 +87,8 @@ const DISCOVERY_CATEGORIES = [
         title: 'home.discovery.fellowships.title',
         description: 'home.discovery.fellowships.description',
         icon: 'leadership',
-        colors: ['rgba(249,115,22,0.94)', 'rgba(194,65,12,0.82)'] as [string, string],
-        accent: '#F97316',
+        colors: ['rgba(124,58,237,0.92)', 'rgba(91,33,182,0.82)'] as [string, string],
+        accent: '#7C3AED',
         image: DISCOVERY_BACKGROUNDS.fellowships,
     },
 ] satisfies Array<{
@@ -368,7 +368,7 @@ function OpportunitySection({
         <Animated.View entering={FadeInDown.duration(400).delay(100)}>
             <View style={styles.sectionHeader}>
                 {icon && <View style={[styles.sectionIcon, { backgroundColor: isDark ? "rgba(99,102,241,0.15)" : "#F0F0FF" }]}>{icon}</View>}
-                <Text style={[styles.sectionTitle, { color: textPrimary }]}>{title}</Text>
+                <Text style={[styles.sectionTitle, { color: textPrimary }]} numberOfLines={1}>{title}</Text>
                 {showViewMore && (
                     <AnimatedPressable onPress={onViewMorePress} style={styles.viewMoreBtn}>
                         <Text style={styles.viewMoreText}>{t('home.viewMore')}</Text>
@@ -403,6 +403,86 @@ function OpportunitySection({
                 </View>
             )}
         </Animated.View>
+    );
+}
+
+// ─── Compact Recommended Row ─────────────────────────────────────────────────
+// A slim horizontal card (thumbnail + content) used for the home "Recommended"
+// preview so it stays small and multiple rows fit without a giant rail.
+function RecommendedRow({ item, isDark, textPrimary, textSecondary, onPress, onBookmark, onShare, bookmarked = false, index = 0 }: {
+    item: Opportunity;
+    isDark: boolean;
+    textPrimary: string;
+    textSecondary: string;
+    onPress?: () => void;
+    onBookmark?: () => void;
+    onShare?: () => void;
+    bookmarked?: boolean;
+    index?: number;
+}) {
+    const { t } = useTranslation('home');
+    const deadlineBadge = useMemo(() => getDeadlineBadge(item.deadline), [item.deadline]);
+    const deadlineColor = deadlineBadge.level === 'none'
+        ? (isDark ? '#94A3B8' : '#64748B')
+        : urgencyColor(deadlineBadge.level);
+    const matchPct = Math.round(item.match ?? 0);
+    const showMatch = matchPct >= 40;
+    const category = (item.category ?? '').trim();
+    const locationLabel = item.isRemote ? t('opportunityCard.remote') : (item.location ?? '').trim();
+
+    return (
+        <AnimatedPressable
+            onPress={onPress}
+            style={[styles.recRow, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#FFFFFF' }]}
+            entering={FadeInDown.delay(index * 60).duration(300).springify()}
+            hapticFeedback="light"
+            scaleTo={0.98}
+        >
+            {item.image ? (
+                <Image source={{ uri: item.image }} style={styles.recThumb} resizeMode="cover" />
+            ) : (
+                <View style={[styles.recThumb, styles.recThumbFallback]}>
+                    <Sparkles size={20} color="#6366F1" />
+                </View>
+            )}
+            <View style={styles.recBody}>
+                <View style={styles.recTopRow}>
+                    {showMatch ? (
+                        <View style={styles.recMatchBadge}>
+                            <Sparkles size={9} color="#6366F1" />
+                            <Text style={styles.recMatchText}>{t('opportunityCard.percentMatch', { percent: matchPct })}</Text>
+                        </View>
+                    ) : category ? (
+                        <Text style={styles.recCategory} numberOfLines={1}>{category}</Text>
+                    ) : (
+                        <View style={{ flex: 1 }} />
+                    )}
+                    {onBookmark && (
+                        <TouchableOpacity
+                            onPress={(e) => { e.stopPropagation(); onBookmark(); }}
+                            hitSlop={6}
+                            style={styles.bookmarkBtn}
+                        >
+                            <BookmarkPlus size={15} color={bookmarked ? '#6366F1' : textSecondary} fill={bookmarked ? '#6366F1' : 'transparent'} />
+                        </TouchableOpacity>
+                    )}
+                </View>
+                <Text style={[styles.recTitle, { color: textPrimary }]} numberOfLines={2}>{item.title}</Text>
+                <View style={styles.recMetaRow}>
+                    {locationLabel ? (
+                        <View style={styles.recMetaItem}>
+                            <MapPin size={10} color={textSecondary} />
+                            <Text style={[styles.recMetaText, { color: textSecondary }]} numberOfLines={1}>{locationLabel}</Text>
+                        </View>
+                    ) : null}
+                    <View style={styles.recMetaItem}>
+                        <View style={[styles.deadlineDot, { backgroundColor: deadlineColor }]} />
+                        <Text style={[styles.recMetaText, { color: deadlineColor }]}>{deadlineBadge.shortLabel}</Text>
+                    </View>
+                </View>
+            </View>
+            <ChevronRight size={18} color={textSecondary} style={{ alignSelf: 'center' }} />
+        </AnimatedPressable>
     );
 }
 
@@ -584,24 +664,48 @@ export default function Dashboard() {
                     <QuickActionsGrid router={router} />
                 </Animated.View>
 
-                {/* Other Opportunities Section (10 items) - Personalized */}
+                {/* Recommended Opportunities — compact 3-row preview */}
                 {otherOpportunities.length > 0 ? (
                     <Animated.View entering={FadeInDown.duration(400).delay(100)} style={styles.sectionSpacing}>
-                        <OpportunitySection
-                            title={t('home.recommendedOpportunities')}
-                            data={otherOpportunities}
-                            isDark={isDark}
-                            showViewMore={true}
-                            onViewMorePress={() => router.push('/opportunities')}
-                            textPrimary={textPrimary}
-                            textSecondary={textSecondary}
-                            horizontal
-                            bookmarkedIds={bookmarkedIds}
-                            onBookmark={toggleBookmark}
-                            onShare={handleShareOpportunity}
-                            onOpenOpportunity={recordOpportunityOpen}
-                            router={router}
-                        />
+                        <View style={styles.sectionHeader}>
+                            <View style={styles.sectionTitleGroup}>
+                                <View style={[styles.sectionIcon, { backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : '#F0F0FF' }]}>
+                                    <Target size={16} color="#6366F1" />
+                                </View>
+                                <Text style={[styles.sectionTitle, { color: textPrimary }]} numberOfLines={1}>
+                                    {t('home.recommendedOpportunities', { defaultValue: 'Recommended Opportunities' })}
+                                </Text>
+                            </View>
+                            <AnimatedPressable
+                                onPress={() => router.push('/opportunities')}
+                                style={styles.viewMorePill}
+                                hapticFeedback="light"
+                                scaleTo={0.9}
+                                accessibilityLabel={t('home.viewMore', { defaultValue: 'View More' })}
+                            >
+                                <ChevronRight size={18} color="#6366F1" />
+                            </AnimatedPressable>
+                        </View>
+                        <View style={styles.oppGridContainer}>
+                            {otherOpportunities.slice(0, 8).map((item, idx) => (
+                                <View key={item.id} style={styles.oppGridItem}>
+                                    <OpportunityCard
+                                        item={item}
+                                        isDark={isDark}
+                                        textPrimary={textPrimary}
+                                        textSecondary={textSecondary}
+                                        index={idx}
+                                        onPress={() => {
+                                            recordOpportunityOpen(item.id);
+                                            router.push(`/opportunities/${item.id}`);
+                                        }}
+                                        onBookmark={() => toggleBookmark(item.id)}
+                                        onShare={() => handleShareOpportunity(item)}
+                                        bookmarked={bookmarkedIds.includes(item.id)}
+                                    />
+                                </View>
+                            ))}
+                        </View>
                     </Animated.View>
                 ) : opportunitiesLoading ? (
                     <View style={styles.sectionSpacing}>
@@ -753,6 +857,13 @@ const styles = StyleSheet.create({
         gap: 8,
         marginBottom: 10,
         width: '100%',
+    },
+    sectionTitleGroup: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        flex: 1,
+        minWidth: 0,
     },
     sectionIcon: {
         width: 28,
@@ -1043,18 +1154,101 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         marginLeft: 'auto',
         flexShrink: 0,
-        minWidth: 124,
+        gap: 3,
         paddingHorizontal: 12,
-        paddingVertical: 2,
-        gap: 4,
+        paddingVertical: 6,
+        borderRadius: 999,
+        backgroundColor: 'rgba(99,102,241,0.12)',
+    },
+    viewMorePill: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginLeft: 'auto',
+        flexShrink: 0,
+        height: 34,
+        width: 34,
+        borderRadius: 999,
+        backgroundColor: 'rgba(99,102,241,0.12)',
     },
     viewMoreText: {
         color: '#6366F1',
-        fontSize: 11,
-        fontWeight: '600',
-        lineHeight: 14,
+        fontSize: 12,
+        fontWeight: '700',
+        lineHeight: 15,
         flexShrink: 0,
         includeFontPadding: false,
+    },
+    // Compact recommended row
+    recRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        padding: 10,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: 'rgba(99,102,241,0.1)',
+        marginBottom: 10,
+    },
+    recThumb: {
+        width: 72,
+        height: 72,
+        borderRadius: 10,
+    },
+    recThumbFallback: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(99,102,241,0.1)',
+    },
+    recBody: {
+        flex: 1,
+        gap: 4,
+    },
+    recTopRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    recMatchBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        backgroundColor: 'rgba(99,102,241,0.12)',
+        paddingHorizontal: 7,
+        paddingVertical: 2,
+        borderRadius: 6,
+    },
+    recMatchText: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: '#6366F1',
+    },
+    recCategory: {
+        flex: 1,
+        fontSize: 10,
+        fontWeight: '700',
+        color: '#6366F1',
+        textTransform: 'uppercase',
+        letterSpacing: 0.3,
+    },
+    recTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+        lineHeight: 19,
+    },
+    recMetaRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        flexWrap: 'wrap',
+    },
+    recMetaItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+    recMetaText: {
+        fontSize: 11,
+        fontWeight: '600',
     },
     // Empty State Styles
     emptyStateCard: {

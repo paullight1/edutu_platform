@@ -1,8 +1,23 @@
-import { Body, Controller, Delete, Get, Param, Post } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  UploadedFile,
+  UseInterceptors,
+} from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { memoryStorage } from "multer";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { CvService } from "./cv.service";
 import type { GenerateCVDraftDto, TailorCVDto } from "./dto/cv-ai.dto";
 import type { SaveCVRecordDto } from "./dto/cv-record.dto";
+import type { ExportUploadFile } from "./linkedin-import.service";
+
+const createMemoryStorage =
+  memoryStorage as unknown as () => import("multer").StorageEngine;
 
 @Controller("cv")
 export class CvController {
@@ -39,5 +54,24 @@ export class CvController {
   @Post("ai/tailor")
   tailor(@CurrentUser("id") userId: string, @Body() dto: TailorCVDto) {
     return this.cvService.tailor(userId, dto);
+  }
+
+  /**
+   * First-party LinkedIn import: the user uploads their own export — either the
+   * profile "Save to PDF" or the "Get a copy of your data" ZIP. Parsed entirely
+   * on our side (no scraping vendor). Returns the parsed profile + mapped CV.
+   */
+  @Post("ai/import-linkedin-file")
+  @UseInterceptors(
+    FileInterceptor("file", {
+      storage: createMemoryStorage(),
+      limits: { fileSize: 25 * 1024 * 1024 },
+    }),
+  )
+  importLinkedInFile(
+    @CurrentUser("id") userId: string,
+    @UploadedFile() file?: ExportUploadFile,
+  ) {
+    return this.cvService.importLinkedInFile(userId, file);
   }
 }

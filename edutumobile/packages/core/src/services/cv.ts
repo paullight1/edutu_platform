@@ -171,26 +171,23 @@ function mapUserCV(row: any): UserCV {
 }
 
 function buildSummaryFromProfile(profile: any, prompt?: string) {
-  const parts: string[] = [];
-  if (profile?.field_of_study) {
-    parts.push(`${profile.field_of_study} student`);
-  }
-  if (profile?.education_level) {
-    parts.push(`${profile.education_level} level`);
-  }
-  if (Array.isArray(profile?.skills) && profile.skills.length) {
-    parts.push(`with strengths in ${profile.skills.slice(0, 4).join(', ')}`);
-  }
-  if (Array.isArray(profile?.interests) && profile.interests.length) {
-    parts.push(`interested in ${profile.interests.slice(0, 3).join(', ')}`);
-  }
-  if (prompt) {
-    parts.push(`currently targeting ${prompt.trim()}`);
-  }
-  if (!parts.length) {
-    return 'Motivated student building a strong academic and professional profile.';
-  }
-  return `Motivated ${parts.join(' ')}.`;
+  const field = profile?.field_of_study ? sentenceCase(String(profile.field_of_study)) : '';
+  const level = profile?.education_level ? String(profile.education_level).trim() : '';
+  const institution = profile?.institution ? sentenceCase(String(profile.institution)) : '';
+
+  // A single, grammatical opening sentence — never "Motivated currently targeting…".
+  const role = field
+    ? `${field} student`
+    : level
+      ? `${level} student`
+      : 'motivated, results-driven candidate';
+  const who = field || level ? `A focused ${role}` : 'A motivated, results-driven candidate';
+  const at = institution ? ` at ${institution}` : '';
+  const target = prompt?.trim();
+
+  return target
+    ? `${who}${at}, currently pursuing ${target}.`
+    : `${who}${at} building a strong academic and professional profile.`;
 }
 
 function sentenceCase(value: string) {
@@ -496,7 +493,13 @@ export async function cancelPro(): Promise<boolean> {
 export async function generateAICVDraft(
   supabase: SupabaseClient,
   userId: string,
-  options?: { linkedInUrl?: string; prompt?: string; currentData?: CVData },
+  options?: {
+    linkedInUrl?: string;
+    prompt?: string;
+    currentData?: CVData;
+    /** Identity from the auth session, used when the DB profile is missing/offline. */
+    profileFallback?: { full_name?: string; email?: string; location?: string };
+  },
 ): Promise<CVData> {
   const [profile, goals] = await Promise.all([
     fetchProfile(supabase, userId),
@@ -504,27 +507,23 @@ export async function generateAICVDraft(
   ]);
 
   const current = options?.currentData || emptyCVData();
+  const fallback = options?.profileFallback;
   const goalTitles = (goals || []).map((goal: any) => goal.title).filter(Boolean);
   const linkedInUrl = options?.linkedInUrl?.trim();
   const inferredName =
     profile?.full_name ||
     profile?.fullName ||
     current.header?.full_name ||
+    fallback?.full_name ||
     '';
   const summaryPrompt = options?.prompt || goalTitles.slice(0, 2).join(', ');
 
+  // Integrity: skills must be REAL competencies from the profile — never the
+  // target keywords (scholarships/internships) the user is applying for.
   const mergedSkills = uniq([
     ...(current.skills || []),
     ...((profile?.skills as string[] | undefined) || []),
     ...((profile?.interests as string[] | undefined) || []),
-    ...pickMeaningfulKeywords([
-      profile?.field_of_study,
-      profile?.education_level,
-      profile?.institution,
-      profile?.headline,
-      summaryPrompt,
-      ...goalTitles,
-    ]),
   ]);
   const baseSummary = buildSummaryFromProfile(profile, summaryPrompt);
   const summary = [
@@ -576,8 +575,8 @@ export async function generateAICVDraft(
       ...emptyCVData().header,
       ...current.header,
       full_name: inferredName,
-      email: current.header?.email || profile?.email || '',
-      location: current.header?.location || profile?.country || '',
+      email: current.header?.email || profile?.email || fallback?.email || '',
+      location: current.header?.location || profile?.country || fallback?.location || '',
       linkedin: current.header?.linkedin || linkedInUrl || '',
     },
     summary,
@@ -649,19 +648,23 @@ function toBackendCVPayload(data: CVData) {
   };
 }
 
-function buildProfileContext(profile: any) {
-  if (!profile) return undefined;
-  return {
-    full_name: profile.full_name || profile.fullName || undefined,
-    email: profile.email || undefined,
-    country: profile.country || undefined,
-    location: profile.location || profile.country || undefined,
-    institution: profile.institution || profile.school || undefined,
-    field_of_study: profile.field_of_study || profile.courseOfStudy || undefined,
-    education_level: profile.education_level || profile.degree || undefined,
-    interests: Array.isArray(profile.interests) ? profile.interests : undefined,
-    skills: Array.isArray(profile.skills) ? profile.skills : undefined,
+function buildProfileContext(
+  profile: any,
+  fallback?: { full_name?: string; email?: string; location?: string },
+) {
+  if (!profile && !fallback) return undefined;
+  const context = {
+    full_name: profile?.full_name || profile?.fullName || fallback?.full_name || undefined,
+    email: profile?.email || fallback?.email || undefined,
+    country: profile?.country || undefined,
+    location: profile?.location || profile?.country || fallback?.location || undefined,
+    institution: profile?.institution || profile?.school || undefined,
+    field_of_study: profile?.field_of_study || profile?.courseOfStudy || undefined,
+    education_level: profile?.education_level || profile?.degree || undefined,
+    interests: Array.isArray(profile?.interests) ? profile.interests : undefined,
+    skills: Array.isArray(profile?.skills) ? profile.skills : undefined,
   };
+  return context;
 }
 
 export interface CVDraftResult {
@@ -683,6 +686,8 @@ export async function generateCVDraftWithAI(
     prompt?: string;
     currentData?: CVData;
     getToken?: GetAuthToken;
+    /** Identity from the auth session, used when the DB profile is missing/offline. */
+    profileFallback?: { full_name?: string; email?: string; location?: string };
   },
 ): Promise<CVDraftResult> {
   if (options?.getToken) {
@@ -697,7 +702,7 @@ export async function generateCVDraftWithAI(
         {
           method: 'POST',
           body: JSON.stringify({
-            profile: buildProfileContext(profile),
+            profile: buildProfileContext(profile, options.profileFallback),
             goals: (goals || []).map((goal: any) => ({
               title: goal.title,
               description: goal.description,
@@ -712,8 +717,23 @@ export async function generateCVDraftWithAI(
       );
 
       if (response?.cv) {
+        const cv = normalizeCVData(response.cv);
+        // Guarantee identity fields even if the model omitted them.
+        const header: NonNullable<CVData['header']> = {
+          ...(cv.header || emptyCVData().header!),
+        };
+        if (!header.full_name && options.profileFallback?.full_name) {
+          header.full_name = options.profileFallback.full_name;
+        }
+        if (!header.email && options.profileFallback?.email) {
+          header.email = options.profileFallback.email;
+        }
+        if (options.linkedInUrl && !header.linkedin) {
+          header.linkedin = options.linkedInUrl.trim();
+        }
+        cv.header = header;
         return {
-          cv: normalizeCVData(response.cv),
+          cv,
           suggestions: Array.isArray(response.suggestions) ? response.suggestions : [],
           source: 'ai',
         };
@@ -725,6 +745,66 @@ export async function generateCVDraftWithAI(
 
   const cv = await generateAICVDraft(supabase, userId, options);
   return { cv: normalizeCVData(cv), suggestions: [], source: 'local' };
+}
+
+export interface LinkedInFileImportResult {
+  cv: CVData;
+  /** 'export-zip' | 'export-pdf' | ... */
+  source: string;
+  imported: boolean;
+}
+
+/**
+ * First-party LinkedIn import: upload the user's own export (profile "Save to
+ * PDF" or the "Get a copy of your data" ZIP) to the backend, which parses it
+ * with no third-party scraper. Uses its own multipart fetch (not
+ * requestProductApi, which forces JSON + swallows error messages).
+ */
+export async function importLinkedInFromFile(
+  file: { uri: string; name: string; mimeType?: string },
+  getToken: GetAuthToken,
+): Promise<LinkedInFileImportResult> {
+  const base = (
+    process.env.EXPO_PUBLIC_API_URL || 'https://edutu-platform.onrender.com'
+  ).replace(/\/$/, '');
+  const token = await getToken();
+  if (!token) throw new Error('You need to be signed in to import.');
+
+  const form = new FormData();
+  form.append('file', {
+    uri: file.uri,
+    name: file.name || 'linkedin-export',
+    type: file.mimeType || 'application/octet-stream',
+  } as unknown as Blob);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 45_000);
+  try {
+    const response = await fetch(`${base}/cv/ai/import-linkedin-file`, {
+      method: 'POST',
+      headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+      body: form,
+      signal: controller.signal,
+    });
+
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      const message = Array.isArray(data?.message)
+        ? data.message.join(' ')
+        : data?.message;
+      throw new Error(message || 'We could not read that LinkedIn export file.');
+    }
+    if (!data?.cv) {
+      throw new Error('We could not read that LinkedIn export file.');
+    }
+    return {
+      cv: normalizeCVData(data.cv as CVData),
+      source: String(data.source || 'export'),
+      imported: Boolean(data.imported),
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 /**

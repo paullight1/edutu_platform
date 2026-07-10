@@ -181,6 +181,34 @@ export default {
               supportedFamilies: ["systemSmall", "systemMedium", "systemLarge"]
             },
             {
+              name: "TrendingSpotlightWidget",
+              displayName: "Trending Spotlight",
+              description: "A rotating photo spotlight of the hottest opportunities on Edutu.",
+              contentMarginsDisabled: true,
+              supportedFamilies: ["systemSmall", "systemMedium", "systemLarge"]
+            },
+            {
+              name: "TrendingGridWidget",
+              displayName: "Trending Grid",
+              description: "A 2x2 grid of trending opportunities with photo covers.",
+              contentMarginsDisabled: true,
+              supportedFamilies: ["systemMedium", "systemLarge"]
+            },
+            {
+              name: "TrendingTickerWidget",
+              displayName: "Trending Ticker",
+              description: "A wide banner spotlighting a rotating trending opportunity.",
+              contentMarginsDisabled: true,
+              supportedFamilies: ["systemMedium"]
+            },
+            {
+              name: "TrendingThumbListWidget",
+              displayName: "Trending List",
+              description: "A ranked list of trending opportunities with photo thumbnails.",
+              contentMarginsDisabled: true,
+              supportedFamilies: ["systemMedium", "systemLarge"]
+            },
+            {
               name: "ChatWidget",
               displayName: "Ask Edutu",
               description: "Jump straight into a chat with your AI opportunity coach.",

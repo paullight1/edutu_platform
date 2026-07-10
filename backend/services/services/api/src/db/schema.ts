@@ -158,16 +158,20 @@ export const goals = pgTable(
 );
 
 // Goal Milestones (sub-tasks)
-export const milestones = pgTable("milestones", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  goalId: uuid("goal_id")
-    .notNull()
-    .references(() => goals.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  completed: boolean("completed").default(false),
-  order: integer("order").default(0),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export const milestones = pgTable(
+  "milestones",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    goalId: uuid("goal_id")
+      .notNull()
+      .references(() => goals.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    completed: boolean("completed").default(false),
+    order: integer("order").default(0),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [index("idx_milestones_goal_id").on(table.goalId)],
+);
 
 // Opportunities management
 export const opportunities = pgTable(
@@ -440,6 +444,58 @@ export const creatorApplications = pgTable("creator_applications", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// User-submitted opportunities awaiting editorial review. Kept OUT of the live
+// `opportunities` catalog until an admin approves, at which point a real
+// opportunities row is created and linked via approvedOpportunityId. Mirrors
+// the creator_applications review flow, plus a "needs_info" (query) round-trip:
+// admin asks for more info → user responds → back to pending.
+export const opportunitySubmissions = pgTable(
+  "opportunity_submissions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull(), // submitter — FK to profiles.user_id (uuid form)
+    // Opportunity content the user is proposing.
+    title: text("title").notNull(),
+    organization: text("organization"),
+    category: text("category"), // 'scholarship','fellowship','job','internship','grant', etc.
+    type: text("type"),
+    summary: text("summary"),
+    description: text("description"),
+    location: text("location"),
+    isRemote: boolean("is_remote").default(false),
+    eligibility: text("eligibility"),
+    benefits: text("benefits"),
+    deadline: timestamp("deadline"),
+    applyUrl: text("apply_url"),
+    sourceUrl: text("source_url"),
+    imageUrl: text("image_url"),
+    extra: jsonb("extra").$type<Record<string, unknown>>().default({}),
+    // Review pipeline.
+    status: text("status").default("pending"), // 'pending','needs_info','approved','rejected'
+    adminNote: text("admin_note"), // admin's message: the query question or rejection reason
+    userResponse: text("user_response"), // user's latest reply to a needs_info query
+    // Full audit trail of the back-and-forth (admin queries + user responses).
+    thread: jsonb("thread")
+      .$type<
+        Array<{
+          role: "admin" | "user";
+          message: string;
+          at: string;
+        }>
+      >()
+      .default([]),
+    reviewedBy: uuid("reviewed_by"),
+    reviewedAt: timestamp("reviewed_at"),
+    approvedOpportunityId: uuid("approved_opportunity_id"), // set when approved
+    submittedAt: timestamp("submitted_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("idx_opportunity_submissions_user_id").on(table.userId),
+    index("idx_opportunity_submissions_status").on(table.status),
+  ],
+);
+
 // Marketplace Listings (real courses / services / roadmaps for sale or free)
 export const marketplaceListings = pgTable("marketplace_listings", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -505,16 +561,20 @@ export const tickets = pgTable("tickets", {
 });
 
 // Financial Ledger
-export const transactions = pgTable("transactions", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull(),
-  amount: integer("amount").notNull(), // Amount in smallest unit (e.g. cents)
-  type: text("type").notNull(), // 'payout', 'reward', 'credit', 'payment'
-  status: text("status").default("pending"), // 'pending', 'completed', 'failed', 'refunded'
-  referenceId: text("reference_id"),
-  description: text("description"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export const transactions = pgTable(
+  "transactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull(),
+    amount: integer("amount").notNull(), // Amount in smallest unit (e.g. cents)
+    type: text("type").notNull(), // 'payout', 'reward', 'credit', 'payment'
+    status: text("status").default("pending"), // 'pending', 'completed', 'failed', 'refunded'
+    referenceId: text("reference_id"),
+    description: text("description"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [index("idx_transactions_user_id").on(table.userId)],
+);
 
 // Admin/audit trail. actor_user_id is text (not uuid) because actors can be
 // local-dev admins ("local-admin:<email>") as well as real user ids.
@@ -557,32 +617,40 @@ export const quizzes = pgTable("quizzes", {
 });
 
 // Quiz Questions
-export const quizQuestions = pgTable("quiz_questions", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  quizId: uuid("quiz_id")
-    .notNull()
-    .references(() => quizzes.id, { onDelete: "cascade" }),
-  questionText: text("question_text").notNull(),
-  options: text("options").array().notNull(), // Array of answer options
-  correctIndex: integer("correct_index").notNull(), // Index of correct answer in options array
-  explanation: text("explanation"), // AI-generated explanation for the correct answer
-  order: integer("order").default(0),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export const quizQuestions = pgTable(
+  "quiz_questions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    quizId: uuid("quiz_id")
+      .notNull()
+      .references(() => quizzes.id, { onDelete: "cascade" }),
+    questionText: text("question_text").notNull(),
+    options: text("options").array().notNull(), // Array of answer options
+    correctIndex: integer("correct_index").notNull(), // Index of correct answer in options array
+    explanation: text("explanation"), // AI-generated explanation for the correct answer
+    order: integer("order").default(0),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [index("idx_quiz_questions_quiz_id").on(table.quizId)],
+);
 
 // Quiz Attempts / Results
-export const quizAttempts = pgTable("quiz_attempts", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  quizId: uuid("quiz_id")
-    .notNull()
-    .references(() => quizzes.id, { onDelete: "cascade" }),
-  userId: uuid("user_id").notNull(),
-  answers: text("answers").array(), // Array of selected answer indices
-  score: integer("score").default(0),
-  totalQuestions: integer("total_questions").default(0),
-  completedAt: timestamp("completed_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+export const quizAttempts = pgTable(
+  "quiz_attempts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    quizId: uuid("quiz_id")
+      .notNull()
+      .references(() => quizzes.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull(),
+    answers: text("answers").array(), // Array of selected answer indices
+    score: integer("score").default(0),
+    totalQuestions: integer("total_questions").default(0),
+    completedAt: timestamp("completed_at"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [index("idx_quiz_attempts_user_id").on(table.userId)],
+);
 
 // Flashcard Decks
 export const flashcardDecks = pgTable("flashcard_decks", {
@@ -756,26 +824,31 @@ export type AiPrompt = typeof aiPrompts.$inferSelect;
 export type AiUsageLog = typeof aiUsageLogs.$inferSelect;
 
 // Blog Posts
-export const blogPosts = pgTable("blog_posts", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  title: text("title").notNull(),
-  slug: text("slug").notNull().unique(),
-  excerpt: text("excerpt"),
-  content: text("content").notNull(),
-  coverImage: text("cover_image"),
-  authorId: uuid("author_id").notNull(),
-  authorName: text("author_name").notNull(),
-  authorAvatar: text("author_avatar"),
-  category: text("category").default("general"), // 'general', 'scholarships', 'jobs', 'mentorship', 'tips', 'news'
-  tags: text("tags").array(),
-  publishedAt: timestamp("published_at"),
-  status: text("status").default("draft"), // 'draft', 'published', 'archived'
-  featured: boolean("featured").default(false),
-  views: integer("views").default(0),
-  likes: integer("likes").default(0),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+export const blogPosts = pgTable(
+  "blog_posts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    title: text("title").notNull(),
+    // slug's unique() constraint already provides a lookup index.
+    slug: text("slug").notNull().unique(),
+    excerpt: text("excerpt"),
+    content: text("content").notNull(),
+    coverImage: text("cover_image"),
+    authorId: uuid("author_id").notNull(),
+    authorName: text("author_name").notNull(),
+    authorAvatar: text("author_avatar"),
+    category: text("category").default("general"), // 'general', 'scholarships', 'jobs', 'mentorship', 'tips', 'news'
+    tags: text("tags").array(),
+    publishedAt: timestamp("published_at"),
+    status: text("status").default("draft"), // 'draft', 'published', 'archived'
+    featured: boolean("featured").default(false),
+    views: integer("views").default(0),
+    likes: integer("likes").default(0),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [index("idx_blog_posts_status").on(table.status)],
+);
 
 export type BlogPost = typeof blogPosts.$inferSelect;
 export type NewBlogPost = typeof blogPosts.$inferInsert;
@@ -841,19 +914,23 @@ export type EventRegistration = typeof eventRegistrations.$inferSelect;
 export type NewEventRegistration = typeof eventRegistrations.$inferInsert;
 
 // Blog Comments
-export const blogComments = pgTable("blog_comments", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  postId: uuid("post_id")
-    .notNull()
-    .references(() => blogPosts.id, { onDelete: "cascade" }),
-  userId: uuid("user_id").notNull(),
-  userName: text("user_name").notNull(),
-  userAvatar: text("user_avatar"),
-  content: text("content").notNull(),
-  status: text("status").default("pending"), // 'pending', 'approved', 'rejected'
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+export const blogComments = pgTable(
+  "blog_comments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    postId: uuid("post_id")
+      .notNull()
+      .references(() => blogPosts.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull(),
+    userName: text("user_name").notNull(),
+    userAvatar: text("user_avatar"),
+    content: text("content").notNull(),
+    status: text("status").default("pending"), // 'pending', 'approved', 'rejected'
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [index("idx_blog_comments_post_id").on(table.postId)],
+);
 
 export type BlogComment = typeof blogComments.$inferSelect;
 export type NewBlogComment = typeof blogComments.$inferInsert;
@@ -882,6 +959,8 @@ export const roadmaps = pgTable(
     status: text("status").notNull().default("draft"),
     createdBy: uuid("created_by").notNull(),
     creatorName: text("creator_name").notNull().default("Edutu Admin"),
+    authorRole: text("author_role"),
+    authorAvatar: text("author_avatar"),
     isFeatured: boolean("is_featured").default(false),
     enrollmentCount: integer("enrollment_count").default(0),
     ratingAvg: numeric("rating_avg", { precision: 3, scale: 2 }).default("0"),
@@ -921,6 +1000,25 @@ export const roadmaps = pgTable(
     index("idx_roadmaps_difficulty").on(table.difficulty),
     index("idx_roadmaps_featured").on(table.isFeatured),
     index("idx_roadmaps_created_by").on(table.createdBy),
+  ],
+);
+
+export const roadmapComments = pgTable(
+  "roadmap_comments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roadmapId: uuid("roadmap_id")
+      .notNull()
+      .references(() => roadmaps.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull(),
+    authorName: text("author_name").notNull().default("Edutu learner"),
+    body: text("body").notNull(),
+    rating: integer("rating"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    index("idx_roadmap_comments_roadmap").on(table.roadmapId, table.createdAt),
+    index("idx_roadmap_comments_user").on(table.userId),
   ],
 );
 
@@ -1249,3 +1347,31 @@ export const applicationKits = pgTable(
 
 export type SavedSearch = typeof savedSearches.$inferSelect;
 export type ApplicationKit = typeof applicationKits.$inferSelect;
+
+// AI usage/cost events — one row per provider call (append-only telemetry).
+export const aiUsageEvents = pgTable(
+  "ai_usage_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    provider: text("provider").notNull(),
+    model: text("model").notNull(),
+    route: text("route").notNull(),
+    promptTokens: integer("prompt_tokens"),
+    completionTokens: integer("completion_tokens"),
+    totalTokens: integer("total_tokens"),
+    estimatedCostUsd: numeric("estimated_cost_usd"),
+    latencyMs: integer("latency_ms"),
+    success: boolean("success").notNull().default(true),
+    error: text("error"),
+  },
+  (table) => [
+    index("idx_ai_usage_events_created_at").on(table.createdAt),
+    index("idx_ai_usage_events_route_created_at").on(
+      table.route,
+      table.createdAt,
+    ),
+  ],
+);
+
+export type AiUsageEvent = typeof aiUsageEvents.$inferSelect;

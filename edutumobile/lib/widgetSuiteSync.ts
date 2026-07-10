@@ -16,11 +16,20 @@ import {
   type TrendingWidgetTimelineEntry,
 } from '../widgets/TrendingWidget';
 import { updateChatWidget } from '../widgets/ChatWidget';
+import {
+  updateTrendingSpotlightWidgetTimeline,
+  type TrendingPosterItem,
+  type TrendingPosterProps,
+} from '../widgets/TrendingSpotlightWidget';
+import { updateTrendingGridWidgetTimeline } from '../widgets/TrendingGridWidget';
+import { updateTrendingTickerWidgetTimeline } from '../widgets/TrendingTickerWidget';
+import { updateTrendingThumbListWidgetTimeline } from '../widgets/TrendingThumbListWidget';
 import { getConfig } from './config';
 import {
   syncAndUpdateOpportunityWidgetSnapshot,
   urgencyTone,
 } from './opportunityWidgetSync';
+import { getWidgetImageUri } from './widgetImageCache';
 import { getWidgetLogoUri } from './widgetLogo';
 
 /**
@@ -218,6 +227,8 @@ export interface TrendingSourceItem {
   organization?: string;
   category?: string;
   deadline?: string | null;
+  /** Poster/background image for the image-led trending widgets. */
+  imageUrl?: string | null;
 }
 
 export interface SyncTrendingWidgetOptions {
@@ -251,6 +262,15 @@ async function defaultFetchTrending(): Promise<TrendingSourceItem[]> {
       const id = String(record.id ?? record.opportunityId ?? record.opportunity_id ?? '');
       const title = typeof record.title === 'string' ? record.title.trim() : '';
       if (!id || !title) return null;
+      const imageUrl =
+        typeof record.imageUrl === 'string'
+          ? record.imageUrl
+          : typeof record.image_url === 'string'
+            ? record.image_url
+            : typeof record.image === 'string'
+              ? record.image
+              : null;
+
       return {
         id,
         title,
@@ -263,6 +283,7 @@ async function defaultFetchTrending(): Promise<TrendingSourceItem[]> {
             : typeof record.close_date === 'string'
               ? record.close_date
               : null,
+        imageUrl,
       };
     })
     .filter((item): item is TrendingSourceItem => Boolean(item));
@@ -324,12 +345,83 @@ export async function syncTrendingWidget(options: SyncTrendingWidgetOptions = {}
         organization: item.organization || 'Edutu',
         category: item.category || '',
         deadline: item.deadline || '',
+        imageUrl: item.imageUrl || '',
       })),
     );
     updateTrendingWidgetTimeline(getTrendingWidgetTimeline(rows, now, { logoUri: options.logoUri }));
+
+    // Image-led trending widgets (Spotlight + Grid). No-ops on Android (native
+    // ViewFlipper providers own them); on iOS this downloads poster photos into
+    // the widget shared container and pushes their timelines.
+    await syncTrendingImageWidgets(rows, now, options.logoUri);
   } catch {
     // Best effort.
   }
+}
+
+// The single-hero photo widgets (Spotlight, Ticker) can't flip on-device the way
+// the Android ViewFlipper does, so we fake rotation through the WidgetKit
+// timeline: a fresh entry every few hours promotes the next opportunity to hero.
+const HERO_ROTATE_STEP_MS = 3 * 60 * 60 * 1000; // 3 hours
+const HERO_ROTATE_STEPS = 16; // ~2 days of rotation before the next app sync
+
+/**
+ * Drive the iOS photo trending widgets. Poster images are downloaded once, then
+ * reused across every timeline entry so deadline labels recompute (and the hero
+ * rotates) without re-fetching the images.
+ */
+async function syncTrendingImageWidgets(
+  rows: TrendingSourceItem[],
+  now: Date,
+  logoUri?: string,
+): Promise<void> {
+  if (Platform.OS !== 'ios') return; // Android uses the native providers.
+
+  const top = rows.slice(0, 6);
+  const base = await Promise.all(
+    top.map(async (row, index) => ({
+      row,
+      imageUri: await getWidgetImageUri(row.imageUrl, `trend-${index}`),
+    })),
+  );
+  if (!base.length) return;
+
+  const toItem = (entry: (typeof base)[number], date: Date): TrendingPosterItem => ({
+    title: entry.row.title,
+    category: entry.row.category || 'Trending',
+    organization: entry.row.organization || 'Edutu',
+    deadline: formatCountdown(entry.row.deadline, date),
+    tone: urgencyTone(getDeadlineBadge(entry.row.deadline, date).level),
+    deepLink: `edutu://opportunity/${encodeURIComponent(entry.row.id)}`,
+    imageUri: entry.imageUri,
+  });
+
+  const hasDated = top.some((row) => getDeadlineBadge(row.deadline, now).daysLeft !== null);
+
+  // Grid + Thumbnail list keep a stable order; only countdown labels change, so a
+  // present entry plus one per midnight (when any deadline is dated) is enough.
+  const listEntries = [{ date: now, props: { logoUri, items: base.map((e) => toItem(e, now)) } }];
+  if (hasDated) {
+    for (let day = 1; day <= TIMELINE_DAYS; day += 1) {
+      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + day);
+      listEntries.push({ date: midnight, props: { logoUri, items: base.map((e) => toItem(e, midnight)) } });
+    }
+  }
+
+  // Spotlight + Ticker rotate the hero every few hours: entry i promotes item
+  // (i % count) to the front so it renders as the poster hero.
+  const heroEntries: { date: Date; props: TrendingPosterProps }[] = [];
+  for (let step = 0; step < HERO_ROTATE_STEPS; step += 1) {
+    const date = step === 0 ? now : new Date(now.getTime() + step * HERO_ROTATE_STEP_MS);
+    const heroIndex = step % base.length;
+    const rotated = [...base.slice(heroIndex), ...base.slice(0, heroIndex)];
+    heroEntries.push({ date, props: { logoUri, items: rotated.map((e) => toItem(e, date)) } });
+  }
+
+  updateTrendingSpotlightWidgetTimeline(heroEntries);
+  updateTrendingTickerWidgetTimeline(heroEntries);
+  updateTrendingGridWidgetTimeline(listEntries);
+  updateTrendingThumbListWidgetTimeline(listEntries);
 }
 
 // ---------------------------------------------------------------------------

@@ -19,7 +19,8 @@
     "viewAll": "View all",
     "learnMore": "Learn more",
     "getStarted": "Get started",
-    "tryAgain": "Try again"
+    "tryAgain": "Try again",
+    "dismiss": "Dismiss"
   },
   "states": {
     "loading": "Loading...",
@@ -166,6 +167,13 @@
   },
   "brandedLoader": {
     "loading": "Loading…"
+  },
+  "loadState": {
+    "slowTitle": "This is taking longer than expected",
+    "slowText": "Slow connection — hang tight, or try again while we reconnect.",
+    "errorTitle": "Can't connect right now",
+    "errorText": "Check your internet connection and try again.",
+    "offlineText": "You appear to be offline. Reconnect and try again."
   },
   "campaign": {
     "badge": "Edu2Mobile"

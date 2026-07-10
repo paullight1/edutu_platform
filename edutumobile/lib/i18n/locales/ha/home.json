@@ -5,7 +5,8 @@
     "plan": "Shiri",
     "me": "Ni",
     "openEdutuAi": "Buɗe Edutu AI",
-    "badgeOverflow": "99+"
+    "badgeOverflow": "99+",
+    "holdForVoice": "Riƙe don yanayin murya"
   },
   "rewards": {
     "creditsEarned_one": "+kirediti {{count}} · {{label}}",

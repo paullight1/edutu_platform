@@ -5,7 +5,8 @@
     "plan": "Plan",
     "me": "Me",
     "openEdutuAi": "Open Edutu AI",
-    "badgeOverflow": "99+"
+    "badgeOverflow": "99+",
+    "holdForVoice": "Hold for voice mode"
   },
   "rewards": {
     "creditsEarned_one": "+{{count}} credit · {{label}}",
@@ -193,7 +194,8 @@
     "notNow": "Not now",
     "manageSubscription": "Manage subscription",
     "checkoutFailed": "We couldn't open the checkout page. Please try again.",
-    "promoDefault": "Limited-time offer"
+    "promoDefault": "Limited-time offer",
+    "restore": "Restore purchases"
   },
   "wallet": {
     "title": "Wallet",

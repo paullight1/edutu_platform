@@ -1,7 +1,12 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "../db";
-import { aiProviderKeys, aiRoutes, aiUsageLogs } from "../db/schema";
+import {
+  aiProviderKeys,
+  aiRoutes,
+  aiUsageEvents,
+  aiUsageLogs,
+} from "../db/schema";
 import { AiEncryptionService } from "./ai-encryption.service";
 import {
   AiEmbedOptions,
@@ -35,6 +40,35 @@ const RESPONSE_CACHE_TTL_MS = aiNumberEnv(
   300_000,
 );
 const RESPONSE_CACHE_MAX_TEMPERATURE = 0.1;
+
+// USD per 1M tokens, keyed by model. Edit here when pricing changes or a new
+// model is routed. Unknown models are costed at $0 (tokens still recorded).
+const MODEL_PRICES_PER_MILLION_TOKENS_USD: Record<
+  string,
+  { input: number; output: number }
+> = {
+  // DeepSeek chat (cache-miss input rate).
+  "deepseek-chat": { input: 0.27, output: 1.1 },
+  // Gemini embeddings (input only; embeddings have no completion tokens).
+  "text-embedding-004": { input: 0.01, output: 0 },
+  "gemini-2.0-flash": { input: 0.1, output: 0.4 },
+};
+
+function estimateCostUsd(
+  model: string,
+  promptTokens: number | null,
+  completionTokens: number | null,
+  totalTokens: number | null,
+): number {
+  const price = MODEL_PRICES_PER_MILLION_TOKENS_USD[model];
+  if (!price) return 0;
+  // When only a total is reported (e.g. embeddings), bill it as input tokens.
+  const input =
+    promptTokens ??
+    (completionTokens === null && totalTokens !== null ? totalTokens : 0);
+  const output = completionTokens ?? 0;
+  return (input * price.input + output * price.output) / 1_000_000;
+}
 
 const DEFAULT_ROUTES: Record<
   string,
@@ -697,6 +731,36 @@ export class AiService {
     } catch (logError) {
       this.logger.warn(
         `Failed to write AI usage log: ${logError instanceof Error ? logError.message : String(logError)}`,
+      );
+    }
+
+    // Cost-tracking event (ai_usage_events). Separately guarded so a missing
+    // table (migration not applied yet) never affects the legacy log above —
+    // and neither write can ever fail the AI call itself.
+    try {
+      const promptTokens = result?.usage?.promptTokens ?? null;
+      const completionTokens = result?.usage?.completionTokens ?? null;
+      const totalTokens = result?.usage?.totalTokens ?? null;
+      await db.insert(aiUsageEvents).values({
+        provider: route.provider,
+        model: route.model,
+        route: options.feature,
+        promptTokens,
+        completionTokens,
+        totalTokens,
+        estimatedCostUsd: estimateCostUsd(
+          route.model,
+          promptTokens,
+          completionTokens,
+          totalTokens,
+        ).toFixed(8),
+        latencyMs,
+        success: !error,
+        error: error instanceof Error ? error.message.slice(0, 1000) : null,
+      });
+    } catch (eventError) {
+      this.logger.warn(
+        `Failed to write AI usage event: ${eventError instanceof Error ? eventError.message : String(eventError)}`,
       );
     }
   }

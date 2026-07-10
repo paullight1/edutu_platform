@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   ForbiddenException,
   SetMetadata,
+  Logger,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { IS_PUBLIC_KEY } from "./public.decorator";
@@ -13,6 +14,9 @@ export const RequireAdmin = () => SetMetadata(IS_ADMIN_KEY, true);
 
 @Injectable()
 export class AdminGuard implements CanActivate {
+  private static warnedMissingAdminEmails = false;
+  private readonly logger = new Logger(AdminGuard.name);
+
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
@@ -32,12 +36,17 @@ export class AdminGuard implements CanActivate {
       throw new ForbiddenException("Authentication required");
     }
 
-    const adminEmails = (
-      process.env.ADMIN_EMAILS ||
-      "admin@edutu.org,founder@edutu.org,nwosupaul3@gmail.com,nwouspaul3@gmail.com"
-    )
+    const adminEmailsEnv = process.env.ADMIN_EMAILS;
+    if (!adminEmailsEnv && !AdminGuard.warnedMissingAdminEmails) {
+      AdminGuard.warnedMissingAdminEmails = true;
+      this.logger.warn(
+        "ADMIN_EMAILS is not set; email-based admin allowlist is disabled (role-based admin still applies).",
+      );
+    }
+    const adminEmails = (adminEmailsEnv ?? "")
       .split(",")
-      .map((e) => e.trim().toLowerCase());
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean);
 
     const userEmail = user.email?.toLowerCase();
 

@@ -34,6 +34,7 @@ import {
     ExternalLink,
     MapPin,
     Mic,
+    AudioLines,
     AlertCircle,
     RotateCcw,
     Flag,
@@ -58,6 +59,9 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { BrandedLoader } from '../../components/ui/BrandedLoader';
 import { notificationService } from '../../lib/notifications';
 import { useReportAIContent } from '../../lib/reportAiContent';
+import { openVoiceMode, useVoiceModeState, consumeVoiceModeThread } from '../../lib/voiceModeStore';
+import VoiceRecordingModal from '../../components/chat/VoiceRecordingModal';
+import { useVoiceRecording } from '../../hooks/useVoiceRecording';
 
 function TypingReveal({
     content,
@@ -275,6 +279,10 @@ export default function ChatScreen() {
     const lastBotMessageRef = useRef<string | null>(null);
     const [deadlineActionId, setDeadlineActionId] = useState<string | null>(null);
     const [roadmapActionId, setRoadmapActionId] = useState<string | null>(null);
+    // Composer mic = one-shot dictation on its own screen (distinct from the
+    // hands-free live voice stream opened by the waveform button).
+    const [voiceRecOpen, setVoiceRecOpen] = useState(false);
+    const [voiceTranscript, setVoiceTranscript] = useState<string | null>(null);
 
     const backgroundColor = colors.background;
     const textPrimary = colors.foreground;
@@ -317,7 +325,8 @@ export default function ChatScreen() {
         isSending,
         selectThread,
         sendMessage,
-        archiveThread
+        archiveThread,
+        loadThreads
     } = useChat({
         supabase,
         userId: user?.id || null,
@@ -338,7 +347,31 @@ export default function ChatScreen() {
         isSpeaking,
         speak,
         stop: stopSpeaking,
-    } = useTextToSpeech();
+    } = useTextToSpeech({ getAuthToken: getToken });
+
+    const voiceRec = useVoiceRecording({
+        language: i18n.language?.split('-')[0] || 'en',
+        getAuthToken: getToken,
+        onTranscription: (text) => setVoiceTranscript(text),
+    });
+    const voiceRecordingState: 'idle' | 'recording' | 'processing' | 'error' =
+        voiceRec.isRecording ? 'recording'
+            : voiceRec.isProcessing ? 'processing'
+                : voiceRec.error ? 'error'
+                    : 'idle';
+
+    const openVoiceRecorder = useCallback(() => {
+        Keyboard.dismiss();
+        setVoiceTranscript(null);
+        setVoiceRecOpen(true);
+        void voiceRec.startRecording();
+    }, [voiceRec]);
+
+    const closeVoiceRecorder = useCallback(() => {
+        voiceRec.cancelRecording();
+        setVoiceTranscript(null);
+        setVoiceRecOpen(false);
+    }, [voiceRec]);
 
     const handleSend = useCallback(async (overrideText?: string) => {
         const text = (overrideText || input).trim();
@@ -599,6 +632,21 @@ export default function ChatScreen() {
             selectThread(threads[0].id);
         }
     }, [voiceMsg, selectedThreadId, isLoadingThreads, threads, selectThread]);
+
+    // When a voice-mode session ends, pull its thread into the chat so the
+    // spoken exchange is right there. Runs whenever the overlay is closed:
+    // covers closing it while chat is open AND landing here from the
+    // overlay's chat button (the store holds the thread until consumed).
+    const { visible: isVoiceModeVisible } = useVoiceModeState();
+    useEffect(() => {
+        if (isVoiceModeVisible) return;
+        const voiceThreadId = consumeVoiceModeThread();
+        if (voiceThreadId && voiceThreadId !== selectedThreadId) {
+            didAutoResumeRef.current = true;
+            selectThread(voiceThreadId);
+            loadThreads();
+        }
+    }, [isVoiceModeVisible, selectedThreadId, selectThread, loadThreads]);
 
     const showWelcomePrompts = useMemo(() =>
         !isLoadingMessages && messages.length === 0 && !selectedThreadId,
@@ -1266,21 +1314,62 @@ export default function ChatScreen() {
                                 }}
                             />
 
-                            <TouchableOpacity
-                                onPress={() => handleSend()}
-                                disabled={!input.trim()}
-                                style={[
-                                    styles.iconBtn,
-                                    styles.sendBtn,
-                                    { backgroundColor: input.trim() ? accentColor : (isDark ? '#334155' : '#CBD5E1') }
-                                ]}
-                            >
-                                <Send size={18} color="white" />
-                            </TouchableOpacity>
+                            {/* Composer trailing actions: with text → Send;
+                                empty → the two voice toggles (tap-to-talk
+                                voice mode, hands-free live mode). */}
+                            {input.trim() ? (
+                                <TouchableOpacity
+                                    onPress={() => handleSend()}
+                                    style={[styles.iconBtn, styles.sendBtn, { backgroundColor: accentColor }]}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={t('input.send')}
+                                >
+                                    <Send size={18} color="white" />
+                                </TouchableOpacity>
+                            ) : (
+                                <>
+                                    <TouchableOpacity
+                                        onPress={openVoiceRecorder}
+                                        style={[styles.iconBtn, { backgroundColor: isDark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.10)' }]}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={t('voiceMode.composerRecord')}
+                                    >
+                                        <Mic size={19} color={accentColor} strokeWidth={2.2} />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        onPress={() => { Keyboard.dismiss(); openVoiceMode('live'); }}
+                                        style={[styles.iconBtn, { backgroundColor: accentColor }]}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={t('voiceMode.composerLive')}
+                                    >
+                                        <AudioLines size={19} color="#FFFFFF" strokeWidth={2.2} />
+                                    </TouchableOpacity>
+                                </>
+                            )}
                         </View>
                     </View>
                 </View>
             </KeyboardAvoidingView>
+
+            {voiceRecOpen ? (
+                <VoiceRecordingModal
+                    visible={voiceRecOpen}
+                    isDark={isDark}
+                    recordingState={voiceRecordingState}
+                    duration={voiceRec.duration}
+                    transcript={voiceTranscript}
+                    error={voiceRec.error}
+                    onStartRecording={() => { setVoiceTranscript(null); void voiceRec.startRecording(); }}
+                    onStopRecording={() => voiceRec.stopRecording()}
+                    onReset={() => { setVoiceTranscript(null); voiceRec.cancelRecording(); }}
+                    onSendTranscript={(text) => {
+                        setVoiceRecOpen(false);
+                        setVoiceTranscript(null);
+                        void handleSend(text);
+                    }}
+                    onClose={closeVoiceRecorder}
+                />
+            ) : null}
 
             <Modal
                 visible={isThreadsVisible}

@@ -5,7 +5,8 @@
     "plan": "规划",
     "me": "我的",
     "openEdutuAi": "打开 Edutu AI",
-    "badgeOverflow": "99+"
+    "badgeOverflow": "99+",
+    "holdForVoice": "长按进入语音模式"
   },
   "rewards": {
     "creditsEarned_one": "+{{count}} 积分 · {{label}}",
