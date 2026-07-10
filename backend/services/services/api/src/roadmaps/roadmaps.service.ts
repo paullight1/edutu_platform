@@ -11,6 +11,7 @@ import { db } from "../db";
 import {
   roadmaps,
   roadmapEnrollments,
+  roadmapComments,
   userRoadmapIntents,
   roadmapFeedback,
   profiles,
@@ -33,6 +34,7 @@ import {
   AIAssistDto,
   OpportunityPlanDto,
   AdoptRoadmapDto,
+  RoadmapCommentDto,
 } from "./dto/roadmap.dto";
 import { AiService } from "../ai";
 import { toDatabaseUserId } from "../common/user-id";
@@ -185,7 +187,7 @@ export class RoadmapsService {
     dto: CreateRoadmapDto,
     userId: string,
     creatorName = "Edutu Admin",
-    options: { status?: "draft" | "published" | "archived" } = {},
+    options: { status?: "draft" | "published" | "archived" | "personal" } = {},
   ) {
     const dbUserId = toDatabaseUserId(userId);
     const steps = dto.steps.map((step) => ({
@@ -286,6 +288,65 @@ export class RoadmapsService {
     );
   }
 
+  // ─── PERSONAL ("My Roadmaps") — any signed-in user ──────────────────────
+  // Personal roadmaps live in the same `roadmaps` table but with
+  // status='personal', so the public catalog (findAll / findPublishedById,
+  // which both filter status='published') never surfaces them. Only the
+  // owner sees them, via findMine below.
+
+  async createPersonal(
+    dto: CreateRoadmapDto,
+    userId: string,
+    creatorName = "You",
+  ) {
+    return this.create(
+      { ...dto, isFeatured: false },
+      userId,
+      creatorName,
+      { status: "personal" },
+    );
+  }
+
+  async findMine(userId: string) {
+    const dbUserId = toDatabaseUserId(userId);
+    const items = await db
+      .select()
+      .from(roadmaps)
+      .where(eq(roadmaps.createdBy, dbUserId))
+      .orderBy(desc(roadmaps.updatedAt), desc(roadmaps.createdAt));
+
+    return items.map((item) => this.serializeRoadmap(item));
+  }
+
+  private async requireOwnedRoadmap(userId: string, id: string) {
+    const dbUserId = toDatabaseUserId(userId);
+    const [existing] = await db
+      .select()
+      .from(roadmaps)
+      .where(eq(roadmaps.id, id));
+
+    if (!existing) throw new NotFoundException("Roadmap not found");
+    if (existing.createdBy !== dbUserId) {
+      throw new ForbiddenException("You can only manage your own roadmaps.");
+    }
+    return existing;
+  }
+
+  async updateMine(userId: string, id: string, dto: UpdateRoadmapDto) {
+    await this.requireOwnedRoadmap(userId, id);
+    // Editing from "My Roadmaps" never changes catalog visibility — strip any
+    // status the client sent so a personal roadmap can't be self-published.
+    const { status: _ignored, ...safeDto } = dto;
+    return this.update(id, safeDto);
+  }
+
+  async removeMine(userId: string, id: string) {
+    await this.requireOwnedRoadmap(userId, id);
+    await db.delete(roadmaps).where(eq(roadmaps.id, id));
+    await this.invalidateRoadmapCache();
+    return { success: true, id };
+  }
+
   async update(id: string, dto: UpdateRoadmapDto) {
     const existing = await this.findOne(id);
 
@@ -329,6 +390,60 @@ export class RoadmapsService {
     return this.serializeRoadmap(updated);
   }
 
+  async getComments(roadmapId: string, limit = 50) {
+    const items = await db
+      .select()
+      .from(roadmapComments)
+      .where(eq(roadmapComments.roadmapId, roadmapId))
+      .orderBy(desc(roadmapComments.createdAt))
+      .limit(Math.min(limit, 100));
+
+    return items.map((item) => this.serializeComment(item));
+  }
+
+  async addComment(
+    userId: string,
+    roadmapId: string,
+    dto: RoadmapCommentDto,
+    fallbackName?: string,
+  ) {
+    await this.findPublishedById(roadmapId);
+
+    const dbUserId = toDatabaseUserId(userId);
+    const [profile] = await db
+      .select()
+      .from(profiles)
+      .where(eq(profiles.userId, dbUserId));
+
+    const authorName =
+      profile?.fullName?.trim() || fallbackName?.trim() || "Edutu learner";
+
+    const [created] = await db
+      .insert(roadmapComments)
+      .values({
+        roadmapId,
+        userId: dbUserId,
+        authorName,
+        body: dto.body,
+        rating: dto.rating ?? null,
+      })
+      .returning();
+
+    return this.serializeComment(created);
+  }
+
+  private serializeComment(comment: any) {
+    if (!comment) return comment;
+    return {
+      id: comment.id,
+      roadmap_id: comment.roadmapId,
+      author_name: comment.authorName,
+      body: comment.body,
+      rating: comment.rating,
+      created_at: comment.createdAt,
+    };
+  }
+
   async remove(id: string) {
     await this.findOne(id);
     await db.delete(roadmaps).where(eq(roadmaps.id, id));
@@ -339,6 +454,12 @@ export class RoadmapsService {
   async enroll(userId: string, roadmapId: string) {
     await this.findPublishedById(roadmapId);
 
+    // roadmap_enrollments.user_id is a uuid column, so the raw Clerk id has to
+    // be mapped through the same deterministic hash used everywhere else in
+    // this service — otherwise Postgres rejects the insert and the client sees
+    // a bare "Enrollment failed".
+    const dbUserId = toDatabaseUserId(userId);
+
     // Upsert and bump the counter in one transaction. `xmax = 0` is true only
     // when THIS statement inserted the row (not on the conflict-update path),
     // so the enrollment_count increment happens exactly once even when two
@@ -347,7 +468,7 @@ export class RoadmapsService {
       const [row] = await tx
         .insert(roadmapEnrollments)
         .values({
-          userId,
+          userId: dbUserId,
           roadmapId,
           status: "enrolled",
           progress: 0,
@@ -380,8 +501,28 @@ export class RoadmapsService {
     return this.serializeEnrollment(enrollment);
   }
 
+  // Published roadmaps are adoptable by anyone; a personal roadmap is
+  // adoptable only by its owner (so users can turn their own plan into goals).
+  private async findAdoptableRoadmap(userId: string, roadmapId: string) {
+    const [item] = await db
+      .select()
+      .from(roadmaps)
+      .where(eq(roadmaps.id, roadmapId));
+
+    if (
+      !item ||
+      (item.status !== "published" &&
+        item.createdBy !== toDatabaseUserId(userId))
+    ) {
+      throw new NotFoundException("Roadmap not found");
+    }
+    return this.serializeRoadmap(item);
+  }
+
   async adopt(userId: string, roadmapId: string, dto: AdoptRoadmapDto) {
-    const roadmap = await this.findPublishedById(roadmapId);
+    const roadmap = await this.findAdoptableRoadmap(userId, roadmapId);
+    // Enrollment rows are keyed by the uuid form of the user id (see enroll()).
+    const dbUserId = toDatabaseUserId(userId);
     const targetOpportunityId =
       dto.targetOpportunityId ||
       dto.opportunityId ||
@@ -405,7 +546,7 @@ export class RoadmapsService {
       const [row] = await tx
         .insert(roadmapEnrollments)
         .values({
-          userId,
+          userId: dbUserId,
           roadmapId,
           status: "enrolled",
           progress: 0,
@@ -510,7 +651,7 @@ export class RoadmapsService {
       })
       .from(roadmapEnrollments)
       .innerJoin(roadmaps, eq(roadmapEnrollments.roadmapId, roadmaps.id))
-      .where(eq(roadmapEnrollments.userId, userId))
+      .where(eq(roadmapEnrollments.userId, toDatabaseUserId(userId)))
       .orderBy(desc(roadmapEnrollments.enrolledAt));
 
     return rows.map((row) => ({
@@ -530,7 +671,7 @@ export class RoadmapsService {
       .where(
         and(
           eq(roadmapEnrollments.id, enrollmentId),
-          eq(roadmapEnrollments.userId, userId),
+          eq(roadmapEnrollments.userId, toDatabaseUserId(userId)),
         ),
       );
 
@@ -566,7 +707,7 @@ export class RoadmapsService {
         .from(roadmapEnrollments)
         .where(
           and(
-            eq(roadmapEnrollments.userId, userId),
+            eq(roadmapEnrollments.userId, toDatabaseUserId(userId)),
             eq(roadmapEnrollments.roadmapId, roadmapId),
           ),
         )
@@ -608,10 +749,11 @@ export class RoadmapsService {
   }
 
   async saveIntent(userId: string, dto: RoadmapIntentDto) {
+    // user_roadmap_intents.user_id is uuid — key it consistently with reads.
     const [intent] = await db
       .insert(userRoadmapIntents)
       .values({
-        userId,
+        userId: toDatabaseUserId(userId),
         ...dto,
         updatedAt: new Date(),
       })
@@ -631,7 +773,7 @@ export class RoadmapsService {
     const [intent] = await db
       .select()
       .from(userRoadmapIntents)
-      .where(eq(userRoadmapIntents.userId, userId));
+      .where(eq(userRoadmapIntents.userId, toDatabaseUserId(userId)));
 
     return intent || null;
   }
@@ -680,7 +822,8 @@ export class RoadmapsService {
       const [feedback] = await tx
         .insert(roadmapFeedback)
         .values({
-          userId,
+          // roadmap_feedback.user_id is uuid — key it the same way enrollments do.
+          userId: toDatabaseUserId(userId),
           roadmapId: dto.roadmapId,
           satisfactionScore: dto.satisfactionScore,
           metExpectations: dto.metExpectations,
@@ -1350,6 +1493,8 @@ ${roadmapsList.map((r) => `- ID: ${r.id}, Title: ${r.title}, Category: ${r.categ
       calendar_sync_enabled: roadmap.calendarSyncEnabled,
       created_by: roadmap.createdBy,
       creator_name: roadmap.creatorName,
+      author_role: roadmap.authorRole,
+      author_avatar: roadmap.authorAvatar,
       is_featured: roadmap.isFeatured,
       enrollment_count: roadmap.enrollmentCount,
       rating_avg: roadmap.ratingAvg,

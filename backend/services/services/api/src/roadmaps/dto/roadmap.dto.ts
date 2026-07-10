@@ -138,6 +138,11 @@ export const UpdateRoadmapProgressSchema = z.object({
   completed: z.boolean(),
 });
 
+export const RoadmapCommentDtoSchema = z.object({
+  body: z.string().trim().min(2).max(1000),
+  rating: z.number().int().min(1).max(5).optional(),
+});
+
 export type RoadmapStepDto = z.infer<typeof RoadmapStepDtoSchema>;
 export type CreateRoadmapDto = z.infer<typeof CreateRoadmapDtoSchema>;
 export type UpdateRoadmapDto = z.infer<typeof UpdateRoadmapDtoSchema>;
@@ -149,3 +154,4 @@ export type AdoptRoadmapDto = z.infer<typeof AdoptRoadmapDtoSchema>;
 export type UpdateRoadmapProgressDto = z.infer<
   typeof UpdateRoadmapProgressSchema
 >;
+export type RoadmapCommentDto = z.infer<typeof RoadmapCommentDtoSchema>;
