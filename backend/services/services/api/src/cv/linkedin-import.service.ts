@@ -2,7 +2,6 @@ import { Injectable, Logger } from "@nestjs/common";
 import axios from "axios";
 import * as cheerio from "cheerio";
 import AdmZip from "adm-zip";
-import { PDFParse } from "pdf-parse";
 import type { CVDataDto } from "./dto/cv-ai.dto";
 
 /** An uploaded LinkedIn export file (from multer memory storage). */
@@ -235,6 +234,10 @@ export class LinkedInImportService {
 
   /** Best-effort parse of the "Save to PDF" profile export. */
   private async fromPdf(buffer: Buffer): Promise<LinkedInProfile | null> {
+    // Lazy import: pdf-parse bundles pdfjs, whose module-eval touches newer
+    // Node built-ins and can crash on older runtimes. Loading it only when a
+    // PDF is actually uploaded keeps app startup independent of Node version.
+    const { PDFParse } = await import("pdf-parse");
     const parser = new PDFParse({ data: new Uint8Array(buffer) });
     let text = "";
     try {

@@ -16,6 +16,7 @@ import {
   Calendar,
   GraduationCap,
   MapPin,
+  Plus,
   RefreshCw,
   Rocket,
   Search,
@@ -916,16 +917,28 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
           </section>
         ) : (
           <section className="mb-6">
-            <div className="mb-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
-                {t("navigation.explore")}
-              </p>
-              <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-text-primary sm:text-[28px]">
-                Browse by category
-              </h1>
-              <p className="mt-1.5 text-sm text-text-secondary">
-                Pick a track to jump straight to matching opportunities.
-              </p>
+            <div className="mb-4 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+                  {t("navigation.explore")}
+                </p>
+                <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-text-primary sm:text-[28px]">
+                  Browse by category
+                </h1>
+                <p className="mt-1.5 text-sm text-text-secondary">
+                  Pick a track to jump straight to matching opportunities.
+                </p>
+              </div>
+              {embedded && (
+                <button
+                  type="button"
+                  onClick={() => navigate("/app/submit-opportunity")}
+                  className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full bg-brand px-4 text-sm font-semibold text-white shadow-soft transition hover:opacity-90"
+                >
+                  <Plus size={16} />
+                  Submit
+                </button>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
               {COLLECTIONS.map((collection) => (
