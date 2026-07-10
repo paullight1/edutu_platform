@@ -13,7 +13,7 @@ import { opportunities } from "../db/schema";
 import axios from "axios";
 import * as cheerio from "cheerio";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { eq, or, and, sql, lt, gte, isNull, desc } from "drizzle-orm";
+import { eq, or, and, sql, lt, gte, isNull, desc, inArray } from "drizzle-orm";
 import * as path from "path";
 import { z } from "zod";
 import { OpportunityRankingService } from "./opportunity-ranking.service";
@@ -1436,6 +1436,74 @@ export class OpportunitiesService {
       void this.savedSearchesService?.notifyNewOpportunities([row]);
     }
     return row;
+  }
+
+  // Admin bulk status change: one batched UPDATE across all ids.
+  async bulkUpdateStatus(ids: string[], status: string) {
+    this.invalidateReadCaches();
+    let updatedIds: string[] | null = null;
+
+    if (this.supabase) {
+      const { data, error } = await this.supabase
+        .from("opportunities")
+        .update({ status, updated_at: new Date().toISOString() })
+        .in("id", ids)
+        .select("id");
+
+      if (!error) {
+        updatedIds = (data ?? []).map((row: { id: string }) => row.id);
+      } else {
+        this.logger.warn(
+          `Canonical bulk status update failed, falling back to Drizzle schema: ${error.message}`,
+        );
+      }
+    }
+
+    if (updatedIds === null) {
+      const rows = await db
+        .update(opportunities)
+        .set({ status, updatedAt: new Date() })
+        .where(inArray(opportunities.id, ids))
+        .returning({ id: opportunities.id });
+      updatedIds = rows.map((row) => row.id);
+    }
+
+    // Approval makes rows visible to recommendations — make sure they carry
+    // embeddings. Fire-and-forget; never throws (mirrors updateStatus).
+    if (status === "active") {
+      for (const id of updatedIds) {
+        void this.embeddingService.embedOpportunity(id);
+      }
+    }
+
+    return { updated: updatedIds.length };
+  }
+
+  // Admin bulk delete: one batched DELETE across all ids.
+  async bulkRemove(ids: string[]) {
+    this.invalidateReadCaches();
+
+    if (this.supabase) {
+      const { data, error } = await this.supabase
+        .from("opportunities")
+        .delete()
+        .in("id", ids)
+        .select("id");
+
+      if (!error) {
+        return { deleted: (data ?? []).length };
+      }
+
+      this.logger.warn(
+        `Canonical bulk delete failed, falling back to Drizzle schema: ${error.message}`,
+      );
+    }
+
+    const rows = await db
+      .delete(opportunities)
+      .where(inArray(opportunities.id, ids))
+      .returning({ id: opportunities.id });
+    return { deleted: rows.length };
   }
 
   async enhanceOpportunity(id: string) {

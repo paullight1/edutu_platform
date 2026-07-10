@@ -191,6 +191,14 @@ const OTHER_FEATURES = [
     route: '/creator-dashboard',
     gradient: ['#111827', '#374151'] as const,
   },
+  {
+    id: 'submissions',
+    title: 'list.features.submissions.title',
+    desc: 'list.features.submissions.desc',
+    icon: Inbox,
+    route: '/opportunities/submissions',
+    gradient: ['#6366F1', '#4338CA'] as const,
+  },
 ] satisfies Array<{
   id: string;
   title: string;
