@@ -952,6 +952,8 @@ export default function Opportunities() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [enhancingIds, setEnhancingIds] = useState<Set<string>>(new Set());
   const [sharingIds, setSharingIds] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkActionBusy, setBulkActionBusy] = useState(false);
   const [pageNotice, setPageNotice] = useState<PageNotice | null>(null);
 
   // Form data
@@ -1065,6 +1067,19 @@ export default function Opportunities() {
     setCurrentPage(1);
   }, [searchQuery, categoryFilter, statusFilter, sortBy, pageSize]);
 
+  // Prune selection whenever the visible set changes (filters, search, page,
+  // refetch) so bulk actions only ever target rows the admin can still see.
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const visible = new Set(filteredOpps.map((opp) => opp.id));
+      const next = new Set(
+        Array.from(prev).filter((id) => visible.has(id)),
+      );
+      return next.size === prev.size ? prev : next;
+    });
+  }, [filteredOpps]);
+
   useEffect(() => {
     return () => {
       if (pageNoticeTimeoutRef.current !== null) {
@@ -1174,6 +1189,90 @@ export default function Opportunities() {
         "error",
         getErrorMessage(error, "Failed to update status"),
       );
+    }
+  }
+
+  async function handleBulkStatusUpdate(status: OpportunityStatus) {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0 || bulkActionBusy) return;
+    if (
+      status === "rejected" &&
+      !window.confirm(
+        `Reject ${ids.length} selected opportunit${ids.length === 1 ? "y" : "ies"}?`,
+      )
+    )
+      return;
+    setBulkActionBusy(true);
+    try {
+      const response = await fetch(
+        `${NEST_API_URL}/opportunities/admin/bulk-status`,
+        {
+          method: "POST",
+          headers: await getAdminHeaders(),
+          body: JSON.stringify({ ids, status }),
+        },
+      );
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.message || "Bulk status update failed");
+      }
+      const result = await response.json().catch(() => ({}));
+      const updated =
+        typeof result.updated === "number" ? result.updated : ids.length;
+      setSelectedIds(new Set());
+      void fetchOpportunities();
+      showPageNotice(
+        "success",
+        `${updated} opportunit${updated === 1 ? "y" : "ies"} ${
+          status === "active" ? "approved" : `set to ${status}`
+        }.`,
+      );
+    } catch (error: unknown) {
+      showPageNotice(
+        "error",
+        getErrorMessage(error, "Bulk status update failed"),
+      );
+    } finally {
+      setBulkActionBusy(false);
+    }
+  }
+
+  async function handleBulkDelete() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0 || bulkActionBusy) return;
+    if (
+      !window.confirm(
+        `Delete ${ids.length} selected opportunit${ids.length === 1 ? "y" : "ies"}? This action cannot be undone.`,
+      )
+    )
+      return;
+    setBulkActionBusy(true);
+    try {
+      const response = await fetch(
+        `${NEST_API_URL}/opportunities/admin/bulk-delete`,
+        {
+          method: "POST",
+          headers: await getAdminHeaders(),
+          body: JSON.stringify({ ids }),
+        },
+      );
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.message || "Bulk delete failed");
+      }
+      const result = await response.json().catch(() => ({}));
+      const deleted =
+        typeof result.deleted === "number" ? result.deleted : ids.length;
+      setSelectedIds(new Set());
+      void fetchOpportunities();
+      showPageNotice(
+        "success",
+        `${deleted} opportunit${deleted === 1 ? "y" : "ies"} deleted.`,
+      );
+    } catch (error: unknown) {
+      showPageNotice("error", getErrorMessage(error, "Bulk delete failed"));
+    } finally {
+      setBulkActionBusy(false);
     }
   }
 
@@ -1858,13 +1957,116 @@ export default function Opportunities() {
     );
   }
 
+  const visibleIds = filteredOpps.map((opp) => opp.id);
+  const allVisibleSelected =
+    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+  const someVisibleSelected = visibleIds.some((id) => selectedIds.has(id));
+
+  function toggleSelectAllVisible() {
+    setSelectedIds(() =>
+      allVisibleSelected ? new Set<string>() : new Set(visibleIds),
+    );
+  }
+
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function renderBulkActionBar() {
+    if (selectedIds.size === 0) return null;
+    return (
+      <div
+        role="toolbar"
+        aria-label="Bulk actions"
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 20,
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          flexWrap: "wrap",
+          padding: "10px 14px",
+          marginBottom: "12px",
+          background: "var(--bg-tertiary)",
+          border: "1px solid var(--border-color)",
+          borderRadius: "10px",
+        }}
+      >
+        <strong style={{ color: "var(--text-primary)", fontSize: "13px" }}>
+          {selectedIds.size} selected
+        </strong>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={bulkActionBusy}
+          onClick={() => void handleBulkStatusUpdate("active")}
+        >
+          {bulkActionBusy ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <CheckCircle2 size={14} />
+          )}
+          Approve
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary danger"
+          disabled={bulkActionBusy}
+          onClick={() => void handleBulkStatusUpdate("rejected")}
+        >
+          <X size={14} />
+          Reject
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary danger"
+          disabled={bulkActionBusy}
+          onClick={() => void handleBulkDelete()}
+        >
+          <Trash2 size={14} />
+          Delete
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={bulkActionBusy}
+          onClick={() => setSelectedIds(new Set())}
+          style={{ marginLeft: "auto" }}
+        >
+          Clear selection
+        </button>
+      </div>
+    );
+  }
+
   function renderOpportunityTable() {
     return (
       <>
+        {renderBulkActionBar()}
         <div style={{ overflowX: "auto" }}>
-          <table className="table" style={{ margin: 0, minWidth: "1180px" }}>
+          <table className="table" style={{ margin: 0, minWidth: "1220px" }}>
             <thead>
               <tr>
+                <th style={{ width: "36px" }}>
+                  <input
+                    type="checkbox"
+                    aria-label="Select all visible opportunities"
+                    checked={allVisibleSelected}
+                    ref={(el) => {
+                      if (el)
+                        el.indeterminate =
+                          someVisibleSelected && !allVisibleSelected;
+                    }}
+                    onChange={toggleSelectAllVisible}
+                    style={{ cursor: "pointer" }}
+                  />
+                </th>
                 <th>Title</th>
                 <th>Organization</th>
                 <th>Category</th>
@@ -1887,6 +2089,15 @@ export default function Opportunities() {
                 const isSharing = sharingIds.has(opp.id);
                 return (
                   <tr key={opp.id}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${opp.title || "opportunity"}`}
+                        checked={selectedIds.has(opp.id)}
+                        onChange={() => toggleSelected(opp.id)}
+                        style={{ cursor: "pointer" }}
+                      />
+                    </td>
                     <td style={{ maxWidth: "320px" }}>
                       <div
                         style={{
@@ -2327,6 +2538,7 @@ export default function Opportunities() {
           renderOpportunityTable()
         ) : (
           <>
+            {renderBulkActionBar()}
             <div className="opportunities-grid">
               {filteredOpps.map((opp) => {
                 const isEnhancing = enhancingIds.has(opp.id);
@@ -2375,6 +2587,14 @@ export default function Opportunities() {
 
                     <div className="opportunity-card-body">
                       <div className="opportunity-card-kicker">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${opp.title || "opportunity"}`}
+                          checked={selectedIds.has(opp.id)}
+                          onChange={() => toggleSelected(opp.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ cursor: "pointer" }}
+                        />
                         <span
                           className="opportunity-status-badge"
                           style={getStatusStyle(opp.status)}

@@ -302,7 +302,7 @@ export class OpportunitySubmissionsService {
         metadata: {
           submissionId: row.id,
           submissionStatus: dto.decision,
-          url: `/opportunities/submissions/${row.id}`,
+          url: `/opportunities/submissions`,
         },
       });
     } catch (error) {

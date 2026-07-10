@@ -42,3 +42,19 @@ export const BulkImportSchema = z.object({
 });
 
 export type BulkImportDto = z.infer<typeof BulkImportSchema>;
+
+// Admin bulk actions: ids are opportunity UUIDs, capped to keep updates bounded.
+const BulkIdsField = z.array(z.string().uuid()).min(1).max(200);
+
+export const BulkStatusSchema = z.object({
+  ids: BulkIdsField,
+  status: z.string().min(1),
+});
+
+export type BulkStatusDto = z.infer<typeof BulkStatusSchema>;
+
+export const BulkIdsSchema = z.object({
+  ids: BulkIdsField,
+});
+
+export type BulkIdsDto = z.infer<typeof BulkIdsSchema>;

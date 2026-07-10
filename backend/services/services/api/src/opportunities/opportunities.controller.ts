@@ -20,10 +20,14 @@ import { Throttle } from "@nestjs/throttler";
 import { timingSafeEqual } from "crypto";
 import type { Response } from "express";
 import {
+  BulkIdsSchema,
   BulkImportSchema,
+  BulkStatusSchema,
   CreateOpportunitySchema,
   UpdateOpportunitySchema,
+  type BulkIdsDto,
   type BulkImportDto,
+  type BulkStatusDto,
   type CreateOpportunityDto,
 } from "./dto/create-opportunity.dto";
 import {
@@ -254,6 +258,42 @@ export class OpportunitiesController {
     return this.opportunitiesService.bulkImport(body.items);
   }
 
+  @Post("admin/bulk-status")
+  @UseGuards(AdminGuard)
+  adminBulkStatus(
+    @Body(new ZodValidationPipe(BulkStatusSchema)) body: BulkStatusDto,
+  ) {
+    const normalized = this.normalizeAdminStatus(body.status);
+    return this.opportunitiesService.bulkUpdateStatus(body.ids, normalized);
+  }
+
+  @Post("admin/bulk-delete")
+  @UseGuards(AdminGuard)
+  adminBulkDelete(
+    @Body(new ZodValidationPipe(BulkIdsSchema)) body: BulkIdsDto,
+  ) {
+    return this.opportunitiesService.bulkRemove(body.ids);
+  }
+
+  // Canonical vocabulary (matches admin UI + DB queries keyed on
+  // pending_review/closed); legacy spellings are normalized, not rejected.
+  private normalizeAdminStatus(status: string): string {
+    const legacyStatusMap: Record<string, string> = {
+      pending: "pending_review",
+      expired: "closed",
+    };
+    const normalized = legacyStatusMap[status] ?? status;
+
+    if (
+      !["pending_review", "active", "draft", "closed", "rejected"].includes(
+        normalized,
+      )
+    ) {
+      throw new BadRequestException("Unsupported opportunity status");
+    }
+    return normalized;
+  }
+
   @Get("admin/verification/stats")
   @UseGuards(AdminGuard)
   getVerificationStats() {
@@ -399,23 +439,10 @@ export class OpportunitiesController {
   @Patch(":id/status")
   @UseGuards(AdminGuard)
   updateStatus(@Param("id") id: string, @Body("status") status: string) {
-    // Canonical vocabulary (matches admin UI + DB queries keyed on
-    // pending_review/closed); legacy spellings are normalized, not rejected.
-    const legacyStatusMap: Record<string, string> = {
-      pending: "pending_review",
-      expired: "closed",
-    };
-    const normalized = legacyStatusMap[status] ?? status;
-
-    if (
-      !["pending_review", "active", "draft", "closed", "rejected"].includes(
-        normalized,
-      )
-    ) {
-      throw new BadRequestException("Unsupported opportunity status");
-    }
-
-    return this.opportunitiesService.updateStatus(id, normalized);
+    return this.opportunitiesService.updateStatus(
+      id,
+      this.normalizeAdminStatus(status),
+    );
   }
 
   @Post(":id/approve")
