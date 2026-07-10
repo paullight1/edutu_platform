@@ -12,12 +12,12 @@ import {
     Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth, useUser } from '@clerk/clerk-expo';
+import { useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import { supabase } from '../../../lib/supabase';
-import { fetchProfile, updateProfile } from '@edutu/core/src/services/profile';
 import { useTheme } from '../../../components/context/ThemeContext';
+import { CountrySelectModal } from '../../../components/ui/CountrySelectModal';
 import { Card } from '../../../components/ui/Card';
 import { AnimatedPressable } from '../../../components/ui/AnimatedPressable';
 import { BrandedLoader } from '../../../components/ui/BrandedLoader';
@@ -51,7 +51,6 @@ interface ProfileData {
 
 export default function EditProfileScreen() {
     const { user } = useUser();
-    const { getToken } = useAuth();
     const router = useRouter();
     const { colors, isDark } = useTheme();
     const insets = useSafeAreaInsets();
@@ -61,6 +60,7 @@ export default function EditProfileScreen() {
     const [saving, setSaving] = useState(false);
     const [profile, setProfile] = useState<ProfileData>({});
     const [focusedField, setFocusedField] = useState<string | null>(null);
+    const [countryPickerOpen, setCountryPickerOpen] = useState(false);
 
     const { show: showToast } = useToast();
     const { award } = useCreditRewards(supabase, user?.id || null, {
@@ -82,14 +82,26 @@ export default function EditProfileScreen() {
 
     async function loadProfile() {
         try {
-            // Load through the backend product API — it keys profiles by
-            // toDatabaseUserId(clerkId) under service_role. A direct Supabase
-            // read is blocked by RLS because the Clerk token isn't accepted as
-            // an auth.jwt() sub, so it would silently return nothing.
-            const data = await fetchProfile(getToken);
+            // Read the row directly from Supabase. The RLS policy authorizes it
+            // via current_app_user_id() = user_id (the Clerk sub carried by the
+            // supabase-templated token), so the row is keyed by the raw Clerk
+            // id — the same row every other Supabase-backed screen reads and
+            // that the chat backend seeds. (The product API path was returning
+            // 401s and silently falling back to an empty profile.)
+            const { data } = await supabase
+                .from('profiles')
+                .select('full_name, school, major, cgpa, country')
+                .eq('user_id', user!.id)
+                .maybeSingle();
+
+            // "Edutu User" is the backend's placeholder name for a freshly
+            // seeded row — prefer the real Clerk name over it.
+            const storedName = data?.full_name && data.full_name !== 'Edutu User'
+                ? data.full_name
+                : '';
 
             setProfile({
-                full_name: data?.fullName || user?.fullName || '',
+                full_name: storedName || user?.fullName || '',
                 school: data?.school || '',
                 major: data?.major || '',
                 cgpa: data?.cgpa != null ? String(data.cgpa) : '',
@@ -113,46 +125,59 @@ export default function EditProfileScreen() {
         if (!user) return;
         setSaving(true);
         try {
-            // Empty strings are rejected by the backend (fields are min(1)),
-            // so clear values must be sent as null.
             const toNullable = (v?: string) => {
                 const trimmed = v?.trim();
                 return trimmed ? trimmed : null;
             };
             const parsedCgpa = profile.cgpa ? Number.parseFloat(profile.cgpa) : null;
+            const cgpaValue =
+                parsedCgpa != null && !Number.isNaN(parsedCgpa) ? parsedCgpa : null;
 
-            const updated = await updateProfile(getToken, {
-                fullName: toNullable(profile.full_name),
-                school: toNullable(profile.school),
-                courseOfStudy: toNullable(profile.major),
-                cgpa: parsedCgpa != null && !Number.isNaN(parsedCgpa) ? parsedCgpa : null,
-                country: toNullable(profile.country),
-            });
+            // Persist straight to Supabase, keyed by the raw Clerk id. RLS
+            // authorizes the write (current_app_user_id() = user_id) and it
+            // lands on the row the rest of the app reads — no dependence on the
+            // product API, which was rejecting the mobile token (401 → the old
+            // "silent not-saving" bug).
+            const { error } = await supabase
+                .from('profiles')
+                .upsert(
+                    {
+                        user_id: user.id,
+                        full_name: toNullable(profile.full_name),
+                        country: toNullable(profile.country),
+                        school: toNullable(profile.school),
+                        major: toNullable(profile.major),
+                        cgpa: cgpaValue,
+                        updated_at: new Date().toISOString(),
+                    },
+                    { onConflict: 'user_id' },
+                );
 
-            // updateProfile returns null on any non-2xx / network failure.
-            if (!updated) throw new Error('Profile update request failed');
+            if (error) throw error;
 
-            // Mirror saved fields into Clerk unsafeMetadata so screens that
-            // still read it (profile header, personalization) stay in sync.
-            // Non-fatal: the backend profile row is the source of truth.
+            // Mirror saved fields into Clerk unsafeMetadata so screens that read
+            // it (profile header, personalization) stay in sync. Non-fatal.
             try {
                 const meta = { ...(user.unsafeMetadata as Record<string, unknown>) };
-                if (updated.country) meta.country = updated.country;
-                if (updated.school) meta.schoolName = updated.school;
-                if (updated.major) meta.education = updated.major;
+                if (toNullable(profile.country)) meta.country = profile.country!.trim();
+                if (toNullable(profile.school)) meta.schoolName = profile.school!.trim();
+                if (toNullable(profile.major)) meta.education = profile.major!.trim();
                 await user.update({ unsafeMetadata: meta });
             } catch (metaError) {
                 console.warn('Clerk metadata mirror failed:', metaError);
             }
 
-            // Reward profile completion (server grants once; toast via onEarned).
             void award('PROFILE_COMPLETE');
             Alert.alert(t('common:states.success'), t('edit.saveSuccess'), [
                 { text: t('common:actions.ok'), onPress: () => router.back() }
             ]);
         } catch (error) {
             console.error('Error updating profile:', error);
-            Alert.alert(t('common:states.error'), t('edit.saveError'));
+            // Surface the real reason instead of a generic message — a failed
+            // save should never be silent again.
+            const detail =
+                (error as { message?: string })?.message || t('edit.saveError');
+            Alert.alert(t('common:states.error'), detail);
         } finally {
             setSaving(false);
         }
@@ -212,7 +237,13 @@ export default function EditProfileScreen() {
                                 />
                                 <TouchableOpacity
                                     style={[styles.editAvatarBtn, { backgroundColor: 'rgba(255,255,255,0.2)' }]}
-                                    onPress={() => {/* Clerk avatar managed externally */}}
+                                    onPress={() => showToast({
+                                        emoji: '🖼️',
+                                        variant: 'info',
+                                        message: t('edit.avatarManagedByClerk'),
+                                    })}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={t('edit.avatarManagedByClerk')}
                                 >
                                     <Pencil size={14} color="#FFFFFF" />
                                 </TouchableOpacity>
@@ -258,27 +289,30 @@ export default function EditProfileScreen() {
                                 {profile.full_name && <View style={[styles.inputDot, { backgroundColor: colors.primary }]} />}
                             </View>
 
-                            {/* Country */}
-                            <View style={styles.inputWrapper}>
+                            {/* Country — tap to pick from a searchable list */}
+                            <TouchableOpacity
+                                activeOpacity={0.7}
+                                onPress={() => setCountryPickerOpen(true)}
+                                style={styles.inputWrapper}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('edit.countryLabel')}
+                            >
                                 <View style={styles.inputLeft}>
-                                    <View style={[styles.inputIconBox, { backgroundColor: focusedField === 'country' ? `${colors.primary}15` : 'transparent' }]}>
-                                        <Globe size={16} color={focusedField === 'country' ? colors.primary : textSecondary} />
+                                    <View style={[styles.inputIconBox, { backgroundColor: profile.country ? `${colors.primary}15` : 'transparent' }]}>
+                                        <Globe size={16} color={profile.country ? colors.primary : textSecondary} />
                                     </View>
                                     <View style={styles.inputTextContainer}>
-                                        <Text style={[styles.inputLabelText, { color: focusedField === 'country' ? colors.primary : textSecondary }]}>{t('edit.countryLabel')}</Text>
-                                        <TextInput
-                                            style={[styles.input, { color: textPrimary }]}
-                                            value={profile.country}
-                                            onChangeText={(val) => updateField('country', val)}
-                                            onFocus={() => setFocusedField('country')}
-                                            onBlur={() => setFocusedField(null)}
-                                            placeholder={t('edit.countryPlaceholder')}
-                                            placeholderTextColor={textSecondary}
-                                        />
+                                        <Text style={[styles.inputLabelText, { color: profile.country ? colors.primary : textSecondary }]}>{t('edit.countryLabel')}</Text>
+                                        <Text
+                                            style={[styles.input, { color: profile.country ? textPrimary : textSecondary }]}
+                                            numberOfLines={1}
+                                        >
+                                            {profile.country || t('edit.countryPlaceholder')}
+                                        </Text>
                                     </View>
                                 </View>
-                                {profile.country && <View style={[styles.inputDot, { backgroundColor: colors.primary }]} />}
-                            </View>
+                                <ChevronRight size={18} color={textSecondary} />
+                            </TouchableOpacity>
                         </Card>
                     </Animated.View>
 
@@ -381,7 +415,6 @@ export default function EditProfileScreen() {
                                         {t('edit.whyDesc')}
                                     </Text>
                                 </View>
-                                <ChevronRight size={18} color={textSecondary} />
                             </View>
                         </Card>
                     </Animated.View>
@@ -413,6 +446,13 @@ export default function EditProfileScreen() {
                     </Animated.View>
                 </ScrollView>
             </KeyboardAvoidingView>
+
+            <CountrySelectModal
+                visible={countryPickerOpen}
+                value={profile.country}
+                onSelect={(name) => updateField('country', name)}
+                onClose={() => setCountryPickerOpen(false)}
+            />
         </SafeAreaView>
     );
 }
