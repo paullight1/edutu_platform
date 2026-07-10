@@ -18,7 +18,6 @@ import { useClerk, useSignIn, useSignUp } from "@clerk/clerk-react";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { rememberPostAuthRedirect } from "../lib/auth";
-import PublicEditorialShell from "./PublicEditorialShell";
 
 interface AuthScreenProps {
   onAuthSuccess: (userData: any) => void;
@@ -696,14 +695,55 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
             : t("auth.subtitles.signUp");
 
   return (
-    <PublicEditorialShell mainClassName="max-w-md py-10 sm:py-14">
-      <section className="text-text-primary">
+    <div className="relative min-h-[100dvh] w-full bg-surface-body text-text-primary lg:grid lg:grid-cols-[1.05fr_1fr]">
+      {/* ── Left promo panel (desktop only) ───────────────────────── */}
+      <aside className="relative hidden overflow-hidden lg:block">
+        {/* soft gradient field */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#cbb8ff] via-[#8ea8ff] to-[#7fd2f5]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_22%,rgba(255,255,255,0.55),transparent_46%),radial-gradient(circle_at_88%_78%,rgba(255,196,238,0.55),transparent_46%)]" />
+        {/* faint grid */}
+        <div className="absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(255,255,255,0.22)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.22)_1px,transparent_1px)] [background-size:48px_48px]" />
+        {/* decorative arcs */}
+        <div className="absolute -right-24 top-8 h-[440px] w-[440px] rounded-full border border-white/25" />
+        <div className="absolute -right-8 top-44 h-[320px] w-[320px] rounded-full border border-white/20" />
+
+        <div className="relative z-10 flex h-full flex-col justify-between p-10 xl:p-14">
+          <div className="flex items-center gap-2.5">
+            <img
+              src="/edutu-logo.png"
+              alt="Edutu"
+              className="h-9 w-9 rounded-xl bg-white/90 p-1.5"
+            />
+            <span className="text-lg font-semibold text-white">Edutu</span>
+          </div>
+
+          <div className="rounded-[28px] border border-white/25 bg-white/10 p-8 backdrop-blur-sm xl:p-10">
+            <h2 className="font-display text-4xl font-semibold leading-[1.06] tracking-tight text-white xl:text-[52px]">
+              <span className="mr-2 text-2xl align-middle">▶</span>Your gateway
+              <br />to global
+              <br />opportunities.
+            </h2>
+            <p className="mt-6 max-w-sm text-sm leading-6 text-white/85">
+              Scholarships, fellowships, and programs — matched to you, and
+              tracked right up to the deadline.
+            </p>
+          </div>
+
+          <p className="text-xs text-white/75">
+            Join 50,000+ learners discovering what&apos;s possible.
+          </p>
+        </div>
+      </aside>
+
+      {/* ── Right form panel ──────────────────────────────────────── */}
+      <div className="flex min-h-[100dvh] items-center justify-center px-6 py-12 sm:px-10 lg:px-12">
+      <section className="w-full text-text-primary">
         <section className="mx-auto flex items-center justify-center">
           <motion.div
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, ease: "easeOut" }}
-            className="w-full"
+            className="mx-auto w-full max-w-md"
           >
             <aside className="hidden">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(206,238,255,0.8),rgba(94,158,255,0.68)_27%,rgba(35,111,255,0)_50%)]" />
@@ -778,18 +818,23 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
 
             <div className="flex items-center justify-center">
               <div className="w-full">
-                <div className="mb-8 text-center">
-                  <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-brand/10">
+                <div className="mb-8">
+                  <div className="mb-6 flex items-center gap-2.5">
+                    <img
+                      src="/edutu-logo.png"
+                      alt="Edutu"
+                      className="h-10 w-10 rounded-xl"
+                    />
                     {mode === "verify" ||
                     mode === "verify-sign-in" ||
                     mode === "verify-second-factor" ||
                     mode === "reset-password" ? (
-                      <ShieldCheck className="text-brand" size={27} />
-                    ) : (
-                      <User className="text-text-secondary" size={26} />
-                    )}
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand/10">
+                        <ShieldCheck className="text-brand" size={17} />
+                      </span>
+                    ) : null}
                   </div>
-                  <h1 className="text-2xl font-display font-semibold tracking-tight text-text-primary">
+                  <h1 className="text-[26px] font-display font-semibold tracking-tight text-text-primary">
                     {title}
                   </h1>
                   <p className="mt-2 text-sm leading-5 text-text-secondary">
@@ -1238,7 +1283,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
           </motion.div>
         </section>
       </section>
-    </PublicEditorialShell>
+      </div>
+    </div>
   );
 };
 

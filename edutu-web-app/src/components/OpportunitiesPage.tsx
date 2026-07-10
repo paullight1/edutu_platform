@@ -119,9 +119,11 @@ type Collection = {
   key: string;
   categoryId: string;
   labelKey: string;
+  desc: string;
   Icon: LucideIcon;
   card: string;
   chip: string;
+  glow: string;
   accentText: string;
 };
 
@@ -130,36 +132,44 @@ const COLLECTIONS: Collection[] = [
     key: "scholarships",
     categoryId: "scholarships",
     labelKey: "opportunities.categories.scholarships",
+    desc: "Fund your studies worldwide",
     Icon: GraduationCap,
     card: "border-amber-500/20 bg-amber-500/[0.07] hover:border-amber-500/50 hover:bg-amber-500/[0.12] dark:border-amber-400/20 dark:bg-amber-400/[0.08]",
     chip: "bg-amber-500/15 text-amber-600 dark:text-amber-300",
+    glow: "from-amber-500/25",
     accentText: "text-amber-600 dark:text-amber-300",
   },
   {
     key: "internships",
     categoryId: "internships",
     labelKey: "opportunities.categories.internships",
+    desc: "Gain hands-on experience",
     Icon: Briefcase,
     card: "border-blue-500/20 bg-blue-500/[0.07] hover:border-blue-500/50 hover:bg-blue-500/[0.12] dark:border-blue-400/20 dark:bg-blue-400/[0.08]",
     chip: "bg-blue-500/15 text-blue-600 dark:text-blue-300",
+    glow: "from-blue-500/25",
     accentText: "text-blue-600 dark:text-blue-300",
   },
   {
     key: "fellowships",
     categoryId: "fellowships",
     labelKey: "opportunities.categories.fellowships",
+    desc: "Advance research & leadership",
     Icon: Award,
     card: "border-violet-500/20 bg-violet-500/[0.07] hover:border-violet-500/50 hover:bg-violet-500/[0.12] dark:border-violet-400/20 dark:bg-violet-400/[0.08]",
     chip: "bg-violet-500/15 text-violet-600 dark:text-violet-300",
+    glow: "from-violet-500/25",
     accentText: "text-violet-600 dark:text-violet-300",
   },
   {
     key: "programs",
     categoryId: "programs",
     labelKey: "opportunities.categories.programs",
+    desc: "Accelerators, bootcamps & more",
     Icon: Rocket,
     card: "border-emerald-500/20 bg-emerald-500/[0.07] hover:border-emerald-500/50 hover:bg-emerald-500/[0.12] dark:border-emerald-400/20 dark:bg-emerald-400/[0.08]",
     chip: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
+    glow: "from-emerald-500/25",
     accentText: "text-emerald-600 dark:text-emerald-300",
   },
 ];
@@ -167,42 +177,48 @@ const COLLECTIONS: Collection[] = [
 function CollectionCard({
   to,
   label,
-  count,
+  desc,
   Icon,
   card,
   chip,
+  glow,
   accentText,
 }: {
   to: string;
   label: string;
-  count: number;
+  desc: string;
   Icon: LucideIcon;
   card: string;
   chip: string;
+  glow: string;
   accentText: string;
 }) {
   return (
     <Link
       to={to}
-      className={`group relative flex flex-col justify-between gap-5 overflow-hidden rounded-2xl border p-4 shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 sm:gap-6 sm:p-5 ${card}`}
+      className={`group relative flex min-h-[150px] flex-col justify-between overflow-hidden rounded-2xl border p-5 shadow-soft transition duration-200 hover:-translate-y-1 hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${card}`}
     >
-      <div className="flex items-start justify-between">
+      {/* Soft corner glow that intensifies on hover */}
+      <div
+        className={`pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-gradient-to-br to-transparent opacity-60 blur-2xl transition-opacity duration-300 group-hover:opacity-100 ${glow}`}
+      />
+      <div className="relative flex items-start justify-between">
         <span
-          className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${chip}`}
+          className={`inline-flex h-11 w-11 items-center justify-center rounded-xl ${chip}`}
         >
-          <Icon size={18} />
+          <Icon size={20} />
         </span>
         <ArrowUpRight
-          size={16}
-          className={`translate-y-0.5 opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100 ${accentText}`}
+          size={18}
+          className={`transition duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 ${accentText}`}
         />
       </div>
-      <div>
-        <h3 className="font-display text-sm font-semibold leading-tight tracking-tight text-text-primary sm:text-base">
+      <div className="relative mt-6">
+        <h3 className="font-display text-base font-semibold leading-tight tracking-tight text-text-primary sm:text-lg">
           {label}
         </h3>
-        <p className={`mt-1 text-xs font-semibold ${accentText}`}>
-          {count} open
+        <p className="mt-1 text-xs leading-snug text-text-secondary sm:text-[13px]">
+          {desc}
         </p>
       </div>
     </Link>
@@ -649,21 +665,6 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
     [basePath],
   );
 
-  // Live counts for each collection card, so users see how many open listings
-  // sit behind a card before tapping it. Respects the "show closed" toggle.
-  const collectionCounts = useMemo(() => {
-    const pool = showClosed
-      ? opportunities
-      : opportunities.filter((o) => !isOpportunityExpired(o));
-    const counts: Record<string, number> = {};
-    for (const collection of COLLECTIONS) {
-      counts[collection.key] = pool.filter((o) =>
-        opportunityMatchesCategory(o, collection.categoryId),
-      ).length;
-    }
-    return counts;
-  }, [opportunities, showClosed]);
-
   const activeCollection = selectedCategory
     ? {
         title: t(selectedCategory.labelKey),
@@ -891,25 +892,29 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
             </div>
           </section>
         ) : (
-          <section className="mb-5">
-            <div className="mb-3">
+          <section className="mb-6">
+            <div className="mb-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
                 {t("navigation.explore")}
               </p>
-              <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-text-primary">
+              <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-text-primary sm:text-[28px]">
                 Browse by category
               </h1>
+              <p className="mt-1.5 text-sm text-text-secondary">
+                Pick a track to jump straight to matching opportunities.
+              </p>
             </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
               {COLLECTIONS.map((collection) => (
                 <CollectionCard
                   key={collection.key}
                   to={collectionPath(collection)}
                   label={t(collection.labelKey)}
-                  count={collectionCounts[collection.key] ?? 0}
+                  desc={collection.desc}
                   Icon={collection.Icon}
                   card={collection.card}
                   chip={collection.chip}
+                  glow={collection.glow}
                   accentText={collection.accentText}
                 />
               ))}
@@ -940,7 +945,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder={t("opportunities.searchPlaceholder")}
-              className="h-10 w-full rounded-md border border-subtle bg-surface-layer pl-10 pr-10 text-sm text-text-primary placeholder:text-text-muted focus:border-brand focus-visible:ring-2 focus-visible:ring-brand/40"
+              className="h-11 w-full rounded-xl border border-subtle bg-surface-layer pl-10 pr-10 text-sm text-text-primary placeholder:text-text-muted focus:border-brand focus-visible:ring-2 focus-visible:ring-brand/40"
             />
             {searchTerm ? (
               <button
@@ -968,7 +973,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                 onChange={(event) =>
                   setSortOption(event.target.value as SortOption)
                 }
-                className="h-8 rounded-md border border-subtle bg-surface-layer pl-2.5 pr-7 text-xs font-semibold text-text-secondary focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                className="h-8 rounded-lg border border-subtle bg-surface-layer pl-2.5 pr-7 text-xs font-semibold text-text-secondary focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
               >
                 {sortOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -991,7 +996,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder={t("opportunities.searchPlaceholder")}
-                className="h-11 w-full rounded-md border border-subtle bg-surface-layer pl-11 pr-11 text-sm text-text-primary placeholder:text-text-muted focus:border-brand focus-visible:ring-2 focus-visible:ring-brand/40"
+                className="h-12 w-full rounded-xl border border-subtle bg-surface-layer pl-11 pr-11 text-sm text-text-primary placeholder:text-text-muted focus:border-brand focus-visible:ring-2 focus-visible:ring-brand/40"
               />
               {searchTerm ? (
                 <button
@@ -1022,7 +1027,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                     onChange={(event) =>
                       setSortOption(event.target.value as SortOption)
                     }
-                    className="h-8 rounded-md border border-subtle bg-surface-layer pl-2.5 pr-7 text-xs font-semibold text-text-secondary focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+                    className="h-8 rounded-lg border border-subtle bg-surface-layer pl-2.5 pr-7 text-xs font-semibold text-text-secondary focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
                   >
                     {sortOptions.map((option) => (
                       <option key={option.value} value={option.value}>

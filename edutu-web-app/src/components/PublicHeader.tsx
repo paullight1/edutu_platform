@@ -20,7 +20,7 @@ const docsUrl = getDocsUrl();
 
 const coreNavItems: NavItem[] = [
   { label: "Opportunities", to: "/opportunities" },
-  { label: "Developers", to: "/developers" },
+  { label: "Community", to: "/community" },
   { label: "Mentors", to: "/mentor" },
   { label: "Blog", to: "/blog" },
 ];
@@ -29,6 +29,7 @@ const moreNavItems: NavItem[] = [
   { label: "Scholarship Engine", to: "/scholarship-engine" },
   { label: "Docs", to: docsUrl, external: isExternalDocsUrl() },
   { label: "About", to: "/about" },
+  { label: "Developers", to: "/developers" },
   { label: "Events", to: "/events" },
 ];
 
