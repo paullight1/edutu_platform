@@ -6,10 +6,10 @@ import {
   Param,
   Patch,
   Query,
-  ForbiddenException,
+  UseGuards,
 } from "@nestjs/common";
 import { CreatorService } from "./creator.service";
-import { CurrentUser } from "../auth";
+import { CurrentUser, AdminGuard } from "../auth";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 import {
   CreatorApplicationSchema,
@@ -62,33 +62,25 @@ export class CreatorController {
     return this.creatorService.enrollInListing(userId, listingId);
   }
 
+  // Admin gate mirrors every other admin endpoint: AdminGuard grants access via
+  // the ADMIN_EMAILS allowlist OR an admin/moderator role. The prior manual
+  // `role === "admin"` check ignored ADMIN_EMAILS, so email-allowlisted admins
+  // were wrongly rejected here ("Admin access required") while every other
+  // admin page worked.
   @Get("admin/creator-applications")
-  listApplications(
-    @CurrentUser("id") adminId: string,
-    @CurrentUser() user: { role?: string },
-    @Query("status") status?: string,
-  ) {
-    const currentUserRole = (user as { role?: string } | undefined)?.role;
-
-    if (currentUserRole !== "admin") {
-      throw new ForbiddenException("Admin access required");
-    }
+  @UseGuards(AdminGuard)
+  listApplications(@Query("status") status?: string) {
     return this.creatorService.listApplications(status);
   }
 
   @Patch("admin/creator-applications/:id")
+  @UseGuards(AdminGuard)
   reviewApplication(
     @Param("id") id: string,
     @CurrentUser("id") adminId: string,
-    @CurrentUser() user: { role?: string },
     @Body(new ZodValidationPipe(CreatorReviewSchema))
     body: CreatorReviewDto,
   ) {
-    const currentUserRole = (user as { role?: string } | undefined)?.role;
-
-    if (currentUserRole !== "admin") {
-      throw new ForbiddenException("Admin access required");
-    }
     return this.creatorService.reviewApplication(
       id,
       adminId,
