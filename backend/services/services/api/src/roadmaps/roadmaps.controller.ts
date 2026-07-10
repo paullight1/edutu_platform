@@ -20,6 +20,7 @@ import type {
   OpportunityPlanDto,
   AdoptRoadmapDto,
   UpdateRoadmapProgressDto,
+  RoadmapCommentDto,
 } from "./dto/roadmap.dto";
 import {
   AIAssistDtoSchema,
@@ -30,6 +31,7 @@ import {
   RoadmapIntentDtoSchema,
   UpdateRoadmapDtoSchema,
   UpdateRoadmapProgressSchema,
+  RoadmapCommentDtoSchema,
 } from "./dto/roadmap.dto";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { Public } from "../auth/public.decorator";
@@ -135,6 +137,40 @@ export class RoadmapsController {
       userId,
       user?.firstName || "Edutu Creator",
     );
+  }
+
+  // ─── "My Roadmaps" — any signed-in user (personal, not in public catalog) ──
+  @Get("mine")
+  findMine(@CurrentUser("id") userId: string) {
+    return this.roadmapsService.findMine(userId);
+  }
+
+  @Post("mine")
+  createMine(
+    @Body(new ZodValidationPipe(CreateRoadmapDtoSchema))
+    dto: CreateRoadmapDto,
+    @CurrentUser("id") userId: string,
+    @CurrentUser() user: any,
+  ) {
+    const name =
+      [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() ||
+      "You";
+    return this.roadmapsService.createPersonal(dto, userId, name);
+  }
+
+  @Put("mine/:id")
+  updateMine(
+    @Param("id") id: string,
+    @CurrentUser("id") userId: string,
+    @Body(new ZodValidationPipe(UpdateRoadmapDtoSchema))
+    dto: UpdateRoadmapDto,
+  ) {
+    return this.roadmapsService.updateMine(userId, id, dto);
+  }
+
+  @Delete("mine/:id")
+  removeMine(@Param("id") id: string, @CurrentUser("id") userId: string) {
+    return this.roadmapsService.removeMine(userId, id);
   }
 
   @Put(":id")
@@ -261,6 +297,27 @@ export class RoadmapsController {
   @UseGuards(AdminGuard)
   getStats() {
     return this.roadmapsService.getStats();
+  }
+
+  @Public()
+  @Get(":id/comments")
+  @Header("Cache-Control", "public, max-age=30")
+  getComments(@Param("id") id: string, @Query("limit") limit?: number) {
+    return this.roadmapsService.getComments(id, limit);
+  }
+
+  @Post(":id/comments")
+  addComment(
+    @Param("id") id: string,
+    @CurrentUser("id") userId: string,
+    @CurrentUser() user: any,
+    @Body(new ZodValidationPipe(RoadmapCommentDtoSchema))
+    dto: RoadmapCommentDto,
+  ) {
+    const fallbackName = [user?.firstName, user?.lastName]
+      .filter(Boolean)
+      .join(" ");
+    return this.roadmapsService.addComment(userId, id, dto, fallbackName);
   }
 
   @Public()
