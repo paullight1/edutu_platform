@@ -1,16 +1,16 @@
-FROM node:20-bookworm-slim AS deps
+FROM node:20.18.1-bookworm-slim AS deps
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-FROM node:20-bookworm-slim AS builder
+FROM node:20.18.1-bookworm-slim AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 RUN npm prune --omit=dev
 
-FROM node:20-bookworm-slim AS runner
+FROM node:20.18.1-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
