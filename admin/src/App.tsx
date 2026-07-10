@@ -18,6 +18,7 @@ const Opportunities = lazy(() => import("./pages/Opportunities"));
 const Events = lazy(() => import("./pages/Events"));
 const Users = lazy(() => import("./pages/Users"));
 const Creators = lazy(() => import("./pages/Creators"));
+const Submissions = lazy(() => import("./pages/Submissions"));
 const Roadmaps = lazy(() => import("./pages/Roadmaps"));
 const Blog = lazy(() => import("./pages/Blog"));
 const Settings = lazy(() => import("./pages/Settings"));
@@ -375,6 +376,7 @@ const AppRoutes: FC = () => {
           <Route index element={<Dashboard />} />
           <Route path="dashboard" element={<Navigate to="/" replace />} />
           <Route path="opportunities" element={<Opportunities />} />
+          <Route path="submissions" element={<Submissions />} />
           <Route path="events" element={<Events />} />
           <Route path="users" element={<Users />} />
           <Route path="creators" element={<Creators />} />

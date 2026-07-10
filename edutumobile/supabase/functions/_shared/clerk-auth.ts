@@ -24,15 +24,19 @@ function decodeJson<T>(input: string): T {
   return JSON.parse(new TextDecoder().decode(base64UrlDecode(input))) as T;
 }
 
+// Fallback Clerk instance for this project. Used only when neither
+// CLERK_JWKS_URL nor CLERK_ISSUER_URL is configured as an edge secret, so the
+// function still verifies tokens instead of hard-failing with a 500 on every
+// request (which took the AI Coach fully offline). Derived from the app's Clerk
+// publishable key (pk_test_…calm-gecko-44.clerk.accounts.dev). Set
+// CLERK_ISSUER_URL to override for a different instance.
+const DEFAULT_CLERK_ISSUER = 'https://calm-gecko-44.clerk.accounts.dev';
+
 function getJwksUrl() {
   const explicit = Deno.env.get('CLERK_JWKS_URL');
   if (explicit) return explicit;
 
-  const issuer = Deno.env.get('CLERK_ISSUER_URL');
-  if (!issuer) {
-    throw new Error('CLERK_JWKS_URL or CLERK_ISSUER_URL must be configured');
-  }
-
+  const issuer = Deno.env.get('CLERK_ISSUER_URL') || DEFAULT_CLERK_ISSUER;
   return `${issuer.replace(/\/$/, '')}/.well-known/jwks.json`;
 }
 
