@@ -717,24 +717,45 @@ export default function ScraperDashboard() {
     }
 
     // Live run controls — hit the backend so the crawl actually pauses/stops.
-    const postRunControl = async (action: 'pause' | 'resume' | 'stop') => {
+    const postRunControl = async (action: 'pause' | 'resume' | 'stop'): Promise<boolean> => {
         try {
-            await fetch(`${API_URL}/run/${action}`, {
+            const res = await fetch(`${API_URL}/run/${action}`, {
                 method: 'POST',
                 headers: await getAuthHeaders(),
             });
+            if (!res.ok) {
+                console.warn(`Failed to ${action} scrape run`, res.status);
+                return false;
+            }
+            return true;
         } catch (e) {
             console.warn(`Failed to ${action} scrape run`, e);
+            return false;
         }
     };
-    const pauseScrape = () => { setIsPaused(true); void postRunControl('pause'); };
-    const resumeScrape = () => { setIsPaused(false); void postRunControl('resume'); };
+    const pauseScrape = () => {
+        void postRunControl('pause').then(ok => {
+            if (ok) setIsPaused(true);
+            else showNotification('Failed to pause the scrape — please try again.', 'error');
+        });
+    };
+    const resumeScrape = () => {
+        void postRunControl('resume').then(ok => {
+            if (ok) setIsPaused(false);
+            else showNotification('Failed to resume the scrape — please try again.', 'error');
+        });
+    };
     // Graceful stop: the backend finalizes with partial results and the stream
     // sends `done`, so the normal completion path renders what was gathered.
     const requestStopScrape = () => {
-        setIsStopping(true);
-        void postRunControl('stop');
-        showNotification('Stopping scrape — finishing the current item…', 'info');
+        void postRunControl('stop').then(ok => {
+            if (ok) {
+                setIsStopping(true);
+                showNotification('Stopping scrape — finishing the current item…', 'info');
+            } else {
+                showNotification('Failed to stop the scrape — please try again.', 'error');
+            }
+        });
     };
 
     const getJobSourceResults = (job: ScrapeJob) => {
@@ -1184,6 +1205,9 @@ export default function ScraperDashboard() {
     const completedScrapeSources = scrapingProgress.filter(progress => progress.status === 'completed').length;
     const failedScrapeSources = scrapingProgress.filter(progress => progress.status === 'failed').length;
     const totalScrapeSources = scrapingProgress.length;
+    // Before the backend reports the total source count we have no real signal,
+    // so show an indeterminate "Starting…" state instead of a fabricated ramp.
+    const progressIsIndeterminate = !modalError && currentStep < 4 && sourcesTotal <= 0;
     const estimatedProgress = modalError
         ? 0
         : currentStep >= 4
@@ -1191,11 +1215,8 @@ export default function ScraperDashboard() {
             // Real progress once the source count is known (sources completed / total).
             : sourcesTotal > 0
                 ? Math.min(99, Math.max(2, Math.round((sourcesDone / sourcesTotal) * 100)))
-                : currentStep === 3
-                    ? Math.min(96, 78 + Math.floor(scrapingElapsedSeconds / 3))
-                    : currentStep === 2
-                        ? Math.min(76, 28 + Math.floor(scrapingElapsedSeconds * 1.6))
-                        : Math.min(24, 8 + Math.floor(scrapingElapsedSeconds * 2));
+                : 0;
+    const progressLabel = progressIsIndeterminate ? 'Starting…' : `${estimatedProgress}%`;
 
     const toggleOpportunitySelection = (index: number) => {
         const newSelection = new Set(selectedOpportunities);
@@ -2317,10 +2338,12 @@ export default function ScraperDashboard() {
                                                 <div style={{ marginBottom: 12 }}>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>
                                                         <span>{isPaused ? 'Paused' : 'Scraping'} · {liveFoundCount} found</span>
-                                                        <span>{estimatedProgress}%</span>
+                                                        <span>{progressLabel}</span>
                                                     </div>
                                                     <div style={{ height: 4, background: 'var(--bg-tertiary)', borderRadius: 2, overflow: 'hidden' }}>
-                                                        <div style={{ height: '100%', width: `${estimatedProgress}%`, background: 'linear-gradient(90deg,#146ef5,#60a5fa)', borderRadius: 2, transition: 'width 0.5s ease' }} />
+                                                        {progressIsIndeterminate
+                                                            ? <div style={{ height: '100%', width: '35%', background: 'linear-gradient(90deg,#146ef5,#60a5fa)', borderRadius: 2, animation: 'indeterminateBar 1.4s ease-in-out infinite' }} />
+                                                            : <div style={{ height: '100%', width: `${estimatedProgress}%`, background: 'linear-gradient(90deg,#146ef5,#60a5fa)', borderRadius: 2, transition: 'width 0.5s ease' }} />}
                                                     </div>
                                                 </div>
                                             )}
@@ -2962,7 +2985,7 @@ export default function ScraperDashboard() {
                                     marginBottom: 24,
                                 }}>
                                     {[
-                                        { label: 'Progress', value: `${estimatedProgress}%` },
+                                        { label: 'Progress', value: progressLabel },
                                         { label: 'Elapsed', value: formatElapsed(scrapingElapsedSeconds) },
                                         { label: 'Sources', value: totalScrapeSources ? `${completedScrapeSources + failedScrapeSources}/${totalScrapeSources}` : '0/0' },
                                         { label: 'Pages', value: `${maxPages} max` },
@@ -3081,7 +3104,7 @@ export default function ScraperDashboard() {
                                                                 color: 'var(--text-tertiary)',
                                                             }}>
                                                                 <span>{activeScrapeSources || totalScrapeSources} active source{(activeScrapeSources || totalScrapeSources) === 1 ? '' : 's'}</span>
-                                                                <span>{estimatedProgress}% • {formatElapsed(scrapingElapsedSeconds)}</span>
+                                                                <span>{progressLabel} • {formatElapsed(scrapingElapsedSeconds)}</span>
                                                             </div>
                                                             {scrapingProgress.map((progress, idx) => (
                                                                 <div key={idx} style={{
@@ -3098,7 +3121,7 @@ export default function ScraperDashboard() {
                                                                     {progress.status === 'failed' && <AlertCircle size={12} color="#ff3b30" />}
                                                                     <span>{progress.source}</span>
                                                                     <span style={{ marginLeft: 'auto' }}>
-                                                                        {progress.status === 'scraping' && `${estimatedProgress}%`}
+                                                                        {progress.status === 'scraping' && progressLabel}
                                                                         {progress.status === 'completed' && `${progress.progress}%`}
                                                                         {progress.status === 'failed' && 'Failed'}
                                                                     </span>
@@ -3125,13 +3148,23 @@ export default function ScraperDashboard() {
                                     overflow: 'hidden',
                                     marginBottom: 24,
                                 }}>
-                                    <div style={{
-                                        height: '100%',
-                                        width: `${estimatedProgress}%`,
-                                        background: 'linear-gradient(90deg, #146ef5 0%, #60a5fa 100%)',
-                                        borderRadius: 2,
-                                        transition: 'width 0.5s ease',
-                                    }} />
+                                    {progressIsIndeterminate ? (
+                                        <div style={{
+                                            height: '100%',
+                                            width: '35%',
+                                            background: 'linear-gradient(90deg, #146ef5 0%, #60a5fa 100%)',
+                                            borderRadius: 2,
+                                            animation: 'indeterminateBar 1.4s ease-in-out infinite',
+                                        }} />
+                                    ) : (
+                                        <div style={{
+                                            height: '100%',
+                                            width: `${estimatedProgress}%`,
+                                            background: 'linear-gradient(90deg, #146ef5 0%, #60a5fa 100%)',
+                                            borderRadius: 2,
+                                            transition: 'width 0.5s ease',
+                                        }} />
+                                    )}
                                 </div>
                             )}
 
@@ -3264,7 +3297,7 @@ export default function ScraperDashboard() {
                         </span>
                         <span style={{ textAlign: 'left' }}>
                             <span style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>
-                                {isPaused ? 'Scrape paused' : 'Scraping…'} <span style={{ color: '#146ef5' }}>{liveFoundCount}</span> found · {estimatedProgress}%
+                                {isPaused ? 'Scrape paused' : 'Scraping…'} <span style={{ color: '#146ef5' }}>{liveFoundCount}</span> found · {progressLabel}
                             </span>
                             <span style={{ display: 'block', fontSize: 11, color: 'var(--text-tertiary)' }}>
                                 {formatElapsed(scrapingElapsedSeconds)} elapsed · tap to view

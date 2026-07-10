@@ -1,5 +1,7 @@
 import { Platform } from 'react-native';
 
+import { hasWidgetsNativeModule } from './widgetsNative';
+
 /**
  * Widgets brand themselves with the logo mark alone (no wordmark). WidgetKit
  * extensions can only read images from the shared app-group container, so on
@@ -18,9 +20,13 @@ let cachedUri: string | null | undefined;
 export async function getWidgetLogoUri(): Promise<string | undefined> {
   if (Platform.OS !== 'ios') return undefined;
   if (cachedUri !== undefined) return cachedUri ?? undefined;
+  // Probe without importing expo-widgets — its import logs+throws in Expo Go.
+  if (!hasWidgetsNativeModule()) {
+    cachedUri = null;
+    return undefined;
+  }
 
   try {
-    // Lazily required: native modules aren't available under Jest / Expo Go.
     const { widgetsDirectory } = require('expo-widgets') as typeof import('expo-widgets');
     if (!widgetsDirectory) {
       cachedUri = null;

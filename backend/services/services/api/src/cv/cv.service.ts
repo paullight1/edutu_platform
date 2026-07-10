@@ -20,6 +20,11 @@ import {
   TailorCVDto,
 } from "./dto/cv-ai.dto";
 import type { SaveCVRecordDto } from "./dto/cv-record.dto";
+import {
+  LinkedInImportService,
+  type ExportUploadFile,
+  type LinkedInProfile,
+} from "./linkedin-import.service";
 
 type CVRecordRow = {
   id: string;
@@ -205,7 +210,10 @@ export class CvService {
   private readonly logger = new Logger(CvService.name);
   private readonly supabase: SupabaseClient | null = null;
 
-  constructor(private readonly aiService: AiService) {
+  constructor(
+    private readonly aiService: AiService,
+    private readonly linkedIn: LinkedInImportService,
+  ) {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -286,17 +294,37 @@ export class CvService {
     // fill in any missing context from the database before prompting.
     const enriched = await this.withServerContext(userId, dto);
 
+    // Import the real LinkedIn profile server-side (provider-gated) and fold it
+    // into the request so BOTH the AI prompt and the heuristic fallback build a
+    // grounded, non-generic CV instead of just echoing the URL string.
+    const linkedIn = await this.importLinkedIn(enriched);
+    if (linkedIn) {
+      enriched.currentCV = this.linkedIn.toCVData(linkedIn, enriched.currentCV);
+      enriched.profile = {
+        ...enriched.profile,
+        full_name: enriched.profile?.full_name || linkedIn.full_name,
+        location: enriched.profile?.location || linkedIn.location,
+        skills: this.unique([
+          ...(enriched.profile?.skills || []),
+          ...linkedIn.skills,
+        ]),
+      };
+    }
+
     try {
       const parsed = await this.aiService.generateJson({
         feature: "cv.draft",
-        prompt: this.buildDraftPrompt(userId, enriched),
+        prompt: this.buildDraftPrompt(userId, enriched, linkedIn),
         responseMimeType: "application/json",
         temperature: 0.2,
-        metadata: { userId },
+        metadata: { userId, linkedInImported: Boolean(linkedIn) },
       });
 
       if (parsed) {
-        return DraftResponseSchema.parse(stripNulls(parsed));
+        return {
+          ...DraftResponseSchema.parse(stripNulls(parsed)),
+          linkedInImported: Boolean(linkedIn),
+        };
       }
     } catch (error) {
       this.logger.warn(
@@ -313,12 +341,75 @@ export class CvService {
     );
     return {
       cv: fallbackCv,
-      suggestions: [
-        "Review the summary and make it more specific to your target opportunity.",
-        "Add measurable achievements under experience and projects.",
-        "Keep skills aligned to the opportunities you want to apply for.",
-      ],
+      suggestions: linkedIn
+        ? [
+            "We imported your LinkedIn — review each role's dates and add measurable results.",
+            "Trim the summary to 2–3 punchy sentences aimed at your target opportunity.",
+            "Keep skills specific and deduplicated.",
+          ]
+        : [
+            "Review the summary and make it more specific to your target opportunity.",
+            "Add measurable achievements under experience and projects.",
+            "Keep skills aligned to the opportunities you want to apply for.",
+          ],
+      linkedInImported: Boolean(linkedIn),
     };
+  }
+
+  /**
+   * Import a LinkedIn export the user uploaded (PDF profile or data-copy ZIP)
+   * and return it mapped into CV data — 100% first-party, no scraping vendor.
+   */
+  async importLinkedInFile(userId: string, file?: ExportUploadFile) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException("No file uploaded.");
+    }
+    const profile = await this.linkedIn.fromExport(file);
+    if (!profile) {
+      throw new BadRequestException(
+        'Could not read a LinkedIn export from that file. Upload your profile as PDF ("More → Save to PDF") or the "Get a copy of your data" ZIP.',
+      );
+    }
+    // Fill the header email from the server profile if the export omitted it.
+    let email = profile.email;
+    if (!email) {
+      const dbUserId = toDatabaseUserId(userId);
+      if (dbUserId) {
+        try {
+          const [row] = await db
+            .select()
+            .from(profiles)
+            .where(eq(profiles.userId, dbUserId))
+            .limit(1)
+            .execute();
+          email = row?.email ?? undefined;
+        } catch {
+          // best-effort only
+        }
+      }
+    }
+
+    const cv = this.linkedIn.toCVData({ ...profile, email });
+    return { imported: true, source: profile.source, profile, cv };
+  }
+
+  /** Attempt a LinkedIn import when a profile URL is present; never throws. */
+  private async importLinkedIn(
+    dto: GenerateCVDraftDto,
+  ): Promise<LinkedInProfile | null> {
+    if (!this.linkedIn.isProfileUrl(dto.linkedInUrl)) return null;
+    try {
+      const profile = await this.linkedIn.import(dto.linkedInUrl);
+      if (profile) {
+        this.logger.log(`LinkedIn profile imported via ${profile.source}`);
+      }
+      return profile;
+    } catch (error) {
+      this.logger.warn(
+        `LinkedIn import failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return null;
+    }
   }
 
   async tailor(userId: string, dto: TailorCVDto) {
@@ -406,7 +497,20 @@ export class CvService {
     return enriched;
   }
 
-  private buildDraftPrompt(userId: string, dto: GenerateCVDraftDto) {
+  private buildDraftPrompt(
+    userId: string,
+    dto: GenerateCVDraftDto,
+    linkedIn?: LinkedInProfile | null,
+  ) {
+    const linkedInSection = linkedIn
+      ? `
+
+LinkedIn profile data (VERIFIED — this is the user's own profile; treat as the
+primary source of truth. Use these real roles, schools, dates, and skills.
+Do NOT invent anything beyond what appears here or in the current CV):
+${this.linkedIn.buildPromptContext(linkedIn)}`
+      : "";
+
     return `You are an expert CV/resume writer for students and early-career professionals.
 
 Build a strong, truthful CV draft in JSON only.
@@ -455,7 +559,7 @@ Prompt:
 ${dto.prompt || ""}
 
 LinkedIn URL:
-${dto.linkedInUrl || ""}`;
+${dto.linkedInUrl || ""}${linkedInSection}`;
   }
 
   private buildTailorPrompt(userId: string, dto: TailorCVDto) {
@@ -501,28 +605,35 @@ ${dto.userNotes || ""}`;
 
   private buildFallbackDraft(
     profile?: CVProfileContextDto,
-    goals: CVGoalContextDto[] = [],
+    _goals: CVGoalContextDto[] = [],
     currentCV?: CVDataDto,
     prompt?: string,
     linkedInUrl?: string,
   ): CVDataDto {
-    const goalTitles = goals
-      .map((goal) => goal.title || goal.description || "")
-      .filter(Boolean);
     const mergedSkills = this.unique([
       ...(currentCV?.skills || []),
       ...(profile?.skills || []),
       ...(profile?.interests || []),
     ]);
 
-    const summaryParts = [
-      profile?.field_of_study ? `${profile.field_of_study} student` : "",
-      profile?.education_level ? `${profile.education_level} level` : "",
-      mergedSkills.length
-        ? `with strengths in ${mergedSkills.slice(0, 5).join(", ")}`
-        : "",
-      prompt ? `targeting ${prompt}` : "",
-    ].filter(Boolean);
+    // One grammatical opening sentence — never "Motivated ... level ... targeting".
+    const role = profile?.field_of_study
+      ? `${profile.field_of_study} student`
+      : profile?.education_level
+        ? `${profile.education_level} student`
+        : "";
+    const who = role ? `A focused ${role}` : "A motivated, results-driven candidate";
+    const at = profile?.institution ? ` at ${profile.institution}` : "";
+    const target = prompt?.trim();
+    const baseSummary = target
+      ? `${who}${at}, currently pursuing ${target}.`
+      : `${who}${at} building a strong academic and professional profile.`;
+    const summary = [
+      currentCV?.summary || baseSummary,
+      mergedSkills.length ? `Core strengths: ${mergedSkills.slice(0, 4).join(", ")}.` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
 
     return {
       header: {
@@ -538,20 +649,21 @@ ${dto.userNotes || ""}`;
         portfolio: currentCV?.header?.portfolio || "",
         website: currentCV?.header?.website || "",
       },
-      summary:
-        currentCV?.summary ||
-        (summaryParts.length
-          ? `Motivated ${summaryParts.join(" ")}.`
-          : "Motivated student building a strong academic and professional profile."),
+      summary,
+      // Integrity: never fabricate employers/roles. Reuse only what the user has,
+      // otherwise a single clearly-labelled placeholder they must replace.
       experience: currentCV?.experience?.length
         ? currentCV.experience
-        : goalTitles.slice(0, 2).map((goal, index) => ({
-            id: `exp-${index + 1}`,
-            company: "Edutu Experience",
-            role: goal || "Student Project",
-            description: `Worked toward ${goal || "career growth"} with focus on learning, execution, and measurable progress.`,
-            highlights: mergedSkills.slice(index * 2, index * 2 + 3),
-          })),
+        : [
+            {
+              id: "exp-1",
+              company: "",
+              role: "",
+              description:
+                "[Add your experience here] — replace this with a real role, internship, or volunteer position, including what you actually did.",
+              highlights: [],
+            },
+          ],
       education: currentCV?.education?.length
         ? currentCV.education
         : [
@@ -564,13 +676,17 @@ ${dto.userNotes || ""}`;
           ],
       skills: mergedSkills,
       projects: currentCV?.projects || [],
+      // Integrity: never invent awards. Keep real ones; otherwise a placeholder.
       achievements: currentCV?.achievements?.length
         ? currentCV.achievements
-        : goalTitles.slice(0, 3).map((goal, index) => ({
-            id: `ach-${index + 1}`,
-            title: goal,
-            description: `Pursued ${goal} through structured effort and skill development.`,
-          })),
+        : [
+            {
+              id: "ach-1",
+              title: "",
+              description:
+                "[Add an achievement here] — list a real award, certification, or accomplishment you have earned.",
+            },
+          ],
     };
   }
 

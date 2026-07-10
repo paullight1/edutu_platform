@@ -28,4 +28,10 @@ export const config = {
   fallbackYearly: () => Number(optionalEnv('FALLBACK_PRICE_YEARLY', '71.88')),
   appScheme: () => optionalEnv('APP_DEEP_LINK_SCHEME', 'edutu'),
   adminToken: () => getEnv('ADMIN_DASHBOARD_TOKEN'),
+  // Clerk verification for the self-service /account page. When both are set,
+  // the manage/cancel flow proves the caller owns the account before acting.
+  clerkJwksUrl: () => optionalEnv('CLERK_JWKS_URL'),
+  clerkIssuer: () => optionalEnv('CLERK_ISSUER'),
+  // Secret used to sign the short-lived account-session cookie.
+  sessionSecret: () => optionalEnv('ACCOUNT_SESSION_SECRET'),
 };

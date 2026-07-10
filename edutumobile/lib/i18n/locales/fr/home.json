@@ -5,7 +5,8 @@
     "plan": "Planifier",
     "me": "Moi",
     "openEdutuAi": "Ouvrir Edutu AI",
-    "badgeOverflow": "99+"
+    "badgeOverflow": "99+",
+    "holdForVoice": "Maintenez pour le mode vocal"
   },
   "rewards": {
     "creditsEarned_one": "+{{count}} crédit · {{label}}",

@@ -11,6 +11,7 @@ import { OpportunityShareCardService } from "../opportunities/opportunity-share-
 import { classifyOpportunity } from "../opportunities/opportunity-categorization";
 import { ScraperAlertsService } from "./scraper-alerts.service";
 import { RobotsChecker } from "./robots-checker";
+import { OpportunityDedupService } from "./opportunity-dedup.service";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -119,6 +120,8 @@ interface SourceResult {
   urlsDiscovered?: number;
   error?: string;
   duration?: number;
+  /** Non-fatal issues (e.g. a page that failed after retry) surfaced in job log warnings. */
+  warnings?: string[];
 }
 
 /** Cleanliness report for one scrape run: how much of the output met the
@@ -277,6 +280,7 @@ export class ScraperService implements OnModuleInit {
     private readonly opportunityShareCardService: OpportunityShareCardService,
     private readonly scraperAlertsService: ScraperAlertsService,
     private readonly robotsChecker: RobotsChecker,
+    private readonly opportunityDedupService: OpportunityDedupService,
   ) {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -535,10 +539,10 @@ export class ScraperService implements OnModuleInit {
         description: enriched.description,
         deadline: enriched.deadline,
         location: enriched.location,
-        applyUrl: enriched.direct_apply_url || enriched.apply_url,
-        apply_url: enriched.direct_apply_url || enriched.apply_url,
-        sourceUrl: enriched.apply_url,
-        source_url: enriched.source_url,
+        applyUrl: this.sanitizeUrl(enriched.direct_apply_url || enriched.apply_url),
+        apply_url: this.sanitizeUrl(enriched.direct_apply_url || enriched.apply_url),
+        sourceUrl: this.sanitizeUrl(enriched.apply_url),
+        source_url: this.sanitizeUrl(enriched.source_url),
         imageUrl: enriched.image_url,
         image_url: enriched.image_url,
         requirements: enriched.requirements ?? [],
@@ -999,7 +1003,68 @@ export class ScraperService implements OnModuleInit {
       consecutiveFailures: Number(row.consecutive_failures ?? 0),
     }));
 
-    await this.scraperAlertsService.checkAlertConditions(sourcesStatus);
+    try {
+      await this.scraperAlertsService.checkAlertConditions(sourcesStatus);
+    } catch (err: any) {
+      this.logger.warn(`source_failing alert check failed: ${err?.message}`);
+    }
+
+    // Yield-drop check: opportunities created in the last 24h vs 7-day average.
+    try {
+      const now = Date.now();
+      const dayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+      const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const [{ count: dayCount }, { count: weekCount }] = await Promise.all([
+        this.supabase
+          .from("opportunities")
+          .select("id", { count: "exact", head: true })
+          .gte("created_at", dayAgo),
+        this.supabase
+          .from("opportunities")
+          .select("id", { count: "exact", head: true })
+          .gte("created_at", weekAgo),
+      ]);
+      const opportunitiesPerDay = dayCount ?? 0;
+      const sevenDayAverage = (weekCount ?? 0) / 7;
+      const dropPercent =
+        sevenDayAverage > 0
+          ? Math.round(
+              ((sevenDayAverage - opportunitiesPerDay) / sevenDayAverage) * 100,
+            )
+          : 0;
+      await this.scraperAlertsService.checkYieldDrop({
+        opportunitiesPerDay,
+        sevenDayAverage,
+        dropPercent,
+      });
+    } catch (err: any) {
+      this.logger.warn(`yield_drop alert check failed: ${err?.message}`);
+    }
+
+    // Error-spike check: failed vs total scrape jobs in the last hour.
+    try {
+      const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const { data: jobs, error: jobsError } = await this.supabase
+        .from("scrape_logs")
+        .select("status")
+        .gte("created_at", hourAgo)
+        .limit(500);
+      if (!jobsError && jobs) {
+        const totalJobs = jobs.length;
+        const failedJobs = jobs.filter(
+          (j: { status: string | null }) => j.status === "failed",
+        ).length;
+        await this.scraperAlertsService.checkErrorSpike({
+          errorRate:
+            totalJobs > 0 ? Math.round((failedJobs / totalJobs) * 100) : 0,
+          totalJobs,
+          failedJobs,
+          windowMinutes: 60,
+        });
+      }
+    } catch (err: any) {
+      this.logger.warn(`error_spike alert check failed: ${err?.message}`);
+    }
   }
 
   private async startJobLog(options: ScrapeOptions): Promise<string | null> {
@@ -1286,6 +1351,8 @@ export class ScraperService implements OnModuleInit {
       const sourceStartTime = Date.now();
       let itemsFound = 0;
       let urlsDiscovered = 0;
+      const sourceWarnings: string[] = [];
+      const retriedPages = new Set<number>();
 
       onEvent?.({ type: "source-start", name: source.name });
 
@@ -1293,8 +1360,14 @@ export class ScraperService implements OnModuleInit {
         this.logger.log(`Crawling: ${source.name} (${source.url})`);
 
         // Respect robots.txt. For a product that resells scraped data, skipping
-        // disallowed sources is a legal/ToS necessity.
-        const robotsAllowed = await this.robotsChecker.isAllowed(source.url);
+        // disallowed sources is a legal/ToS necessity. Evaluate against the
+        // SAME user-agent we actually fetch with (Chrome UA in BROWSER_HEADERS),
+        // with our bot identity (EdutuBot default) as a secondary check.
+        const robotsAllowed =
+          (await this.robotsChecker.isAllowed(
+            source.url,
+            BROWSER_HEADERS["User-Agent"],
+          )) && (await this.robotsChecker.isAllowed(source.url));
         if (!robotsAllowed) {
           this.logger.warn(
             `  → Skipping ${source.name}: blocked by robots.txt`,
@@ -1371,9 +1444,21 @@ export class ScraperService implements OnModuleInit {
               `  ✓ ${enrichedItems.length} items enriched from page ${page}`,
             );
           } catch (pageError: any) {
-            this.logger.error(
-              `  ✗ Error on page ${page} of "${source.name}": ${pageError.message}`,
-            );
+            // Give a failed page exactly one more chance before giving up on
+            // the source (preserves prior partial-results behavior on repeat
+            // failure, but no longer breaks silently).
+            if (!retriedPages.has(page)) {
+              retriedPages.add(page);
+              this.logger.warn(
+                `  ↻ Error on page ${page} of "${source.name}": ${pageError.message} — retrying once`,
+              );
+              await this.delay(LIST_PAGE_DELAY_MS);
+              page--; // re-run this page on the next loop iteration
+              continue;
+            }
+            const warning = `Page ${page} of "${source.name}" failed after retry: ${pageError.message}`;
+            this.logger.warn(`  ✗ ${warning} — stopping source pagination`);
+            sourceWarnings.push(warning);
             break;
           }
 
@@ -1395,6 +1480,7 @@ export class ScraperService implements OnModuleInit {
           itemsSaved: 0,
           urlsDiscovered,
           duration,
+          ...(sourceWarnings.length > 0 && { warnings: sourceWarnings }),
         });
         onEvent?.({ type: "source-done", name: source.name, itemsFound });
       } catch (error: any) {
@@ -1415,6 +1501,7 @@ export class ScraperService implements OnModuleInit {
           itemsSaved: 0,
           urlsDiscovered,
           error: error.message,
+          ...(sourceWarnings.length > 0 && { warnings: sourceWarnings }),
         });
       }
     }
@@ -1523,6 +1610,13 @@ export class ScraperService implements OnModuleInit {
         `Stripped ${strippedImages} duplicate site-default image(s) from this batch.`,
       );
     }
+
+    // Duplicate detection (annotate-only: sets duplicate_of + routes the row
+    // to pending_review — every row is still inserted/updated as before).
+    await this.opportunityDedupService.annotateDuplicates(uniqueRecords);
+    // Trust gate: hold 'active' rows on new/unestablished apply-URL domains
+    // for admin review. Toggle via SCRAPER_DOMAIN_TRUST_GATE (default ON).
+    await this.opportunityDedupService.applyDomainTrustGate(uniqueRecords);
 
     const SELECT_COLUMNS =
       "id, title, summary, description, organization, category, canonical_category, close_date, deadline, location, eligibility, funding_type, target_region, application_url, apply_url, canonical_url, image_url, stipend, currency, source, metadata";
@@ -1692,6 +1786,10 @@ export class ScraperService implements OnModuleInit {
           ),
         ),
       );
+      // Pace deep fetches between batches so we don't hammer a single origin.
+      if (i + ENRICH_CONCURRENCY < candidates.length) {
+        await this.delay(DEEP_FETCH_DELAY_MS);
+      }
     }
 
     return enriched;
@@ -1924,7 +2022,8 @@ export class ScraperService implements OnModuleInit {
           throw new Error(
             `Rate-limited after ${MAX_BACKOFF_ATTEMPTS} attempts on ${url}`,
           );
-        const backoff = Math.pow(2, attempt) * 1_000;
+        const backoff =
+          this.retryAfterMs(res.headers) ?? Math.pow(2, attempt) * 1_000;
         this.logger.warn(
           `  ⏳ 429 on ${url} — backing off ${backoff / 1000}s (attempt ${attempt}/${MAX_BACKOFF_ATTEMPTS})`,
         );
@@ -1935,16 +2034,45 @@ export class ScraperService implements OnModuleInit {
       if (res.status >= 400) throw new Error(`HTTP ${res.status} for ${url}`);
       return res.data;
     } catch (err: any) {
-      if (err?.response?.status === 429 && attempt < MAX_BACKOFF_ATTEMPTS) {
-        const backoff = Math.pow(2, attempt) * 1_000;
+      // Retry transient failures: 429, 5xx, and common network errors.
+      // Non-429 4xx responses are never retried.
+      if (this.isRetryableFetchError(err) && attempt < MAX_BACKOFF_ATTEMPTS) {
+        const backoff =
+          this.retryAfterMs(err?.response?.headers) ??
+          Math.pow(2, attempt) * 1_000;
+        const reason = err?.response?.status
+          ? `HTTP ${err.response.status}`
+          : (err?.code ?? "network error");
         this.logger.warn(
-          `  ⏳ 429 (axios) on ${url} — backing off ${backoff / 1000}s`,
+          `  ⏳ ${reason} on ${url} — backing off ${backoff / 1000}s (attempt ${attempt}/${MAX_BACKOFF_ATTEMPTS})`,
         );
         await this.delay(backoff);
         return this.fetchWithBackoff(url, timeoutMs, attempt + 1);
       }
       throw err;
     }
+  }
+
+  /** True for errors worth retrying: 429/5xx responses or transient network errors. */
+  private isRetryableFetchError(err: any): boolean {
+    const status = err?.response?.status;
+    if (status === 429 || (typeof status === "number" && status >= 500))
+      return true;
+    return ["ETIMEDOUT", "ECONNABORTED", "ECONNRESET", "EAI_AGAIN"].includes(
+      err?.code,
+    );
+  }
+
+  /** Parse a Retry-After header (seconds or HTTP-date), capped at 60s. */
+  private retryAfterMs(headers: any): number | null {
+    const raw = headers?.["retry-after"] ?? headers?.["Retry-After"];
+    if (raw == null) return null;
+    const secs = Number(raw);
+    if (Number.isFinite(secs) && secs >= 0)
+      return Math.min(secs * 1_000, 60_000);
+    const at = Date.parse(String(raw));
+    if (!Number.isNaN(at)) return Math.min(Math.max(at - Date.now(), 0), 60_000);
+    return null;
   }
 
   private fetchHTML(url: string): Promise<string> {
@@ -2446,9 +2574,11 @@ ${text}`;
     };
 
     const cleanHref = (rawHref: string): string => {
-      const resolved = this.resolveUrl(
-        rawHref,
-        baseUrl || `https://${sourceHost}`,
+      const resolved = this.sanitizeUrl(
+        this.resolveUrl(
+          this.sanitizeUrl(rawHref) ?? "",
+          baseUrl || `https://${sourceHost}`,
+        ),
       );
       if (!resolved || NON_APPLY_URL_RE.test(resolved)) return "";
 
@@ -2744,8 +2874,11 @@ ${text}`;
       item.description || "",
       item.title,
     );
-    const detailUrl = item.apply_url || "";
-    const directApplyUrl = item.direct_apply_url || null;
+    // Strip whitespace/wrapping junk so stored links are always clickable — a
+    // scraped URL with a space in it breaks the "Apply" button on web + mobile.
+    const detailUrl = this.sanitizeUrl(item.apply_url) || "";
+    const directApplyUrl = this.sanitizeUrl(item.direct_apply_url);
+    const sourceUrl = this.sanitizeUrl(item.source_url);
     const application_url = directApplyUrl
       ? directApplyUrl.split("#")[0]
       : null;
@@ -2776,10 +2909,17 @@ ${text}`;
     const deadlinePassed = Boolean(
       closeDate && closeDate < now.split("T")[0],
     );
+    // Low LLM extraction confidence means the fields themselves are suspect —
+    // cap at pending_review. Only applies to AI-enriched items (confidence 0
+    // simply means "no AI enrichment ran", which is not a trust signal).
+    const enrichmentConfidence = item.enrichment_confidence ?? 0;
+    const lowExtractionConfidence =
+      enrichmentConfidence > 0 && enrichmentConfidence < 0.5;
     const publishable =
       quality.score >= MIN_PUBLISH_QUALITY_SCORE &&
       hasCoreContent &&
-      !deadlinePassed;
+      !deadlinePassed &&
+      !lowExtractionConfidence;
 
     return {
       title: item.title,
@@ -2804,7 +2944,7 @@ ${text}`;
       description: this.normalizeDescription(item.description || ""),
       application_url,
       apply_url: detailUrl || null,
-      source_url: detailUrl || item.source_url || null,
+      source_url: detailUrl || sourceUrl || null,
       canonical_url: canonicalUrl,
       content_fingerprint: contentFingerprint,
       quality_score: quality.score,
@@ -2815,7 +2955,7 @@ ${text}`;
       source: "scraper",
       tags: publicTags,
       metadata: {
-        source_url: item.source_url,
+        source_url: sourceUrl,
         aggregator_url: detailUrl,
         detail_url: detailUrl,
         direct_apply_url: directApplyUrl,
@@ -2837,6 +2977,7 @@ ${text}`;
         extraction_quality_score: quality.score,
         extraction_missing_fields: quality.missingFields,
         deadline_passed_at_scrape: deadlinePassed,
+        low_extraction_confidence: lowExtractionConfidence,
         description_length: item.description?.length ?? 0,
         needs_review: !publishable,
         has_core_content: hasCoreContent,
@@ -2904,8 +3045,25 @@ ${text}`;
     return this.normalizeSummary(raw, item.description || "", item.title);
   }
 
+  /**
+   * Make a scraped URL safe to store and click. A valid URL never contains raw
+   * whitespace — spaces/newlines are line-wrap or extraction artifacts that
+   * break the link and make it unclickable — so strip all internal whitespace
+   * (incl. NBSP / zero-width) and any wrapping quotes or angle brackets.
+   * Returns null when nothing usable remains.
+   */
+  private sanitizeUrl(url: string | null | undefined): string | null {
+    if (url === null || url === undefined) return null;
+    const cleaned = String(url)
+      .replace(/[\s\u200B\u200C\u200D\uFEFF]+/g, "")
+      .replace(/^["'<`]+|["'>`]+$/g, "")
+      .trim();
+    return cleaned || null;
+  }
+
   private normalizeUrl(url: string): string {
-    return url
+    return (url || "")
+      .replace(/[\s\u200B\u200C\u200D\uFEFF]+/g, "")
       .trim()
       .replace(/[?#].*$/, "")
       .replace(/\/+$/, "")
@@ -3643,17 +3801,28 @@ ${text}`;
       this.logger.warn(
         `Stats query failed: ${error.message}, falling back to row fetch`,
       );
-      const { data: fallbackData, error: fallbackError } = await this.supabase
-        .from("opportunities")
-        .select("source");
-      if (fallbackError) return { total: 0, bySource: {} };
+      // Memory-safe fallback: exact total via a head-only count, and a capped
+      // sample for the per-source breakdown instead of loading every row.
+      const FALLBACK_SAMPLE_LIMIT = 5_000;
+      const [{ count: totalCount }, { data: fallbackData, error: fallbackError }] =
+        await Promise.all([
+          this.supabase
+            .from("opportunities")
+            .select("id", { count: "exact", head: true }),
+          this.supabase
+            .from("opportunities")
+            .select("source")
+            .order("created_at", { ascending: false })
+            .limit(FALLBACK_SAMPLE_LIMIT),
+        ]);
+      if (fallbackError) return { total: totalCount ?? 0, bySource: {} };
 
       const bySource: Record<string, number> = {};
       for (const item of fallbackData ?? []) {
         const src = item.source ?? "manual";
         bySource[src] = (bySource[src] ?? 0) + 1;
       }
-      return { total: fallbackData?.length ?? 0, bySource };
+      return { total: totalCount ?? fallbackData?.length ?? 0, bySource };
     }
 
     const bySource: Record<string, number> = {};

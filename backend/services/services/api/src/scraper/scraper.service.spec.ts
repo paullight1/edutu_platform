@@ -6,6 +6,7 @@ import { OpportunityShareCardService } from "../opportunities/opportunity-share-
 import { OpportunityEmbeddingService } from "../opportunities/opportunity-embedding.service";
 import { ScraperAlertsService } from "./scraper-alerts.service";
 import { RobotsChecker } from "./robots-checker";
+import { OpportunityDedupService } from "./opportunity-dedup.service";
 
 describe("ScraperService", () => {
   let service: ScraperService;
@@ -54,6 +55,18 @@ describe("ScraperService", () => {
         {
           provide: RobotsChecker,
           useValue: mockRobotsChecker,
+        },
+        {
+          provide: OpportunityDedupService,
+          useValue: {
+            annotateDuplicates: jest.fn().mockResolvedValue({
+              checked: 0,
+              duplicates: 0,
+              byFingerprint: 0,
+              byTitleOrg: 0,
+            }),
+            applyDomainTrustGate: jest.fn().mockResolvedValue({ capped: 0 }),
+          },
         },
         {
           provide: OpportunityEmbeddingService,

@@ -4,6 +4,7 @@ import { AppService } from "./app.service";
 import { AuthModule } from "./auth";
 import { GoalsModule } from "./goals/goals.module";
 import { OpportunitiesModule } from "./opportunities/opportunities.module";
+import { OpportunitySubmissionsModule } from "./opportunity-submissions/opportunity-submissions.module";
 import { CreatorModule } from "./creator/creator.module";
 import { QuizModule } from "./quiz/quiz.module";
 import { FlashcardsModule } from "./flashcards/flashcards.module";
@@ -47,6 +48,7 @@ import { SavedSearchesModule } from "./saved-searches/saved-searches.module";
     AuthModule,
     GoalsModule,
     OpportunitiesModule,
+    OpportunitySubmissionsModule,
     CreatorModule,
     QuizModule,
     FlashcardsModule,

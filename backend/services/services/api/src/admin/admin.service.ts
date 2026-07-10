@@ -12,6 +12,7 @@ import { AuditService } from "../common/audit";
 import { db } from "../db";
 import { creatorApplications, opportunities, profiles } from "../db/schema";
 import {
+  type AdminAiUsageSummaryResponse,
   type AdminDashboardActivity,
   type AdminDashboardResponse,
   type AdminDashboardStats,
@@ -1064,5 +1065,116 @@ export class AdminService {
 
   private errorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
+  }
+
+  async getAiUsageSummary(daysInput?: string): Promise<AdminAiUsageSummaryResponse> {
+    const parsed = Number(daysInput);
+    const days =
+      Number.isFinite(parsed) && parsed > 0 ? Math.min(Math.floor(parsed), 365) : 30;
+
+    const empty: AdminAiUsageSummaryResponse = {
+      success: true,
+      days,
+      totals: {
+        calls: 0,
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        estimatedCostUsd: 0,
+        errorCount: 0,
+      },
+      perDay: [],
+      perRoute: [],
+    };
+
+    try {
+      const since = sql`now() - make_interval(days => ${days})`;
+
+      const [totalsResult, perDayResult, perRouteResult] = await Promise.all([
+        db.execute(sql`
+          select
+            count(*)::int as calls,
+            coalesce(sum(prompt_tokens), 0)::bigint as prompt_tokens,
+            coalesce(sum(completion_tokens), 0)::bigint as completion_tokens,
+            coalesce(sum(total_tokens), 0)::bigint as total_tokens,
+            coalesce(sum(estimated_cost_usd), 0)::numeric as estimated_cost_usd,
+            count(*) filter (where success = false)::int as error_count
+          from ai_usage_events
+          where created_at >= ${since}
+        `),
+        db.execute(sql`
+          select
+            to_char(date_trunc('day', created_at), 'YYYY-MM-DD') as day,
+            coalesce(sum(total_tokens), 0)::bigint as total_tokens,
+            coalesce(sum(estimated_cost_usd), 0)::numeric as estimated_cost_usd,
+            count(*)::int as calls
+          from ai_usage_events
+          where created_at >= ${since}
+          group by 1
+          order by 1 asc
+        `),
+        db.execute(sql`
+          select
+            route,
+            count(*)::int as calls,
+            coalesce(sum(prompt_tokens), 0)::bigint as prompt_tokens,
+            coalesce(sum(completion_tokens), 0)::bigint as completion_tokens,
+            coalesce(sum(total_tokens), 0)::bigint as total_tokens,
+            coalesce(sum(estimated_cost_usd), 0)::numeric as estimated_cost_usd,
+            count(*) filter (where success = false)::int as error_count,
+            round(avg(latency_ms))::int as avg_latency_ms
+          from ai_usage_events
+          where created_at >= ${since}
+          group by route
+          order by estimated_cost_usd desc, total_tokens desc
+        `),
+      ]);
+
+      const totalsRow =
+        this.extractRows<Record<string, unknown>>(totalsResult)[0] || {};
+
+      return {
+        success: true,
+        days,
+        totals: {
+          calls: Number(totalsRow.calls ?? 0),
+          promptTokens: Number(totalsRow.prompt_tokens ?? 0),
+          completionTokens: Number(totalsRow.completion_tokens ?? 0),
+          totalTokens: Number(totalsRow.total_tokens ?? 0),
+          estimatedCostUsd: Number(totalsRow.estimated_cost_usd ?? 0),
+          errorCount: Number(totalsRow.error_count ?? 0),
+        },
+        perDay: this.extractRows<Record<string, unknown>>(perDayResult).map(
+          (row) => ({
+            day: String(row.day ?? ""),
+            totalTokens: Number(row.total_tokens ?? 0),
+            estimatedCostUsd: Number(row.estimated_cost_usd ?? 0),
+            calls: Number(row.calls ?? 0),
+          }),
+        ),
+        perRoute: this.extractRows<Record<string, unknown>>(perRouteResult).map(
+          (row) => ({
+            route: String(row.route ?? "unknown"),
+            calls: Number(row.calls ?? 0),
+            promptTokens: Number(row.prompt_tokens ?? 0),
+            completionTokens: Number(row.completion_tokens ?? 0),
+            totalTokens: Number(row.total_tokens ?? 0),
+            estimatedCostUsd: Number(row.estimated_cost_usd ?? 0),
+            errorCount: Number(row.error_count ?? 0),
+            avgLatencyMs:
+              row.avg_latency_ms === null || row.avg_latency_ms === undefined
+                ? null
+                : Number(row.avg_latency_ms),
+          }),
+        ),
+      };
+    } catch (error) {
+      // Table may not exist yet (migration pending) — return an empty summary
+      // instead of a 500 so the admin dashboard degrades gracefully.
+      this.logger.warn(
+        `AI usage summary unavailable: ${this.errorMessage(error)}`,
+      );
+      return { ...empty, success: false, error: this.errorMessage(error) };
+    }
   }
 }

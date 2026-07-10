@@ -16,9 +16,11 @@ function isNetworkError(error: unknown): boolean {
     return error instanceof TypeError && error.message === 'Network request failed';
 }
 
-async function syncPushToken(userId: string, authToken: string, token: string): Promise<void> {
+type AuthTokenGetter = () => Promise<string | null | undefined>;
+
+async function syncPushToken(userId: string, getAuthToken: AuthTokenGetter, token: string): Promise<void> {
     const apiUrl = getConfig().apiBaseUrl.replace(/\/$/, '');
-    if (!apiUrl || !authToken) return;
+    if (!apiUrl) return;
 
     const syncKey = `${userId}:${token}`;
     if (lastPushSyncKey === syncKey || Date.now() < pushSyncDisabledUntil) return;
@@ -26,6 +28,14 @@ async function syncPushToken(userId: string, authToken: string, token: string): 
 
     pushSyncInFlight = (async () => {
         try {
+            // Fetch the Clerk token FRESH here, immediately before the request.
+            // Clerk default session tokens live ~60s, and the permission prompt
+            // + getExpoPushTokenAsync() network round-trip that precede this can
+            // easily burn most of that window — a token captured earlier was
+            // often already expired by the time we posted it, yielding a 401.
+            const authToken = await getAuthToken();
+            if (!authToken) return;
+
             const response = await fetch(`${apiUrl}/notifications/push-token`, {
                 method: 'POST',
                 headers: {
@@ -69,7 +79,7 @@ async function syncPushToken(userId: string, authToken: string, token: string): 
     return pushSyncInFlight;
 }
 
-export async function registerForPushNotificationsAsync(userId?: string, authToken?: string | null): Promise<string | null> {
+export async function registerForPushNotificationsAsync(userId?: string, getAuthToken?: AuthTokenGetter): Promise<string | null> {
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
@@ -90,8 +100,8 @@ export async function registerForPushNotificationsAsync(userId?: string, authTok
         if (__DEV__) {
             console.log('Push token registered for user:', userId);
         }
-        if (authToken) {
-            await syncPushToken(userId, authToken, token.data);
+        if (getAuthToken) {
+            await syncPushToken(userId, getAuthToken, token.data);
         }
     }
 

@@ -79,6 +79,26 @@ const WIDGET_RECEIVERS = [
     label: "@string/edutu_chat_widget_name",
     infoName: "edutu_chat_widget_info",
   },
+  {
+    className: "TrendingSpotlightWidgetProvider",
+    label: "@string/edutu_trending_spotlight_widget_name",
+    infoName: "edutu_trending_spotlight_widget_info",
+  },
+  {
+    className: "TrendingGridWidgetProvider",
+    label: "@string/edutu_trending_grid_widget_name",
+    infoName: "edutu_trending_grid_widget_info",
+  },
+  {
+    className: "TrendingTickerWidgetProvider",
+    label: "@string/edutu_trending_ticker_widget_name",
+    infoName: "edutu_trending_ticker_widget_info",
+  },
+  {
+    className: "TrendingThumbListWidgetProvider",
+    label: "@string/edutu_trending_thumblist_widget_name",
+    infoName: "edutu_trending_thumblist_widget_info",
+  },
 ];
 
 function addWidgetReceiver(androidManifest, props) {

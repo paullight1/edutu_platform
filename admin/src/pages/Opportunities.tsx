@@ -28,6 +28,7 @@ import {
   ExternalLink,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Loader2,
   Sparkles,
   RefreshCw,
@@ -624,6 +625,22 @@ export default function Opportunities() {
     () => new Set(),
   );
 
+  // Lightweight toast notifications (same pattern as Scraper.tsx) — replaces
+  // the blocking window.alert() calls for errors/successes.
+  const [notifications, setNotifications] = useState<
+    { id: number; message: string; type: "success" | "error" | "warning" | "info" }[]
+  >([]);
+  const showNotification = (
+    message: string,
+    type: "success" | "error" | "warning" | "info" = "info",
+  ) => {
+    const id = Date.now() + Math.random();
+    setNotifications((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+    }, 6000);
+  };
+
   const addMethods = [
     {
       id: "manual",
@@ -746,7 +763,7 @@ export default function Opportunities() {
       });
       setTimeout(() => {
         setShowLoadingModal(false);
-        alert("Preview failed: " + message);
+        showNotification("Preview failed: " + message, "error");
       }, 2000);
     } finally {
       window.clearTimeout(timeout);
@@ -837,17 +854,18 @@ export default function Opportunities() {
       setLoadedResults([]);
       setBulkPreview([]);
       void fetchOpportunities();
-      alert(
-        `Successfully saved ${inserted} opportunities!\nSkipped (duplicates): ${skipped}`,
+      showNotification(
+        `Successfully saved ${inserted} opportunities! Skipped (duplicates): ${skipped}`,
+        "success",
       );
     } catch (error: unknown) {
-      alert("Save failed: " + getErrorMessage(error));
+      showNotification("Save failed: " + getErrorMessage(error), "error");
     }
   }
 
   async function refineWithAI(opps: OpportunityPreviewItem[]) {
     if (!opps.length) {
-      alert("No opportunities to refine.");
+      showNotification("No opportunities to refine.", "warning");
       return;
     }
 
@@ -914,8 +932,9 @@ export default function Opportunities() {
     });
 
     if (errors.length) {
-      alert(
+      showNotification(
         `Refine finished with ${errors.length} issues. Results were kept for those items.`,
+        "warning",
       );
     }
   }
@@ -1015,7 +1034,7 @@ export default function Opportunities() {
     } catch (error: unknown) {
       console.error("Failed to load opportunities:", error);
       if (!silent) {
-        alert(getErrorMessage(error, "Failed to load opportunities"));
+        showNotification(getErrorMessage(error, "Failed to load opportunities"), "error");
         setFilteredOpps([]);
         setTotalOpportunities(0);
         setTotalPages(1);
@@ -1476,7 +1495,7 @@ export default function Opportunities() {
     try {
       new URL(urlInput);
     } catch {
-      alert("Please enter a valid URL");
+      showNotification("Please enter a valid URL", "warning");
       return;
     }
 
@@ -1531,16 +1550,17 @@ export default function Opportunities() {
         result.completeness?.score ?? opportunity.confidence ?? 0,
       );
       if (confidence < 60) {
-        alert(`Warning: Low confidence extraction (${confidence}%).`);
+        showNotification(`Warning: Low confidence extraction (${confidence}%).`, "warning");
       }
     } catch (error: unknown) {
       console.error("Scraping failed:", error);
       const aborted =
         error instanceof DOMException && error.name === "AbortError";
-      alert(
+      showNotification(
         aborted
           ? "This page is taking too long to analyze. It may be slow or blocking automated access — you can still fill in the details manually."
           : `Scraping failed: ${getErrorMessage(error, "Check that the backend is running")}`,
+        "error",
       );
     } finally {
       window.clearTimeout(timeout);
@@ -1647,11 +1667,11 @@ export default function Opportunities() {
         (item) => item.errors.length > 0,
       ).length;
       if (errorCount > 0) {
-        alert(`Processed ${urls.length} URLs. ${errorCount} had issues.`);
+        showNotification(`Processed ${urls.length} URLs. ${errorCount} had issues.`, "warning");
       }
     } catch (error: unknown) {
       console.error("Bulk scraping failed:", error);
-      alert(`Bulk import failed: ${getErrorMessage(error)}`);
+      showNotification(`Bulk import failed: ${getErrorMessage(error)}`, "error");
     } finally {
       setIsScraping(false);
     }
@@ -1682,7 +1702,7 @@ export default function Opportunities() {
       setShowModal(false);
       void fetchOpportunities();
     } catch (error: unknown) {
-      alert(getErrorMessage(error, "Failed to save opportunity"));
+      showNotification(getErrorMessage(error, "Failed to save opportunity"), "error");
     }
   }
 
@@ -1734,8 +1754,9 @@ export default function Opportunities() {
         .slice(0, 50); // Max 50 URLs
 
       if (urls.length === 0) {
-        alert(
+        showNotification(
           "No valid URLs found in file. Please ensure URLs are in the first column.",
+          "warning",
         );
         setIsScraping(false);
         return;
@@ -1745,8 +1766,9 @@ export default function Opportunities() {
       await handleBulkScrape(urls);
     } catch (error) {
       console.error("File processing failed:", error);
-      alert(
+      showNotification(
         "Failed to process file. Please ensure it is a valid CSV/Excel file.",
+        "error",
       );
       setIsScraping(false);
     }
@@ -3822,6 +3844,66 @@ export default function Opportunities() {
           </div>
         </div>
       )}
+
+      {/* Toast notifications (non-blocking, replaces window.alert) */}
+      <div className="opps-notifications-container">
+        {notifications.map((n) => (
+          <div key={n.id} className={`opps-notification-toast opps-notification-${n.type}`}>
+            <div style={{ flexShrink: 0, marginTop: 1 }}>
+              {n.type === "success" && <CheckCircle2 size={18} color="#34c759" />}
+              {n.type === "error" && <AlertCircle size={18} color="#ff3b30" />}
+              {n.type === "warning" && <AlertTriangle size={18} color="#ff9500" />}
+              {n.type === "info" && <AlertCircle size={18} color="#007aff" />}
+            </div>
+            <div style={{ flex: 1, fontSize: 13, color: "var(--text-primary)" }}>{n.message}</div>
+            <button
+              onClick={() =>
+                setNotifications((prev) => prev.filter((item) => item.id !== n.id))
+              }
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "var(--text-tertiary)",
+                padding: 2,
+                display: "flex",
+              }}
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <style>{`
+        .opps-notifications-container {
+          position: fixed;
+          top: 24px;
+          right: 24px;
+          z-index: 1000;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          pointer-events: none;
+        }
+        .opps-notification-toast {
+          pointer-events: auto;
+          min-width: 300px;
+          max-width: 450px;
+          padding: 14px 16px;
+          border-radius: 12px;
+          background: var(--bg-secondary);
+          border: 1px solid var(--border-light);
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+          animation: oppsToastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes oppsToastSlideIn {
+          from { opacity: 0; transform: translateX(16px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+      `}</style>
     </div>
   );
 }

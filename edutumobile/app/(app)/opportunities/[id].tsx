@@ -37,6 +37,9 @@ import {
   Building2,
   Calendar,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  SlidersHorizontal,
   X,
   Zap,
   FileText,
@@ -47,6 +50,7 @@ import {
   Plus,
   Check,
 } from "lucide-react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useTheme } from "../../../components/context/ThemeContext";
 import { ScreenHeader } from "../../../components/ui/ScreenHeader";
@@ -54,7 +58,7 @@ import { BrandedLoader } from "../../../components/ui/BrandedLoader";
 import { ProgressBar } from "../../../components/ui/ProgressBar";
 import { supabase } from "../../../lib/supabase";
 import {
-  getOpportunity,
+  getOpportunityWithStatus,
   getCachedOpportunitiesSnapshot,
   getCachedOpportunity,
 } from "@edutu/core/src/services/opportunities";
@@ -92,14 +96,30 @@ import { exportRoadmapToCalendar } from "../../../lib/roadmapCalendar";
 import { notificationService } from "../../../lib/notifications";
 import { syncRoadmapToCalendar } from "../../../lib/calendarSync";
 import { AnimatedPressable } from "../../../components/ui/AnimatedPressable";
-import { FadeInDown } from "react-native-reanimated";
-import Reanimated from "react-native-reanimated";
+import Reanimated, {
+  FadeInDown,
+  Easing,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  withDelay,
+} from "react-native-reanimated";
+import Svg, {
+  Defs,
+  RadialGradient,
+  Stop,
+  Circle,
+  Path,
+} from "react-native-svg";
 
 const { width } = Dimensions.get("window");
 
 // Public Edutu opportunity page. Shares must point here — a branded landing that
 // tracks and routes to Apply — NOT the raw third-party application link.
 const EDUTU_WEB_URL = "https://www.edutu.org";
+const TUNE_DISMISS_KEY = "edutu:tunePlanDismissed";
 function buildOpportunityShareUrl(id: string): string {
   return `${EDUTU_WEB_URL}/opportunity/${encodeURIComponent(id)}`;
 }
@@ -305,6 +325,104 @@ async function downloadShareImage(
   }
 }
 
+// Glossy AI orb — purple/blue gradient glass sphere with a frosted 4-point
+// sparkle at its core (echoes the reference "AI" logo). Self-contained: the
+// SVG draws the whole orb, so the FAB behind it stays transparent.
+function AiOrbIcon({ size = 56 }: { size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 48 48">
+      <Defs>
+        {/* deep purple body, lighter toward the upper-left */}
+        <RadialGradient id="orbBody" cx="38%" cy="30%" r="78%">
+          <Stop offset="0%" stopColor="#d7cbff" />
+          <Stop offset="38%" stopColor="#9a86f2" />
+          <Stop offset="70%" stopColor="#6d54e6" />
+          <Stop offset="100%" stopColor="#4331c9" />
+        </RadialGradient>
+        {/* electric-blue swirl in the lower-right */}
+        <RadialGradient id="orbBlue" cx="74%" cy="66%" r="46%">
+          <Stop offset="0%" stopColor="#3b82f6" stopOpacity={0.95} />
+          <Stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+        </RadialGradient>
+        {/* glossy top-left sheen */}
+        <RadialGradient id="orbGloss" cx="30%" cy="22%" r="42%">
+          <Stop offset="0%" stopColor="#ffffff" stopOpacity={0.6} />
+          <Stop offset="100%" stopColor="#ffffff" stopOpacity={0} />
+        </RadialGradient>
+        {/* bright rim light at the bottom */}
+        <RadialGradient id="orbRim" cx="50%" cy="50%" r="50%">
+          <Stop offset="82%" stopColor="#ffffff" stopOpacity={0} />
+          <Stop offset="97%" stopColor="#ffffff" stopOpacity={0.5} />
+          <Stop offset="100%" stopColor="#ffffff" stopOpacity={0.1} />
+        </RadialGradient>
+      </Defs>
+
+      <Circle cx="24" cy="24" r="23.5" fill="url(#orbBody)" />
+      <Circle cx="24" cy="24" r="23.5" fill="url(#orbBlue)" />
+      <Circle cx="24" cy="24" r="23.5" fill="url(#orbGloss)" />
+      <Circle cx="24" cy="24" r="23.5" fill="url(#orbRim)" />
+
+      {/* frosted 4-point sparkle */}
+      <Path
+        d="M24 8.5C25.1 18.6 29.4 22.9 39.5 24C29.4 25.1 25.1 29.4 24 39.5C22.9 29.4 18.6 25.1 8.5 24C18.6 22.9 22.9 18.6 24 8.5Z"
+        fill="#ffffff"
+        fillOpacity={0.9}
+      />
+    </Svg>
+  );
+}
+
+// Floating "jump to AI" button — a bouncing gradient AI orb that opens the AI
+// co-pilot (personalized checklist, essay questions, outlines, roadmap…).
+function AiCopilotFab({
+  onPress,
+  accent,
+  label,
+}: {
+  onPress: () => void;
+  accent: string;
+  label: string;
+}) {
+  const jump = useSharedValue(0);
+
+  useEffect(() => {
+    jump.value = withDelay(
+      700,
+      withRepeat(
+        withSequence(
+          withTiming(-10, { duration: 420, easing: Easing.out(Easing.quad) }),
+          withTiming(0, { duration: 520, easing: Easing.bounce }),
+          withTiming(0, { duration: 900 }), // brief rest between hops
+        ),
+        -1,
+        false,
+      ),
+    );
+  }, [jump]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: jump.value }],
+  }));
+
+  return (
+    <Reanimated.View
+      style={[styles.aiFab, animatedStyle]}
+      entering={FadeInDown.duration(400).delay(300)}
+      pointerEvents="box-none"
+    >
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        style={[styles.aiFabBtn, { shadowColor: "#6d54e6" }]}
+      >
+        <AiOrbIcon size={56} />
+      </TouchableOpacity>
+    </Reanimated.View>
+  );
+}
+
 export default function OpportunityDetailScreen() {
   const { t } = useTranslation("opps");
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -326,6 +444,10 @@ export default function OpportunityDetailScreen() {
 
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
   const [loading, setLoading] = useState(true);
+  // True only when the fetch failed for network reasons AND nothing is cached —
+  // distinguishes "couldn't load" (retryable) from a definitive "not found".
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [saved, setSaved] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
@@ -339,6 +461,24 @@ export default function OpportunityDetailScreen() {
   const [generatingRoadmap, setGeneratingRoadmap] = useState(false);
   const [generationPhase, setGenerationPhase] = useState(0);
   const [intake, setIntake] = useState<RoadmapIntakeValue>({});
+  // "Tune your plan" is optional and secondary — keep it collapsed by default,
+  // and let the user dismiss it for good so it doesn't always take up space.
+  const [tuneExpanded, setTuneExpanded] = useState(false);
+  const [tuneDismissed, setTuneDismissed] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(TUNE_DISMISS_KEY)
+      .then((value) => {
+        if (value === "true") setTuneDismissed(true);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const dismissTune = useCallback(() => {
+    setTuneExpanded(false);
+    setTuneDismissed(true);
+    AsyncStorage.setItem(TUNE_DISMISS_KEY, "true").catch(() => undefined);
+  }, []);
   const [completedMilestoneIds, setCompletedMilestoneIds] = useState<string[]>(
     [],
   );
@@ -384,6 +524,7 @@ export default function OpportunityDetailScreen() {
     const fetchOpportunity = async () => {
       if (!id) return;
       setLoading(true);
+      setLoadFailed(false);
 
       // Paint instantly from cache so the detail never sits on a blank spinner
       // (or the "not found" scaffold) while the fresh record loads. Prefer the
@@ -408,12 +549,21 @@ export default function OpportunityDetailScreen() {
       }
 
       try {
-        const data = await getOpportunity(id, supabase);
-        if (!cancelled && data) {
-          setOpportunity(data);
+        const { opportunity: data, status } = await getOpportunityWithStatus(id, supabase);
+        if (!cancelled) {
+          if (data) {
+            setOpportunity(data);
+          } else if (status === "error") {
+            // Network failure with no cached copy: show the retryable error
+            // screen instead of the definitive "not found" scaffold.
+            setLoadFailed(true);
+          }
         }
       } catch (error) {
         console.error("Failed to fetch opportunity:", error);
+        if (!cancelled) {
+          setLoadFailed(true);
+        }
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -424,7 +574,7 @@ export default function OpportunityDetailScreen() {
     return () => {
       cancelled = true;
     };
-  }, [id, user?.id]);
+  }, [id, user?.id, retryNonce]);
 
   useEffect(() => {
     const checkSaved = async () => {
@@ -496,10 +646,15 @@ export default function OpportunityDetailScreen() {
   };
 
   const handleApply = useCallback(async () => {
-    if (opportunity?.applyUrl && id) {
+    // Guard against any stray whitespace in a scraped/cached link — a raw space
+    // makes the URL unclickable and Linking.openURL reject it.
+    const applyUrl = opportunity?.applyUrl
+      ? opportunity.applyUrl.replace(/[\s\u200B\u200C\u200D\uFEFF]+/g, "")
+      : opportunity?.applyUrl;
+    if (applyUrl && id) {
       let applyUrlHost: string | undefined;
       try {
-        applyUrlHost = new URL(opportunity.applyUrl).hostname;
+        applyUrlHost = new URL(applyUrl).hostname;
       } catch {
         applyUrlHost = undefined;
       }
@@ -528,7 +683,7 @@ export default function OpportunityDetailScreen() {
             metadata: {
               source: "mobile_detail",
               applyUrlHost,
-              title: opportunity.title,
+              title: opportunity?.title,
             },
           },
           getToken,
@@ -537,7 +692,7 @@ export default function OpportunityDetailScreen() {
         });
       }
       try {
-        await Linking.openURL(opportunity.applyUrl);
+        await Linking.openURL(applyUrl);
       } catch (error) {
         console.error("Failed to open URL:", error);
       }
@@ -569,32 +724,47 @@ export default function OpportunityDetailScreen() {
   );
 
   const handleShare = useCallback(async () => {
-    if (opportunity) {
-      try {
-        const sharePayload = await getBackendSharePayload(opportunity);
-        const canShareFile = await Sharing.isAvailableAsync();
-        if (sharePayload.imageUrl && canShareFile) {
-          const downloaded = await downloadShareImage(
-            sharePayload.imageUrl,
-            opportunity.id,
-          );
-          if (downloaded) {
-            if (Platform.OS === "ios") {
-              await Share.share({
-                title: opportunity.title,
-                message: sharePayload.shareText,
-                url: downloaded.uri,
-              });
-            } else {
-              await Sharing.shareAsync(downloaded.uri, {
-                mimeType: downloaded.mimeType,
-                dialogTitle: t("detail.share.dialogTitle"),
-              });
-            }
-            return;
-          }
-        }
+    if (!opportunity) return;
+    try {
+      const sharePayload = await getBackendSharePayload(opportunity);
+      const link =
+        sharePayload.shareUrl || buildOpportunityShareUrl(opportunity.id);
+      // The caption always carries the summary AND the Edutu link, so a share is
+      // never just a bare image. Guarantee the link is present even if a custom
+      // shareText somehow omitted it.
+      const message = sharePayload.shareText.includes(link)
+        ? sharePayload.shareText
+        : `${sharePayload.shareText}\n${link}`;
 
+      // Android: Expo's share APIs can't put an image AND text/link in a single
+      // intent (expo-sharing = file only, RN Share = text only). A silent
+      // image-only share is exactly the reported bug, so we share the caption +
+      // link — which unfurls to the branded share-card image via the opportunity
+      // page's Open Graph tags.
+      if (Platform.OS !== "ios") {
+        await Share.share({ title: opportunity.title, message });
+        return;
+      }
+
+      // iOS: one share sheet carries the branded image AND the caption/link.
+      if (sharePayload.imageUrl) {
+        const downloaded = await downloadShareImage(
+          sharePayload.imageUrl,
+          opportunity.id,
+        );
+        if (downloaded) {
+          await Share.share({
+            title: opportunity.title,
+            message,
+            url: downloaded.uri,
+          });
+          return;
+        }
+      }
+
+      // iOS fallback: render the on-device card and attach it with the caption.
+      const canShareFile = await Sharing.isAvailableAsync();
+      if (canShareFile) {
         setSharingCard(true);
         requestAnimationFrame(async () => {
           try {
@@ -603,30 +773,21 @@ export default function OpportunityDetailScreen() {
               quality: 1,
               result: "tmpfile",
             });
-            if (canShareFile) {
-              await Sharing.shareAsync(uri, {
-                mimeType: "image/png",
-                dialogTitle: t("detail.share.dialogTitle"),
-              });
-            } else {
-              await Share.share({
-                title: opportunity.title,
-                message: sharePayload.shareText,
-                url:
-                  sharePayload.shareUrl ||
-                  buildOpportunityShareUrl(opportunity.id),
-              });
-            }
+            await Share.share({ title: opportunity.title, message, url: uri });
           } finally {
             setSharingCard(false);
           }
         });
-      } catch (error) {
-        console.error("Failed to share:", error);
-        setSharingCard(false);
+        return;
       }
+
+      // Last resort: caption + link only.
+      await Share.share({ title: opportunity.title, message });
+    } catch (error) {
+      console.error("Failed to share:", error);
+      setSharingCard(false);
     }
-  }, [opportunity, t]);
+  }, [opportunity]);
 
   const generateAIPath = useCallback(async () => {
     if (!opportunity) return;
@@ -961,6 +1122,64 @@ export default function OpportunityDetailScreen() {
           style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
         >
           <BrandedLoader label={t("detail.loading")} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!opportunity && loadFailed) {
+    return (
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor }}
+        edges={["top", "left", "right"]}
+      >
+        <View
+          accessibilityRole="alert"
+          style={{
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <AlertCircle size={48} color={textSecondary} />
+          <Text
+            style={{
+              color: textPrimary,
+              fontSize: 18,
+              fontWeight: "bold",
+              marginTop: 16,
+            }}
+          >
+            {t("detail.errorTitle")}
+          </Text>
+          <Text
+            style={{
+              color: textSecondary,
+              fontSize: 14,
+              lineHeight: 20,
+              textAlign: "center",
+              marginTop: 8,
+              maxWidth: 280,
+            }}
+          >
+            {t("detail.errorBody")}
+          </Text>
+          <TouchableOpacity
+            onPress={() => setRetryNonce((nonce) => nonce + 1)}
+            style={{
+              marginTop: 20,
+              padding: 12,
+              paddingHorizontal: 22,
+              backgroundColor: colors.accent,
+              borderRadius: 12,
+            }}
+          >
+            <Text style={{ color: "white", fontWeight: "600" }}>{t("detail.retry")}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 14, padding: 8 }}>
+            <Text style={{ color: textSecondary, fontWeight: "600" }}>{t("detail.goBack")}</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -1632,29 +1851,63 @@ export default function OpportunityDetailScreen() {
             </AnimatedPressable>
           )}
 
-          {/* Fit-to-my-life intake — optional, tunes the generated plan */}
-          {!bookmarked && opportunity.deadline && !isClosed && (
+          {/* Fit-to-my-life intake — optional, secondary. Collapsed by default
+              and fully dismissible so it doesn't always take up space. */}
+          {!bookmarked && opportunity.deadline && !isClosed && !tuneDismissed && (
             <View
               style={[
                 styles.intakeCard,
                 { backgroundColor: cardBg, borderColor },
               ]}
             >
-              <Text style={[styles.intakeTitle, { color: textPrimary }]}>
-                {t("detail.tunePlan")}{" "}
-                <Text style={{ color: textSecondary }}>{t("detail.optional")}</Text>
-              </Text>
-              <RoadmapIntake
-                value={intake}
-                onChange={setIntake}
-                colors={{
-                  foreground: textPrimary,
-                  textSecondary,
-                  accent: colors.accent,
-                  border: borderColor,
-                  card: cardBg,
-                }}
-              />
+              <TouchableOpacity
+                style={styles.intakeHeader}
+                onPress={() => setTuneExpanded((v) => !v)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={t("detail.tunePlan")}
+              >
+                <View style={styles.intakeHeaderLeft}>
+                  <SlidersHorizontal size={16} color={colors.accent} />
+                  <Text style={[styles.intakeTitle, { color: textPrimary }]}>
+                    {t("detail.tunePlan")}{" "}
+                    <Text style={{ color: textSecondary }}>
+                      {t("detail.optional")}
+                    </Text>
+                  </Text>
+                </View>
+                <View style={styles.intakeHeaderActions}>
+                  {tuneExpanded ? (
+                    <ChevronUp size={18} color={textSecondary} />
+                  ) : (
+                    <ChevronDown size={18} color={textSecondary} />
+                  )}
+                  <TouchableOpacity
+                    onPress={dismissTune}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("common:actions.dismiss")}
+                  >
+                    <X size={16} color={textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+
+              {tuneExpanded && (
+                <View style={styles.intakeBody}>
+                  <RoadmapIntake
+                    value={intake}
+                    onChange={setIntake}
+                    colors={{
+                      foreground: textPrimary,
+                      textSecondary,
+                      accent: colors.accent,
+                      border: borderColor,
+                      card: cardBg,
+                    }}
+                  />
+                </View>
+              )}
             </View>
           )}
 
@@ -1853,6 +2106,15 @@ export default function OpportunityDetailScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Floating AI co-pilot button — one tap opens all AI recommendations */}
+      {!isClosed && opportunity ? (
+        <AiCopilotFab
+          accent={colors.accent}
+          label={t("detail.copilotCta", { defaultValue: "Apply with Edutu AI" })}
+          onPress={() => router.push(`/copilot/${opportunity.id}` as never)}
+        />
+      ) : null}
 
       {/* AI Roadmap Modal */}
       <Modal
@@ -3200,6 +3462,48 @@ const styles = StyleSheet.create({
   },
   aiDecisionChipText: { fontSize: 12, fontWeight: "700" },
   actionButtonsRow: { flexDirection: "row", gap: 12, marginBottom: 40 },
+  aiFab: {
+    position: "absolute",
+    right: 16,
+    bottom: 108,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  aiFabBtn: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    backgroundColor: "#4331c9",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
+    elevation: 9,
+  },
+  aiFabEmoji: {
+    fontSize: 28,
+    lineHeight: 34,
+  },
+  aiFabBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    paddingHorizontal: 6,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "rgba(0,0,0,0.35)",
+  },
+  aiFabBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
   applyButtonWrapper: {
     borderRadius: 18,
     overflow: "hidden",
@@ -3663,7 +3967,25 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 16,
   },
-  intakeTitle: { fontSize: 15, fontWeight: "800", marginBottom: 14 },
+  intakeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  intakeHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+  },
+  intakeHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  intakeBody: { marginTop: 16 },
+  intakeTitle: { fontSize: 15, fontWeight: "800" },
   calendarCta: {
     flexDirection: "row",
     alignItems: "center",

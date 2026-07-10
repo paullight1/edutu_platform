@@ -5,7 +5,8 @@
     "plan": "Panga",
     "me": "Mimi",
     "openEdutuAi": "Fungua Edutu AI",
-    "badgeOverflow": "99+"
+    "badgeOverflow": "99+",
+    "holdForVoice": "Shikilia kwa hali ya sauti"
   },
   "rewards": {
     "creditsEarned_one": "+krediti {{count}} · {{label}}",

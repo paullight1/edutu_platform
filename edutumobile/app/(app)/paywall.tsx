@@ -27,13 +27,25 @@ import {
   Zap,
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useUser } from '@clerk/clerk-expo';
+import type { PurchasesPackage } from 'react-native-purchases';
+import { useUser, useAuth } from '@clerk/clerk-expo';
 import { useTheme } from '../../components/context/ThemeContext';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { BrandedLoader } from '../../components/ui/BrandedLoader';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { supabase } from '../../lib/supabase';
 import { fetchMobileControlConfig } from '../../lib/mobileControl';
+import {
+  getOfferings,
+  initRevenueCat,
+  purchasePackage,
+  restorePurchases,
+} from '@edutu/core/src/services/payments';
+
+// Apple requires digital-goods purchases to use in-app purchase. So iOS goes
+// through RevenueCat/StoreKit; Android + web redirect to pay.edutu.org (admin
+// pricing + promos). This is the store-compliant hybrid.
+const USE_NATIVE_IAP = Platform.OS === 'ios';
 import {
   DEFAULT_PRICING,
   type PricingConfig,
@@ -42,7 +54,6 @@ import {
   hasPromoDiscount,
   formatMoney,
   buildCheckoutUrl,
-  buildManageUrl,
 } from '../../lib/pricing';
 import { useTranslation } from 'react-i18next';
 
@@ -59,6 +70,7 @@ const PREMIUM_FEATURES = [
 export default function PaywallScreen() {
   const { t } = useTranslation('home');
   const { user } = useUser();
+  const { getToken } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isDark, colors } = useTheme();
@@ -67,9 +79,37 @@ export default function PaywallScreen() {
   const [selectedPlan, setSelectedPlan] = useState<BillingPlan>('yearly');
   const [pricing, setPricing] = useState<PricingConfig>(DEFAULT_PRICING);
   const [redirecting, setRedirecting] = useState(false);
+  // iOS-only in-app purchase state.
+  const [iapPackages, setIapPackages] = useState<PurchasesPackage[]>([]);
+  const [purchasing, setPurchasing] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   // Set true once we hand off to the browser, so the next foreground re-checks
   // Pro (the pay.edutu.org webhook grants it while we're away).
   const awaitingReturnRef = useRef(false);
+
+  // iOS: load StoreKit offerings via RevenueCat.
+  useEffect(() => {
+    if (!USE_NATIVE_IAP || !user?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const configured = await initRevenueCat(user.id);
+        if (!configured) return;
+        const offering = await getOfferings();
+        if (offering && !cancelled) setIapPackages(offering.availablePackages || []);
+      } catch { /* fall back to redirect */ }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  const selectedPackage = iapPackages.find((pkg) =>
+    selectedPlan === 'monthly'
+      ? pkg.identifier.includes('month')
+      : pkg.identifier.includes('year'),
+  );
+  // On iOS use IAP only when a matching StoreKit product actually loaded;
+  // otherwise fall back to the web checkout so the button is never a dead end.
+  const iapActive = USE_NATIVE_IAP && Boolean(selectedPackage);
 
   const accent = colors.accent;
   const textSecondary = isDark ? '#94A3B8' : '#64748B';
@@ -113,7 +153,7 @@ export default function PaywallScreen() {
     }
   }, [t]);
 
-  const handleCheckout = useCallback(async () => {
+  const redirectToWebCheckout = useCallback(async () => {
     if (!user?.id) return;
     setRedirecting(true);
     const url = buildCheckoutUrl(pricing, {
@@ -127,12 +167,69 @@ export default function PaywallScreen() {
     setTimeout(() => setRedirecting(false), 800);
   }, [user?.id, user?.primaryEmailAddress?.emailAddress, pricing, selectedPlan, openExternal]);
 
-  const handleManage = useCallback(() => {
+  const purchaseWithIap = useCallback(async () => {
+    if (!selectedPackage) return redirectToWebCheckout();
+    setPurchasing(true);
+    try {
+      const result = await purchasePackage(selectedPackage);
+      if (result.success) {
+        await refreshStatus();
+        Alert.alert(t('paywall.premiumActiveTitle'), t('paywall.premiumActiveMessage'));
+        router.back();
+      } else if (result.error && result.error !== 'User cancelled') {
+        Alert.alert(t('common:states.error'), result.error);
+      }
+    } catch (error: any) {
+      Alert.alert(t('common:states.error'), error?.message || t('paywall.purchaseFailed'));
+    } finally {
+      setPurchasing(false);
+    }
+  }, [selectedPackage, redirectToWebCheckout, refreshStatus, router, t]);
+
+  // iOS → native purchase; Android/web → hosted checkout.
+  const handleCheckout = iapActive ? purchaseWithIap : redirectToWebCheckout;
+
+  const handleRestore = useCallback(async () => {
+    setRestoring(true);
+    try {
+      const result = await restorePurchases();
+      if (result.success) {
+        await refreshStatus();
+        Alert.alert(t('paywall.restoredTitle'), t('paywall.restoredMessage'));
+      } else {
+        Alert.alert(t('common:states.error'), result.error || t('paywall.restoreFailed'));
+      }
+    } catch (error: any) {
+      Alert.alert(t('common:states.error'), error?.message || t('paywall.restoreFailed'));
+    } finally {
+      setRestoring(false);
+    }
+  }, [refreshStatus, t]);
+
+  const handleManage = useCallback(async () => {
     if (!user?.id) return;
-    void openExternal(buildManageUrl(pricing, user.id));
-  }, [user?.id, pricing, openExternal]);
+    // Pass a Clerk token so pay.edutu.org can prove the caller owns the account
+    // before allowing a cancel (it mints a short-lived session cookie).
+    let token: string | null | undefined = null;
+    try { token = await getToken(); } catch { token = null; }
+    const base = pricing.manageUrl.replace(/\/$/, '');
+    const q = new URLSearchParams({ uid: user.id });
+    if (token) q.set('t', token);
+    await openExternal(`${base}/start?${q.toString()}`);
+  }, [user?.id, pricing.manageUrl, getToken, openExternal]);
 
   const renderPrice = (plan: BillingPlan) => {
+    // On iOS show the exact localized StoreKit price when available.
+    const pkg = iapPackages.find((p) =>
+      plan === 'monthly' ? p.identifier.includes('month') : p.identifier.includes('year'),
+    );
+    if (USE_NATIVE_IAP && pkg?.product?.priceString) {
+      return (
+        <View style={styles.priceInline}>
+          <Text style={[styles.price, { color: colors.foreground }]}>{pkg.product.priceString}</Text>
+        </View>
+      );
+    }
     const price = effectivePrice(pricing, plan);
     const discounted = hasPromoDiscount(pricing, plan);
     const regular = plan === 'monthly' ? pricing.monthlyPrice : pricing.yearlyPrice;
@@ -261,15 +358,20 @@ export default function PaywallScreen() {
             </>
           ) : (
             <>
-              <TouchableOpacity activeOpacity={0.9} disabled={redirecting} onPress={handleCheckout} style={styles.subscribeButton}>
+              <TouchableOpacity activeOpacity={0.9} disabled={redirecting || purchasing} onPress={handleCheckout} style={styles.subscribeButton}>
                 <LinearGradient
                   colors={[colors.primary, accent]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.subscribeGradient}
                 >
-                  {redirecting ? (
+                  {(redirecting || purchasing) ? (
                     <ActivityIndicator color="#FFFFFF" />
+                  ) : iapActive ? (
+                    <>
+                      <Crown size={18} color="#FFFFFF" />
+                      <Text style={styles.subscribeText}>{t('paywall.subscribe')}</Text>
+                    </>
                   ) : (
                     <>
                       <ExternalLink size={18} color="#FFFFFF" />
@@ -279,7 +381,18 @@ export default function PaywallScreen() {
                 </LinearGradient>
               </TouchableOpacity>
 
-              <Text style={[styles.secureNote, { color: textSecondary }]}>{t('paywall.secureNote')}</Text>
+              {/* iOS IAP renews via the App Store; web checkout notes pay.edutu.org. */}
+              <Text style={[styles.secureNote, { color: textSecondary }]}>
+                {iapActive ? t('paywall.renewalNote') : t('paywall.secureNote')}
+              </Text>
+
+              {USE_NATIVE_IAP && (
+                <TouchableOpacity activeOpacity={0.85} disabled={restoring} onPress={handleRestore} style={styles.textButton}>
+                  <Text style={[styles.textButtonLabel, { color: textSecondary }]}>
+                    {restoring ? t('paywall.loading') : t('paywall.restore')}
+                  </Text>
+                </TouchableOpacity>
+              )}
 
               <TouchableOpacity activeOpacity={0.85} onPress={() => router.back()} style={styles.textButton}>
                 <Text style={[styles.textButtonLabel, { color: textSecondary }]}>{t('paywall.notNow')}</Text>

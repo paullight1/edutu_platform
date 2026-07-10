@@ -3,6 +3,8 @@ package com.edutu.com.widgets
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import androidx.core.content.ContextCompat
@@ -114,6 +116,7 @@ object WidgetSupport {
           .put("category", firstString(row, "category"))
           .put("deadline", deadline)
           .put("match", firstInt(row, "match", "matchScore", "match_score"))
+          .put("imageUrl", firstString(row, "imageUrl", "image_url", "image"))
         result.put(item)
         if (result.length() >= limit) break
       }
@@ -123,6 +126,47 @@ object WidgetSupport {
     } finally {
       connection?.disconnect()
     }
+  }
+
+  /**
+   * Download and decode a remote image for use as a widget background, downsampled
+   * to keep the bitmap well under the ~1 MB Binder transaction limit RemoteViews
+   * must respect. Returns null on any failure so callers fall back to a flat
+   * brand surface. Must be called off the main thread.
+   */
+  fun fetchBitmap(urlString: String?, reqWidth: Int = 480): Bitmap? {
+    if (urlString.isNullOrBlank()) return null
+    var connection: HttpURLConnection? = null
+    return try {
+      connection = (URL(urlString).openConnection() as HttpURLConnection).apply {
+        requestMethod = "GET"
+        connectTimeout = 8000
+        readTimeout = 8000
+        instanceFollowRedirects = true
+        setRequestProperty("Accept", "image/*")
+      }
+      if (connection.responseCode !in 200..299) return null
+      val bytes = connection.inputStream.use { it.readBytes() }
+      if (bytes.isEmpty()) return null
+
+      val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+      BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+      val decode = BitmapFactory.Options().apply {
+        inSampleSize = sampleSizeFor(bounds.outWidth, reqWidth)
+      }
+      BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decode)
+    } catch (e: Exception) {
+      null
+    } finally {
+      connection?.disconnect()
+    }
+  }
+
+  private fun sampleSizeFor(sourceWidth: Int, reqWidth: Int): Int {
+    if (sourceWidth <= 0 || reqWidth <= 0) return 1
+    var sample = 1
+    while (sourceWidth / (sample * 2) >= reqWidth) sample *= 2
+    return sample
   }
 
   fun parseRows(body: String): JSONArray {

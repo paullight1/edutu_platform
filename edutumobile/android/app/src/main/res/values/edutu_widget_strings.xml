@@ -23,7 +23,23 @@
   <string name="edutu_widget_trending_empty">Discover what\'s hot</string>
   <string name="edutu_widget_trending_empty_hint">Open Edutu to load trending opportunities.</string>
 
+  <string name="edutu_trending_spotlight_widget_name">Edutu Trending Spotlight</string>
+  <string name="edutu_trending_spotlight_widget_description">A rotating photo spotlight of the hottest opportunities on Edutu.</string>
+
+  <string name="edutu_trending_grid_widget_name">Edutu Trending Grid</string>
+  <string name="edutu_trending_grid_widget_description">A 2x2 grid of trending opportunities with photo covers.</string>
+
+  <string name="edutu_trending_ticker_widget_name">Edutu Trending Ticker</string>
+  <string name="edutu_trending_ticker_widget_description">A wide banner spotlighting a rotating trending opportunity.</string>
+
+  <string name="edutu_trending_thumblist_widget_name">Edutu Trending List</string>
+  <string name="edutu_trending_thumblist_widget_description">A ranked list of trending opportunities with photo thumbnails.</string>
+
   <string name="edutu_chat_widget_name">Ask Edutu</string>
   <string name="edutu_chat_widget_description">Jump straight into a chat with your AI opportunity coach.</string>
+  <string name="edutu_widget_chat_title">Ask Edutu AI</string>
   <string name="edutu_widget_chat_prompt">Ask me anything…</string>
+  <string name="edutu_widget_chat_prompt_2">Which scholarships fit me?</string>
+  <string name="edutu_widget_chat_prompt_3">Help me plan an application</string>
+  <string name="edutu_widget_chat_prompt_4">Find internships near me</string>
 </resources>

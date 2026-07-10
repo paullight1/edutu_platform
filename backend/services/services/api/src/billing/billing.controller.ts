@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Headers, Post, Req } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Post,
+  Req,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { Public, CurrentUser } from "../auth";
 import { BillingService } from "./billing.service";
 import type { CreateCheckoutDto } from "./dto/billing.dto";
@@ -27,8 +35,16 @@ export class BillingController {
     @Headers("x-paystack-signature") signature: string | undefined,
     @Req() request: any,
   ) {
+    // SECURITY: the signature must be verified against the exact raw bytes
+    // Paystack sent. Re-serializing the parsed body is not equivalent and
+    // could let a forged payload pass — reject if the raw body is missing.
+    if (!request.rawBody) {
+      throw new UnauthorizedException(
+        "Raw request body unavailable; cannot verify webhook signature",
+      );
+    }
     return this.billingService.handlePaystackWebhook(
-      request.rawBody ?? Buffer.from(JSON.stringify(request.body ?? {})),
+      request.rawBody,
       request.body,
       signature,
     );

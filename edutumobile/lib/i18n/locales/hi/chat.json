@@ -94,7 +94,8 @@
     "description": "असली स्कॉलरशिप, डेडलाइन, रोडमैप या आवेदन के अगले क़दमों के बारे में पूछें।"
   },
   "input": {
-    "placeholder": "Edutu को मैसेज करें..."
+    "placeholder": "Edutu को मैसेज करें...",
+    "send": "भेजें"
   },
   "threads": {
     "modalTitle": "बातचीतें",
@@ -118,5 +119,44 @@
     "hintSendOrWait": "भेजें पर टैप करें या रुकें",
     "hintTranscribing": "आपका मैसेज लिखा जा रहा है...",
     "hintStart": "रिकॉर्डिंग शुरू करने के लिए माइक्रोफ़ोन टैप करें"
+  },
+  "voiceMode": {
+    "badgeVoice": "वॉइस चैट",
+    "badgeLive": "लाइव",
+    "statusConnecting": "शुरू हो रहा है…",
+    "statusListening": "सुन रहा हूँ…",
+    "statusTranscribing": "समझ गया…",
+    "statusThinking": "सोच रहा हूँ…",
+    "statusSpeaking": "Edutu बोल रहा है",
+    "statusIdle": "बोलने के लिए ऑर्ब पर टैप करें",
+    "statusMuted": "म्यूट है — जारी रखने के लिए माइक पर टैप करें",
+    "youLabel": "आप",
+    "errorPermission": "Edutu को माइक्रोफ़ोन की अनुमति चाहिए। सेटिंग्स में इसे चालू करें, फिर ऑर्ब पर टैप करें।",
+    "errorLimit": "आपने अभी के लिए अपनी मुफ़्त AI सीमा पूरी कर ली है।",
+    "errorNetwork": "कुछ गड़बड़ हो गई। फिर से कोशिश करने के लिए ऑर्ब पर टैप करें।",
+    "mute": "माइक म्यूट करें",
+    "unmute": "माइक अनम्यूट करें",
+    "end": "वॉइस मोड बंद करें",
+    "openChat": "चैट खोलें",
+    "composerVoice": "वॉइस मोड शुरू करें",
+    "composerLive": "लाइव वॉइस शुरू करें",
+    "settingsTitle": "वॉइस सेटिंग्स",
+    "settingsDone": "हो गया",
+    "settingsDesign": "ऑर्ब डिज़ाइन",
+    "settingsVoice": "Edutu की आवाज़",
+    "designParticles": "कण गोला",
+    "designRing": "ऑरोरा रिंग",
+    "designBubble": "सपनों का बुलबुला",
+    "designRobot": "रोबो Edutu",
+    "voiceDefault": "सिस्टम डिफ़ॉल्ट",
+    "voiceSample": "नमस्ते! मैं Edutu हूँ, आपका AI कोच।",
+    "designCrystal": "क्रिस्टल तारा",
+    "designGlass": "कांच का भंवर",
+    "designBlob": "जेली दोस्त",
+    "designPetals": "पंखुड़ी प्रभामंडल",
+    "voiceRecommended": "अनुशंसित",
+    "voiceNigerian": "नाइजीरियाई अंग्रेज़ी",
+    "voiceAll": "और आवाज़ें",
+    "voiceHint": "साफ़ और स्वाभाविक आवाज़ों के लिए फ़ोन सेटिंग्स में उन्नत आवाज़ें डाउनलोड करें — iOS: सेटिंग्स → एक्सेसिबिलिटी → स्पोकन कंटेंट → वॉइसेस; Android: Google Text-to-Speech की आवाज़ें इंस्टॉल करें।"
   }
 }

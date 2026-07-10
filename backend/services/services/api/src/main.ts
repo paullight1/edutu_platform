@@ -1,7 +1,7 @@
 import { ValidationPipe, Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import helmet from "helmet";
-import { json, urlencoded } from "express";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import WebSocket from "ws";
 import { AppModule } from "./app.module";
 
@@ -41,21 +41,31 @@ function validateEnvironment(): void {
       );
     }
     if (!process.env.API_KEY_PEPPER) {
-      logger.warn(
-        "API_KEY_PEPPER is not set in production. API keys are hashed without a server-side pepper.",
+      throw new Error(
+        "API_KEY_PEPPER must be set in production. Refusing to start: API keys would be hashed without a server-side pepper.",
       );
     }
+  } else if (!process.env.API_KEY_PEPPER) {
+    logger.warn(
+      "API_KEY_PEPPER is not set. API keys are hashed without a server-side pepper (acceptable only in development).",
+    );
   }
 }
 
 async function bootstrap() {
   validateEnvironment();
 
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  // bodyParser: false + useBodyParser keeps the raw-body capture (needed for
+  // Paystack webhook signature checks) while still enforcing size limits.
+  // A plain express json() middleware here would run first and drop rawBody.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true,
+    bodyParser: false,
+  });
 
   app.use(helmet());
-  app.use(json({ limit: "1mb" }));
-  app.use(urlencoded({ extended: true, limit: "1mb" }));
+  app.useBodyParser("json", { limit: "1mb" });
+  app.useBodyParser("urlencoded", { extended: true, limit: "1mb" });
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -65,24 +75,31 @@ async function bootstrap() {
     }),
   );
 
+  const isProd = process.env.NODE_ENV === "production";
+  const devOrigins = isProd
+    ? []
+    : [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
+        "http://localhost:5176",
+        "http://127.0.0.1:5176",
+        "http://localhost:8081",
+        "http://127.0.0.1:8081",
+      ];
+
   const allowedOrigins = [
     "https://docs.edutu.org",
     "https://www.edutu.org",
     "https://edutu.org",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:5174",
-    "http://localhost:5175",
-    "http://127.0.0.1:5175",
-    "http://localhost:5176",
-    "http://127.0.0.1:5176",
-    "http://localhost:8081",
-    "http://127.0.0.1:8081",
+    ...devOrigins,
     process.env.ADMIN_URL,
     process.env.FRONTEND_URL,
     process.env.MOBILE_APP_URL,
-  ].filter(Boolean);
+  ].filter((origin): origin is string => Boolean(origin));
 
   app.enableCors({
     origin: allowedOrigins,

@@ -6,4 +6,8 @@
 import './OpportunityWidget';
 import './DeadlineWidget';
 import './TrendingWidget';
+import './TrendingSpotlightWidget';
+import './TrendingGridWidget';
+import './TrendingTickerWidget';
+import './TrendingThumbListWidget';
 import './ChatWidget';

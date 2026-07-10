@@ -106,7 +106,8 @@
     "description": "اسأل عن منح دراسية حقيقية أو مواعيد نهائية أو خرائط طريق أو الخطوات التالية للتقديم."
   },
   "input": {
-    "placeholder": "راسل Edutu..."
+    "placeholder": "راسل Edutu...",
+    "send": "إرسال"
   },
   "threads": {
     "modalTitle": "المحادثات",
@@ -130,5 +131,44 @@
     "hintSendOrWait": "اضغط على إرسال أو انتظر",
     "hintTranscribing": "جارٍ تحويل رسالتك إلى نص...",
     "hintStart": "اضغط على الميكروفون لبدء التسجيل"
+  },
+  "voiceMode": {
+    "badgeVoice": "محادثة صوتية",
+    "badgeLive": "مباشر",
+    "statusConnecting": "جارٍ البدء…",
+    "statusListening": "أستمع إليك…",
+    "statusTranscribing": "تم الاستلام…",
+    "statusThinking": "أفكر…",
+    "statusSpeaking": "إدوتو يتحدث",
+    "statusIdle": "المس الكرة للتحدث",
+    "statusMuted": "الميكروفون مكتوم — المس الميكروفون للمتابعة",
+    "youLabel": "أنت",
+    "errorPermission": "يحتاج إدوتو إلى إذن الميكروفون. فعّله من الإعدادات ثم المس الكرة.",
+    "errorLimit": "لقد وصلت إلى حد الذكاء الاصطناعي المجاني حاليًا.",
+    "errorNetwork": "حدث خطأ ما. المس الكرة للمحاولة مجددًا.",
+    "mute": "كتم الميكروفون",
+    "unmute": "إلغاء كتم الميكروفون",
+    "end": "إنهاء الوضع الصوتي",
+    "openChat": "فتح المحادثة",
+    "composerVoice": "بدء الوضع الصوتي",
+    "composerLive": "بدء الصوت المباشر",
+    "settingsTitle": "إعدادات الصوت",
+    "settingsDone": "تم",
+    "settingsDesign": "تصميم الكرة",
+    "settingsVoice": "صوت إدوتو",
+    "designParticles": "كرة الجسيمات",
+    "designRing": "حلقة الشفق",
+    "designBubble": "فقاعة الأحلام",
+    "designRobot": "روبو إدوتو",
+    "voiceDefault": "صوت النظام",
+    "voiceSample": "مرحبًا! أنا إدوتو، مدربك بالذكاء الاصطناعي.",
+    "designCrystal": "نجمة البلور",
+    "designGlass": "دوامة الزجاج",
+    "designBlob": "صديق الهلام",
+    "designPetals": "هالة البتلات",
+    "voiceRecommended": "موصى بها",
+    "voiceNigerian": "الإنجليزية النيجيرية",
+    "voiceAll": "المزيد من الأصوات",
+    "voiceHint": "للحصول على أصوات أوضح وأكثر طبيعية، نزّل الأصوات المحسّنة من إعدادات هاتفك — iOS: الإعدادات ← تسهيلات الاستخدام ← المحتوى المنطوق ← الأصوات؛ أندرويد: ثبّت أصوات تحويل النص إلى كلام من Google."
   }
 }

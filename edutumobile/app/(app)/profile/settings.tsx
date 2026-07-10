@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -7,9 +7,15 @@ import {
     Switch,
     StyleSheet,
     Alert,
-    TextInput
+    TextInput,
+    Image,
+    Modal,
+    Share,
+    Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Constants from 'expo-constants';
+import * as Haptics from 'expo-haptics';
 import {
     Moon,
     Shield,
@@ -17,47 +23,69 @@ import {
     Smartphone,
     Mail,
     Sun,
-    Zap,
     Lock,
     Vibrate,
     ExternalLink,
     MonitorSmartphone,
-    Globe
+    Globe,
+    Check,
+    MoonStar,
+    LogOut,
+    Star,
+    Share2,
+    Sparkles,
+    Info,
+    Clock,
+    Wind,
+    X,
 } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { Card } from '../../../components/ui/Card';
 import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import { LanguageSelector } from "../../../components/ui/LanguageSelector";
-import { useTheme, ThemePackage, ThemeMode } from "../../../components/context/ThemeContext";
+import {
+    useTheme,
+    ThemeMode,
+    THEME_ORDER,
+    THEME_SWATCHES,
+} from "../../../components/context/ThemeContext";
 import { notificationService, NotificationSettings } from "../../../lib/notifications";
 import * as WebBrowser from 'expo-web-browser';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
 
-const APPEARANCE_MODES: { id: ThemeMode; label: string; icon: React.ComponentType<{ size: number; color: string }> }[] = [
-    { id: 'light', label: 'Light', icon: Sun },
-    { id: 'dark', label: 'Dark', icon: Moon },
-    { id: 'system', label: 'System', icon: MonitorSmartphone },
+const APPEARANCE_MODES: { id: ThemeMode; labelKey: string; icon: React.ComponentType<{ size: number; color: string }> }[] = [
+    { id: 'light', labelKey: 'display.modeLight', icon: Sun },
+    { id: 'dark', labelKey: 'display.modeDark', icon: Moon },
+    { id: 'system', labelKey: 'display.modeSystem', icon: MonitorSmartphone },
 ];
 
-const THEME_PACKAGES: { id: ThemePackage, color: string }[] = [
-    { id: 'default', color: '#6366f1' },
-    { id: 'ocean', color: '#0ea5e9' },
-    { id: 'sunset', color: '#f59e0b' },
-    { id: 'forest', color: '#10b981' },
-    { id: 'royal', color: '#3b82f6' },
-];
+// 30-minute increments across the day for the quiet-hours picker.
+const TIME_OPTIONS: string[] = Array.from({ length: 48 }, (_, i) => {
+    const h = Math.floor(i / 2);
+    const m = i % 2 === 0 ? '00' : '30';
+    return `${String(h).padStart(2, '0')}:${m}`;
+});
+
+function formatTimeLabel(value: string): string {
+    const [hStr, m] = value.split(':');
+    const h = Number(hStr);
+    const suffix = h < 12 ? 'AM' : 'PM';
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}:${m} ${suffix}`;
+}
 
 export default function SettingsScreen() {
     const { t } = useTranslation('settings');
-    const { isDark, packageId, setPackage, colors, mode, setMode } = useTheme();
+    const { isDark, packageId, setPackage, colors, mode, setMode, reducedMotion, setReducedMotion } = useTheme();
     const { signOut, getToken } = useAuth();
     const { user } = useUser();
     const router = useRouter();
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [passwordLoading, setPasswordLoading] = useState(false);
+    const [timePicker, setTimePicker] = useState<null | 'quietHoursStart' | 'quietHoursEnd'>(null);
     const [notifSettings, setNotifSettings] = useState<NotificationSettings>({
         pushEnabled: true,
         emailEnabled: false,
@@ -68,11 +96,16 @@ export default function SettingsScreen() {
     });
 
     useEffect(() => {
-        // Load notification settings
         notificationService.loadSettings().then(settings => {
             setNotifSettings(settings);
         });
     }, []);
+
+    const haptic = useCallback(() => {
+        if (notifSettings.hapticsEnabled) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
+        }
+    }, [notifSettings.hapticsEnabled]);
 
     const updateNotifSetting = async <K extends keyof NotificationSettings>(
         key: K,
@@ -82,7 +115,6 @@ export default function SettingsScreen() {
         setNotifSettings(newSettings);
         await notificationService.saveSettings({ [key]: value });
 
-        // Trigger haptic feedback on toggle
         if (key === 'hapticsEnabled' && value === true) {
             await notificationService.triggerHaptic('light');
         }
@@ -90,9 +122,14 @@ export default function SettingsScreen() {
 
     const textPrimary = colors.foreground;
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
-    const sectionText = isDark ? '#475569' : '#94A3B8';
+    const sectionText = isDark ? '#64748B' : '#94A3B8';
     const cardBg = colors.card;
     const borderColor = colors.border;
+    const appVersion = Constants.expoConfig?.version ?? '1.0.0';
+    const displayName = user?.fullName || user?.firstName || user?.primaryEmailAddress?.emailAddress?.split('@')[0] || 'Edutu member';
+    const email = user?.primaryEmailAddress?.emailAddress ?? '';
+    const initials = (displayName || 'E').trim().split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase();
+
     const shouldShowPasswordSetup = Boolean(
         user &&
         !user.passwordEnabled &&
@@ -100,26 +137,18 @@ export default function SettingsScreen() {
     );
 
     const handleSetPassword = async () => {
-        if (!user || passwordLoading) {
-            return;
-        }
-
+        if (!user || passwordLoading) return;
         if (newPassword.length < 8) {
             Alert.alert(t('security.passwordTooShortTitle'), t('security.passwordTooShortMessage'));
             return;
         }
-
         if (newPassword !== confirmPassword) {
             Alert.alert(t('security.passwordMismatchTitle'), t('security.passwordMismatchMessage'));
             return;
         }
-
         setPasswordLoading(true);
         try {
-            await user.updatePassword({
-                newPassword,
-                signOutOfOtherSessions: false,
-            });
+            await user.updatePassword({ newPassword, signOutOfOtherSessions: false });
             setNewPassword('');
             setConfirmPassword('');
             Alert.alert(t('security.passwordAddedTitle'), t('security.passwordAddedMessage'));
@@ -128,6 +157,22 @@ export default function SettingsScreen() {
         } finally {
             setPasswordLoading(false);
         }
+    };
+
+    const handleSignOut = () => {
+        Alert.alert(t('account.signOut'), t('account.signOutConfirm'), [
+            { text: t('common:actions.cancel'), style: 'cancel' },
+            { text: t('account.signOut'), style: 'destructive', onPress: () => signOut() },
+        ]);
+    };
+
+    const handleShareApp = async () => {
+        haptic();
+        try {
+            await Share.share({
+                message: t('support.shareMessage'),
+            });
+        } catch { /* user dismissed */ }
     };
 
     const handleDeleteAccount = () => {
@@ -146,23 +191,16 @@ export default function SettingsScreen() {
                                 Alert.alert(t('common:states.error'), t('account.userNotFound'));
                                 return;
                             }
-
-                            // Delete Supabase data first (before Clerk session is invalidated)
                             const token = await getToken();
                             const { error: dbError } = await supabase.functions.invoke('delete-account', {
                                 headers: token ? { Authorization: `Bearer ${token}` } : undefined,
                                 body: { user_id: userId },
                             });
-
                             if (dbError) {
-                                if (__DEV__) {
-                                    console.error('Supabase data deletion failed:', dbError);
-                                }
+                                if (__DEV__) console.error('Supabase data deletion failed:', dbError);
                                 Alert.alert(t('common:states.error'), t('account.dataDeleteError'));
                                 return;
                             }
-
-                            // Then delete Clerk account
                             await user?.delete();
                             await signOut();
                             router.replace('/(auth)/sign-in');
@@ -188,56 +226,87 @@ export default function SettingsScreen() {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
             >
-                {/* Display Preferences */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: sectionText }]}>
-                        {t('sections.display')}
-                    </Text>
-
-                    <Card variant="glass" style={[styles.card, { marginBottom: 16 }]}>
-                        <View style={styles.settingRow}>
-                            <View style={styles.settingLeft}>
-                                <View style={[styles.iconContainer, { backgroundColor: isDark ? 'rgba(99,102,241,0.1)' : 'rgba(245,158,11,0.1)' }]}>
-                                    {isDark ? <Moon size={20} color="#818cf8" /> : <Sun size={20} color="#f59e0b" />}
-                                </View>
-                                <View>
-                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>{t('display.systemAppearance')}</Text>
-                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>
-                                        {t('display.systemAppearanceDesc')}
-                                    </Text>
-                                </View>
-                            </View>
-                            <View style={[styles.systemBadge, { backgroundColor: `${colors.accent}18` }]}>
-                                <Text style={[styles.systemBadgeText, { color: colors.accent }]}>{t('display.auto')}</Text>
-                            </View>
+                {/* Account summary */}
+                <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={() => { haptic(); router.push('/profile/edit'); }}
+                    style={[styles.accountCard, { backgroundColor: cardBg, borderColor }]}
+                >
+                    {user?.imageUrl ? (
+                        <Image source={{ uri: user.imageUrl }} style={styles.avatar} />
+                    ) : (
+                        <View style={[styles.avatar, styles.avatarFallback, { backgroundColor: colors.accent }]}>
+                            <Text style={styles.avatarInitials}>{initials}</Text>
                         </View>
-                    </Card>
+                    )}
+                    <View style={styles.accountInfo}>
+                        <Text style={[styles.accountName, { color: textPrimary }]} numberOfLines={1}>{displayName}</Text>
+                        {email ? <Text style={[styles.accountEmail, { color: textSecondary }]} numberOfLines={1}>{email}</Text> : null}
+                        <View style={[styles.managePill, { backgroundColor: `${colors.accent}18` }]}>
+                            <Text style={[styles.managePillText, { color: colors.accent }]}>{t('account.manage')}</Text>
+                        </View>
+                    </View>
+                    <ChevronRight size={20} color={textSecondary} />
+                </TouchableOpacity>
 
-                    <Text style={[styles.subTitle, { color: textSecondary }]}>
-                        {t('display.selectTheme')}
-                    </Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.themeScroll}>
-                        {THEME_PACKAGES.map((pkg) => {
-                            const isActive = packageId === pkg.id;
+                {/* Appearance */}
+                <View style={styles.section}>
+                    <SectionLabel color={sectionText}>{t('sections.display')}</SectionLabel>
+
+                    {/* Mode segmented control */}
+                    <Text style={[styles.subTitle, { color: textSecondary }]}>{t('display.appearance')}</Text>
+                    <View style={[styles.segmented, { backgroundColor: colors.muted, borderColor }]}>
+                        {APPEARANCE_MODES.map((m) => {
+                            const active = mode === m.id;
+                            const Icon = m.icon;
                             return (
                                 <TouchableOpacity
-                                    key={pkg.id}
-                                    onPress={() => setPackage(pkg.id)}
-                                    activeOpacity={0.8}
-                                    style={styles.themeItem}
+                                    key={m.id}
+                                    activeOpacity={0.85}
+                                    onPress={() => { haptic(); setMode(m.id); }}
+                                    style={[styles.segment, active && { backgroundColor: cardBg, shadowColor: '#000', shadowOpacity: isDark ? 0.4 : 0.12, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 }]}
                                 >
-                                    <Card
-                                        variant={isActive ? "elevated" : "glass"}
-                                        style={[
-                                            styles.themeCard,
-                                            { borderColor: isActive ? pkg.color : 'transparent', backgroundColor: isActive ? `${pkg.color}20` : cardBg }
-                                        ]}
-                                    >
-                                        <View style={[styles.themeCircle, { backgroundColor: pkg.color }]}>
-                                            <View style={styles.themeInner} />
+                                    <Icon size={17} color={active ? colors.accent : textSecondary} />
+                                    <Text style={[styles.segmentText, { color: active ? textPrimary : textSecondary }]}>
+                                        {t(m.labelKey)}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+
+                    {/* Theme gallery */}
+                    <Text style={[styles.subTitle, { color: textSecondary, marginTop: 20 }]}>{t('display.selectTheme')}</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.themeScrollContent}>
+                        {THEME_ORDER.map((id) => {
+                            const sw = THEME_SWATCHES[id];
+                            const isActive = packageId === id;
+                            return (
+                                <TouchableOpacity
+                                    key={id}
+                                    onPress={() => { haptic(); setPackage(id); }}
+                                    activeOpacity={0.85}
+                                    style={[
+                                        styles.themeCard,
+                                        { backgroundColor: cardBg, borderColor: isActive ? sw.accent : borderColor },
+                                        isActive && styles.themeCardActive,
+                                    ]}
+                                >
+                                    <View style={[styles.themePreview, { backgroundColor: sw.bg }]}>
+                                        <View style={[styles.themePreviewBar, { backgroundColor: sw.accent }]} />
+                                        <View style={styles.themePreviewRow}>
+                                            <View style={[styles.themePreviewChip, { backgroundColor: sw.card }]} />
+                                            <View style={[styles.themePreviewDot, { backgroundColor: sw.accentLight }]} />
                                         </View>
-                                        <Text style={[styles.themeName, { color: isActive ? colors.accent : textPrimary }]}>{t(`display.themes.${pkg.id}`)}</Text>
-                                    </Card>
+                                        {isActive && (
+                                            <View style={[styles.themeCheck, { backgroundColor: sw.accent }]}>
+                                                <Check size={12} color="#fff" strokeWidth={3} />
+                                            </View>
+                                        )}
+                                    </View>
+                                    <Text style={[styles.themeName, { color: isActive ? textPrimary : textSecondary }]} numberOfLines={1}>
+                                        {t(`display.themes.${id}`)}
+                                    </Text>
                                 </TouchableOpacity>
                             );
                         })}
@@ -246,389 +315,384 @@ export default function SettingsScreen() {
 
                 {/* Language */}
                 <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: sectionText }]}>
-                        {t('sections.language')}
-                    </Text>
-
-                    <Card variant="glass" style={[styles.card, { marginBottom: 16 }]}>
+                    <SectionLabel color={sectionText}>{t('sections.language')}</SectionLabel>
+                    <Card variant="solid" style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
                         <View style={styles.settingRow}>
-                            <View style={styles.settingLeft}>
-                                <View style={[styles.iconContainer, { backgroundColor: 'rgba(99,102,241,0.1)' }]}>
-                                    <Globe size={20} color="#818cf8" />
-                                </View>
-                                <View>
-                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>{t('language.label')}</Text>
-                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>
-                                        {t('language.desc')}
-                                    </Text>
-                                </View>
+                            <RowIcon bg="rgba(99,102,241,0.12)"><Globe size={20} color="#818cf8" /></RowIcon>
+                            <View style={styles.rowTextWrap}>
+                                <Text style={[styles.settingLabel, { color: textPrimary }]}>{t('language.label')}</Text>
+                                <Text style={[styles.settingDesc, { color: textSecondary }]}>{t('language.desc')}</Text>
                             </View>
                         </View>
-                        <LanguageSelector />
+                        <View style={styles.languageWrap}>
+                            <LanguageSelector />
+                        </View>
                     </Card>
                 </View>
 
-                {/* Notification Settings */}
+                {/* Notifications */}
                 <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: sectionText }]}>
-                        {t('sections.notifications')}
-                    </Text>
-
+                    <SectionLabel color={sectionText}>{t('sections.notifications')}</SectionLabel>
                     <Card variant="solid" style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
-                        <View style={[styles.settingRow, styles.borderBottom, { borderBottomColor: borderColor }]}>
-                            <View style={styles.settingLeft}>
-                                <View style={[styles.iconContainer, { backgroundColor: 'rgba(59,130,246,0.1)' }]}>
-                                    <Smartphone size={20} color="#3b82f6" />
-                                </View>
-                                <View>
-                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>{t('notifications.push')}</Text>
-                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>{t('notifications.pushDesc')}</Text>
-                                </View>
+                        <SettingRow
+                            icon={<Smartphone size={20} color="#3b82f6" />} iconBg="rgba(59,130,246,0.12)"
+                            label={t('notifications.push')} desc={t('notifications.pushDesc')}
+                            textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor}
+                            right={<Switch value={notifSettings.pushEnabled} onValueChange={(v) => updateNotifSetting('pushEnabled', v)} trackColor={{ false: isDark ? '#334155' : '#e2e8f0', true: colors.accent }} thumbColor="white" />}
+                        />
+                        <SettingRow
+                            icon={<Mail size={20} color="#10b981" />} iconBg="rgba(16,185,129,0.12)"
+                            label={t('notifications.email')} desc={t('notifications.emailDesc')}
+                            textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor}
+                            right={<Switch value={notifSettings.emailEnabled} onValueChange={(v) => updateNotifSetting('emailEnabled', v)} trackColor={{ false: isDark ? '#334155' : '#e2e8f0', true: colors.accent }} thumbColor="white" />}
+                        />
+                        <SettingRow
+                            icon={<Vibrate size={20} color="#f59e0b" />} iconBg="rgba(245,158,11,0.12)"
+                            label={t('notifications.haptics')} desc={t('notifications.hapticsDesc')}
+                            textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor}
+                            right={<Switch value={notifSettings.hapticsEnabled} onValueChange={(v) => updateNotifSetting('hapticsEnabled', v)} trackColor={{ false: isDark ? '#334155' : '#e2e8f0', true: colors.accent }} thumbColor="white" />}
+                        />
+                        <SettingRow
+                            icon={<MoonStar size={20} color="#8b5cf6" />} iconBg="rgba(139,92,246,0.12)"
+                            label={t('notifications.quietHours')} desc={t('notifications.quietHoursDesc')}
+                            textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor}
+                            isLast={!notifSettings.quietHoursEnabled}
+                            right={<Switch value={notifSettings.quietHoursEnabled} onValueChange={(v) => updateNotifSetting('quietHoursEnabled', v)} trackColor={{ false: isDark ? '#334155' : '#e2e8f0', true: colors.accent }} thumbColor="white" />}
+                        />
+                        {notifSettings.quietHoursEnabled && (
+                            <View style={styles.quietRow}>
+                                <TouchableOpacity
+                                    style={[styles.timeChip, { backgroundColor: colors.muted, borderColor }]}
+                                    onPress={() => { haptic(); setTimePicker('quietHoursStart'); }}
+                                >
+                                    <Clock size={13} color={textSecondary} />
+                                    <Text style={[styles.timeChipLabel, { color: textSecondary }]}>{t('notifications.from')}</Text>
+                                    <Text style={[styles.timeChipValue, { color: textPrimary }]}>{formatTimeLabel(notifSettings.quietHoursStart)}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.timeChip, { backgroundColor: colors.muted, borderColor }]}
+                                    onPress={() => { haptic(); setTimePicker('quietHoursEnd'); }}
+                                >
+                                    <Clock size={13} color={textSecondary} />
+                                    <Text style={[styles.timeChipLabel, { color: textSecondary }]}>{t('notifications.to')}</Text>
+                                    <Text style={[styles.timeChipValue, { color: textPrimary }]}>{formatTimeLabel(notifSettings.quietHoursEnd)}</Text>
+                                </TouchableOpacity>
                             </View>
-                            <Switch
-                                value={notifSettings.pushEnabled}
-                                onValueChange={(v) => updateNotifSetting('pushEnabled', v)}
-                                trackColor={{ false: '#e2e8f0', true: colors.accent }}
-                                thumbColor="white"
-                            />
-                        </View>
+                        )}
+                    </Card>
+                </View>
 
-                        <View style={[styles.settingRow, styles.borderBottom, { borderBottomColor: borderColor }]}>
-                            <View style={styles.settingLeft}>
-                                <View style={[styles.iconContainer, { backgroundColor: 'rgba(16,185,129,0.1)' }]}>
-                                    <Mail size={20} color="#10b981" />
-                                </View>
-                                <View>
-                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>{t('notifications.email')}</Text>
-                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>{t('notifications.emailDesc')}</Text>
-                                </View>
-                            </View>
-                            <Switch
-                                value={notifSettings.emailEnabled}
-                                onValueChange={(v) => updateNotifSetting('emailEnabled', v)}
-                                trackColor={{ false: '#e2e8f0', true: colors.accent }}
-                                thumbColor="white"
-                            />
-                        </View>
-
-                        <View style={styles.settingRow}>
-                            <View style={styles.settingLeft}>
-                                <View style={[styles.iconContainer, { backgroundColor: 'rgba(59,130,246,0.1)' }]}>
-                                    <Vibrate size={20} color="#3b82f6" />
-                                </View>
-                                <View>
-                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>{t('notifications.haptics')}</Text>
-                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>{t('notifications.hapticsDesc')}</Text>
-                                </View>
-                            </View>
-                            <Switch
-                                value={notifSettings.hapticsEnabled}
-                                onValueChange={(v) => updateNotifSetting('hapticsEnabled', v)}
-                                trackColor={{ false: '#e2e8f0', true: colors.accent }}
-                                thumbColor="white"
-                            />
-                        </View>
+                {/* Accessibility */}
+                <View style={styles.section}>
+                    <SectionLabel color={sectionText}>{t('sections.accessibility')}</SectionLabel>
+                    <Card variant="solid" style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
+                        <SettingRow
+                            icon={<Wind size={20} color="#06b6d4" />} iconBg="rgba(6,182,212,0.12)"
+                            label={t('accessibility.reduceMotion')} desc={t('accessibility.reduceMotionDesc')}
+                            textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor} isLast
+                            right={<Switch value={reducedMotion} onValueChange={(v) => { haptic(); setReducedMotion(v); }} trackColor={{ false: isDark ? '#334155' : '#e2e8f0', true: colors.accent }} thumbColor="white" />}
+                        />
                     </Card>
                 </View>
 
                 {/* Privacy & Security */}
                 <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: sectionText }]}>
-                        {t('sections.privacySecurity')}
-                    </Text>
+                    <SectionLabel color={sectionText}>{t('sections.privacySecurity')}</SectionLabel>
                     <Card variant="solid" style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
-                        <TouchableOpacity style={[styles.settingRow, styles.borderBottom, { borderBottomColor: borderColor }]}>
-                            <View style={styles.settingLeft}>
-                                <View style={[styles.iconContainer, { backgroundColor: 'rgba(239,68,68,0.1)' }]}>
-                                    <Lock size={20} color="#ef4444" />
-                                </View>
-                                <View>
-                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>{t('security.passwordKeys')}</Text>
-                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>{t('security.passwordKeysDesc')}</Text>
-                                </View>
-                            </View>
-                            <ChevronRight size={16} color={textSecondary} />
-                        </TouchableOpacity>
+                        <SettingRow
+                            icon={<Lock size={20} color="#ef4444" />} iconBg="rgba(239,68,68,0.12)"
+                            label={t('security.passwordKeys')} desc={t('security.passwordKeysDesc')}
+                            textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor}
+                            right={<ChevronRight size={16} color={textSecondary} />}
+                        />
                         {shouldShowPasswordSetup ? (
                             <View style={[styles.passwordSetup, styles.borderBottom, { borderBottomColor: borderColor }]}>
                                 <Text style={[styles.passwordSetupTitle, { color: textPrimary }]}>{t('security.addEmailPassword')}</Text>
-                                <Text style={[styles.passwordSetupDesc, { color: textSecondary }]}>
-                                    {t('security.addEmailPasswordDesc')}
-                                </Text>
-                                <TextInput
-                                    value={newPassword}
-                                    onChangeText={setNewPassword}
-                                    secureTextEntry
-                                    placeholder={t('security.newPassword')}
-                                    placeholderTextColor={textSecondary}
-                                    style={[styles.passwordInput, { color: textPrimary, borderColor, backgroundColor: colors.background }]}
-                                />
-                                <TextInput
-                                    value={confirmPassword}
-                                    onChangeText={setConfirmPassword}
-                                    secureTextEntry
-                                    placeholder={t('security.confirmPassword')}
-                                    placeholderTextColor={textSecondary}
-                                    style={[styles.passwordInput, { color: textPrimary, borderColor, backgroundColor: colors.background }]}
-                                />
-                                <TouchableOpacity
-                                    onPress={handleSetPassword}
-                                    disabled={passwordLoading}
-                                    style={[styles.passwordButton, passwordLoading && styles.passwordButtonDisabled]}
-                                >
-                                    <Text style={styles.passwordButtonText}>
-                                        {passwordLoading ? t('security.addingPassword') : t('security.addPassword')}
-                                    </Text>
+                                <Text style={[styles.passwordSetupDesc, { color: textSecondary }]}>{t('security.addEmailPasswordDesc')}</Text>
+                                <TextInput value={newPassword} onChangeText={setNewPassword} secureTextEntry placeholder={t('security.newPassword')} placeholderTextColor={textSecondary} style={[styles.passwordInput, { color: textPrimary, borderColor, backgroundColor: colors.background }]} />
+                                <TextInput value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry placeholder={t('security.confirmPassword')} placeholderTextColor={textSecondary} style={[styles.passwordInput, { color: textPrimary, borderColor, backgroundColor: colors.background }]} />
+                                <TouchableOpacity onPress={handleSetPassword} disabled={passwordLoading} style={[styles.passwordButton, { backgroundColor: colors.accent }, passwordLoading && styles.passwordButtonDisabled]}>
+                                    <Text style={styles.passwordButtonText}>{passwordLoading ? t('security.addingPassword') : t('security.addPassword')}</Text>
                                 </TouchableOpacity>
                             </View>
                         ) : null}
-                        <TouchableOpacity style={styles.settingRow}>
-                            <View style={styles.settingLeft}>
-                                <View style={[styles.iconContainer, { backgroundColor: 'rgba(59,130,246,0.1)' }]}>
-                                    <Shield size={20} color="#3b82f6" />
-                                </View>
-                                <View>
-                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>{t('security.privacy')}</Text>
-                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>{t('security.privacyDesc')}</Text>
-                                </View>
-                            </View>
-                            <ChevronRight size={16} color={textSecondary} />
-                        </TouchableOpacity>
+                        <SettingRow
+                            icon={<Shield size={20} color="#3b82f6" />} iconBg="rgba(59,130,246,0.12)"
+                            label={t('security.privacy')} desc={t('security.privacyDesc')}
+                            textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor} isLast
+                            onPress={() => openUrl('https://edutu.org/privacy')}
+                            right={<ChevronRight size={16} color={textSecondary} />}
+                        />
+                    </Card>
+                </View>
+
+                {/* Support & About */}
+                <View style={styles.section}>
+                    <SectionLabel color={sectionText}>{t('sections.support')}</SectionLabel>
+                    <Card variant="solid" style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
+                        <SettingRow
+                            icon={<Sparkles size={20} color="#f59e0b" />} iconBg="rgba(245,158,11,0.12)"
+                            label={t('support.help')} desc={t('support.helpDesc')}
+                            textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor}
+                            onPress={() => router.push('/help')}
+                            right={<ChevronRight size={16} color={textSecondary} />}
+                        />
+                        <SettingRow
+                            icon={<Star size={20} color="#eab308" />} iconBg="rgba(234,179,8,0.12)"
+                            label={t('support.rate')} desc={t('support.rateDesc')}
+                            textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor}
+                            onPress={() => openUrl('https://edutu.org')}
+                            right={<ExternalLink size={16} color={textSecondary} />}
+                        />
+                        <SettingRow
+                            icon={<Share2 size={20} color="#10b981" />} iconBg="rgba(16,185,129,0.12)"
+                            label={t('support.share')} desc={t('support.shareDesc')}
+                            textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor}
+                            onPress={handleShareApp}
+                            right={<ChevronRight size={16} color={textSecondary} />}
+                        />
+                        <SettingRow
+                            icon={<Info size={20} color="#64748b" />} iconBg="rgba(100,116,139,0.12)"
+                            label={t('support.version')} desc={t('support.versionValue', { version: appVersion })}
+                            textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor} isLast
+                            right={<Text style={[styles.versionTag, { color: textSecondary }]}>v{appVersion}</Text>}
+                        />
                     </Card>
                 </View>
 
                 {/* Legal */}
                 <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: sectionText }]}>
-                        {t('sections.legal')}
-                    </Text>
+                    <SectionLabel color={sectionText}>{t('sections.legal')}</SectionLabel>
                     <Card variant="solid" style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
-                        <TouchableOpacity
-                            style={[styles.settingRow, styles.borderBottom, { borderBottomColor: borderColor }]}
+                        <SettingRow
+                            icon={<Shield size={20} color="#3b82f6" />} iconBg="rgba(59,130,246,0.12)"
+                            label={t('legal.privacyPolicy')} desc={t('legal.privacyPolicyDesc')}
+                            textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor}
                             onPress={() => openUrl('https://edutu.org/privacy')}
-                        >
-                            <View style={styles.settingLeft}>
-                                <View style={[styles.iconContainer, { backgroundColor: 'rgba(59,130,246,0.1)' }]}>
-                                    <Shield size={20} color="#3b82f6" />
-                                </View>
-                                <View>
-                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>{t('legal.privacyPolicy')}</Text>
-                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>{t('legal.privacyPolicyDesc')}</Text>
-                                </View>
-                            </View>
-                            <ExternalLink size={16} color={textSecondary} />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.settingRow}
+                            right={<ExternalLink size={16} color={textSecondary} />}
+                        />
+                        <SettingRow
+                            icon={<Lock size={20} color="#3b82f6" />} iconBg="rgba(59,130,246,0.12)"
+                            label={t('legal.terms')} desc={t('legal.termsDesc')}
+                            textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor} isLast
                             onPress={() => openUrl('https://edutu.org/terms')}
-                        >
-                            <View style={styles.settingLeft}>
-                                <View style={[styles.iconContainer, { backgroundColor: 'rgba(59,130,246,0.1)' }]}>
-                                    <Lock size={20} color="#3b82f6" />
-                                </View>
-                                <View>
-                                    <Text style={[styles.settingLabel, { color: textPrimary }]}>{t('legal.terms')}</Text>
-                                    <Text style={[styles.settingDesc, { color: textSecondary }]}>{t('legal.termsDesc')}</Text>
-                                </View>
-                            </View>
-                            <ExternalLink size={16} color={textSecondary} />
-                        </TouchableOpacity>
+                            right={<ExternalLink size={16} color={textSecondary} />}
+                        />
                     </Card>
                 </View>
 
+                {/* Sign out */}
+                <TouchableOpacity style={[styles.signOutBtn, { backgroundColor: cardBg, borderColor }]} onPress={handleSignOut}>
+                    <LogOut size={18} color={textPrimary} />
+                    <Text style={[styles.signOutText, { color: textPrimary }]}>{t('account.signOut')}</Text>
+                </TouchableOpacity>
+
                 {/* Danger Zone */}
                 <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: '#ef4444' }]}>
-                        {t('sections.dangerZone')}
-                    </Text>
+                    <SectionLabel color="#ef4444">{t('sections.dangerZone')}</SectionLabel>
                     <TouchableOpacity
                         style={[styles.dangerBtn, { backgroundColor: isDark ? 'rgba(239,68,68,0.1)' : 'rgba(239,68,68,0.05)' }]}
                         onPress={handleDeleteAccount}
                     >
                         <Text style={[styles.dangerBtnText, { color: '#ef4444' }]}>{t('account.deleteAccount')}</Text>
                     </TouchableOpacity>
+                    <Text style={[styles.dangerHint, { color: textSecondary }]}>{t('account.deleteHint')}</Text>
                 </View>
-
-                <TouchableOpacity
-                    style={[styles.helpBtn, { backgroundColor: cardBg, borderColor }]
-                    }
-                    onPress={() => router.push('/help')}
-                >
-                    <Zap size={14} color={colors.accent} style={{ marginRight: 8 }} />
-                    <Text style={[styles.helpText, { color: textSecondary }]}>{t('helpCenter')}</Text>
-                </TouchableOpacity>
             </ScrollView>
+
+            {/* Time picker modal */}
+            <Modal visible={timePicker !== null} transparent animationType="fade" onRequestClose={() => setTimePicker(null)}>
+                <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setTimePicker(null)}>
+                    <View style={[styles.timeSheet, { backgroundColor: cardBg, borderColor }]} onStartShouldSetResponder={() => true}>
+                        <View style={styles.timeSheetHeader}>
+                            <Text style={[styles.timeSheetTitle, { color: textPrimary }]}>
+                                {timePicker === 'quietHoursStart' ? t('notifications.quietStartTitle') : t('notifications.quietEndTitle')}
+                            </Text>
+                            <TouchableOpacity onPress={() => setTimePicker(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                                <X size={20} color={textSecondary} />
+                            </TouchableOpacity>
+                        </View>
+                        <ScrollView style={styles.timeList} showsVerticalScrollIndicator={false}>
+                            {TIME_OPTIONS.map((opt) => {
+                                const selected = timePicker && notifSettings[timePicker] === opt;
+                                return (
+                                    <TouchableOpacity
+                                        key={opt}
+                                        style={[styles.timeOption, selected && { backgroundColor: `${colors.accent}18` }]}
+                                        onPress={() => {
+                                            if (timePicker) {
+                                                haptic();
+                                                updateNotifSetting(timePicker, opt);
+                                            }
+                                            setTimePicker(null);
+                                        }}
+                                    >
+                                        <Text style={[styles.timeOptionText, { color: selected ? colors.accent : textPrimary, fontWeight: selected ? '800' : '500' }]}>
+                                            {formatTimeLabel(opt)}
+                                        </Text>
+                                        {selected ? <Check size={18} color={colors.accent} strokeWidth={3} /> : null}
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
         </SafeAreaView>
     );
 }
 
+/* ---------- Reusable subcomponents ---------- */
+
+function SectionLabel({ children, color }: { children: React.ReactNode; color: string }) {
+    return <Text style={[styles.sectionTitle, { color }]}>{children}</Text>;
+}
+
+function RowIcon({ children, bg }: { children: React.ReactNode; bg: string }) {
+    return <View style={[styles.iconContainer, { backgroundColor: bg }]}>{children}</View>;
+}
+
+function SettingRow({
+    icon, iconBg, label, desc, right, onPress, isLast, textPrimary, textSecondary, borderColor,
+}: {
+    icon: React.ReactNode; iconBg: string; label: string; desc?: string; right?: React.ReactNode;
+    onPress?: () => void; isLast?: boolean; textPrimary: string; textSecondary: string; borderColor: string;
+}) {
+    const content = (
+        <View style={[styles.settingRow, !isLast && styles.borderBottom, !isLast && { borderBottomColor: borderColor }]}>
+            <View style={styles.settingLeft}>
+                <RowIcon bg={iconBg}>{icon}</RowIcon>
+                <View style={styles.rowTextWrap}>
+                    <Text style={[styles.settingLabel, { color: textPrimary }]}>{label}</Text>
+                    {desc ? <Text style={[styles.settingDesc, { color: textSecondary }]}>{desc}</Text> : null}
+                </View>
+            </View>
+            {right}
+        </View>
+    );
+    if (onPress) {
+        return <TouchableOpacity activeOpacity={0.7} onPress={onPress}>{content}</TouchableOpacity>;
+    }
+    return content;
+}
+
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
+    container: { flex: 1 },
+    scrollView: { flex: 1 },
+    scrollContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 120 },
+
+    /* Account card */
+    accountCard: {
+        flexDirection: 'row', alignItems: 'center', gap: 14,
+        padding: 16, borderRadius: 20, borderWidth: 1, marginBottom: 28,
     },
-    scrollView: {
-        flex: 1,
-    },
-    scrollContent: {
-        paddingHorizontal: 20,
-        paddingTop: 20,
-        paddingBottom: 120,
-    },
-    section: {
-        marginBottom: 32,
-    },
+    avatar: { width: 56, height: 56, borderRadius: 18 },
+    avatarFallback: { alignItems: 'center', justifyContent: 'center' },
+    avatarInitials: { color: '#fff', fontSize: 20, fontWeight: '800' },
+    accountInfo: { flex: 1, gap: 2 },
+    accountName: { fontSize: 17, fontWeight: '800' },
+    accountEmail: { fontSize: 13 },
+    managePill: { alignSelf: 'flex-start', marginTop: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+    managePillText: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+
+    section: { marginBottom: 28 },
     sectionTitle: {
-        fontSize: 11,
-        fontWeight: '900',
-        textTransform: 'uppercase',
-        letterSpacing: 2,
-        marginLeft: 4,
-        marginBottom: 16,
+        fontSize: 11, fontWeight: '900', textTransform: 'uppercase',
+        letterSpacing: 2, marginLeft: 4, marginBottom: 14,
     },
     subTitle: {
-        fontSize: 11,
-        fontWeight: '700',
-        textTransform: 'uppercase',
-        letterSpacing: 1,
-        marginLeft: 4,
-        marginBottom: 12,
+        fontSize: 11, fontWeight: '700', textTransform: 'uppercase',
+        letterSpacing: 1, marginLeft: 4, marginBottom: 10,
     },
-    card: {
-        padding: 4,
+    card: { padding: 0 },
+
+    /* Segmented control */
+    segmented: {
+        flexDirection: 'row', borderRadius: 14, padding: 4, borderWidth: 1, gap: 4,
     },
+    segment: {
+        flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        gap: 6, paddingVertical: 10, borderRadius: 10,
+    },
+    segmentText: { fontSize: 13, fontWeight: '700' },
+
+    /* Theme gallery */
+    themeScrollContent: { paddingRight: 20, gap: 12 },
+    themeCard: { width: 116, borderRadius: 16, borderWidth: 2, padding: 8, alignItems: 'center' },
+    themeCardActive: {
+        shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3,
+    },
+    themePreview: { width: '100%', height: 74, borderRadius: 10, padding: 9, justifyContent: 'space-between', overflow: 'hidden' },
+    themePreviewBar: { height: 8, width: '58%', borderRadius: 4 },
+    themePreviewRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    themePreviewChip: { flex: 1, height: 20, borderRadius: 6 },
+    themePreviewDot: { width: 20, height: 20, borderRadius: 10 },
+    themeCheck: {
+        position: 'absolute', top: 6, right: 6, width: 20, height: 20, borderRadius: 10,
+        alignItems: 'center', justifyContent: 'center',
+    },
+    themeName: { fontSize: 12, fontWeight: '700', textAlign: 'center', marginTop: 8 },
+
+    /* Rows */
     settingRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 12,
-        paddingHorizontal: 16,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        paddingVertical: 14, paddingHorizontal: 16,
     },
-    borderBottom: {
-        borderBottomWidth: 1,
-    },
-    settingLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-    },
+    borderBottom: { borderBottomWidth: 1 },
+    settingLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+    rowTextWrap: { flex: 1, paddingRight: 8 },
     iconContainer: {
-        width: 40,
-        height: 40,
-        borderRadius: 10,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 14,
+        width: 40, height: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginRight: 14,
     },
-    settingLabel: {
-        fontSize: 15,
-        fontWeight: '600',
+    settingLabel: { fontSize: 15, fontWeight: '600' },
+    settingDesc: { fontSize: 12, marginTop: 2 },
+    languageWrap: { paddingHorizontal: 12, paddingBottom: 12 },
+
+    /* Quiet hours */
+    quietRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingBottom: 14, paddingTop: 2 },
+    timeChip: {
+        flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6,
+        paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1,
     },
-    settingDesc: {
-        fontSize: 12,
-        marginTop: 2,
+    timeChipLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+    timeChipValue: { fontSize: 14, fontWeight: '800', marginLeft: 'auto' },
+
+    /* Password setup */
+    passwordSetup: { paddingHorizontal: 16, paddingVertical: 14, gap: 10 },
+    passwordSetupTitle: { fontSize: 14, fontWeight: '800' },
+    passwordSetupDesc: { fontSize: 12, lineHeight: 18 },
+    passwordInput: { height: 48, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, fontSize: 14 },
+    passwordButton: { height: 46, borderRadius: 999, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+    passwordButtonDisabled: { opacity: 0.55 },
+    passwordButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+
+    versionTag: { fontSize: 13, fontWeight: '700' },
+
+    /* Sign out + danger */
+    signOutBtn: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+        paddingVertical: 16, borderRadius: 16, borderWidth: 1, marginBottom: 28,
     },
-    passwordSetup: {
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        gap: 10,
+    signOutText: { fontSize: 15, fontWeight: '700' },
+    dangerBtn: { paddingVertical: 16, borderRadius: 16, borderWidth: 1, borderColor: '#ef444433', alignItems: 'center' },
+    dangerBtnText: { fontSize: 15, fontWeight: '700' },
+    dangerHint: { fontSize: 12, textAlign: 'center', marginTop: 10, lineHeight: 17, paddingHorizontal: 12 },
+
+    /* Time picker modal */
+    modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+    timeSheet: {
+        maxHeight: '62%', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1,
+        paddingHorizontal: 8, paddingTop: 8, paddingBottom: Platform.OS === 'ios' ? 32 : 16,
     },
-    passwordSetupTitle: {
-        fontSize: 14,
-        fontWeight: '800',
+    timeSheetHeader: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        paddingHorizontal: 12, paddingVertical: 14,
     },
-    passwordSetupDesc: {
-        fontSize: 12,
-        lineHeight: 18,
+    timeSheetTitle: { fontSize: 16, fontWeight: '800' },
+    timeList: { paddingHorizontal: 4 },
+    timeOption: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        paddingVertical: 14, paddingHorizontal: 14, borderRadius: 12,
     },
-    passwordInput: {
-        height: 48,
-        borderRadius: 12,
-        borderWidth: 1,
-        paddingHorizontal: 14,
-        fontSize: 14,
-    },
-    passwordButton: {
-        height: 46,
-        borderRadius: 999,
-        backgroundColor: '#2563EB',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginTop: 2,
-    },
-    passwordButtonDisabled: {
-        opacity: 0.55,
-    },
-    passwordButtonText: {
-        color: '#FFFFFF',
-        fontSize: 14,
-        fontWeight: '800',
-    },
-    systemBadge: {
-        paddingHorizontal: 12,
-        paddingVertical: 7,
-        borderRadius: 999,
-    },
-    systemBadgeText: {
-        fontSize: 12,
-        fontWeight: '800',
-    },
-    themeScroll: {
-        marginBottom: 8,
-    },
-    themeItem: {
-        marginRight: 12,
-    },
-    themeCard: {
-        padding: 16,
-        alignItems: 'center',
-        width: 110,
-        borderWidth: 2,
-    },
-    themeCircle: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        marginBottom: 10,
-        position: 'relative',
-    },
-    themeInner: {
-        width: 16,
-        height: 16,
-        borderRadius: 8,
-        backgroundColor: 'rgba(255,255,255,0.3)',
-        position: 'absolute',
-        top: 8,
-        left: 8,
-    },
-    themeName: {
-        fontSize: 11,
-        fontWeight: '600',
-        textAlign: 'center',
-    },
-    helpBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 16,
-        borderRadius: 16,
-        borderWidth: 1,
-        marginBottom: 20,
-    },
-    helpText: {
-        fontSize: 11,
-        fontWeight: '900',
-        textTransform: 'uppercase',
-        letterSpacing: 2,
-    },
-    dangerBtn: {
-        paddingVertical: 16,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: '#ef444433',
-        alignItems: 'center',
-    },
-    dangerBtnText: {
-        fontSize: 15,
-        fontWeight: '600',
-    },
+    timeOptionText: { fontSize: 15 },
 });

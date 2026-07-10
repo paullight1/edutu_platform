@@ -1,24 +1,45 @@
 {
   "title": "Settings",
   "sections": {
-    "display": "Display Preferences",
+    "display": "Appearance",
     "language": "Language",
     "notifications": "Notifications",
+    "accessibility": "Accessibility",
     "privacySecurity": "Privacy & Security",
+    "support": "Support & About",
     "legal": "Legal",
     "dangerZone": "Danger Zone"
   },
+  "account": {
+    "manage": "Manage account",
+    "signOut": "Sign out",
+    "signOutConfirm": "You'll need to sign in again to access your account.",
+    "deleteAccount": "Delete Account",
+    "deleteHint": "This permanently erases your profile, goals, and progress. It cannot be undone.",
+    "deleteConfirmMessage": "Are you sure you want to delete your account? This action cannot be undone. All your data, goals, and progress will be permanently removed.",
+    "userNotFound": "User not found. Please try again.",
+    "dataDeleteError": "We could not delete your app data. Please try again before deleting your account.",
+    "deleteError": "Failed to delete account. Please contact support at support@edutu.org"
+  },
   "display": {
+    "appearance": "Appearance",
+    "modeLight": "Light",
+    "modeDark": "Dark",
+    "modeSystem": "System",
     "systemAppearance": "System Appearance",
     "systemAppearanceDesc": "Matches your device settings",
     "auto": "Auto",
-    "selectTheme": "Select Theme",
+    "selectTheme": "Color Theme",
     "themes": {
       "default": "Indigo Pulse",
       "ocean": "Ocean Breeze",
       "sunset": "African Sunset",
       "forest": "Emerald Forest",
-      "royal": "Royal Velvet"
+      "royal": "Royal Velvet",
+      "rose": "Rose Bloom",
+      "amethyst": "Amethyst",
+      "graphite": "Graphite",
+      "crimson": "Crimson"
     }
   },
   "language": {
@@ -35,7 +56,17 @@
     "email": "Email Alerts",
     "emailDesc": "Weekly digest & updates",
     "haptics": "Haptics",
-    "hapticsDesc": "Vibration feedback"
+    "hapticsDesc": "Vibration feedback",
+    "quietHours": "Quiet Hours",
+    "quietHoursDesc": "Mute alerts during set times",
+    "from": "From",
+    "to": "To",
+    "quietStartTitle": "Quiet hours start",
+    "quietEndTitle": "Quiet hours end"
+  },
+  "accessibility": {
+    "reduceMotion": "Reduce Motion",
+    "reduceMotionDesc": "Minimize animations across the app"
   },
   "security": {
     "passwordKeys": "Password & Keys",
@@ -57,18 +88,22 @@
     "passwordErrorTitle": "Could not add password",
     "passwordErrorMessage": "Please try again."
   },
+  "support": {
+    "help": "Help Center",
+    "helpDesc": "Guides, FAQs & contact support",
+    "rate": "Rate Edutu",
+    "rateDesc": "Enjoying the app? Leave a review",
+    "share": "Share Edutu",
+    "shareDesc": "Invite friends to grow with you",
+    "shareMessage": "I'm using Edutu to find scholarships, internships and opportunities across Africa. Join me: https://edutu.org",
+    "version": "App Version",
+    "versionValue": "You're on version {{version}}"
+  },
   "legal": {
     "privacyPolicy": "Privacy Policy",
     "privacyPolicyDesc": "How we handle your data",
     "terms": "Terms of Service",
     "termsDesc": "User agreement & policies"
-  },
-  "account": {
-    "deleteAccount": "Delete Account",
-    "deleteConfirmMessage": "Are you sure you want to delete your account? This action cannot be undone. All your data, goals, and progress will be permanently removed.",
-    "userNotFound": "User not found. Please try again.",
-    "dataDeleteError": "We could not delete your app data. Please try again before deleting your account.",
-    "deleteError": "Failed to delete account. Please contact support at support@edutu.org"
   },
   "helpCenter": "Help Center"
 }

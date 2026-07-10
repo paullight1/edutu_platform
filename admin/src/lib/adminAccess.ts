@@ -10,9 +10,7 @@ export type AdminRole = (typeof ADMIN_ROLES)[number];
 const DEFAULT_ADMIN_EMAILS = [
   "admin@edutu.ai",
   "founder@edutu.ai",
-  "nwosupaul3@gmail.com",
-  "nwouspaul3@gmail.com",
-];
+  "nwosupaul3@gmail.com",];
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 

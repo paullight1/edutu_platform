@@ -2,7 +2,6 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { I18nManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Localization from 'expo-localization';
 import { resources, namespaces } from './resources';
 import {
     DEFAULT_LANGUAGE,
@@ -20,6 +19,11 @@ const LANGUAGE_STORAGE_KEY = '@edutu/language';
 /** Best-effort device locale; expo-localization needs a native rebuild, so never let it crash boot. */
 function detectDeviceLanguage(): LanguageCode {
     try {
+        // Lazy + optional: on a stale dev client the native module may be
+        // absent, and `expo-localization`'s entry throws the moment it's
+        // evaluated. Requiring it here (inside try/catch) instead of at the
+        // top of the module keeps that failure from crashing app boot.
+        const Localization = require('expo-localization') as typeof import('expo-localization');
         const locales = Localization.getLocales();
         for (const locale of locales ?? []) {
             const code = locale?.languageCode?.toLowerCase();

@@ -17,7 +17,8 @@ import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useTranslation } from 'react-i18next';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Plus, ChevronLeft, Eye, Crown, ChevronRight, FilePlus, Import, Target } from 'lucide-react-native';
+import { Plus, ChevronLeft, Eye, Crown, ChevronRight, FilePlus, Import, Target, Upload } from 'lucide-react-native';
+import * as DocumentPicker from 'expo-document-picker';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { BrandedLoader } from '../../../components/ui/BrandedLoader';
 import { supabase } from '../../../lib/supabase';
@@ -184,6 +185,24 @@ export default function CVBuilderScreen() {
     const [previewTemplate, setPreviewTemplate] = useState<CVTemplate | null>(null);
     const [linkedInUrl, setLinkedInUrl] = useState('');
     const [isLinkedInImporting, setIsLinkedInImporting] = useState(false);
+    // The one-off free CV trial grants premium access for the session so the
+    // "Upgrade to Pro" nag disappears the moment the user starts it.
+    const [trialActive, setTrialActive] = useState(false);
+
+    // Identity from the signed-in user — used to name the CV after the user and
+    // to seed the header even when the profile row is missing/offline.
+    const displayName = (
+        user?.fullName ||
+        [user?.firstName, user?.lastName].filter(Boolean).join(' ') ||
+        user?.firstName ||
+        ''
+    ).trim();
+    const profileFallback = {
+        full_name: displayName || undefined,
+        email: user?.primaryEmailAddress?.emailAddress || undefined,
+    };
+    const defaultCvName = () => (displayName ? `${displayName}'s CV` : t('defaults.myCv'));
+    const hasPro = isPro || trialActive;
 
     const handleLinkedInSubmit = async () => {
         if (!linkedInUrl || !user) return;
@@ -194,10 +213,14 @@ export default function CVBuilderScreen() {
                 currentData: currentCV.data_json,
                 prompt: 'scholarships, internships, and early-career opportunities',
                 getToken,
+                profileFallback,
             });
             setCurrentCV((prev: Partial<UserCV>) => ({
                 ...prev,
-                name: prev.name || t('defaults.aiDraft'),
+                name:
+                    result.cv.header?.full_name
+                        ? `${result.cv.header.full_name}'s CV`
+                        : prev.name || defaultCvName(),
                 data_json: result.cv,
             }));
             setIsLinkedInImporting(false);
@@ -214,6 +237,47 @@ export default function CVBuilderScreen() {
             console.error('AI CV generation error:', error);
             setIsLinkedInImporting(false);
             Alert.alert(t('common:states.error'), t('alerts.generateFailed'));
+        }
+    };
+
+    // First-party import: pick the user's own LinkedIn export (PDF or ZIP) and
+    // parse it on our backend — no third-party scraper.
+    const handleLinkedInFileImport = async () => {
+        try {
+            const picked = await DocumentPicker.getDocumentAsync({
+                type: [
+                    'application/pdf',
+                    'application/zip',
+                    'application/x-zip-compressed',
+                    'multipart/x-zip',
+                ],
+                copyToCacheDirectory: true,
+                multiple: false,
+            });
+            if (picked.canceled || !picked.assets?.length) return;
+            const asset = picked.assets[0];
+
+            setIsLinkedInImporting(true);
+            const result = await cvService.importLinkedInFromFile(
+                { uri: asset.uri, name: asset.name, mimeType: asset.mimeType ?? undefined },
+                getToken,
+            );
+            setCurrentCV((prev: Partial<UserCV>) => ({
+                ...prev,
+                name: result.cv.header?.full_name
+                    ? `${result.cv.header.full_name}'s CV`
+                    : prev.name || defaultCvName(),
+                data_json: result.cv,
+            }));
+            setShowLinkedInModal(false);
+            setLinkedInUrl('');
+            setActiveSection('editor');
+            Alert.alert(t('alerts.aiDraftReadyTitle'), t('linkedInModal.importedFromFile'));
+        } catch (error: any) {
+            console.error('LinkedIn file import error:', error);
+            Alert.alert(t('common:states.error'), error?.message || t('alerts.generateFailed'));
+        } finally {
+            setIsLinkedInImporting(false);
         }
     };
 
@@ -279,7 +343,7 @@ export default function CVBuilderScreen() {
                 userId: user.id,
                 force: false,
             });
-            setOpportunities(opportunityData.slice(0, 8));
+            setOpportunities(opportunityData.slice(0, 40));
         } catch (error) {
             console.error('Error loading opportunities for tailoring:', error);
         } finally {
@@ -288,7 +352,7 @@ export default function CVBuilderScreen() {
     };
 
     const handleSelectTemplate = (template: CVTemplate) => {
-        if (template.is_premium && !isPro) {
+        if (template.is_premium && !hasPro) {
             setUpgradeFeature(t('upgrade.templateFeature', { name: template.name }));
             setShowUpgradeModal(true);
             return;
@@ -304,8 +368,22 @@ export default function CVBuilderScreen() {
 
     const handleCreateNewCV = () => {
         setSelectedTemplate(null);
-        setCurrentCV({ name: t('defaults.untitled'), data_json: {} });
-        // Straight into a blank editor — picking a template stays optional.
+        // Seed the header with the signed-in user's identity so the editor never
+        // opens as a blank "John Doe" form. The rest stays empty to fill in.
+        setCurrentCV({
+            name: defaultCvName(),
+            data_json: {
+                header: {
+                    full_name: displayName,
+                    email: profileFallback.email || '',
+                    phone: '',
+                    location: '',
+                    linkedin: '',
+                    portfolio: '',
+                    website: '',
+                },
+            },
+        });
         setActiveSection('editor');
     };
 
@@ -404,6 +482,9 @@ export default function CVBuilderScreen() {
         if (user) {
             await cvService.useCVTrial(supabase, user.id);
             setTrialUsed(true);
+            // Unlock premium for the session so the upgrade nag disappears
+            // immediately after the user starts their free trial.
+            setTrialActive(true);
         }
     };
 
@@ -465,8 +546,8 @@ export default function CVBuilderScreen() {
                 }
             />
 
-            {/* Pro Status Banner */}
-            {!isPro && (
+            {/* Pro Status Banner — hidden once the user is Pro or has an active trial */}
+            {!hasPro && (
                 <TouchableOpacity
                     style={[styles.proBanner, { backgroundColor: isDark ? '#1E293B' : '#FEF3C7' }]}
                     onPress={() => setShowUpgradeModal(true)}
@@ -481,6 +562,18 @@ export default function CVBuilderScreen() {
                     </Text>
                     <ChevronRight size={18} color={isDark ? '#FBBF24' : '#D97706'} />
                 </TouchableOpacity>
+            )}
+
+            {/* Active trial confirmation — replaces the upgrade nag after activation */}
+            {trialActive && !isPro && (
+                <View style={[styles.proBanner, { backgroundColor: isDark ? 'rgba(16,185,129,0.12)' : '#DCFCE7' }]}>
+                    <View style={[styles.proBannerIcon, { backgroundColor: '#10B981' }]}>
+                        <Crown size={18} color="#FFFFFF" />
+                    </View>
+                    <Text style={[styles.proBannerText, { color: isDark ? '#34D399' : '#047857' }]}>
+                        {t('proBanner.trialActive')}
+                    </Text>
+                </View>
             )}
 
             {activeSection === 'templates' && (
@@ -552,7 +645,7 @@ export default function CVBuilderScreen() {
                                 <CVTemplateCard
                                     item={item}
                                     onSelect={setPreviewTemplate}
-                                    isPro={isPro}
+                                    isPro={hasPro}
                                 />
                             )}
                             keyExtractor={(item) => item.id}
@@ -591,7 +684,7 @@ export default function CVBuilderScreen() {
                 <CVEditor
                     currentCV={currentCV}
                     setCurrentCV={setCurrentCV}
-                    isPro={isPro}
+                    isPro={hasPro}
                     isSaving={isSaving}
                     isExporting={isExporting}
                     isImprovingSummary={isImprovingSummary}
@@ -720,7 +813,7 @@ export default function CVBuilderScreen() {
                                 }}
                             >
                                 <Text style={styles.modalBtnConfirmText}>
-                                    {previewTemplate?.is_premium && !isPro ? t('templates.unlock') : t('templates.use')}
+                                    {previewTemplate?.is_premium && !hasPro ? t('templates.unlock') : t('templates.use')}
                                 </Text>
                             </TouchableOpacity>
                         </View>
@@ -748,6 +841,26 @@ export default function CVBuilderScreen() {
                             autoCapitalize="none"
                             autoCorrect={false}
                         />
+
+                        <View style={styles.linkedInDivider}>
+                            <View style={[styles.linkedInDividerLine, { backgroundColor: colors.border }]} />
+                            <Text style={[styles.linkedInDividerText, { color: isDark ? '#64748B' : '#94A3B8' }]}>{t('linkedInModal.or')}</Text>
+                            <View style={[styles.linkedInDividerLine, { backgroundColor: colors.border }]} />
+                        </View>
+
+                        <TouchableOpacity
+                            style={[styles.uploadExportBtn, { borderColor: colors.border, opacity: isLinkedInImporting ? 0.7 : 1 }]}
+                            onPress={handleLinkedInFileImport}
+                            disabled={isLinkedInImporting}
+                        >
+                            <Upload size={18} color={colors.primary} />
+                            <Text style={[styles.uploadExportText, { color: colors.foreground }]}>
+                                {t('linkedInModal.uploadExport')}
+                            </Text>
+                        </TouchableOpacity>
+                        <Text style={[styles.linkedInHint, { color: isDark ? '#64748B' : '#94A3B8' }]}>
+                            {t('linkedInModal.uploadHint')}
+                        </Text>
 
                         <View style={styles.modalActions}>
                             <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setShowLinkedInModal(false)} disabled={isLinkedInImporting}>
@@ -1067,9 +1180,44 @@ const styles = StyleSheet.create({
         height: 48,
         borderRadius: 12,
         paddingHorizontal: 16,
-        marginBottom: 24,
+        marginBottom: 16,
         borderWidth: 1,
         borderColor: 'rgba(148, 163, 184, 0.2)',
+    },
+    linkedInDivider: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginBottom: 14,
+    },
+    linkedInDividerLine: {
+        flex: 1,
+        height: 1,
+    },
+    linkedInDividerText: {
+        fontSize: 12,
+        fontWeight: '600',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+    },
+    uploadExportBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        height: 48,
+        borderRadius: 12,
+        borderWidth: 1,
+    },
+    uploadExportText: {
+        fontSize: 15,
+        fontWeight: '600',
+    },
+    linkedInHint: {
+        fontSize: 12,
+        lineHeight: 16,
+        marginTop: 8,
+        marginBottom: 20,
     },
     modalActions: {
         flexDirection: 'row',

@@ -114,21 +114,40 @@ function WhyCard({ text }: { text: string }) {
 }
 
 function StepIndicator({ currentStep, totalSteps }: { currentStep: number; totalSteps: number }) {
+    const steps = STEPS.slice(0, totalSteps)
     return (
         <View style={styles.stepIndicator}>
-            {STEPS.slice(0, totalSteps).map((step, index) => {
+            {steps.map((step, index) => {
                 const isActive = index === currentStep
                 const isCompleted = index < currentStep
+                const Icon = step.icon
                 return (
-                    <View key={step.id} style={styles.stepItem}>
+                    <React.Fragment key={step.id}>
                         <View
                             style={[
-                                styles.stepBar,
-                                isActive && styles.stepBarActive,
-                                isCompleted && styles.stepBarCompleted,
+                                styles.stepCircle,
+                                isActive && styles.stepCircleActive,
+                                isCompleted && styles.stepCircleCompleted,
                             ]}
-                        />
-                    </View>
+                        >
+                            {isCompleted ? (
+                                <Check size={15} color="#FFFFFF" strokeWidth={3} />
+                            ) : (
+                                <Icon
+                                    size={15}
+                                    color={isActive ? '#FFFFFF' : styles._muted.color}
+                                />
+                            )}
+                        </View>
+                        {index < steps.length - 1 && (
+                            <View
+                                style={[
+                                    styles.stepConnector,
+                                    index < currentStep && styles.stepConnectorActive,
+                                ]}
+                            />
+                        )}
+                    </React.Fragment>
                 )
             })}
         </View>
@@ -490,6 +509,7 @@ function InterestsStep({ formData, setFormData }: { formData: FormData; setFormD
                                     onPress={() => toggleInterest(interest)}
                                     activeOpacity={0.7}
                                 >
+                                    {isSelected && <Check size={14} color="#FFFFFF" strokeWidth={3} />}
                                     <Text style={[styles.interestChipText, isSelected && styles.interestChipTextSelected]}>{interest}</Text>
                                 </TouchableOpacity>
                             )
@@ -528,6 +548,12 @@ function WelcomeStep({ formData }: { formData: FormData }) {
     const { t } = useTranslation('auth')
     const hasProfile = formData.fullName.trim().length > 0
 
+    const degreeKey = DEGREE_PURSUITS.find((d) => d.value === formData.degreePursuit)?.label
+    const ambitionLabels = formData.selectedAmbitions
+        .map((v) => AMBITIONS_DATA.find((a) => a.value === v)?.label)
+        .filter(Boolean) as string[]
+    const recapTags = [...formData.selectedInterests, ...ambitionLabels]
+
     const features = [
         { icon: Sparkles, tint: styles._accent.color, text: t('onboarding.welcome.featureMatches') },
         { icon: Award, tint: styles._success.color, text: t('onboarding.welcome.featurePrograms') },
@@ -549,9 +575,38 @@ function WelcomeStep({ formData }: { formData: FormData }) {
                 </Text>
                 <Text style={styles.welcomeSubtitle}>{t('onboarding.welcome.subtitle')}</Text>
 
+                {(hasProfile || recapTags.length > 0) && (
+                    <Animated.View entering={FadeInUp.delay(80).duration(320)} style={styles.recapCard}>
+                        <Text style={styles.recapLabel}>{t('onboarding.welcome.recapLabel')}</Text>
+                        {hasProfile && (
+                            <View style={styles.recapHeaderRow}>
+                                <Text style={styles.recapFlag}>{formData.selectedCountry.flag}</Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.recapName} numberOfLines={1}>
+                                        {formData.fullName.trim()}
+                                    </Text>
+                                    <Text style={styles.recapMeta} numberOfLines={1}>
+                                        {formData.selectedCountry.name}
+                                        {degreeKey ? ` · ${t(degreeKey)}` : ''}
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
+                        {recapTags.length > 0 && (
+                            <View style={styles.recapTags}>
+                                {recapTags.map((tag, i) => (
+                                    <View key={`${tag}-${i}`} style={styles.recapTag}>
+                                        <Text style={styles.recapTagText}>{tag}</Text>
+                                    </View>
+                                ))}
+                            </View>
+                        )}
+                    </Animated.View>
+                )}
+
                 <View style={styles.welcomeFeatures}>
                     {features.map((f, i) => (
-                        <Animated.View key={i} entering={FadeInUp.delay(100 + i * 100).duration(320)} style={styles.featureItem}>
+                        <Animated.View key={i} entering={FadeInUp.delay(180 + i * 90).duration(320)} style={styles.featureItem}>
                             <View style={[styles.featureIcon, { backgroundColor: `${f.tint}22` }]}>
                                 <f.icon size={20} color={f.tint} />
                             </View>
@@ -844,25 +899,36 @@ export default function OnboardingScreen() {
                                 <Text style={styles.footerHint}>{t('onboarding.welcome.footerHint')}</Text>
                             )}
                             <TouchableOpacity
-                                style={[
-                                    styles.button,
-                                    { backgroundColor: canProceed() ? colors.accent : colors.muted },
-                                    !canProceed() && styles.buttonDisabled,
-                                ]}
+                                style={[styles.buttonWrap, !canProceed() && styles.buttonDisabled]}
                                 onPress={handleNext}
                                 disabled={!canProceed() || loading}
-                                activeOpacity={0.85}
+                                activeOpacity={0.9}
                             >
-                                {loading ? (
-                                    <ActivityIndicator color="#FFFFFF" size="small" />
-                                ) : (
-                                    <>
-                                        <Text style={styles.buttonText}>
-                                            {isLastStep ? t('onboarding.getStarted') : t('common:actions.continue')}
-                                        </Text>
-                                        <ArrowRight color="#FFFFFF" size={20} />
-                                    </>
-                                )}
+                                <LinearGradient
+                                    colors={
+                                        canProceed()
+                                            ? [colors.accent, `${colors.accent}D0`]
+                                            : [colors.muted, colors.muted]
+                                    }
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={styles.button}
+                                >
+                                    {loading ? (
+                                        <ActivityIndicator color="#FFFFFF" size="small" />
+                                    ) : (
+                                        <>
+                                            <Text style={styles.buttonText}>
+                                                {isLastStep ? t('onboarding.getStarted') : t('common:actions.continue')}
+                                            </Text>
+                                            {isLastStep ? (
+                                                <Sparkles color="#FFFFFF" size={20} />
+                                            ) : (
+                                                <ArrowRight color="#FFFFFF" size={20} />
+                                            )}
+                                        </>
+                                    )}
+                                </LinearGradient>
                             </TouchableOpacity>
                         </View>
                     </KeyboardAvoidingView>
@@ -923,15 +989,37 @@ const getStyles = (isDark: boolean, colors: ThemeColors) => {
 
         stepIndicator: {
             flexDirection: 'row',
+            alignItems: 'center',
             justifyContent: 'center',
-            marginBottom: 18,
-            gap: 8,
-            paddingHorizontal: 20,
+            marginBottom: 20,
+            paddingHorizontal: 24,
         },
-        stepItem: { flex: 1 },
-        stepBar: { height: 4, borderRadius: 2, backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : colors.border },
-        stepBarActive: { backgroundColor: colors.accent },
-        stepBarCompleted: { backgroundColor: colors.success },
+        stepCircle: {
+            width: 32,
+            height: 32,
+            borderRadius: 16,
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderWidth: 1.5,
+            borderColor: isDark ? 'rgba(255,255,255,0.14)' : colors.border,
+            backgroundColor: surface,
+        },
+        stepCircleActive: {
+            backgroundColor: colors.accent,
+            borderColor: colors.accent,
+        },
+        stepCircleCompleted: {
+            backgroundColor: colors.success,
+            borderColor: colors.success,
+        },
+        stepConnector: {
+            flex: 1,
+            height: 2.5,
+            marginHorizontal: 6,
+            borderRadius: 2,
+            backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : colors.border,
+        },
+        stepConnectorActive: { backgroundColor: colors.success },
 
         contentContainer: { paddingHorizontal: 20, paddingBottom: 12 },
 
@@ -950,6 +1038,36 @@ const getStyles = (isDark: boolean, colors: ThemeColors) => {
         },
         welcomeTitle: { fontSize: 29, fontWeight: '800', color: colors.foreground, marginBottom: 10, textAlign: 'left', lineHeight: 35 },
         welcomeSubtitle: { fontSize: 16, color: muted, textAlign: 'left', lineHeight: 24, marginBottom: 24 },
+        recapCard: {
+            width: '100%',
+            backgroundColor: surface,
+            borderWidth: 1,
+            borderColor: surfaceBorder,
+            borderRadius: 18,
+            padding: 16,
+            marginBottom: 20,
+        },
+        recapLabel: {
+            fontSize: 10.5,
+            fontWeight: '800',
+            letterSpacing: 1.2,
+            color: muted,
+            marginBottom: 12,
+        },
+        recapHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+        recapFlag: { fontSize: 30 },
+        recapName: { fontSize: 16, fontWeight: '800', color: colors.foreground },
+        recapMeta: { fontSize: 13, color: muted, marginTop: 2 },
+        recapTags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 14 },
+        recapTag: {
+            paddingHorizontal: 10,
+            paddingVertical: 5,
+            borderRadius: 999,
+            backgroundColor: `${colors.accent}14`,
+            borderWidth: 1,
+            borderColor: `${colors.accent}2E`,
+        },
+        recapTagText: { fontSize: 12, fontWeight: '600', color: colors.accent },
         welcomeFeatures: { width: '100%', gap: 12 },
         featureItem: {
             flexDirection: 'row',
@@ -1112,6 +1230,9 @@ const getStyles = (isDark: boolean, colors: ThemeColors) => {
 
         interestsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 2 },
         interestChip: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
             paddingHorizontal: 12,
             paddingVertical: 11,
             minHeight: 42,
@@ -1150,6 +1271,16 @@ const getStyles = (isDark: boolean, colors: ThemeColors) => {
             borderTopColor: surfaceBorder,
         },
         footerHint: { fontSize: 12, color: muted, textAlign: 'center', marginBottom: 10, lineHeight: 17 },
+        buttonWrap: {
+            width: '100%',
+            borderRadius: 18,
+            overflow: 'hidden',
+            shadowColor: colors.accent,
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.25,
+            shadowRadius: 12,
+            elevation: 6,
+        },
         button: {
             width: '100%',
             paddingVertical: 16,
@@ -1158,11 +1289,6 @@ const getStyles = (isDark: boolean, colors: ThemeColors) => {
             alignItems: 'center',
             justifyContent: 'center',
             gap: 10,
-            shadowColor: colors.accent,
-            shadowOffset: { width: 0, height: 6 },
-            shadowOpacity: 0.25,
-            shadowRadius: 12,
-            elevation: 6,
         },
         buttonDisabled: { shadowOpacity: 0, elevation: 0 },
         buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },

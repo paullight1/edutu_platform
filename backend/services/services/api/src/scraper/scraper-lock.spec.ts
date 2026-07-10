@@ -5,6 +5,7 @@ import { AiService } from "../ai";
 import { OpportunityShareCardService } from "../opportunities/opportunity-share-card.service";
 import { ScraperAlertsService } from "./scraper-alerts.service";
 import { RobotsChecker } from "./robots-checker";
+import { OpportunityDedupService } from "./opportunity-dedup.service";
 
 const mockQuery = jest.fn();
 const mockRelease = jest.fn();
@@ -30,6 +31,7 @@ describe("ScraperService advisory lock (withScrapeLock)", () => {
         { provide: OpportunityShareCardService, useValue: {} },
         { provide: ScraperAlertsService, useValue: {} },
         { provide: RobotsChecker, useValue: {} },
+        { provide: OpportunityDedupService, useValue: {} },
       ],
     }).compile();
 

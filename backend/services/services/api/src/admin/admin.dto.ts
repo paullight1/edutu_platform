@@ -122,3 +122,37 @@ export interface AdminUpdateUserRoleResponse {
   user: AdminUserRecord | null;
   error?: string;
 }
+
+export interface AdminAiUsageDayPoint {
+  day: string; // YYYY-MM-DD (UTC)
+  totalTokens: number;
+  estimatedCostUsd: number;
+  calls: number;
+}
+
+export interface AdminAiUsageRouteBreakdown {
+  route: string;
+  calls: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
+  errorCount: number;
+  avgLatencyMs: number | null;
+}
+
+export interface AdminAiUsageSummaryResponse {
+  success: boolean;
+  days: number;
+  totals: {
+    calls: number;
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    estimatedCostUsd: number;
+    errorCount: number;
+  };
+  perDay: AdminAiUsageDayPoint[];
+  perRoute: AdminAiUsageRouteBreakdown[];
+  error?: string;
+}

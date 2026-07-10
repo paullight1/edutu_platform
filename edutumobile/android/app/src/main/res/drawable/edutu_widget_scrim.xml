@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Bottom-weighted dark scrim laid over poster images so white title/category text
+  stays legible regardless of the photo. Transparent navy at the top, near-opaque
+  brand navy at the bottom (angle 270 = top → bottom).
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+  android:shape="rectangle">
+  <gradient
+    android:startColor="#00121236"
+    android:centerColor="#59121236"
+    android:endColor="#F0121236"
+    android:angle="270" />
+</shape>

@@ -47,6 +47,7 @@ import {
   Share2,
   ArrowDownWideNarrow,
   Bell,
+  AlertCircle,
 } from 'lucide-react-native';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { useTheme } from '../../../components/context/ThemeContext';
@@ -112,7 +113,7 @@ const DISCOVERY_CARDS = [
     id: 'fellowships',
     label: 'list.discovery.fellowships',
     icon: 'leadership',
-    colors: ['rgba(249,115,22,0.94)', 'rgba(194,65,12,0.82)'] as const,
+    colors: ['rgba(124,58,237,0.92)', 'rgba(91,33,182,0.82)'] as const,
     image: DISCOVERY_BACKGROUNDS.fellowships,
   },
 ] satisfies Array<{
@@ -326,8 +327,13 @@ function matchesDiscoveryCategory(opportunity: Partial<Opportunity> & Record<str
   if (canonical) {
     if (category === 'scholarships') return canonical === 'scholarships' || canonical === 'scholarship';
     if (category === 'internships') return canonical === 'internships' || canonical === 'internship' || canonical === 'careers';
-    if (category === 'grants') return canonical === 'programs' || canonical === 'program' || canonical === 'global_programs' || canonical === 'global_program';
-    return canonical === 'fellowships' || canonical === 'fellowship' || canonical === 'leadership';
+    if (category === 'fellowships') return canonical === 'fellowships' || canonical === 'fellowship' || canonical === 'leadership';
+    // "Programs" — programmatic opportunities, excluding the fellowship bucket
+    // which now has its own card again.
+    return (
+      canonical === 'programs' || canonical === 'program' ||
+      canonical === 'global_programs' || canonical === 'global_program'
+    );
   }
 
   const text = normalizeOpportunityText(opportunity);
@@ -340,12 +346,15 @@ function matchesDiscoveryCategory(opportunity: Partial<Opportunity> & Record<str
   if (category === 'internships') {
     return isInternship;
   }
-  if (category === 'grants') {
-    const isSpecificProgram =
-      /\bone young world\b|\bsummit(s)?\b|\bconference(s)?\b|\bforum(s)?\b|\bdelegate(s)?\b|\byouth ambassador(s)?\b|\bglobal ambassador(s)?\b|\bleadership program(s)?\b|\bexchange program(s)?\b|\bbootcamp(s)?\b|\baccelerator(s)?\b|\bincubator(s)?\b|\bchallenge(s)?\b|\bcompetition(s)?\b|\bhackathon(s)?\b|\btraining program(s)?\b|\bmentorship program(s)?\b|\bglobal program(s)?\b/.test(text);
-    return isSpecificProgram && !isScholarship && !isInternship && !isFellowship;
+  if (category === 'fellowships') {
+    // Fellowship-specific opportunities, minus the scholarship/internship buckets.
+    return isFellowship && !isScholarship && !isInternship;
   }
-  return isFellowship;
+  // Programs = broad programmatic opportunities, minus the scholarship,
+  // internship, and fellowship buckets (which each have their own card).
+  const isSpecificProgram =
+    /\bone young world\b|\bsummit(s)?\b|\bconference(s)?\b|\bforum(s)?\b|\bdelegate(s)?\b|\byouth ambassador(s)?\b|\bglobal ambassador(s)?\b|\bleadership program(s)?\b|\bexchange program(s)?\b|\bbootcamp(s)?\b|\baccelerator(s)?\b|\bincubator(s)?\b|\bchallenge(s)?\b|\bcompetition(s)?\b|\bhackathon(s)?\b|\btraining program(s)?\b|\bmentorship program(s)?\b|\bglobal program(s)?\b|\bgrant(s)?\b|\bprogram(me|mes|s)?\b|\bfund(ing)?\b/.test(text);
+  return isSpecificProgram && !isScholarship && !isInternship && !isFellowship;
 }
 
 function DiscoveryCard({
@@ -492,6 +501,33 @@ function FeaturedCard({ item, onPress, onShare, colors, isDark, cardStyle }: { i
         </View>
       </View>
     </Pressable>
+  );
+}
+
+// ─── Skeleton Card (first-load placeholder) ──────────────────────────────────
+function SkeletonCard({ colors }: { colors: any }) {
+  const pulse = useRef(new Animated.Value(0.45)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.45, duration: 700, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
+  return (
+    <Animated.View style={[styles.skeletonCard, { backgroundColor: colors.card, borderColor: colors.border, opacity: pulse }]}>
+      <View style={[styles.skeletonImage, { backgroundColor: colors.border }]} />
+      <View style={styles.skeletonBody}>
+        <View style={[styles.skeletonLine, { backgroundColor: colors.border, width: '88%' }]} />
+        <View style={[styles.skeletonLine, { backgroundColor: colors.border, width: '64%' }]} />
+        <View style={[styles.skeletonLine, { backgroundColor: colors.border, width: '42%' }]} />
+      </View>
+    </Animated.View>
   );
 }
 
@@ -698,7 +734,9 @@ export default function OpportunitiesScreen() {
   );
 
   useEffect(() => {
-    const categoryParam = typeof params.category === 'string' ? params.category : null;
+    let categoryParam = typeof params.category === 'string' ? params.category : null;
+    // Normalize the legacy singular slug to the Fellowships card id.
+    if (categoryParam === 'fellowship') categoryParam = 'fellowships';
     const isValidCategory = DISCOVERY_CARDS.some((card) => card.id === categoryParam);
     setSelectedDiscoveryCategory(isValidCategory ? categoryParam as DiscoveryCategoryId : null);
   }, [params.category]);
@@ -789,15 +827,23 @@ export default function OpportunitiesScreen() {
     extrapolate: 'clamp',
   });
 
-  const forYou = useMemo(
-    () => shuffleOpportunities(opportunities.filter((item) => (item.match || 0) >= FOR_YOU_THRESHOLD), shuffleSeed).slice(0, 8),
-    [opportunities, shuffleSeed],
-  );
+  // For You must always show opportunities once any have loaded. Prefer
+  // profile-ranked matches (>= threshold), but fall back to the full list so a
+  // transient re-ranking (match scores briefly dropping to 0 during server
+  // hydration) never collapses the section back to an empty "building" state.
+  const forYou = useMemo(() => {
+    const ranked = opportunities.filter((item) => (item.match || 0) >= FOR_YOU_THRESHOLD);
+    const base = ranked.length > 0 ? ranked : opportunities;
+    return shuffleOpportunities(base, shuffleSeed).slice(0, 8);
+  }, [opportunities, shuffleSeed]);
 
-  const fullForYou = useMemo(
-    () => shuffleOpportunities(opportunities.filter((item) => (item.match || 0) >= FOR_YOU_THRESHOLD).sort((a, b) => (b.match || 0) - (a.match || 0)), shuffleSeed),
-    [opportunities, shuffleSeed],
-  );
+  const fullForYou = useMemo(() => {
+    const ranked = opportunities
+      .filter((item) => (item.match || 0) >= FOR_YOU_THRESHOLD)
+      .sort((a, b) => (b.match || 0) - (a.match || 0));
+    const base = ranked.length > 0 ? ranked : opportunities;
+    return shuffleOpportunities(base, shuffleSeed);
+  }, [opportunities, shuffleSeed]);
 
   const explore = useMemo(() => {
     const tokens = debouncedSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -1114,30 +1160,49 @@ export default function OpportunitiesScreen() {
                   </Pressable>
                 </View>
 
-                {forYou.length > 0 ? (
+                {!hasPersonalizationDetails ? (
+                  // Profile incomplete → prompt the user to finish it so we can
+                  // personalize. This is the ONLY case where For You has no cards.
+                  <View style={[styles.completeProfileCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <View style={[styles.completeProfileIcon, { backgroundColor: `${colors.accent}18` }]}>
+                      <Sparkles color={colors.accent} size={22} />
+                    </View>
+                    <Text style={[styles.completeProfileTitle, { color: colors.foreground }]}>
+                      {t('list.completeProfile')}
+                    </Text>
+                    <Text style={[styles.completeProfileBody, { color: colors.textSecondary }]}>
+                      {t('list.addProfileDetails')}
+                    </Text>
+                    <Pressable
+                      onPress={() => router.push('/profile/edit')}
+                      style={[styles.completeProfileBtn, { backgroundColor: colors.accent }]}
+                    >
+                      <Text style={styles.completeProfileBtnText}>{t('list.completeProfileCta')}</Text>
+                      <ChevronRight size={16} color="#FFFFFF" />
+                    </Pressable>
+                  </View>
+                ) : forYou.length > 0 ? (
                   <View style={styles.forYouGrid}>
                     {forYou.slice(0, 4).map((item) => (
-                      <FeaturedCard
+                      <DetailCard
                         key={`for-you-${item.id}`}
                         item={item}
                         colors={colors}
                         isDark={isDark}
                         onShare={handleShareOpportunity}
                         onPress={() => openOpportunity(item.id, 'for_you_featured_open')}
-                        cardStyle={styles.forYouGridCard}
                       />
                     ))}
                   </View>
                 ) : (
-                  <View style={[styles.emptyRail, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  // Profile complete but opportunities not loaded yet.
+                  <View style={[styles.emptyRail, { backgroundColor: colors.card, borderColor: colors.border, width: '100%' }]}>
                     <Sparkles color={colors.accent} size={24} />
                     <Text style={[styles.emptyRailTitle, { color: colors.foreground }]}>
-                      {hasPersonalizationDetails ? t('list.buildingMatches') : t('list.completeProfile')}
+                      {t('list.buildingMatches')}
                     </Text>
                     <Text style={[styles.emptyRailBody, { color: colors.textSecondary }]}>
-                      {hasPersonalizationDetails
-                        ? t('list.rankingByProfile')
-                        : t('list.addProfileDetails')}
+                      {t('list.rankingByProfile')}
                     </Text>
                   </View>
                 )}
@@ -1225,9 +1290,24 @@ export default function OpportunitiesScreen() {
               </>
             )}
 
-            {error ? (
-              <View style={[styles.errorBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[styles.errorText, { color: colors.foreground }]}>{error}</Text>
+            {error && !loading ? (
+              <View
+                accessibilityRole="alert"
+                style={[styles.errorBox, { backgroundColor: colors.card, borderColor: colors.border }]}
+              >
+                <View style={[styles.errorIconWrap, { backgroundColor: `${colors.accent}18` }]}>
+                  <AlertCircle size={26} color={colors.accent} />
+                </View>
+                <Text style={[styles.errorTitle, { color: colors.foreground }]}>{t('list.errorTitle')}</Text>
+                <Text style={[styles.errorText, { color: colors.textSecondary }]}>{t('list.errorBody')}</Text>
+                <Pressable
+                  onPress={() => void handleRefresh()}
+                  style={[styles.errorRetryBtn, { backgroundColor: colors.accent }]}
+                  accessibilityRole="button"
+                >
+                  <RefreshCw size={15} color="#FFFFFF" />
+                  <Text style={styles.errorRetryText}>{t('list.retry')}</Text>
+                </Pressable>
               </View>
             ) : null}
           </View>
@@ -1241,7 +1321,13 @@ export default function OpportunitiesScreen() {
         )}
         ItemSeparatorComponent={() => viewMode === 'list' ? <View style={{ height: 10 }} /> : null}
         ListEmptyComponent={
-          shouldShowChooser ? null : (
+          shouldShowChooser ? null : loading ? (
+            <View style={styles.skeletonGrid}>
+              {Array.from({ length: 6 }).map((_, index) => (
+                <SkeletonCard key={`skeleton-${index}`} colors={colors} />
+              ))}
+            </View>
+          ) : error ? null : (
             <View style={styles.emptyState}>
               <View style={[styles.emptyStateIcon, { backgroundColor: `${colors.accent}18` }]}>
                 <Inbox size={42} color={colors.accent} strokeWidth={1.8} />
@@ -1250,6 +1336,22 @@ export default function OpportunitiesScreen() {
               <Text style={[styles.emptyStateBody, { color: colors.textSecondary }]}>
                 {searchTerm ? t('list.emptyTrySearch') : t('list.emptyCheckBack')}
               </Text>
+              <Pressable
+                onPress={() => {
+                  if (searchTerm) {
+                    setSearchTerm('');
+                  } else {
+                    void handleRefresh();
+                  }
+                }}
+                style={[styles.emptyStateBtn, { backgroundColor: colors.accent }]}
+                accessibilityRole="button"
+              >
+                {searchTerm ? <X size={15} color="#FFFFFF" /> : <RefreshCw size={15} color="#FFFFFF" />}
+                <Text style={styles.emptyStateBtnText}>
+                  {searchTerm ? t('list.clearSearch') : t('list.refresh')}
+                </Text>
+              </Pressable>
             </View>
           )
         }
@@ -1576,12 +1678,29 @@ const styles = StyleSheet.create({
   emptyRail: { width: 260, borderRadius: 18, borderWidth: 1, padding: 20, alignItems: 'center', gap: 8 },
   emptyRailTitle: { fontSize: 15, fontWeight: '800' },
   emptyRailBody: { fontSize: 13, lineHeight: 20, textAlign: 'center' },
-  errorBox: { borderRadius: 16, borderWidth: 1, padding: 14 },
-  errorText: { fontSize: 14, lineHeight: 20, fontWeight: '600' },
+  completeProfileCard: { width: '100%', borderRadius: 20, borderWidth: 1, padding: 22, alignItems: 'center', gap: 8 },
+  completeProfileIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  completeProfileTitle: { fontSize: 16, fontWeight: '800', textAlign: 'center' },
+  completeProfileBody: { fontSize: 13, lineHeight: 20, textAlign: 'center', maxWidth: 300 },
+  completeProfileBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 18, paddingVertical: 11, borderRadius: 999, marginTop: 8 },
+  completeProfileBtnText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
+  errorBox: { borderRadius: 16, borderWidth: 1, padding: 20, alignItems: 'center', gap: 8 },
+  errorIconWrap: { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  errorTitle: { fontSize: 16, fontWeight: '800' },
+  errorText: { fontSize: 13, lineHeight: 19, fontWeight: '500', textAlign: 'center', maxWidth: 280 },
+  errorRetryBtn: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12, marginTop: 6 },
+  errorRetryText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  skeletonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  skeletonCard: { width: CARD_WIDTH, borderRadius: 20, borderWidth: 1, overflow: 'hidden' },
+  skeletonImage: { height: 96 },
+  skeletonBody: { padding: 12, gap: 9 },
+  skeletonLine: { height: 10, borderRadius: 5 },
   emptyState: { paddingVertical: 60, alignItems: 'center', gap: 12 },
   emptyStateIcon: { width: 92, height: 92, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   emptyStateTitle: { fontSize: 17, fontWeight: '800' },
   emptyStateBody: { fontSize: 13, lineHeight: 20, textAlign: 'center', maxWidth: 280 },
+  emptyStateBtn: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12, marginTop: 4 },
+  emptyStateBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
 
   // Profile Status Bar
   profileStatusBar: {

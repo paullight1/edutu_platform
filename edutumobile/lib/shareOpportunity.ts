@@ -8,7 +8,6 @@
  * backend-card-or-text fallback so any card can share without a rendered ref.
  */
 import { Platform, Share } from 'react-native';
-import * as Sharing from 'expo-sharing';
 import { File, Paths } from 'expo-file-system';
 import { Opportunity } from '@edutu/core/src/types/opportunity';
 import { getConfig } from './config';
@@ -175,33 +174,35 @@ export async function downloadShareImage(
 export async function shareOpportunity(opportunity: Opportunity): Promise<boolean> {
   try {
     const payload = await getBackendSharePayload(opportunity);
-    const canShareFile = await Sharing.isAvailableAsync();
+    const link = payload.shareUrl || buildOpportunityShareUrl(opportunity.id);
+    // Caption always carries the summary AND the Edutu link — never a bare image.
+    const message = payload.shareText.includes(link)
+      ? payload.shareText
+      : `${payload.shareText}\n${link}`;
 
-    if (payload.imageUrl && canShareFile) {
+    // Android: Expo can't attach an image AND text/link in one share intent, so
+    // share the caption + link (the link unfurls to the branded share-card image
+    // via the opportunity page's Open Graph tags) rather than a silent image.
+    if (Platform.OS !== 'ios') {
+      await Share.share({ title: opportunity.title, message });
+      return true;
+    }
+
+    // iOS: one sheet carries the branded image AND the caption/link.
+    if (payload.imageUrl) {
       const downloaded = await downloadShareImage(payload.imageUrl, opportunity.id);
       if (downloaded) {
-        if (Platform.OS === 'ios') {
-          await Share.share({
-            title: opportunity.title,
-            message: payload.shareText,
-            url: downloaded.uri,
-          });
-        } else {
-          await Sharing.shareAsync(downloaded.uri, {
-            mimeType: downloaded.mimeType,
-            dialogTitle: i18n.t('misc:share.dialogTitle'),
-          });
-        }
+        await Share.share({
+          title: opportunity.title,
+          message,
+          url: downloaded.uri,
+        });
         return true;
       }
     }
 
-    // Text + link fallback.
-    await Share.share({
-      title: opportunity.title,
-      message: payload.shareText,
-      url: payload.shareUrl || buildOpportunityShareUrl(opportunity.id),
-    });
+    // iOS fallback: caption + link (no on-device card ref available here).
+    await Share.share({ title: opportunity.title, message });
     return true;
   } catch (error) {
     console.error('Failed to share opportunity:', error);

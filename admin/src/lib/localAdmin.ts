@@ -9,7 +9,8 @@ export function isLocalAdminBypassEnabled(): boolean {
     return false;
   }
 
-  return import.meta.env.VITE_LOCAL_ADMIN_BYPASS === 'true';
+  // Dev-only: the bypass can never activate in production builds.
+  return import.meta.env.DEV && import.meta.env.VITE_LOCAL_ADMIN_BYPASS === 'true';
 }
 
 export function disableLocalAdminBypassForSession(): void {

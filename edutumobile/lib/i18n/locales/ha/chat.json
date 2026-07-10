@@ -94,7 +94,8 @@
     "description": "Tambaya game da tallafin karatu na gaske, wa'adodi, taswirorin hanya, ko matakan neman dama na gaba."
   },
   "input": {
-    "placeholder": "Rubuta wa Edutu saƙo..."
+    "placeholder": "Rubuta wa Edutu saƙo...",
+    "send": "Aika"
   },
   "threads": {
     "modalTitle": "Hirarraki",
@@ -118,5 +119,44 @@
     "hintSendOrWait": "Danna aika ko ka jira",
     "hintTranscribing": "Ana rubuta saƙonka...",
     "hintStart": "Danna makirufo don fara ɗaukar murya"
+  },
+  "voiceMode": {
+    "badgeVoice": "Hira ta murya",
+    "badgeLive": "Kai tsaye",
+    "statusConnecting": "Ana farawa…",
+    "statusListening": "Ina sauraro…",
+    "statusTranscribing": "Na gane…",
+    "statusThinking": "Ina tunani…",
+    "statusSpeaking": "Edutu yana magana",
+    "statusIdle": "Taɓa ƙwallon don yin magana",
+    "statusMuted": "An kashe makirufo — taɓa makirufo don ci gaba",
+    "youLabel": "Kai",
+    "errorPermission": "Edutu yana buƙatar izinin makirufo. Kunna shi a Saituna, sannan ka taɓa ƙwallon.",
+    "errorLimit": "Ka kai iyakar AI ta kyauta a yanzu.",
+    "errorNetwork": "Wani abu ya faru. Taɓa ƙwallon don sake gwadawa.",
+    "mute": "Kashe makirufo",
+    "unmute": "Kunna makirufo",
+    "end": "Kammala yanayin murya",
+    "openChat": "Buɗe hira",
+    "composerVoice": "Fara yanayin murya",
+    "composerLive": "Fara muryar kai tsaye",
+    "settingsTitle": "Saitunan murya",
+    "settingsDone": "An gama",
+    "settingsDesign": "Zane na ƙwallo",
+    "settingsVoice": "Muryar Edutu",
+    "designParticles": "Ƙwallon barbashi",
+    "designRing": "Zoben aurora",
+    "designBubble": "Kumfar mafarki",
+    "designRobot": "Robo Edutu",
+    "voiceDefault": "Tsohuwar tsarin",
+    "voiceSample": "Sannu! Ni ne Edutu, kocin ka na AI.",
+    "designCrystal": "Tauraron luʼuluʼu",
+    "designGlass": "Guguwar gilashi",
+    "designBlob": "Abokin jeli",
+    "designPetals": "Zoben furanni",
+    "voiceRecommended": "Wadanda aka shawarta",
+    "voiceNigerian": "Turancin Najeriya",
+    "voiceAll": "Karin muryoyi",
+    "voiceHint": "Don samun muryoyi masu tsafta da na halitta, sauke ingantattun muryoyi a saitunan wayarka — iOS: Saituna → Accessibility → Spoken Content → Voices; Android: shigar da muryoyin Google Text-to-Speech."
   }
 }

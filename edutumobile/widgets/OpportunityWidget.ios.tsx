@@ -330,23 +330,27 @@ function SystemLarge(props: OpportunityWidgetProps & { dark: boolean }) {
         </Text>
         <Spacer />
       </HStack>
-      <ListRow item={items[0]} rank="1" dark={props.dark} />
-      {items[1] ? <ListRow item={items[1]} rank="2" dark={props.dark} /> : null}
-      {items[2] ? <ListRow item={items[2]} rank="3" dark={props.dark} /> : null}
-      {items[3] ? <ListRow item={items[3]} rank="4" dark={props.dark} /> : null}
-      {items[4] ? <ListRow item={items[4]} rank="5" dark={props.dark} /> : null}
+      <ListRow item={items[0]} dark={props.dark} />
+      {items[1] ? <ListRow item={items[1]} dark={props.dark} /> : null}
+      {items[2] ? <ListRow item={items[2]} dark={props.dark} /> : null}
+      {items[3] ? <ListRow item={items[3]} dark={props.dark} /> : null}
+      {items[4] ? <ListRow item={items[4]} dark={props.dark} /> : null}
+      {items[5] ? <ListRow item={items[5]} dark={props.dark} /> : null}
       <Spacer />
     </VStack>
   );
 }
 
-function ListRow({ item, rank, dark }: { item: OpportunityWidgetItem; rank: string; dark: boolean }) {
+function ListRow({ item, dark }: { item: OpportunityWidgetItem; dark: boolean }) {
   const p = palette(dark);
   return (
     <HStack alignment="center" spacing={10} modifiers={[widgetURL(item.deepLink || "edutu://opportunities")]}>
-      <Text modifiers={[font({ size: 15, weight: "bold" }), foregroundStyle(p.accent), frame({ width: 18 })]}>
-        {rank}
-      </Text>
+      <Image
+        systemName="sparkles"
+        size={14}
+        color={p.accent}
+        modifiers={[frame({ width: 18 })]}
+      />
       <VStack alignment="leading" spacing={2}>
         <Text modifiers={[font({ size: 14, weight: "semibold" }), foregroundStyle(p.ink), lineLimit(1), truncationMode("tail")]}>
           {item.title}
