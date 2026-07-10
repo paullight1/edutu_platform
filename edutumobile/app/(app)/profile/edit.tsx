@@ -239,7 +239,7 @@ export default function EditProfileScreen() {
                                     style={[styles.editAvatarBtn, { backgroundColor: 'rgba(255,255,255,0.2)' }]}
                                     onPress={() => showToast({
                                         emoji: '🖼️',
-                                        variant: 'info',
+                                        variant: 'default',
                                         message: t('edit.avatarManagedByClerk'),
                                     })}
                                     accessibilityRole="button"
