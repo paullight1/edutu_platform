@@ -4,12 +4,7 @@ import {
     Calendar,
     Clock,
     User,
-    Sparkles,
-    Users,
-    BarChart3,
     ChevronDown,
-    ShieldCheck,
-    type LucideIcon,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
@@ -17,6 +12,15 @@ import { useOpportunities } from '../hooks/useOpportunities';
 import BentoBenefits from './BentoBenefits';
 import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
+import CommunityShowcase from './CommunityShowcase';
+import {
+    OpportunityMatchIcon,
+    DeadlineIcon,
+    GlobalNetworkIcon,
+    TrackingIcon,
+} from './AnimatedFeatureIcons';
+
+type FeatureIcon = (props: { size?: number; className?: string }) => JSX.Element;
 
 interface LandingPageProps {
     onGetStarted: () => void;
@@ -70,17 +74,27 @@ const flags = [
 ];
 
 const institutions = [
-    { name: 'Harvard University', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/Harvard_University_logo.svg' },
-    { name: 'University of Oxford', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/Oxford-University-Circlet.svg' },
+    { name: 'Harvard', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/Harvard_University_logo.svg' },
     { name: 'MIT', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/MIT_logo.svg' },
-    { name: 'Stanford University', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/Stanford_Cardinal_logo.svg' },
-    { name: 'University of Cambridge', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/University_of_Cambridge_coat_of_arms.svg' },
-    { name: 'Yale University', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/Yale_University_logo.svg' },
-    { name: 'University of Toronto', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/University_of_Toronto_coat_of_arms.svg' },
+    { name: 'Stanford', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/Stanford_wordmark_(2012).svg' },
+    { name: 'Yale', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/Yale_University_logo.svg' },
+    { name: 'Oxford', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/University_of_Oxford.svg' },
+    { name: 'Cambridge', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/University_of_Cambridge_coat_of_arms.svg' },
     { name: 'ETH Zurich', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/ETH_Z%C3%BCrich_Logo.svg' },
+    { name: 'Princeton', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/Princeton_text_logo.svg' },
+    { name: 'Columbia', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/Columbia_University_1754_updated.svg' },
+    { name: 'Berkeley', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/University_of_California,_Berkeley_logo.svg' },
+    { name: 'Caltech', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/Caltech_Logo.svg' },
+    { name: 'Cornell', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/Cornell_University_logo.svg' },
+    { name: 'Chicago', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/University_of_Chicago_wordmark.svg' },
+    { name: 'Imperial', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/Imperial_logo.svg' },
+    { name: 'Penn', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/University_of_Pennsylvania_wordmark.svg' },
+    { name: 'Duke', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/Duke_University_logo.svg' },
+    { name: 'Tokyo', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/University_of_Tokyo_logo_(2024).svg' },
+    { name: 'Michigan State', logo: 'https://commons.wikimedia.org/wiki/Special:FilePath/Michigan_State_University_wordmark.svg' },
 ];
 
-const heroOpportunityWords = ['Opportunities', 'Scholarships', 'Internships', 'Fellowships'];
+const heroOpportunityWords = ['Programs', 'Scholarships', 'Internships', 'Fellowships'];
 
 const heroBackdropImages = [
     'https://images.pexels.com/photos/267885/pexels-photo-267885.jpeg?auto=compress&cs=tinysrgb&w=1200',
@@ -132,9 +146,11 @@ const landingBlogArticles: LandingArticle[] = [
 interface AboutFeature {
     title: string;
     desc: string;
-    icon: LucideIcon;
-    accentClass: string;
-    tintClass: string;
+    icon: FeatureIcon;
+    cardBg: string;
+    iconColor: string;
+    titleColor: string;
+    descColor: string;
 }
 
 const testimonials = [
@@ -157,10 +173,10 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     const latestOpportunities = opportunities.slice(0, 3);
 
     const aboutFeatures: AboutFeature[] = [
-        { title: 'Opportunity Matching', desc: 'Relevant scholarships, fellowships, internships, and programs in one feed.', icon: Sparkles, accentClass: 'text-brand', tintClass: 'bg-brand/10' },
-        { title: 'Deadline Awareness', desc: 'Important dates stay visible before applications close.', icon: Calendar, accentClass: 'text-warning', tintClass: 'bg-warning/10' },
-        { title: 'Global Network', desc: 'Connect with mentors and peers in your niche across 80+ countries.', icon: Users, accentClass: 'text-accent', tintClass: 'bg-accent/10' },
-        { title: 'Application Tracking', desc: 'Track saved opportunities, applications, and progress in one dashboard.', icon: BarChart3, accentClass: 'text-success', tintClass: 'bg-success/10' },
+        { title: 'Opportunity Matching', desc: 'Relevant scholarships, fellowships, internships, and programs in one feed.', icon: OpportunityMatchIcon, cardBg: 'linear-gradient(160deg,#d8e4fd 0%,#bcd0f9 100%)', iconColor: '#2455d6', titleColor: '#132a5c', descColor: '#42568c' },
+        { title: 'Deadline Awareness', desc: 'Important dates stay visible before applications close.', icon: DeadlineIcon, cardBg: 'linear-gradient(160deg,#fbe9c6 0%,#f6d79b 100%)', iconColor: '#c2740b', titleColor: '#4a3410', descColor: '#7a5f2c' },
+        { title: 'Global Network', desc: 'Connect with mentors and peers in your niche across 80+ countries.', icon: GlobalNetworkIcon, cardBg: 'linear-gradient(160deg,#cbecf1 0%,#ade0e8 100%)', iconColor: '#0e7490', titleColor: '#0d3b45', descColor: '#356b76' },
+        { title: 'Application Tracking', desc: 'Track saved opportunities, applications, and progress in one dashboard.', icon: TrackingIcon, cardBg: 'linear-gradient(160deg,#d0ead9 0%,#b3e0c5 100%)', iconColor: '#0f8a4d', titleColor: '#123a26', descColor: '#3a6b50' },
     ];
 
     useEffect(() => {
@@ -210,23 +226,6 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                     <div className="landing-grain pointer-events-none absolute inset-0 opacity-[0.35]" />
 
                     <div className="relative z-10 mx-auto flex w-full max-w-[960px] flex-col items-center text-center">
-                        <motion.div
-                            initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
-                            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                            transition={{ duration: 0.5 }}
-                            className="landing-hero-eyebrow inline-flex items-center gap-2.5 rounded-full px-4 py-1.5"
-                        >
-                            <span className="relative flex h-2 w-2">
-                                {!reduceMotion && (
-                                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand/60" />
-                                )}
-                                <span className="relative inline-flex h-2 w-2 rounded-full bg-brand" />
-                            </span>
-                            <span className="text-[11px] font-bold uppercase tracking-[0.22em] text-brand">
-                                AI-powered opportunity coach
-                            </span>
-                        </motion.div>
-
                         <motion.h1
                             initial={reduceMotion ? undefined : { opacity: 0, y: 30 }}
                             animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
@@ -234,8 +233,8 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             className="landing-hero-title mt-8 font-display text-[clamp(2.6rem,8vw,5rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-balance text-text-primary sm:text-[clamp(3.8rem,7vw,5.5rem)] md:text-[82px]"
                         >
                             Your AI guide to global{' '}
-                            <span className="landing-hero-highlight whitespace-nowrap">
-                                <span className="landing-hero-word inline-block min-w-[6.8em] text-left align-baseline">
+                            <span className="landing-hero-highlight whitespace-nowrap sm:block">
+                                <span className="landing-hero-word inline-block align-baseline">
                                     <AnimatePresence mode="wait">
                                         <motion.span
                                             key={heroOpportunityWords[heroWordIndex]}
@@ -283,16 +282,6 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             </Link>
                         </motion.div>
 
-                        {/* Reassurance microcopy (stats row removed) */}
-                        <motion.div
-                            initial={reduceMotion ? undefined : { opacity: 0 }}
-                            animate={reduceMotion ? undefined : { opacity: 1 }}
-                            transition={{ duration: 0.6, delay: 0.45 }}
-                            className="mt-8 inline-flex items-center gap-2 text-[13px] font-medium text-text-muted"
-                        >
-                            <ShieldCheck size={15} className="text-brand" />
-                            Free to start · No card required
-                        </motion.div>
                     </div>
                 </section>
 
@@ -437,35 +426,35 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         </p>
                     </div>
 
-                    <div className="landing-institution-grid mx-auto grid max-w-[860px] grid-cols-3 gap-2 sm:gap-4 md:grid-cols-4 md:gap-6">
+                    <div className="mx-auto grid max-w-[1100px] grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-6">
                         {institutions.map((inst, i) => (
                             <motion.div
                                 key={i}
                                 {...fadeUp}
-                                transition={{ duration: 0.4, delay: i * 0.05 }}
-                                className="landing-institution-card flex aspect-square items-center justify-center p-2 transition-transform duration-300 hover:-translate-y-0.5 sm:p-4"
+                                transition={{ duration: 0.4, delay: Math.min(i, 8) * 0.04 }}
+                                className="group flex h-[104px] items-center justify-center rounded-2xl border border-subtle bg-surface-layer/60 px-4 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-brand/40 hover:bg-surface-layer sm:h-[120px]"
                             >
-                                <div className="landing-institution-shell flex h-full w-full items-center justify-center rounded-md">
-                                    <img
-                                        src={inst.logo}
-                                        alt={inst.name}
-                                        className="landing-institution-logo max-h-[28px] max-w-[70px] object-contain opacity-80 transition-opacity hover:opacity-100 dark:opacity-70 dark:brightness-0 dark:invert sm:max-h-[58px] sm:max-w-[130px]"
-                                        loading="lazy"
-                                        decoding="async"
-                                        style={{ width: 'auto', height: 'auto' }}
-                                        onError={(e) => {
-                                            const target = e.currentTarget;
-                                            target.style.display = 'none';
-                                            const parent = target.parentElement;
-                                            if (parent) {
-                                                const fallbackLabel = document.createElement('span');
-                                                fallbackLabel.textContent = inst.name.split(' ')[0];
-                                                fallbackLabel.className = 'text-[11px] font-semibold text-center text-text-muted';
-                                                parent.appendChild(fallbackLabel);
-                                            }
-                                        }}
-                                    />
-                                </div>
+                                <img
+                                    src={inst.logo}
+                                    alt={inst.name}
+                                    className="max-h-[40px] max-w-[128px] object-contain opacity-70 grayscale transition-all duration-300 group-hover:opacity-100 group-hover:grayscale-0 dark:opacity-80 dark:brightness-0 dark:invert dark:grayscale-0 sm:max-h-[48px]"
+                                    loading="lazy"
+                                    decoding="async"
+                                    style={{ width: 'auto', height: 'auto' }}
+                                    onError={(e) => {
+                                        const target = e.currentTarget;
+                                        target.style.display = 'none';
+                                        const parent = target.parentElement;
+                                        if (parent && !parent.querySelector('[data-fallback]')) {
+                                            const fallbackLabel = document.createElement('span');
+                                            fallbackLabel.textContent = inst.name;
+                                            fallbackLabel.setAttribute('data-fallback', 'true');
+                                            fallbackLabel.className =
+                                                'font-display text-[17px] font-semibold tracking-tight text-text-secondary transition-colors group-hover:text-text-primary';
+                                            parent.appendChild(fallbackLabel);
+                                        }
+                                    }}
+                                />
                             </motion.div>
                         ))}
                     </div>
@@ -490,15 +479,19 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                     key={i}
                                     {...fadeUp}
                                     transition={{ duration: 0.4, delay: i * 0.08 }}
-                                    className="group rounded-2xl border border-subtle bg-surface-layer p-5 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:border-brand/40 hover:shadow-elevated sm:p-8"
+                                    className="group rounded-2xl p-5 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-elevated sm:p-8"
+                                    style={{ background: feature.cardBg }}
                                 >
-                                    <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-xl ${feature.tintClass} sm:mb-6`}>
-                                        <feature.icon size={22} className={feature.accentClass} />
+                                    <div
+                                        className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/55 transition-transform duration-300 group-hover:scale-105 sm:mb-7 sm:h-[72px] sm:w-[72px]"
+                                        style={{ color: feature.iconColor }}
+                                    >
+                                        <feature.icon size={40} />
                                     </div>
-                                    <h3 className="mb-2 font-display text-[20px] font-semibold text-text-primary sm:mb-3 sm:text-[22px]">
+                                    <h3 className="mb-2 font-display text-[20px] font-semibold sm:mb-3 sm:text-[22px]" style={{ color: feature.titleColor }}>
                                         {feature.title}
                                     </h3>
-                                    <p className="text-[14px] leading-[1.6] text-text-secondary sm:text-[15px]">
+                                    <p className="text-[14px] leading-[1.6] sm:text-[15px]" style={{ color: feature.descColor }}>
                                         {feature.desc}
                                     </p>
                                 </motion.div>
@@ -671,71 +664,16 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                     </div>
                 </section>
 
-                {/* ─── CTA ──────────────────────────────────────────────── */}
-                <section className="px-4 py-24 sm:px-6">
-                    <div className="mx-auto max-w-[1200px]">
-                        <motion.div
-                            {...fadeUp}
-                            transition={{ duration: 0.5 }}
-                            className="relative overflow-hidden rounded-3xl px-6 py-16 sm:px-16 sm:py-20"
-                            style={{ backgroundColor: '#07111f' }}
-                        >
-                            <img
-                                src={heroBackdropImages[0]}
-                                alt=""
-                                aria-hidden="true"
-                                className="absolute inset-0 h-full w-full object-cover"
-                                style={{ filter: 'saturate(0.76) contrast(0.94) brightness(0.5)' }}
-                                loading="lazy"
-                                decoding="async"
-                                draggable={false}
-                            />
-                            <div
-                                className="absolute inset-0"
-                                style={{
-                                    background:
-                                        'linear-gradient(180deg, rgba(3,8,18,0.78) 0%, rgba(3,8,18,0.66) 46%, rgba(3,8,18,0.82) 100%), radial-gradient(circle at 50% 18%, rgb(var(--color-brand-500) / 0.28), transparent 42%)',
-                                }}
-                            />
-                            <div className="relative z-10 mx-auto flex max-w-[820px] flex-col items-center gap-8 text-center">
-                                <div>
-                                    <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5">
-                                        <Sparkles size={12} className="text-white" />
-                                        <span className="text-[10px] font-bold tracking-widest text-white">GLOBAL MATCHES</span>
-                                    </div>
-                                    <h2 className="mb-3 font-display text-3xl font-bold tracking-tight text-white md:text-4xl">
-                                        Find scholarships
-                                        <br />
-                                        and <span className="text-brand-300">global opportunities</span>
-                                    </h2>
-                                    <p className="mx-auto max-w-[620px] text-sm leading-relaxed text-white/80 sm:text-base">
-                                        Explore scholarships, fellowships, internships, and funded
-                                        programs matched to your profile before deadlines pass.
-                                    </p>
-                                </div>
-                                <div className="flex w-full max-w-[560px] flex-col gap-3 sm:flex-row sm:justify-center">
-                                    <motion.button
-                                        onClick={onGetStarted}
-                                        whileHover={reduceMotion ? undefined : { scale: 1.02 }}
-                                        whileTap={reduceMotion ? undefined : { scale: 0.98 }}
-                                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-8 py-3.5 text-sm font-bold text-white shadow-elevated hover:bg-brand-700"
-                                    >
-                                        Get Scholarship Matches <ArrowRight size={14} />
-                                    </motion.button>
-                                    <Link
-                                        to="/opportunities"
-                                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/10 px-8 py-3.5 text-sm font-bold text-white no-underline backdrop-blur transition-transform duration-200 hover:scale-[1.02]"
-                                    >
-                                        Browse Opportunities
-                                    </Link>
-                                </div>
-                                <div className="flex items-center gap-2 text-[12px] font-medium text-white/70">
-                                    <ShieldCheck size={14} /> Free to start · No card required
-                                </div>
-                            </div>
-                        </motion.div>
-                    </div>
-                </section>
+                {/* ─── Community ────────────────────────────────────────── */}
+                <CommunityShowcase
+                    id="community"
+                    bordered={false}
+                    titleLead="Join a community"
+                    titleTail="that moves you forward"
+                    subtitle="Thousands of learners, mentors, and future leaders — discovering and winning opportunities together."
+                    ctaLabel="Join community"
+                    ctaTo="/community"
+                />
             </main>
 
             {/* ─── Footer ───────────────────────────────────────────────── */}

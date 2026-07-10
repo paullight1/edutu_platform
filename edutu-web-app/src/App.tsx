@@ -46,6 +46,7 @@ const OpportunitySharePage = lazy(
 const EventsPage = lazy(() => import("./components/EventsPage"));
 const EventDetailPage = lazy(() => import("./components/EventDetailPage"));
 const AboutPage = lazy(() => import("./components/AboutPage"));
+const CommunityPage = lazy(() => import("./components/CommunityPage"));
 const BlogPage = lazy(() => import("./components/BlogPage"));
 const BlogPostPage = lazy(() => import("./components/BlogPostPage"));
 const PrivacyPolicyPage = lazy(() => import("./components/PrivacyPolicyPage"));
@@ -528,6 +529,7 @@ function App() {
       <Route path="/events/:slugOrId" element={<EventDetailPage />} />
       <Route path="/mentor" element={<MentorPage />} />
       <Route path="/about" element={<AboutPage />} />
+      <Route path="/community" element={<CommunityPage />} />
       <Route path="/blog" element={<BlogPage />} />
       <Route path="/blog/:slug" element={<BlogPostPage />} />
       <Route path="/privacy" element={<PrivacyPolicyPage />} />

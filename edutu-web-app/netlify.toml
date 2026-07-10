@@ -18,6 +18,13 @@
   status = 200
   force = true
 
+# Inject per-opportunity Open Graph tags so shared /opportunity/:id links unfurl
+# with the branded share-card image + real title/description (SPA HTML alone
+# only carries the generic default OG image).
+[[edge_functions]]
+  path = "/opportunity/*"
+  function = "opportunity-og"
+
 [[headers]]
   for = "/.well-known/apple-app-site-association"
   [headers.values]
