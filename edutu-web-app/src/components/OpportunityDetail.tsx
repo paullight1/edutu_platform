@@ -130,6 +130,32 @@ function deadlineToIso(deadline?: string | null): string | undefined {
   return parsed ? parsed.toISOString() : undefined;
 }
 
+/**
+ * Classifies an opportunity for structured data: jobs and internships should
+ * emit schema.org JobPosting (Google's jobs rich result), while scholarships,
+ * fellowships, grants and programs keep EducationalOccupationalProgram.
+ */
+function getEmploymentKind(
+  opportunity: Opportunity,
+): "internship" | "job" | null {
+  const haystack = [
+    opportunity.category,
+    opportunity.title,
+    ...(Array.isArray(opportunity.tags) ? opportunity.tags : []),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (/\bintern(ship)?s?\b|\btrainee\b/.test(haystack)) {
+    return "internship";
+  }
+  if (/\bjobs?\b|\bvacanc(y|ies)\b|\bemployment\b|\bhiring\b|\bcareers?\b/.test(haystack)) {
+    return "job";
+  }
+  return null;
+}
+
 function formatEligibilityKey(key: string): string {
   return key
     .replace(/[_-]+/g, " ")
@@ -258,6 +284,13 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
 
   const currencySymbol = getCurrencySymbol(opportunity.currency);
   const applyUrl = normalizeExternalUrl(opportunity.applyUrl) ?? null;
+  // Browsing is public, but applying requires an account. For signed-out users
+  // we never put the raw external apply URL in the DOM (it would be reachable
+  // via right-click "open in new tab", bypassing the gate) — the button routes
+  // to sign-in instead. handleApply also guards on click as a second line.
+  const isSignedIn = Boolean(userId);
+  const applyHref = isSignedIn ? applyUrl : "/auth?mode=sign-in";
+  const applyCtaLabel = isSignedIn ? "Apply now" : "Sign in to apply";
   const matchPercentage = Math.round(
     Math.max(matchInsight?.score ?? 0, opportunity.match ?? 0),
   );
@@ -299,8 +332,67 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
         ? opportunity.stipend
         : null;
 
-    return [
-      {
+    const employmentKind = getEmploymentKind(opportunity);
+
+    // Jobs and internships get schema.org JobPosting (eligible for Google's
+    // jobs rich results); everything else (scholarships, fellowships, grants,
+    // programs) keeps EducationalOccupationalProgram.
+    const primarySchema = employmentKind
+      ? {
+          "@context": "https://schema.org",
+          "@type": "JobPosting",
+          title: opportunity.title,
+          description: seoDescription,
+          url: canonicalUrl,
+          image: toAbsoluteUrl(seoImage),
+          hiringOrganization: {
+            "@type": "Organization",
+            name: opportunity.organization || "Edutu",
+          },
+          ...(getIsoDate(opportunity.createdAt || opportunity.lastUpdated)
+            ? {
+                datePosted: getIsoDate(
+                  opportunity.createdAt || opportunity.lastUpdated,
+                ),
+              }
+            : {}),
+          ...(deadlineIso ? { validThrough: deadlineIso } : {}),
+          ...(employmentKind === "internship"
+            ? { employmentType: "INTERN" }
+            : {}),
+          ...(opportunity.isRemote
+            ? {
+                jobLocationType: "TELECOMMUTE",
+                applicantLocationRequirements: {
+                  "@type": "Country",
+                  name: opportunity.location || "Worldwide",
+                },
+              }
+            : opportunity.location
+              ? {
+                  jobLocation: {
+                    "@type": "Place",
+                    address: {
+                      "@type": "PostalAddress",
+                      addressLocality: opportunity.location,
+                    },
+                  },
+                }
+              : {}),
+          ...(stipendValue !== null
+            ? {
+                baseSalary: {
+                  "@type": "MonetaryAmount",
+                  currency: opportunity.currency?.toUpperCase() || "USD",
+                  value: {
+                    "@type": "QuantitativeValue",
+                    value: stipendValue,
+                  },
+                },
+              }
+            : {}),
+        }
+      : {
         "@context": "https://schema.org",
         "@type": "EducationalOccupationalProgram",
         name: `${opportunity.title} | Edutu`,
@@ -334,7 +426,10 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
             url: getDefaultSeoImage(),
           },
         },
-      },
+      };
+
+    return [
+      primarySchema,
       {
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
@@ -354,18 +449,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
         ],
       },
     ];
-  }, [
-    canonicalUrl,
-    opportunity.category,
-    opportunity.currency,
-    opportunity.deadline,
-    opportunity.lastUpdated,
-    opportunity.organization,
-    opportunity.stipend,
-    opportunity.title,
-    seoDescription,
-    seoImage,
-  ]);
+  }, [canonicalUrl, opportunity, seoDescription, seoImage]);
   const authState = {
     from: {
       pathname: location.pathname,
@@ -678,6 +762,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
         path={canonicalPath}
         image={seoImage}
         type="article"
+        noindex={expired}
         jsonLd={seoJsonLd}
       />
       {expired ? (
@@ -885,14 +970,14 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
               <div className="flex flex-col gap-3">
                 {applyUrl ? (
                   <a
-                    href={applyUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    href={applyHref ?? "#"}
+                    target={isSignedIn ? "_blank" : undefined}
+                    rel={isSignedIn ? "noopener noreferrer" : undefined}
                     onClick={handleApply}
                     className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white shadow-elevated transition-colors hover:bg-brand-700"
                   >
                     <ExternalLink size={16} />
-                    Apply now
+                    {applyCtaLabel}
                   </a>
                 ) : (
                   <button
@@ -959,14 +1044,14 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
           <div className="mx-auto flex max-w-3xl items-center gap-3">
             {applyUrl ? (
               <a
-                href={applyUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+                href={applyHref ?? "#"}
+                target={isSignedIn ? "_blank" : undefined}
+                rel={isSignedIn ? "noopener noreferrer" : undefined}
                 onClick={handleApply}
                 className="inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl bg-brand px-4 text-sm font-semibold text-white shadow-elevated transition active:scale-[0.98]"
               >
                 <ExternalLink size={17} />
-                <span className="truncate">Apply now</span>
+                <span className="truncate">{applyCtaLabel}</span>
               </a>
             ) : (
               <button

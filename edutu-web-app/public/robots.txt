@@ -1,4 +1,9 @@
 User-agent: *
 Allow: /
+# Authenticated app shell and auth flows — no crawlable content.
+Disallow: /app/
+Disallow: /admin/
+Disallow: /auth
+Disallow: /auth/callback
 
 Sitemap: https://www.edutu.org/sitemap.xml

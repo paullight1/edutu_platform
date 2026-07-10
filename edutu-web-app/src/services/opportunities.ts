@@ -474,6 +474,11 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
       row.imageUrl ??
       metadata.image ??
       metadata.image_url ??
+      // Last resort before nothing: the scraped opportunity's own page image
+      // (its source OG image), so shares/SEO still carry a relevant picture
+      // even when Edutu has no branded image for it.
+      metadata.source_image_url ??
+      row.source_image_url ??
       null,
     match: Number.isFinite(Number(rawMatch)) ? Number(rawMatch) : 0,
     difficulty: normaliseDifficulty(rawDifficulty),

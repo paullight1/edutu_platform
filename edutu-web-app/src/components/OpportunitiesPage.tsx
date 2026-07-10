@@ -50,6 +50,8 @@ import ImageWithFallback from "./ImageWithFallback";
 import PublicEditorialShell from "./PublicEditorialShell";
 import Seo from "./Seo";
 import { useToast } from "./ui/ToastProvider";
+import { Skeleton } from "./ui/Skeleton";
+import { EmptyOpportunities, EmptySearchResults } from "./ui/EmptyState";
 import {
   shareOpportunity,
   shareOutcomeMessage,
@@ -538,8 +540,29 @@ function OpportunityCard({
 }
 
 function LoadingCard() {
+  // Content-shaped skeleton mirroring OpportunityCard: image area, badge row,
+  // title lines, meta row — so the grid doesn't jump when real cards land.
   return (
-    <div className="min-h-[330px] animate-pulse rounded-2xl bg-surface-elevated" />
+    <div className="flex h-full min-h-[330px] flex-col overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-soft">
+      <Skeleton
+        variant="rectangular"
+        className="w-full"
+        style={{ aspectRatio: "16/9" }}
+      />
+      <div className="flex flex-1 flex-col p-4">
+        <div className="mb-3 flex gap-2">
+          <Skeleton variant="rounded" className="h-6 w-20 rounded-md" />
+          <Skeleton variant="rounded" className="h-6 w-16 rounded-md" />
+        </div>
+        <Skeleton variant="text" className="h-5 w-full" />
+        <Skeleton variant="text" className="mt-2 h-5 w-3/4" />
+        <Skeleton variant="text" className="mt-2 h-4 w-1/2" />
+        <div className="mt-auto flex gap-3 border-t border-subtle pt-3">
+          <Skeleton variant="text" className="h-4 w-24" />
+          <Skeleton variant="text" className="h-4 w-28" />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -959,7 +982,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
             ) : null}
           </div>
           <div className="flex items-center justify-between sm:hidden">
-            <p className="text-xs text-text-muted">
+            <p aria-live="polite" className="text-xs text-text-muted">
               {t("opportunities.showing.opportunities", {
                 shown: visibleOpportunities.length,
                 total: sortedOpportunities.length,
@@ -1012,7 +1035,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
             </div>
 
             <div className="flex flex-col gap-3 border-t border-subtle pt-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-text-muted">
+              <p aria-live="polite" className="text-xs text-text-muted">
                 {t("opportunities.showing.opportunities", {
                   shown: visibleOpportunities.length,
                   total: sortedOpportunities.length,
@@ -1052,13 +1075,21 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
         </section>
 
         {error ? (
-          <section className="mt-5 rounded-2xl border border-danger/30 bg-danger/10 p-5 text-danger">
+          <section
+            role="alert"
+            className="mt-5 rounded-2xl border border-danger/30 bg-danger/10 p-5 text-danger"
+          >
             <h2 className="font-display text-lg font-semibold tracking-tight">
               {t("opportunities.errorTitle")}
             </h2>
             <p className="mt-2 text-sm leading-6 text-danger/80">
               {error}
             </p>
+            {sortedOpportunities.length > 0 ? (
+              <p className="mt-2 text-xs font-semibold text-danger/70">
+                Showing cached results
+              </p>
+            ) : null}
             <button
               type="button"
               onClick={refresh}
@@ -1072,7 +1103,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
 
         {loading ? (
           <section className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))] gap-4 sm:gap-5">
-            {Array.from({ length: 6 }).map((_, index) => (
+            {Array.from({ length: PAGE_SIZE }).map((_, index) => (
               <LoadingCard key={index} />
             ))}
           </section>
@@ -1111,18 +1142,37 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
             ) : null}
           </>
         ) : (
-          <section className="mt-5 rounded-2xl border border-subtle bg-surface-layer p-8 text-center">
-            <h2 className="font-display text-2xl font-semibold tracking-tight text-text-primary">{t("opportunities.empty.title")}</h2>
-            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-text-secondary">
-              {t("opportunities.empty.description")}
-            </p>
-            <button
-              type="button"
-              onClick={clearAllFilters}
-              className="mt-5 inline-flex items-center gap-2 rounded-md bg-brand px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700"
-            >
-              {t("opportunities.clearFilters")}
-            </button>
+          <section className="mt-5 rounded-2xl border border-subtle bg-surface-layer p-4">
+            {searchTerm.trim() ? (
+              <EmptySearchResults
+                query={searchTerm.trim()}
+                onClear={clearSearch}
+              />
+            ) : (
+              <EmptyOpportunities onExplore={clearAllFilters} />
+            )}
+            <div className="flex flex-wrap items-center justify-center gap-2 pb-4">
+              {!showClosed ? (
+                <button
+                  type="button"
+                  onClick={() => setShowClosed(true)}
+                  className="inline-flex items-center gap-2 rounded-md border border-subtle bg-surface-elevated px-4 py-2 text-sm font-semibold text-text-secondary transition hover:border-strong hover:text-text-primary"
+                >
+                  {t("opportunities.showClosed")}
+                </button>
+              ) : null}
+              {searchTerm.trim() && hasActiveFilters ? (
+                // EmptyOpportunities already offers Clear Filters; only the
+                // search branch needs this extra escape hatch.
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  className="inline-flex items-center gap-2 rounded-md border border-subtle bg-surface-elevated px-4 py-2 text-sm font-semibold text-text-secondary transition hover:border-strong hover:text-text-primary"
+                >
+                  {t("opportunities.clearFilters")}
+                </button>
+              ) : null}
+            </div>
           </section>
       )}
     </>

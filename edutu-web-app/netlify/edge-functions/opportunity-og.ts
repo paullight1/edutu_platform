@@ -110,16 +110,29 @@ export default async function handler(request: Request, context: Context) {
         200,
       ) ||
       "Discover scholarships, fellowships and programs with AI-guided roadmaps on Edutu.";
+    // Image priority: our branded share card → the opportunity's own image →
+    // the scraped source page's image (its OG image) → generic Edutu icon.
+    // The third step covers the user's ask: when Edutu has no image of its own,
+    // shares still carry the opportunity page's real picture, not just our icon.
+    const brandedCard = clean(card?.shareCard?.url);
+    const sourceImage =
+      clean(opp.metadata?.source_image_url) ||
+      clean(opp.source_image_url || opp.sourceImageUrl);
     const image =
-      clean(card?.shareCard?.url) ||
+      brandedCard ||
       clean(opp.share_image_url || opp.shareImageUrl) ||
       clean(opp.image_url || opp.imageUrl) ||
+      sourceImage ||
       DEFAULT_IMAGE;
+    const usingBrandedCard = Boolean(brandedCard) && image === brandedCard;
     const pageUrl = `${SITE}/opportunity/${encodeURIComponent(id)}`;
 
     html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeAttr(fullTitle)}</title>`);
     html = setValue(html, metaName("description"), `<meta name="description" content="__VALUE__" />`, description);
     html = setValue(html, /(<link\s+rel="canonical"\s+href=")[^"]*(")/i, `<link rel="canonical" href="__VALUE__" />`, pageUrl);
+    // Make the opportunity page explicitly indexable (some SPA shells ship a
+    // conservative default) so Google ranks each opportunity URL.
+    html = setValue(html, metaName("robots"), `<meta name="robots" content="__VALUE__" />`, "index, follow, max-image-preview:large");
 
     html = setValue(html, ogProperty("og:title"), `<meta property="og:title" content="__VALUE__" />`, fullTitle);
     html = setValue(html, ogProperty("og:description"), `<meta property="og:description" content="__VALUE__" />`, description);
@@ -133,12 +146,43 @@ export default async function handler(request: Request, context: Context) {
     html = setValue(html, metaName("twitter:image"), `<meta name="twitter:image" content="__VALUE__" />`, image);
     html = setValue(html, metaName("twitter:image:alt"), `<meta name="twitter:image:alt" content="__VALUE__" />`, title);
 
-    // Help unfurlers size the 4:5 (1080x1350) share card correctly.
-    if (!/property="og:image:width"/i.test(html)) {
+    // Only declare the 4:5 (1080x1350) dimensions when we actually serve the
+    // branded share card — a source/fallback image has its own aspect ratio and
+    // lying about it makes unfurlers crop it badly.
+    if (usingBrandedCard && !/property="og:image:width"/i.test(html)) {
       html = html.replace(
         /<\/head>/i,
         `  <meta property="og:image:width" content="1080" />\n  <meta property="og:image:height" content="1350" />\n</head>`,
       );
+    }
+
+    // Server-rendered structured data so crawlers that don't execute the SPA's
+    // JS (and Google, for faster/robust indexing) get rich-result metadata for
+    // every opportunity URL.
+    const deadlineRaw = clean(opp.deadline || opp.close_date || opp.deadline_date);
+    const deadlineIso = /^\d{4}-\d{2}-\d{2}/.test(deadlineRaw) ? deadlineRaw : "";
+    const organization = clean(opp.organization || opp.provider || opp.company) || "Edutu";
+    const category = clean(opp.category) || "Opportunity";
+    const jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "EducationalOccupationalProgram",
+      name: fullTitle,
+      description,
+      url: pageUrl,
+      image,
+      category,
+      provider: { "@type": "Organization", name: organization },
+      ...(deadlineIso ? { applicationDeadline: deadlineIso, validThrough: deadlineIso } : {}),
+      publisher: {
+        "@type": "Organization",
+        name: "Edutu",
+        url: `${SITE}/opportunities`,
+        logo: { "@type": "ImageObject", url: DEFAULT_IMAGE },
+      },
+    };
+    const jsonLdTag = `<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, "\\u003c")}</script>`;
+    if (!/application\/ld\+json/i.test(html)) {
+      html = html.replace(/<\/head>/i, `  ${jsonLdTag}\n</head>`);
     }
   } catch {
     // On any failure, serve the unmodified SPA HTML (generic OG) — never break the page.
