@@ -142,6 +142,9 @@ type OpportunityEnhancement = z.infer<typeof OpportunityEnhancementSchema>;
 
 const AI_SOURCE_TEXT_MAX_CHARS = 8_000;
 const AI_SOURCE_FETCH_TIMEOUT_MS = 12_000;
+// Below this, page text is too thin to enrich from (nav-only pages, dead links,
+// interstitials) — the enricher falls back to an open-web search for the record.
+const AI_SOURCE_MIN_USEFUL_CHARS = 400;
 const AI_ENRICHMENT_SCHEMA = {
   type: "object",
   properties: {
@@ -2116,27 +2119,29 @@ export class OpportunitiesService {
       item.link ||
       "";
 
-    return `You are Edutu's opportunity content enrichment API. Improve incomplete scholarship, fellowship, internship, grant, or program records for consistent app cards and detail pages.
+    return `You are Edutu's opportunity content enrichment API. Turn incomplete scholarship, fellowship, internship, grant, or training-program records into complete, trustworthy app cards and detail pages.
 
-Use only facts present in the structured input or source text. Do not invent deadlines, countries, funding amounts, eligibility, organizations, or application links. If a fact is missing, return null or an empty array for that field. Write in clear, consistent, student-facing language.
+GOAL: produce a record complete enough to render a rich, context-driven detail page — aim to fill every field you reasonably can. ALWAYS write a clear 25-45 word summary and a factual 4-6 sentence description from the title, category, organization, and source text (never leave these two empty). Derive requirements, benefits, applicationProcess, and skills from the source text and the evident nature of the program; when the source clearly implies them for this kind of opportunity but does not spell them out, include the most likely items and add a short caveat in "notes" naming what was inferred.
+
+INTEGRITY — do NOT fabricate these hard facts: exact deadline dates, specific funding amounts, application/source URLs, and nationality/eligibility restrictions. Provide those only when clearly supported by the input or source text; otherwise use null (or omit from arrays). Never contradict a fact already present in the input. Write in clear, consistent, student-facing language.
 
 Return ONLY valid JSON matching this schema:
 {
-  "summary": "25-45 word preview summary or null",
-  "description": "4-6 sentence factual overview or null",
-  "organization": "host/provider if clearly stated or null",
-  "eligibilityCriteria": "who can apply if clearly stated or null",
-  "fundingType": "funding amount/type if clearly stated or null",
-  "targetRegion": "eligible countries/regions if clearly stated or null",
+  "summary": "25-45 word preview summary (always provide one)",
+  "description": "factual 4-6 sentence overview (always provide one)",
+  "organization": "host/provider if stated or reasonably identifiable, else null",
+  "eligibilityCriteria": "who can apply — from source, or the typical audience for this program type (note if inferred), else null",
+  "fundingType": "funding amount/type if clearly stated, else null",
+  "targetRegion": "eligible countries/regions if clearly stated, else null",
   "deadline": "YYYY-MM-DD, readable source deadline, or null",
-  "requirements": ["specific requirement or document"],
-  "benefits": ["specific award, funding, access, mentorship, or other benefit"],
-  "applicationProcess": ["specific application step"],
-  "skills": ["5-12 concrete skills or competencies this opportunity develops or requires — empty array if the text doesn't state any"],
+  "requirements": ["specific or clearly-inferred requirement/document — leave empty only if truly indeterminable"],
+  "benefits": ["specific or clearly-inferred award, funding, training, access, mentorship, or other benefit"],
+  "applicationProcess": ["specific or typical application step"],
+  "skills": ["5-12 concrete skills or competencies this opportunity develops or requires"],
   "eligibility": { "level": "if stated", "nationality": "if stated", "field": "if stated" },
   "tags": ["3-6 concise tags"],
   "confidence": 0.0,
-  "notes": ["short caveats for missing or unclear facts"]
+  "notes": ["short caveats naming any inferred or unclear facts"]
 }
 
 Structured input:
@@ -2156,7 +2161,7 @@ Existing eligibility: ${JSON.stringify(item.eligibility || metadata.eligibility 
 Existing metadata excerpt: ${JSON.stringify(metadata).slice(0, 2400)}
 
 Source text excerpt:
-${sourceText || "No source page text was available. Improve wording only from structured input and keep unknown facts empty."}`;
+${sourceText || "No source page text was available. Still write a complete summary and description from the structured input above, and infer the likely requirements, benefits, application steps, and skills for this kind of program — mark inferred items in notes. Keep hard facts (exact deadline, funding amount, application URL, nationality) null unless supported."}`;
   }
 
   private async resolveOpportunitySourceText(
@@ -2177,8 +2182,26 @@ ${sourceText || "No source page text was available. Improve wording only from st
       item.application_url ||
       item.link ||
       "";
-    if (!this.isSafeOpportunitySourceUrl(url)) return "";
 
+    // 1) Direct read of the stored source/apply URL.
+    const directText = this.isSafeOpportunitySourceUrl(url)
+      ? await this.fetchSourceUrlText(url)
+      : "";
+    if (directText.length >= AI_SOURCE_MIN_USEFUL_CHARS) return directText;
+
+    // 2) Browse fallback — the record carries no usable page text of its own
+    //    (missing, dead, or aggregator/listing URL), so search the open web for
+    //    the canonical page and read that instead. This is what lets "AI improve"
+    //    actually complete a record rather than re-scoring the same thin input.
+    if (process.env.OPPORTUNITY_AI_WEB_SEARCH !== "false") {
+      const searchedText = await this.searchWebForSourceText(item, url);
+      if (searchedText.length > directText.length) return searchedText;
+    }
+
+    return directText;
+  }
+
+  private async fetchSourceUrlText(url: string): Promise<string> {
     try {
       const response = await axios.get(url, {
         timeout: AI_SOURCE_FETCH_TIMEOUT_MS,
@@ -2189,6 +2212,7 @@ ${sourceText || "No source page text was available. Improve wording only from st
             "text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.7",
         },
         maxContentLength: 1_500_000,
+        maxRedirects: 4,
         validateStatus: (status) => status >= 200 && status < 400,
       });
       return this.extractSourceTextFromHtml(String(response.data || ""));
@@ -2198,6 +2222,108 @@ ${sourceText || "No source page text was available. Improve wording only from st
           error instanceof Error ? error.message : String(error)
         }`,
       );
+      return "";
+    }
+  }
+
+  /**
+   * Open-web browse fallback for AI enrichment. Builds a query from the record's
+   * strongest identifiers (title + organization), runs it through DuckDuckGo's
+   * keyless HTML endpoint, then reads the first credible result page. Best-effort
+   * and quiet on failure — enrichment still proceeds on structured input alone.
+   */
+  private async searchWebForSourceText(
+    item: Record<string, any>,
+    excludeUrl: string,
+  ): Promise<string> {
+    const title = this.cleanText(String(item.title || ""), 160);
+    if (title.length < 8) return "";
+    const organization = this.cleanText(String(item.organization || ""), 120);
+    const query = [title, organization].filter(Boolean).join(" ").trim();
+
+    let candidateUrls: string[] = [];
+    try {
+      const response = await axios.get("https://html.duckduckgo.com/html/", {
+        params: { q: query },
+        timeout: AI_SOURCE_FETCH_TIMEOUT_MS,
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (compatible; EdutuOpportunityBot/1.0; +https://www.edutu.org)",
+          Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.7",
+        },
+        maxContentLength: 1_500_000,
+        validateStatus: (status) => status >= 200 && status < 400,
+      });
+      candidateUrls = this.extractSearchResultUrls(
+        String(response.data || ""),
+        excludeUrl,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Web search fallback failed for AI enrichment ("${query}"): ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return "";
+    }
+
+    for (const candidate of candidateUrls.slice(0, 3)) {
+      const text = await this.fetchSourceUrlText(candidate);
+      if (text.length >= AI_SOURCE_MIN_USEFUL_CHARS) return text;
+    }
+    return "";
+  }
+
+  private extractSearchResultUrls(html: string, excludeUrl: string): string[] {
+    if (!html) return [];
+    const $ = cheerio.load(html);
+    const excludeHost = this.safeHost(excludeUrl);
+    const blockedHosts = [
+      "duckduckgo.com",
+      "google.com",
+      "bing.com",
+      "facebook.com",
+      "twitter.com",
+      "x.com",
+      "youtube.com",
+      "linkedin.com",
+      "instagram.com",
+      "pinterest.com",
+      "t.me",
+      "reddit.com",
+    ];
+    const seen = new Set<string>();
+    const urls: string[] = [];
+
+    $("a.result__a, a.result__url").each((_, el) => {
+      let href = $(el).attr("href") || "";
+      if (!href) return;
+      // DuckDuckGo wraps results in a redirect: /l/?uddg=<encoded-target>.
+      const uddg = href.match(/[?&]uddg=([^&]+)/);
+      if (uddg) {
+        try {
+          href = decodeURIComponent(uddg[1]);
+        } catch {
+          return;
+        }
+      }
+      if (href.startsWith("//")) href = `https:${href}`;
+      if (!this.isSafeOpportunitySourceUrl(href)) return;
+      const host = this.safeHost(href);
+      if (!host || host === excludeHost) return;
+      if (blockedHosts.some((b) => host === b || host.endsWith(`.${b}`))) return;
+      if (seen.has(href)) return;
+      seen.add(href);
+      urls.push(href);
+    });
+
+    return urls;
+  }
+
+  private safeHost(url: string): string {
+    try {
+      return new URL(url).hostname.toLowerCase();
+    } catch {
       return "";
     }
   }
