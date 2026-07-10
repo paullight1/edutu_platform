@@ -21,6 +21,7 @@ import {
   FileText,
   Smartphone,
   CalendarDays,
+  Inbox,
 } from "lucide-react";
 
 interface User {
@@ -115,6 +116,7 @@ const Layout = () => {
   const navItems = [
     { to: "/", icon: LayoutDashboard, label: "Dashboard" },
     { to: "/opportunities", icon: Target, label: "Opportunities" },
+    { to: "/submissions", icon: Inbox, label: "Submissions" },
     { to: "/events", icon: CalendarDays, label: "Events" },
     { to: "/users", icon: Users, label: "Users" },
     { to: "/creators", icon: ShieldCheck, label: "Creators" },

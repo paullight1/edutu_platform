@@ -23,6 +23,7 @@ export * from './services/opportunitySignals';
 export * from './services/dismissedOpportunities';
 export * from './services/copilot';
 export * from './services/savedSearches';
+export * from './services/opportunitySubmissions';
 
 export * from './hooks/useChat';
 export * from './hooks/useOpportunities';
