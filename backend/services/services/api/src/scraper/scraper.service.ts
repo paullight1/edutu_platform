@@ -3773,11 +3773,16 @@ ${text}`;
   }) {
     if (!this.supabase)
       return { success: false, error: "No database configured" };
+    // Groups have no real URL, but scraping_sources.url is UNIQUE — a literal ""
+    // collides with every previously created group. Use a synthetic per-name URL.
+    const url = body.is_group
+      ? `group://${body.name.trim().toLowerCase().replace(/\s+/g, "-")}`
+      : (body.url ?? "").trim();
     const { data, error } = await this.supabase
       .from("scraping_sources")
       .insert({
         name: body.name,
-        url: body.url ?? "",
+        url,
         category: body.category ?? "scholarship",
         tier: body.tier ?? 2,
         enabled: true,
@@ -3786,9 +3791,20 @@ ${text}`;
       })
       .select()
       .single();
-    return error
-      ? { success: false, error: error.message }
-      : { success: true, data };
+    if (error) {
+      const isDuplicate =
+        error.code === "23505" || /duplicate key/i.test(error.message);
+      return {
+        success: false,
+        duplicate: isDuplicate,
+        error: isDuplicate
+          ? body.is_group
+            ? `A group named "${body.name}" already exists`
+            : "A source with this URL already exists"
+          : error.message,
+      };
+    }
+    return { success: true, data };
   }
 
   async deleteSource(id: number) {
