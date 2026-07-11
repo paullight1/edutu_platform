@@ -36,13 +36,13 @@
         "title": "Stages",
         "description": "Postes pratiques pour débuter"
       },
-      "grants": {
-        "title": "Programmes",
-        "description": "Programmes financés et subventions"
-      },
       "fellowships": {
         "title": "Fellowships",
         "description": "Fellowships et parcours de leadership"
+      },
+      "programs": {
+        "title": "Programmes",
+        "description": "Programmes financés et subventions"
       }
     }
   },

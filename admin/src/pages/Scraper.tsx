@@ -193,6 +193,10 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string
     internship: { bg: 'rgba(52, 199, 89, 0.12)', text: '#34c759', border: 'rgba(52, 199, 89, 0.35)' },
     fellowship: { bg: 'rgba(122, 61, 255, 0.12)', text: '#a78bfa', border: 'rgba(122, 61, 255, 0.35)' },
     grant: { bg: 'rgba(255, 149, 0, 0.14)', text: '#ff9500', border: 'rgba(255, 149, 0, 0.35)' },
+    program: { bg: 'rgba(16, 185, 129, 0.12)', text: '#10b981', border: 'rgba(16, 185, 129, 0.35)' },
+    graduate_program: { bg: 'rgba(124, 58, 237, 0.12)', text: '#8b5cf6', border: 'rgba(124, 58, 237, 0.35)' },
+    bootcamp: { bg: 'rgba(219, 39, 119, 0.12)', text: '#ec4899', border: 'rgba(219, 39, 119, 0.35)' },
+    event: { bg: 'rgba(14, 165, 233, 0.12)', text: '#38bdf8', border: 'rgba(14, 165, 233, 0.35)' },
 };
 
 const getCategoryColor = (category?: string) =>
