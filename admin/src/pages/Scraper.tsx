@@ -218,6 +218,8 @@ export default function ScraperDashboard() {
     const [showAddSource, setShowAddSource] = useState(false);
     const [newSource, setNewSource] = useState<{ name: string; url: string; category: string; asGroup?: boolean; parentId?: number; bulkText?: string }>({ name: '', url: '', category: 'scholarship', asGroup: false, bulkText: '' });
     const [isAddingSource, setIsAddingSource] = useState(false);
+    // Pre-run review panel for a group's "Run all" (lists sources + editable pages).
+    const [runGroupConfirm, setRunGroupConfirm] = useState<ScrapeSource | null>(null);
     const [filter, setFilter] = useState<'all' | 'enabled' | 'disabled'>('all');
     const [scrapeResult, setScrapeResult] = useState<ScrapeResult | null>(null);
     const [recentOpportunities, setRecentOpportunities] = useState<Opportunity[]>([]);
@@ -1585,8 +1587,8 @@ export default function ScraperDashboard() {
                         </span>
                         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
                             <button
-                                onClick={() => { showNotification(`Starting scrape for all ${source.name} sources`, 'info'); startScrape(source.id); }}
-                                title="Scrape all sources in this group"
+                                onClick={() => setRunGroupConfirm(source)}
+                                title="Review the group's sources, then scrape them all"
                                 style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, border: `1px solid ${palette.border}`, background: 'var(--bg-primary)', color: palette.text, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}
                             >
                                 <Play size={12} /> Run all
@@ -2762,6 +2764,136 @@ export default function ScraperDashboard() {
                     </div>
                 )
             }
+
+            {/* Run-all review panel: see the group's websites + edit pages before starting */}
+            {runGroupConfirm && (() => {
+                const group = runGroupConfirm;
+                const palette = getCategoryColor(group.category);
+                const groupChildren = sources.filter(s => s.parent_id === group.id);
+                const activeChildren = groupChildren.filter(s => s.enabled);
+                return (
+                    <div style={{
+                        position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(4px)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20,
+                    }} onClick={() => setRunGroupConfirm(null)}>
+                        <div
+                            style={{
+                                background: 'var(--bg-primary)', borderRadius: 16, width: '100%', maxWidth: 560,
+                                maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                                border: '1px solid var(--border-light)', boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+                                animation: 'slideUp 0.25s ease',
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* Header */}
+                            <div style={{ padding: '18px 24px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: 12, background: palette.bg }}>
+                                <span style={{ width: 38, height: 38, borderRadius: 10, flexShrink: 0, background: palette.text, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Globe size={18} />
+                                </span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <h3 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                                        Run all — {group.name}
+                                    </h3>
+                                    <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--text-tertiary)' }}>
+                                        {activeChildren.length} of {groupChildren.length} source{groupChildren.length === 1 ? '' : 's'} will be scraped · toggle any off to skip it
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => setRunGroupConfirm(null)}
+                                    style={{ padding: 4, background: 'transparent', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', borderRadius: 6 }}
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            {/* Websites in this group */}
+                            <div style={{ padding: '14px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
+                                {groupChildren.length === 0 ? (
+                                    <div style={{ padding: '18px 12px', textAlign: 'center', fontSize: 13, color: 'var(--text-tertiary)' }}>
+                                        This group has no sources yet — add some first.
+                                    </div>
+                                ) : groupChildren.map(child => (
+                                    <div key={child.id} style={{
+                                        display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+                                        borderRadius: 10, border: '1px solid var(--border-light)',
+                                        background: child.enabled ? 'var(--bg-secondary)' : 'var(--bg-tertiary)',
+                                        opacity: child.enabled ? 1 : 0.6,
+                                    }}>
+                                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: child.enabled ? '#34c759' : 'var(--border-medium)', flexShrink: 0 }} />
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                {child.name}
+                                            </div>
+                                            {child.url && (
+                                                <a href={child.url} target="_blank" rel="noopener noreferrer"
+                                                    style={{ fontSize: 11, color: 'var(--link-blue)', textDecoration: 'none' }}>
+                                                    {child.url.replace(/^https?:\/\//, '').slice(0, 52)}
+                                                </a>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={() => toggleSource(child)}
+                                            title={child.enabled ? 'Included — click to skip' : 'Skipped — click to include'}
+                                            style={{
+                                                flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 999,
+                                                fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer',
+                                                background: child.enabled ? 'rgba(52, 199, 89, 0.12)' : 'var(--bg-primary)',
+                                                color: child.enabled ? '#34c759' : 'var(--text-tertiary)',
+                                            }}
+                                        >
+                                            {child.enabled ? <CheckCircle2 size={11} /> : <Pause size={11} />}
+                                            {child.enabled ? 'Included' : 'Skipped'}
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Footer: editable pages + start */}
+                            <div style={{ padding: '14px 24px', borderTop: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-secondary)', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <label htmlFor="run-all-pages" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                        Pages per source
+                                    </label>
+                                    <input
+                                        id="run-all-pages"
+                                        type="number"
+                                        min={1}
+                                        max={20}
+                                        value={maxPages}
+                                        onChange={(e) => setMaxPages(Math.min(20, Math.max(1, parseInt(e.target.value) || 1)))}
+                                        style={{ width: 72, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border-medium)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 14, fontWeight: 700, textAlign: 'center', outline: 'none' }}
+                                    />
+                                </div>
+                                <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                                    <button
+                                        onClick={() => setRunGroupConfirm(null)}
+                                        style={{ padding: '10px 18px', background: 'transparent', border: '1px solid var(--border-medium)', borderRadius: 8, color: 'var(--text-primary)', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setRunGroupConfirm(null);
+                                            showNotification(`Starting scrape for ${activeChildren.length} ${group.name} source${activeChildren.length === 1 ? '' : 's'}`, 'info');
+                                            void startScrape(group.id);
+                                        }}
+                                        disabled={activeChildren.length === 0}
+                                        title={activeChildren.length === 0 ? 'Enable at least one source first' : undefined}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px',
+                                            background: activeChildren.length === 0 ? 'var(--border-medium)' : 'var(--apple-blue)',
+                                            border: 'none', borderRadius: 8, color: 'white', fontSize: 14, fontWeight: 700,
+                                            cursor: activeChildren.length === 0 ? 'not-allowed' : 'pointer',
+                                        }}
+                                    >
+                                        <Play size={15} /> Start scrape ({activeChildren.length})
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* Add Source Modal */}
             {
