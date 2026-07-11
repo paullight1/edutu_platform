@@ -21,18 +21,15 @@ create unique index if not exists billing_entitlements_user_feature_key
 
 alter table public.billing_entitlements enable row level security;
 
--- Let a signed-in user read their own entitlement (service role bypasses RLS
--- for writes). Adjust the USING clause to your auth mapping if needed.
-do $$ begin
-  if not exists (
-    select 1 from pg_policies
-    where schemaname = 'public' and tablename = 'billing_entitlements'
-      and policyname = 'read own entitlements'
-  ) then
-    create policy "read own entitlements" on public.billing_entitlements
-      for select using (true);
-  end if;
-end $$;
+-- Let a signed-in user read ONLY their own entitlement (service role bypasses
+-- RLS for writes). user_id is the raw Clerk id, which is the `sub` claim of
+-- the Clerk third-party-auth JWT Supabase verifies.
+-- NOTE: the earlier permissive `using (true)` policy let ANY caller enumerate
+-- every user's entitlement — drop it if this schema was applied before.
+drop policy if exists "read own entitlements" on public.billing_entitlements;
+create policy "read own entitlements" on public.billing_entitlements
+  for select to authenticated
+  using (user_id = (auth.jwt() ->> 'sub'));
 
 -- ── Payment ledger ("see users / see revenue") ───────────────────────────────
 create table if not exists public.payments (
@@ -52,6 +49,9 @@ create table if not exists public.payments (
 create unique index if not exists payments_reference_key
   on public.payments (provider, reference);
 
+-- Ledger is service-role only: RLS on with no policies denies anon/authed reads.
+alter table public.payments enable row level security;
+
 -- ── Subscriptions (only used when Paystack Plans are configured) ──────────────
 create table if not exists public.billing_subscriptions (
   id                uuid primary key default gen_random_uuid(),
@@ -67,6 +67,14 @@ create table if not exists public.billing_subscriptions (
 
 create unique index if not exists billing_subscriptions_code_key
   on public.billing_subscriptions (subscription_code);
+
+-- Contains Paystack email_tokens (enough to disable a subscription) — must
+-- never be readable by clients. Service-role only.
+alter table public.billing_subscriptions enable row level security;
+
+-- Renewal-charge webhooks resolve uid by email; keep that lookup indexed.
+create index if not exists billing_subscriptions_email_idx
+  on public.billing_subscriptions (email);
 
 -- ── Optional: mirror Pro onto profiles (best-effort; entitlements are the
 -- authoritative source the app reads). These columns already exist in Edutu.

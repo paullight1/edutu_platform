@@ -63,3 +63,56 @@ export function verifySession(value?: string | null): string | null {
   if (Number(expStr) < Math.floor(Date.now() / 1000)) return null;
   return uid;
 }
+
+// ─── Admin session ────────────────────────────────────────────────────────────
+// The admin dashboard used to authenticate via ?token= in the URL, which leaks
+// the token into browser history, server logs and referrers. Instead the login
+// form POSTs the token once to /api/admin/login, which sets this short-lived
+// HMAC-signed cookie (keyed off the admin token itself, so no extra env var).
+
+export const ADMIN_COOKIE = 'edutu_pay_admin';
+
+/** Constant-time string comparison (avoids char-by-char timing leaks). */
+export function timingSafeEquals(a: string, b: string): boolean {
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ba.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ba, bb);
+}
+
+export function isValidAdminToken(token: string | null | undefined): boolean {
+  if (!token) return false;
+  try {
+    return timingSafeEquals(token, config.adminToken());
+  } catch {
+    return false; // ADMIN_DASHBOARD_TOKEN unset → nobody is admin.
+  }
+}
+
+export function signAdminSession(ttlSeconds = 7200): string | null {
+  try {
+    const secret = config.adminToken();
+    const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
+    const payload = `admin.${exp}`;
+    const sig = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+    return `${payload}.${sig}`;
+  } catch {
+    return null;
+  }
+}
+
+export function verifyAdminSession(value?: string | null): boolean {
+  if (!value) return false;
+  let secret: string;
+  try {
+    secret = config.adminToken();
+  } catch {
+    return false;
+  }
+  const parts = value.split('.');
+  if (parts.length !== 3 || parts[0] !== 'admin') return false;
+  const [, expStr, sig] = parts;
+  const expected = crypto.createHmac('sha256', secret).update(`admin.${expStr}`).digest('hex');
+  if (!timingSafeEquals(sig, expected)) return false;
+  return Number(expStr) >= Math.floor(Date.now() / 1000);
+}

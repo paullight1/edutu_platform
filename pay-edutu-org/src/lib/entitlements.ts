@@ -19,7 +19,23 @@ export interface GrantInput {
 export async function grantPro(input: GrantInput): Promise<void> {
   const db = supabaseAdmin();
   const now = new Date();
-  const expiresAt = input.expiresAt ?? addDays(now, planDurationDays(input.plan));
+
+  let expiresAt = input.expiresAt;
+  if (!expiresAt) {
+    // Extend from whatever time is still left, not from "now" — a user who
+    // renews (or buys again) mid-period must never lose paid days.
+    const { data: existing } = await db
+      .from('billing_entitlements')
+      .select('status, expires_at')
+      .eq('user_id', input.userId)
+      .eq('feature_key', 'pro')
+      .maybeSingle();
+    const currentExpiry = existing?.status === 'active' && existing.expires_at
+      ? new Date(existing.expires_at)
+      : null;
+    const base = currentExpiry && currentExpiry.getTime() > now.getTime() ? currentExpiry : now;
+    expiresAt = addDays(base, planDurationDays(input.plan));
+  }
 
   const { error } = await db
     .from('billing_entitlements')
@@ -127,6 +143,51 @@ export async function upsertSubscription(input: {
     },
     { onConflict: 'subscription_code' },
   );
+}
+
+/** Mark a subscription as no longer renewing (entitlement lapses at expiry). */
+export async function markSubscriptionCanceled(subscriptionCode: string): Promise<void> {
+  const db = supabaseAdmin();
+  await db
+    .from('billing_subscriptions')
+    .update({ status: 'canceled', updated_at: new Date().toISOString() })
+    .eq('subscription_code', subscriptionCode);
+}
+
+/**
+ * Resolve the Edutu uid for a Paystack event that arrived WITHOUT metadata —
+ * Paystack renewal charges don't echo the original transaction's metadata, so
+ * we fall back to the subscription code, then the customer email, in our
+ * billing_subscriptions ledger. Returns null when no confident match exists.
+ */
+export async function findUidForRenewal(params: {
+  subscriptionCode?: string | null;
+  email?: string | null;
+}): Promise<string | null> {
+  const db = supabaseAdmin();
+
+  if (params.subscriptionCode) {
+    const { data } = await db
+      .from('billing_subscriptions')
+      .select('user_id')
+      .eq('subscription_code', params.subscriptionCode)
+      .maybeSingle();
+    if (data?.user_id) return data.user_id;
+  }
+
+  if (params.email) {
+    const { data } = await db
+      .from('billing_subscriptions')
+      .select('user_id')
+      .eq('email', params.email)
+      .eq('status', 'active')
+      .order('updated_at', { ascending: false })
+      .limit(2);
+    // Only trust an email match when it's unambiguous.
+    if (data && data.length === 1 && data[0].user_id) return data[0].user_id;
+  }
+
+  return null;
 }
 
 export interface EntitlementStatus {

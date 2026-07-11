@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { config } from '@/lib/env';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { ADMIN_COOKIE, isValidAdminToken, verifyAdminSession } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 function isAuthed(req: NextRequest): boolean {
+  if (verifyAdminSession(req.cookies.get(ADMIN_COOKIE)?.value)) return true;
   const header = req.headers.get('authorization') || '';
   const bearer = header.startsWith('Bearer ') ? header.slice(7) : '';
+  // ?token= is kept for the Edutu admin app's server-to-server calls; prefer
+  // the Bearer header in new integrations (query strings end up in logs).
   const query = new URL(req.url).searchParams.get('token') || '';
-  const token = bearer || query;
-  return token !== '' && token === config.adminToken();
+  return isValidAdminToken(bearer) || isValidAdminToken(query);
 }
 
 // GET /api/admin/stats  (Bearer ADMIN_DASHBOARD_TOKEN, or ?token=)
