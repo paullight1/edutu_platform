@@ -53,7 +53,16 @@
     },
     "logOut": "Se déconnecter",
     "appVersion": "Edutu v{{version}}",
-    "footerTagline": "Au service de la jeunesse africaine"
+    "footerTagline": "Au service de la jeunesse africaine",
+    "verified": "Vérifié",
+    "upgrade": {
+      "title": "Passer à Premium",
+      "desc": "Débloquez toute l'expérience Edutu et démarquez-vous avec un badge vérifié.",
+      "perk1": "Coaching IA et Co-pilote illimités",
+      "perk2": "Modèles premium, outils CV et exports",
+      "perk3": "Badge bleu vérifié sur votre profil",
+      "cta": "Passer à Premium"
+    }
   },
   "edit": {
     "title": "Modifier le profil",

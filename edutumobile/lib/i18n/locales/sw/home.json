@@ -188,7 +188,22 @@
     "restoreFailed": "Imeshindwa kurejesha manunuzi",
     "backToApp": "Rudi kwenye app",
     "subscribe": "Jisajili kwa premium",
-    "renewalNote": "Usajili hujisasisha wenyewe na unaweza kudhibitiwa katika mipangilio ya kifaa chako."
+    "renewalNote": "Usajili hujisasisha wenyewe na unaweza kudhibitiwa katika mipangilio ya kifaa chako.",
+    "loginOffer": {
+      "title": "Ofa Maalum",
+      "subtitle": "Kwa muda mfupi tu — ofa inaisha hivi karibuni",
+      "genericTitle": "Nenda Premium",
+      "genericSubtitle": "Fungua kila kitu ambacho Edutu inatoa",
+      "off": "PUNGUZO",
+      "premium": "PREMIUM",
+      "was": "Ilikuwa {{price}}/mwezi",
+      "total": "Jumla {{price}}/mwezi",
+      "tagline": "Ukocha wa AI bila kikomo, violezo vya premium na beji iliyothibitishwa",
+      "viewAllPlans": "Tazama Mipango Yote",
+      "cta": "Endelea",
+      "footnote": "Ghairi wakati wowote — bila masharti",
+      "close": "Funga ofa"
+    }
   },
   "wallet": {
     "title": "Pochi",
@@ -234,5 +249,9 @@
     "purchaseFailedTitle": "Ununuzi Umeshindikana",
     "somethingWentWrong": "Hitilafu imetokea.",
     "autoAddNote": "Krediti huongezwa kiotomatiki baada ya ununuzi."
+  },
+  "header": {
+    "upgrade": "Boresha",
+    "verified": "Akaunti imethibitishwa"
   }
 }
