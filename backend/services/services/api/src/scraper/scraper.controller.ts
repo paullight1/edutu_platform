@@ -221,9 +221,9 @@ export class ScraperController {
   }
 
   @Get("jobs")
-  async getJobs() {
+  async getJobs(@Query("limit") limit?: string) {
     try {
-      return await this.scraperService.getJobs();
+      return await this.scraperService.getJobs(Number(limit) || 20);
     } catch (error) {
       this.logger.error(`Get jobs failed: ${error.message}`);
       return [];

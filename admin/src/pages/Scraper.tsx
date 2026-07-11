@@ -187,6 +187,18 @@ async function getAuthHeaders() {
     return getAdminAuthHeaders();
 }
 
+// Per-category accent colors used across source cards, badges and the add modal.
+const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+    scholarship: { bg: 'rgba(20, 110, 245, 0.12)', text: '#4f9cf9', border: 'rgba(20, 110, 245, 0.35)' },
+    internship: { bg: 'rgba(52, 199, 89, 0.12)', text: '#34c759', border: 'rgba(52, 199, 89, 0.35)' },
+    fellowship: { bg: 'rgba(122, 61, 255, 0.12)', text: '#a78bfa', border: 'rgba(122, 61, 255, 0.35)' },
+    grant: { bg: 'rgba(255, 149, 0, 0.14)', text: '#ff9500', border: 'rgba(255, 149, 0, 0.35)' },
+};
+
+const getCategoryColor = (category?: string) =>
+    CATEGORY_COLORS[(category || '').toLowerCase()]
+    ?? { bg: 'var(--bg-tertiary)', text: 'var(--text-secondary)', border: 'var(--border-medium)' };
+
 export default function ScraperDashboard() {
     const [sources, setSources] = useState<ScrapeSource[]>([]);
     const [jobs, setJobs] = useState<ScrapeJob[]>([]);
@@ -204,7 +216,8 @@ export default function ScraperDashboard() {
 
     const API_URL = `${getBackendBaseUrl()}/api/scraper`;
     const [showAddSource, setShowAddSource] = useState(false);
-    const [newSource, setNewSource] = useState<{ name: string; url: string; category: string; asGroup?: boolean; parentId?: number }>({ name: '', url: '', category: 'scholarship', asGroup: false });
+    const [newSource, setNewSource] = useState<{ name: string; url: string; category: string; asGroup?: boolean; parentId?: number; bulkText?: string }>({ name: '', url: '', category: 'scholarship', asGroup: false, bulkText: '' });
+    const [isAddingSource, setIsAddingSource] = useState(false);
     const [filter, setFilter] = useState<'all' | 'enabled' | 'disabled'>('all');
     const [scrapeResult, setScrapeResult] = useState<ScrapeResult | null>(null);
     const [recentOpportunities, setRecentOpportunities] = useState<Opportunity[]>([]);
@@ -248,6 +261,12 @@ export default function ScraperDashboard() {
     const [isSaving, setIsSaving] = useState(false);
     const [enhancingIndexes, setEnhancingIndexes] = useState<Set<number>>(new Set());
     const [detailsOpportunity, setDetailsOpportunity] = useState<ScrapedOpportunity | null>(null);
+    // Minimize-to-pill animation flag: plays shrinkToCorner before hiding the modal.
+    const [isMinimizing, setIsMinimizing] = useState(false);
+    // Pre-AI snapshots keyed by source index — lets the user compare before/after.
+    const [aiBefore, setAiBefore] = useState<Record<number, ScrapedOpportunity>>({});
+    // Result cards expanded inline (full description + AI comparison).
+    const [expandedResults, setExpandedResults] = useState<Set<number>>(new Set());
     const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
     const [expandedJobGroups, setExpandedJobGroups] = useState<Set<string>>(new Set());
     const toggleJobGroup = (key: string) => {
@@ -415,39 +434,49 @@ export default function ScraperDashboard() {
         }).filter((i): i is NonNullable<typeof i> => Boolean(i));
         if (items.length === 0) { setIsSavingInspect(false); showNotification('No valid opportunities to save', 'warning'); return; }
         let inserted = 0, skipped = 0;
-        for (let i = 0; i < items.length; i += 100) {
+        const batches: Array<typeof items> = [];
+        for (let i = 0; i < items.length; i += 100) batches.push(items.slice(i, i + 100));
+        // Parallel batches — the backend dedupes on URL, so a single round-trip wins.
+        await Promise.all(batches.map(async (batch) => {
             try {
                 const result = await backendFetchJson<{ success: boolean; inserted?: number; skipped?: number }>(
                     `/opportunities/admin/bulk-import`,
-                    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: items.slice(i, i + 100) }) },
+                    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: batch }) },
                 );
                 inserted += result.inserted || 0; skipped += result.skipped || 0;
             } catch (e) { console.error('inspect save batch failed', e); }
-        }
+        }));
         setIsSavingInspect(false);
-        await loadRecentOpportunities(); await loadData();
         showNotification(`Saved ${inserted} opportunities${skipped ? `, skipped ${skipped}` : ''}`, 'success');
+        void loadRecentOpportunities(); void loadData();
     };
 
     // Improve every opportunity in the inspected job with AI (updates the list live).
+    // Runs up to 4 enhancements concurrently instead of one-by-one.
     const improveInspectOpportunities = async () => {
         if (inspectOpportunities.length === 0) return;
         setIsImprovingInspect(true);
         const updated = [...inspectOpportunities];
-        for (let i = 0; i < updated.length; i++) {
-            try {
-                const response = await fetch(`${API_URL}/enhance-preview`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
-                    body: JSON.stringify(updated[i]),
-                });
-                const result = await response.json();
-                if (response.ok && result.success && result.opportunity) {
-                    updated[i] = result.opportunity;
-                    setInspectOpportunities([...updated]);
-                }
-            } catch (e) { console.warn('AI improve failed for item', i, e); }
-        }
+        const authHeaders = await getAuthHeaders();
+        let cursor = 0;
+        const worker = async () => {
+            while (cursor < updated.length) {
+                const i = cursor++;
+                try {
+                    const response = await fetch(`${API_URL}/enhance-preview`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders },
+                        body: JSON.stringify(updated[i]),
+                    });
+                    const result = await response.json();
+                    if (response.ok && result.success && result.opportunity) {
+                        updated[i] = result.opportunity;
+                        setInspectOpportunities([...updated]);
+                    }
+                } catch (e) { console.warn('AI improve failed for item', i, e); }
+            }
+        };
+        await Promise.all(Array.from({ length: Math.min(4, updated.length) }, worker));
         setIsImprovingInspect(false);
         showNotification('AI improvement complete', 'success');
     };
@@ -512,7 +541,7 @@ export default function ScraperDashboard() {
             const [engineStatusData, sourcesData, jobsData, statsData] = await Promise.allSettled([
                 backendFetchJson<EngineStatus>(`/api/scraper/engine-status`, { headers: authHeaders }),
                 backendFetchJson<ScrapeSource[]>(`/api/scraper/sources`, { headers: authHeaders }),
-                backendFetchJson<ScrapeJob[]>(`/api/scraper/jobs`, { headers: authHeaders }),
+                backendFetchJson<ScrapeJob[]>(`/api/scraper/jobs?limit=100`, { headers: authHeaders }),
                 backendFetchJson<{ total: number; bySource: Record<string, number> }>(
                     `/api/scraper/stats`,
                     { headers: authHeaders },
@@ -595,7 +624,7 @@ export default function ScraperDashboard() {
                 'postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'scrape_logs' },
                 (payload) => {
-                    setJobs(current => [payload.new as ScrapeJob, ...current].slice(0, 20));
+                    setJobs(current => [payload.new as ScrapeJob, ...current].slice(0, 100));
                 }
             )
             .on(
@@ -652,7 +681,7 @@ export default function ScraperDashboard() {
                         // pass (which flashes the stat tiles into loading state).
                         try {
                             const jobsData = await backendFetchJson<ScrapeJob[]>(
-                                `/api/scraper/jobs`,
+                                `/api/scraper/jobs?limit=100`,
                                 { headers: await getAuthHeaders() },
                             );
                             if (!disposed && Array.isArray(jobsData)) setJobs(jobsData);
@@ -661,6 +690,7 @@ export default function ScraperDashboard() {
                         // Run finished server-side — reuse the background completion flow.
                         isRehydratedRunRef.current = false;
                         setIsRehydratedRun(false);
+                        setShowLoadingModal(false);
                         setScraping(false);
                         setIsPaused(false);
                         setIsStopping(false);
@@ -703,10 +733,17 @@ export default function ScraperDashboard() {
 
     // Minimize: hide the modal but let the scrape keep running in the background.
     // The fetch promise in startScrape is NOT aborted, so it completes normally.
+    // Plays a shrink-to-corner animation toward the floating pill first.
     function minimizeScrape() {
-        setShowLoadingModal(false);
-        setIsBackground(true);
-        isBackgroundRef.current = true;
+        setIsMinimizing(true);
+        window.setTimeout(() => {
+            setIsMinimizing(false);
+            setShowLoadingModal(false);
+            if (!isRehydratedRunRef.current) {
+                setIsBackground(true);
+                isBackgroundRef.current = true;
+            }
+        }, 280);
     }
 
     // Re-open the progress modal from the floating background pill.
@@ -858,6 +895,9 @@ export default function ScraperDashboard() {
         setScrapeResult(null);
         setModalError(null);
         setActiveScrapeJobId(null);
+        setAiBefore({});
+        setExpandedResults(new Set());
+        setSelectedOpportunities(new Set());
         setIsBackground(false);
         isBackgroundRef.current = false;
         setLiveFoundCount(0);
@@ -1039,68 +1079,124 @@ export default function ScraperDashboard() {
 
     async function toggleSource(source: ScrapeSource) {
         try {
-            await backendFetchJson(
-                `${API_URL}/sources/${source.id}`,
+            // NOTE: backendFetchJson prepends the backend base URL — pass paths only.
+            const result = await backendFetchJson<{ success: boolean; error?: string }>(
+                `/api/scraper/sources/${source.id}`,
                 {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ enabled: !source.enabled }),
                 }
             );
+            if (!result.success) throw new Error(result.error || 'Update failed');
             showNotification(`${source.enabled ? 'Disabled' : 'Enabled'} "${source.name}"`, 'success');
             loadData();
         } catch (error) {
             console.error('Failed to toggle source:', error);
-            showNotification('Failed to update source', 'error');
+            showNotification(`Failed to update source: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
         }
     }
 
     async function deleteSource(id: number) {
-        if (!confirm('Delete this source?')) return;
+        const target = sources.find(s => s.id === id);
+        const children = target ? sources.filter(s => s.parent_id === id) : [];
+        if (!confirm(
+            children.length
+                ? `Delete "${target?.name}" and detach its ${children.length} child source${children.length === 1 ? '' : 's'}?`
+                : `Delete source "${target?.name ?? id}"?`,
+        )) return;
         try {
-            await backendFetchJson(
-                `${API_URL}/sources/${id}`,
-                {
-                    method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json' },
-                }
+            const result = await backendFetchJson<{ success: boolean; error?: string }>(
+                `/api/scraper/sources/${id}`,
+                { method: 'DELETE', headers: { 'Content-Type': 'application/json' } }
             );
+            if (!result.success) throw new Error(result.error || 'Delete failed');
             showNotification('Source deleted', 'success');
             loadData();
         } catch (error) {
             console.error('Failed to delete source:', error);
-            showNotification('Failed to delete source', 'error');
+            showNotification(`Failed to delete source: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
         }
     }
 
-    async function addSource(parentId: number | null = null, asGroup: boolean = false) {
-        if (!newSource.name || (!newSource.url && !asGroup)) {
-            showNotification('Please fill in required fields', 'warning');
+    // Parse "Name | URL" or bare-URL lines into child-source payloads.
+    const parseBulkSourceLines = (text: string) =>
+        text.split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+            const [left, right] = line.split('|').map(part => part.trim());
+            const url = right || left;
+            if (!/^https?:\/\//i.test(url)) return null;
+            let name = right ? left : '';
+            if (!name) {
+                try { name = new URL(url).hostname.replace(/^www\./, ''); } catch { name = url; }
+            }
+            return { name, url };
+        }).filter((entry): entry is { name: string; url: string } => Boolean(entry));
+
+    const postSource = (body: Record<string, unknown>) =>
+        backendFetchJson<{ success: boolean; error?: string; data?: { id: number } }>(
+            `/api/scraper/sources`,
+            { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+        );
+
+    async function addSource() {
+        const bulkEntries = parseBulkSourceLines(newSource.bulkText || '');
+        if (!newSource.name.trim()) {
+            showNotification(newSource.asGroup ? 'Give the group a name' : 'Give the source a name', 'warning');
+            return;
+        }
+        if (!newSource.asGroup && !newSource.url && bulkEntries.length === 0) {
+            showNotification('Add a URL (or paste several, one per line)', 'warning');
             return;
         }
 
+        setIsAddingSource(true);
         try {
-            await backendFetchJson(
-                `${API_URL}/sources`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name: newSource.name,
-                        url: asGroup ? '' : newSource.url,
-                        category: newSource.category,
-                        tier: 2,
-                        parent_id: parentId ?? undefined,
-                        is_group: asGroup,
-                    }),
+            if (newSource.asGroup) {
+                // Create the group first, then attach every pasted source to it.
+                const groupResult = await postSource({
+                    name: newSource.name.trim(), url: '', category: newSource.category, tier: 2, is_group: true,
+                });
+                if (!groupResult.success || !groupResult.data?.id) {
+                    throw new Error(groupResult.error || 'Failed to create group');
                 }
-            );
-            showNotification(asGroup ? 'Group created' : 'Source added', 'success');
-            setNewSource({ name: '', url: '', category: 'scholarship' });
+                const groupId = groupResult.data.id;
+                const results = await Promise.all(bulkEntries.map(entry =>
+                    postSource({ ...entry, category: newSource.category, tier: 2, parent_id: groupId })
+                        .then(r => r.success).catch(() => false)
+                ));
+                const added = results.filter(Boolean).length;
+                const failedCount = bulkEntries.length - added;
+                showNotification(
+                    bulkEntries.length
+                        ? `Group "${newSource.name}" created with ${added} source${added === 1 ? '' : 's'}${failedCount ? ` (${failedCount} failed)` : ''}`
+                        : `Group "${newSource.name}" created`,
+                    failedCount ? 'warning' : 'success',
+                );
+            } else {
+                // Single source, plus any extra pasted lines — all under the chosen parent.
+                const entries = [
+                    ...(newSource.url ? [{ name: newSource.name.trim(), url: newSource.url.trim() }] : []),
+                    ...bulkEntries,
+                ];
+                const results = await Promise.all(entries.map(entry =>
+                    postSource({ ...entry, category: newSource.category, tier: 2, parent_id: newSource.parentId ?? undefined })
+                        .then(r => ({ ok: r.success, error: r.error })).catch(e => ({ ok: false, error: e instanceof Error ? e.message : 'failed' }))
+                ));
+                const added = results.filter(r => r.ok).length;
+                if (added === 0) throw new Error(results[0]?.error || 'Failed to add source');
+                const failedCount = entries.length - added;
+                showNotification(
+                    `Added ${added} source${added === 1 ? '' : 's'}${failedCount ? ` (${failedCount} failed)` : ''}`,
+                    failedCount ? 'warning' : 'success',
+                );
+            }
+            setNewSource({ name: '', url: '', category: 'scholarship', asGroup: false, bulkText: '' });
             setShowAddSource(false);
             loadData();
         } catch (err: unknown) {
-            showNotification(`Unexpected error: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+            showNotification(`Could not add: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+        } finally {
+            setIsAddingSource(false);
         }
     }
 
@@ -1153,6 +1249,25 @@ export default function ScraperDashboard() {
         };
     };
 
+    const toggleResultExpanded = (index: number) => {
+        setExpandedResults(prev => {
+            const next = new Set(prev);
+            if (next.has(index)) next.delete(index); else next.add(index);
+            return next;
+        });
+    };
+
+    // Compact facts used for the AI before/after comparison table.
+    const summarizeForCompare = (opp: ScrapedOpportunity) => ({
+        score: getOpportunityQuality(opp).score,
+        descriptionChars: (opp.description || opp.summary || '').trim().length,
+        deadline: opp.deadline || 'Not stated',
+        requirements: opp.requirements?.length || 0,
+        benefits: opp.benefits?.length || 0,
+        image: (opp.imageUrl || opp.image_url) ? 'Yes' : 'No',
+        applyLink: (opp.applyUrl || opp.apply_url || opp.application_url) ? 'Yes' : 'No',
+    });
+
     const improveOpportunityWithAI = async (opp: ScrapedOpportunity, filteredIndex: number) => {
         const sourceIndex = scrapeResult?.opportunities?.findIndex(item =>
             item === opp ||
@@ -1176,13 +1291,16 @@ export default function ScraperDashboard() {
                 throw new Error(result.error || 'AI improvement failed');
             }
 
+            // Keep the pre-AI version so the card can show a before/after comparison.
+            setAiBefore(prev => (prev[targetIndex] ? prev : { ...prev, [targetIndex]: opp }));
             setScrapeResult(prev => {
                 if (!prev?.opportunities) return prev;
                 const next = [...prev.opportunities];
                 next[targetIndex] = result.opportunity;
                 return { ...prev, opportunities: next };
             });
-            setDetailsOpportunity(result.opportunity);
+            setExpandedResults(prev => new Set(prev).add(targetIndex));
+            setDetailsOpportunity(current => (current ? result.opportunity : current));
             showNotification(`AI improved "${result.opportunity.title}"`, 'success');
         } catch (error: unknown) {
             showNotification(error instanceof Error ? error.message : 'AI improvement failed', 'error');
@@ -1280,12 +1398,15 @@ export default function ScraperDashboard() {
 
         let inserted = 0;
         let skipped = 0;
+        let failed = 0;
         const batches: Array<typeof items> = [];
         for (let i = 0; i < items.length; i += 100) {
             batches.push(items.slice(i, i + 100));
         }
 
-        for (const batch of batches) {
+        // All batches fire in parallel — the backend dedupes on URL, so order
+        // doesn't matter and this cuts save time to a single round-trip.
+        await Promise.all(batches.map(async (batch) => {
             try {
                 const result = await backendFetchJson<{ success: boolean; inserted?: number; skipped?: number }>(
                     `/opportunities/admin/bulk-import`,
@@ -1295,285 +1416,248 @@ export default function ScraperDashboard() {
                         body: JSON.stringify({ items: batch }),
                     },
                 );
-
-                if (!result.success) {
-                    throw new Error('Bulk import failed');
-                }
-
+                if (!result.success) throw new Error('Bulk import failed');
                 inserted += result.inserted || 0;
                 skipped += result.skipped || 0;
             } catch (err) {
+                failed += batch.length;
                 console.error('Failed to save opportunity batch:', err);
             }
-        }
+        }));
 
+        // Unblock the UI right away; refresh the lists in the background.
         setIsSaving(false);
         setSelectedOpportunities(new Set());
-        await loadRecentOpportunities();
-        await loadData();
         setShowResultsModal(false);
-        setScrapeResult(prev => prev ? {
-            ...prev,
-            success: true,
-            totalResults: (prev.totalResults || 0),
-        } : null);
         showNotification(
-            activeScrapeJobId
-                ? `Saved ${inserted} opportunities from this run${skipped ? `, skipped ${skipped}` : ''}`
+            failed
+                ? `Saved ${inserted}, skipped ${skipped}, failed ${failed} — check the console`
                 : `Saved ${inserted} opportunities${skipped ? `, skipped ${skipped}` : ''}`,
-            'success'
+            failed ? 'warning' : 'success'
         );
+        void loadRecentOpportunities();
+        void loadData();
     };
 
     // Grouping logic for the table
     const rootSources = filteredSources.filter(s => !s.parent_id || !sources.find(ps => ps.id === s.parent_id));
     const getChildren = (parentId: number) => filteredSources.filter(s => s.parent_id === parentId);
 
-    const renderSourceRow = (source: ScrapeSource, depth: number = 0) => {
-        const children = getChildren(source.id);
-        const isExpanded = expandedGroups.has(source.id);
-        const hasChildren = children.length > 0 || source.is_group;
-
-        return (
-            <React.Fragment key={source.id}>
-                <tr style={{
-                    borderTop: '1px solid var(--border-light)',
-                    transition: 'background 0.15s ease',
-                    cursor: hasChildren ? 'pointer' : 'default',
-                    background: source.is_group ? 'var(--bg-tertiary)' : 'transparent'
-                }}
-                    onClick={() => hasChildren && toggleGroup(source.id)}
-                    onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'var(--bg-tertiary)';
-                    }}
-                    onMouseLeave={(e) => {
-                        e.currentTarget.style.background = source.is_group ? 'var(--bg-tertiary)' : 'transparent';
-                    }}
-                >
-                    <td style={{ padding: '16px 24px', paddingLeft: 24 + (depth * 32) }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            {hasChildren && (
-                                <ChevronRight
-                                    size={16}
-                                    style={{
-                                        transform: isExpanded ? 'rotate(90deg)' : 'none',
-                                        transition: 'transform 0.2s',
-                                        color: 'var(--text-tertiary)'
-                                    }}
-                                />
-                            )}
-                            <div>
-                                <p style={{
-                                    fontWeight: source.is_group ? 600 : 500,
-                                    color: 'var(--text-primary)',
-                                    marginBottom: 4,
-                                    fontSize: source.is_group ? 15 : 14
-                                }}>
-                                    {source.name}
-                                    {source.is_group && <span style={{ marginLeft: 8, fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 400, textTransform: 'uppercase' }}>Website Group</span>}
-                                </p>
-                                {source.url && (
-                                    <a
-                                        href={source.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        onClick={(e) => e.stopPropagation()}
-                                        style={{
-                                            fontSize: 12,
-                                            color: 'var(--link-blue)',
-                                            textDecoration: 'none',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '4px'
-                                        }}
-                                    >
-                                        {source.url.length > 40 ? `${source.url.slice(0, 40)}...` : source.url}
-                                        <ExternalLink size={10} />
-                                    </a>
-                                )}
-                            </div>
-                        </div>
-                    </td>
-                    <td style={{ padding: '16px 24px' }}>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); toggleSource(source); }}
-                            style={{
-                                padding: '6px 12px',
-                                borderRadius: 6,
-                                fontSize: 12,
-                                fontWeight: 500,
-                                border: 'none',
-                                cursor: 'pointer',
-                                background: source.enabled ? 'rgba(52, 199, 89, 0.1)' : 'var(--bg-tertiary)',
-                                color: source.enabled ? '#34c759' : 'var(--text-tertiary)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                            }}
-                        >
-                            {source.enabled ? <CheckCircle2 size={12} /> : <Pause size={12} />}
-                            {source.enabled ? 'Active' : 'Disabled'}
-                        </button>
-                    </td>
-                    <td style={{ padding: '16px 24px', fontSize: 13, color: 'var(--text-tertiary)' }}>
-                        {formatDate(source.last_scraped)}
-                    </td>
-                    <td style={{ padding: '16px 24px' }}>
-                        {source.total_scraped + source.total_failed > 0 ? (
-                            <span style={{
-                                fontSize: 13,
-                                fontWeight: 500,
-                                color: 'var(--text-primary)'
-                            }}>
-                                {Math.round(
-                                    (source.total_scraped / (source.total_scraped + source.total_failed)) * 100
-                                )}%
-                            </span>
-                        ) : (
-                            <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>-</span>
-                        )}
-                    </td>
-                    <td style={{ padding: '16px 24px' }}>
-                        <div style={{ display: 'flex', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
-                            <button
-                                onClick={() => {
-                                    if (source.is_group) {
-                                        showNotification(`Starting scrape for all ${source.name} sources`, 'info');
-                                    }
-                                    startScrape(source.id);
-                                }}
-                                style={{
-                                    padding: '6px 10px',
-                                    borderRadius: 6,
-                                    border: 'none',
-                                    background: 'transparent',
-                                    color: '#0071e3',
-                                    cursor: 'pointer',
-                                    transition: 'background 0.15s ease',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '4px'
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = 'rgba(0, 113, 227, 0.1)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = 'transparent';
-                                }}
-                                title={source.is_group ? "Scrape all in group" : "Scrape this source"}
-                            >
-                                <Play size={14} />
-                                {source.is_group && <span style={{ fontSize: 11, fontWeight: 600 }}>RUN ALL</span>}
-                            </button>
-                            <button
-                                onClick={() => deleteSource(source.id)}
-                                style={{
-                                    padding: '6px 10px',
-                                    borderRadius: 6,
-                                    border: 'none',
-                                    background: 'transparent',
-                                    color: '#ff3b30',
-                                    cursor: 'pointer',
-                                    transition: 'background 0.15s ease',
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = 'rgba(255, 59, 48, 0.1)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = 'transparent';
-                                }}
-                                title="Delete source"
-                            >
-                                <Trash2 size={14} />
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-                {isExpanded && children.map(child => renderSourceRow(child, depth + 1))}
-            </React.Fragment>
-        );
-    };
-
-
-
-    // Compact source card (grid layout) — replaces the wide table rows.
-    const renderSourceCard = (source: ScrapeSource, depth: number = 0): React.ReactNode => {
-        const children = getChildren(source.id);
-        const isExpanded = expandedGroups.has(source.id);
-        const hasChildren = children.length > 0 || source.is_group;
+    // Compact row used for sources nested inside a group's dropdown.
+    const renderChildSourceRow = (source: ScrapeSource) => {
+        const palette = getCategoryColor(source.category);
         const successRate = source.total_scraped + source.total_failed > 0
             ? Math.round((source.total_scraped / (source.total_scraped + source.total_failed)) * 100)
             : null;
         return (
-            <React.Fragment key={source.id}>
-                <div style={{
-                    background: source.is_group ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
-                    border: `1px solid ${depth > 0 ? 'var(--apple-blue)' : 'var(--border-light)'}`,
-                    borderLeft: depth > 0 ? '3px solid var(--apple-blue)' : undefined,
-                    borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10,
-                    transition: 'border-color 0.15s ease',
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                        <div style={{ minWidth: 0 }}>
-                            <div
-                                onClick={() => hasChildren && toggleGroup(source.id)}
-                                style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: hasChildren ? 'pointer' : 'default' }}
-                            >
-                                {hasChildren && (
-                                    <ChevronRight size={14} style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s', color: 'var(--text-tertiary)', flexShrink: 0 }} />
-                                )}
-                                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {source.name}
-                                </span>
-                            </div>
-                            {source.is_group
-                                ? <span style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', fontWeight: 600 }}>Group · {children.length} sources</span>
-                                : source.url && (
-                                    <a href={source.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
-                                        style={{ fontSize: 11, color: 'var(--link-blue)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {source.url.replace(/^https?:\/\//, '').slice(0, 34)}<ExternalLink size={9} />
-                                    </a>
-                                )}
-                        </div>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); toggleSource(source); }}
-                            title={source.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable'}
-                            style={{
-                                flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 6,
-                                fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer',
-                                background: source.enabled ? 'rgba(52, 199, 89, 0.12)' : 'var(--bg-tertiary)',
-                                color: source.enabled ? '#34c759' : 'var(--text-tertiary)',
-                            }}
-                        >
-                            {source.enabled ? <CheckCircle2 size={11} /> : <Pause size={11} />}
-                            {source.enabled ? 'Active' : 'Off'}
-                        </button>
+            <div key={source.id} style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+                borderRadius: 10, background: 'var(--bg-primary)', border: '1px solid var(--border-light)',
+            }}>
+                <span title={source.category} style={{ width: 8, height: 8, borderRadius: '50%', background: palette.text, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {source.name}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 11, color: 'var(--text-tertiary)' }}>
-                        <span>{source.last_scraped ? formatDate(source.last_scraped) : 'Never scraped'}</span>
-                        <span>{successRate !== null ? `${successRate}% success` : '—'}</span>
-                    </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                        <button
-                            onClick={() => { if (source.is_group) showNotification(`Starting scrape for all ${source.name} sources`, 'info'); startScrape(source.id); }}
-                            title={source.is_group ? 'Scrape all in group' : 'Scrape this source'}
-                            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '7px 10px', borderRadius: 8, border: '1px solid rgba(0,113,227,0.3)', background: 'rgba(0,113,227,0.08)', color: '#0071e3', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
-                        >
-                            <Play size={13} /> {source.is_group ? 'Run all' : 'Run'}
-                        </button>
-                        <button
-                            onClick={() => deleteSource(source.id)}
-                            title="Delete source"
-                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '7px 10px', borderRadius: 8, border: '1px solid rgba(255,59,48,0.25)', background: 'transparent', color: '#ff3b30', cursor: 'pointer' }}
-                        >
-                            <Trash2 size={13} />
-                        </button>
-                    </div>
+                    {source.url && (
+                        <a href={source.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                            style={{ fontSize: 11, color: 'var(--link-blue)', textDecoration: 'none' }}>
+                            {source.url.replace(/^https?:\/\//, '').slice(0, 44)}
+                        </a>
+                    )}
                 </div>
-                {isExpanded && children.map(child => renderSourceCard(child, depth + 1))}
-            </React.Fragment>
+                <span style={{ fontSize: 11, color: 'var(--text-tertiary)', flexShrink: 0 }}>
+                    {successRate !== null ? `${successRate}%` : '—'}
+                </span>
+                <button
+                    onClick={(e) => { e.stopPropagation(); toggleSource(source); }}
+                    title={source.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable'}
+                    style={{
+                        flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 6,
+                        fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer',
+                        background: source.enabled ? 'rgba(52, 199, 89, 0.12)' : 'var(--bg-tertiary)',
+                        color: source.enabled ? '#34c759' : 'var(--text-tertiary)',
+                    }}
+                >
+                    {source.enabled ? <CheckCircle2 size={11} /> : <Pause size={11} />}
+                    {source.enabled ? 'On' : 'Off'}
+                </button>
+                <button
+                    onClick={(e) => { e.stopPropagation(); startScrape(source.id); }}
+                    title="Scrape this source"
+                    style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(0,113,227,0.3)', background: 'rgba(0,113,227,0.08)', color: '#0071e3', cursor: 'pointer' }}
+                >
+                    <Play size={12} />
+                </button>
+                <button
+                    onClick={(e) => { e.stopPropagation(); deleteSource(source.id); }}
+                    title="Delete source"
+                    style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 7, border: '1px solid rgba(255,59,48,0.25)', background: 'transparent', color: '#ff3b30', cursor: 'pointer' }}
+                >
+                    <Trash2 size={12} />
+                </button>
+            </div>
         );
     };
+
+    // Source card (grid layout). Groups render full-width with a colored header
+    // and a dropdown of their child sources; plain sources get a category accent.
+    const renderSourceCard = (source: ScrapeSource): React.ReactNode => {
+        const children = getChildren(source.id);
+        const isExpanded = expandedGroups.has(source.id);
+        const isGroup = Boolean(source.is_group || children.length > 0);
+        const palette = getCategoryColor(source.category);
+        const successRate = source.total_scraped + source.total_failed > 0
+            ? Math.round((source.total_scraped / (source.total_scraped + source.total_failed)) * 100)
+            : null;
+
+        if (isGroup) {
+            const enabledChildren = children.filter(c => c.enabled).length;
+            return (
+                <div key={source.id} style={{
+                    gridColumn: '1 / -1',
+                    background: 'var(--bg-secondary)',
+                    border: `1px solid ${isExpanded ? palette.border : 'var(--border-light)'}`,
+                    borderRadius: 12,
+                    overflow: 'hidden',
+                    transition: 'border-color 0.2s ease',
+                }}>
+                    {/* Group header — click anywhere to expand/collapse */}
+                    <div
+                        onClick={() => toggleGroup(source.id)}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px',
+                            cursor: 'pointer', background: palette.bg,
+                        }}
+                    >
+                        <ChevronRight size={16} style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s', color: palette.text, flexShrink: 0 }} />
+                        <span style={{
+                            width: 34, height: 34, borderRadius: 9, flexShrink: 0,
+                            background: palette.text, color: 'white',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                            <Globe size={16} />
+                        </span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {source.name}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                                {children.length} source{children.length === 1 ? '' : 's'} · {enabledChildren} active
+                            </div>
+                        </div>
+                        <span style={{
+                            padding: '3px 10px', borderRadius: 999, fontSize: 10, fontWeight: 800,
+                            textTransform: 'uppercase', letterSpacing: 0.5,
+                            background: 'var(--bg-primary)', color: palette.text, border: `1px solid ${palette.border}`,
+                            flexShrink: 0,
+                        }}>
+                            {source.category || 'group'}
+                        </span>
+                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                            <button
+                                onClick={() => { showNotification(`Starting scrape for all ${source.name} sources`, 'info'); startScrape(source.id); }}
+                                title="Scrape all sources in this group"
+                                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, border: `1px solid ${palette.border}`, background: 'var(--bg-primary)', color: palette.text, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}
+                            >
+                                <Play size={12} /> Run all
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setNewSource({ name: '', url: '', category: source.category || 'scholarship', asGroup: false, parentId: source.id, bulkText: '' });
+                                    setShowAddSource(true);
+                                }}
+                                title="Add sources to this group"
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border-medium)', background: 'var(--bg-primary)', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                            >
+                                <Plus size={14} />
+                            </button>
+                            <button
+                                onClick={() => deleteSource(source.id)}
+                                title="Delete group"
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,59,48,0.25)', background: 'var(--bg-primary)', color: '#ff3b30', cursor: 'pointer' }}
+                            >
+                                <Trash2 size={13} />
+                            </button>
+                        </div>
+                    </div>
+                    {/* Dropdown body */}
+                    {isExpanded && (
+                        <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg-tertiary)', animation: 'fadeIn 0.2s ease' }}>
+                            {children.length === 0 ? (
+                                <div style={{ padding: '14px 12px', textAlign: 'center', fontSize: 12, color: 'var(--text-tertiary)' }}>
+                                    No sources in this group yet — use the “+” button to add some.
+                                </div>
+                            ) : children.map(renderChildSourceRow)}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        return (
+            <div key={source.id} style={{
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-light)',
+                borderTop: `3px solid ${palette.text}`,
+                borderRadius: 12, padding: '13px 16px', display: 'flex', flexDirection: 'column', gap: 10,
+            }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                    <div style={{ minWidth: 0 }}>
+                        <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {source.name}
+                        </span>
+                        {source.url && (
+                            <a href={source.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                                style={{ fontSize: 11, color: 'var(--link-blue)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {source.url.replace(/^https?:\/\//, '').slice(0, 34)}<ExternalLink size={9} />
+                            </a>
+                        )}
+                    </div>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); toggleSource(source); }}
+                        title={source.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable'}
+                        style={{
+                            flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 6,
+                            fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer',
+                            background: source.enabled ? 'rgba(52, 199, 89, 0.12)' : 'var(--bg-tertiary)',
+                            color: source.enabled ? '#34c759' : 'var(--text-tertiary)',
+                        }}
+                    >
+                        {source.enabled ? <CheckCircle2 size={11} /> : <Pause size={11} />}
+                        {source.enabled ? 'Active' : 'Off'}
+                    </button>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 11, color: 'var(--text-tertiary)' }}>
+                    <span style={{
+                        padding: '2px 8px', borderRadius: 999, fontSize: 10, fontWeight: 700,
+                        textTransform: 'capitalize', background: palette.bg, color: palette.text,
+                    }}>
+                        {source.category || 'other'}
+                    </span>
+                    <span>{source.last_scraped ? formatDate(source.last_scraped) : 'Never scraped'}</span>
+                    <span>{successRate !== null ? `${successRate}% success` : '—'}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                        onClick={() => startScrape(source.id)}
+                        title="Scrape this source"
+                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '7px 10px', borderRadius: 8, border: '1px solid rgba(0,113,227,0.3)', background: 'rgba(0,113,227,0.08)', color: '#0071e3', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                    >
+                        <Play size={13} /> Run
+                    </button>
+                    <button
+                        onClick={() => deleteSource(source.id)}
+                        title="Delete source"
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '7px 10px', borderRadius: 8, border: '1px solid rgba(255,59,48,0.25)', background: 'transparent', color: '#ff3b30', cursor: 'pointer' }}
+                    >
+                        <Trash2 size={13} />
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
 
     const enabledSourcesCount = sources.filter(s => s.enabled).length;
 
@@ -2662,246 +2746,175 @@ export default function ScraperDashboard() {
                         alignItems: 'center',
                         justifyContent: 'center',
                         zIndex: 1000,
+                        padding: 20,
                     }} onClick={() => setShowAddSource(false)}>
                         <div
                             style={{
-                                background: 'var(--bg-secondary)',
+                                background: 'var(--bg-primary)',
                                 borderRadius: 16,
-                                padding: '24px',
                                 width: '100%',
-                                maxWidth: 440,
+                                maxWidth: 520,
+                                maxHeight: '88vh',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                overflow: 'hidden',
+                                border: '1px solid var(--border-light)',
                                 boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+                                animation: 'slideUp 0.25s ease',
                             }}
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                marginBottom: '20px'
-                            }}>
-                                <h3 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)' }}>
-                                    Add New Source
+                            {/* Header */}
+                            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                                    {newSource.asGroup ? 'New Website Group' : 'Add Sources'}
                                 </h3>
                                 <button
                                     onClick={() => setShowAddSource(false)}
-                                    style={{
-                                        padding: '4px',
-                                        background: 'transparent',
-                                        border: 'none',
-                                        color: 'var(--text-tertiary)',
-                                        cursor: 'pointer',
-                                        borderRadius: 4,
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.background = 'var(--bg-tertiary)';
-                                        e.currentTarget.style.color = 'var(--text-primary)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.background = 'transparent';
-                                        e.currentTarget.style.color = 'var(--text-tertiary)';
-                                    }}
+                                    style={{ padding: 4, background: 'transparent', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', borderRadius: 6 }}
                                 >
                                     <X size={20} />
                                 </button>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+                            <div style={{ padding: '20px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                {/* Mode toggle: single source vs group */}
+                                <div style={{ display: 'flex', gap: 8, padding: 4, background: 'var(--bg-tertiary)', borderRadius: 10 }}>
+                                    {([
+                                        { group: false, label: 'Source(s)', hint: 'Add one or many sources' },
+                                        { group: true, label: 'Website group', hint: 'A folder that holds sources' },
+                                    ]).map(mode => (
+                                        <button
+                                            key={String(mode.group)}
+                                            onClick={() => setNewSource({ ...newSource, asGroup: mode.group, parentId: mode.group ? undefined : newSource.parentId })}
+                                            title={mode.hint}
+                                            style={{
+                                                flex: 1, padding: '9px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                                                fontSize: 13, fontWeight: 700,
+                                                background: (newSource.asGroup || false) === mode.group ? 'var(--bg-primary)' : 'transparent',
+                                                color: (newSource.asGroup || false) === mode.group ? 'var(--apple-blue)' : 'var(--text-tertiary)',
+                                                boxShadow: (newSource.asGroup || false) === mode.group ? '0 1px 4px rgba(0,0,0,0.15)' : 'none',
+                                                transition: 'all 0.15s ease',
+                                            }}
+                                        >
+                                            {mode.label}
+                                        </button>
+                                    ))}
+                                </div>
+
                                 <div>
-                                    <label style={{
-                                        display: 'block',
-                                        fontWeight: 500,
-                                        color: 'var(--text-primary)',
-                                        marginBottom: 6,
-                                        fontSize: 13
-                                    }}>Name</label>
+                                    <label style={{ display: 'block', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6, fontSize: 13 }}>
+                                        {newSource.asGroup ? 'Group name' : 'Name'}
+                                    </label>
                                     <input
                                         type="text"
                                         value={newSource.name}
                                         onChange={(e) => setNewSource({ ...newSource, name: e.target.value })}
-                                        style={{
-                                            width: '100%',
-                                            padding: '10px 12px',
-                                            borderRadius: 8,
-                                            border: '1px solid var(--border-medium)',
-                                            background: 'var(--bg-secondary)',
-                                            color: 'var(--text-primary)',
-                                            fontSize: 14,
-                                            outline: 'none',
-                                        }}
-                                        placeholder="Fastweb"
+                                        style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border-medium)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14, outline: 'none' }}
+                                        placeholder={newSource.asGroup ? 'e.g. Opportunity Desk' : 'e.g. Fastweb'}
                                     />
                                 </div>
+
+                                {!newSource.asGroup && (
+                                    <div>
+                                        <label style={{ display: 'block', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6, fontSize: 13 }}>URL</label>
+                                        <input
+                                            type="url"
+                                            value={newSource.url}
+                                            onChange={(e) => setNewSource({ ...newSource, url: e.target.value })}
+                                            style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border-medium)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14, outline: 'none' }}
+                                            placeholder="https://www.fastweb.com/scholarships"
+                                        />
+                                    </div>
+                                )}
+
                                 <div>
-                                    <label style={{
-                                        display: 'block',
-                                        fontWeight: 500,
-                                        color: 'var(--text-primary)',
-                                        marginBottom: 6,
-                                        fontSize: 13
-                                    }}>URL</label>
-                                    <input
-                                        type="url"
-                                        value={newSource.url}
-                                        onChange={(e) => setNewSource({ ...newSource, url: e.target.value })}
-                                        style={{
-                                            width: '100%',
-                                            padding: '10px 12px',
-                                            borderRadius: 8,
-                                            border: '1px solid var(--border-medium)',
-                                            background: 'var(--bg-secondary)',
-                                            color: 'var(--text-primary)',
-                                            fontSize: 14,
-                                            outline: 'none',
-                                        }}
-                                        placeholder="https://www.fastweb.com/scholarships"
+                                    <label style={{ display: 'block', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6, fontSize: 13 }}>Category</label>
+                                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                        {Object.keys(CATEGORY_COLORS).map(category => {
+                                            const palette = CATEGORY_COLORS[category];
+                                            const isActive = newSource.category === category;
+                                            return (
+                                                <button
+                                                    key={category}
+                                                    onClick={() => setNewSource({ ...newSource, category })}
+                                                    style={{
+                                                        padding: '7px 14px', borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                                                        textTransform: 'capitalize',
+                                                        border: `1px solid ${isActive ? palette.text : 'var(--border-medium)'}`,
+                                                        background: isActive ? palette.bg : 'transparent',
+                                                        color: isActive ? palette.text : 'var(--text-tertiary)',
+                                                        transition: 'all 0.15s ease',
+                                                    }}
+                                                >
+                                                    {category}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {!newSource.asGroup && sources.some(s => s.is_group) && (
+                                    <div>
+                                        <label style={{ display: 'block', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6, fontSize: 13 }}>Parent group (optional)</label>
+                                        <select
+                                            value={newSource.parentId || ''}
+                                            onChange={(e) => setNewSource({ ...newSource, parentId: e.target.value ? parseInt(e.target.value) : undefined })}
+                                            style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border-medium)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14, outline: 'none', cursor: 'pointer' }}
+                                        >
+                                            <option value="">None — top level</option>
+                                            {sources.filter(s => s.is_group).map(group => (
+                                                <option key={group.id} value={group.id}>{group.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                {/* Bulk add — always available for groups; optional extra lines for single mode */}
+                                <div>
+                                    <label style={{ display: 'block', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6, fontSize: 13 }}>
+                                        {newSource.asGroup ? 'Sources in this group' : 'Add more at once (optional)'}
+                                    </label>
+                                    <textarea
+                                        value={newSource.bulkText || ''}
+                                        onChange={(e) => setNewSource({ ...newSource, bulkText: e.target.value })}
+                                        rows={newSource.asGroup ? 6 : 3}
+                                        style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border-medium)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, outline: 'none', resize: 'vertical', fontFamily: 'monospace', lineHeight: 1.6 }}
+                                        placeholder={'One per line — either:\nOpportunity Desk | https://opportunitydesk.org\nhttps://scholarshipregion.com'}
                                     />
+                                    <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--text-tertiary)' }}>
+                                        Format: <code>Name | URL</code> or just a URL (the name is taken from the domain).
+                                        {(() => {
+                                            const count = parseBulkSourceLines(newSource.bulkText || '').length;
+                                            return count ? ` ${count} valid source${count === 1 ? '' : 's'} detected.` : '';
+                                        })()}
+                                    </p>
                                 </div>
-                                <div>
-                                    <label style={{
-                                        display: 'block',
-                                        fontWeight: 500,
-                                        color: 'var(--text-primary)',
-                                        marginBottom: 6,
-                                        fontSize: 13
-                                    }}>Category</label>
-                                    <select
-                                        value={newSource.category}
-                                        onChange={(e) => setNewSource({ ...newSource, category: e.target.value })}
-                                        style={{
-                                            width: '100%',
-                                            padding: '10px 12px',
-                                            borderRadius: 8,
-                                            border: '1px solid var(--border-medium)',
-                                            background: 'var(--bg-secondary)',
-                                            color: 'var(--text-primary)',
-                                            fontSize: 14,
-                                            outline: 'none',
-                                            cursor: 'pointer',
-                                        }}
-                                    >
-                                        <option value="scholarship">Scholarship</option>
-                                        <option value="internship">Internship</option>
-                                        <option value="fellowship">Fellowship</option>
-                                        <option value="grant">Grant</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label style={{
-                                        display: 'block',
-                                        fontWeight: 500,
-                                        color: 'var(--text-primary)',
-                                        marginBottom: 6,
-                                        fontSize: 13
-                                    }}>Max Pages</label>
-                                    <input
-                                        type="number"
-                                        value={maxPages}
-                                        onChange={(e) => setMaxPages(parseInt(e.target.value) || 3)}
-                                        style={{
-                                            width: '100%',
-                                            padding: '10px 12px',
-                                            borderRadius: 8,
-                                            border: '1px solid var(--border-medium)',
-                                            background: 'var(--bg-secondary)',
-                                            color: 'var(--text-primary)',
-                                            fontSize: 14,
-                                            outline: 'none',
-                                        }}
-                                        min={1}
-                                        max={20}
-                                    />
-                                </div>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '16px 0 12px 0' }}>
-                                <input
-                                    type="checkbox"
-                                    id="asGroup"
-                                    checked={newSource.asGroup || false}
-                                    onChange={(e) => setNewSource({ ...newSource, asGroup: e.target.checked })}
-                                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                                />
-                                <label htmlFor="asGroup" style={{ fontSize: 13, color: 'var(--text-primary)', cursor: 'pointer', fontWeight: 500 }}>
-                                    Create as Website Group (Parent)
-                                </label>
                             </div>
 
-                            {!newSource.asGroup && (
-                                <div style={{ marginBottom: 16 }}>
-                                    <label style={{
-                                        display: 'block',
-                                        fontWeight: 500,
-                                        color: 'var(--text-primary)',
-                                        marginBottom: 6,
-                                        fontSize: 13
-                                    }}>Parent Group (Optional)</label>
-                                    <select
-                                        value={newSource.parentId || ''}
-                                        onChange={(e) => setNewSource({ ...newSource, parentId: e.target.value ? parseInt(e.target.value) : undefined })}
-                                        style={{
-                                            width: '100%',
-                                            padding: '10px 12px',
-                                            borderRadius: 8,
-                                            border: '1px solid var(--border-medium)',
-                                            background: 'var(--bg-secondary)',
-                                            color: 'var(--text-primary)',
-                                            fontSize: 14,
-                                            outline: 'none',
-                                            cursor: 'pointer',
-                                        }}
-                                    >
-                                        <option value="">None</option>
-                                        {sources.filter(s => s.is_group).map(group => (
-                                            <option key={group.id} value={group.id}>{group.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
-                        </div>
-                        <div style={{
-                            display: 'flex',
-                            justifyContent: 'flex-end',
-                            gap: '8px',
-                            marginTop: '24px'
-                        }}>
-                            <button
-                                onClick={() => setShowAddSource(false)}
-                                style={{
-                                    padding: '10px 18px',
-                                    background: 'transparent',
-                                    border: '1px solid var(--border-medium)',
-                                    borderRadius: 8,
-                                    color: 'var(--text-primary)',
-                                    fontSize: 14,
-                                    fontWeight: 500,
-                                    cursor: 'pointer',
-                                }}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() => addSource(newSource.parentId || null, newSource.asGroup || false)}
-                                style={{
-                                    padding: '10px 18px',
-                                    background: 'var(--apple-blue)',
-                                    border: 'none',
-                                    borderRadius: 8,
-                                    color: 'white',
-                                    fontSize: 14,
-                                    fontWeight: 500,
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '8px'
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = 'var(--apple-blue-hover)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = 'var(--apple-blue)';
-                                }}
-                            >
-                                {newSource.asGroup ? 'Create Group' : 'Add Source'}
-                            </button>
+                            {/* Footer — inside the card so clicks don't bubble to the overlay */}
+                            <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end', gap: 8, background: 'var(--bg-secondary)' }}>
+                                <button
+                                    onClick={() => setShowAddSource(false)}
+                                    style={{ padding: '10px 18px', background: 'transparent', border: '1px solid var(--border-medium)', borderRadius: 8, color: 'var(--text-primary)', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => void addSource()}
+                                    disabled={isAddingSource}
+                                    style={{
+                                        padding: '10px 18px', background: 'var(--apple-blue)', border: 'none', borderRadius: 8,
+                                        color: 'white', fontSize: 14, fontWeight: 600, cursor: isAddingSource ? 'wait' : 'pointer',
+                                        display: 'flex', alignItems: 'center', gap: 8, opacity: isAddingSource ? 0.7 : 1,
+                                    }}
+                                >
+                                    {isAddingSource ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+                                    {isAddingSource
+                                        ? 'Adding…'
+                                        : newSource.asGroup ? 'Create group' : 'Add source(s)'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )
@@ -2919,19 +2932,24 @@ export default function ScraperDashboard() {
                         alignItems: 'center',
                         justifyContent: 'center',
                         zIndex: 1000,
-                        animation: 'fadeIn 0.2s ease',
+                        animation: isMinimizing ? 'fadeOut 0.28s ease forwards' : 'fadeIn 0.2s ease',
                     }}>
                         <div style={{
                             background: 'var(--bg-primary)',
                             borderRadius: 20,
-                            padding: '40px',
+                            padding: 0,
                             width: '90%',
                             maxWidth: 600,
+                            maxHeight: '88vh',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            overflow: 'hidden',
                             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-                            animation: 'slideUp 0.3s ease',
+                            animation: isMinimizing ? 'shrinkToCorner 0.28s ease-in forwards' : 'slideUp 0.3s ease',
                         }}>
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '32px 36px 8px' }}>
                             {/* Header */}
-                            <div style={{ textAlign: 'center', marginBottom: modalError ? 16 : 32 }}>
+                            <div style={{ textAlign: 'center', marginBottom: modalError ? 16 : 28 }}>
                                 <div style={{
                                     width: 64,
                                     height: 64,
@@ -2961,7 +2979,11 @@ export default function ScraperDashboard() {
                                     color: modalError ? '#ff3b30' : 'var(--text-primary)',
                                     margin: 0,
                                 }}>
-                                    {modalError ? 'Scraping Failed' : currentStep === 4 ? 'Scraping Complete!' : isPaused ? 'Scrape Paused' : 'Scraping in Progress...'}
+                                    {modalError
+                                        ? 'Scraping Failed'
+                                        : isRehydratedRun
+                                            ? (isStopping ? 'Stopping Server Scrape…' : isPaused ? 'Server Scrape Paused' : 'Server Scrape Running')
+                                            : currentStep === 4 ? 'Scraping Complete!' : isPaused ? 'Scrape Paused' : 'Scraping in Progress...'}
                                 </h2>
                                 <p style={{
                                     color: 'var(--text-tertiary)',
@@ -2970,9 +2992,11 @@ export default function ScraperDashboard() {
                                 }}>
                                     {modalError
                                         ? 'An error occurred — see details below.'
-                                        : currentStep === 4
-                                            ? `Found ${scrapeResult?.totalResults || 0} opportunities from ${scrapeResult?.sourcesScraped || 0} sources`
-                                            : 'Please wait while we gather scholarship opportunities'
+                                        : isRehydratedRun
+                                            ? 'Reconnected to a run started earlier — results will appear in Recent Scrapes when it finishes.'
+                                            : currentStep === 4
+                                                ? `Found ${scrapeResult?.totalResults || 0} opportunities from ${scrapeResult?.sourcesScraped || 0} sources`
+                                                : 'Please wait while we gather scholarship opportunities'
                                     }
                                 </p>
                             </div>
@@ -2980,16 +3004,22 @@ export default function ScraperDashboard() {
                             {!modalError && (
                                 <div style={{
                                     display: 'grid',
-                                    gridTemplateColumns: 'repeat(4, 1fr)',
+                                    gridTemplateColumns: isRehydratedRun ? 'repeat(3, 1fr)' : 'repeat(4, 1fr)',
                                     gap: 10,
                                     marginBottom: 24,
                                 }}>
-                                    {[
-                                        { label: 'Progress', value: progressLabel },
-                                        { label: 'Elapsed', value: formatElapsed(scrapingElapsedSeconds) },
-                                        { label: 'Sources', value: totalScrapeSources ? `${completedScrapeSources + failedScrapeSources}/${totalScrapeSources}` : '0/0' },
-                                        { label: 'Pages', value: `${maxPages} max` },
-                                    ].map((item) => (
+                                    {(isRehydratedRun
+                                        ? [
+                                            { label: 'Status', value: isStopping ? 'Stopping' : isPaused ? 'Paused' : 'Running' },
+                                            { label: 'Reconnected', value: formatElapsed(scrapingElapsedSeconds) },
+                                            { label: 'Checks', value: 'every 5s' },
+                                        ]
+                                        : [
+                                            { label: 'Progress', value: progressLabel },
+                                            { label: 'Elapsed', value: formatElapsed(scrapingElapsedSeconds) },
+                                            { label: 'Sources', value: totalScrapeSources ? `${completedScrapeSources + failedScrapeSources}/${totalScrapeSources}` : '0/0' },
+                                            { label: 'Pages', value: `${maxPages} max` },
+                                        ]).map((item) => (
                                         <div
                                             key={item.label}
                                             style={{
@@ -3040,9 +3070,9 @@ export default function ScraperDashboard() {
                                 </div>
                             )}
 
-                            {/* Steps (hidden on error) */}
-                            {!modalError && (
-                                <div style={{ marginBottom: 32 }}>
+                            {/* Steps (hidden on error / rehydrated runs) */}
+                            {!modalError && !isRehydratedRun && (
+                                <div style={{ marginBottom: 24 }}>
                                     {[
                                         { step: 1, label: 'Connecting to sources', icon: Globe },
                                         { step: 2, label: 'Scraping data', icon: Search },
@@ -3139,8 +3169,8 @@ export default function ScraperDashboard() {
                                 </div>
                             )}
 
-                            {/* Progress Bar (hidden on error) */}
-                            {!modalError && (
+                            {/* Progress Bar (hidden on error / rehydrated runs) */}
+                            {!modalError && !isRehydratedRun && (
                                 <div style={{
                                     height: 4,
                                     background: 'var(--bg-tertiary)',
@@ -3169,7 +3199,7 @@ export default function ScraperDashboard() {
                             )}
 
                             {/* Live opportunity count + per-item loading skeletons */}
-                            {!modalError && (
+                            {!modalError && !isRehydratedRun && (
                                 <div style={{ marginBottom: 4 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                                         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
@@ -3181,8 +3211,8 @@ export default function ScraperDashboard() {
                                                 : <><Loader2 size={13} className="animate-spin" /> scanning…</>}
                                         </span>
                                     </div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                                        {(scrapeResult?.opportunities ?? []).slice(0, 4).map((opp, i) => (
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, maxHeight: 220, overflowY: 'auto', paddingRight: 4 }}>
+                                        {(scrapeResult?.opportunities ?? []).map((opp, i) => (
                                             <div key={`opp-${i}`} style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border-light)', animation: 'fadeIn 0.3s ease' }}>
                                                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opp.title}</div>
                                                 <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opp.organization || opp.source}</div>
@@ -3195,16 +3225,12 @@ export default function ScraperDashboard() {
                                             </div>
                                         ))}
                                     </div>
-                                    {currentStep === 4 && liveFoundCount > 4 && (
-                                        <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-tertiary)', textAlign: 'center' }}>
-                                            + {liveFoundCount - 4} more — click the run in Recent Scrapes to view all
-                                        </div>
-                                    )}
                                 </div>
                             )}
 
-            {/* Footer actions: minimize (keep running) vs cancel; Dismiss on error/complete */}
-                            <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 20 }}>
+                        </div>
+                        {/* Footer actions: minimize (keep running) vs cancel; Dismiss on error/complete */}
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: 10, padding: '16px 36px 24px', borderTop: '1px solid var(--border-light)', flexShrink: 0, background: 'var(--bg-primary)' }}>
                                 {modalError || currentStep === 4 ? (
                                     <button
                                         onClick={stopScrape}
@@ -3326,7 +3352,7 @@ export default function ScraperDashboard() {
             {/* Floating pill for a rehydrated server-side run (started before a refresh).
                 The SSE stream can't be re-attached, so there is no live item feed here —
                 just run status, pause/resume/stop, and completion detection via polling. */}
-            {isRehydratedRun && (
+            {isRehydratedRun && !showLoadingModal && (
                 <div
                     style={{
                         position: 'fixed', bottom: 24, right: 24, zIndex: 1100,
@@ -3338,6 +3364,11 @@ export default function ScraperDashboard() {
                     }}
                 >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <button
+                            onClick={() => setShowLoadingModal(true)}
+                            title="Tap to view run status"
+                            style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0 }}
+                        >
                         <span style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, background: isPaused ? 'var(--bg-tertiary)' : 'linear-gradient(135deg,#146ef5,#60a5fa)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isPaused ? 'var(--text-secondary)' : 'white' }}>
                             {isPaused ? <Pause size={17} /> : <Loader2 size={18} className="animate-spin" />}
                         </span>
@@ -3346,9 +3377,10 @@ export default function ScraperDashboard() {
                                 {isStopping ? 'Stopping server scrape…' : isPaused ? 'Server scrape paused' : 'Server scrape running…'}
                             </span>
                             <span style={{ display: 'block', fontSize: 11, color: 'var(--text-tertiary)' }}>
-                                {formatElapsed(scrapingElapsedSeconds)} since reconnect · checking every 5s
+                                {formatElapsed(scrapingElapsedSeconds)} since reconnect · tap to view
                             </span>
                         </span>
+                        </button>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <button
                                 onClick={isPaused ? resumeScrape : pauseScrape}
@@ -3538,6 +3570,10 @@ export default function ScraperDashboard() {
                                                 ((item.applyUrl || item.apply_url || item.sourceUrl || item.source_url) === (opp.applyUrl || opp.apply_url || opp.sourceUrl || opp.source_url) && item.title === opp.title)
                                             ) ?? idx;
                                             const isEnhancing = enhancingIndexes.has(sourceIndex);
+                                            const isExpanded = expandedResults.has(sourceIndex);
+                                            const before = aiBefore[sourceIndex];
+                                            const beforeFacts = before ? summarizeForCompare(before) : null;
+                                            const afterFacts = before ? summarizeForCompare(opp) : null;
 
                                             return (
                                             <div
@@ -3593,7 +3629,7 @@ export default function ScraperDashboard() {
                                                         </div>
                                                         <p style={{
                                                             fontSize: 13, color: 'var(--text-tertiary)', margin: 0, lineHeight: 1.5,
-                                                            display: '-webkit-box', WebkitLineClamp: 2,
+                                                            display: isExpanded ? 'block' : '-webkit-box', WebkitLineClamp: isExpanded ? undefined : 2,
                                                             WebkitBoxOrient: 'vertical', overflow: 'hidden',
                                                         }}>{opp.description || opp.summary || 'No description available'}</p>
                                                         {quality.missing.length > 0 && (
@@ -3653,7 +3689,96 @@ export default function ScraperDashboard() {
                                                                     <ExternalLink size={12} /> Source
                                                                 </a>
                                                             )}
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); toggleResultExpanded(sourceIndex); }}
+                                                                style={{
+                                                                    display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 'auto',
+                                                                    padding: '7px 10px', borderRadius: 8, border: 'none',
+                                                                    background: 'transparent', color: 'var(--text-tertiary)',
+                                                                    cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                                                                }}
+                                                            >
+                                                                {before ? 'AI compare' : isExpanded ? 'Less' : 'More'}
+                                                                <ChevronRight size={13} style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+                                                            </button>
                                                         </div>
+
+                                                        {/* Expanded: full details + AI before/after comparison */}
+                                                        {isExpanded && (
+                                                            <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 12, borderTop: '1px solid var(--border-light)', paddingTop: 12, animation: 'fadeIn 0.2s ease', cursor: 'default' }}>
+                                                                {beforeFacts && afterFacts ? (
+                                                                    <>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                                                            <Zap size={13} color="#60a5fa" />
+                                                                            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>AI improvement — before vs after</span>
+                                                                            <span style={{
+                                                                                fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 999,
+                                                                                background: afterFacts.score >= beforeFacts.score ? 'rgba(52,199,89,0.12)' : 'rgba(255,59,48,0.12)',
+                                                                                color: afterFacts.score >= beforeFacts.score ? '#34c759' : '#ff3b30',
+                                                                            }}>
+                                                                                {afterFacts.score >= beforeFacts.score ? '▲' : '▼'} {beforeFacts.score}% → {afterFacts.score}%
+                                                                            </span>
+                                                                        </div>
+                                                                        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr 1fr', gap: '6px 14px', fontSize: 12 }}>
+                                                                            <span />
+                                                                            <span style={{ fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', fontSize: 10, letterSpacing: 0.5 }}>Before</span>
+                                                                            <span style={{ fontWeight: 700, color: '#60a5fa', textTransform: 'uppercase', fontSize: 10, letterSpacing: 0.5 }}>After AI</span>
+                                                                            {([
+                                                                                ['Quality score', `${beforeFacts.score}%`, `${afterFacts.score}%`],
+                                                                                ['Description', `${beforeFacts.descriptionChars} chars`, `${afterFacts.descriptionChars} chars`],
+                                                                                ['Deadline', beforeFacts.deadline, afterFacts.deadline],
+                                                                                ['Requirements', String(beforeFacts.requirements), String(afterFacts.requirements)],
+                                                                                ['Benefits', String(beforeFacts.benefits), String(afterFacts.benefits)],
+                                                                                ['Image', beforeFacts.image, afterFacts.image],
+                                                                                ['Apply link', beforeFacts.applyLink, afterFacts.applyLink],
+                                                                            ] as Array<[string, string, string]>).map(([label, b, a]) => (
+                                                                                <React.Fragment key={label}>
+                                                                                    <span style={{ color: 'var(--text-tertiary)', fontWeight: 600 }}>{label}</span>
+                                                                                    <span style={{ color: 'var(--text-secondary)' }}>{b}</span>
+                                                                                    <span style={{ color: b === a ? 'var(--text-secondary)' : '#34c759', fontWeight: b === a ? 400 : 700 }}>{a}</span>
+                                                                                </React.Fragment>
+                                                                            ))}
+                                                                        </div>
+                                                                        <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                                                            <div style={{ padding: 10, borderRadius: 10, background: 'var(--bg-tertiary)', border: '1px solid var(--border-light)' }}>
+                                                                                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Original description</div>
+                                                                                <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5, maxHeight: 120, overflowY: 'auto' }}>
+                                                                                    {(before.description || before.summary || 'None').trim()}
+                                                                                </p>
+                                                                            </div>
+                                                                            <div style={{ padding: 10, borderRadius: 10, background: 'rgba(20,110,245,0.06)', border: '1px solid rgba(20,110,245,0.2)' }}>
+                                                                                <div style={{ fontSize: 10, fontWeight: 700, color: '#60a5fa', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>AI description</div>
+                                                                                <p style={{ margin: 0, fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.5, maxHeight: 120, overflowY: 'auto' }}>
+                                                                                    {(opp.description || opp.summary || 'None').trim()}
+                                                                                </p>
+                                                                            </div>
+                                                                        </div>
+                                                                    </>
+                                                                ) : (
+                                                                    <div style={{ display: 'grid', gap: 10 }}>
+                                                                        {opp.requirements?.length ? (
+                                                                            <div>
+                                                                                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Requirements</div>
+                                                                                <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                                                                                    {opp.requirements.slice(0, 6).map((item, i) => <li key={i}>{item}</li>)}
+                                                                                </ul>
+                                                                            </div>
+                                                                        ) : null}
+                                                                        {opp.benefits?.length ? (
+                                                                            <div>
+                                                                                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Benefits</div>
+                                                                                <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                                                                                    {opp.benefits.slice(0, 6).map((item, i) => <li key={i}>{item}</li>)}
+                                                                                </ul>
+                                                                            </div>
+                                                                        ) : null}
+                                                                        <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                                                                            Run “AI Improve” to see a before/after comparison here.
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
@@ -3996,6 +4121,14 @@ export default function ScraperDashboard() {
                 @keyframes slideUp {
                     from { opacity: 0; transform: translateY(20px); }
                     to { opacity: 1; transform: translateY(0); }
+                }
+                @keyframes fadeOut {
+                    from { opacity: 1; }
+                    to { opacity: 0; }
+                }
+                @keyframes shrinkToCorner {
+                    from { opacity: 1; transform: translate(0, 0) scale(1); }
+                    to { opacity: 0; transform: translate(38vw, 40vh) scale(0.12); }
                 }
                 @keyframes pulse {
                     0%, 100% { transform: scale(1); }
