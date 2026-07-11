@@ -188,7 +188,22 @@
     "restoreFailed": "An kasa dawo da abubuwan da aka saya",
     "backToApp": "Koma manhaja",
     "subscribe": "Yi rajistar premium",
-    "renewalNote": "Rajista tana sabuntawa kai tsaye, ana kuma iya sarrafa ta a saitunan na'urarka."
+    "renewalNote": "Rajista tana sabuntawa kai tsaye, ana kuma iya sarrafa ta a saitunan na'urarka.",
+    "loginOffer": {
+      "title": "Tayin Musamman",
+      "subtitle": "Na ɗan lokaci kaɗai — tayin zai ƙare nan ba da jimawa ba",
+      "genericTitle": "Koma Premium",
+      "genericSubtitle": "Buɗe duk abin da Edutu ke bayarwa",
+      "off": "RANGWAME",
+      "premium": "PREMIUM",
+      "was": "A dā {{price}}/wata",
+      "total": "Jimla {{price}}/wata",
+      "tagline": "Horon AI mara iyaka, samfuran premium da alamar tabbatarwa",
+      "viewAllPlans": "Duba Duk Tsare-tsare",
+      "cta": "Ci gaba",
+      "footnote": "Soke a kowane lokaci — babu wajibi",
+      "close": "Rufe tayin"
+    }
   },
   "wallet": {
     "title": "Walat",
@@ -234,5 +249,9 @@
     "purchaseFailedTitle": "Sayan Ya Kasa",
     "somethingWentWrong": "Wani abu ya ɓaci.",
     "autoAddNote": "Ana saka kirediti kai tsaye bayan saya."
+  },
+  "header": {
+    "upgrade": "Haɓaka",
+    "verified": "An tabbatar da asusun"
   }
 }

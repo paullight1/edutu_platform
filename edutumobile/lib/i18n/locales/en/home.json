@@ -165,9 +165,11 @@
     "unlockPremium": "Unlock premium",
     "heroActive": "You already have access to premium tools and templates.",
     "heroUpsell": "Subscribe for premium templates, AI tools, exports, and advanced matching.",
+    "weekly": "Weekly",
     "monthly": "Monthly",
     "yearly": "Yearly",
     "save": "Save",
+    "billedWeekly": "Billed weekly",
     "billedMonthly": "Billed monthly",
     "perMonthBilledYearly": "{{price}} per month, billed yearly",
     "features": {
@@ -195,7 +197,40 @@
     "manageSubscription": "Manage subscription",
     "checkoutFailed": "We couldn't open the checkout page. Please try again.",
     "promoDefault": "Limited-time offer",
-    "restore": "Restore purchases"
+    "restore": "Restore purchases",
+    "proBadge": "PRO",
+    "savePct": "Save {{pct}}%",
+    "heroLine1": "Unlock every opportunity",
+    "heroLine2": "without limits",
+    "badgeMostTaken": "Most taken",
+    "badgePopular": "Popular",
+    "badgeBestDeal": "Best deal",
+    "perWeek": "{{price}}/week",
+    "promoOff": "{{pct}}% OFF",
+    "terms": "Terms of Service",
+    "privacy": "Privacy Policy",
+    "upgradeSheet": {
+      "badge": "EDUTU PRO",
+      "title": "Upgrade to Pro",
+      "priceLine": "{{monthly}}/mo · {{weekly}}/wk",
+      "cta": "UPGRADE",
+      "cancelAnytime": "Cancel anytime"
+    },
+    "loginOffer": {
+      "title": "Special Offer",
+      "subtitle": "For a limited time only — offer ends soon",
+      "genericTitle": "Go Premium",
+      "genericSubtitle": "Unlock everything Edutu has to offer",
+      "off": "OFF",
+      "premium": "PREMIUM",
+      "was": "Was {{price}}/month",
+      "total": "Total {{price}}/month",
+      "tagline": "Unlimited AI coaching, premium templates & a verified badge",
+      "viewAllPlans": "View All Plans",
+      "cta": "Continue",
+      "footnote": "Cancel anytime — no commitments",
+      "close": "Close offer"
+    }
   },
   "wallet": {
     "title": "Wallet",
@@ -242,5 +277,9 @@
     "purchaseFailedTitle": "Purchase Failed",
     "somethingWentWrong": "Something went wrong.",
     "autoAddNote": "Credits are added automatically after purchase."
+  },
+  "header": {
+    "upgrade": "Upgrade",
+    "verified": "Verified account"
   }
 }

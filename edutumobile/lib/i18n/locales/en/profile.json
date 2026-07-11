@@ -62,6 +62,15 @@
       "title": "Finish your profile",
       "desc": "Add your goals and interests so we can personalize your matches.",
       "cta": "Complete now"
+    },
+    "verified": "Verified",
+    "upgrade": {
+      "title": "Upgrade to Premium",
+      "desc": "Unlock the full Edutu experience and stand out with a verified badge.",
+      "perk1": "Unlimited AI coaching & Co-pilot",
+      "perk2": "Premium templates, CV tools & exports",
+      "perk3": "Verified blue badge on your profile",
+      "cta": "Upgrade now"
     }
   },
   "edit": {

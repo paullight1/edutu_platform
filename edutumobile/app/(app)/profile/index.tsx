@@ -34,6 +34,7 @@ import {
     CheckCircle2,
     Calendar,
     Tag,
+    BadgeCheck,
 } from 'lucide-react-native';
 import { useUser, useAuth } from '@clerk/clerk-expo';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -43,15 +44,25 @@ import { supabase } from "../../../lib/supabase";
 import { toSafeUUID } from "@edutu/core/src/utils/auth";
 import { fetchProfile, type BackendProfile } from '@edutu/core/src/services/profile';
 import { useOpportunities } from '@edutu/core/src/hooks/useOpportunities';
+import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../../lib/i18n';
 
-function PremiumButton() {
+function PremiumButton({ isPro }: { isPro: boolean }) {
     const router = useRouter();
-    const { isDark, colors } = useTheme();
+    const { isDark } = useTheme();
     const { t } = useTranslation('profile');
+
+    if (isPro) {
+        return (
+            <View style={[styles.premiumButton, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.1)' }]}>
+                <BadgeCheck size={16} color="#FFFFFF" fill="#3B82F6" />
+                <Text style={[styles.premiumButtonText, { color: '#3B82F6' }]}>{t('view.verified')}</Text>
+            </View>
+        );
+    }
 
     return (
         <TouchableOpacity
@@ -127,6 +138,7 @@ export default function ProfileScreen() {
     // Set when the user skipped onboarding — we surface a resume card so they
     // can finish personalizing without being trapped in the onboarding flow.
     const profilePending = Boolean(user?.unsafeMetadata?.profilePending);
+    const { isPro } = useProStatus(supabase, user?.id || null);
     const [isAdmin, setIsAdmin] = useState(false);
     // Canonical saved profile (backend row) — the header must reflect what the
     // user actually saved on the edit screen, not stale onboarding metadata.
@@ -275,7 +287,7 @@ export default function ProfileScreen() {
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-            <ScreenHeader title={t('view.title')} showBack right={<PremiumButton />} />
+            <ScreenHeader title={t('view.title')} showBack right={<PremiumButton isPro={isPro} />} />
             <ScrollView
                 style={styles.scrollView}
                 showsVerticalScrollIndicator={false}
@@ -306,9 +318,19 @@ export default function ProfileScreen() {
 
                         {/* User Info */}
                         <View style={styles.userInfo}>
-                            <Text style={[styles.userName, { color: colors.foreground }]}>
-                                {user?.fullName || t('view.userFallback')}
-                            </Text>
+                            <View style={styles.userNameRow}>
+                                <Text style={[styles.userName, { color: colors.foreground }]}>
+                                    {user?.fullName || t('view.userFallback')}
+                                </Text>
+                                {isPro && (
+                                    <BadgeCheck
+                                        size={20}
+                                        color="#FFFFFF"
+                                        fill="#3B82F6"
+                                        accessibilityLabel={t('view.verified')}
+                                    />
+                                )}
+                            </View>
                             <Text style={[styles.userEmail, { color: textSecondary }]}>
                                 {user?.primaryEmailAddress?.emailAddress || ''}
                             </Text>
@@ -399,6 +421,47 @@ export default function ProfileScreen() {
                         />
                     </View>
                 </View>
+
+                {/* Upgrade to Premium */}
+                {!isPro && (
+                    <Animated.View entering={FadeInDown.duration(360)}>
+                        <TouchableOpacity
+                            onPress={() => router.push('/paywall')}
+                            activeOpacity={0.88}
+                            style={styles.upgradeCardWrap}
+                        >
+                            <LinearGradient
+                                colors={['#4338CA', '#6366F1', '#8B5CF6']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 1 }}
+                                style={styles.upgradeCard}
+                            >
+                                <View style={styles.upgradeGhostIcon}>
+                                    <Crown size={92} color="rgba(255,255,255,0.12)" strokeWidth={1.2} />
+                                </View>
+                                <View style={styles.upgradeHeader}>
+                                    <View style={styles.upgradeIconWrap}>
+                                        <Zap size={18} color="#FDE047" fill="#FDE047" />
+                                    </View>
+                                    <Text style={styles.upgradeTitle}>{t('view.upgrade.title')}</Text>
+                                </View>
+                                <Text style={styles.upgradeDesc}>{t('view.upgrade.desc')}</Text>
+                                <View style={styles.upgradePerks}>
+                                    {[t('view.upgrade.perk1'), t('view.upgrade.perk2'), t('view.upgrade.perk3')].map((perk) => (
+                                        <View key={perk} style={styles.upgradePerkRow}>
+                                            <BadgeCheck size={14} color="#4338CA" fill="#FFFFFF" />
+                                            <Text style={styles.upgradePerkText}>{perk}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                                <View style={styles.upgradeCta}>
+                                    <Crown size={16} color="#4338CA" />
+                                    <Text style={styles.upgradeCtaText}>{t('view.upgrade.cta')}</Text>
+                                </View>
+                            </LinearGradient>
+                        </TouchableOpacity>
+                    </Animated.View>
+                )}
 
                 {/* Become a Creator Banner */}
                 <TouchableOpacity
@@ -566,10 +629,15 @@ const styles = StyleSheet.create({
     userInfo: {
         alignItems: 'center',
     },
+    userNameRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 4,
+    },
     userName: {
         fontSize: 22,
         fontWeight: '600',
-        marginBottom: 4,
     },
     userEmail: {
         fontSize: 14,
@@ -691,6 +759,80 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 25,
         fontWeight: '900',
+    },
+    upgradeCardWrap: {
+        marginBottom: 24,
+        borderRadius: 20,
+        shadowColor: '#6366F1',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.28,
+        shadowRadius: 12,
+        elevation: 6,
+    },
+    upgradeCard: {
+        borderRadius: 20,
+        padding: 18,
+        overflow: 'hidden',
+    },
+    upgradeGhostIcon: {
+        position: 'absolute',
+        right: -16,
+        top: -14,
+        transform: [{ rotate: '12deg' }],
+    },
+    upgradeHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 6,
+    },
+    upgradeIconWrap: {
+        width: 30,
+        height: 30,
+        borderRadius: 9,
+        backgroundColor: 'rgba(255,255,255,0.18)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    upgradeTitle: {
+        color: '#FFFFFF',
+        fontSize: 17,
+        fontWeight: '800',
+        flex: 1,
+    },
+    upgradeDesc: {
+        color: 'rgba(255,255,255,0.85)',
+        fontSize: 13,
+        lineHeight: 18,
+        marginBottom: 12,
+    },
+    upgradePerks: {
+        gap: 6,
+        marginBottom: 14,
+    },
+    upgradePerkRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    upgradePerkText: {
+        color: 'rgba(255,255,255,0.95)',
+        fontSize: 12.5,
+        fontWeight: '600',
+    },
+    upgradeCta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 12,
+        paddingVertical: 11,
+    },
+    upgradeCtaText: {
+        color: '#4338CA',
+        fontSize: 14,
+        fontWeight: '800',
     },
     creatorBanner: {
         flexDirection: 'row',

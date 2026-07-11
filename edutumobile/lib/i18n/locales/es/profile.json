@@ -53,7 +53,16 @@
     },
     "logOut": "Cerrar sesión",
     "appVersion": "Edutu v{{version}}",
-    "footerTagline": "Impulsando a la juventud africana"
+    "footerTagline": "Impulsando a la juventud africana",
+    "verified": "Verificado",
+    "upgrade": {
+      "title": "Mejora a Premium",
+      "desc": "Desbloquea toda la experiencia Edutu y destaca con una insignia verificada.",
+      "perk1": "Coaching de IA y Co-pilot ilimitados",
+      "perk2": "Plantillas premium, herramientas de CV y exportaciones",
+      "perk3": "Insignia azul verificada en tu perfil",
+      "cta": "Mejorar ahora"
+    }
   },
   "edit": {
     "title": "Editar perfil",

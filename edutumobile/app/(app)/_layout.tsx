@@ -10,15 +10,19 @@ import {
     Sparkles,
     Bell,
     UserCircle,
+    BadgeCheck,
+    Crown,
 } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import * as Haptics from "expo-haptics";
 import { useTheme } from "../../components/context/ThemeContext";
 import { ToastProvider, useToast } from "../../components/context/ToastContext";
+import { UpgradeSheetProvider } from "../../components/context/UpgradeSheetContext";
 import { useCreditRewards } from "@edutu/core/src/hooks/useCreditRewards";
 import { EdutuLogo } from "../../components/branding/EdutuLogo";
 import { WelcomeHintSystem } from "../../components/ui/WelcomeHintSystem";
+import { LoginOfferModal } from "../../components/ui/LoginOfferModal";
 import { ModuleLockOverlay } from "../../components/mobile-control/ModuleLockOverlay";
 import { VoiceModeOverlay } from "../../components/chat/VoiceModeOverlay";
 import { openVoiceMode } from "../../lib/voiceModeStore";
@@ -26,6 +30,7 @@ import * as Notifications from "expo-notifications";
 import { notificationService, registerForPushNotificationsAsync } from "../../lib/notifications";
 import { supabase } from "../../lib/supabase";
 import { useNotifications } from "@edutu/core/src/hooks/useNotifications";
+import { useProStatus } from "@edutu/core/src/hooks/useProStatus";
 import { useTranslation } from "react-i18next";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -232,6 +237,9 @@ function AppHeader({ isDark, colors, unreadNotifications }: { isDark: boolean, c
     const insets = useSafeAreaInsets();
     const bottomOffset = getBottomNavOffset(insets.bottom);
     const accentColor = colors.accent || "#6366F1";
+    const { t } = useTranslation('home');
+    const { user } = useUser();
+    const { isPro, isLoading: proLoading } = useProStatus(supabase, user?.id || null);
 
     return (
         <View style={[
@@ -248,6 +256,25 @@ function AppHeader({ isDark, colors, unreadNotifications }: { isDark: boolean, c
                     <HeaderLogoTitle
                         color={isDark ? "#FFFFFF" : "#0F172A"}
                     />
+                    {!proLoading && (isPro ? (
+                        <BadgeCheck
+                            size={18}
+                            color="#FFFFFF"
+                            fill="#3B82F6"
+                            accessibilityLabel={t('header.verified')}
+                        />
+                    ) : (
+                        <TouchableOpacity
+                            onPress={() => router.push('/paywall')}
+                            activeOpacity={0.75}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('header.upgrade')}
+                            style={[styles.upgradePill, { backgroundColor: isDark ? "rgba(245,158,11,0.16)" : "rgba(245,158,11,0.12)" }]}
+                        >
+                            <Crown size={13} color="#F59E0B" />
+                            <Text style={styles.upgradePillText}>{t('header.upgrade')}</Text>
+                        </TouchableOpacity>
+                    ))}
                 </View>
 
                 <TouchableOpacity
@@ -544,6 +571,7 @@ export default function AppLayout() {
 
     return (
         <ToastProvider>
+        <UpgradeSheetProvider>
         <View style={styles.appContainer}>
             <DailyLoginRewards />
             {!hideSharedHeader && (
@@ -609,10 +637,14 @@ export default function AppLayout() {
                 active, including deep links, without per-screen wiring. */}
             <ModuleLockOverlay />
 
+            {/* Login-time promo interstitial — once per day for free users. */}
+            <LoginOfferModal />
+
             {/* AI voice mode — mounted once at the root so the bottom-nav hold
                 gesture and the chat composer toggles share one overlay. */}
             <VoiceModeOverlay />
         </View>
+        </UpgradeSheetProvider>
         </ToastProvider>
     );
 }
@@ -760,6 +792,19 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         letterSpacing: 0,
         flexShrink: 1,
+    },
+    upgradePill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 9,
+        paddingVertical: 5,
+        borderRadius: 999,
+    },
+    upgradePillText: {
+        color: '#F59E0B',
+        fontSize: 12,
+        fontWeight: '800',
     },
     homeGreetingText: {
         color: '#94A3B8',
