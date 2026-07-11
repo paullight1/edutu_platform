@@ -69,7 +69,14 @@ export const RecommendationQuerySchema = z.object({
     .nullable()
     .optional(),
   message: z.string().max(4000).nullable().optional(),
-  limit: z.number().int().min(1).max(300).optional(),
+  // Clamp instead of reject: mobile historically sent limit=1000, and a hard
+  // .max() turned every such request into a silent 400 + client fallback.
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .transform((value) => Math.min(value, 1000))
+    .optional(),
   minMatchScore: z.number().min(0).max(100).optional(),
   excludeOpportunityIds: z.array(z.string().uuid()).max(200).optional(),
   // Opt-in LLM re-rank refinement. Off by default so the heuristic ranking

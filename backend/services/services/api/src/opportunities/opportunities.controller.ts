@@ -54,7 +54,9 @@ import { stripInternalOpportunityFieldsBatch } from "./public-opportunity-projec
 // Caps for the anonymous/learner public feed. The paid API (/v1) is uncapped
 // and returns the full normalized DTO; this surface only powers browse UI.
 const PUBLIC_FEED_MAX_LIMIT = 60;
-const PUBLIC_FEED_MAX_OFFSET = 480;
+// Deep enough for the whole catalog to stay browsable as it grows (offset cap
+// + one page ~= 2100 rows) while still bounding anonymous harvesting depth.
+const PUBLIC_FEED_MAX_OFFSET = 2040;
 
 @Controller("opportunities")
 export class OpportunitiesController {

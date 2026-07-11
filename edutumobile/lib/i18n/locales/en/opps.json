@@ -45,7 +45,11 @@
       "scholarships": "Scholarships",
       "internships": "Internships",
       "programs": "Programs",
-      "fellowships": "Fellowships"
+      "fellowships": "Fellowships",
+      "grants": "Grants",
+      "graduatePrograms": "Graduate Programs",
+      "bootcamps": "Bootcamps",
+      "events": "Events"
     },
     "features": {
       "cv": { "title": "CV Builder", "desc": "Build, edit, and tailor your profile" },

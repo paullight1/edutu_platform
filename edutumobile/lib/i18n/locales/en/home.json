@@ -36,14 +36,35 @@
         "title": "Internships",
         "description": "Hands-on early-career roles"
       },
-      "grants": {
+      "programs": {
         "title": "Programs",
-        "description": "Funded programs & grants"
+        "description": "Funded programs & exchanges"
       },
       "fellowships": {
         "title": "Fellowships",
         "description": "Fellowships & leadership tracks"
+      },
+      "grants": {
+        "title": "Grants",
+        "description": "Seed funding & project grants"
+      },
+      "graduatePrograms": {
+        "title": "Graduate Programs",
+        "description": "Masters, PhD & postgraduate study"
+      },
+      "bootcamps": {
+        "title": "Bootcamps",
+        "description": "Intensive skills & accelerators"
+      },
+      "events": {
+        "title": "Events",
+        "description": "Summits, conferences & workshops"
       }
+    },
+    "discoveryEditor": {
+      "title": "Customize categories",
+      "subtitle": "Choose which cards show on your homepage.",
+      "save": "Save"
     }
   },
   "notifications": {

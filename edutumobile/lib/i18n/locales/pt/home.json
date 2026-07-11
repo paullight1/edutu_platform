@@ -36,13 +36,13 @@
         "title": "Estágios",
         "description": "Vagas práticas de início de carreira"
       },
-      "grants": {
-        "title": "Programas",
-        "description": "Programas financiados e subsídios"
-      },
       "fellowships": {
         "title": "Fellowships",
         "description": "Fellowships e trilhas de liderança"
+      },
+      "programs": {
+        "title": "Programas",
+        "description": "Programas financiados e subsídios"
       }
     }
   },

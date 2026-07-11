@@ -1,5 +1,5 @@
-import { View, Text, ScrollView, StyleSheet, Dimensions, Image, ImageBackground, RefreshControl, TouchableOpacity } from "react-native";
-import React, { useCallback, useEffect, useState, useMemo } from "react";
+import { View, Text, ScrollView, StyleSheet, Dimensions, Image, ImageBackground, RefreshControl, TouchableOpacity, FlatList, Modal, Pressable, NativeSyntheticEvent, NativeScrollEvent } from "react-native";
+import React, { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useRouter } from "expo-router";
@@ -12,6 +12,9 @@ import {
     BookmarkPlus,
     Share2,
     MapPin,
+    Pencil,
+    Check,
+    X,
 } from "lucide-react-native";
 import { useTheme } from "../../components/context/ThemeContext";
 import { LinearGradient } from "expo-linear-gradient";
@@ -26,7 +29,13 @@ import { getDeadlineBadge, urgencyColor } from "@edutu/core/src/utils/deadline";
 import { AnimatedPressable } from "../../components/ui/AnimatedPressable";
 import { ShimmerCard } from "../../components/ui/Shimmer";
 import { syncAndUpdateOpportunityWidgetSnapshot } from "../../lib/opportunityWidgetSync";
-import { type DiscoveryCategoryIcon } from "../../lib/discoveryCategoryIcons";
+import {
+    DISCOVERY_CATEGORY_CATALOG,
+    getDiscoveryCategory,
+    type DiscoveryCategory,
+    type DiscoveryCategoryId,
+} from "../../lib/discoveryCategories";
+import { useHomeCategories } from "../../lib/homeCategoriesStore";
 import { useTranslation } from "react-i18next";
 
 const { width } = Dimensions.get('window');
@@ -35,14 +44,6 @@ const CARD_WIDTH = (width - 40 - CARD_GAP) / 2;
 // Wide enough to fit a full content card, narrow enough that the next card
 // peeks in — a visual cue that the row scrolls sideways.
 const RAIL_CARD_WIDTH = Math.min(Math.round(width * 0.74), 300);
-
-const DISCOVERY_BACKGROUNDS = {
-    scholarships: require("../../assets/discovery/scholarships.png"),
-    internships: require("../../assets/discovery/internships.png"),
-    grants: require("../../assets/discovery/grants.png"),
-    fellowships: require("../../assets/discovery/fellowships.png"),
-    training_conferences: require("../../assets/discovery/training-conferences.png"),
-} as const;
 
 // ─── Quick Actions Grid Component ─────────────────────────────────────────────
 // `title` holds an i18n key (home namespace); translated at render time.
@@ -53,63 +54,41 @@ const QUICK_ACTIONS = [
     { id: '5', title: 'home.quickActions.saved', icon: BookmarkPlus, route: '/saved', gradient: ['#EC4899', '#F43F5E'] as [string, string] },
 ];
 
-// `title`/`description` hold i18n keys (home namespace); translated at render time.
-const DISCOVERY_CATEGORIES = [
-    {
-        id: 'scholarships',
-        title: 'home.discovery.scholarships.title',
-        description: 'home.discovery.scholarships.description',
-        icon: 'scholarship',
-        colors: ['rgba(239,68,35,0.94)', 'rgba(153,27,27,0.82)'] as [string, string],
-        accent: '#EF4423',
-        image: DISCOVERY_BACKGROUNDS.scholarships,
-    },
-    {
-        id: 'internships',
-        title: 'home.discovery.internships.title',
-        description: 'home.discovery.internships.description',
-        icon: 'career',
-        colors: ['rgba(37,99,235,0.92)', 'rgba(30,64,175,0.82)'] as [string, string],
-        accent: '#2563EB',
-        image: DISCOVERY_BACKGROUNDS.internships,
-    },
-    {
-        id: 'grants',
-        title: 'home.discovery.grants.title',
-        description: 'home.discovery.grants.description',
-        icon: 'grant',
-        colors: ['rgba(16,185,129,0.92)', 'rgba(4,120,87,0.82)'] as [string, string],
-        accent: '#10B981',
-        image: DISCOVERY_BACKGROUNDS.grants,
-    },
-    {
-        id: 'fellowships',
-        title: 'home.discovery.fellowships.title',
-        description: 'home.discovery.fellowships.description',
-        icon: 'leadership',
-        colors: ['rgba(124,58,237,0.92)', 'rgba(91,33,182,0.82)'] as [string, string],
-        accent: '#7C3AED',
-        image: DISCOVERY_BACKGROUNDS.fellowships,
-    },
-] satisfies Array<{
-    id: string;
-    title: string;
-    description: string;
-    icon: DiscoveryCategoryIcon;
-    colors: [string, string];
-    accent: string;
-    image: number;
-}>;
-
 function getUserLookupIds(userId: string): string[] {
     return Array.from(new Set([userId, toSafeUUID(userId)]));
 }
 
-function DiscoveryCategoryGrid({ router }: { router: any }) {
+function DiscoveryCardFace({ item, title }: { item: DiscoveryCategory; title: string }) {
+    if (item.image) {
+        return (
+            <ImageBackground
+                source={item.image}
+                style={styles.discoveryImageBg}
+                imageStyle={styles.discoveryImageRadius}
+                resizeMode="cover"
+            >
+                <View style={styles.discoveryTint} />
+                <Text style={styles.discoveryTitle} numberOfLines={1}>{title}</Text>
+            </ImageBackground>
+        );
+    }
+    return (
+        <LinearGradient
+            colors={item.colors}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.discoveryImageBg}
+        >
+            <Text style={styles.discoveryTitle} numberOfLines={1}>{title}</Text>
+        </LinearGradient>
+    );
+}
+
+function DiscoveryCategoryGrid({ router, categories }: { router: any; categories: DiscoveryCategory[] }) {
     const { t } = useTranslation('home');
     return (
         <View style={styles.discoveryGrid}>
-            {DISCOVERY_CATEGORIES.map((item, index) => (
+            {categories.map((item, index) => (
                 <AnimatedPressable
                     key={item.id}
                     onPress={() => router.push({ pathname: '/opportunities', params: { category: item.id } })}
@@ -118,20 +97,105 @@ function DiscoveryCategoryGrid({ router }: { router: any }) {
                     hapticFeedback="medium"
                     scaleTo={0.96}
                 >
-                    <ImageBackground
-                        source={item.image}
-                        style={styles.discoveryImageBg}
-                        imageStyle={styles.discoveryImageRadius}
-                        resizeMode="cover"
-                    >
-                        <View style={styles.discoveryTint} />
-                        <Text style={styles.discoveryTitle} numberOfLines={1}>
-                            {t(item.title)}
-                        </Text>
-                    </ImageBackground>
+                    <DiscoveryCardFace item={item} title={t(item.homeTitleKey, { defaultValue: item.fallbackTitle })} />
                 </AnimatedPressable>
             ))}
         </View>
+    );
+}
+
+// Full-catalog picker: tap cards to toggle which ones show on the homepage.
+function HomeCategoriesEditor({
+    visible,
+    selected,
+    onClose,
+    onSave,
+    isDark,
+    textPrimary,
+    textSecondary,
+}: {
+    visible: boolean;
+    selected: DiscoveryCategoryId[];
+    onClose: () => void;
+    onSave: (slugs: DiscoveryCategoryId[]) => void;
+    isDark: boolean;
+    textPrimary: string;
+    textSecondary: string;
+}) {
+    const { t } = useTranslation('home');
+    const [draft, setDraft] = useState<DiscoveryCategoryId[]>(selected);
+
+    useEffect(() => {
+        if (visible) setDraft(selected);
+    }, [visible, selected]);
+
+    const toggle = (id: DiscoveryCategoryId) => {
+        setDraft((prev) => {
+            if (prev.includes(id)) {
+                // Keep at least one card on the homepage.
+                if (prev.length === 1) return prev;
+                return prev.filter((slug) => slug !== id);
+            }
+            return [...prev, id];
+        });
+    };
+
+    return (
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+            <Pressable style={styles.editorBackdrop} onPress={onClose}>
+                <Pressable
+                    style={[styles.editorSheet, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' }]}
+                    onPress={() => { }}
+                >
+                    <View style={styles.editorHeader}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={[styles.editorTitle, { color: textPrimary }]}>
+                                {t('home.discoveryEditor.title', { defaultValue: 'Customize categories' })}
+                            </Text>
+                            <Text style={[styles.editorSubtitle, { color: textSecondary }]}>
+                                {t('home.discoveryEditor.subtitle', { defaultValue: 'Choose which cards show on your homepage.' })}
+                            </Text>
+                        </View>
+                        <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.editorCloseBtn}>
+                            <X size={20} color={textSecondary} />
+                        </TouchableOpacity>
+                    </View>
+                    <View style={styles.discoveryGrid}>
+                        {DISCOVERY_CATEGORY_CATALOG.map((item) => {
+                            const active = draft.includes(item.id);
+                            return (
+                                <AnimatedPressable
+                                    key={item.id}
+                                    onPress={() => toggle(item.id)}
+                                    style={[styles.discoveryCard, styles.editorCardSize, !active && styles.editorCardInactive]}
+                                    hapticFeedback="light"
+                                    scaleTo={0.96}
+                                >
+                                    <DiscoveryCardFace item={item} title={t(item.homeTitleKey, { defaultValue: item.fallbackTitle })} />
+                                    {active && (
+                                        <View style={styles.editorCheck}>
+                                            <Check size={12} color="#FFFFFF" strokeWidth={3} />
+                                        </View>
+                                    )}
+                                </AnimatedPressable>
+                            );
+                        })}
+                    </View>
+                    <TouchableOpacity
+                        style={styles.editorSaveBtn}
+                        onPress={() => {
+                            onSave(draft);
+                            onClose();
+                        }}
+                        activeOpacity={0.85}
+                    >
+                        <Text style={styles.editorSaveText}>
+                            {t('home.discoveryEditor.save', { defaultValue: 'Save' })}
+                        </Text>
+                    </TouchableOpacity>
+                </Pressable>
+            </Pressable>
+        </Modal>
     );
 }
 
@@ -178,6 +242,11 @@ function OpportunityCard({ item, isDark, textPrimary, textSecondary, accent = '#
     index?: number;
 }) {
     const { t } = useTranslation('home');
+    // A dead image URL would otherwise render as a large blank block with the
+    // category chip floating in it — fall back to the imageless layout instead.
+    const [imageFailed, setImageFailed] = useState(false);
+    const imageUri = imageFailed ? undefined : item.image ?? undefined;
+    const hasImage = Boolean(imageUri);
     const deadlineBadge = useMemo(() => getDeadlineBadge(item.deadline), [item.deadline]);
     const deadlineText = deadlineBadge.shortLabel;
     const deadlineColor = deadlineBadge.level === 'none'
@@ -216,12 +285,13 @@ function OpportunityCard({ item, isDark, textPrimary, textSecondary, accent = '#
             }]}
             entering={FadeInDown.delay(index * 60).duration(350).springify()}
         >
-            {item.image ? (
+            {hasImage ? (
                 <View>
                     <Image
-                        source={{ uri: item.image }}
+                        source={{ uri: imageUri }}
                         style={[styles.oppCardImage, horizontal && styles.oppCardImageTall]}
                         resizeMode="cover"
+                        onError={() => setImageFailed(true)}
                     />
                     {category ? (
                         <View style={styles.oppCategoryChip}>
@@ -278,7 +348,7 @@ function OpportunityCard({ item, isDark, textPrimary, textSecondary, accent = '#
                 {showMatchReason && (
                     <Text style={styles.oppMatchReason} numberOfLines={1}>{topMatchReason}</Text>
                 )}
-                {(locationLabel || (!item.image && category)) ? (
+                {(locationLabel || (!hasImage && category)) ? (
                     <View style={styles.oppMetaRow}>
                         {locationLabel ? (
                             <View style={styles.oppLocationRow}>
@@ -286,7 +356,7 @@ function OpportunityCard({ item, isDark, textPrimary, textSecondary, accent = '#
                                 <Text style={[styles.oppLocationText, { color: textSecondary }]} numberOfLines={1}>{locationLabel}</Text>
                             </View>
                         ) : null}
-                        {!item.image && category ? (
+                        {!hasImage && category ? (
                             <View style={[styles.oppCategoryPill, { backgroundColor: isDark ? "rgba(148,163,184,0.14)" : "#F1F5F9" }]}>
                                 <Text style={[styles.oppCategoryPillText, { color: textSecondary }]} numberOfLines={1}>{category}</Text>
                             </View>
@@ -309,100 +379,266 @@ function OpportunityCard({ item, isDark, textPrimary, textSecondary, accent = '#
     );
 }
 
-// ─── Opportunity Section Component ───────────────────────────────────────────
-function OpportunitySection({
-    title,
-    data,
-    isDark,
-    showViewMore = true,
-    onViewMorePress,
-    icon,
-    textPrimary,
-    textSecondary,
-    grid = false,
-    horizontal = false,
-    bookmarkedIds = [],
-    onBookmark,
-    onShare,
-    router,
-    onOpenOpportunity,
-}: {
-    title: string;
-    data: Opportunity[];
+// ─── Featured Netflix-style Carousel ─────────────────────────────────────────
+// Two-column poster rail that pages two cards at a time and auto-advances
+// like a streaming-app row.
+const FEATURED_CARD_WIDTH = CARD_WIDTH;
+const FEATURED_CARD_HEIGHT = 150;
+const FEATURED_ITEM_SNAP = FEATURED_CARD_WIDTH + CARD_GAP;
+const FEATURED_PAGE_SNAP = FEATURED_ITEM_SNAP * 2;
+const FEATURED_AUTO_ADVANCE_MS = 4500;
+
+function FeaturedPosterCard({ item, isDark, onPress, onBookmark, onShare, bookmarked = false, index = 0, hero = false }: {
+    item: Opportunity;
     isDark: boolean;
-    showViewMore?: boolean;
-    onViewMorePress?: () => void;
-    icon?: React.ReactNode;
-    textPrimary: string;
-    textSecondary: string;
-    grid?: boolean;
-    horizontal?: boolean;
-    bookmarkedIds?: string[];
-    onBookmark?: (id: string) => void;
-    onShare?: (item: Opportunity) => void;
-    router?: any;
-    onOpenOpportunity?: (id: string) => void;
+    onPress?: () => void;
+    onBookmark?: () => void;
+    onShare?: () => void;
+    bookmarked?: boolean;
+    index?: number;
+    /** Full-width cinematic spotlight, used when a single item is featured. */
+    hero?: boolean;
 }) {
     const { t } = useTranslation('home');
-    const displayData = grid ? data.slice(0, 8) : data;
-
-    const renderCard = (item: Opportunity, idx: number) => (
-        <OpportunityCard
-            item={item}
-            isDark={isDark}
-            textPrimary={textPrimary}
-            textSecondary={textSecondary}
-            horizontal={horizontal}
-            onPress={() => {
-                onOpenOpportunity?.(item.id);
-                router?.push(`/opportunities/${item.id}`);
-            }}
-            onBookmark={onBookmark ? () => onBookmark(item.id) : undefined}
-            onShare={onShare ? () => onShare(item) : undefined}
-            bookmarked={bookmarkedIds.includes(item.id)}
-            index={idx}
-        />
+    const [imageFailed, setImageFailed] = useState(false);
+    const imageUri = imageFailed ? undefined : item.image ?? undefined;
+    const deadlineBadge = useMemo(() => getDeadlineBadge(item.deadline), [item.deadline]);
+    const deadlineColor = deadlineBadge.level === 'none' ? '#CBD5E1' : urgencyColor(deadlineBadge.level);
+    const matchPct = Math.round(item.match ?? 0);
+    const category = (item.category ?? '').trim();
+    const orgLabel = (item.organization ?? '').trim();
+    const locationLabel = item.isRemote ? t('opportunityCard.remote') : (item.location ?? '').trim();
+    const heroSub = [orgLabel, locationLabel].filter(Boolean).join(' · ');
+    const overlay = (
+        <>
+            {/* Dark tint + scrim so white text stays readable over any poster */}
+            <View style={styles.posterTint} />
+            <LinearGradient
+                colors={["rgba(2,6,23,0.2)", "transparent", "rgba(2,6,23,0.72)", "rgba(2,6,23,0.96)"]}
+                locations={[0, 0.3, 0.66, 1]}
+                style={StyleSheet.absoluteFill}
+            />
+            <View style={[styles.posterTopRow, hero && styles.posterTopRowHero]}>
+                {category ? (
+                    <View style={styles.posterCategoryChip}>
+                        <Text style={styles.posterCategoryText} numberOfLines={1} maxFontSizeMultiplier={1.2}>{category.toUpperCase()}</Text>
+                    </View>
+                ) : <View />}
+                <View style={styles.posterTopActions}>
+                    {hero && onShare && (
+                        <TouchableOpacity
+                            onPress={(e) => { e.stopPropagation(); onShare(); }}
+                            hitSlop={8}
+                            style={styles.posterActionBtn}
+                        >
+                            <Share2 size={13} color="#FFFFFF" />
+                        </TouchableOpacity>
+                    )}
+                    {onBookmark && (
+                        <TouchableOpacity
+                            onPress={(e) => { e.stopPropagation(); onBookmark(); }}
+                            hitSlop={8}
+                            style={styles.posterActionBtn}
+                        >
+                            <BookmarkPlus size={13} color={bookmarked ? '#A5B4FC' : '#FFFFFF'} fill={bookmarked ? '#A5B4FC' : 'transparent'} />
+                        </TouchableOpacity>
+                    )}
+                </View>
+            </View>
+            <View style={[styles.posterBottom, hero && styles.posterBottomHero]}>
+                {matchPct >= 40 && (
+                    <View style={styles.posterMatchBadge}>
+                        <Sparkles size={8} color="#C7D2FE" />
+                        <Text style={styles.posterMatchText} maxFontSizeMultiplier={1.2}>{t('opportunityCard.percentMatch', { percent: matchPct })}</Text>
+                    </View>
+                )}
+                <Text style={hero ? styles.posterTitleHero : styles.posterTitle} numberOfLines={2} maxFontSizeMultiplier={1.2}>{item.title}</Text>
+                {hero && heroSub ? (
+                    <Text style={styles.posterSubHero} numberOfLines={1} maxFontSizeMultiplier={1.2}>{heroSub}</Text>
+                ) : null}
+                <View style={styles.posterFooterRow}>
+                    <View style={styles.deadlineRow}>
+                        <View style={[styles.deadlineDot, { backgroundColor: deadlineColor }]} />
+                        <Text style={[styles.posterDeadline, { color: deadlineColor }]} maxFontSizeMultiplier={1.2}>{deadlineBadge.shortLabel}</Text>
+                    </View>
+                    {hero ? (
+                        <View style={styles.posterHeroCta}>
+                            <Text style={styles.posterHeroCtaText} maxFontSizeMultiplier={1.2}>
+                                {t('featured.heroCta', { defaultValue: 'View details' })}
+                            </Text>
+                            <ChevronRight size={13} color="#FFFFFF" />
+                        </View>
+                    ) : onShare ? (
+                        <TouchableOpacity
+                            onPress={(e) => { e.stopPropagation(); onShare(); }}
+                            hitSlop={8}
+                            style={styles.posterActionBtn}
+                        >
+                            <Share2 size={13} color="#FFFFFF" />
+                        </TouchableOpacity>
+                    ) : null}
+                </View>
+            </View>
+        </>
     );
 
     return (
-        <Animated.View entering={FadeInDown.duration(400).delay(100)}>
-            <View style={styles.sectionHeader}>
-                {icon && <View style={[styles.sectionIcon, { backgroundColor: isDark ? "rgba(99,102,241,0.15)" : "#F0F0FF" }]}>{icon}</View>}
-                <Text style={[styles.sectionTitle, { color: textPrimary }]} numberOfLines={1}>{title}</Text>
-                {showViewMore && (
-                    <AnimatedPressable onPress={onViewMorePress} style={styles.viewMoreBtn}>
-                        <Text style={styles.viewMoreText}>{t('home.viewMore')}</Text>
-                        <ChevronRight size={13} color="#6366F1" />
-                    </AnimatedPressable>
-                )}
-            </View>
-            {horizontal ? (
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.oppRail}
-                    contentContainerStyle={styles.oppRailContainer}
-                    decelerationRate="fast"
-                    snapToInterval={RAIL_CARD_WIDTH + CARD_GAP}
-                    snapToAlignment="start"
+        <AnimatedPressable
+            onPress={onPress}
+            style={[styles.posterCard, hero && styles.posterCardHero]}
+            entering={FadeInDown.delay(index * 70).duration(360).springify()}
+            hapticFeedback="light"
+            scaleTo={0.97}
+        >
+            {imageUri ? (
+                <ImageBackground
+                    source={{ uri: imageUri }}
+                    style={styles.posterFill}
+                    imageStyle={hero ? styles.posterImageRadiusHero : styles.posterImageRadius}
+                    resizeMode="cover"
+                    onError={() => setImageFailed(true)}
                 >
-                    {displayData.map((item, idx) => (
-                        <View key={item.id}>{renderCard(item, idx)}</View>
-                    ))}
-                </ScrollView>
+                    {overlay}
+                </ImageBackground>
             ) : (
-                <View style={grid ? styles.oppGridContainer : styles.oppListContainer}>
-                    {displayData.map((item, idx) => (
+                <LinearGradient colors={isDark ? ["#1E1B4B", "#312E81", "#0F172A"] : ["#4338CA", "#6366F1", "#312E81"]} style={styles.posterFill}>
+                    {overlay}
+                </LinearGradient>
+            )}
+        </AnimatedPressable>
+    );
+}
+
+// Shown when no opportunity is featured yet, so the section keeps its place
+// instead of vanishing from the home screen.
+function FeaturedEmptyState({ isDark, onPress }: { isDark: boolean; onPress?: () => void }) {
+    const { t } = useTranslation('home');
+    return (
+        <AnimatedPressable
+            onPress={onPress}
+            style={[styles.featuredEmptyCard, {
+                backgroundColor: isDark ? 'rgba(99,102,241,0.07)' : '#F5F5FF',
+                borderColor: isDark ? 'rgba(99,102,241,0.35)' : 'rgba(99,102,241,0.3)',
+            }]}
+            entering={FadeInDown.duration(360).springify()}
+            hapticFeedback="light"
+            scaleTo={0.98}
+        >
+            <View style={[styles.posterFillerIcon, { backgroundColor: isDark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.12)' }]}>
+                <Sparkles size={20} color="#6366F1" />
+            </View>
+            <View style={{ flex: 1 }}>
+                <Text style={[styles.featuredEmptyTitle, { color: isDark ? '#E2E8F0' : '#1E293B' }]} maxFontSizeMultiplier={1.3}>
+                    {t('featured.emptyTitle', { defaultValue: 'Featured picks are on the way' })}
+                </Text>
+                <Text style={[styles.featuredEmptyDesc, { color: isDark ? '#94A3B8' : '#64748B' }]} numberOfLines={2} maxFontSizeMultiplier={1.3}>
+                    {t('featured.emptyDescription', { defaultValue: 'Our team hand-picks standout opportunities. Until then, explore everything.' })}
+                </Text>
+            </View>
+            <View style={[styles.featuredEmptyCta, { backgroundColor: isDark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.1)' }]}>
+                <Text style={styles.featuredEmptyCtaText} maxFontSizeMultiplier={1.2}>
+                    {t('featured.emptyCta', { defaultValue: 'Explore' })}
+                </Text>
+                <ChevronRight size={14} color={isDark ? '#A5B4FC' : '#4F46E5'} />
+            </View>
+        </AnimatedPressable>
+    );
+}
+
+function FeaturedCarousel({ data, isDark, bookmarkedIds, onOpen, onBookmark, onShare }: {
+    data: Opportunity[];
+    isDark: boolean;
+    bookmarkedIds: string[];
+    onOpen: (item: Opportunity) => void;
+    onBookmark: (id: string) => void;
+    onShare: (item: Opportunity) => void;
+}) {
+    const listRef = useRef<FlatList<Opportunity>>(null);
+    const pageRef = useRef(0);
+    const [paused, setPaused] = useState(false);
+    const [activePage, setActivePage] = useState(0);
+    const pageCount = Math.ceil(data.length / 2);
+
+    // Auto-advance a page (two cards) at a time; user swipes pause it and the
+    // momentum-end handler re-syncs the page before resuming.
+    useEffect(() => {
+        if (paused || pageCount < 2) return;
+        const timer = setInterval(() => {
+            pageRef.current = (pageRef.current + 1) % pageCount;
+            setActivePage(pageRef.current);
+            listRef.current?.scrollToOffset({ offset: pageRef.current * FEATURED_PAGE_SNAP, animated: true });
+        }, FEATURED_AUTO_ADVANCE_MS);
+        return () => clearInterval(timer);
+    }, [paused, pageCount]);
+
+    const handleMomentumEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+        const page = Math.max(0, Math.min(pageCount - 1, Math.round(e.nativeEvent.contentOffset.x / FEATURED_PAGE_SNAP)));
+        pageRef.current = page;
+        setActivePage(page);
+        setPaused(false);
+    };
+
+    // Single featured item: promote it to a full-width cinematic spotlight
+    // instead of leaving a half-empty two-column row.
+    if (data.length === 1) {
+        const item = data[0];
+        return (
+            <FeaturedPosterCard
+                item={item}
+                isDark={isDark}
+                index={0}
+                hero
+                bookmarked={bookmarkedIds.includes(item.id)}
+                onPress={() => onOpen(item)}
+                onBookmark={() => onBookmark(item.id)}
+                onShare={() => onShare(item)}
+            />
+        );
+    }
+
+    return (
+        <View>
+            <FlatList
+                ref={listRef}
+                data={data}
+                horizontal
+                keyExtractor={(item) => item.id}
+                showsHorizontalScrollIndicator={false}
+                snapToInterval={FEATURED_PAGE_SNAP}
+                snapToAlignment="start"
+                decelerationRate="fast"
+                contentContainerStyle={styles.posterRail}
+                onScrollBeginDrag={() => setPaused(true)}
+                onMomentumScrollEnd={handleMomentumEnd}
+                getItemLayout={(_, index) => ({ length: FEATURED_ITEM_SNAP, offset: FEATURED_ITEM_SNAP * index, index })}
+                renderItem={({ item, index }) => (
+                    <FeaturedPosterCard
+                        item={item}
+                        isDark={isDark}
+                        index={index}
+                        bookmarked={bookmarkedIds.includes(item.id)}
+                        onPress={() => onOpen(item)}
+                        onBookmark={() => onBookmark(item.id)}
+                        onShare={() => onShare(item)}
+                    />
+                )}
+            />
+            {pageCount > 1 && (
+                <View style={styles.posterDotsRow}>
+                    {Array.from({ length: pageCount }, (_, i) => (
                         <View
-                            key={item.id}
-                            style={grid ? styles.oppGridItem : null}
-                        >
-                            {renderCard(item, idx)}
-                        </View>
+                            key={i}
+                            style={[
+                                styles.posterDot,
+                                i === activePage
+                                    ? styles.posterDotActive
+                                    : { backgroundColor: isDark ? 'rgba(255,255,255,0.22)' : 'rgba(15,23,42,0.18)' },
+                            ]}
+                        />
                     ))}
                 </View>
             )}
-        </Animated.View>
+        </View>
     );
 }
 
@@ -500,6 +736,14 @@ export default function Dashboard() {
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
 
     const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
+    const [categoryEditorVisible, setCategoryEditorVisible] = useState(false);
+    const { selected: selectedHomeCategories, save: saveHomeCategories } = useHomeCategories(user?.id);
+    const homeCategories = useMemo(
+        () => selectedHomeCategories
+            .map((slug) => getDiscoveryCategory(slug))
+            .filter((item): item is DiscoveryCategory => Boolean(item)),
+        [selectedHomeCategories],
+    );
 
     useEffect(() => {
         const fetchBookmarks = async () => {
@@ -535,9 +779,9 @@ export default function Dashboard() {
         onSyncSnapshot: syncOpportunityWidget,
     });
 
-    // Featured: Show top of the list, max 5
+    // Featured: swipeable auto-scrolling rail, max 10
     const featuredOpportunities = useMemo(() => {
-        return opportunities.filter(o => o.featured).slice(0, 5);
+        return opportunities.filter(o => o.featured).slice(0, 10);
     }, [opportunities]);
 
     // Other Recommended: max 10
@@ -631,28 +875,63 @@ export default function Dashboard() {
                 <Animated.View entering={FadeInDown.duration(400).delay(50)}>
                     <View style={styles.sectionHeader}>
                         <Text style={[styles.sectionTitle, { color: textPrimary }]}>{t('home.exploreOpportunities')}</Text>
+                        <TouchableOpacity
+                            onPress={() => setCategoryEditorVisible(true)}
+                            hitSlop={8}
+                            style={[styles.editCategoriesBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.06)' }]}
+                            accessibilityLabel={t('home.discoveryEditor.title', { defaultValue: 'Customize categories' })}
+                        >
+                            <Pencil size={14} color={textSecondary} />
+                        </TouchableOpacity>
                     </View>
-                    <DiscoveryCategoryGrid router={router} />
+                    <DiscoveryCategoryGrid router={router} categories={homeCategories} />
                 </Animated.View>
 
-                {/* Featured Opportunities Section - Admin Controlled (5 items) */}
-                {featuredOpportunities.length > 0 && (
-                    <Animated.View entering={FadeInDown.duration(400).delay(50)} style={styles.sectionSpacing}>
-                        <OpportunitySection
-                            title={t('home.featuredOpportunities')}
-                            data={featuredOpportunities}
-                            isDark={isDark}
-                            showViewMore={true}
-                            onViewMorePress={() => router.push('/opportunities')}
-                            icon={<Sparkles size={20} color={colors.accent} />}
-                            textPrimary={textPrimary}
-                            textSecondary={textSecondary}
-                            bookmarkedIds={bookmarkedIds}
-                            onBookmark={toggleBookmark}
-                            onShare={handleShareOpportunity}
-                            onOpenOpportunity={recordOpportunityOpen}
-                            router={router}
-                        />
+                <HomeCategoriesEditor
+                    visible={categoryEditorVisible}
+                    selected={selectedHomeCategories}
+                    onClose={() => setCategoryEditorVisible(false)}
+                    onSave={saveHomeCategories}
+                    isDark={isDark}
+                    textPrimary={textPrimary}
+                    textSecondary={textSecondary}
+                />
+
+                {/* Featured Opportunities — Netflix-style auto-scrolling rail */}
+                {(featuredOpportunities.length > 0 || !opportunitiesLoading) && (
+                    <Animated.View entering={FadeInDown.duration(400).delay(50)} style={[styles.sectionSpacing, { marginBottom: 18 }]}>
+                        <View style={styles.sectionHeader}>
+                            <View style={[styles.sectionIcon, { backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : '#F0F0FF' }]}>
+                                <Sparkles size={16} color={colors.accent} />
+                            </View>
+                            <Text style={[styles.sectionTitle, { color: textPrimary }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>
+                                {t('home.featuredOpportunities', { defaultValue: 'Featured Opportunities' })}
+                            </Text>
+                            <AnimatedPressable
+                                onPress={() => router.push('/opportunities/featured')}
+                                style={styles.viewMorePill}
+                                hapticFeedback="light"
+                                scaleTo={0.9}
+                                accessibilityLabel={t('home.viewMore', { defaultValue: 'View More' })}
+                            >
+                                <ChevronRight size={18} color="#6366F1" />
+                            </AnimatedPressable>
+                        </View>
+                        {featuredOpportunities.length > 0 ? (
+                            <FeaturedCarousel
+                                data={featuredOpportunities}
+                                isDark={isDark}
+                                bookmarkedIds={bookmarkedIds}
+                                onOpen={(item) => {
+                                    recordOpportunityOpen(item.id);
+                                    router.push(`/opportunities/${item.id}`);
+                                }}
+                                onBookmark={toggleBookmark}
+                                onShare={handleShareOpportunity}
+                            />
+                        ) : (
+                            <FeaturedEmptyState isDark={isDark} onPress={() => router.push('/opportunities')} />
+                        )}
                     </Animated.View>
                 )}
 
@@ -672,7 +951,7 @@ export default function Dashboard() {
                                 <View style={[styles.sectionIcon, { backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : '#F0F0FF' }]}>
                                     <Target size={16} color="#6366F1" />
                                 </View>
-                                <Text style={[styles.sectionTitle, { color: textPrimary }]} numberOfLines={1}>
+                                <Text style={[styles.sectionTitle, { color: textPrimary }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>
                                     {t('home.recommendedOpportunities', { defaultValue: 'Recommended Opportunities' })}
                                 </Text>
                             </View>
@@ -735,13 +1014,18 @@ export default function Dashboard() {
                         <Text style={[styles.emptyStateDesc, { color: textSecondary }]}>
                             {t('home.emptyDescription')}
                         </Text>
-                        <AnimatedPressable
+                        {/* TouchableOpacity, not AnimatedPressable: the latter's inner
+                            flex:1 Pressable stretches unbounded inside this auto-height
+                            card, painting the CTA over the rest of the screen. */}
+                        <TouchableOpacity
                             style={styles.emptyStateBtn}
                             onPress={() => router.push('/opportunities')}
-                            hapticFeedback="medium"
+                            activeOpacity={0.85}
+                            accessibilityRole="button"
                         >
                             <Text style={styles.emptyStateBtnText}>{t('home.emptyCta')}</Text>
-                        </AnimatedPressable>
+                            <ChevronRight size={16} color="#FFFFFF" />
+                        </TouchableOpacity>
                     </Animated.View>
                 )}
 
@@ -857,6 +1141,70 @@ const styles = StyleSheet.create({
         gap: 8,
         marginBottom: 10,
         width: '100%',
+    },
+    editCategoriesBtn: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    editorBackdrop: {
+        flex: 1,
+        backgroundColor: 'rgba(2,6,23,0.6)',
+        justifyContent: 'center',
+        paddingHorizontal: 20,
+    },
+    editorSheet: {
+        borderRadius: 24,
+        padding: 20,
+    },
+    editorHeader: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 10,
+        marginBottom: 16,
+    },
+    editorTitle: {
+        fontSize: 18,
+        fontWeight: '800',
+    },
+    editorSubtitle: {
+        fontSize: 13,
+        marginTop: 3,
+    },
+    editorCloseBtn: {
+        padding: 4,
+    },
+    editorCardInactive: {
+        opacity: 0.42,
+    },
+    // Sheet sits inside 20px backdrop padding + 20px sheet padding per side.
+    editorCardSize: {
+        width: (width - 80 - CARD_GAP) / 2,
+    },
+    editorCheck: {
+        position: 'absolute',
+        top: 6,
+        right: 6,
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: 'rgba(16,185,129,0.95)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    editorSaveBtn: {
+        marginTop: 6,
+        backgroundColor: '#6366F1',
+        borderRadius: 14,
+        paddingVertical: 13,
+        alignItems: 'center',
+    },
+    editorSaveText: {
+        color: '#FFFFFF',
+        fontSize: 15,
+        fontWeight: '700',
     },
     sectionTitleGroup: {
         flexDirection: 'row',
@@ -1148,6 +1496,195 @@ const styles = StyleSheet.create({
     oppGridItem: {
         width: CARD_WIDTH,
     },
+    // ─── Featured poster rail ──────────────────────────────────────────────
+    posterRail: {
+        paddingRight: 20,
+    },
+    posterCard: {
+        width: FEATURED_CARD_WIDTH,
+        height: FEATURED_CARD_HEIGHT,
+        borderRadius: 16,
+        overflow: 'hidden',
+        marginRight: CARD_GAP,
+        backgroundColor: '#0F172A',
+    },
+    posterFill: {
+        flex: 1,
+        justifyContent: 'space-between',
+    },
+    posterImageRadius: {
+        borderRadius: 16,
+    },
+    posterTint: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(2,6,23,0.35)',
+    },
+    posterTopRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 8,
+    },
+    posterCategoryChip: {
+        backgroundColor: 'rgba(2,6,23,0.6)',
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 999,
+        maxWidth: FEATURED_CARD_WIDTH * 0.68,
+    },
+    posterCategoryText: {
+        color: '#E2E8F0',
+        fontSize: 8,
+        fontWeight: '800',
+        letterSpacing: 0.6,
+    },
+    posterActionBtn: {
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        backgroundColor: 'rgba(2,6,23,0.6)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    posterBottom: {
+        padding: 8,
+        paddingTop: 0,
+    },
+    posterMatchBadge: {
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        backgroundColor: 'rgba(99,102,241,0.5)',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 6,
+        marginBottom: 4,
+    },
+    posterMatchText: {
+        color: '#E0E7FF',
+        fontSize: 9,
+        fontWeight: '700',
+    },
+    posterTitle: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        lineHeight: 16,
+        fontWeight: '700',
+        marginBottom: 6,
+    },
+    posterFooterRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    posterDeadline: {
+        fontSize: 10,
+        fontWeight: '600',
+    },
+    // Hero spotlight variant (single featured item)
+    posterCardHero: {
+        width: '100%',
+        height: 200,
+        borderRadius: 20,
+        marginRight: 0,
+    },
+    posterImageRadiusHero: {
+        borderRadius: 20,
+    },
+    posterTopRowHero: {
+        padding: 14,
+    },
+    posterTopActions: {
+        flexDirection: 'row',
+        gap: 6,
+    },
+    posterBottomHero: {
+        padding: 14,
+        paddingTop: 0,
+    },
+    posterTitleHero: {
+        color: '#FFFFFF',
+        fontSize: 17,
+        lineHeight: 22,
+        fontWeight: '800',
+        marginBottom: 10,
+    },
+    posterSubHero: {
+        color: '#CBD5E1',
+        fontSize: 12,
+        fontWeight: '500',
+        marginTop: -7,
+        marginBottom: 10,
+    },
+    posterHeroCta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        backgroundColor: '#6366F1',
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        borderRadius: 999,
+    },
+    posterHeroCtaText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    posterFillerIcon: {
+        width: 38,
+        height: 38,
+        borderRadius: 13,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    featuredEmptyCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        borderWidth: 1,
+        borderRadius: 16,
+        padding: 14,
+    },
+    featuredEmptyTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+        marginBottom: 3,
+    },
+    featuredEmptyDesc: {
+        fontSize: 12,
+        lineHeight: 16,
+    },
+    featuredEmptyCta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 2,
+        paddingLeft: 12,
+        paddingRight: 8,
+        minHeight: 32,
+        borderRadius: 999,
+    },
+    featuredEmptyCtaText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#818CF8',
+    },
+    posterDotsRow: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 5,
+        marginTop: 10,
+    },
+    posterDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+    },
+    posterDotActive: {
+        backgroundColor: '#6366F1',
+        width: 16,
+    },
     viewMoreBtn: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -1281,9 +1818,14 @@ const styles = StyleSheet.create({
     },
     emptyStateBtn: {
         backgroundColor: '#6366F1',
-        paddingHorizontal: 24,
-        paddingVertical: 12,
+        paddingHorizontal: 22,
+        minHeight: 44,
         borderRadius: 12,
+        alignSelf: 'center',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
     },
     emptyStateBtnText: {
         color: '#FFFFFF',
