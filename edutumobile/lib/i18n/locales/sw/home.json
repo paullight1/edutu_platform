@@ -36,13 +36,13 @@
         "title": "Mafunzo Kazini",
         "description": "Nafasi za vitendo za mwanzo wa kazi"
       },
-      "grants": {
-        "title": "Programu",
-        "description": "Programu zenye ufadhili na ruzuku"
-      },
       "fellowships": {
         "title": "Ufadhili wa Kitaaluma",
         "description": "Ufadhili wa kitaaluma na njia za uongozi"
+      },
+      "programs": {
+        "title": "Programu",
+        "description": "Programu zenye ufadhili na ruzuku"
       }
     }
   },

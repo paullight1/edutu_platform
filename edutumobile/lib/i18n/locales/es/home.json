@@ -36,13 +36,13 @@
         "title": "Pasantías",
         "description": "Roles prácticos para empezar tu carrera"
       },
-      "grants": {
-        "title": "Programas",
-        "description": "Programas financiados y subvenciones"
-      },
       "fellowships": {
         "title": "Fellowships",
         "description": "Fellowships y rutas de liderazgo"
+      },
+      "programs": {
+        "title": "Programas",
+        "description": "Programas financiados y subvenciones"
       }
     }
   },

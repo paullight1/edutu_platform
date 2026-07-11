@@ -256,23 +256,28 @@ function getPublicAppBaseUrl() {
     "";
 
   if (configured.trim()) return configured.trim().replace(/\/$/, "");
-  if (typeof window === "undefined") return "";
 
-  const origin = window.location.origin.replace(/\/$/, "");
-  if (origin.includes("://admin.")) {
-    return origin.replace("://admin.", "://");
-  }
-
-  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
-    return PUBLIC_WEB_APP_FALLBACK_URL;
-  }
-
-  return origin;
+  // Never derive from the admin's own origin — the admin dashboard is a
+  // separate deployment, so guessing produces admin-host links that 404.
+  return PUBLIC_WEB_APP_FALLBACK_URL;
 }
 
 function buildPublicOpportunityUrl(opportunityId: string) {
   const baseUrl = getPublicAppBaseUrl();
   const path = `/share/opportunity/${encodeURIComponent(opportunityId)}`;
+
+  if (!baseUrl) return path;
+
+  try {
+    return new URL(path, baseUrl).toString();
+  } catch {
+    return `${baseUrl}${path}`;
+  }
+}
+
+function buildAppOpportunityUrl(opportunityId: string) {
+  const baseUrl = getPublicAppBaseUrl();
+  const path = `/opportunity/${encodeURIComponent(opportunityId)}`;
 
   if (!baseUrl) return path;
 
@@ -952,6 +957,16 @@ export default function Opportunities() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [enhancingIds, setEnhancingIds] = useState<Set<string>>(new Set());
   const [sharingIds, setSharingIds] = useState<Set<string>>(new Set());
+  // Share image chooser: lets the admin visually pick between the generated
+  // branded card and the opportunity's original (meta) image before sharing.
+  const [shareChooser, setShareChooser] = useState<{
+    opportunity: Opportunity;
+    aiEnhanced: boolean;
+    aiFallback: boolean;
+    payload: OpportunityShareResponse | null;
+    choice: "card" | "meta";
+    sharing: boolean;
+  } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkActionBusy, setBulkActionBusy] = useState(false);
   const [pageNotice, setPageNotice] = useState<PageNotice | null>(null);
@@ -1306,6 +1321,66 @@ export default function Opportunities() {
     }
   }
 
+  async function handleBulkEnhance() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0 || bulkActionBusy) return;
+    setBulkActionBusy(true);
+    setEnhancingIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      return next;
+    });
+    let completed = 0;
+    let failed = 0;
+    try {
+      // Sequential to respect the AI provider's rate limits; each row is
+      // enriched via the same single-row enhance endpoint the icon uses.
+      for (const id of ids) {
+        try {
+          const response = await fetch(
+            `${NEST_API_URL}/opportunities/admin/${id}/enhance`,
+            {
+              method: "POST",
+              headers: await getAdminHeaders(),
+            },
+          );
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok || !result.success) {
+            throw new Error(result.error || "AI enhancement failed");
+          }
+          completed += 1;
+        } catch {
+          failed += 1;
+        } finally {
+          setEnhancingIds((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+        }
+        showPageNotice(
+          "warning",
+          `AI completing profiles... ${completed + failed}/${ids.length}`,
+        );
+      }
+      setSelectedIds(new Set());
+      await fetchOpportunities();
+      showPageNotice(
+        failed === 0 ? "success" : "error",
+        `AI completed ${completed} profile${completed === 1 ? "" : "s"}${
+          failed ? `, ${failed} failed` : ""
+        }.`,
+      );
+    } finally {
+      setBulkActionBusy(false);
+      setEnhancingIds((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.delete(id));
+        return next;
+      });
+    }
+  }
+
   function showPageNotice(type: PageNotice["type"], message: string) {
     if (pageNoticeTimeoutRef.current !== null) {
       window.clearTimeout(pageNoticeTimeoutRef.current);
@@ -1432,14 +1507,82 @@ export default function Opportunities() {
     }
   }
 
+  async function buildMetaImageFile(opportunity: Opportunity) {
+    const metaUrl = normalizeText(opportunity.image_url);
+    if (!metaUrl) return null;
+
+    try {
+      const response = await fetch(metaUrl);
+      if (!response.ok) return null;
+      const blob = await response.blob();
+      if (!blob.type.startsWith("image/")) return null;
+      const ext = blob.type.includes("svg")
+        ? "svg"
+        : blob.type.includes("jpeg") || blob.type.includes("jpg")
+          ? "jpg"
+          : blob.type.includes("webp")
+            ? "webp"
+            : "png";
+      const baseName = buildShareImageFileName(opportunity, "png").replace(
+        /\.png$/,
+        `.${ext}`,
+      );
+      return { blob, file: new File([blob], baseName, { type: blob.type }) };
+    } catch {
+      // Cross-origin source images can refuse fetches — share text-only then.
+      return null;
+    }
+  }
+
+  // Step 1: prepare the share payload, then open the visual image chooser.
   async function handleShareOpportunity(opp: Opportunity) {
     setSharingIds((prev) => new Set(prev).add(opp.id));
 
     try {
       const { opportunity, aiEnhanced, aiFallback } =
         await getAiImprovedOpportunityForShare(opp);
-      const shareUrl = buildPublicOpportunityUrl(opportunity.id);
       const sharePayload = await getOpportunitySharePayload(opportunity.id);
+      const hasCard = Boolean(sharePayload?.shareCard?.url);
+      const hasMeta = Boolean(normalizeText(opportunity.image_url));
+
+      if (!hasCard && !hasMeta) {
+        // Nothing to choose between — share straight away without an image.
+        await executeShare(opportunity, sharePayload, "card", aiEnhanced, aiFallback);
+        return;
+      }
+
+      setShareChooser({
+        opportunity,
+        aiEnhanced,
+        aiFallback,
+        payload: sharePayload,
+        choice: hasCard ? "card" : "meta",
+        sharing: false,
+      });
+    } catch (error: unknown) {
+      showPageNotice(
+        "error",
+        getErrorMessage(error, "Could not prepare this share"),
+      );
+    } finally {
+      setSharingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(opp.id);
+        return next;
+      });
+    }
+  }
+
+  // Step 2: share with the image source the admin picked in the chooser.
+  async function executeShare(
+    opportunity: Opportunity,
+    sharePayload: OpportunityShareResponse | null,
+    imageChoice: "card" | "meta",
+    aiEnhanced: boolean,
+    aiFallback: boolean,
+  ) {
+    try {
+      const shareUrl = buildPublicOpportunityUrl(opportunity.id);
       const shareText =
         sharePayload?.shareText ||
         buildAdminOpportunityShareText(
@@ -1447,10 +1590,10 @@ export default function Opportunities() {
           sharePayload?.shareUrl || shareUrl,
         );
       const finalShareUrl = sharePayload?.shareUrl || shareUrl;
-      const shareImage = await buildShareImageFile(
-        opportunity,
-        sharePayload?.shareCard,
-      );
+      const shareImage =
+        imageChoice === "meta"
+          ? await buildMetaImageFile(opportunity)
+          : await buildShareImageFile(opportunity, sharePayload?.shareCard);
       const shareData = {
         title: normalizeText(opportunity.title, "Edutu opportunity"),
         text: shareText,
@@ -1508,9 +1651,9 @@ export default function Opportunities() {
       }
 
       try {
-        const shareUrl = buildPublicOpportunityUrl(opp.id);
+        const shareUrl = buildPublicOpportunityUrl(opportunity.id);
         await copyShareTextToClipboard(
-          buildAdminOpportunityShareText(opp, shareUrl),
+          buildAdminOpportunityShareText(opportunity, shareUrl),
         );
         showPageNotice(
           "warning",
@@ -1522,12 +1665,20 @@ export default function Opportunities() {
           getErrorMessage(error, "Could not share this opportunity"),
         );
       }
+    }
+  }
+
+  async function confirmShareChoice() {
+    if (!shareChooser || shareChooser.sharing) return;
+    const { opportunity, payload, choice, aiEnhanced, aiFallback } =
+      shareChooser;
+    setShareChooser((current) =>
+      current ? { ...current, sharing: true } : current,
+    );
+    try {
+      await executeShare(opportunity, payload, choice, aiEnhanced, aiFallback);
     } finally {
-      setSharingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(opp.id);
-        return next;
-      });
+      setShareChooser(null);
     }
   }
 
@@ -1891,6 +2042,9 @@ export default function Opportunities() {
     "Fellowships",
     "Grants",
     "Programs",
+    "Graduate Programs",
+    "Bootcamps",
+    "Events",
     "Competitions",
   ];
   const statuses = [
@@ -2025,6 +2179,21 @@ export default function Opportunities() {
         </button>
         <button
           type="button"
+          className="btn btn-secondary"
+          disabled={bulkActionBusy}
+          onClick={() => void handleBulkEnhance()}
+          style={{ color: "#60a5fa" }}
+          title="Use AI to complete the profile for each selected opportunity"
+        >
+          {bulkActionBusy ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <Sparkles size={14} />
+          )}
+          AI Complete
+        </button>
+        <button
+          type="button"
           className="btn btn-secondary danger"
           disabled={bulkActionBusy}
           onClick={() => void handleBulkDelete()}
@@ -2083,8 +2252,10 @@ export default function Opportunities() {
             <tbody>
               {filteredOpps.map((opp) => {
                 const qualityScore = opp.metadata?.extraction_quality_score;
-                const needsReview =
-                  opp.status === "pending_review" || opp.metadata?.needs_review;
+                // Source of truth is the persisted status. The metadata
+                // needs_review flag lingers after an opportunity is approved,
+                // which produced a green "Needs review" badge on Active rows.
+                const needsReview = opp.status === "pending_review";
                 const isEnhancing = enhancingIds.has(opp.id);
                 const isSharing = sharingIds.has(opp.id);
                 return (
@@ -2206,13 +2377,10 @@ export default function Opportunities() {
                         <button
                           type="button"
                           className="btn btn-secondary opportunity-icon-button"
-                          title="Open application URL"
-                          aria-label={`Open application URL for ${opp.title || "opportunity"}`}
-                          disabled={!(opp.application_url || opp.source_url)}
+                          title="Open on Edutu"
+                          aria-label={`Open ${opp.title || "opportunity"} on Edutu`}
                           onClick={() =>
-                            openExternalUrl(
-                              opp.application_url || opp.source_url,
-                            )
+                            openExternalUrl(buildAppOpportunityUrl(opp.id))
                           }
                         >
                           <ExternalLink size={15} />
@@ -2544,10 +2712,9 @@ export default function Opportunities() {
                 const isEnhancing = enhancingIds.has(opp.id);
                 const isSharing = sharingIds.has(opp.id);
                 const isExpanded = expandedRows.has(opp.id);
-                const needsReview =
-                  opp.status === "pending_review" || opp.metadata?.needs_review;
-                const applicationUrl =
-                  opp.application_url || opp.source_url || "";
+                // Status is the source of truth; the metadata needs_review flag
+                // persists after approval and mislabels Active rows.
+                const needsReview = opp.status === "pending_review";
                 const summary = truncateText(
                   normalizeText(
                     opp.summary || opp.description,
@@ -2562,218 +2729,220 @@ export default function Opportunities() {
                     key={opp.id}
                     className={`opportunity-card ${isExpanded ? "expanded" : ""}`}
                   >
-                    <div className="opportunity-card-media">
-                      {opp.image_url && !brokenImageIds.has(opp.id) ? (
-                        <img
-                          src={opp.image_url}
-                          alt={`${opp.title || "Opportunity"} cover`}
-                          loading="lazy"
-                          onError={() =>
-                            setBrokenImageIds((prev) => {
-                              if (prev.has(opp.id)) return prev;
-                              const next = new Set(prev);
-                              next.add(opp.id);
-                              return next;
-                            })
-                          }
-                        />
-                      ) : (
-                        <Target size={34} />
-                      )}
-                      <span className="opportunity-category-badge">
-                        {opp.category || "Opportunity"}
-                      </span>
-                    </div>
-
-                    <div className="opportunity-card-body">
-                      <div className="opportunity-card-kicker">
-                        <input
-                          type="checkbox"
-                          aria-label={`Select ${opp.title || "opportunity"}`}
-                          checked={selectedIds.has(opp.id)}
-                          onChange={() => toggleSelected(opp.id)}
-                          onClick={(e) => e.stopPropagation()}
-                          style={{ cursor: "pointer" }}
-                        />
-                        <span
-                          className="opportunity-status-badge"
-                          style={getStatusStyle(opp.status)}
-                        >
-                          {needsReview
-                            ? "Needs review"
-                            : (opp.status || "draft").replace("_", " ")}
-                        </span>
-                        {opp.is_featured && (
-                          <span className="opportunity-featured-badge">
-                            <Star size={12} fill="currentColor" />
-                            Featured
-                          </span>
-                        )}
-                      </div>
-
-                      <h3 className="opportunity-card-title">
-                        {opp.title || "Untitled opportunity"}
-                      </h3>
-                      <p className="opportunity-card-summary">{summary}</p>
-
-                      <div className="opportunity-card-meta">
-                        <span>
-                          <Building size={13} />
-                          {opp.organization || "Unknown host"}
-                        </span>
-                        <span>
-                          <MapPin size={13} />
-                          {opp.is_remote
-                            ? "Remote"
-                            : opp.location || "Location not set"}
-                        </span>
-                        <span
-                          className={isPastDate(opp.close_date) ? "danger" : ""}
-                        >
-                          <Calendar size={13} />
-                          {deadline || "No deadline"}
-                        </span>
-                      </div>
-
-                      {needsReview && (
-                        <div className="opportunity-quality-note">
-                          Quality{" "}
-                          {opp.metadata?.extraction_quality_score ?? "n/a"}%
-                          {opp.metadata?.extraction_missing_fields?.length
-                            ? ` - Missing: ${opp.metadata.extraction_missing_fields.join(", ")}`
-                            : ""}
-                        </div>
-                      )}
-
-                      <div className="opportunity-card-actions">
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          disabled={isSharing}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void handleShareOpportunity(opp);
-                          }}
-                        >
-                          {isSharing ? (
-                            <Loader2 size={14} className="animate-spin" />
-                          ) : (
-                            <Share2 size={14} />
-                          )}
-                          Share
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          disabled={!applicationUrl}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openExternalUrl(applicationUrl);
-                          }}
-                        >
-                          <ExternalLink size={14} />
-                          Open
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEdit(opp);
-                          }}
-                        >
-                          <Edit3 size={14} />
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          aria-expanded={isExpanded}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleRowExpansion(opp.id);
-                          }}
-                        >
-                          <ChevronDown
-                            size={14}
-                            className={
-                              isExpanded
-                                ? "opportunity-details-icon expanded"
-                                : "opportunity-details-icon"
+                    <div
+                      className="opportunity-card-head"
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={isExpanded}
+                      onClick={() => toggleRowExpansion(opp.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          toggleRowExpansion(opp.id);
+                        }
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${opp.title || "opportunity"}`}
+                        checked={selectedIds.has(opp.id)}
+                        onChange={() => toggleSelected(opp.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ cursor: "pointer" }}
+                      />
+                      <div className="opportunity-card-thumb">
+                        {opp.image_url && !brokenImageIds.has(opp.id) ? (
+                          <img
+                            src={opp.image_url}
+                            alt=""
+                            loading="lazy"
+                            onError={() =>
+                              setBrokenImageIds((prev) => {
+                                if (prev.has(opp.id)) return prev;
+                                const next = new Set(prev);
+                                next.add(opp.id);
+                                return next;
+                              })
                             }
                           />
-                          {isExpanded ? "Hide" : "Details"}
-                        </button>
+                        ) : (
+                          <Target size={20} />
+                        )}
                       </div>
-
-                      {isExpanded && (
-                        <div className="opportunity-card-expanded">
-                          <p>
-                            {normalizeText(
-                              opp.description || opp.summary,
-                              "No additional description available yet.",
-                            )}
-                          </p>
-                          <div className="opportunity-review-actions">
-                            <button
-                              type="button"
-                              className="btn btn-secondary"
-                              disabled={isEnhancing}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEnhanceOpportunity(opp.id);
-                              }}
-                            >
-                              {isEnhancing ? (
-                                <Loader2 size={14} className="animate-spin" />
-                              ) : (
-                                <Sparkles size={14} />
-                              )}
-                              AI improve
-                            </button>
-                            {opp.status === "pending_review" && (
-                              <>
-                                <button
-                                  type="button"
-                                  className="btn btn-primary"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleStatusUpdate(opp.id, "active");
-                                  }}
-                                >
-                                  <CheckCircle2 size={14} />
-                                  Approve
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-secondary danger"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleStatusUpdate(opp.id, "rejected");
-                                  }}
-                                >
-                                  <X size={14} />
-                                  Reject
-                                </button>
-                              </>
-                            )}
-                            <button
-                              type="button"
-                              className="btn btn-secondary danger"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (confirm("Delete this opportunity?")) {
-                                  handleDelete(opp.id);
-                                }
-                              }}
-                            >
-                              <Trash2 size={14} />
-                              Delete
-                            </button>
-                          </div>
+                      <div className="opportunity-card-head-main">
+                        <h3 className="opportunity-card-title">
+                          {opp.title || "Untitled opportunity"}
+                        </h3>
+                        <div className="opportunity-card-sub">
+                          <span
+                            className="opportunity-status-badge"
+                            style={getStatusStyle(opp.status)}
+                          >
+                            {needsReview
+                              ? "Needs review"
+                              : (opp.status || "draft").replace("_", " ")}
+                          </span>
+                          {opp.is_featured && (
+                            <span className="opportunity-featured-badge">
+                              <Star size={11} fill="currentColor" />
+                              Featured
+                            </span>
+                          )}
+                          <span className="opportunity-card-sub-item">
+                            {opp.category || "Opportunity"}
+                          </span>
+                          <span
+                            className={`opportunity-card-sub-item ${
+                              isPastDate(opp.close_date) ? "danger" : ""
+                            }`}
+                          >
+                            <Calendar size={11} />
+                            {deadline || "No deadline"}
+                          </span>
                         </div>
-                      )}
+                      </div>
+                      <ChevronDown
+                        size={16}
+                        className={
+                          isExpanded
+                            ? "opportunity-details-icon expanded"
+                            : "opportunity-details-icon"
+                        }
+                      />
                     </div>
+
+                    {isExpanded && (
+                      <div className="opportunity-card-body">
+                        <p className="opportunity-card-summary">{summary}</p>
+
+                        <div className="opportunity-card-meta">
+                          <span>
+                            <Building size={13} />
+                            {opp.organization || "Unknown host"}
+                          </span>
+                          <span>
+                            <MapPin size={13} />
+                            {opp.is_remote
+                              ? "Remote"
+                              : opp.location || "Location not set"}
+                          </span>
+                          <span
+                            className={
+                              isPastDate(opp.close_date) ? "danger" : ""
+                            }
+                          >
+                            <Calendar size={13} />
+                            {deadline || "No deadline"}
+                          </span>
+                        </div>
+
+                        {needsReview && (
+                          <div className="opportunity-quality-note">
+                            Quality{" "}
+                            {opp.metadata?.extraction_quality_score ?? "n/a"}%
+                            {opp.metadata?.extraction_missing_fields?.length
+                              ? ` - Missing: ${opp.metadata.extraction_missing_fields.join(", ")}`
+                              : ""}
+                          </div>
+                        )}
+
+                        <div className="opportunity-card-actions">
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            disabled={isSharing}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleShareOpportunity(opp);
+                            }}
+                          >
+                            {isSharing ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                              <Share2 size={14} />
+                            )}
+                            Share
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openExternalUrl(buildAppOpportunityUrl(opp.id));
+                            }}
+                          >
+                            <ExternalLink size={14} />
+                            Open
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEdit(opp);
+                            }}
+                          >
+                            <Edit3 size={14} />
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            disabled={isEnhancing}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEnhanceOpportunity(opp.id);
+                            }}
+                          >
+                            {isEnhancing ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                              <Sparkles size={14} />
+                            )}
+                            AI improve
+                          </button>
+                          {opp.status === "pending_review" && (
+                            <>
+                              <button
+                                type="button"
+                                className="btn btn-primary"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleStatusUpdate(opp.id, "active");
+                                }}
+                              >
+                                <CheckCircle2 size={14} />
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-secondary danger"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleStatusUpdate(opp.id, "rejected");
+                                }}
+                              >
+                                <X size={14} />
+                                Reject
+                              </button>
+                            </>
+                          )}
+                          <button
+                            type="button"
+                            className="btn btn-secondary danger"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm("Delete this opportunity?")) {
+                                handleDelete(opp.id);
+                              }
+                            }}
+                          >
+                            <Trash2 size={14} />
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </article>
                 );
               })}
@@ -3172,6 +3341,234 @@ export default function Opportunities() {
                 )}
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Share image chooser — pick the branded card or the source image */}
+      {shareChooser && (
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            if (!shareChooser.sharing) setShareChooser(null);
+          }}
+        >
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: "620px", borderRadius: "16px" }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                marginBottom: "18px",
+              }}
+            >
+              <div>
+                <h2 style={{ margin: 0, fontSize: "19px", fontWeight: 600 }}>
+                  Choose share image
+                </h2>
+                <p
+                  style={{
+                    margin: "4px 0 0",
+                    fontSize: "13px",
+                    color: "var(--text-tertiary)",
+                    maxWidth: "420px",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {normalizeText(
+                    shareChooser.opportunity.title,
+                    "Edutu opportunity",
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary opportunity-icon-button"
+                aria-label="Close share chooser"
+                disabled={shareChooser.sharing}
+                onClick={() => setShareChooser(null)}
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "14px",
+              }}
+            >
+              {(
+                [
+                  {
+                    key: "card" as const,
+                    label: "Branded card",
+                    hint: "Generated Edutu design",
+                    imageUrl: shareChooser.payload?.shareCard?.url || "",
+                    badge: <Sparkles size={11} />,
+                  },
+                  {
+                    key: "meta" as const,
+                    label: "Original image",
+                    hint: "Auto-loaded from the source page",
+                    imageUrl: normalizeText(
+                      shareChooser.opportunity.image_url,
+                    ),
+                    badge: <LinkIcon size={11} />,
+                  },
+                ]
+              ).map((option) => {
+                const available = Boolean(option.imageUrl);
+                const selected =
+                  available && shareChooser.choice === option.key;
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    disabled={!available || shareChooser.sharing}
+                    onClick={() =>
+                      setShareChooser((current) =>
+                        current
+                          ? { ...current, choice: option.key }
+                          : current,
+                      )
+                    }
+                    style={{
+                      position: "relative",
+                      padding: 0,
+                      textAlign: "left",
+                      borderRadius: "14px",
+                      overflow: "hidden",
+                      cursor: available ? "pointer" : "not-allowed",
+                      opacity: available ? 1 : 0.55,
+                      background: "var(--bg-primary)",
+                      border: selected
+                        ? "2px solid var(--accent, #6366F1)"
+                        : "2px solid var(--border-color)",
+                      boxShadow: selected
+                        ? "0 0 0 3px rgba(99,102,241,0.22)"
+                        : "none",
+                      transition: "border-color 0.15s, box-shadow 0.15s",
+                    }}
+                  >
+                    <div
+                      style={{
+                        aspectRatio: "4 / 3",
+                        background: "var(--bg-tertiary, rgba(0,0,0,0.06))",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {available ? (
+                        <img
+                          src={option.imageUrl}
+                          alt={option.label}
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit:
+                              option.key === "card" ? "contain" : "cover",
+                          }}
+                        />
+                      ) : (
+                        <span
+                          style={{
+                            fontSize: "12px",
+                            color: "var(--text-tertiary)",
+                          }}
+                        >
+                          No image available
+                        </span>
+                      )}
+                    </div>
+                    {selected && (
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: "8px",
+                          right: "8px",
+                          background: "var(--accent, #6366F1)",
+                          color: "#fff",
+                          borderRadius: "999px",
+                          display: "inline-flex",
+                          padding: "3px",
+                        }}
+                      >
+                        <CheckCircle2 size={16} />
+                      </span>
+                    )}
+                    <div style={{ padding: "10px 12px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          fontSize: "13px",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {option.badge}
+                        {option.label}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "11.5px",
+                          color: "var(--text-tertiary)",
+                          marginTop: "2px",
+                        }}
+                      >
+                        {option.hint}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "10px",
+                marginTop: "18px",
+              }}
+            >
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={shareChooser.sharing}
+                onClick={() => setShareChooser(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={shareChooser.sharing}
+                onClick={() => void confirmShareChoice()}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "7px",
+                }}
+              >
+                {shareChooser.sharing ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <Share2 size={15} />
+                )}
+                Share
+              </button>
+            </div>
           </div>
         </div>
       )}

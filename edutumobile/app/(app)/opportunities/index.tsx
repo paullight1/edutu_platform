@@ -25,9 +25,7 @@ import {
   ArrowLeft,
   ChevronRight,
   Compass,
-  FileText,
   MessageCircle,
-  Target,
   BookmarkPlus,
   LayoutGrid,
   CheckCircle2,
@@ -61,6 +59,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { syncAndUpdateOpportunityWidgetSnapshot } from '../../../lib/opportunityWidgetSync';
 import { AdBanner, BANNER_PRESETS } from '../../../components/ui/AdBanner';
 import { DiscoveryCategoryIcon, getDiscoveryCategoryIconSource, getDiscoveryCategoryIconXml } from '../../../lib/discoveryCategoryIcons';
+import { DISCOVERY_CATEGORY_CATALOG, normalizeDiscoveryCategoryId, type DiscoveryCategoryId } from '../../../lib/discoveryCategories';
 import { shareOpportunity } from '../../../lib/shareOpportunity';
 
 type SortMode = 'recommended' | 'deadline' | 'newest';
@@ -76,64 +75,19 @@ const { width } = Dimensions.get('window');
 const FOR_YOU_THRESHOLD = 35;
 const CARD_WIDTH = (width - 60) / 2;
 
-type DiscoveryCategoryId = 'scholarships' | 'internships' | 'grants' | 'fellowships' | 'training_conferences';
-
-const DISCOVERY_BACKGROUNDS = {
-  scholarships: require('../../../assets/discovery/scholarships.png'),
-  internships: require('../../../assets/discovery/internships.png'),
-  grants: require('../../../assets/discovery/grants.png'),
-  fellowships: require('../../../assets/discovery/fellowships.png'),
-  training_conferences: require('../../../assets/discovery/training-conferences.png'),
-} as const;
-
-// `label` holds an i18n key in the 'opps' namespace, translated at render time.
-const DISCOVERY_CARDS = [
-  {
-    id: 'scholarships',
-    label: 'list.discovery.scholarships',
-    icon: 'scholarship',
-    colors: ['rgba(239,68,35,0.94)', 'rgba(153,27,27,0.82)'] as const,
-    image: DISCOVERY_BACKGROUNDS.scholarships,
-  },
-  {
-    id: 'internships',
-    label: 'list.discovery.internships',
-    icon: 'career',
-    colors: ['rgba(37,99,235,0.92)', 'rgba(30,64,175,0.82)'] as const,
-    image: DISCOVERY_BACKGROUNDS.internships,
-  },
-  {
-    id: 'grants',
-    label: 'list.discovery.programs',
-    icon: 'grant',
-    colors: ['rgba(16,185,129,0.92)', 'rgba(4,120,87,0.82)'] as const,
-    image: DISCOVERY_BACKGROUNDS.grants,
-  },
-  {
-    id: 'fellowships',
-    label: 'list.discovery.fellowships',
-    icon: 'leadership',
-    colors: ['rgba(124,58,237,0.92)', 'rgba(91,33,182,0.82)'] as const,
-    image: DISCOVERY_BACKGROUNDS.fellowships,
-  },
-] satisfies Array<{
-  id: DiscoveryCategoryId;
-  label: string;
-  icon: DiscoveryCategoryIcon;
-  colors: readonly [string, string];
-  image: number;
-}>;
+// Cards come from the shared catalog (mirrors Supabase opportunity_categories
+// and the backend canonical categories). `label` is an i18n key in 'opps'.
+const DISCOVERY_CARDS = DISCOVERY_CATEGORY_CATALOG.map((category) => ({
+  id: category.id,
+  label: category.oppsLabelKey,
+  fallbackTitle: category.fallbackTitle,
+  icon: category.icon,
+  colors: category.colors,
+  image: category.image,
+}));
 
 // `title`/`desc` hold i18n keys in the 'opps' namespace, translated at render time.
 const OTHER_FEATURES = [
-  {
-    id: 'cv',
-    title: 'list.features.cv.title',
-    desc: 'list.features.cv.desc',
-    icon: FileText,
-    route: '/cv',
-    gradient: ['#2563EB', '#4F46E5'] as const,
-  },
   {
     id: 'discussion',
     title: 'list.features.discussion.title',
@@ -142,22 +96,6 @@ const OTHER_FEATURES = [
     route: 'https://whatsapp.com/channel/0029VbCHBEVJJhzPcbBboP3y',
     external: true,
     gradient: ['#0EA5E9', '#2563EB'] as const,
-  },
-  {
-    id: 'goals',
-    title: 'list.features.goals.title',
-    desc: 'list.features.goals.desc',
-    icon: Target,
-    route: '/goals',
-    gradient: ['#10B981', '#059669'] as const,
-  },
-  {
-    id: 'roadmaps',
-    title: 'list.features.roadmaps.title',
-    desc: 'list.features.roadmaps.desc',
-    icon: Compass,
-    route: '/roadmaps',
-    gradient: ['#F59E0B', '#EF4444'] as const,
   },
   {
     id: 'saved',
@@ -336,8 +274,11 @@ function matchesDiscoveryCategory(opportunity: Partial<Opportunity> & Record<str
     if (category === 'scholarships') return canonical === 'scholarships' || canonical === 'scholarship';
     if (category === 'internships') return canonical === 'internships' || canonical === 'internship' || canonical === 'careers';
     if (category === 'fellowships') return canonical === 'fellowships' || canonical === 'fellowship' || canonical === 'leadership';
-    // "Programs" — programmatic opportunities, excluding the fellowship bucket
-    // which now has its own card again.
+    if (category === 'grants') return canonical === 'grants' || canonical === 'grant';
+    if (category === 'graduate_programs') return canonical === 'graduate_programs' || canonical === 'graduate_program';
+    if (category === 'bootcamps') return canonical === 'bootcamps' || canonical === 'bootcamp';
+    if (category === 'events') return canonical === 'events' || canonical === 'event';
+    // "Programs" — programmatic opportunities, excluding the buckets above.
     return (
       canonical === 'programs' || canonical === 'program' ||
       canonical === 'global_programs' || canonical === 'global_program'
@@ -348,6 +289,10 @@ function matchesDiscoveryCategory(opportunity: Partial<Opportunity> & Record<str
   const isScholarship = /\bscholar(ship|ships)?\b|\bbursar(y|ies)\b|\btuition\b|\bfinancial aid\b/.test(text);
   const isInternship = /\bintern(ship|ships)?\b|\btrainee\b|\bapprentice(ship)?\b/.test(text);
   const isFellowship = /\bfellow(ship|ships)?\b|\bfellow\b|\bresearch fellowship\b|\bresidency\b/.test(text);
+  const isGrant = /\bgrant(s)?\b|\bseed funding\b|\bmicrogrant(s)?\b|\bproject funding\b|\bresearch grant(s)?\b|\binnovation fund\b/.test(text);
+  const isGraduateProgram = /\bmaster'?s\b|\bmsc\b|\bmba\b|\bphd\b|\bdoctora(l|te)\b|\bpostgraduate\b|\bgraduate (program|programme|school|study|studies)\b/.test(text);
+  const isBootcamp = /\bbootcamp(s)?\b|\baccelerator(s)?\b|\bincubator(s)?\b|\bcoding bootcamp\b/.test(text);
+  const isEvent = /\bsummit(s)?\b|\bconference(s)?\b|\bforum(s)?\b|\bworkshop(s)?\b|\bwebinar(s)?\b|\bexpo(s)?\b|\bdelegate(s)?\b/.test(text);
   if (category === 'scholarships') {
     return isScholarship;
   }
@@ -358,11 +303,23 @@ function matchesDiscoveryCategory(opportunity: Partial<Opportunity> & Record<str
     // Fellowship-specific opportunities, minus the scholarship/internship buckets.
     return isFellowship && !isScholarship && !isInternship;
   }
-  // Programs = broad programmatic opportunities, minus the scholarship,
-  // internship, and fellowship buckets (which each have their own card).
+  if (category === 'grants') {
+    return isGrant && !isScholarship;
+  }
+  if (category === 'graduate_programs') {
+    return isGraduateProgram && !isInternship;
+  }
+  if (category === 'bootcamps') {
+    return isBootcamp;
+  }
+  if (category === 'events') {
+    return isEvent && !isScholarship && !isFellowship;
+  }
+  // Programs = broad programmatic opportunities, minus the buckets that have
+  // their own card.
   const isSpecificProgram =
-    /\bone young world\b|\bsummit(s)?\b|\bconference(s)?\b|\bforum(s)?\b|\bdelegate(s)?\b|\byouth ambassador(s)?\b|\bglobal ambassador(s)?\b|\bleadership program(s)?\b|\bexchange program(s)?\b|\bbootcamp(s)?\b|\baccelerator(s)?\b|\bincubator(s)?\b|\bchallenge(s)?\b|\bcompetition(s)?\b|\bhackathon(s)?\b|\btraining program(s)?\b|\bmentorship program(s)?\b|\bglobal program(s)?\b|\bgrant(s)?\b|\bprogram(me|mes|s)?\b|\bfund(ing)?\b/.test(text);
-  return isSpecificProgram && !isScholarship && !isInternship && !isFellowship;
+    /\bone young world\b|\byouth ambassador(s)?\b|\bglobal ambassador(s)?\b|\bleadership program(s)?\b|\bexchange program(s)?\b|\bchallenge(s)?\b|\bcompetition(s)?\b|\bhackathon(s)?\b|\btraining program(s)?\b|\bmentorship program(s)?\b|\bglobal program(s)?\b|\bprogram(me|mes|s)?\b|\bfund(ing)?\b/.test(text);
+  return isSpecificProgram && !isScholarship && !isInternship && !isFellowship && !isGrant && !isGraduateProgram && !isBootcamp && !isEvent;
 }
 
 function DiscoveryCard({
@@ -375,17 +332,29 @@ function DiscoveryCard({
   onPress: () => void;
 }) {
   const { t } = useTranslation('opps');
+  const title = t(item.label, { defaultValue: item.fallbackTitle });
   return (
     <Pressable onPress={onPress} style={[styles.discoveryCard, active && styles.discoveryCardActive]}>
-      <ImageBackground
-        source={item.image}
-        style={styles.discoveryImageBg}
-        imageStyle={styles.discoveryImageRadius}
-        resizeMode="cover"
-      >
-        <View style={styles.discoveryTint} />
-        <Text style={styles.discoveryTitle} numberOfLines={1}>{t(item.label)}</Text>
-      </ImageBackground>
+      {item.image ? (
+        <ImageBackground
+          source={item.image}
+          style={styles.discoveryImageBg}
+          imageStyle={styles.discoveryImageRadius}
+          resizeMode="cover"
+        >
+          <View style={styles.discoveryTint} />
+          <Text style={styles.discoveryTitle} numberOfLines={1}>{title}</Text>
+        </ImageBackground>
+      ) : (
+        <LinearGradient
+          colors={item.colors as [string, string]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.discoveryImageBg}
+        >
+          <Text style={styles.discoveryTitle} numberOfLines={1}>{title}</Text>
+        </LinearGradient>
+      )}
     </Pressable>
   );
 }
@@ -733,6 +702,7 @@ export default function OpportunitiesScreen() {
   useFocusEffect(
     useCallback(() => {
       DISCOVERY_CARDS.forEach((card) => {
+        if (!card.image) return;
         const source = Image.resolveAssetSource(card.image);
         if (source?.uri) {
           void Image.prefetch(source.uri);
@@ -742,11 +712,10 @@ export default function OpportunitiesScreen() {
   );
 
   useEffect(() => {
-    let categoryParam = typeof params.category === 'string' ? params.category : null;
-    // Normalize the legacy singular slug to the Fellowships card id.
-    if (categoryParam === 'fellowship') categoryParam = 'fellowships';
-    const isValidCategory = DISCOVERY_CARDS.some((card) => card.id === categoryParam);
-    setSelectedDiscoveryCategory(isValidCategory ? categoryParam as DiscoveryCategoryId : null);
+    const categoryParam = typeof params.category === 'string' ? params.category : null;
+    // normalizeDiscoveryCategoryId also maps legacy slugs (singular forms,
+    // training_conferences → events) onto catalog ids.
+    setSelectedDiscoveryCategory(normalizeDiscoveryCategoryId(categoryParam));
   }, [params.category]);
 
   // Deep link from saved-search alerts: /opportunities?q=... preloads the search.
@@ -1108,12 +1077,14 @@ export default function OpportunitiesScreen() {
               <View style={[styles.categoryHero, { backgroundColor: selectedDiscoveryCard.colors[0] }]}>
                 <LinearGradient colors={selectedDiscoveryCard.colors as [string, string]} style={StyleSheet.absoluteFill} />
                 <Animated.View style={[StyleSheet.absoluteFill, { opacity: categoryHeroOpacity }]}>
-                  <Image
-                    source={selectedDiscoveryCard.image}
-                    style={styles.categoryHeroImage}
-                    resizeMode="cover"
-                    fadeDuration={0}
-                  />
+                  {selectedDiscoveryCard.image ? (
+                    <Image
+                      source={selectedDiscoveryCard.image}
+                      style={styles.categoryHeroImage}
+                      resizeMode="cover"
+                      fadeDuration={0}
+                    />
+                  ) : null}
                   <LinearGradient colors={['rgba(2,6,23,0)', 'rgba(2,6,23,0.22)', colors.background]} style={StyleSheet.absoluteFill} />
                 </Animated.View>
                 <View style={styles.categoryHeroTopRow}>

@@ -4,6 +4,9 @@ export type OpportunityCanonicalCategory =
   | "programs"
   | "fellowships"
   | "grants"
+  | "graduate_programs"
+  | "bootcamps"
+  | "events"
   | "jobs"
   | "competitions"
   | "other";
@@ -48,6 +51,28 @@ const CATEGORY_ALIASES: Record<string, OpportunityCanonicalCategory> = {
   global_program: "programs",
   grant: "grants",
   grants: "grants",
+  graduate_program: "graduate_programs",
+  graduate_programs: "graduate_programs",
+  graduate_programme: "graduate_programs",
+  graduate_programmes: "graduate_programs",
+  masters: "graduate_programs",
+  phd: "graduate_programs",
+  postgraduate: "graduate_programs",
+  bootcamp: "bootcamps",
+  bootcamps: "bootcamps",
+  accelerator: "bootcamps",
+  accelerators: "bootcamps",
+  event: "events",
+  events: "events",
+  conference: "events",
+  conferences: "events",
+  summit: "events",
+  summits: "events",
+  workshop: "events",
+  workshops: "events",
+  webinar: "events",
+  webinars: "events",
+  training_conferences: "events",
   job: "jobs",
   jobs: "jobs",
   competition: "competitions",
@@ -88,18 +113,32 @@ const RULES: Rule[] = [
       /\b(grant|grants|seed funding|project funding|research grant|innovation fund|microgrant|prize funding)\b/i,
   },
   {
-    category: "programs",
-    label: "event/summit/forum/delegate program",
+    category: "events",
+    label: "summit/conference/forum/workshop event",
     weight: 56,
     pattern:
-      /\b(one young world|summit|summits|conference|conferences|forum|forums|delegate|delegates|youth ambassador|global ambassador)\b/i,
+      /\b(one young world|summit|summits|conference|conferences|forum|forums|delegate|delegates|youth ambassador|global ambassador|workshop|workshops|webinar|webinars|expo|expos)\b/i,
+  },
+  {
+    category: "graduate_programs",
+    label: "masters/PhD/postgraduate study",
+    weight: 42,
+    pattern:
+      /\b(master'?s|msc|m\.sc|mba|phd|ph\.d|doctoral|doctorate|postgraduate|graduate program|graduate programme|graduate school|graduate study|graduate studies)\b/i,
+  },
+  {
+    category: "bootcamps",
+    label: "bootcamp/accelerator/incubator",
+    weight: 41,
+    pattern:
+      /\b(bootcamp|bootcamps|coding bootcamp|accelerator|accelerators|incubator|incubators)\b/i,
   },
   {
     category: "programs",
-    label: "summit/forum/conference/delegate program",
+    label: "leadership/exchange/training/mentorship program",
     weight: 35,
     pattern:
-      /\b(one young world|summit|summits|conference|conferences|forum|forums|delegate|delegates|youth ambassador|global ambassador|leadership program|leadership programme|exchange program|exchange programme|training program|training programme|mentorship program|mentorship programme|bootcamp|accelerator|incubator|global program|global programme)\b/i,
+      /\b(leadership program|leadership programme|exchange program|exchange programme|training program|training programme|mentorship program|mentorship programme|global program|global programme)\b/i,
   },
   {
     category: "competitions",
@@ -123,6 +162,9 @@ const BLOCKERS: Partial<
   programs: ["internships", "fellowships", "grants"],
   grants: ["scholarships"],
   jobs: ["internships", "fellowships"],
+  // A "fully funded master's scholarship" is a scholarship, not a grad program.
+  graduate_programs: ["scholarships", "fellowships"],
+  events: ["scholarships", "fellowships", "internships"],
 };
 
 function normalizeText(value: unknown): string {

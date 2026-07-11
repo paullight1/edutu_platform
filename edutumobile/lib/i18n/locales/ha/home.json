@@ -36,13 +36,13 @@
         "title": "Horon aiki",
         "description": "Ayyukan farkon sana'a na aikace-aikace"
       },
-      "grants": {
-        "title": "Shirye-shirye",
-        "description": "Shirye-shirye masu tallafi da kuɗaɗe"
-      },
       "fellowships": {
         "title": "Fellowship",
         "description": "Fellowship da hanyoyin jagoranci"
+      },
+      "programs": {
+        "title": "Shirye-shirye",
+        "description": "Shirye-shirye masu tallafi da kuɗaɗe"
       }
     }
   },

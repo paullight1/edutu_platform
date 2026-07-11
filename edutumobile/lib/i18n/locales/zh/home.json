@@ -36,13 +36,13 @@
         "title": "实习",
         "description": "职业起步的实践岗位"
       },
-      "grants": {
-        "title": "项目",
-        "description": "资助项目与补助"
-      },
       "fellowships": {
         "title": "研修计划",
         "description": "研修与领导力培养计划"
+      },
+      "programs": {
+        "title": "项目",
+        "description": "资助项目与补助"
       }
     }
   },

@@ -38,13 +38,13 @@
         "title": "التدريبات",
         "description": "أدوار عملية لبداية المسيرة المهنية"
       },
-      "grants": {
-        "title": "البرامج",
-        "description": "برامج ومنح ممولة"
-      },
       "fellowships": {
         "title": "الزمالات",
         "description": "زمالات ومسارات قيادية"
+      },
+      "programs": {
+        "title": "البرامج",
+        "description": "برامج ومنح ممولة"
       }
     }
   },
