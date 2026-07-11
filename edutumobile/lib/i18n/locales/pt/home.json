@@ -188,7 +188,22 @@
     "restoreFailed": "Falha ao restaurar compras",
     "backToApp": "Voltar ao app",
     "subscribe": "Assinar o premium",
-    "renewalNote": "A assinatura é renovada automaticamente e pode ser gerenciada nas configurações do seu aparelho."
+    "renewalNote": "A assinatura é renovada automaticamente e pode ser gerenciada nas configurações do seu aparelho.",
+    "loginOffer": {
+      "title": "Oferta especial",
+      "subtitle": "Por tempo limitado — a oferta termina em breve",
+      "genericTitle": "Seja Premium",
+      "genericSubtitle": "Desbloqueie tudo o que o Edutu oferece",
+      "off": "DESC.",
+      "premium": "PREMIUM",
+      "was": "Antes {{price}}/mês",
+      "total": "Total {{price}}/mês",
+      "tagline": "Coaching de IA ilimitado, modelos premium e selo verificado",
+      "viewAllPlans": "Ver todos os planos",
+      "cta": "Continuar",
+      "footnote": "Cancele quando quiser — sem compromissos",
+      "close": "Fechar oferta"
+    }
   },
   "wallet": {
     "title": "Carteira",
@@ -234,5 +249,9 @@
     "purchaseFailedTitle": "Falha na compra",
     "somethingWentWrong": "Algo deu errado.",
     "autoAddNote": "Os créditos são adicionados automaticamente após a compra."
+  },
+  "header": {
+    "upgrade": "Premium",
+    "verified": "Conta verificada"
   }
 }

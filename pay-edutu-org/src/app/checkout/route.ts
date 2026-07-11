@@ -19,7 +19,10 @@ export async function GET(req: NextRequest) {
   const ref = url.searchParams.get('ref')?.trim() || 'edutu-mobile';
   const platform = url.searchParams.get('platform')?.trim() || 'unknown';
 
-  if (!uid || !isBillingPlan(plan)) {
+  // Clerk ids are `user_…`; legacy rows may be UUIDs. Reject anything else
+  // before we mint a Paystack transaction for it.
+  const UID_RE = /^[A-Za-z0-9_-]{5,64}$/;
+  if (!uid || !UID_RE.test(uid) || !isBillingPlan(plan)) {
     return NextResponse.redirect(`${config.baseUrl()}/return?status=error&reason=bad_request`, 303);
   }
 

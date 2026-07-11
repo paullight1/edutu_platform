@@ -53,7 +53,16 @@
     },
     "logOut": "Toka",
     "appVersion": "Edutu v{{version}}",
-    "footerTagline": "Kuwawezesha Vijana wa Afrika"
+    "footerTagline": "Kuwawezesha Vijana wa Afrika",
+    "verified": "Imethibitishwa",
+    "upgrade": {
+      "title": "Boresha hadi Premium",
+      "desc": "Fungua uzoefu kamili wa Edutu na ujitofautishe kwa beji iliyothibitishwa.",
+      "perk1": "Ukocha wa AI na Co-pilot bila kikomo",
+      "perk2": "Violezo vya premium, zana za CV na uhamishaji",
+      "perk3": "Beji ya bluu iliyothibitishwa kwenye wasifu wako",
+      "cta": "Boresha sasa"
+    }
   },
   "edit": {
     "title": "Hariri Wasifu",

@@ -27,6 +27,11 @@ export async function POST(req: NextRequest) {
     if (!sessionUid || sessionUid !== uid) {
       return NextResponse.json({ error: 'not authorized for this account' }, { status: 403 });
     }
+  } else {
+    // Fail-open fallback so the flow works before ACCOUNT_SESSION_SECRET /
+    // CLERK_JWKS_URL are configured — but shout about it, because in this
+    // mode anyone who knows a uid can turn off that user's auto-renew.
+    console.warn('[SECURITY] /api/account/cancel running WITHOUT session verification — set ACCOUNT_SESSION_SECRET and CLERK_JWKS_URL');
   }
 
   const db = supabaseAdmin();

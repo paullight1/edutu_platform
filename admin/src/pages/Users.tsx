@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import {
     AlertCircle,
-    BarChart3,
     Calendar,
     CheckCircle2,
     Clock,
-    Award,
     Copy,
     Download,
     Eye,
@@ -287,9 +285,6 @@ const Users = () => {
         (stats.roleCounts.support_agent || 0);
 
     const approvedCreators = stats.creatorStatusCounts.approved || 0;
-    const pendingCreators = stats.creatorStatusCounts.pending || 0;
-    const rejectedCreators = stats.creatorStatusCounts.rejected || 0;
-    const noStatusCreators = stats.creatorStatusCounts.none || 0;
 
     const topStats = [
         {
@@ -316,44 +311,6 @@ const Users = () => {
             icon: Clock,
             gradient: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
         },
-    ];
-
-    const detailedStats = [
-        {
-            label: 'Average Credits',
-            value: stats.averageCredits ? stats.averageCredits.toLocaleString() : '0',
-            icon: Award,
-            color: '#0071e3',
-            description: 'Average balance per profile',
-        },
-        {
-            label: 'Countries',
-            value: stats.countryCount,
-            icon: Globe,
-            color: '#34c759',
-            description: 'Unique countries represented',
-        },
-        {
-            label: 'Top Country',
-            value: stats.topCountry,
-            icon: BarChart3,
-            color: '#ff6600',
-            description: 'Largest user concentration',
-        },
-        {
-            label: 'Profiles With Skills',
-            value: stats.profilesWithSkills,
-            icon: CheckCircle2,
-            color: '#af52de',
-            description: 'Profiles with at least one skill',
-        },
-    ];
-
-    const creatorBreakdown = [
-        { label: 'Approved', value: approvedCreators, color: '#34c759' },
-        { label: 'Pending', value: pendingCreators, color: '#ff9500' },
-        { label: 'Rejected', value: rejectedCreators, color: '#ff3b30' },
-        { label: 'No Status', value: noStatusCreators, color: '#0071e3' },
     ];
 
     const allVisibleSelected =
@@ -737,71 +694,6 @@ const Users = () => {
                         </div>
                     </div>
                 ))}
-            </div>
-
-            <div className="users-summary-grid">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
-                    {detailedStats.map((stat, index) => (
-                        <div key={index} className="card card-hover" style={{ padding: '16px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div
-                                    style={{
-                                        width: 40,
-                                        height: 40,
-                                        borderRadius: '10px',
-                                        background: `${stat.color}15`,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        color: stat.color,
-                                    }}
-                                >
-                                    <stat.icon size={18} strokeWidth={1.5} />
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                    <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginBottom: '2px' }}>
-                                        {stat.label}
-                                    </div>
-                                    <div style={{ fontSize: '20px', fontWeight: 600 }}>{stat.value}</div>
-                                    <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '2px' }}>
-                                        {stat.description}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                <div className="card" style={{ padding: '20px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                        <BarChart3 size={20} color="var(--apple-blue)" />
-                        <span style={{ fontWeight: 600 }}>Creator Status Breakdown</span>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {creatorBreakdown.map((item) => (
-                            <div key={item.label}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                    <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>{item.label}</span>
-                                    <span style={{ fontSize: '14px', fontWeight: 600, color: item.color }}>{item.value}</span>
-                                </div>
-                                <div style={{ height: '6px', background: 'var(--bg-tertiary)', borderRadius: '3px', overflow: 'hidden' }}>
-                                    <div
-                                        style={{
-                                            height: '100%',
-                                            width: stats.total > 0 ? `${(item.value / stats.total) * 100}%` : '0%',
-                                            background: item.color,
-                                            borderRadius: '3px',
-                                            transition: 'width 0.3s ease',
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    <div style={{ marginTop: '18px', paddingTop: '18px', borderTop: '1px solid var(--border-light)', color: 'var(--text-tertiary)', fontSize: '13px', lineHeight: 1.5 }}>
-                        Use the filters below to isolate specific account roles or creator application states.
-                    </div>
-                </div>
             </div>
 
             <div className="card" style={{ padding: '16px 20px' }}>

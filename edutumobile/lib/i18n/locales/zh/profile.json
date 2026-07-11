@@ -53,7 +53,16 @@
     },
     "logOut": "退出登录",
     "appVersion": "Edutu v{{version}}",
-    "footerTagline": "为非洲青年赋能"
+    "footerTagline": "为非洲青年赋能",
+    "verified": "已认证",
+    "upgrade": {
+      "title": "升级到高级版",
+      "desc": "解锁完整的 Edutu 体验，并以认证徽章脱颖而出。",
+      "perk1": "无限 AI 辅导与 Co-pilot",
+      "perk2": "高级模板、简历工具与导出",
+      "perk3": "个人资料上的蓝色认证徽章",
+      "cta": "立即升级"
+    }
   },
   "edit": {
     "title": "编辑资料",

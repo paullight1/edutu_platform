@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { config } from '@/lib/env';
 import { revokePro } from '@/lib/entitlements';
+import { ADMIN_COOKIE, isValidAdminToken, verifyAdminSession } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+const UID_RE = /^[A-Za-z0-9_-]{5,64}$/;
+
 function isAuthed(req: NextRequest): boolean {
+  if (verifyAdminSession(req.cookies.get(ADMIN_COOKIE)?.value)) return true;
   const header = req.headers.get('authorization') || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : '';
-  return token !== '' && token === config.adminToken();
+  return isValidAdminToken(token);
 }
 
 // POST /api/admin/revoke { uid }
@@ -23,7 +26,7 @@ export async function POST(req: NextRequest) {
   }
 
   const uid = String(body.uid || '').trim();
-  if (!uid) return NextResponse.json({ error: 'missing uid' }, { status: 400 });
+  if (!UID_RE.test(uid)) return NextResponse.json({ error: 'invalid uid' }, { status: 400 });
 
   try {
     await revokePro(uid);

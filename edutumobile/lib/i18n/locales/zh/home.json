@@ -188,7 +188,22 @@
     "restoreFailed": "购买记录恢复失败",
     "backToApp": "返回应用",
     "subscribe": "订阅高级版",
-    "renewalNote": "订阅将自动续费，可在设备设置中管理。"
+    "renewalNote": "订阅将自动续费，可在设备设置中管理。",
+    "loginOffer": {
+      "title": "限时特惠",
+      "subtitle": "仅限时开放 — 优惠即将结束",
+      "genericTitle": "升级高级版",
+      "genericSubtitle": "解锁 Edutu 的全部功能",
+      "off": "折扣",
+      "premium": "高级版",
+      "was": "原价 {{price}}/月",
+      "total": "现价 {{price}}/月",
+      "tagline": "无限 AI 辅导、高级模板与认证徽章",
+      "viewAllPlans": "查看所有方案",
+      "cta": "继续",
+      "footnote": "随时取消 — 无任何约束",
+      "close": "关闭优惠"
+    }
   },
   "wallet": {
     "title": "钱包",
@@ -234,5 +249,9 @@
     "purchaseFailedTitle": "购买失败",
     "somethingWentWrong": "出了点问题。",
     "autoAddNote": "购买后积分会自动到账。"
+  },
+  "header": {
+    "upgrade": "升级",
+    "verified": "已认证账户"
   }
 }

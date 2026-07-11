@@ -188,7 +188,22 @@
     "restoreFailed": "Échec de la restauration des achats",
     "backToApp": "Retour à l'application",
     "subscribe": "S'abonner à premium",
-    "renewalNote": "L'abonnement se renouvelle automatiquement et peut être géré dans les réglages de votre appareil."
+    "renewalNote": "L'abonnement se renouvelle automatiquement et peut être géré dans les réglages de votre appareil.",
+    "loginOffer": {
+      "title": "Offre spéciale",
+      "subtitle": "Pour une durée limitée — l'offre se termine bientôt",
+      "genericTitle": "Passez Premium",
+      "genericSubtitle": "Débloquez tout ce qu'Edutu peut offrir",
+      "off": "DE RÉDUC",
+      "premium": "PREMIUM",
+      "was": "Avant {{price}}/mois",
+      "total": "Total {{price}}/mois",
+      "tagline": "Coaching IA illimité, modèles premium et badge vérifié",
+      "viewAllPlans": "Voir tous les forfaits",
+      "cta": "Continuer",
+      "footnote": "Annulez à tout moment — sans engagement",
+      "close": "Fermer l'offre"
+    }
   },
   "wallet": {
     "title": "Portefeuille",
@@ -234,5 +249,9 @@
     "purchaseFailedTitle": "Échec de l'achat",
     "somethingWentWrong": "Une erreur est survenue.",
     "autoAddNote": "Les crédits sont ajoutés automatiquement après l'achat."
+  },
+  "header": {
+    "upgrade": "Premium",
+    "verified": "Compte vérifié"
   }
 }

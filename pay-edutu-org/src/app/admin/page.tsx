@@ -1,6 +1,7 @@
-import { config } from '@/lib/env';
+import { cookies } from 'next/headers';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { formatMoney } from '@/lib/money';
+import { ADMIN_COOKIE, verifyAdminSession } from '@/lib/auth';
 import { AdminActions } from './AdminActions';
 
 export const runtime = 'nodejs';
@@ -19,8 +20,10 @@ function KeyIcon() {
 }
 
 export default async function AdminPage({ searchParams }: { searchParams: Search }) {
-  const token = first(searchParams.token) || '';
-  const authed = token !== '' && token === config.adminToken();
+  // Session-cookie auth only — the token itself must never live in a URL
+  // (history, logs and referrer headers all leak query strings).
+  const authed = verifyAdminSession(cookies().get(ADMIN_COOKIE)?.value);
+  const loginError = first(searchParams.error) === 'bad_token';
 
   if (!authed) {
     return (
@@ -30,8 +33,13 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
         </div>
         <div className="eyebrow">Restricted area</div>
         <h1>Admin access</h1>
-        <p>Enter your admin token to view payments and award Pro.</p>
-        <form method="GET" action="/admin">
+        <p>Enter your admin token to view payments and award Pro. Your session lasts 2 hours.</p>
+        {loginError && (
+          <div className="notice danger" role="alert">
+            <span>That token wasn&apos;t recognised. Check ADMIN_DASHBOARD_TOKEN and try again.</span>
+          </div>
+        )}
+        <form method="POST" action="/api/admin/login">
           <label>Admin token</label>
           <input name="token" type="password" placeholder="ADMIN_DASHBOARD_TOKEN" autoComplete="off" />
           <button className="btn" type="submit">
@@ -55,7 +63,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
 
   const rows = payments ?? [];
   const revenueByCurrency = rows
-    .filter((r) => r.status === 'success' && typeof r.amount === 'number')
+    .filter((r) => r.status === 'success' && typeof r.amount === 'number' && Number(r.amount) > 0)
     .reduce<Record<string, number>>((acc, r) => {
       const cur = r.currency || 'USD';
       acc[cur] = (acc[cur] ?? 0) + Number(r.amount);
@@ -119,7 +127,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
         </div>
       </div>
 
-      <AdminActions token={token} />
+      <AdminActions />
     </div>
   );
 }

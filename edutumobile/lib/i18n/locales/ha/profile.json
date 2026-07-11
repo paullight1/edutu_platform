@@ -53,7 +53,16 @@
     },
     "logOut": "Fita",
     "appVersion": "Edutu v{{version}}",
-    "footerTagline": "Ƙarfafa Matasan Afirka"
+    "footerTagline": "Ƙarfafa Matasan Afirka",
+    "verified": "An tabbatar",
+    "upgrade": {
+      "title": "Haɓaka zuwa Premium",
+      "desc": "Buɗe cikakken ƙwarewar Edutu kuma ka fice da alamar tabbatarwa.",
+      "perk1": "Horon AI da Co-pilot mara iyaka",
+      "perk2": "Samfuran premium, kayan aikin CV da fitarwa",
+      "perk3": "Alamar shuɗi ta tabbatarwa a bayanan ka",
+      "cta": "Haɓaka yanzu"
+    }
   },
   "edit": {
     "title": "Gyara Bayanan Martaba",
