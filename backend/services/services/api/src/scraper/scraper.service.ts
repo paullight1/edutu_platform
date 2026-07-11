@@ -3811,13 +3811,14 @@ ${text}`;
     return { success: !error, error: error?.message };
   }
 
-  async getJobs() {
+  async getJobs(limit = 20) {
     if (!this.supabase) return [];
+    const cappedLimit = Math.min(Math.max(Number(limit) || 20, 1), 200);
     const { data, error } = await this.supabase
       .from("scrape_logs")
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(20);
+      .limit(cappedLimit);
     if (error) return [];
     return data ?? [];
   }
