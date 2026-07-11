@@ -15,23 +15,19 @@ export const viewport: Viewport = {
 };
 
 function BrandMark() {
+  // The real Edutu logo (same asset the mobile app ships) — replaces the old
+  // placeholder "E" glyph so checkout is instantly recognisable as Edutu.
   return (
-    <svg className="brand-mark" viewBox="0 0 34 34" fill="none" aria-hidden="true">
-      <defs>
-        <linearGradient id="edutu-g" x1="0" y1="0" x2="34" y2="34" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#6366F1" />
-          <stop offset="1" stopColor="#3B82F6" />
-        </linearGradient>
-      </defs>
-      <rect width="34" height="34" rx="10" fill="url(#edutu-g)" />
-      {/* stylised “E” — three strokes, ascending like a path of opportunity */}
-      <path
-        d="M11 11.5h12M11 17h8.5M11 22.5h12"
-        stroke="#fff"
-        strokeWidth="2.6"
-        strokeLinecap="round"
-      />
-    </svg>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      className="brand-mark"
+      src="/edutu-logo.png"
+      alt=""
+      width={34}
+      height={34}
+      style={{ borderRadius: 10, objectFit: 'contain' }}
+      aria-hidden="true"
+    />
   );
 }
 
