@@ -1133,10 +1133,48 @@ export default function ScraperDashboard() {
         }).filter((entry): entry is { name: string; url: string } => Boolean(entry));
 
     const postSource = (body: Record<string, unknown>) =>
-        backendFetchJson<{ success: boolean; error?: string; data?: { id: number } }>(
+        backendFetchJson<{ success: boolean; duplicate?: boolean; error?: string; data?: { id: number } }>(
             `/api/scraper/sources`,
             { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
         );
+
+    const normalizeUrl = (url: string) => url.trim().toLowerCase().replace(/\/+$/, '');
+
+    // Outcome per entry: added, skipped (URL already exists), or failed.
+    const postSourceEntries = async (
+        entries: Array<{ name: string; url: string }>,
+        parentId?: number,
+    ) => {
+        // Skip URLs we already track (and dedupe within the paste itself)
+        // before hitting the backend, so duplicates never abort the whole add.
+        const known = new Set(sources.filter(s => !s.is_group && s.url).map(s => normalizeUrl(s.url)));
+        const toPost: typeof entries = [];
+        let skipped = 0;
+        for (const entry of entries) {
+            const key = normalizeUrl(entry.url);
+            if (known.has(key)) { skipped++; continue; }
+            known.add(key);
+            toPost.push(entry);
+        }
+        const results = await Promise.all(toPost.map(entry =>
+            postSource({ ...entry, category: newSource.category, tier: 2, parent_id: parentId ?? undefined })
+                .then(r => (r.success ? 'added' : r.duplicate ? 'skipped' : (r.error || 'failed')))
+                .catch(e => (e instanceof Error ? e.message : 'failed'))
+        ));
+        return {
+            added: results.filter(r => r === 'added').length,
+            skipped: skipped + results.filter(r => r === 'skipped').length,
+            failed: results.filter(r => r !== 'added' && r !== 'skipped') as string[],
+        };
+    };
+
+    const describeAddOutcome = (outcome: { added: number; skipped: number; failed: string[] }) => {
+        const parts = [];
+        if (outcome.added) parts.push(`added ${outcome.added}`);
+        if (outcome.skipped) parts.push(`${outcome.skipped} already existed`);
+        if (outcome.failed.length) parts.push(`${outcome.failed.length} failed (${outcome.failed[0]})`);
+        return parts.join(', ') || 'nothing to add';
+    };
 
     async function addSource() {
         const bulkEntries = parseBulkSourceLines(newSource.bulkText || '');
@@ -1153,24 +1191,18 @@ export default function ScraperDashboard() {
         try {
             if (newSource.asGroup) {
                 // Create the group first, then attach every pasted source to it.
+                // (The backend gives groups a synthetic unique URL — duplicate
+                // group names come back as a friendly "already exists" error.)
                 const groupResult = await postSource({
-                    name: newSource.name.trim(), url: '', category: newSource.category, tier: 2, is_group: true,
+                    name: newSource.name.trim(), category: newSource.category, tier: 2, is_group: true,
                 });
                 if (!groupResult.success || !groupResult.data?.id) {
                     throw new Error(groupResult.error || 'Failed to create group');
                 }
-                const groupId = groupResult.data.id;
-                const results = await Promise.all(bulkEntries.map(entry =>
-                    postSource({ ...entry, category: newSource.category, tier: 2, parent_id: groupId })
-                        .then(r => r.success).catch(() => false)
-                ));
-                const added = results.filter(Boolean).length;
-                const failedCount = bulkEntries.length - added;
+                const outcome = await postSourceEntries(bulkEntries, groupResult.data.id);
                 showNotification(
-                    bulkEntries.length
-                        ? `Group "${newSource.name}" created with ${added} source${added === 1 ? '' : 's'}${failedCount ? ` (${failedCount} failed)` : ''}`
-                        : `Group "${newSource.name}" created`,
-                    failedCount ? 'warning' : 'success',
+                    `Group "${newSource.name}" created — ${bulkEntries.length ? describeAddOutcome(outcome) : 'empty for now'}`,
+                    outcome.failed.length ? 'warning' : 'success',
                 );
             } else {
                 // Single source, plus any extra pasted lines — all under the chosen parent.
@@ -1178,16 +1210,13 @@ export default function ScraperDashboard() {
                     ...(newSource.url ? [{ name: newSource.name.trim(), url: newSource.url.trim() }] : []),
                     ...bulkEntries,
                 ];
-                const results = await Promise.all(entries.map(entry =>
-                    postSource({ ...entry, category: newSource.category, tier: 2, parent_id: newSource.parentId ?? undefined })
-                        .then(r => ({ ok: r.success, error: r.error })).catch(e => ({ ok: false, error: e instanceof Error ? e.message : 'failed' }))
-                ));
-                const added = results.filter(r => r.ok).length;
-                if (added === 0) throw new Error(results[0]?.error || 'Failed to add source');
-                const failedCount = entries.length - added;
+                const outcome = await postSourceEntries(entries, newSource.parentId);
+                if (outcome.added === 0 && outcome.failed.length) {
+                    throw new Error(outcome.failed[0]);
+                }
                 showNotification(
-                    `Added ${added} source${added === 1 ? '' : 's'}${failedCount ? ` (${failedCount} failed)` : ''}`,
-                    failedCount ? 'warning' : 'success',
+                    `Sources: ${describeAddOutcome(outcome)}`,
+                    outcome.added === 0 || outcome.failed.length ? 'warning' : 'success',
                 );
             }
             setNewSource({ name: '', url: '', category: 'scholarship', asGroup: false, bulkText: '' });
