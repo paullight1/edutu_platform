@@ -281,7 +281,7 @@ export class OpportunityRankingService {
     request: RecommendationQueryDto & { userId?: string },
   ) {
     const startedAt = Date.now();
-    const limit = Math.min(Math.max(request.limit || 10, 1), 300);
+    const limit = Math.min(Math.max(request.limit || 10, 1), 1000);
     const minMatchScore = request.minMatchScore ?? 0;
     const excludeIds = request.excludeOpportunityIds || [];
 
@@ -633,7 +633,7 @@ export class OpportunityRankingService {
         .eq("status", "active")
         .or(`close_date.gte.${today},close_date.is.null`)
         .order("updated_at", { ascending: false })
-        .limit(200);
+        .limit(1000);
 
       if (excludeIds.length) {
         request = request.not("id", "in", `(${excludeIds.join(",")})`);
@@ -666,7 +666,7 @@ export class OpportunityRankingService {
       .from(opportunities)
       .where(and(...filters))
       .orderBy(desc(opportunities.updatedAt))
-      .limit(200)
+      .limit(1000)
       .execute();
   }
 

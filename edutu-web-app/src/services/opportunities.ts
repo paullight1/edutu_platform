@@ -565,7 +565,11 @@ async function requestStaticOpportunitySnapshot(
 // Must match the backend's page size — a page shorter than this marks the end
 // of the catalog and stops the pagination walk.
 const PUBLIC_FEED_PAGE_SIZE = 60;
-const PUBLIC_FEED_MAX_OFFSET = 480;
+const PUBLIC_FEED_MAX_OFFSET = 2040;
+// How many pages to request per parallel batch during the catalog walk. Keeps
+// cold loads fast without firing 30+ concurrent requests when the catalog is
+// small — each batch stops the walk as soon as it sees a short/empty page.
+const PUBLIC_FEED_WALK_BATCH = 8;
 
 async function requestOpportunityPage(
   options: FetchOptions = {},
@@ -641,32 +645,37 @@ async function requestOpportunityList(
 
   // A short first page means the catalog fits in one request — no walk needed.
   if (firstPage.length >= PUBLIC_FEED_PAGE_SIZE) {
-    // Fire the remaining pages concurrently instead of walking them serially.
-    // Against a cold-start Render host this collapses up to ~8 sequential
-    // round-trips into a single parallel batch, the biggest cold-feed win.
-    const offsets: number[] = [];
-    for (
-      let offset = PUBLIC_FEED_PAGE_SIZE;
-      offset <= PUBLIC_FEED_MAX_OFFSET;
-      offset += PUBLIC_FEED_PAGE_SIZE
-    ) {
-      offsets.push(offset);
-    }
-
-    const results = await Promise.allSettled(
-      offsets.map((offset) => requestOpportunityPage({ ...options, offset })),
-    );
-
-    // Aggregate in offset order and stop at the first short/empty page — that
-    // marks the end of the catalog, so anything past it is padding we ignore.
-    for (const result of results) {
-      if (result.status === "rejected") {
-        // Keep the rows we already have rather than failing the whole feed.
-        console.warn("Opportunity page fetch failed:", result.reason);
-        break;
+    // Pull the rest in parallel batches: each batch collapses several
+    // round-trips (the cold-start win) while a short/empty page inside a
+    // batch ends the walk, so a small catalog never fans out to 30+ requests.
+    let offset = PUBLIC_FEED_PAGE_SIZE;
+    walk: while (offset <= PUBLIC_FEED_MAX_OFFSET) {
+      const offsets: number[] = [];
+      for (
+        let i = 0;
+        i < PUBLIC_FEED_WALK_BATCH && offset <= PUBLIC_FEED_MAX_OFFSET;
+        i++, offset += PUBLIC_FEED_PAGE_SIZE
+      ) {
+        offsets.push(offset);
       }
-      pushPage(result.value);
-      if (result.value.length < PUBLIC_FEED_PAGE_SIZE) break;
+
+      const results = await Promise.allSettled(
+        offsets.map((pageOffset) =>
+          requestOpportunityPage({ ...options, offset: pageOffset }),
+        ),
+      );
+
+      // Aggregate in offset order and stop at the first short/empty page —
+      // that marks the end of the catalog; anything past it is padding.
+      for (const result of results) {
+        if (result.status === "rejected") {
+          // Keep the rows we already have rather than failing the whole feed.
+          console.warn("Opportunity page fetch failed:", result.reason);
+          break walk;
+        }
+        pushPage(result.value);
+        if (result.value.length < PUBLIC_FEED_PAGE_SIZE) break walk;
+      }
     }
   }
 
