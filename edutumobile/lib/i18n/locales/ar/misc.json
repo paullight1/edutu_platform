@@ -36,7 +36,9 @@
         },
         "alerts": {
             "uploadImageFailed": "فشل رفع الصورة. يرجى المحاولة مرة أخرى.",
-            "submitFailed": "فشل الاتصال. يرجى المحاولة مرة أخرى."
+            "submitFailed": "فشل الاتصال. يرجى المحاولة مرة أخرى.",
+            "alreadyPendingTitle": "الطلب قيد الانتظار",
+            "alreadyPendingMessage": "لديك بالفعل طلب منشئ قيد المراجعة. سنخطرك عند اتخاذ القرار."
         },
         "success": {
             "headerTitle": "تم إرسال الطلب",
@@ -372,7 +374,18 @@
                 "reviewerNotes": "ملاحظات المراجع",
                 "notePlaceholder": "أضف ملاحظة حول هذا القرار...",
                 "reject": "رفض",
-                "approve": "موافقة"
+                "approve": "موافقة",
+                "contentType": "نوع المحتوى",
+                "experience": "الخبرة",
+                "contact": "جهة الاتصال",
+                "sampleContent": "نموذج المحتوى"
+            },
+            "card": {
+                "untitled": "طلب منشئ"
+            },
+            "kind": {
+                "creator": "منشئ",
+                "mentor": "موجّه"
             }
         },
         "premiumFeatures": {

@@ -24,23 +24,40 @@ import { AnimatedPressable } from "../../components/ui/AnimatedPressable";
 import { AdminGuard } from "../../components/auth/AdminGuard";
 import { FadeInDown, FadeInUp } from "react-native-reanimated";
 
+// Canonical creator_applications row (see migration 031). Which narrative
+// fields are set depends on the writer: the mobile creator wizard fills the
+// motivation/opportunity/kyc fields, mobile mentor-apply and the web form fill
+// the display/content/proof fields — every one of them is nullable here and
+// the UI renders whichever side exists.
 interface CreatorApplication {
     id: string;
     user_id: string;
-    motivation: string;
-    opportunity_type: string;
-    opportunity_title: string;
-    linkedin_url: string;
-    proof_url: string;
-    portfolio_url: string;
-    bio: string;
-    social_links: string;
-    kyc_image_url: string;
+    application_kind?: 'creator' | 'mentor' | null;
+    motivation: string | null;
+    opportunity_type: string | null;
+    opportunity_title: string | null;
+    linkedin_url: string | null;
+    proof_url: string | null;
+    proof_path?: string | null;
+    portfolio_url: string | null;
+    bio: string | null;
+    social_links: string | null;
+    kyc_image_url: string | null;
+    display_name?: string | null;
+    content_type?: string | null;
+    experience?: string | null;
+    sample_content_url?: string | null;
+    email?: string | null;
+    phone_number?: string | null;
+    country?: string | null;
     status: 'pending' | 'approved' | 'rejected';
     applied_at: string;
     reviewed_at: string | null;
     reviewer_notes: string;
 }
+
+const titleCase = (value?: string | null) =>
+    value ? value.charAt(0).toUpperCase() + value.slice(1) : '';
 
 function AdminCreatorApplicationsContent() {
     const { t } = useTranslation('misc');
@@ -229,8 +246,15 @@ function AdminCreatorApplicationsContent() {
 
     const renderApplication = useCallback(({ item, index }: { item: CreatorApplication; index: number }) => {
         const profile = profileCache[item.user_id];
-        const applicantName = profile?.name || t('admin.creatorApplications.unknownUser');
-        const applicantEmail = profile?.email || '';
+        const applicantName = profile?.name || item.display_name || t('admin.creatorApplications.unknownUser');
+        const applicantEmail = profile?.email || item.email || '';
+        const cardTitle = item.opportunity_title
+            || (item.content_type ? titleCase(item.content_type) : '')
+            || t('admin.creatorApplications.card.untitled');
+        const cardKind = item.opportunity_type
+            || (item.application_kind === 'mentor'
+                ? t('admin.creatorApplications.kind.mentor')
+                : t('admin.creatorApplications.kind.creator'));
 
         return (
             <AnimatedPressable
@@ -263,11 +287,11 @@ function AdminCreatorApplicationsContent() {
                     <View style={styles.typeRow}>
                         <Award size={14} color={getStatusColor(item.status)} />
                         <Text style={[styles.typeText, { color: textPrimary }]}>
-                            {item.opportunity_title}
+                            {cardTitle}
                         </Text>
                     </View>
                     <Text style={[styles.opportunityType, { color: textSecondary }]}>
-                        {item.opportunity_type.charAt(0).toUpperCase() + item.opportunity_type.slice(1)}
+                        {titleCase(cardKind)}
                     </Text>
                 </View>
 
@@ -387,7 +411,7 @@ function AdminCreatorApplicationsContent() {
                                 <View style={styles.modalBody}>
                                     <View style={[styles.statusRow, { backgroundColor: getStatusBg(selectedApp.status) }]}>
                                         <Text style={[styles.statusTextLarge, { color: getStatusColor(selectedApp.status) }]}>
-                                            {t(`admin.creatorApplications.status.${selectedApp.status}`).toUpperCase()}
+                                            {`${t(selectedApp.application_kind === 'mentor' ? 'admin.creatorApplications.kind.mentor' : 'admin.creatorApplications.kind.creator')} · ${t(`admin.creatorApplications.status.${selectedApp.status}`)}`.toUpperCase()}
                                         </Text>
                                         {selectedApp.reviewed_at && (
                                             <Text style={[styles.reviewedAt, { color: textSecondary }]}>
@@ -404,32 +428,85 @@ function AdminCreatorApplicationsContent() {
                                             </View>
                                             <View>
                                                 <Text style={[styles.applicantName, { color: textPrimary }]}>
-                                                    {profileCache[selectedApp.user_id]?.name || t('admin.creatorApplications.unknownUser')}
+                                                    {profileCache[selectedApp.user_id]?.name || selectedApp.display_name || t('admin.creatorApplications.unknownUser')}
                                                 </Text>
                                                 <Text style={[styles.applicantEmail, { color: textSecondary }]}>
-                                                    {profileCache[selectedApp.user_id]?.email || ''}
+                                                    {profileCache[selectedApp.user_id]?.email || selectedApp.email || ''}
                                                 </Text>
                                             </View>
                                         </View>
                                     </View>
 
-                                    <View style={styles.detailSection}>
-                                        <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.opportunity')}</Text>
-                                        <Text style={[styles.detailValue, { color: textPrimary }]}>{selectedApp.opportunity_title}</Text>
-                                        <Text style={[styles.detailType, { color: textSecondary }]}>
-                                            {selectedApp.opportunity_type.charAt(0).toUpperCase() + selectedApp.opportunity_type.slice(1)}
-                                        </Text>
-                                    </View>
+                                    {(selectedApp.opportunity_title || selectedApp.opportunity_type) && (
+                                        <View style={styles.detailSection}>
+                                            <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.opportunity')}</Text>
+                                            {selectedApp.opportunity_title && (
+                                                <Text style={[styles.detailValue, { color: textPrimary }]}>{selectedApp.opportunity_title}</Text>
+                                            )}
+                                            {selectedApp.opportunity_type && (
+                                                <Text style={[styles.detailType, { color: textSecondary }]}>
+                                                    {titleCase(selectedApp.opportunity_type)}
+                                                </Text>
+                                            )}
+                                        </View>
+                                    )}
 
-                                    <View style={styles.detailSection}>
-                                        <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.motivation')}</Text>
-                                        <Text style={[styles.detailValue, { color: textPrimary }]}>{selectedApp.motivation}</Text>
-                                    </View>
+                                    {selectedApp.content_type && (
+                                        <View style={styles.detailSection}>
+                                            <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.contentType')}</Text>
+                                            <Text style={[styles.detailValue, { color: textPrimary }]}>{titleCase(selectedApp.content_type)}</Text>
+                                        </View>
+                                    )}
 
-                                    <View style={styles.detailSection}>
-                                        <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.bio')}</Text>
-                                        <Text style={[styles.detailValue, { color: textPrimary }]}>{selectedApp.bio}</Text>
-                                    </View>
+                                    {selectedApp.motivation && (
+                                        <View style={styles.detailSection}>
+                                            <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.motivation')}</Text>
+                                            <Text style={[styles.detailValue, { color: textPrimary }]}>{selectedApp.motivation}</Text>
+                                        </View>
+                                    )}
+
+                                    {selectedApp.bio && (
+                                        <View style={styles.detailSection}>
+                                            <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.bio')}</Text>
+                                            <Text style={[styles.detailValue, { color: textPrimary }]}>{selectedApp.bio}</Text>
+                                        </View>
+                                    )}
+
+                                    {selectedApp.experience && (
+                                        <View style={styles.detailSection}>
+                                            <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.experience')}</Text>
+                                            <Text style={[styles.detailValue, { color: textPrimary }]}>{selectedApp.experience}</Text>
+                                        </View>
+                                    )}
+
+                                    {(selectedApp.phone_number || selectedApp.country) && (
+                                        <View style={styles.detailSection}>
+                                            <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.contact')}</Text>
+                                            <Text style={[styles.detailValue, { color: textPrimary }]}>
+                                                {[selectedApp.phone_number, selectedApp.country].filter(Boolean).join(' · ')}
+                                            </Text>
+                                        </View>
+                                    )}
+
+                                    {selectedApp.sample_content_url && (
+                                        <View style={styles.detailSection}>
+                                            <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.sampleContent')}</Text>
+                                            <TouchableOpacity
+                                                style={styles.linkRow}
+                                                onPress={() => {
+                                                    const url = selectedApp.sample_content_url?.startsWith('http')
+                                                        ? selectedApp.sample_content_url
+                                                        : `https://${selectedApp.sample_content_url}`;
+                                                    Linking.openURL(url).catch(() => {});
+                                                }}
+                                            >
+                                                <ExternalLink size={14} color={colors.primary} />
+                                                <Text style={[styles.linkText, { color: colors.primary }]} numberOfLines={1}>
+                                                    {selectedApp.sample_content_url}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
 
                                     {selectedApp.linkedin_url && (
                                         <View style={styles.detailSection}>
@@ -468,14 +545,29 @@ function AdminCreatorApplicationsContent() {
                                         </View>
                                     )}
 
-                                    {selectedApp.proof_url && (
-                                        <View style={styles.detailSection}>
-                                            <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.proofUrl')}</Text>
-                                            <Text style={[styles.linkText, { color: colors.primary }]} numberOfLines={1}>
-                                                {selectedApp.proof_url}
-                                            </Text>
-                                        </View>
-                                    )}
+                                    {(() => {
+                                        // Web submissions store the proof in the PUBLIC creator-proofs
+                                        // bucket — prefer the stored URL, fall back to resolving the path.
+                                        const proofHref = selectedApp.proof_url
+                                            || (selectedApp.proof_path
+                                                ? supabase.storage.from('creator-proofs').getPublicUrl(selectedApp.proof_path).data.publicUrl
+                                                : null);
+                                        if (!proofHref) return null;
+                                        return (
+                                            <View style={styles.detailSection}>
+                                                <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.proofUrl')}</Text>
+                                                <TouchableOpacity
+                                                    style={styles.linkRow}
+                                                    onPress={() => { Linking.openURL(proofHref).catch(() => {}); }}
+                                                >
+                                                    <ExternalLink size={14} color={colors.primary} />
+                                                    <Text style={[styles.linkText, { color: colors.primary }]} numberOfLines={1}>
+                                                        {proofHref}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        );
+                                    })()}
 
                                     <View style={styles.detailSection}>
                                         <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.appliedOn')}</Text>

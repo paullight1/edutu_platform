@@ -36,7 +36,9 @@
         },
         "alerts": {
             "uploadImageFailed": "No se pudo subir la imagen. Inténtalo de nuevo.",
-            "submitFailed": "Falló la conexión. Inténtalo de nuevo."
+            "submitFailed": "Falló la conexión. Inténtalo de nuevo.",
+            "alreadyPendingTitle": "Solicitud pendiente",
+            "alreadyPendingMessage": "Ya tienes una solicitud de creador en revisión. Te avisaremos cuando haya una decisión."
         },
         "success": {
             "headerTitle": "Solicitud enviada",
@@ -372,7 +374,18 @@
                 "reviewerNotes": "Notas del revisor",
                 "notePlaceholder": "Agrega una nota sobre esta decisión...",
                 "reject": "Rechazar",
-                "approve": "Aprobar"
+                "approve": "Aprobar",
+                "contentType": "Tipo de contenido",
+                "experience": "Experiencia",
+                "contact": "Contacto",
+                "sampleContent": "Contenido de muestra"
+            },
+            "card": {
+                "untitled": "Solicitud de creador"
+            },
+            "kind": {
+                "creator": "Creador",
+                "mentor": "Mentor"
             }
         },
         "premiumFeatures": {

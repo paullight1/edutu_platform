@@ -36,7 +36,9 @@
         },
         "alerts": {
             "uploadImageFailed": "Imeshindikana kupakia picha. Tafadhali jaribu tena.",
-            "submitFailed": "Muunganisho umeshindikana. Tafadhali jaribu tena."
+            "submitFailed": "Muunganisho umeshindikana. Tafadhali jaribu tena.",
+            "alreadyPendingTitle": "Maombi yanasubiri",
+            "alreadyPendingMessage": "Tayari una maombi ya mtayarishaji yanayokaguliwa. Tutakujulisha yatakapoamuliwa."
         },
         "success": {
             "headerTitle": "Ombi Limewasilishwa",
@@ -372,7 +374,18 @@
                 "reviewerNotes": "Maelezo ya Mhakiki",
                 "notePlaceholder": "Ongeza maelezo kuhusu uamuzi huu...",
                 "reject": "Kataa",
-                "approve": "Idhinisha"
+                "approve": "Idhinisha",
+                "contentType": "Aina ya maudhui",
+                "experience": "Uzoefu",
+                "contact": "Mawasiliano",
+                "sampleContent": "Sampuli ya maudhui"
+            },
+            "card": {
+                "untitled": "Maombi ya mtayarishaji"
+            },
+            "kind": {
+                "creator": "Mtayarishaji",
+                "mentor": "Mshauri"
             }
         },
         "premiumFeatures": {

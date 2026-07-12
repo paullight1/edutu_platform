@@ -13,8 +13,9 @@ import {
   marketplaceEnrollments,
   transactions,
 } from "../db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { NotificationsService } from "../notifications/notifications.service";
+import type { CreatorApplicationDto } from "./dto/creator.dto";
 
 const PLATFORM_FEE_PERCENT = 15; // Platform takes 15%, creator keeps 85%
 
@@ -40,31 +41,55 @@ export class CreatorService {
 
   // ─── Creator Application ───────────────────────────────────────────────────
 
-  async submitApplication(
-    userId: string,
-    payload: {
-      displayName: string;
-      bio: string;
-      contentType: string;
-      experience: string;
-      sampleContentUrl?: string;
-    },
-  ) {
-    // Prevent duplicate pending applications
+  // profiles.user_id and creator_applications.user_id both hold either a raw
+  // Clerk sub or its safe-uuid form (SQL clerk_id_to_uuid ≡ JS toDatabaseUserId
+  // ≡ mobile toSafeUUID), depending on which client wrote the row — always
+  // match either representation.
+  private userMatch(column: { name: string }, userId: string) {
+    return sql`(${sql.identifier(column.name)}::text = ${userId} OR public.clerk_id_to_uuid(${sql.identifier(column.name)}::text) = ${userId})`;
+  }
+
+  // The web admin panel reads legacy snake_case names alongside the canonical
+  // camelCase ones (and the pre-unification adminNote/submittedAt fields), so
+  // API responses carry both.
+  private serializeApplication(row: typeof creatorApplications.$inferSelect) {
+    return {
+      ...row,
+      adminNote: row.reviewerNotes ?? null,
+      submittedAt: row.appliedAt ?? null,
+      full_name: row.displayName ?? null,
+      opportunity_type: row.opportunityType ?? null,
+      opportunity_name: row.opportunityTitle ?? null,
+      linkedin_url: row.linkedinUrl ?? null,
+      portfolio_url: row.portfolioUrl ?? null,
+      kyc_image_url: row.kycImageUrl ?? null,
+      proof_url: row.proofUrl ?? null,
+      social_links: row.socialLinks ?? null,
+      reviewer_notes: row.reviewerNotes ?? null,
+      applied_at: row.appliedAt ?? null,
+      reviewed_at: row.reviewedAt ?? null,
+    };
+  }
+
+  async submitApplication(userId: string, payload: CreatorApplicationDto) {
+    const kind = payload.applicationKind ?? "creator";
+
+    // Prevent duplicate pending applications of the same kind
     const existing = await db
-      .select()
+      .select({ id: creatorApplications.id })
       .from(creatorApplications)
       .where(
         and(
-          eq(creatorApplications.userId, userId),
+          this.userMatch(creatorApplications.userId, userId),
           eq(creatorApplications.status, "pending"),
+          eq(creatorApplications.applicationKind, kind),
         ),
       )
       .execute();
 
     if (existing.length > 0) {
       throw new BadRequestException(
-        "You already have a pending creator application.",
+        `You already have a pending ${kind} application.`,
       );
     }
 
@@ -72,11 +97,28 @@ export class CreatorService {
       .insert(creatorApplications)
       .values({
         userId,
+        applicationKind: kind,
         displayName: payload.displayName,
         bio: payload.bio,
         contentType: payload.contentType,
         experience: payload.experience,
-        sampleContentUrl: payload.sampleContentUrl,
+        sampleContentUrl: payload.sampleContentUrl || null,
+        motivation: payload.motivation,
+        opportunityType: payload.opportunityType,
+        opportunityTitle: payload.opportunityTitle,
+        linkedinUrl: payload.linkedinUrl,
+        portfolioUrl: payload.portfolioUrl,
+        socialLinks: payload.socialLinks,
+        kycImageUrl: payload.kycImageUrl,
+        proofUrl: payload.proofUrl || null,
+        proofPath: payload.proofPath,
+        proofFileName: payload.proofFileName,
+        proofFileType: payload.proofFileType,
+        proofFileSize: payload.proofFileSize,
+        consentAccepted: payload.consentAccepted ?? false,
+        email: payload.email,
+        phoneNumber: payload.phoneNumber,
+        country: payload.country,
         status: "pending",
       })
       .returning()
@@ -87,56 +129,58 @@ export class CreatorService {
         creatorMetadata: profiles.creatorMetadata,
       })
       .from(profiles)
-      .where(eq(profiles.userId, userId))
+      .where(this.userMatch(profiles.userId, userId))
       .limit(1)
       .execute();
 
     await db
       .update(profiles)
       .set({
-        creatorStatus: "pending",
-        creatorRejectionReason: null,
+        ...(kind === "mentor"
+          ? { mentorStatus: "pending" }
+          : { creatorStatus: "pending", creatorRejectionReason: null }),
         creatorMetadata: {
           ...this.toRecord(profile?.creatorMetadata),
           lastApplication: {
             applicationId: app.id,
-            displayName: payload.displayName,
-            bio: payload.bio,
-            contentType: payload.contentType,
-            experience: payload.experience,
+            applicationKind: kind,
+            displayName: payload.displayName ?? null,
+            bio: payload.bio ?? null,
+            contentType: payload.contentType ?? null,
+            experience: payload.experience ?? null,
             sampleContentUrl: payload.sampleContentUrl ?? null,
             submittedAt: new Date().toISOString(),
           },
         },
         updatedAt: new Date(),
       })
-      .where(eq(profiles.userId, userId))
+      .where(this.userMatch(profiles.userId, userId))
       .execute();
 
-    return app;
+    return this.serializeApplication(app);
   }
 
   async getApplicationStatus(userId: string) {
     const [app] = await db
       .select()
       .from(creatorApplications)
-      .where(eq(creatorApplications.userId, userId))
-      .orderBy(desc(creatorApplications.submittedAt))
+      .where(this.userMatch(creatorApplications.userId, userId))
+      .orderBy(desc(creatorApplications.appliedAt))
       .limit(1)
       .execute();
-    return app || null;
+    return app ? this.serializeApplication(app) : null;
   }
 
   // ─── Admin: Approve / Reject ───────────────────────────────────────────────
 
   async listApplications(status?: string) {
-    const query = db
+    const rows = await db
       .select()
       .from(creatorApplications)
-      .orderBy(desc(creatorApplications.submittedAt));
-    return status
-      ? (await query.execute()).filter((a) => a.status === status)
-      : query.execute();
+      .where(status ? eq(creatorApplications.status, status) : undefined)
+      .orderBy(desc(creatorApplications.appliedAt))
+      .execute();
+    return rows.map((row) => this.serializeApplication(row));
   }
 
   async reviewApplication(
@@ -152,21 +196,24 @@ export class CreatorService {
       .execute();
     if (!app) throw new NotFoundException("Application not found");
 
+    const kind = app.applicationKind === "mentor" ? "mentor" : "creator";
+
     const [profile] = await db
       .select({
         creatorMetadata: profiles.creatorMetadata,
       })
       .from(profiles)
-      .where(eq(profiles.userId, app.userId))
+      .where(this.userMatch(profiles.userId, app.userId))
       .limit(1)
       .execute();
 
-    // Update the application
+    // Update the application (reviewer_notes is the canonical note column —
+    // the same one the mobile admin's review_creator_application RPC writes)
     await db
       .update(creatorApplications)
       .set({
         status: decision,
-        adminNote,
+        reviewerNotes: adminNote,
         reviewedBy: adminId,
         reviewedAt: new Date(),
         updatedAt: new Date(),
@@ -174,17 +221,23 @@ export class CreatorService {
       .where(eq(creatorApplications.id, applicationId))
       .execute();
 
-    // Update the user's creatorStatus in their profile
+    // Grant/deny the profile-level status the clients actually read,
+    // routed by application kind like the mobile RPC.
     await db
       .update(profiles)
       .set({
-        creatorStatus: decision,
-        creatorRejectionReason:
-          decision === "rejected" ? (adminNote ?? null) : null,
+        ...(kind === "mentor"
+          ? { mentorStatus: decision }
+          : {
+              creatorStatus: decision,
+              creatorRejectionReason:
+                decision === "rejected" ? (adminNote ?? null) : null,
+            }),
         creatorMetadata: {
           ...this.toRecord(profile?.creatorMetadata),
           lastReview: {
             applicationId,
+            applicationKind: kind,
             decision,
             adminNote: adminNote ?? null,
             reviewedBy: adminId,
@@ -193,20 +246,23 @@ export class CreatorService {
         },
         updatedAt: new Date(),
       })
-      .where(eq(profiles.userId, app.userId))
+      .where(this.userMatch(profiles.userId, app.userId))
       .execute();
+
+    const applicantLabel =
+      app.displayName || app.opportunityTitle || "your application";
 
     try {
       await this.notificationsService.broadcast(adminId, {
         title:
           decision === "approved"
-            ? "Creator application approved"
-            : "Creator application update",
+            ? `${kind === "mentor" ? "Mentor" : "Creator"} application approved`
+            : `${kind === "mentor" ? "Mentor" : "Creator"} application update`,
         body:
           decision === "approved"
-            ? `Your creator application for ${app.displayName} has been approved.`
+            ? `Your ${kind} application for ${applicantLabel} has been approved.`
             : adminNote ||
-              "Your creator application was not approved at this time.",
+              `Your ${kind} application was not approved at this time.`,
         kind: "admin-broadcast",
         severity: decision === "approved" ? "success" : "warning",
         audience: "specific",
@@ -218,6 +274,7 @@ export class CreatorService {
         },
         metadata: {
           applicationId,
+          applicationKind: kind,
           creatorStatus: decision,
           adminNote: adminNote ?? null,
         },
@@ -228,7 +285,7 @@ export class CreatorService {
     }
 
     this.logger.log(
-      `Creator application ${applicationId} → ${decision} by admin ${adminId}`,
+      `${kind} application ${applicationId} → ${decision} by admin ${adminId}`,
     );
     return { success: true, decision };
   }

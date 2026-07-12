@@ -211,14 +211,20 @@ describe('mobile mentor apply flow', () => {
 
     await waitFor(() => expect(mockInsert).toHaveBeenCalled());
     expect(mockSupabase.from).toHaveBeenCalledWith('creator_applications');
+    // Canonical snake_case columns (PostgREST rejected the old camelCase keys);
+    // user_id is toSafeUUID(clerk id) and application_kind routes review to
+    // mentor_status instead of creator_status.
     expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({
-      userId: 'mentor-user-1',
-      displayName: 'Amina Mentor',
+      user_id: expect.any(String),
+      application_kind: 'mentor',
+      display_name: 'Amina Mentor',
       bio: 'Mentor bio',
-      contentType: 'template',
+      content_type: 'template',
       experience: '5 years',
-      sampleContentUrl: 'https://portfolio.example.com',
+      motivation: expect.any(String),
+      sample_content_url: 'https://portfolio.example.com',
       status: 'pending',
+      applied_at: expect.any(String),
     }));
 
     await waitFor(() => expect(getByText('Application Sent!')).toBeTruthy());

@@ -36,7 +36,9 @@
         },
         "alerts": {
             "uploadImageFailed": "इमेज अपलोड नहीं हो सकी। कृपया फिर से कोशिश करें।",
-            "submitFailed": "कनेक्शन विफल रहा। कृपया फिर से कोशिश करें।"
+            "submitFailed": "कनेक्शन विफल रहा। कृपया फिर से कोशिश करें।",
+            "alreadyPendingTitle": "आवेदन लंबित है",
+            "alreadyPendingMessage": "आपका एक क्रिएटर आवेदन पहले से समीक्षा में है। निर्णय होते ही हम आपको सूचित करेंगे।"
         },
         "success": {
             "headerTitle": "आवेदन सबमिट हो गया",
@@ -372,7 +374,18 @@
                 "reviewerNotes": "समीक्षक की टिप्पणियाँ",
                 "notePlaceholder": "इस निर्णय के बारे में एक नोट जोड़ें...",
                 "reject": "अस्वीकृत करें",
-                "approve": "स्वीकृत करें"
+                "approve": "स्वीकृत करें",
+                "contentType": "कंटेंट प्रकार",
+                "experience": "अनुभव",
+                "contact": "संपर्क",
+                "sampleContent": "नमूना कंटेंट"
+            },
+            "card": {
+                "untitled": "क्रिएटर आवेदन"
+            },
+            "kind": {
+                "creator": "क्रिएटर",
+                "mentor": "मेंटर"
             }
         },
         "premiumFeatures": {

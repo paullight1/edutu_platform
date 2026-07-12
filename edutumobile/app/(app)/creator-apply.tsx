@@ -148,11 +148,30 @@ export default function CreatorApply() {
     const handleApply = async () => {
         setLoading(true);
         try {
+            // Same duplicate-pending guard the backend apply path enforces —
+            // fail-open so a flaky check never blocks a legitimate application.
+            try {
+                const { data: pendingRows } = await supabase
+                    .from('creator_applications')
+                    .select('id')
+                    .in('user_id', Array.from(new Set([user?.id!, toSafeUUID(user?.id!)])))
+                    .eq('application_kind', 'creator')
+                    .eq('status', 'pending')
+                    .limit(1);
+                if (pendingRows && pendingRows.length > 0) {
+                    Alert.alert(t('creatorApply.alerts.alreadyPendingTitle'), t('creatorApply.alerts.alreadyPendingMessage'));
+                    setLoading(false);
+                    return;
+                }
+            } catch { /* fail-open */ }
+
             const { error } = await supabase
                 .from('creator_applications')
                 .insert({
                     user_id: toSafeUUID(user?.id!),
                     application_kind: 'creator',
+                    display_name: user?.fullName || null,
+                    email: user?.primaryEmailAddress?.emailAddress || null,
                     motivation: form.motivation,
                     opportunity_type: form.opportunityType,
                     opportunity_title: form.opportunityTitle,

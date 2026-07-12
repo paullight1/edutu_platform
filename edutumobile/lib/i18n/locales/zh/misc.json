@@ -36,7 +36,9 @@
         },
         "alerts": {
             "uploadImageFailed": "图片上传失败，请再试一次。",
-            "submitFailed": "连接失败，请再试一次。"
+            "submitFailed": "连接失败，请再试一次。",
+            "alreadyPendingTitle": "申请审核中",
+            "alreadyPendingMessage": "你已有一份创作者申请正在审核中。有结果后我们会通知你。"
         },
         "success": {
             "headerTitle": "申请已提交",
@@ -372,7 +374,18 @@
                 "reviewerNotes": "审核备注",
                 "notePlaceholder": "为这个决定添加备注……",
                 "reject": "拒绝",
-                "approve": "批准"
+                "approve": "批准",
+                "contentType": "内容类型",
+                "experience": "经验",
+                "contact": "联系方式",
+                "sampleContent": "内容示例"
+            },
+            "card": {
+                "untitled": "创作者申请"
+            },
+            "kind": {
+                "creator": "创作者",
+                "mentor": "导师"
             }
         },
         "premiumFeatures": {

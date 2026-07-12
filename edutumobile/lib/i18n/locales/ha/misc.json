@@ -36,7 +36,9 @@
         },
         "alerts": {
             "uploadImageFailed": "An kasa loda hoto. Da fatan za a sake gwadawa.",
-            "submitFailed": "Haɗi ya kasa. Da fatan za a sake gwadawa."
+            "submitFailed": "Haɗi ya kasa. Da fatan za a sake gwadawa.",
+            "alreadyPendingTitle": "Neman yana jira",
+            "alreadyPendingMessage": "Kana da neman zama mahalicci da ake dubawa. Za mu sanar da kai idan an yanke shawara."
         },
         "success": {
             "headerTitle": "An Mika Buƙata",
@@ -372,7 +374,18 @@
                 "reviewerNotes": "Bayanan Mai Dubawa",
                 "notePlaceholder": "Saka bayani game da wannan hukuncin...",
                 "reject": "Ƙi",
-                "approve": "Amince"
+                "approve": "Amince",
+                "contentType": "Nau’in abun ciki",
+                "experience": "Kwarewa",
+                "contact": "Tuntuɓa",
+                "sampleContent": "Misalin abun ciki"
+            },
+            "card": {
+                "untitled": "Neman zama mahalicci"
+            },
+            "kind": {
+                "creator": "Mahalicci",
+                "mentor": "Jagora"
             }
         },
         "premiumFeatures": {

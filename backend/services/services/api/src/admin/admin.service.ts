@@ -318,7 +318,7 @@ export class AdminService {
         db
           .select()
           .from(creatorApplications)
-          .orderBy(desc(creatorApplications.submittedAt))
+          .orderBy(desc(creatorApplications.appliedAt))
           .limit(10),
         db
           .select({
@@ -357,8 +357,9 @@ export class AdminService {
             id: creatorApplications.id,
             userId: creatorApplications.userId,
             displayName: creatorApplications.displayName,
+            opportunityTitle: creatorApplications.opportunityTitle,
             status: creatorApplications.status,
-            submittedAt: creatorApplications.submittedAt,
+            submittedAt: creatorApplications.appliedAt,
             updatedAt: creatorApplications.updatedAt,
           })
           .from(creatorApplications)
@@ -425,7 +426,10 @@ export class AdminService {
                 : application.status === "rejected"
                   ? "Creator rejected"
                   : "Creator application submitted",
-            detail: application.displayName,
+            detail:
+              application.displayName ||
+              application.opportunityTitle ||
+              "Creator application",
             timestamp: this.dateToIso(
               application.updatedAt || application.submittedAt,
             ),

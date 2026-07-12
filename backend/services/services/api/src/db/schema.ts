@@ -37,6 +37,7 @@ export const profiles = pgTable("profiles", {
     .default({}),
   creditsBalance: integer("credits_balance").default(0), // In-app credits currency
   creatorStatus: text("creator_status").default("none"), // 'none', 'pending', 'approved', 'rejected'
+  mentorStatus: text("mentor_status").default("none"), // mirror of creatorStatus for mentor applications
   creatorMetadata: jsonb("creator_metadata")
     .$type<Record<string, unknown>>()
     .default({}),
@@ -501,20 +502,42 @@ export const apiPartnerEvents = pgTable(
 );
 
 // Creator / Seller Applications — Users apply to become marketplace creators
+// Canonical shape of the live table (see edutumobile migration 031). One table
+// serves both application kinds and all clients: mobile creator-apply writes
+// the motivation/opportunity/kyc fields, mobile mentor-apply and the web form
+// write the display/content/proof fields. Only user_id / application_kind /
+// status are NOT NULL — per-kind requirements are validated in the DTO layer.
 export const creatorApplications = pgTable("creator_applications", {
   id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id").notNull(), // FK to profiles.user_id
-  displayName: text("display_name").notNull(),
-  bio: text("bio").notNull(),
-  contentType: text("content_type").notNull(), // 'course', 'event', 'mentorship', 'template', 'resource'
-  experience: text("experience").notNull(), // Years of experience / portfolio
-  sampleContentUrl: text("sample_content_url"), // Optional link to their work
-  status: text("status").default("pending"), // 'pending', 'approved', 'rejected'
-  adminNote: text("admin_note"), // Reason for rejection or note from admin
-  reviewedBy: uuid("reviewed_by"),
-  reviewedAt: timestamp("reviewed_at"),
-  submittedAt: timestamp("submitted_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  userId: text("user_id").notNull(), // profiles.user_id (raw Clerk sub or safe-uuid)
+  applicationKind: text("application_kind").notNull().default("creator"), // 'creator' | 'mentor'
+  displayName: text("display_name"),
+  bio: text("bio"),
+  contentType: text("content_type"), // 'course', 'event', 'mentorship', 'template', 'resource'
+  experience: text("experience"),
+  sampleContentUrl: text("sample_content_url"),
+  motivation: text("motivation"),
+  opportunityType: text("opportunity_type"),
+  opportunityTitle: text("opportunity_title"),
+  linkedinUrl: text("linkedin_url"),
+  portfolioUrl: text("portfolio_url"),
+  socialLinks: text("social_links"),
+  kycImageUrl: text("kyc_image_url"), // storage PATH in the private creator-applications bucket
+  proofUrl: text("proof_url"), // public URL in the creator-proofs bucket
+  proofPath: text("proof_path"),
+  proofFileName: text("proof_file_name"),
+  proofFileType: text("proof_file_type"),
+  proofFileSize: integer("proof_file_size"),
+  consentAccepted: boolean("consent_accepted").default(false),
+  email: text("email"),
+  phoneNumber: text("phone_number"),
+  country: text("country"),
+  status: text("status").notNull().default("pending"), // 'pending', 'approved', 'rejected'
+  reviewerNotes: text("reviewer_notes"),
+  reviewedBy: text("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  appliedAt: timestamp("applied_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
 // User-submitted opportunities awaiting editorial review. Kept OUT of the live

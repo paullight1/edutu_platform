@@ -133,6 +133,7 @@ const MentorPage: React.FC = () => {
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
+    const [submitError, setSubmitError] = useState<string | null>(null);
 
     const stepIndex = MENTOR_STEPS.indexOf(currentStep);
 
@@ -230,29 +231,16 @@ const MentorPage: React.FC = () => {
         }
 
         setIsSubmitting(true);
+        setSubmitError(null);
         try {
             const proof = await uploadProofFile(userId, proofFile);
-            const contentTypeLabel = CONTENT_TYPES.find(c => c.id === formData.contentType)?.label || formData.contentType;
             const now = new Date().toISOString();
-            const creatorMetadata = {
-                expertise: contentTypeLabel,
-                bio: formData.bio,
-                portfolioUrl: formData.portfolioUrl,
-                linkedin_url: formData.linkedInUrl,
-                opportunity_type: contentTypeLabel,
-                opportunity_title: `${contentTypeLabel} from ${formData.displayName}`,
-                kyc_image_url: proof.url,
-                proof_file_name: proofFile.name,
-                proof_file_type: proofFile.type,
-                proof_file_size: proofFile.size,
-                proof_file_path: proof.path,
-                phone_number: formData.phoneNumber,
-                country: formData.country,
-                email: formData.email,
-                consent_accepted: consentAccepted,
-                appliedAt: now,
-            };
 
+            // Only self-service columns can be written directly — role /
+            // creator_status / creator_metadata are grant-protected and would
+            // fail the whole upsert with 42501. Status goes through the
+            // SECURITY DEFINER RPC; the application row below carries the
+            // full metadata for review.
             const { error: profileError } = await supabase
                 .from('profiles')
                 .upsert({
@@ -260,25 +248,35 @@ const MentorPage: React.FC = () => {
                     full_name: formData.displayName,
                     email: formData.email,
                     country: formData.country,
-                    role: 'user',
-                    creator_status: 'pending',
-                    creator_metadata: creatorMetadata,
                     updated_at: now,
                 }, { onConflict: 'user_id' });
 
             if (profileError) throw profileError;
 
+            const { error: statusError } = await supabase
+                .rpc('set_creator_status', { p_status: 'pending' });
+            if (statusError) {
+                console.warn('Could not flag creator status as pending', statusError);
+            }
+
+            // Canonical creator_applications columns (snake_case; applied_at is
+            // the real timestamp column). This row is what admins review — its
+            // failure must fail the submission, not be swallowed.
             const { error } = await supabase
                 .from('creator_applications')
                 .insert({
                     user_id: userId,
+                    application_kind: 'creator',
                     display_name: formData.displayName,
                     email: formData.email,
-                    phoneNumber: formData.phoneNumber,
+                    phone_number: formData.phoneNumber,
                     country: formData.country,
                     bio: formData.bio,
+                    motivation: formData.motivation || null,
                     content_type: formData.contentType,
                     experience: formData.experience || 'Not specified',
+                    linkedin_url: formData.linkedInUrl || null,
+                    portfolio_url: formData.portfolioUrl || null,
                     sample_content_url: formData.portfolioUrl || formData.linkedInUrl,
                     proof_file_name: proofFile?.name || null,
                     proof_file_type: proofFile?.type || null,
@@ -287,15 +285,18 @@ const MentorPage: React.FC = () => {
                     proof_path: proof.path,
                     consent_accepted: consentAccepted,
                     status: 'pending',
-                    submitted_at: now,
+                    applied_at: now,
                 });
 
-            if (error) {
-                console.warn('Creator application audit insert failed after profile submission', error);
-            }
+            if (error) throw error;
             setIsSubmitted(true);
         } catch (err) {
             console.error('Submission error:', err);
+            // Supabase errors are plain objects (PostgrestError), not Error instances.
+            const message = (err as { message?: string } | null)?.message;
+            setSubmitError(
+                message || 'Something went wrong while submitting your application. Please try again.',
+            );
         } finally {
             setIsSubmitting(false);
         }
@@ -946,6 +947,12 @@ const MentorPage: React.FC = () => {
                                     </span>
                                 </label>
                             </div>
+
+                            {submitError && (
+                                <div className="mb-4 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger" role="alert">
+                                    {submitError}
+                                </div>
+                            )}
 
                             <button
                                 onClick={handleSubmit}

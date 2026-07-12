@@ -36,7 +36,9 @@
         },
         "alerts": {
             "uploadImageFailed": "Failed to upload image. Please try again.",
-            "submitFailed": "Connection failed. Please try again."
+            "submitFailed": "Connection failed. Please try again.",
+            "alreadyPendingTitle": "Application pending",
+            "alreadyPendingMessage": "You already have a creator application under review. We’ll notify you once it’s decided."
         },
         "success": {
             "headerTitle": "Application Submitted",
@@ -372,7 +374,18 @@
                 "reviewerNotes": "Reviewer Notes",
                 "notePlaceholder": "Add a note about this decision...",
                 "reject": "Reject",
-                "approve": "Approve"
+                "approve": "Approve",
+                "contentType": "Content type",
+                "experience": "Experience",
+                "contact": "Contact",
+                "sampleContent": "Sample content"
+            },
+            "card": {
+                "untitled": "Creator application"
+            },
+            "kind": {
+                "creator": "Creator",
+                "mentor": "Mentor"
             }
         },
         "premiumFeatures": {

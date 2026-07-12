@@ -36,7 +36,9 @@
         },
         "alerts": {
             "uploadImageFailed": "Falha ao enviar a imagem. Tente novamente.",
-            "submitFailed": "Falha na conexão. Tente novamente."
+            "submitFailed": "Falha na conexão. Tente novamente.",
+            "alreadyPendingTitle": "Candidatura pendente",
+            "alreadyPendingMessage": "Você já tem uma candidatura de criador em análise. Avisaremos quando houver uma decisão."
         },
         "success": {
             "headerTitle": "Candidatura enviada",
@@ -372,7 +374,18 @@
                 "reviewerNotes": "Notas do revisor",
                 "notePlaceholder": "Adicione uma nota sobre esta decisão...",
                 "reject": "Rejeitar",
-                "approve": "Aprovar"
+                "approve": "Aprovar",
+                "contentType": "Tipo de conteúdo",
+                "experience": "Experiência",
+                "contact": "Contato",
+                "sampleContent": "Conteúdo de exemplo"
+            },
+            "card": {
+                "untitled": "Candidatura de criador"
+            },
+            "kind": {
+                "creator": "Criador",
+                "mentor": "Mentor"
             }
         },
         "premiumFeatures": {

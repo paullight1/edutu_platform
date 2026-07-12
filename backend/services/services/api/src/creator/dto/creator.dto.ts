@@ -1,12 +1,40 @@
 import { z } from "zod";
 
-export const CreatorApplicationSchema = z.object({
-  displayName: z.string().trim().min(1).max(120),
-  bio: z.string().trim().min(20).max(4000),
-  contentType: z.string().trim().min(1).max(80),
-  experience: z.string().trim().min(1).max(2000),
-  sampleContentUrl: z.string().url().optional(),
-});
+// Canonical application payload — one schema for both kinds and every client.
+// Which narrative fields are present depends on the surface (mobile creator
+// wizard sends motivation/opportunity/KYC; the web form sends display/content/
+// proof), so almost everything is optional and the refine enforces that the
+// application says *something* about the applicant.
+export const CreatorApplicationSchema = z
+  .object({
+    applicationKind: z.enum(["creator", "mentor"]).default("creator"),
+    displayName: z.string().trim().min(1).max(120).optional(),
+    bio: z.string().trim().min(1).max(4000).optional(),
+    contentType: z.string().trim().min(1).max(80).optional(),
+    experience: z.string().trim().max(2000).optional(),
+    sampleContentUrl: z.string().url().optional().or(z.literal("")),
+    motivation: z.string().trim().max(4000).optional(),
+    opportunityType: z.string().trim().max(80).optional(),
+    opportunityTitle: z.string().trim().max(200).optional(),
+    linkedinUrl: z.string().trim().max(500).optional(),
+    portfolioUrl: z.string().trim().max(500).optional(),
+    socialLinks: z.string().trim().max(1000).optional(),
+    // Storage path in the private creator-applications bucket (identity doc).
+    kycImageUrl: z.string().trim().max(500).optional(),
+    // Public proof file in the creator-proofs bucket.
+    proofUrl: z.string().url().optional().or(z.literal("")),
+    proofPath: z.string().trim().max(500).optional(),
+    proofFileName: z.string().trim().max(255).optional(),
+    proofFileType: z.string().trim().max(120).optional(),
+    proofFileSize: z.number().int().min(0).max(100_000_000).optional(),
+    consentAccepted: z.boolean().optional(),
+    email: z.string().trim().email().optional(),
+    phoneNumber: z.string().trim().max(40).optional(),
+    country: z.string().trim().max(120).optional(),
+  })
+  .refine((dto) => Boolean(dto.displayName || dto.bio || dto.motivation), {
+    message: "Provide at least a display name, bio, or motivation.",
+  });
 
 export type CreatorApplicationDto = z.infer<typeof CreatorApplicationSchema>;
 
