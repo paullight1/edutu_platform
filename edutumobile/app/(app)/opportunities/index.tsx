@@ -45,16 +45,7 @@ import {
   ArrowDownWideNarrow,
   Bell,
   AlertCircle,
-  GraduationCap,
-  Briefcase,
-  Layers,
-  Medal,
-  HandCoins,
-  BookOpen,
-  Rocket,
-  CalendarDays,
 } from 'lucide-react-native';
-import { FadeInUp } from 'react-native-reanimated';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 import { AnimatedPressable } from '../../../components/ui/AnimatedPressable';
 import { useTheme } from '../../../components/context/ThemeContext';
@@ -69,6 +60,7 @@ import { syncAndUpdateOpportunityWidgetSnapshot } from '../../../lib/opportunity
 import { AdBanner, BANNER_PRESETS } from '../../../components/ui/AdBanner';
 import { DiscoveryCategoryIcon, getDiscoveryCategoryIconSource, getDiscoveryCategoryIconXml } from '../../../lib/discoveryCategoryIcons';
 import { DISCOVERY_CATEGORY_CATALOG, normalizeDiscoveryCategoryId, type DiscoveryCategoryId } from '../../../lib/discoveryCategories';
+import { DISCOVERY_TILE_GLYPHS, DISCOVERY_TILE_GRADIENTS } from '../../../lib/discoveryTileGlyphs';
 import { shareOpportunity } from '../../../lib/shareOpportunity';
 
 type SortMode = 'recommended' | 'deadline' | 'newest';
@@ -98,32 +90,8 @@ const DISCOVERY_CARDS = DISCOVERY_CATEGORY_CATALOG.map((category) => ({
   image: category.image,
 }));
 
-// Chooser tiles get a distinct glyph per category; the shared catalog `icon`
-// field only has 5 coarse types, so the 1:1 mapping lives here.
-const DISCOVERY_TILE_ICONS: Record<DiscoveryCategoryId, typeof GraduationCap> = {
-  scholarships: GraduationCap,
-  internships: Briefcase,
-  programs: Layers,
-  fellowships: Medal,
-  grants: HandCoins,
-  graduate_programs: BookOpen,
-  bootcamps: Rocket,
-  events: CalendarDays,
-};
-
-// Solid gradient pairs for the chooser tiles (same visual language as the
-// home-screen quick actions); catalog `colors` are rgba hero overlays, too
-// translucent for small tiles.
-const DISCOVERY_TILE_GRADIENTS: Record<DiscoveryCategoryId, [string, string]> = {
-  scholarships: ['#F97316', '#DC2626'],
-  internships: ['#3B82F6', '#1D4ED8'],
-  programs: ['#10B981', '#059669'],
-  fellowships: ['#8B5CF6', '#6D28D9'],
-  grants: ['#14B8A6', '#0D9488'],
-  graduate_programs: ['#7C3AED', '#4C1D95'],
-  bootcamps: ['#EC4899', '#BE185D'],
-  events: ['#0EA5E9', '#0369A1'],
-};
+// Distinct glyph + solid gradient per category, shared with the home tiles.
+const DISCOVERY_TILE_ICONS = DISCOVERY_TILE_GLYPHS;
 
 // `title`/`desc` hold i18n keys in the 'opps' namespace, translated at render time.
 const OTHER_FEATURES = [
@@ -365,39 +333,41 @@ function DiscoveryCard({
   item,
   active,
   onPress,
-  index = 0,
 }: {
   item: typeof DISCOVERY_CARDS[number];
   active: boolean;
   onPress: () => void;
-  index?: number;
 }) {
   const { t } = useTranslation('opps');
   const { colors } = useTheme();
   const title = t(item.label, { defaultValue: item.fallbackTitle });
   const Icon = DISCOVERY_TILE_ICONS[item.id];
+  // No `entering` animation here: staggered entering on wrap-grid children
+  // inside the FlatList header (which remounts via key={viewMode}) lands tiles
+  // at wrong offsets, overlapping the sections below.
   return (
     <AnimatedPressable
       onPress={onPress}
       style={styles.discoveryCard}
-      entering={FadeInUp.delay(80 + index * 60).duration(400).springify()}
       hapticFeedback="medium"
       scaleTo={0.92}
     >
-      <LinearGradient
-        colors={DISCOVERY_TILE_GRADIENTS[item.id]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.discoveryIconTile, active && styles.discoveryCardActive]}
-      >
-        <Icon color="#FFFFFF" size={28} strokeWidth={1.5} />
-      </LinearGradient>
-      <Text
-        style={[styles.discoveryTitle, { color: active ? colors.foreground : colors.textSecondary }]}
-        numberOfLines={2}
-      >
-        {title}
-      </Text>
+      <View style={styles.discoveryCardInner}>
+        <LinearGradient
+          colors={DISCOVERY_TILE_GRADIENTS[item.id]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.discoveryIconTile, active && styles.discoveryCardActive]}
+        >
+          <Icon color="#FFFFFF" size={28} strokeWidth={1.5} />
+        </LinearGradient>
+        <Text
+          style={[styles.discoveryTitle, { color: active ? colors.foreground : colors.textSecondary }]}
+          numberOfLines={2}
+        >
+          {title}
+        </Text>
+      </View>
     </AnimatedPressable>
   );
 }
@@ -1215,12 +1185,11 @@ export default function OpportunitiesScreen() {
                 </View>
 
                 <View style={styles.discoveryGrid}>
-                  {DISCOVERY_CARDS.map((card, index) => (
+                  {DISCOVERY_CARDS.map((card) => (
                     <DiscoveryCard
                       key={card.id}
                       item={card}
                       active={false}
-                      index={index}
                       onPress={() => handleDiscoveryPress(card.id)}
                     />
                   ))}
@@ -1579,6 +1548,12 @@ const styles = StyleSheet.create({
   },
   discoveryCard: {
     width: DISCOVERY_TILE_WIDTH,
+    // Explicit height: AnimatedPressable fills its box with flex:1 wrappers,
+    // so an auto-height tile collapses inside the wrap grid.
+    height: 104,
+  },
+  discoveryCardInner: {
+    flex: 1,
     alignItems: 'center',
   },
   discoveryCardActive: {

@@ -13,12 +13,27 @@ import {
     Share2,
     MapPin,
     Pencil,
-    Check,
     X,
+    Plus,
+    Minus,
+    Maximize2,
 } from "lucide-react-native";
 import { useTheme } from "../../components/context/ThemeContext";
 import { LinearGradient } from "expo-linear-gradient";
-import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
+import Animated, {
+    FadeInDown,
+    FadeInUp,
+    LinearTransition,
+    runOnJS,
+    useAnimatedStyle,
+    useSharedValue,
+    useReducedMotion,
+    withRepeat,
+    withSpring,
+    withTiming,
+} from "react-native-reanimated";
+import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
+import * as Haptics from "expo-haptics";
 import { supabase } from "../../lib/supabase";
 import { useOpportunities } from "@edutu/core/src/hooks/useOpportunities";
 import { Opportunity } from "@edutu/core/src/types/opportunity";
@@ -34,7 +49,10 @@ import {
     getDiscoveryCategory,
     type DiscoveryCategory,
     type DiscoveryCategoryId,
+    type DiscoveryTileSize,
+    type HomeCategoryTile,
 } from "../../lib/discoveryCategories";
+import { DISCOVERY_TILE_GLYPHS, DISCOVERY_TILE_GRADIENTS } from "../../lib/discoveryTileGlyphs";
 import { useHomeCategories } from "../../lib/homeCategoriesStore";
 import { useTranslation } from "react-i18next";
 
@@ -44,6 +62,28 @@ const CARD_WIDTH = (width - 40 - CARD_GAP) / 2;
 // Wide enough to fit a full content card, narrow enough that the next card
 // peeks in — a visual cue that the row scrolls sideways.
 const RAIL_CARD_WIDTH = Math.min(Math.round(width * 0.74), 300);
+
+// ─── Home discovery tiles (widget-style sizes) ──────────────────────────────
+const HOME_GRID_WIDTH = width - 40;
+const ICON_TILE_WIDTH = (HOME_GRID_WIDTH - 3 * CARD_GAP) / 4;
+// Editor grid sits inside 20px backdrop padding + 20px sheet padding per side.
+const EDITOR_GRID_WIDTH = width - 80;
+const EDITOR_GAP = 10;
+const EDITOR_TILE_WIDTH: Record<DiscoveryTileSize, number> = {
+    icon: (EDITOR_GRID_WIDTH - 3 * EDITOR_GAP) / 4,
+    card: (EDITOR_GRID_WIDTH - EDITOR_GAP) / 2,
+    long: EDITOR_GRID_WIDTH,
+};
+const EDITOR_FACE_HEIGHT: Record<DiscoveryTileSize, number> = {
+    icon: (EDITOR_GRID_WIDTH - 3 * EDITOR_GAP) / 4,
+    card: 64,
+    long: 56,
+};
+const NEXT_TILE_SIZE: Record<DiscoveryTileSize, DiscoveryTileSize> = {
+    icon: 'card',
+    card: 'long',
+    long: 'icon',
+};
 
 // ─── Quick Actions Grid Component ─────────────────────────────────────────────
 // `title` holds an i18n key (home namespace); translated at render time.
@@ -84,30 +124,209 @@ function DiscoveryCardFace({ item, title }: { item: DiscoveryCategory; title: st
     );
 }
 
-function DiscoveryCategoryGrid({ router, categories }: { router: any; categories: DiscoveryCategory[] }) {
+// Size-aware tile face: icon = gradient square with a glyph, card = the
+// classic half-width card, long = full-width banner with glyph + chevron.
+function DiscoveryTileFace({ item, size, title }: { item: DiscoveryCategory; size: DiscoveryTileSize; title: string }) {
+    const Glyph = DISCOVERY_TILE_GLYPHS[item.id];
+
+    if (size === 'icon') {
+        return (
+            <LinearGradient
+                colors={DISCOVERY_TILE_GRADIENTS[item.id]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.iconTileSquare}
+            >
+                <Glyph size={26} color="#FFFFFF" strokeWidth={1.7} />
+            </LinearGradient>
+        );
+    }
+
+    if (size === 'long') {
+        const row = (
+            <View style={styles.longTileRow}>
+                <View style={styles.longTileGlyph}>
+                    <Glyph size={18} color="#FFFFFF" strokeWidth={1.9} />
+                </View>
+                <Text style={styles.longTileTitle} numberOfLines={1}>{title}</Text>
+                <ChevronRight size={18} color="rgba(255,255,255,0.85)" />
+            </View>
+        );
+        if (item.image) {
+            return (
+                <ImageBackground
+                    source={item.image}
+                    style={styles.longTileBg}
+                    imageStyle={styles.discoveryImageRadius}
+                    resizeMode="cover"
+                >
+                    <View style={styles.discoveryTint} />
+                    {row}
+                </ImageBackground>
+            );
+        }
+        return (
+            <LinearGradient
+                colors={item.colors}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.longTileBg}
+            >
+                {row}
+            </LinearGradient>
+        );
+    }
+
+    return <DiscoveryCardFace item={item} title={title} />;
+}
+
+type HomeTileEntry = { tile: HomeCategoryTile; category: DiscoveryCategory };
+
+function DiscoveryTileGrid({ router, entries, textPrimary }: { router: any; entries: HomeTileEntry[]; textPrimary: string }) {
     const { t } = useTranslation('home');
     return (
         <View style={styles.discoveryGrid}>
-            {categories.map((item, index) => (
-                <AnimatedPressable
-                    key={item.id}
-                    onPress={() => router.push({ pathname: '/opportunities', params: { category: item.id } })}
-                    style={styles.discoveryCard}
-                    entering={FadeInDown.delay(index * 70).duration(360).springify()}
-                    hapticFeedback="medium"
-                    scaleTo={0.96}
-                >
-                    <DiscoveryCardFace item={item} title={t(item.homeTitleKey, { defaultValue: item.fallbackTitle })} />
-                </AnimatedPressable>
-            ))}
+            {entries.map(({ tile, category }, index) => {
+                const title = t(category.homeTitleKey, { defaultValue: category.fallbackTitle });
+                const onPress = () => router.push({ pathname: '/opportunities', params: { category: category.id } });
+                if (tile.size === 'icon') {
+                    return (
+                        <AnimatedPressable
+                            key={category.id}
+                            onPress={onPress}
+                            style={styles.iconTileWrap}
+                            entering={FadeInDown.delay(index * 60).duration(360).springify()}
+                            hapticFeedback="medium"
+                            scaleTo={0.94}
+                        >
+                            <View style={styles.iconTileBox}>
+                                <DiscoveryTileFace item={category} size="icon" title={title} />
+                            </View>
+                            <Text style={[styles.iconTileLabel, { color: textPrimary }]} numberOfLines={1}>{title}</Text>
+                        </AnimatedPressable>
+                    );
+                }
+                return (
+                    <AnimatedPressable
+                        key={category.id}
+                        onPress={onPress}
+                        style={tile.size === 'long' ? styles.longTileCard : styles.discoveryCard}
+                        entering={FadeInDown.delay(index * 60).duration(360).springify()}
+                        hapticFeedback="medium"
+                        scaleTo={0.96}
+                    >
+                        <DiscoveryTileFace item={category} size={tile.size} title={title} />
+                    </AnimatedPressable>
+                );
+            })}
         </View>
     );
 }
 
-// Full-catalog picker: tap cards to toggle which ones show on the homepage.
+// ─── Widget-style homepage editor ───────────────────────────────────────────
+type EditorTileLayout = { x: number; y: number; width: number; height: number };
+
+// One draggable/resizable tile in the editor's WYSIWYG grid. Long-press then
+// drag to rearrange; the − badge removes it, the ⤢ badge cycles icon→card→long.
+function EditorTile({
+    tile,
+    category,
+    title,
+    labelColor,
+    canRemove,
+    onLayoutTile,
+    onDragStart,
+    onDrop,
+    onCycleSize,
+    onRemove,
+}: {
+    tile: HomeCategoryTile;
+    category: DiscoveryCategory;
+    title: string;
+    labelColor: string;
+    canRemove: boolean;
+    onLayoutTile: (id: DiscoveryCategoryId, layout: EditorTileLayout) => void;
+    onDragStart: (id: DiscoveryCategoryId) => void;
+    onDrop: (id: DiscoveryCategoryId, dx: number, dy: number) => void;
+    onCycleSize: (id: DiscoveryCategoryId) => void;
+    onRemove: (id: DiscoveryCategoryId) => void;
+}) {
+    const { t } = useTranslation('home');
+    const tx = useSharedValue(0);
+    const ty = useSharedValue(0);
+    const scale = useSharedValue(1);
+    const lift = useSharedValue(0);
+
+    const pan = Gesture.Pan()
+        .activateAfterLongPress(220)
+        .onStart(() => {
+            scale.value = withSpring(1.07, { damping: 14 });
+            lift.value = 30;
+            runOnJS(onDragStart)(tile.id);
+        })
+        .onUpdate((event) => {
+            tx.value = event.translationX;
+            ty.value = event.translationY;
+        })
+        .onEnd((event) => {
+            runOnJS(onDrop)(tile.id, event.translationX, event.translationY);
+        })
+        .onFinalize(() => {
+            scale.value = withSpring(1, { damping: 14 });
+            lift.value = 0;
+            tx.value = withSpring(0, { damping: 18, stiffness: 220 });
+            ty.value = withSpring(0, { damping: 18, stiffness: 220 });
+        });
+
+    const dragStyle = useAnimatedStyle(() => ({
+        transform: [{ translateX: tx.value }, { translateY: ty.value }, { scale: scale.value }],
+        zIndex: lift.value,
+        elevation: lift.value,
+    }));
+
+    return (
+        <GestureDetector gesture={pan}>
+            <Animated.View
+                layout={LinearTransition.springify().damping(20)}
+                onLayout={(event) => onLayoutTile(tile.id, event.nativeEvent.layout)}
+                style={[{ width: EDITOR_TILE_WIDTH[tile.size] }, dragStyle]}
+            >
+                <View style={[styles.editorFace, { height: EDITOR_FACE_HEIGHT[tile.size] }]}>
+                    <View style={styles.editorFaceClip}>
+                        <DiscoveryTileFace item={category} size={tile.size} title={title} />
+                    </View>
+                    {canRemove && (
+                        <TouchableOpacity
+                            onPress={() => onRemove(tile.id)}
+                            hitSlop={8}
+                            style={styles.editorRemoveBadge}
+                            accessibilityLabel={t('home.discoveryEditor.remove', { defaultValue: 'Remove {{title}}', title })}
+                        >
+                            <Minus size={12} color="#FFFFFF" strokeWidth={3} />
+                        </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                        onPress={() => onCycleSize(tile.id)}
+                        hitSlop={8}
+                        style={styles.editorSizeBadge}
+                        accessibilityLabel={t('home.discoveryEditor.resize', { defaultValue: 'Resize {{title}}', title })}
+                    >
+                        <Maximize2 size={11} color="#FFFFFF" strokeWidth={2.5} />
+                    </TouchableOpacity>
+                </View>
+                {tile.size === 'icon' && (
+                    <Text style={[styles.editorIconLabel, { color: labelColor }]} numberOfLines={1}>{title}</Text>
+                )}
+            </Animated.View>
+        </GestureDetector>
+    );
+}
+
+// Widget-style editor: tiles render at their real size; long-press drag to
+// rearrange, ⤢ cycles the size, − removes, and the chips below add more.
 function HomeCategoriesEditor({
     visible,
-    selected,
+    tiles,
     onClose,
     onSave,
     isDark,
@@ -115,86 +334,180 @@ function HomeCategoriesEditor({
     textSecondary,
 }: {
     visible: boolean;
-    selected: DiscoveryCategoryId[];
+    tiles: HomeCategoryTile[];
     onClose: () => void;
-    onSave: (slugs: DiscoveryCategoryId[]) => void;
+    onSave: (tiles: HomeCategoryTile[]) => void;
     isDark: boolean;
     textPrimary: string;
     textSecondary: string;
 }) {
     const { t } = useTranslation('home');
-    const [draft, setDraft] = useState<DiscoveryCategoryId[]>(selected);
+    const [draft, setDraft] = useState<HomeCategoryTile[]>(tiles);
+    const [draggingId, setDraggingId] = useState<DiscoveryCategoryId | null>(null);
+    const layoutsRef = useRef(new Map<DiscoveryCategoryId, EditorTileLayout>());
 
     useEffect(() => {
-        if (visible) setDraft(selected);
-    }, [visible, selected]);
+        if (visible) {
+            setDraft(tiles);
+            layoutsRef.current.clear();
+        }
+    }, [visible, tiles]);
 
-    const toggle = (id: DiscoveryCategoryId) => {
+    const handleLayoutTile = useCallback((id: DiscoveryCategoryId, layout: EditorTileLayout) => {
+        layoutsRef.current.set(id, layout);
+    }, []);
+
+    const handleDragStart = useCallback((id: DiscoveryCategoryId) => {
+        setDraggingId(id);
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }, []);
+
+    // Reorder on release: the dragged tile lands at whichever tile its centre
+    // was dropped on; layout transitions animate everyone into place.
+    const handleDrop = useCallback((id: DiscoveryCategoryId, dx: number, dy: number) => {
+        setDraggingId(null);
         setDraft((prev) => {
-            if (prev.includes(id)) {
-                // Keep at least one card on the homepage.
-                if (prev.length === 1) return prev;
-                return prev.filter((slug) => slug !== id);
+            const fromIndex = prev.findIndex((entry) => entry.id === id);
+            const own = layoutsRef.current.get(id);
+            if (fromIndex < 0 || !own) return prev;
+            const centerX = own.x + own.width / 2 + dx;
+            const centerY = own.y + own.height / 2 + dy;
+            let target = fromIndex;
+            for (let i = 0; i < prev.length; i += 1) {
+                if (prev[i].id === id) continue;
+                const slot = layoutsRef.current.get(prev[i].id);
+                if (!slot) continue;
+                if (
+                    centerX >= slot.x && centerX <= slot.x + slot.width &&
+                    centerY >= slot.y && centerY <= slot.y + slot.height
+                ) {
+                    target = i;
+                    break;
+                }
             }
-            return [...prev, id];
+            if (target === fromIndex) {
+                // Dropped past the last row → send to the end.
+                const bottoms = Array.from(layoutsRef.current.values()).map((slot) => slot.y + slot.height);
+                if (bottoms.length && centerY > Math.max(...bottoms)) target = prev.length - 1;
+            }
+            if (target === fromIndex) return prev;
+            const next = [...prev];
+            const [moved] = next.splice(fromIndex, 1);
+            next.splice(target, 0, moved);
+            return next;
         });
-    };
+    }, []);
+
+    const handleCycleSize = useCallback((id: DiscoveryCategoryId) => {
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setDraft((prev) => prev.map((entry) => (
+            entry.id === id ? { ...entry, size: NEXT_TILE_SIZE[entry.size] } : entry
+        )));
+    }, []);
+
+    const handleRemove = useCallback((id: DiscoveryCategoryId) => {
+        // Keep at least one tile on the homepage.
+        setDraft((prev) => (prev.length > 1 ? prev.filter((entry) => entry.id !== id) : prev));
+    }, []);
+
+    const handleAdd = useCallback((id: DiscoveryCategoryId) => {
+        setDraft((prev) => (prev.some((entry) => entry.id === id) ? prev : [...prev, { id, size: 'card' as const }]));
+    }, []);
+
+    const available = DISCOVERY_CATEGORY_CATALOG.filter(
+        (category) => !draft.some((entry) => entry.id === category.id),
+    );
 
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-            <Pressable style={styles.editorBackdrop} onPress={onClose}>
-                <Pressable
-                    style={[styles.editorSheet, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' }]}
-                    onPress={() => { }}
-                >
-                    <View style={styles.editorHeader}>
-                        <View style={{ flex: 1 }}>
-                            <Text style={[styles.editorTitle, { color: textPrimary }]}>
-                                {t('home.discoveryEditor.title', { defaultValue: 'Customize categories' })}
-                            </Text>
-                            <Text style={[styles.editorSubtitle, { color: textSecondary }]}>
-                                {t('home.discoveryEditor.subtitle', { defaultValue: 'Choose which cards show on your homepage.' })}
-                            </Text>
-                        </View>
-                        <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.editorCloseBtn}>
-                            <X size={20} color={textSecondary} />
-                        </TouchableOpacity>
-                    </View>
-                    <View style={styles.discoveryGrid}>
-                        {DISCOVERY_CATEGORY_CATALOG.map((item) => {
-                            const active = draft.includes(item.id);
-                            return (
-                                <AnimatedPressable
-                                    key={item.id}
-                                    onPress={() => toggle(item.id)}
-                                    style={[styles.discoveryCard, styles.editorCardSize, !active && styles.editorCardInactive]}
-                                    hapticFeedback="light"
-                                    scaleTo={0.96}
-                                >
-                                    <DiscoveryCardFace item={item} title={t(item.homeTitleKey, { defaultValue: item.fallbackTitle })} />
-                                    {active && (
-                                        <View style={styles.editorCheck}>
-                                            <Check size={12} color="#FFFFFF" strokeWidth={3} />
-                                        </View>
-                                    )}
-                                </AnimatedPressable>
-                            );
-                        })}
-                    </View>
-                    <TouchableOpacity
-                        style={styles.editorSaveBtn}
-                        onPress={() => {
-                            onSave(draft);
-                            onClose();
-                        }}
-                        activeOpacity={0.85}
+            <GestureHandlerRootView style={{ flex: 1 }}>
+                <Pressable style={styles.editorBackdrop} onPress={onClose}>
+                    <Pressable
+                        style={[styles.editorSheet, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' }]}
+                        onPress={() => { }}
                     >
-                        <Text style={styles.editorSaveText}>
-                            {t('home.discoveryEditor.save', { defaultValue: 'Save' })}
-                        </Text>
-                    </TouchableOpacity>
+                        <View style={styles.editorHeader}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.editorTitle, { color: textPrimary }]}>
+                                    {t('home.discoveryEditor.title', { defaultValue: 'Customize categories' })}
+                                </Text>
+                                <Text style={[styles.editorSubtitle, { color: textSecondary }]}>
+                                    {t('home.discoveryEditor.subtitle', { defaultValue: 'Hold and drag to arrange. Tap ⤢ to resize, − to remove.' })}
+                                </Text>
+                            </View>
+                            <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.editorCloseBtn}>
+                                <X size={20} color={textSecondary} />
+                            </TouchableOpacity>
+                        </View>
+                        <ScrollView
+                            style={styles.editorScroll}
+                            scrollEnabled={draggingId === null}
+                            showsVerticalScrollIndicator={false}
+                        >
+                            <View style={styles.editorGrid}>
+                                {draft.map((entry) => {
+                                    const category = getDiscoveryCategory(entry.id);
+                                    if (!category) return null;
+                                    return (
+                                        <EditorTile
+                                            key={entry.id}
+                                            tile={entry}
+                                            category={category}
+                                            title={t(category.homeTitleKey, { defaultValue: category.fallbackTitle })}
+                                            labelColor={textPrimary}
+                                            canRemove={draft.length > 1}
+                                            onLayoutTile={handleLayoutTile}
+                                            onDragStart={handleDragStart}
+                                            onDrop={handleDrop}
+                                            onCycleSize={handleCycleSize}
+                                            onRemove={handleRemove}
+                                        />
+                                    );
+                                })}
+                            </View>
+                            {available.length > 0 && (
+                                <>
+                                    <Text style={[styles.editorMoreTitle, { color: textSecondary }]}>
+                                        {t('home.discoveryEditor.more', { defaultValue: 'More categories' })}
+                                    </Text>
+                                    <View style={styles.editorAddRow}>
+                                        {available.map((category) => {
+                                            const Glyph = DISCOVERY_TILE_GLYPHS[category.id];
+                                            return (
+                                                <AnimatedPressable
+                                                    key={category.id}
+                                                    onPress={() => handleAdd(category.id)}
+                                                    style={[styles.editorAddChip, { borderColor: `${category.accent}55`, backgroundColor: `${category.accent}1F` }]}
+                                                    hapticFeedback="light"
+                                                    scaleTo={0.94}
+                                                >
+                                                    <Glyph size={14} color={category.accent} strokeWidth={2} />
+                                                    <Text style={[styles.editorAddChipText, { color: textPrimary }]} numberOfLines={1}>
+                                                        {t(category.homeTitleKey, { defaultValue: category.fallbackTitle })}
+                                                    </Text>
+                                                    <Plus size={13} color={category.accent} strokeWidth={2.5} />
+                                                </AnimatedPressable>
+                                            );
+                                        })}
+                                    </View>
+                                </>
+                            )}
+                        </ScrollView>
+                        <TouchableOpacity
+                            style={styles.editorSaveBtn}
+                            onPress={() => {
+                                onSave(draft);
+                                onClose();
+                            }}
+                            activeOpacity={0.85}
+                        >
+                            <Text style={styles.editorSaveText}>
+                                {t('home.discoveryEditor.save', { defaultValue: 'Save' })}
+                            </Text>
+                        </TouchableOpacity>
+                    </Pressable>
                 </Pressable>
-            </Pressable>
+            </GestureHandlerRootView>
         </Modal>
     );
 }
@@ -693,6 +1006,74 @@ function BestShotCard({ item, isDark, textPrimary, textSecondary, onPress, index
     );
 }
 
+// Empty state for Best Shots: a dashed "reserved slot" that previews the real
+// BestShotCard (ghost match badge + ghost title lines) so the section shows
+// what completing the profile unlocks instead of a generic notice. The ghost
+// rows breathe slowly — "still forming" — unless the OS asks for reduced motion.
+function BestShotEmptySlot({ isDark, textSecondary, onCompleteProfile }: {
+    isDark: boolean;
+    textSecondary: string;
+    onCompleteProfile: () => void;
+}) {
+    const reduceMotion = useReducedMotion();
+    const pulse = useSharedValue(0.9);
+
+    useEffect(() => {
+        if (reduceMotion) return;
+        pulse.value = withRepeat(withTiming(0.45, { duration: 1400 }), -1, true);
+    }, [pulse, reduceMotion]);
+
+    const ghostStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
+
+    const ghostInk = isDark ? 'rgba(148,163,184,0.22)' : 'rgba(30,41,59,0.10)';
+
+    return (
+        <AnimatedPressable
+            onPress={onCompleteProfile}
+            accessibilityRole="button"
+            accessibilityLabel="Complete your profile to unlock your best shots"
+            style={[styles.bestShotEmptyCard, {
+                backgroundColor: isDark ? 'rgba(99,102,241,0.06)' : '#F7F7FF',
+                borderColor: isDark ? 'rgba(99,102,241,0.32)' : 'rgba(99,102,241,0.35)',
+            }]}
+            entering={FadeInDown.duration(360).springify()}
+            hapticFeedback="light"
+            scaleTo={0.98}
+        >
+            <Animated.View style={ghostStyle}>
+                <View style={styles.bestShotGhostRow}>
+                    <View style={[styles.bestShotGhostBadge, { backgroundColor: isDark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.12)' }]}>
+                        <Sparkles size={10} color={isDark ? '#A5B4FC' : '#4F46E5'} />
+                        <Text style={[styles.bestShotGhostBadgeText, { color: isDark ? '#A5B4FC' : '#4F46E5' }]} maxFontSizeMultiplier={1.2}>
+                            —% match
+                        </Text>
+                    </View>
+                    <View style={styles.bestShotGhostMeta}>
+                        <View style={[styles.bestShotGhostDot, { backgroundColor: ghostInk }]} />
+                        <View style={[styles.bestShotGhostBar, { backgroundColor: ghostInk, width: 34 }]} />
+                    </View>
+                </View>
+                <View style={[styles.bestShotGhostBar, { backgroundColor: ghostInk, width: '74%' }]} />
+                <View style={[styles.bestShotGhostBar, { backgroundColor: ghostInk, width: '46%', marginTop: 7 }]} />
+            </Animated.View>
+
+            <View style={[styles.bestShotEmptyDivider, { backgroundColor: isDark ? 'rgba(148,163,184,0.16)' : 'rgba(30,41,59,0.08)' }]} />
+
+            <Text style={[styles.bestShotEmptyTitle, { color: isDark ? '#F1F5F9' : '#1E293B' }]} maxFontSizeMultiplier={1.3}>
+                Your strongest match lands here
+            </Text>
+            <Text style={[styles.bestShotEmptyDesc, { color: textSecondary }]} numberOfLines={2} maxFontSizeMultiplier={1.3}>
+                Complete your profile and we'll surface the few you can actually win.
+            </Text>
+
+            <View style={[styles.bestShotEmptyBtn, { backgroundColor: isDark ? '#6366F1' : '#4F46E5' }]}>
+                <Text style={styles.bestShotEmptyBtnText} maxFontSizeMultiplier={1.2}>Complete profile</Text>
+                <ChevronRight size={15} color="#FFFFFF" strokeWidth={2.5} />
+            </View>
+        </AnimatedPressable>
+    );
+}
+
 function BestShotsSection({ opportunities, loading, isDark, textPrimary, textSecondary, onOpen, onCompleteProfile }: {
     opportunities: Opportunity[];
     loading: boolean;
@@ -752,32 +1133,11 @@ function BestShotsSection({ opportunities, loading, isDark, textPrimary, textSec
                     ))}
                 </ScrollView>
             ) : (
-                <AnimatedPressable
-                    onPress={onCompleteProfile}
-                    style={[styles.bestShotEmptyCard, {
-                        backgroundColor: isDark ? 'rgba(99,102,241,0.07)' : '#F5F5FF',
-                        borderColor: isDark ? 'rgba(99,102,241,0.35)' : 'rgba(99,102,241,0.3)',
-                    }]}
-                    entering={FadeInDown.duration(360).springify()}
-                    hapticFeedback="light"
-                    scaleTo={0.98}
-                >
-                    <View style={[styles.posterFillerIcon, { backgroundColor: isDark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.12)' }]}>
-                        <Target size={20} color="#6366F1" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                        <Text style={[styles.featuredEmptyTitle, { color: isDark ? '#E2E8F0' : '#1E293B' }]} maxFontSizeMultiplier={1.3}>
-                            Your best shots are still forming
-                        </Text>
-                        <Text style={[styles.featuredEmptyDesc, { color: textSecondary }]} numberOfLines={3} maxFontSizeMultiplier={1.3}>
-                            The more we know about you, the sharper the match. Complete your profile and we'll surface the few you can actually win.
-                        </Text>
-                    </View>
-                    <View style={[styles.featuredEmptyCta, { backgroundColor: isDark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.1)' }]}>
-                        <Text style={styles.featuredEmptyCtaText} maxFontSizeMultiplier={1.2}>Complete profile</Text>
-                        <ChevronRight size={14} color={isDark ? '#A5B4FC' : '#4F46E5'} />
-                    </View>
-                </AnimatedPressable>
+                <BestShotEmptySlot
+                    isDark={isDark}
+                    textSecondary={textSecondary}
+                    onCompleteProfile={onCompleteProfile}
+                />
             )}
         </Animated.View>
     );
@@ -878,12 +1238,12 @@ export default function Dashboard() {
 
     const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
     const [categoryEditorVisible, setCategoryEditorVisible] = useState(false);
-    const { selected: selectedHomeCategories, save: saveHomeCategories } = useHomeCategories(user?.id);
-    const homeCategories = useMemo(
-        () => selectedHomeCategories
-            .map((slug) => getDiscoveryCategory(slug))
-            .filter((item): item is DiscoveryCategory => Boolean(item)),
-        [selectedHomeCategories],
+    const { tiles: homeTiles, save: saveHomeTiles } = useHomeCategories(user?.id);
+    const homeTileEntries = useMemo(
+        () => homeTiles
+            .map((tile) => ({ tile, category: getDiscoveryCategory(tile.id) }))
+            .filter((entry): entry is HomeTileEntry => Boolean(entry.category)),
+        [homeTiles],
     );
 
     useEffect(() => {
@@ -1027,14 +1387,14 @@ export default function Dashboard() {
                             <Pencil size={14} color={textSecondary} />
                         </TouchableOpacity>
                     </View>
-                    <DiscoveryCategoryGrid router={router} categories={homeCategories} />
+                    <DiscoveryTileGrid router={router} entries={homeTileEntries} textPrimary={textPrimary} />
                 </Animated.View>
 
                 <HomeCategoriesEditor
                     visible={categoryEditorVisible}
-                    selected={selectedHomeCategories}
+                    tiles={homeTiles}
                     onClose={() => setCategoryEditorVisible(false)}
-                    onSave={saveHomeCategories}
+                    onSave={saveHomeTiles}
                     isDark={isDark}
                     textPrimary={textPrimary}
                     textSecondary={textSecondary}
@@ -1268,6 +1628,67 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.14)',
     },
+    // Icon-size tile: gradient glyph square with the label underneath.
+    iconTileWrap: {
+        width: ICON_TILE_WIDTH,
+    },
+    iconTileBox: {
+        width: '100%',
+        height: ICON_TILE_WIDTH,
+    },
+    iconTileSquare: {
+        flex: 1,
+        width: '100%',
+        borderRadius: 18,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    iconTileLabel: {
+        marginTop: 6,
+        fontSize: 11,
+        fontWeight: '600',
+        textAlign: 'center',
+    },
+    // Long-size tile: full-width banner row.
+    longTileCard: {
+        width: '100%',
+        height: 60,
+        borderRadius: 16,
+        overflow: 'hidden',
+        backgroundColor: '#0F172A',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.14)',
+    },
+    longTileBg: {
+        flex: 1,
+        borderRadius: 16,
+        overflow: 'hidden',
+        justifyContent: 'center',
+    },
+    longTileRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        paddingHorizontal: 14,
+    },
+    longTileGlyph: {
+        width: 34,
+        height: 34,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.22)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    longTileTitle: {
+        flex: 1,
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '800',
+        letterSpacing: 0.3,
+        textShadowColor: 'rgba(0,0,0,0.6)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 4,
+    },
     discoveryImageBg: {
         flex: 1,
         alignItems: 'center',
@@ -1315,6 +1736,92 @@ const styles = StyleSheet.create({
     editorSheet: {
         borderRadius: 24,
         padding: 20,
+        maxHeight: '86%',
+    },
+    editorScroll: {
+        flexGrow: 0,
+    },
+    editorGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'flex-start',
+        columnGap: EDITOR_GAP,
+        rowGap: 14,
+        paddingTop: 8,
+        marginBottom: 14,
+    },
+    editorFace: {
+        width: '100%',
+        borderRadius: 16,
+        // NOT hidden: the − / ⤢ badges hang over the tile edge.
+        overflow: 'visible',
+    },
+    editorFaceClip: {
+        flex: 1,
+        borderRadius: 16,
+        overflow: 'hidden',
+        backgroundColor: '#0F172A',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.14)',
+    },
+    editorRemoveBadge: {
+        position: 'absolute',
+        top: -7,
+        left: -7,
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        backgroundColor: '#EF4444',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 2,
+    },
+    editorSizeBadge: {
+        position: 'absolute',
+        bottom: -7,
+        right: -7,
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        backgroundColor: 'rgba(15,23,42,0.85)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.35)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 2,
+    },
+    editorIconLabel: {
+        marginTop: 5,
+        fontSize: 10,
+        fontWeight: '600',
+        textAlign: 'center',
+    },
+    editorMoreTitle: {
+        fontSize: 12,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 0.6,
+        marginBottom: 8,
+    },
+    editorAddRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginBottom: 8,
+    },
+    editorAddChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        borderRadius: 999,
+        borderWidth: 1,
+        paddingVertical: 7,
+        paddingHorizontal: 12,
+    },
+    editorAddChipText: {
+        fontSize: 13,
+        fontWeight: '600',
+        maxWidth: 140,
     },
     editorHeader: {
         flexDirection: 'row',
@@ -1332,24 +1839,6 @@ const styles = StyleSheet.create({
     },
     editorCloseBtn: {
         padding: 4,
-    },
-    editorCardInactive: {
-        opacity: 0.42,
-    },
-    // Sheet sits inside 20px backdrop padding + 20px sheet padding per side.
-    editorCardSize: {
-        width: (width - 80 - CARD_GAP) / 2,
-    },
-    editorCheck: {
-        position: 'absolute',
-        top: 6,
-        right: 6,
-        width: 20,
-        height: 20,
-        borderRadius: 10,
-        backgroundColor: 'rgba(16,185,129,0.95)',
-        alignItems: 'center',
-        justifyContent: 'center',
     },
     editorSaveBtn: {
         marginTop: 6,
@@ -2072,11 +2561,70 @@ const styles = StyleSheet.create({
         fontWeight: '800',
     },
     bestShotEmptyCard: {
+        borderWidth: 1.5,
+        borderStyle: 'dashed',
+        borderRadius: 16,
+        padding: 16,
+    },
+    bestShotGhostRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
-        borderWidth: 1,
-        borderRadius: 16,
-        padding: 14,
+        justifyContent: 'space-between',
+        gap: 8,
+        marginBottom: 12,
+    },
+    bestShotGhostBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        borderRadius: 999,
+        paddingHorizontal: 9,
+        paddingVertical: 4,
+    },
+    bestShotGhostBadgeText: {
+        fontSize: 11,
+        fontWeight: '800',
+    },
+    bestShotGhostMeta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+    },
+    bestShotGhostDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+    },
+    bestShotGhostBar: {
+        height: 9,
+        borderRadius: 5,
+    },
+    bestShotEmptyDivider: {
+        height: StyleSheet.hairlineWidth,
+        marginVertical: 14,
+    },
+    bestShotEmptyTitle: {
+        fontSize: 15,
+        fontWeight: '800',
+        lineHeight: 20,
+    },
+    bestShotEmptyDesc: {
+        fontSize: 12.5,
+        lineHeight: 18,
+        marginTop: 4,
+    },
+    bestShotEmptyBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 3,
+        height: 42,
+        borderRadius: 12,
+        marginTop: 14,
+    },
+    bestShotEmptyBtnText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '800',
     },
 });

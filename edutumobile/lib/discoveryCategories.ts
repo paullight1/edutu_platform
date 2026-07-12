@@ -132,6 +132,51 @@ export const DEFAULT_HOME_CATEGORIES: DiscoveryCategoryId[] = [
   'fellowships',
 ];
 
+// ─── Widget-style home tiles ────────────────────────────────────────────────
+// Each homepage category is a tile the user can resize and rearrange:
+//   icon — small square glyph (4 per row)
+//   card — half-width card (the classic look)
+//   long — full-width banner
+export type DiscoveryTileSize = 'icon' | 'card' | 'long';
+
+export type HomeCategoryTile = {
+  id: DiscoveryCategoryId;
+  size: DiscoveryTileSize;
+};
+
+export const DEFAULT_HOME_TILES: HomeCategoryTile[] = DEFAULT_HOME_CATEGORIES.map((id) => ({
+  id,
+  size: 'card',
+}));
+
+const TILE_SIZES: DiscoveryTileSize[] = ['icon', 'card', 'long'];
+
+export function normalizeTileSize(raw: unknown): DiscoveryTileSize {
+  return TILE_SIZES.includes(raw as DiscoveryTileSize) ? (raw as DiscoveryTileSize) : 'card';
+}
+
+/**
+ * Accepts the layout array ({id, size} objects), the legacy plain-id array,
+ * or anything malformed, and returns a clean ordered tile list (order is the
+ * homepage order). Falls back to the defaults when nothing survives.
+ */
+export function sanitizeHomeTiles(raw: unknown): HomeCategoryTile[] {
+  if (!Array.isArray(raw)) return DEFAULT_HOME_TILES;
+  const seen = new Set<DiscoveryCategoryId>();
+  const tiles: HomeCategoryTile[] = [];
+  for (const entry of raw) {
+    const idValue = typeof entry === 'string' ? entry : (entry as { id?: unknown })?.id;
+    const id = normalizeDiscoveryCategoryId(typeof idValue === 'string' ? idValue : null);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    tiles.push({
+      id,
+      size: normalizeTileSize(typeof entry === 'object' && entry ? (entry as { size?: unknown }).size : null),
+    });
+  }
+  return tiles.length ? tiles : DEFAULT_HOME_TILES;
+}
+
 const CATALOG_BY_ID = new Map(DISCOVERY_CATEGORY_CATALOG.map((c) => [c.id, c]));
 
 export function getDiscoveryCategory(id: string | null | undefined): DiscoveryCategory | null {
