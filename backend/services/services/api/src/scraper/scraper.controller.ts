@@ -32,12 +32,16 @@ export class ScraperController {
       allSources?: boolean;
       maxPages?: number;
       background?: boolean;
+      /** Default true — pass false to force a full re-scrape. */
+      incremental?: boolean;
     },
   ) {
     const options = {
       sourceId: body.sourceId,
       allSources: body.allSources,
       maxPages: body.maxPages || 3,
+      incremental: body.incremental !== false,
+      runType: "manual" as const,
     };
 
     // Non-blocking path for long crawls (e.g. allSources): return immediately
@@ -75,13 +79,20 @@ export class ScraperController {
   @Sse("run/stream")
   runScraperStream(
     @Query()
-    query: { sourceId?: string; allSources?: string; maxPages?: string },
+    query: {
+      sourceId?: string;
+      allSources?: string;
+      maxPages?: string;
+      incremental?: string;
+    },
   ): Observable<MessageEvent> {
     const subject = new Subject<MessageEvent>();
     const options = {
       sourceId: query.sourceId ? Number(query.sourceId) : undefined,
       allSources: query.sourceId ? false : true,
       maxPages: query.maxPages ? Number(query.maxPages) : 3,
+      incremental: query.incremental !== "false",
+      runType: "manual" as const,
     };
     const emit = (data: unknown) => subject.next({ data } as MessageEvent);
 
@@ -268,6 +279,7 @@ export class ScraperController {
         auto_run_enabled: false,
         cron_schedule: "0 0 * * *",
         data_retention_days: null,
+        recheck_after_days: 3,
       };
     }
   }
@@ -279,6 +291,7 @@ export class ScraperController {
       auto_run_enabled?: boolean;
       cron_schedule?: string;
       data_retention_days?: number | null;
+      recheck_after_days?: number | null;
     },
   ) {
     try {

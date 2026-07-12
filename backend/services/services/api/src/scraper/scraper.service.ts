@@ -23,6 +23,15 @@ interface ScrapeOptions {
   sourceId?: number;
   allSources?: boolean;
   maxPages?: number;
+  /**
+   * Incremental mode (default): skip items whose URL was already processed
+   * within the recheck window and whose opportunity row still exists, and stop
+   * paginating a source once a whole page is already known. Pass false to
+   * force a full re-scrape of every listed item.
+   */
+  incremental?: boolean;
+  /** How the run was triggered — recorded in scrape_logs.run_type. */
+  runType?: "manual" | "scheduled";
 }
 
 /**
@@ -33,7 +42,14 @@ export type ScrapeStreamEvent =
   | { type: "start"; totalSources: number; sources: string[] }
   | { type: "source-start"; name: string }
   | { type: "opportunity"; opportunity: unknown }
-  | { type: "source-done"; name: string; itemsFound: number; error?: string }
+  | { type: "source-skip"; name: string; page: number; skipped: number }
+  | {
+      type: "source-done";
+      name: string;
+      itemsFound: number;
+      itemsSkipped?: number;
+      error?: string;
+    }
   | { type: "control"; state: "paused" | "resumed" | "stopping" };
 
 export type ScrapeEventListener = (event: ScrapeStreamEvent) => void;
@@ -121,6 +137,8 @@ interface SourceResult {
   status: "success" | "failed" | "skipped";
   itemsFound: number;
   itemsSaved: number;
+  /** Items skipped by incremental mode (already processed recently). */
+  itemsSkipped?: number;
   urlsDiscovered?: number;
   error?: string;
   duration?: number;
@@ -147,6 +165,8 @@ export interface ScrapeResult {
   success: boolean;
   sourcesScraped?: number;
   totalResults?: number;
+  /** Items skipped across all sources by incremental mode. */
+  itemsSkipped?: number;
   duration?: number;
   jobId?: string;
   sources?: string[];
@@ -187,6 +207,10 @@ const MAX_ITEMS_PER_PAGE = 20;
 const MAX_PAGES_CAP = 5;
 const MAX_BACKOFF_ATTEMPTS = 4;
 const ENRICH_CONCURRENCY = 3;
+// Incremental mode: a processed URL is trusted for this many days before the
+// crawler re-checks it for updates (deadline changes, edits). Override via the
+// scraper_config key "recheck_after_days".
+const DEFAULT_RECHECK_AFTER_DAYS = 3;
 const MIN_DESCRIPTION_CHARS = 240;
 const MIN_PUBLISH_QUALITY_SCORE = 60;
 
@@ -360,7 +384,15 @@ export class ScraperService implements OnModuleInit {
 
     const job = new CronJob(cronTime, () => {
       this.logger.log(`Executing dynamic scheduled scrape (${cronTime})`);
-      this.runScraper({ allSources: true, maxPages: 2 });
+      // Incremental: known-and-fresh URLs are skipped and pagination stops on
+      // the first fully-known page, so frequent schedules stay cheap while
+      // still picking up anything new since the last run.
+      this.runScraper({
+        allSources: true,
+        maxPages: 3,
+        incremental: true,
+        runType: "scheduled",
+      });
     });
 
     this.schedulerRegistry.addCronJob(jobName, job);
@@ -451,6 +483,8 @@ export class ScraperService implements OnModuleInit {
         autoRunEnabled: settings?.auto_run_enabled ?? false,
         cronSchedule: settings?.cron_schedule ?? "0 0 * * *",
         dataRetentionDays: settings?.data_retention_days ?? null,
+        recheckAfterDays:
+          settings?.recheck_after_days ?? DEFAULT_RECHECK_AFTER_DAYS,
         enrichConcurrency: ENRICH_CONCURRENCY,
         maxPagesCap: MAX_PAGES_CAP,
         minPublishQualityScore: MIN_PUBLISH_QUALITY_SCORE,
@@ -460,7 +494,12 @@ export class ScraperService implements OnModuleInit {
 
   async getSettings() {
     if (!this.supabase)
-      return { auto_run_enabled: false, cron_schedule: "0 0 * * *" };
+      return {
+        auto_run_enabled: false,
+        cron_schedule: "0 0 * * *",
+        data_retention_days: null,
+        recheck_after_days: DEFAULT_RECHECK_AFTER_DAYS,
+      };
     const { data } = await this.supabase.from("scraper_config").select("*");
     return {
       auto_run_enabled:
@@ -469,6 +508,9 @@ export class ScraperService implements OnModuleInit {
         data?.find((c) => c.key === "cron_schedule")?.value ?? "0 0 * * *",
       data_retention_days:
         data?.find((c) => c.key === "data_retention_days")?.value ?? null,
+      recheck_after_days:
+        data?.find((c) => c.key === "recheck_after_days")?.value ??
+        DEFAULT_RECHECK_AFTER_DAYS,
     };
   }
 
@@ -476,30 +518,40 @@ export class ScraperService implements OnModuleInit {
     auto_run_enabled?: boolean;
     cron_schedule?: string;
     data_retention_days?: number | null;
+    recheck_after_days?: number | null;
   }) {
     if (!this.supabase) return { success: false, error: "No database" };
 
+    // Upsert, not update: these keys are not seeded by any migration, so a
+    // plain update silently no-ops on a fresh database and the admin toggle
+    // never takes effect.
+    const upserts: Array<{ key: string; value: unknown }> = [];
     if (body.auto_run_enabled !== undefined) {
-      await this.supabase
-        .from("scraper_config")
-        .update({ value: body.auto_run_enabled })
-        .eq("key", "auto_run_enabled");
+      upserts.push({ key: "auto_run_enabled", value: body.auto_run_enabled });
     }
     if (body.cron_schedule !== undefined) {
-      await this.supabase
-        .from("scraper_config")
-        .update({ value: body.cron_schedule })
-        .eq("key", "cron_schedule");
+      upserts.push({ key: "cron_schedule", value: body.cron_schedule });
     }
     if (body.data_retention_days !== undefined) {
-      // Logic for data_retention_days
-      const { data, error } = await this.supabase
+      upserts.push({
+        key: "data_retention_days",
+        value: body.data_retention_days,
+      });
+    }
+    if (body.recheck_after_days !== undefined) {
+      upserts.push({
+        key: "recheck_after_days",
+        value: body.recheck_after_days,
+      });
+    }
+    for (const row of upserts) {
+      const { error } = await this.supabase
         .from("scraper_config")
-        .upsert(
-          { key: "data_retention_days", value: body.data_retention_days },
-          { onConflict: "key" },
-        );
-      if (error) this.logger.error(`Upsert retention failed: ${error.message}`);
+        .upsert(row, { onConflict: "key" });
+      if (error) {
+        this.logger.error(`Upsert setting ${row.key} failed: ${error.message}`);
+        return { success: false, error: error.message };
+      }
     }
 
     // Re-initialize schedule
@@ -678,7 +730,7 @@ export class ScraperService implements OnModuleInit {
     const { sourceId, allSources, maxPages = 3 } = options;
 
     this.logger.log(
-      `Starting scrape: sourceId=${sourceId}, allSources=${allSources}, maxPages=${maxPages}`,
+      `Starting scrape: sourceId=${sourceId}, allSources=${allSources}, maxPages=${maxPages}, incremental=${options.incremental !== false}`,
     );
 
     if (!this.supabase) {
@@ -764,6 +816,13 @@ export class ScraperService implements OnModuleInit {
         return await this.createDefaultSources();
       }
 
+      // Incremental unless explicitly disabled — pass incremental:false for a
+      // full re-scrape of everything a source lists.
+      const incremental =
+        options.incremental !== false
+          ? { recheckAfterDays: await this.getRecheckAfterDays() }
+          : null;
+
       this.logger.log(`Found ${sources.length} source(s) to scrape`);
       onEvent?.({
         type: "start",
@@ -775,11 +834,17 @@ export class ScraperService implements OnModuleInit {
         maxPages,
         jobLogId,
         onEvent,
+        incremental,
       );
       const duration = Math.round((Date.now() - startTime) / 1000);
+      const itemsSkipped = sourceResults.reduce(
+        (sum, source) => sum + (source.itemsSkipped || 0),
+        0,
+      );
 
       await this.finishJobLog(jobLogId, "completed", {
         itemsFound: results.length,
+        itemsSkipped,
         duration,
         sourceResults,
         outcome,
@@ -799,6 +864,7 @@ export class ScraperService implements OnModuleInit {
         success: true,
         sourcesScraped: sources.length,
         totalResults: results.length,
+        itemsSkipped,
         duration,
         jobId: jobLogId ?? undefined,
         sources: sources.map((s) => s.name),
@@ -1091,7 +1157,7 @@ export class ScraperService implements OnModuleInit {
       .insert({
         status: "running",
         started_at: new Date().toISOString(),
-        run_type: "manual",
+        run_type: options.runType === "scheduled" ? "scheduled" : "manual",
         warnings: [
           {
             type: "options",
@@ -1114,6 +1180,7 @@ export class ScraperService implements OnModuleInit {
     status: "completed" | "failed",
     extra: {
       itemsFound?: number;
+      itemsSkipped?: number;
       duration?: number;
       sourceResults?: SourceResult[];
       errorMessage?: string;
@@ -1127,6 +1194,9 @@ export class ScraperService implements OnModuleInit {
         status,
         completed_at: new Date().toISOString(),
         ...(extra.itemsFound != null && { urls_scraped: extra.itemsFound }),
+        ...(extra.itemsSkipped != null && {
+          urls_skipped: extra.itemsSkipped,
+        }),
         ...(extra.sourceResults && {
           urls_saved: extra.sourceResults.reduce(
             (sum, source) => sum + (source.itemsSaved || 0),
@@ -1165,14 +1235,18 @@ export class ScraperService implements OnModuleInit {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - days);
 
-      // Batch delete in chunks of 1000 to avoid table locks
+      // Batch delete in chunks of 1000 to avoid table locks.
+      // Retention keys on last_seen_at, not created_at: an opportunity still
+      // listed on its source (re-scraped or incrementally skipped) keeps a
+      // fresh last_seen_at, while created_at is now the immutable first-seen
+      // date and would purge long-running but still-live opportunities.
       let deletedCount = 0;
       let hasMore = true;
       while (hasMore) {
         const { data, error } = await this.supabase
           .from("opportunities")
           .select("id")
-          .lt("created_at", cutoffDate.toISOString())
+          .lt("last_seen_at", cutoffDate.toISOString())
           .limit(1000);
 
         if (error) throw error;
@@ -1351,6 +1425,7 @@ export class ScraperService implements OnModuleInit {
     maxPages: number,
     jobLogId: string | null,
     onEvent?: ScrapeEventListener,
+    incremental?: { recheckAfterDays: number } | null,
   ): Promise<{
     results: RawItem[];
     sourceResults: SourceResult[];
@@ -1368,6 +1443,7 @@ export class ScraperService implements OnModuleInit {
 
       const sourceStartTime = Date.now();
       let itemsFound = 0;
+      let itemsSkipped = 0;
       let urlsDiscovered = 0;
       const sourceWarnings: string[] = [];
       const retriedPages = new Set<number>();
@@ -1447,9 +1523,41 @@ export class ScraperService implements OnModuleInit {
             }
 
             urlsDiscovered += basicItems.length;
-            await this.recordDiscoveredUrls(source, basicItems);
+
+            // Incremental mode: split out items scraped recently enough to
+            // trust, and stop paginating once a whole page is already known —
+            // these listings are newest-first, so deeper pages are older still.
+            let freshItems = basicItems;
+            if (incremental && basicItems.length > 0) {
+              const { fresh, skipped } = await this.partitionKnownItems(
+                basicItems,
+                incremental.recheckAfterDays,
+              );
+              if (skipped.length > 0) {
+                itemsSkipped += skipped.length;
+                await this.touchSkippedItems(skipped);
+                onEvent?.({
+                  type: "source-skip",
+                  name: source.name,
+                  page,
+                  skipped: skipped.length,
+                });
+                this.logger.log(
+                  `  → Skipped ${skipped.length} already-scraped item(s) on page ${page} (recheck after ${incremental.recheckAfterDays}d)`,
+                );
+              }
+              freshItems = fresh;
+              if (freshItems.length === 0) {
+                this.logger.log(
+                  `  → Page ${page} of "${source.name}" is fully up to date — stopping pagination.`,
+                );
+                break;
+              }
+            }
+
+            await this.recordDiscoveredUrls(source, freshItems);
             const enrichedItems = await this.enrichItems(
-              basicItems,
+              freshItems,
               source.config?.content_selectors,
             );
             allResults.push(...enrichedItems);
@@ -1496,11 +1604,17 @@ export class ScraperService implements OnModuleInit {
           status: "success",
           itemsFound,
           itemsSaved: 0,
+          itemsSkipped,
           urlsDiscovered,
           duration,
           ...(sourceWarnings.length > 0 && { warnings: sourceWarnings }),
         });
-        onEvent?.({ type: "source-done", name: source.name, itemsFound });
+        onEvent?.({
+          type: "source-done",
+          name: source.name,
+          itemsFound,
+          itemsSkipped,
+        });
       } catch (error: any) {
         this.logger.error(`Error crawling "${source.name}": ${error.message}`);
         onEvent?.({ type: "source-done", name: source.name, itemsFound: 0, error: error.message });
@@ -1517,6 +1631,7 @@ export class ScraperService implements OnModuleInit {
           status: "failed",
           itemsFound: 0,
           itemsSaved: 0,
+          itemsSkipped,
           urlsDiscovered,
           error: error.message,
           ...(sourceWarnings.length > 0 && { warnings: sourceWarnings }),
@@ -1569,6 +1684,140 @@ export class ScraperService implements OnModuleInit {
     if (error) {
       this.logger.warn(
         `Could not record discovered URLs for ${source.name}: ${error.message}`,
+      );
+    }
+  }
+
+  /** Recheck window (days) for incremental runs, from scraper_config. */
+  private async getRecheckAfterDays(): Promise<number> {
+    if (!this.supabase) return DEFAULT_RECHECK_AFTER_DAYS;
+    try {
+      const { data } = await this.supabase
+        .from("scraper_config")
+        .select("value")
+        .eq("key", "recheck_after_days")
+        .maybeSingle();
+      const days = Number(data?.value);
+      return Number.isFinite(days) && days > 0
+        ? days
+        : DEFAULT_RECHECK_AFTER_DAYS;
+    } catch {
+      return DEFAULT_RECHECK_AFTER_DAYS;
+    }
+  }
+
+  /**
+   * Incremental-mode partition: which of a page's items still need the full
+   * deep-fetch + LLM pipeline? An item is skippable only when its URL is
+   * marked processed in scraped_urls within the recheck window AND its
+   * opportunity row still exists — an admin-deleted or retention-purged row
+   * must be re-scraped, not skipped forever while the source still lists it.
+   * Fails open: any error means "enrich everything".
+   */
+  private async partitionKnownItems(
+    items: RawItem[],
+    recheckAfterDays: number,
+  ): Promise<{ fresh: RawItem[]; skipped: RawItem[] }> {
+    if (!this.supabase || items.length === 0) {
+      return { fresh: items, skipped: [] };
+    }
+    try {
+      const urlByItem = new Map<RawItem, string>();
+      for (const item of items) {
+        const url = this.normalizeUrl(item.apply_url);
+        if (url) urlByItem.set(item, url);
+      }
+      const urls = [...new Set(urlByItem.values())];
+      if (urls.length === 0) return { fresh: items, skipped: [] };
+
+      const { data, error } = await this.supabase
+        .from("scraped_urls")
+        .select("url, status, last_checked")
+        .in("url", urls);
+      if (error) throw error;
+
+      const cutoff = Date.now() - recheckAfterDays * 24 * 60 * 60 * 1000;
+      const recentlyProcessed = new Set(
+        (data ?? [])
+          .filter(
+            (row) =>
+              row.status === "processed" &&
+              row.last_checked &&
+              new Date(row.last_checked).getTime() >= cutoff,
+          )
+          .map((row) => row.url),
+      );
+      if (recentlyProcessed.size === 0) return { fresh: items, skipped: [] };
+
+      const candidateApplyUrls = [
+        ...new Set(
+          items
+            .filter((item) =>
+              recentlyProcessed.has(urlByItem.get(item) ?? ""),
+            )
+            .map((item) => item.apply_url),
+        ),
+      ];
+      const { data: existing, error: existsError } = await this.supabase
+        .from("opportunities")
+        .select("apply_url")
+        .in("apply_url", candidateApplyUrls);
+      if (existsError) throw existsError;
+      const existingApplyUrls = new Set(
+        (existing ?? []).map((row) => row.apply_url),
+      );
+
+      const fresh: RawItem[] = [];
+      const skipped: RawItem[] = [];
+      for (const item of items) {
+        const known =
+          recentlyProcessed.has(urlByItem.get(item) ?? "") &&
+          existingApplyUrls.has(item.apply_url);
+        (known ? skipped : fresh).push(item);
+      }
+      return { fresh, skipped };
+    } catch (e: any) {
+      this.logger.warn(
+        `Incremental skip check failed (enriching everything): ${e.message}`,
+      );
+      return { fresh: items, skipped: [] };
+    }
+  }
+
+  /**
+   * Mark skipped items as seen this run: bump scraped_urls.last_checked (so
+   * the recheck window slides forward) and opportunities.last_seen_at (so
+   * retention and staleness signals know the listing is still live).
+   */
+  private async touchSkippedItems(items: RawItem[]): Promise<void> {
+    if (!this.supabase || items.length === 0) return;
+    const now = new Date().toISOString();
+    const normalizedUrls = [
+      ...new Set(
+        items.map((item) => this.normalizeUrl(item.apply_url)).filter(Boolean),
+      ),
+    ];
+    const applyUrls = [
+      ...new Set(items.map((item) => item.apply_url).filter(Boolean)),
+    ];
+    const [urlUpdate, oppUpdate] = await Promise.all([
+      this.supabase
+        .from("scraped_urls")
+        .update({ last_checked: now })
+        .in("url", normalizedUrls),
+      this.supabase
+        .from("opportunities")
+        .update({ last_seen_at: now })
+        .in("apply_url", applyUrls),
+    ]);
+    if (urlUpdate.error) {
+      this.logger.warn(
+        `Could not bump last_checked for skipped URLs: ${urlUpdate.error.message}`,
+      );
+    }
+    if (oppUpdate.error) {
+      this.logger.warn(
+        `Could not bump last_seen_at for skipped opportunities: ${oppUpdate.error.message}`,
       );
     }
   }
@@ -3075,7 +3324,9 @@ ${text}`;
         funding_type: item.funding_type ?? null,
         target_region: item.target_region ?? null,
       },
-      created_at: now,
+      // No created_at: the DB default stamps inserts, and the canonical_url
+      // upsert must not reset it on re-scrape — created_at is "first
+      // discovered", and resetting it made old items look new in the feeds.
       updated_at: now,
       last_seen_at: now,
       verification_next_check_at: now,

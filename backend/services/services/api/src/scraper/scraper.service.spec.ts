@@ -91,6 +91,8 @@ describe("ScraperService", () => {
       expect(settings).toEqual({
         auto_run_enabled: false,
         cron_schedule: "0 0 * * *",
+        data_retention_days: null,
+        recheck_after_days: 3,
       });
     });
   });

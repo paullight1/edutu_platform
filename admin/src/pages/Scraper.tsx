@@ -93,6 +93,7 @@ interface EngineStatus {
         autoRunEnabled: boolean;
         cronSchedule: string;
         dataRetentionDays: number | null;
+        recheckAfterDays?: number;
         enrichConcurrency: number;
         maxPagesCap: number;
         minPublishQualityScore: number;
@@ -106,6 +107,7 @@ interface SourceResult {
     status: 'success' | 'failed' | 'skipped' | 'pending';
     itemsFound: number;
     itemsSaved: number;
+    itemsSkipped?: number;
     error?: string;
     duration?: number;
 }
@@ -147,6 +149,7 @@ interface ScrapeResult {
     success: boolean;
     sourcesScraped?: number;
     totalResults?: number;
+    itemsSkipped?: number;
     duration?: number;
     jobId?: string;
     sources?: string[];
@@ -212,10 +215,15 @@ export default function ScraperDashboard() {
     const [loading, setLoading] = useState(true);
     const [scraping, setScraping] = useState(false);
     const [maxPages, setMaxPages] = useState(3);
+    // Incremental mode: skip items scraped within the recheck window instead
+    // of re-fetching + re-enriching everything. Uncheck to force a full run.
+    const [incrementalRun, setIncrementalRun] = useState(true);
+    const [liveSkippedCount, setLiveSkippedCount] = useState(0);
     // Automation Settings State
     const [autoRunEnabled, setAutoRunEnabled] = useState(false);
     const [cronSchedule, setCronSchedule] = useState('0 0 * * *');
     const [dataRetentionDays, setDataRetentionDays] = useState<number | null>(null);
+    const [recheckAfterDays, setRecheckAfterDays] = useState(3);
     const [isSavingSettings, setIsSavingSettings] = useState(false);
 
     const API_URL = `${getBackendBaseUrl()}/api/scraper`;
@@ -314,6 +322,7 @@ export default function ScraperDashboard() {
                 setAutoRunEnabled(data.auto_run_enabled);
                 setCronSchedule(data.cron_schedule);
                 setDataRetentionDays(data.data_retention_days || null);
+                setRecheckAfterDays(Number(data.recheck_after_days) || 3);
             }
         } catch (error) {
             console.error('Failed to fetch settings:', error);
@@ -332,7 +341,8 @@ export default function ScraperDashboard() {
                 body: JSON.stringify({
                     auto_run_enabled: autoRunEnabled,
                     cron_schedule: cronSchedule,
-                    data_retention_days: dataRetentionDays
+                    data_retention_days: dataRetentionDays,
+                    recheck_after_days: recheckAfterDays
                 })
             });
             if (response.ok) {
@@ -907,6 +917,7 @@ export default function ScraperDashboard() {
         setIsBackground(false);
         isBackgroundRef.current = false;
         setLiveFoundCount(0);
+        setLiveSkippedCount(0);
         setIsPaused(false);
         setIsStopping(false);
         setSourcesTotal(0);
@@ -937,6 +948,7 @@ export default function ScraperDashboard() {
             const params = new URLSearchParams({ maxPages: String(maxPages) });
             if (sourceId) params.set('sourceId', String(sourceId));
             else params.set('allSources', 'true');
+            params.set('incremental', incrementalRun ? 'true' : 'false');
 
             // GET the SSE stream via fetch (so auth headers are sent; EventSource can't).
             const response = await fetch(`${backendUrl}/api/scraper/run/stream?${params.toString()}`, {
@@ -988,6 +1000,10 @@ export default function ScraperDashboard() {
                         case 'source-start':
                             markSource(String(evt.name), 'scraping');
                             break;
+                        case 'source-skip':
+                            // Incremental mode skipped already-scraped items on this page.
+                            setLiveSkippedCount(prev => prev + (Number(evt.skipped) || 0));
+                            break;
                         case 'control':
                             setIsPaused(evt.state === 'paused');
                             break;
@@ -1026,6 +1042,7 @@ export default function ScraperDashboard() {
                 success: (finalResult?.success as boolean) ?? true,
                 sourcesScraped: (finalResult?.sourcesScraped as number) ?? sourcesToScrape.length,
                 totalResults: (finalResult?.totalResults as number) ?? opportunities.length,
+                itemsSkipped: (finalResult?.itemsSkipped as number) ?? undefined,
                 duration: finalResult?.duration as number | undefined,
                 jobId: (finalResult?.jobId as string) ?? (finalResult?.jobLogId as string) ?? undefined,
                 sourceResults: (finalResult?.sourceResults as SourceResult[]) ?? undefined,
@@ -1049,7 +1066,7 @@ export default function ScraperDashboard() {
                 isBackgroundRef.current = false;
                 setShowLoadingModal(false);
                 showNotification(
-                    `Background scrape complete — ${foundCount} opportunities found. Open it from Recent Scrapes below.`,
+                    `Background scrape complete — ${foundCount} opportunities found${mapped.itemsSkipped ? `, ${mapped.itemsSkipped} skipped (already scraped)` : ''}. Open it from Recent Scrapes below.`,
                     'success',
                 );
             } else {
@@ -2252,11 +2269,36 @@ export default function ScraperDashboard() {
                             >
                                 <option value="" disabled>Presets</option>
                                 <option value="0 * * * *">Every Hour</option>
+                                <option value="0 */6 * * *">Every 6 Hours</option>
                                 <option value="0 0 * * *">Daily (Midnight)</option>
                                 <option value="0 0 * * 1">Weekly (Mon)</option>
                                 <option value="0 0 1 * *">Monthly (1st)</option>
                             </select>
                         </div>
+                    </div>
+                    <div>
+                        <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '8px' }}>Re-check Known Items After (Days)</p>
+                        <input
+                            type="number"
+                            min={1}
+                            max={30}
+                            value={recheckAfterDays}
+                            onChange={(e) => setRecheckAfterDays(Math.min(30, Math.max(1, parseInt(e.target.value) || 3)))}
+                            style={{
+                                width: 90,
+                                padding: '8px 12px',
+                                borderRadius: 8,
+                                border: '1px solid var(--border-medium)',
+                                background: 'var(--bg-tertiary)',
+                                color: 'var(--text-primary)',
+                                fontSize: 14,
+                                fontWeight: 600,
+                                textAlign: 'center'
+                            }}
+                        />
+                        <p style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: '6px' }}>
+                            Incremental runs skip items scraped within this window, then re-check them for updates (deadline changes, edits) once it passes.
+                        </p>
                     </div>
                 </div>
             </div>
@@ -2893,6 +2935,20 @@ export default function ScraperDashboard() {
                                         style={{ width: 72, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border-medium)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 14, fontWeight: 700, textAlign: 'center', outline: 'none' }}
                                     />
                                 </div>
+                                <label
+                                    htmlFor="run-incremental"
+                                    title="Skip items scraped recently and stop paginating once a page is fully known. Uncheck to force a full re-scrape."
+                                    style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer' }}
+                                >
+                                    <input
+                                        id="run-incremental"
+                                        type="checkbox"
+                                        checked={incrementalRun}
+                                        onChange={(e) => setIncrementalRun(e.target.checked)}
+                                        style={{ width: 16, height: 16, accentColor: 'var(--apple-blue)', cursor: 'pointer' }}
+                                    />
+                                    Skip already-scraped items
+                                </label>
                                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
                                     <button
                                         onClick={() => setRunGroupConfirm(null)}
@@ -3185,8 +3241,10 @@ export default function ScraperDashboard() {
                                         : isRehydratedRun
                                             ? 'Reconnected to a run started earlier — results will appear in Recent Scrapes when it finishes.'
                                             : currentStep === 4
-                                                ? `Found ${scrapeResult?.totalResults || 0} opportunities from ${scrapeResult?.sourcesScraped || 0} sources`
-                                                : 'Please wait while we gather scholarship opportunities'
+                                                ? `Found ${scrapeResult?.totalResults || 0} opportunities from ${scrapeResult?.sourcesScraped || 0} sources${(scrapeResult?.itemsSkipped ?? liveSkippedCount) ? ` (${scrapeResult?.itemsSkipped ?? liveSkippedCount} already scraped, skipped)` : ''}`
+                                                : liveSkippedCount > 0
+                                                    ? `Please wait while we gather scholarship opportunities — ${liveSkippedCount} already-scraped item${liveSkippedCount === 1 ? '' : 's'} skipped so far`
+                                                    : 'Please wait while we gather scholarship opportunities'
                                     }
                                 </p>
                             </div>
