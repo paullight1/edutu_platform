@@ -29,6 +29,21 @@ const STATUS_OPTIONS: ApplicationStatus[] = ['draft', 'submitted', 'interview', 
 // One-line reflections users leave after a rejection, keyed by application id.
 const REJECTION_REFLECTIONS_KEY = 'edutu_rejection_reflections';
 
+// Last successful applications fetch, keyed per user, so the screen paints
+// instantly on revisit and still shows content if the network stalls.
+const APPLICATIONS_CACHE_KEY = 'edutu_applications_cache_v1';
+
+// Absolute ceiling on a load attempt — whatever happens underneath, the
+// spinner must resolve to content, cache, or the empty state.
+const LOAD_TIMEOUT_MS = 20000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('applications load timed out')), ms)),
+  ]);
+}
+
 // Stat-board / filter keys: the forward stages plus "all" and a combined
 // terminal bucket ("closed" = rejected + withdrawn).
 type StatFilter = 'all' | ApplicationStatus | 'closed';
@@ -255,9 +270,30 @@ export default function AppliedPage() {
       return;
     }
 
+    const cacheKey = `${APPLICATIONS_CACHE_KEY}:${user.id}`;
+
+    // Paint from the last successful fetch immediately; the network refresh
+    // below replaces it when it lands.
     try {
-      setLoading(true);
-      setApplications(await fetchTrackedApplications(supabase, user.id, getToken));
+      const cached = await AsyncStorage.getItem(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached) as AppliedOpportunity[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setApplications(parsed);
+          setLoading(false);
+        }
+      }
+    } catch {
+      // Cache is best-effort only.
+    }
+
+    try {
+      const fresh = await withTimeout(
+        fetchTrackedApplications(supabase, user.id, getToken),
+        LOAD_TIMEOUT_MS,
+      );
+      setApplications(fresh);
+      void AsyncStorage.setItem(cacheKey, JSON.stringify(fresh)).catch(() => undefined);
     } catch (error) {
       console.error('Failed to load applied opportunities:', error);
     } finally {
