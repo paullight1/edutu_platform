@@ -4,8 +4,12 @@ describe("OpportunityAlertsService", () => {
   const service = new OpportunityAlertsService(
     {} as never,
     {} as never,
+    {} as never,
   ) as unknown as {
-    deferForQuietHours(q: { start: string; end: string } | null): string | undefined;
+    deferForQuietHours(
+      q: { start: string; end: string } | null,
+      timezone?: string | null,
+    ): string | undefined;
     daysPhrase(days: number): string;
     forEachWithConcurrency<T>(
       items: T[],
@@ -59,6 +63,36 @@ describe("OpportunityAlertsService", () => {
       expect(service.deferForQuietHours(null)).toBe(
         "2026-07-13T08:00:00.000Z",
       );
+    });
+
+    it("evaluates quiet hours in the user's timezone", () => {
+      // 06:30 UTC = 07:30 in Lagos (UTC+1) — inside a 22:00–08:00 local
+      // window; deferral lands at 08:00 Lagos = 07:00 UTC.
+      atUtc("06:30");
+      expect(
+        service.deferForQuietHours(
+          { start: "22:00", end: "08:00" },
+          "Africa/Lagos",
+        ),
+      ).toBe("2026-07-12T07:00:00.000Z");
+
+      // Same instant is 09:30 in Nairobi (UTC+3) — outside the window.
+      expect(
+        service.deferForQuietHours(
+          { start: "22:00", end: "08:00" },
+          "Africa/Nairobi",
+        ),
+      ).toBeUndefined();
+    });
+
+    it("falls back to UTC on an invalid timezone", () => {
+      atUtc("23:00");
+      expect(
+        service.deferForQuietHours(
+          { start: "22:00", end: "08:00" },
+          "Not/AZone",
+        ),
+      ).toBe("2026-07-13T08:00:00.000Z");
     });
 
     it("never defers on malformed or empty windows", () => {
