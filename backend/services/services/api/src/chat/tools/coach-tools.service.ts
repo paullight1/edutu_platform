@@ -10,6 +10,7 @@ import { RoadmapsService } from "../../roadmaps/roadmaps.service";
 import { MonetizationService } from "../../monetization/monetization.service";
 import { DocumentsService } from "../../documents/documents.service";
 import { CvService } from "../../cv/cv.service";
+import { OpportunityShareCardService } from "../../opportunities/opportunity-share-card.service";
 import { AiToolDefinition } from "../../ai/ai.types";
 import {
   ActionButton,
@@ -55,6 +56,7 @@ export class CoachToolsService {
     private readonly monetizationService: MonetizationService,
     private readonly documentsService: DocumentsService,
     private readonly cvService: CvService,
+    private readonly shareCardService: OpportunityShareCardService,
   ) {
     this.tools = [
       this.recommendOpportunities(),
@@ -72,6 +74,7 @@ export class CoachToolsService {
       this.draftSop(),
       this.editDocument(),
       this.exportDocument(),
+      this.getOpportunityImage(),
     ];
   }
 
@@ -947,6 +950,48 @@ export class CoachToolsService {
           file_name: exported.fileName,
           format: exported.format,
           note: "The app shows a download card for the file — no need to paste the link.",
+        };
+      },
+    };
+  }
+
+  private getOpportunityImage(): CoachTool<{ opportunity_id: string }> {
+    return {
+      name: "get_opportunity_image",
+      description:
+        "Get the shareable branded image (poster card) for an opportunity — for 'make me an image of this', 'give me something to share on WhatsApp/Instagram'. The app shows the image with share options.",
+      parameters: {
+        type: "object",
+        properties: {
+          opportunity_id: { type: "string" },
+        },
+        required: ["opportunity_id"],
+      },
+      schema: z.object({ opportunity_id: z.string().uuid() }),
+      execute: async (ctx, args) => {
+        const { data: opportunity } = await ctx.supabase
+          .from("opportunities")
+          .select("*")
+          .eq("id", args.opportunity_id)
+          .maybeSingle();
+        if (!opportunity) return { error: "Opportunity not found" };
+        const card = await this.shareCardService.ensureShareCardForOpportunity(
+          opportunity as Record<string, any>,
+        );
+        if (!card?.url) {
+          return { error: "Image generation is unavailable right now" };
+        }
+        ctx.collectImages([
+          {
+            opportunityId: args.opportunity_id,
+            title: String(opportunity.title || "Opportunity"),
+            url: card.url,
+            format: card.format,
+          },
+        ]);
+        return {
+          image_ready: true,
+          note: "The app shows the image with share options — just tell the user it's ready.",
         };
       },
     };

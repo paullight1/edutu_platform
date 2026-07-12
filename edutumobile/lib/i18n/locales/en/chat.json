@@ -169,5 +169,32 @@
     "voiceNigerian": "Nigerian English",
     "voiceAll": "More voices",
     "voiceHint": "Tap any voice to hear a sample. Edutu speaks with its own natural AI voice, the same on every device."
+  },
+  "actions": {
+    "spinAgainPrompt": "Spin me another opportunity!",
+    "createGoalsPrompt": "Yes — turn those milestones into goals for me.",
+    "createRoadmapPrompt": "Yes, build me that roadmap.",
+    "createRoadmapPromptFor": "Yes, build me the roadmap for that opportunity."
+  },
+  "deviceActions": {
+    "calendarTitle": "Add to your calendar?",
+    "calendarBody": "{{count}} plan dates can be added to your device calendar.",
+    "calendarCta": "Add dates"
+  },
+  "documents": {
+    "download": "Download",
+    "ready": "ready",
+    "exportPrompt": "Export \"{{title}}\" as {{format}}",
+    "openFailedTitle": "Couldn't open the file",
+    "openFailedBody": "The link may have expired — ask me to export it again.",
+    "type": {
+      "cv": "CV",
+      "sop": "Statement of Purpose",
+      "cover_letter": "Cover letter",
+      "essay": "Essay"
+    }
+  },
+  "images": {
+    "shareHint": "Tap to share"
   }
 }

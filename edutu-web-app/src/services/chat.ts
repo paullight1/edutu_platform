@@ -29,10 +29,53 @@ export interface SmartAction {
   route?: string;
 }
 
+/** One-tap follow-up produced by an agent tool (rendered as chips under the reply). */
+export interface ChatActionButton {
+  id: string;
+  kind:
+    | 'view_opportunity'
+    | 'create_roadmap'
+    | 'create_goals'
+    | 'spin_again'
+    | 'open_route';
+  label: string;
+  payload: Record<string, unknown>;
+}
+
+/** Device-side effect for the mobile app (calendar/notifications) — ignored on web. */
+export interface ChatDeviceAction {
+  type: 'calendar.sync' | 'notifications.schedule';
+  payload: Record<string, unknown>;
+}
+
+/** AI document (CV/SOP/…) referenced by an assistant reply — rendered as a card. */
+export interface ChatDocumentCard {
+  docId: string;
+  type: 'cv' | 'sop' | 'cover_letter' | 'essay';
+  title: string;
+  version: number;
+  /** Present right after an export — signed download link (valid ~7 days). */
+  url?: string;
+  format?: 'pdf' | 'docx';
+  fileName?: string;
+}
+
+/** Branded share-card image for an opportunity, rendered inline in chat. */
+export interface ChatImageCard {
+  opportunityId: string;
+  title: string;
+  url: string;
+  format: 'png' | 'svg';
+}
+
 export interface ChatMessageMetadata {
   intent?: string;
   opportunities?: OpportunityCard[];
   smartActions?: SmartAction[];
+  actionButtons?: ChatActionButton[];
+  deviceActions?: ChatDeviceAction[];
+  documents?: ChatDocumentCard[];
+  images?: ChatImageCard[];
   [key: string]: unknown;
 }
 
@@ -103,4 +146,22 @@ export async function sendChatMessage(
       message: options.message,
     }),
   });
+}
+
+export interface DocumentExportResult {
+  fileName: string;
+  url: string;
+  format: 'pdf' | 'docx';
+}
+
+export async function exportChatDocument(
+  docId: string,
+  format: 'pdf' | 'docx',
+  token: string,
+): Promise<DocumentExportResult> {
+  return productApiRequest<DocumentExportResult>(
+    `/documents/${encodeURIComponent(docId)}/export`,
+    token,
+    { method: 'POST', body: JSON.stringify({ format }) },
+  );
 }

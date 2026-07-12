@@ -14,6 +14,7 @@ import {
     Linking,
     Modal,
     ScrollView,
+    Share,
     StyleSheet,
     Dimensions,
 } from 'react-native';
@@ -49,7 +50,7 @@ import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { supabase } from '../../lib/supabase';
 import { useChat } from '@edutu/core/src/hooks/useChat';
 import { ChatRateLimitError } from '@edutu/core/src/services/chat';
-import { ChatActionButton, ChatDeviceAction, ChatDocumentCard, ChatMessage, ChatOpportunityCard, ChatThread, stripChatContext } from '@edutu/core/src/types/chat';
+import { ChatActionButton, ChatDeviceAction, ChatDocumentCard, ChatImageCard, ChatMessage, ChatOpportunityCard, ChatThread, stripChatContext } from '@edutu/core/src/types/chat';
 import { syncMilestonesToCalendar } from '../../lib/calendarSync';
 import { useGoals } from '@edutu/core/src/hooks/useGoals';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
@@ -59,7 +60,8 @@ import { generateRoadmapFromOpportunity } from '@edutu/core/src/services/aiRoadm
 import { useTextToSpeech } from '../../hooks/useTextToSpeech';
 import { setPremiumVoiceEnabled } from '../../lib/edutuSpeech';
 import { EdutuLogo } from '../../components/branding/EdutuLogo';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeInDown, PinwheelIn } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import { BrandedLoader } from '../../components/ui/BrandedLoader';
 import { notificationService } from '../../lib/notifications';
 import { useReportAIContent } from '../../lib/reportAiContent';
@@ -264,7 +266,7 @@ export default function ChatScreen() {
     const { getToken } = useAuth();
     const router = useRouter();
     const reportAIContent = useReportAIContent('chat');
-    const { voiceMsg } = useLocalSearchParams<{ voiceMsg?: string }>();
+    const { voiceMsg, prefill } = useLocalSearchParams<{ voiceMsg?: string; prefill?: string }>();
     const { isDark, colors } = useTheme();
     const insets = useSafeAreaInsets();
     // voiceMsg is an auto-sent launch prompt (e.g. from an opportunity's "Ask Edutu"),
@@ -437,6 +439,10 @@ export default function ChatScreen() {
             lastAttemptRef.current = null;
             const deviceActions = result?.assistantMessage?.metadata?.deviceActions;
             if (deviceActions?.length) void runDeviceActions(deviceActions);
+            // A spin result gets a celebratory buzz as the card pinwheels in.
+            if (result?.assistantMessage?.metadata?.actionButtons?.some(b => b.kind === 'spin_again')) {
+                void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+            }
         } catch (err) {
             console.error('Failed to send message:', err);
             const isLimit = err instanceof ChatRateLimitError || (err as any)?.name === 'ChatRateLimitError';
@@ -467,6 +473,18 @@ export default function ChatScreen() {
     const handleViewOpportunity = useCallback((opportunityId: string) => {
         router.push(`/opportunities/${opportunityId}`);
     }, [router]);
+
+    const handleShareImage = useCallback(async (image: ChatImageCard) => {
+        try {
+            await Share.share(
+                Platform.OS === 'ios'
+                    ? { url: image.url, message: image.title }
+                    : { message: `${image.title}\n${image.url}` },
+            );
+        } catch {
+            void Linking.openURL(image.url).catch(() => {});
+        }
+    }, []);
 
     // Document cards: exported files open directly; drafts route the export
     // request back through chat so the agent produces a fresh signed link.
@@ -720,6 +738,19 @@ export default function ChatScreen() {
         }
     }, [voiceMsg, user?.id, handleSend, router]);
 
+    // Prefill (used by proactive coach pushes): seeds the composer with a
+    // ready-to-send question but NEVER auto-sends — a notification tap must
+    // not spend the user's credits without an explicit send.
+    const prefillSeededRef = useRef(false);
+    useEffect(() => {
+        if (prefillSeededRef.current) return;
+        if (prefill && prefill.trim()) {
+            prefillSeededRef.current = true;
+            setInput((current) => current || prefill.trim());
+            router.setParams({ prefill: undefined });
+        }
+    }, [prefill, router]);
+
     // Resume the most recent conversation on open so chat history is continuous
     // instead of landing on a blank thread every time. Runs once, and is skipped
     // when arriving from an opportunity's "Ask Edutu" (voiceMsg) so that question
@@ -907,6 +938,13 @@ export default function ChatScreen() {
             : [];
         const shouldTypeReveal = isBot && item.id === latestAssistantMessageId;
         const showOpportunityShelf = shouldShowOpportunityCards && (opportunityCards.length > 0 || isLoadingOpportunities);
+        // "Spin" replies (single surprise pick + a Spin-again chip) get a
+        // slot-machine pinwheel reveal — only on the live latest message, so
+        // scrolling old threads doesn't replay it.
+        const isSpinReveal =
+            shouldTypeReveal &&
+            opportunityCards.length === 1 &&
+            (item.metadata?.actionButtons?.some((button) => button.kind === 'spin_again') ?? false);
         const displayContent = shouldShowRoadmapPanel
             ? compactRoadmapAnswer(roadmapMatches.length, isLoadingOpportunities)
             : shouldShowOpportunityCards
@@ -968,7 +1006,10 @@ export default function ChatScreen() {
                             )}
                         </View>
                         {showOpportunityShelf && (
-                            <View style={styles.opportunityShelf}>
+                            <Animated.View
+                                style={styles.opportunityShelf}
+                                entering={isSpinReveal ? PinwheelIn.duration(700) : undefined}
+                            >
                                 <View style={styles.opportunityShelfHeader}>
                                     <Text style={[styles.opportunityShelfTitle, { color: textPrimary }]}>
                                         {t('messages.recommendedTitle')}
@@ -1091,7 +1132,7 @@ export default function ChatScreen() {
                                         ))}
                                     </View>
                                 ) : null}
-                            </View>
+                            </Animated.View>
                         )}
                         {shouldShowRoadmapPanel && (
                             <View style={styles.roadmapBuilderPanel}>
@@ -1158,6 +1199,29 @@ export default function ChatScreen() {
                                 ) : null}
                             </View>
                         )}
+                        {isBot && (item.metadata?.images?.length ?? 0) > 0 ? (
+                            <View style={styles.imageCardStack}>
+                                {(item.metadata?.images ?? []).map((image) => (
+                                    <TouchableOpacity
+                                        key={image.url}
+                                        activeOpacity={0.9}
+                                        onPress={() => handleShareImage(image)}
+                                        style={[styles.imageCard, { borderColor }]}
+                                    >
+                                        <Image
+                                            source={{ uri: image.url }}
+                                            style={styles.imageCardImage}
+                                            resizeMode="cover"
+                                        />
+                                        <View style={styles.imageCardFooter}>
+                                            <Text style={[styles.imageCardHint, { color: textSecondary }]} numberOfLines={1}>
+                                                {t('images.shareHint', { defaultValue: 'Tap to share' })}
+                                            </Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        ) : null}
                         {isBot && (item.metadata?.documents?.length ?? 0) > 0 ? (
                             <View style={styles.documentCardStack}>
                                 {(item.metadata?.documents ?? []).map((doc) => (
@@ -2016,6 +2080,29 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
         gap: 6,
         paddingTop: 1,
+    },
+    imageCardStack: {
+        gap: 8,
+        marginTop: 8,
+    },
+    imageCard: {
+        borderRadius: 16,
+        borderWidth: 1,
+        overflow: 'hidden',
+        maxWidth: 260,
+    },
+    imageCardImage: {
+        width: 260,
+        // Share cards are Instagram 4:5 portrait (1080×1350).
+        height: 325,
+    },
+    imageCardFooter: {
+        paddingVertical: 7,
+        alignItems: 'center',
+    },
+    imageCardHint: {
+        fontSize: 11.5,
+        fontWeight: '600',
     },
     documentCardStack: {
         gap: 8,

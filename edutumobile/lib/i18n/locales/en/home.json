@@ -6,7 +6,13 @@
     "me": "Me",
     "openEdutuAi": "Open Edutu AI",
     "badgeOverflow": "99+",
-    "holdForVoice": "Hold for voice mode"
+    "holdForVoice": "Hold for voice mode",
+    "createPrompt": "What do you want to create?",
+    "createGoal": "Goal",
+    "createRoadmap": "Roadmap",
+    "createNew": "Create goal or roadmap",
+    "closeCreateMenu": "Close create menu",
+    "editProfile": "Edit profile"
   },
   "rewards": {
     "creditsEarned_one": "+{{count}} credit · {{label}}",
@@ -301,6 +307,7 @@
   },
   "header": {
     "upgrade": "Upgrade",
-    "verified": "Verified account"
+    "verified": "Verified account",
+    "menu": "Open menu"
   }
 }
