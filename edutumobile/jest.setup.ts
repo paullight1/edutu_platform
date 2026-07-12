@@ -118,6 +118,94 @@ jest.mock('expo-calendar', () => ({
   CalendarType: { LOCAL: 'local' },
 }));
 
+// Native audio/speech/file modules used by edutuSpeech (chat TTS + voice
+// mode): no native runtime in jest, so stub the surface the app touches.
+jest.mock('expo-audio', () => ({
+  createAudioPlayer: jest.fn(() => ({
+    play: jest.fn(),
+    pause: jest.fn(),
+    remove: jest.fn(),
+    seekTo: jest.fn(),
+    addListener: jest.fn(() => ({ remove: jest.fn() })),
+  })),
+  useAudioPlayer: jest.fn(() => ({ play: jest.fn(), pause: jest.fn(), seekTo: jest.fn() })),
+  setAudioModeAsync: jest.fn(async () => undefined),
+  AudioModule: {
+    requestRecordingPermissionsAsync: jest.fn(async () => ({ granted: true })),
+    getRecordingPermissionsAsync: jest.fn(async () => ({ granted: true })),
+  },
+  RecordingPresets: { HIGH_QUALITY: {}, LOW_QUALITY: {} },
+  useAudioRecorder: jest.fn(() => ({
+    record: jest.fn(),
+    stop: jest.fn(async () => undefined),
+    uri: null,
+    isRecording: false,
+    getStatus: jest.fn(() => ({ durationMillis: 0, metering: -60 })),
+  })),
+}));
+
+jest.mock('expo-speech', () => ({
+  speak: jest.fn(),
+  stop: jest.fn(),
+}));
+
+jest.mock('expo-constants', () => ({
+  __esModule: true,
+  default: { expoConfig: { extra: {} }, manifest: {} },
+}));
+
+jest.mock('expo-blur', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return { BlurView: (props: Record<string, unknown>) => React.createElement(View, props) };
+});
+
+jest.mock('expo-linear-gradient', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return { LinearGradient: (props: Record<string, unknown>) => React.createElement(View, props) };
+});
+
+jest.mock('expo-file-system', () => ({
+  File: class MockFile {
+    uri = 'file://mock';
+    exists = false;
+    size = 0;
+    write() {}
+    delete() {}
+  },
+  Paths: { cache: 'file://cache' },
+  documentDirectory: 'file://docs/',
+  cacheDirectory: 'file://cache/',
+}));
+
+jest.mock('expo-haptics', () => ({
+  impactAsync: jest.fn(async () => undefined),
+  notificationAsync: jest.fn(async () => undefined),
+  selectionAsync: jest.fn(async () => undefined),
+  ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy' },
+  NotificationFeedbackType: { Success: 'success', Warning: 'warning', Error: 'error' },
+}));
+
+// Ships untranspiled ESM that jest's transformIgnorePatterns excludes; mock
+// it wholesale (tests never exercise real purchases).
+jest.mock('react-native-purchases', () => ({
+  __esModule: true,
+  default: {
+    configure: jest.fn(),
+    getOfferings: jest.fn(async () => ({ current: null })),
+    getCustomerInfo: jest.fn(async () => ({ entitlements: { active: {} } })),
+    purchasePackage: jest.fn(),
+    restorePurchases: jest.fn(async () => ({ entitlements: { active: {} } })),
+    addCustomerInfoUpdateListener: jest.fn(),
+    removeCustomerInfoUpdateListener: jest.fn(),
+    logIn: jest.fn(),
+    logOut: jest.fn(),
+    setLogLevel: jest.fn(),
+  },
+  LOG_LEVEL: { VERBOSE: 'VERBOSE', ERROR: 'ERROR' },
+}));
+
 jest.mock('react-native-webview', () => {
   const React = require('react');
   const { View } = require('react-native');

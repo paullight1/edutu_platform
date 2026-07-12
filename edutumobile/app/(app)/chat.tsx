@@ -60,14 +60,51 @@ import { generateRoadmapFromOpportunity } from '@edutu/core/src/services/aiRoadm
 import { useTextToSpeech } from '../../hooks/useTextToSpeech';
 import { setPremiumVoiceEnabled } from '../../lib/edutuSpeech';
 import { EdutuLogo } from '../../components/branding/EdutuLogo';
-import Animated, { FadeInDown, PinwheelIn } from 'react-native-reanimated';
+import Animated, {
+    Easing,
+    FadeInDown,
+    PinwheelIn,
+    cancelAnimation,
+    useAnimatedStyle,
+    useSharedValue,
+    withDelay,
+    withRepeat,
+    withSequence,
+    withTiming,
+} from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
+import { getDeadlineBadge, urgencyColor } from '@edutu/core/src/utils/deadline';
 import { BrandedLoader } from '../../components/ui/BrandedLoader';
 import { notificationService } from '../../lib/notifications';
 import { useReportAIContent } from '../../lib/reportAiContent';
 import { openVoiceMode, useVoiceModeState, consumeVoiceModeThread } from '../../lib/voiceModeStore';
 import VoiceRecordingModal from '../../components/chat/VoiceRecordingModal';
 import { useVoiceRecording } from '../../hooks/useVoiceRecording';
+
+// One dot of the typing indicator — a soft staggered pulse (static when the
+// user has reduced motion on).
+function TypingDot({ delay, color, reducedMotion }: { delay: number; color: string; reducedMotion: boolean }) {
+    const pulse = useSharedValue(0.35);
+
+    useEffect(() => {
+        if (reducedMotion) return;
+        pulse.value = withDelay(
+            delay,
+            withRepeat(
+                withSequence(
+                    withTiming(1, { duration: 360, easing: Easing.out(Easing.quad) }),
+                    withTiming(0.35, { duration: 360, easing: Easing.in(Easing.quad) }),
+                ),
+                -1,
+            ),
+        );
+        return () => cancelAnimation(pulse);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [reducedMotion, delay]);
+
+    const style = useAnimatedStyle(() => ({ opacity: pulse.value }));
+    return <Animated.View style={[styles.typingDot, { backgroundColor: color }, style]} />;
+}
 
 function TypingReveal({
     content,
@@ -115,7 +152,9 @@ const ROADMAP_PATTERNS = [
     /\bbuild\b.*\b(plan|roadmap)\b/i,
 ];
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const CHAT_RAIL_FULL_BLEED_OFFSET = 54;
+// List padding (16) + assistant avatar (30) + row gap (10): lets the shelf
+// and roadmap rails escape the message column and bleed edge-to-edge.
+const CHAT_RAIL_FULL_BLEED_OFFSET = 56;
 
 function formatOpportunityDeadline(deadline?: string | null) {
     if (!deadline) return i18n.t('chat:deadline.rolling');
@@ -267,7 +306,7 @@ export default function ChatScreen() {
     const router = useRouter();
     const reportAIContent = useReportAIContent('chat');
     const { voiceMsg, prefill } = useLocalSearchParams<{ voiceMsg?: string; prefill?: string }>();
-    const { isDark, colors } = useTheme();
+    const { isDark, colors, reducedMotion } = useTheme();
     const insets = useSafeAreaInsets();
     // voiceMsg is an auto-sent launch prompt (e.g. from an opportunity's "Ask Edutu"),
     // not draft text — it must not sit in the composer as a raw templated dump.
@@ -296,7 +335,11 @@ export default function ChatScreen() {
     const cardBg = isDark ? "rgba(255,255,255,0.05)" : "#FFFFFF";
     const borderColor = isDark ? "rgba(255,255,255,0.1)" : "#E2E8F0";
     const inputBg = isDark ? "#1E293B" : "#F1F5F9";
-    const accentColor = "#6366F1";
+    // Accent comes from the active theme pack (not a hardcoded indigo) so the
+    // user's chosen theme carries through chat. accentTint is the soft wash
+    // used behind icons/chips — hex + alpha suffix keeps it on-hue.
+    const accentColor = colors.accent;
+    const accentTint = accentColor + (isDark ? '24' : '16');
 
     // Keep the welcome screen light: two focused starters instead of a wall of cards.
     const quickPrompts = useMemo(() => [
@@ -819,11 +862,6 @@ export default function ChatScreen() {
         );
     }, [threads, t]);
 
-    const userInitial = useMemo(() => {
-        const source = user?.firstName || user?.fullName || user?.primaryEmailAddress?.emailAddress || 'U';
-        return source.trim().slice(0, 1).toUpperCase() || 'U';
-    }, [user?.firstName, user?.fullName, user?.primaryEmailAddress?.emailAddress]);
-
     const renderFormattedMessage = useCallback((content: string, isBot: boolean) => {
         const color = isBot ? textPrimary : '#FFFFFF';
         const mutedColor = isBot ? textSecondary : 'rgba(255,255,255,0.82)';
@@ -865,7 +903,7 @@ export default function ChatScreen() {
                     if (numberedMatch) {
                         return (
                             <View key={`${line}-${index}`} style={styles.formattedRow}>
-                                <View style={[styles.numberBadge, { backgroundColor: isBot ? 'rgba(99,102,241,0.14)' : 'rgba(255,255,255,0.18)' }]}>
+                                <View style={[styles.numberBadge, { backgroundColor: isBot ? accentTint : 'rgba(255,255,255,0.18)' }]}>
                                     <Text style={[styles.numberBadgeText, { color }]}>{numberedMatch[1]}</Text>
                                 </View>
                                 <Text style={[styles.messageText, styles.formattedRowText, { color }]}>
@@ -912,7 +950,7 @@ export default function ChatScreen() {
                 })}
             </View>
         );
-    }, [textPrimary, textSecondary]);
+    }, [textPrimary, textSecondary, accentTint]);
 
     const renderMessage = ({ item, index }: { item: ChatMessage; index: number }) => {
         const isBot = item.role === 'assistant';
@@ -963,17 +1001,16 @@ export default function ChatScreen() {
                     isBot && (showOpportunityShelf || shouldShowRoadmapPanel) && styles.messageContainerAssistantWide,
                 ]}>
                     {isBot ? (
-                        <View style={[styles.avatar, styles.aiAvatar, { backgroundColor: isDark ? 'rgba(99,102,241,0.14)' : '#EEF2FF' }]}>
+                        <View style={[styles.avatar, styles.aiAvatar, { backgroundColor: accentTint, borderColor: accentColor + '33' }]}>
                             <EdutuLogo size={24} frameless />
                         </View>
                     ) : null}
                     <View style={styles.messageStack}>
-                        <View style={[
-                            styles.messageBubble,
+                        <View style={
                             isBot
-                                ? [styles.messageBubbleAssistant, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor }]
-                                : [styles.messageBubbleUser, { backgroundColor: accentColor }]
-                        ]}>
+                                ? styles.messageBlockAssistant
+                                : [styles.messageBubble, styles.messageBubbleUser, { backgroundColor: accentColor }]
+                        }>
                             {isBot ? (
                                 <TypingReveal content={displayContent} enabled={shouldTypeReveal}>
                                     {(visibleContent) => renderFormattedMessage(visibleContent, isBot)}
@@ -983,24 +1020,29 @@ export default function ChatScreen() {
                             {isBot && (
                                 <View style={styles.messageActions}>
                                     <TouchableOpacity
-                                        onPress={() => handleSpeakMessage(item.id, item.content)}
+                                        onPress={() => handleSpeakMessage(item.id, displayContent)}
                                         style={[
                                             styles.speakBtn,
-                                            { backgroundColor: isCurrentlySpeaking ? 'rgba(239,68,68,0.15)' : 'rgba(99,102,241,0.1)' }
+                                            isCurrentlySpeaking && { backgroundColor: 'rgba(239,68,68,0.14)' },
                                         ]}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={isCurrentlySpeaking
+                                            ? t('messages.stopReading', { defaultValue: 'Stop reading' })
+                                            : t('messages.readAloud', { defaultValue: 'Read aloud' })}
                                     >
                                         {isCurrentlySpeaking ? (
                                             <Pause size={14} color="#EF4444" />
                                         ) : (
-                                            <Volume2 size={14} color={accentColor} />
+                                            <Volume2 size={14} color={textSecondary} />
                                         )}
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         onPress={() => reportAIContent(item.content, { messageId: item.id })}
-                                        style={[styles.speakBtn, { backgroundColor: 'rgba(148,163,184,0.12)' }]}
+                                        style={styles.speakBtn}
+                                        accessibilityRole="button"
                                         accessibilityLabel={t('common:aiReport.button')}
                                     >
-                                        <Flag size={14} color={isDark ? '#94A3B8' : '#64748B'} />
+                                        <Flag size={13} color={textSecondary} />
                                     </TouchableOpacity>
                                 </View>
                             )}
@@ -1008,7 +1050,7 @@ export default function ChatScreen() {
                         {showOpportunityShelf && (
                             <Animated.View
                                 style={styles.opportunityShelf}
-                                entering={isSpinReveal ? PinwheelIn.duration(700) : undefined}
+                                entering={isSpinReveal && !reducedMotion ? PinwheelIn.duration(700) : undefined}
                             >
                                 <View style={styles.opportunityShelfHeader}>
                                     <Text style={[styles.opportunityShelfTitle, { color: textPrimary }]}>
@@ -1023,7 +1065,7 @@ export default function ChatScreen() {
                                     showsHorizontalScrollIndicator={false}
                                     contentContainerStyle={styles.opportunityRail}
                                     decelerationRate="fast"
-                                    snapToInterval={272}
+                                    snapToInterval={248}
                                 >
                                 {opportunityCards.length === 0 ? (
                                     [0, 1, 2].map((placeholder) => (
@@ -1038,64 +1080,103 @@ export default function ChatScreen() {
                                                 },
                                             ]}
                                         >
-                                            <View style={[styles.opportunityLoadingImage, { backgroundColor: isDark ? 'rgba(99,102,241,0.14)' : '#EEF2FF' }]}>
+                                            <View style={[styles.opportunityLoadingImage, { backgroundColor: accentTint }]}>
                                                 <ActivityIndicator size="small" color={accentColor} />
                                             </View>
                                             <View style={styles.opportunityBody}>
-                                                <View style={[styles.loadingLine, styles.loadingLineShort, { backgroundColor: isDark ? 'rgba(148,163,184,0.18)' : '#E2E8F0' }]} />
                                                 <View style={[styles.loadingLine, { backgroundColor: isDark ? 'rgba(148,163,184,0.18)' : '#E2E8F0' }]} />
                                                 <View style={[styles.loadingLine, styles.loadingLineMedium, { backgroundColor: isDark ? 'rgba(148,163,184,0.18)' : '#E2E8F0' }]} />
-                                                <View style={[styles.loadingButton, { backgroundColor: isDark ? 'rgba(99,102,241,0.24)' : '#C7D2FE' }]} />
+                                                <View style={[styles.loadingLine, styles.loadingLineShort, { backgroundColor: isDark ? 'rgba(148,163,184,0.18)' : '#E2E8F0' }]} />
                                             </View>
                                         </View>
                                     ))
-                                ) : opportunityCards.map((opportunity) => (
-                                    <TouchableOpacity
-                                        key={opportunity.id}
-                                        activeOpacity={0.88}
-                                        onPress={() => handleViewOpportunity(opportunity.id)}
-                                        style={[
-                                            styles.opportunityCard,
-                                            {
-                                                backgroundColor: isDark ? 'rgba(15,23,42,0.96)' : '#FFFFFF',
-                                                borderColor,
-                                            },
-                                        ]}
-                                    >
-                                        {opportunity.imageUrl ? (
-                                            <Image source={{ uri: opportunity.imageUrl }} style={styles.opportunityImage} />
-                                        ) : (
-                                            <View style={[styles.opportunityImageFallback, { backgroundColor: isDark ? 'rgba(99,102,241,0.16)' : '#EEF2FF' }]}>
-                                                <Sparkles size={24} color={accentColor} />
+                                ) : opportunityCards.map((opportunity, cardIndex) => {
+                                    const badge = getDeadlineBadge(opportunity.deadline);
+                                    // First card of a ranked set gets the "Top pick" accent —
+                                    // only when a real match score backs the claim.
+                                    const isTopPick = cardIndex === 0 && opportunityCards.length > 1 && typeof opportunity.matchScore === 'number' && opportunity.matchScore > 0;
+                                    const isRed = badge.level === 'today' || badge.level === 'critical';
+                                    const isAmber = badge.level === 'tomorrow' || badge.level === 'urgent';
+                                    return (
+                                        <TouchableOpacity
+                                            key={opportunity.id}
+                                            activeOpacity={0.88}
+                                            onPress={() => handleViewOpportunity(opportunity.id)}
+                                            accessibilityRole="button"
+                                            accessibilityLabel={opportunity.title}
+                                            style={[
+                                                styles.opportunityCard,
+                                                {
+                                                    backgroundColor: isDark ? 'rgba(15,23,42,0.96)' : '#FFFFFF',
+                                                    borderColor: isTopPick ? accentColor : borderColor,
+                                                },
+                                                isTopPick && styles.opportunityCardTop,
+                                            ]}
+                                        >
+                                            <View style={styles.opportunityImageWrap}>
+                                                {opportunity.imageUrl ? (
+                                                    <Image source={{ uri: opportunity.imageUrl }} style={styles.opportunityImage} />
+                                                ) : (
+                                                    <View style={[styles.opportunityImage, styles.opportunityImageFallback, { backgroundColor: accentTint }]}>
+                                                        <Sparkles size={24} color={accentColor} />
+                                                    </View>
+                                                )}
+                                                {isTopPick ? (
+                                                    <View style={[styles.imagePill, styles.imagePillTopLeft, { backgroundColor: accentColor }]}>
+                                                        <Text style={styles.imagePillText}>{t('messages.topPick', { defaultValue: 'Top pick' })}</Text>
+                                                    </View>
+                                                ) : null}
+                                                {badge.level !== 'none' ? (
+                                                    <View
+                                                        style={[
+                                                            styles.imagePill,
+                                                            styles.imagePillTopRight,
+                                                            // Urgent deadlines get the shared urgency colours
+                                                            // (darker red for contrast); calm ones a neutral scrim.
+                                                            { backgroundColor: isRed ? '#DC2626' : isAmber ? '#F59E0B' : 'rgba(2,6,23,0.66)' },
+                                                        ]}
+                                                    >
+                                                        <Text style={[styles.imagePillText, isAmber && { color: '#111827' }]} numberOfLines={1}>
+                                                            {badge.level === 'normal' || badge.level === 'soon'
+                                                                ? (badge.date ?? badge.label)
+                                                                : badge.label}
+                                                        </Text>
+                                                    </View>
+                                                ) : null}
+                                                <View style={[styles.imagePill, styles.imagePillBottomLeft, { backgroundColor: 'rgba(2,6,23,0.66)' }]}>
+                                                    <Text style={styles.imagePillText} numberOfLines={1}>
+                                                        {opportunity.category || t('messages.categoryFallback')}
+                                                    </Text>
+                                                </View>
                                             </View>
-                                        )}
 
-                                        <View style={styles.opportunityBody}>
-                                            <View style={styles.opportunityTopRow}>
-                                                <Text style={[styles.opportunityCategory, { color: accentColor }]} numberOfLines={1}>
-                                                    {opportunity.category || t('messages.categoryFallback')}
+                                            <View style={styles.opportunityBody}>
+                                                <Text style={[styles.opportunityTitle, { color: textPrimary }]} numberOfLines={2}>
+                                                    {opportunity.title}
                                                 </Text>
-                                                <Text style={[styles.opportunityMetaDot, { color: textSecondary }]}>·</Text>
-                                                <Text style={[styles.opportunityDeadline, { color: textSecondary }]} numberOfLines={1}>
-                                                    {formatOpportunityDeadline(opportunity.deadline)}
-                                                </Text>
+                                                {opportunity.organization ? (
+                                                    <Text style={[styles.opportunityOrg, { color: textSecondary }]} numberOfLines={1}>
+                                                        {opportunity.organization}
+                                                    </Text>
+                                                ) : null}
+                                                <View style={styles.opportunityFooter}>
+                                                    {typeof opportunity.matchScore === 'number' && opportunity.matchScore > 0 ? (
+                                                        <Text style={[styles.matchBadge, { color: accentColor }]} numberOfLines={1}>
+                                                            {t('messages.matchScore', { defaultValue: '{{score}}% match', score: Math.round(opportunity.matchScore) })}
+                                                        </Text>
+                                                    ) : (
+                                                        <Text style={[styles.opportunityMeta, { color: textSecondary }]} numberOfLines={1}>
+                                                            {opportunity.location || formatOpportunityDeadline(opportunity.deadline)}
+                                                        </Text>
+                                                    )}
+                                                    <View style={[styles.opportunityGo, { backgroundColor: accentTint }]}>
+                                                        <ChevronRight size={14} color={accentColor} />
+                                                    </View>
+                                                </View>
                                             </View>
-
-                                            <Text style={[styles.opportunityTitle, { color: textPrimary }]} numberOfLines={3}>
-                                                {opportunity.title}
-                                            </Text>
-
-                                            <View style={styles.opportunityActions}>
-                                                <TouchableOpacity
-                                                    onPress={() => handleViewOpportunity(opportunity.id)}
-                                                    style={[styles.primaryCta, { backgroundColor: accentColor }]}
-                                                >
-                                                    <Text style={styles.primaryCtaText}>{t('messages.view')}</Text>
-                                                </TouchableOpacity>
-                                            </View>
-                                        </View>
-                                    </TouchableOpacity>
-                                ))}
+                                        </TouchableOpacity>
+                                    );
+                                })}
                                 {opportunityCards.length > 0 ? (
                                     <TouchableOpacity
                                     activeOpacity={0.86}
@@ -1103,7 +1184,7 @@ export default function ChatScreen() {
                                     style={[
                                         styles.viewMoreOpportunityCard,
                                         {
-                                            backgroundColor: isDark ? 'rgba(99,102,241,0.14)' : '#EEF2FF',
+                                            backgroundColor: accentTint,
                                             borderColor: accentColor,
                                         },
                                     ]}
@@ -1229,7 +1310,7 @@ export default function ChatScreen() {
                                         key={`${doc.docId}-v${doc.version}`}
                                         style={[styles.documentCard, { backgroundColor: cardBg, borderColor }]}
                                     >
-                                        <View style={[styles.documentIconWrap, { backgroundColor: isDark ? 'rgba(99,102,241,0.14)' : '#EEF2FF' }]}>
+                                        <View style={[styles.documentIconWrap, { backgroundColor: accentTint }]}>
                                             <FileText size={20} color={accentColor} />
                                         </View>
                                         <View style={{ flex: 1, minWidth: 0 }}>
@@ -1284,7 +1365,7 @@ export default function ChatScreen() {
                                             styles.agentActionChip,
                                             {
                                                 borderColor: accentColor,
-                                                backgroundColor: isDark ? 'rgba(99,102,241,0.12)' : '#EEF2FF',
+                                                backgroundColor: accentTint,
                                             },
                                         ]}
                                     >
@@ -1296,15 +1377,6 @@ export default function ChatScreen() {
                             </View>
                         ) : null}
                     </View>
-                    {!isBot ? (
-                        <View style={[styles.avatar, { backgroundColor: isDark ? '#475569' : '#64748B' }]}>
-                            {user?.imageUrl ? (
-                                <Image source={{ uri: user.imageUrl }} style={styles.avatarImage} />
-                            ) : (
-                                <Text style={styles.avatarInitial}>{userInitial}</Text>
-                            )}
-                        </View>
-                    ) : null}
                 </View>
             </Animated.View>
         );
@@ -1319,7 +1391,7 @@ export default function ChatScreen() {
             style={[
                 styles.threadItem,
                 { backgroundColor: cardBg, borderColor },
-                selectedThreadId === item.id && { backgroundColor: 'rgba(99,102,241,0.2)', borderColor: accentColor }
+                selectedThreadId === item.id && { backgroundColor: accentColor + '33', borderColor: accentColor }
             ]}
         >
             <View style={styles.threadContent}>
@@ -1394,7 +1466,7 @@ export default function ChatScreen() {
                             showsVerticalScrollIndicator={false}
                             ListEmptyComponent={
                                 <View style={styles.emptyContainer}>
-                                    <View style={styles.emptyIcon}>
+                                    <View style={[styles.emptyIcon, { backgroundColor: accentTint }]}>
                                         <EdutuLogo size={48} frameless />
                                     </View>
                                     <Text style={[styles.emptyTitle, { color: textPrimary }]}>{t('empty.title')}</Text>
@@ -1408,7 +1480,7 @@ export default function ChatScreen() {
                                                 onPress={() => handleSend(prompt.text)}
                                                 style={[styles.promptItem, { backgroundColor: cardBg, borderColor }]}
                                             >
-                                                <View style={styles.promptIcon}>
+                                                <View style={[styles.promptIcon, { backgroundColor: accentTint }]}>
                                                     <prompt.icon size={20} color={accentColor} />
                                                 </View>
                                                 <View style={styles.promptCopy}>
@@ -1429,16 +1501,16 @@ export default function ChatScreen() {
                                 <>
                                     {isSending ? (
                                         <View style={styles.typingRow}>
-                                            <View style={[styles.avatar, styles.aiAvatar, { backgroundColor: isDark ? 'rgba(99,102,241,0.14)' : '#EEF2FF' }]}>
+                                            <View style={[styles.avatar, styles.aiAvatar, { backgroundColor: accentTint, borderColor: accentColor + '33' }]}>
                                                 <EdutuLogo size={22} frameless />
                                             </View>
-                                            <View style={[styles.typingBubble, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor }]}>
-                                                <Text style={[styles.typingText, { color: textSecondary }]}>{t('messages.typing')}</Text>
+                                            <View style={styles.typingInline}>
                                                 <View style={styles.typingDots}>
-                                                    <View style={[styles.typingDot, { backgroundColor: accentColor }]} />
-                                                    <View style={[styles.typingDot, { backgroundColor: accentColor, opacity: 0.7 }]} />
-                                                    <View style={[styles.typingDot, { backgroundColor: accentColor, opacity: 0.45 }]} />
+                                                    <TypingDot delay={0} color={accentColor} reducedMotion={reducedMotion} />
+                                                    <TypingDot delay={140} color={accentColor} reducedMotion={reducedMotion} />
+                                                    <TypingDot delay={280} color={accentColor} reducedMotion={reducedMotion} />
                                                 </View>
+                                                <Text style={[styles.typingText, { color: textSecondary }]}>{t('messages.typing')}</Text>
                                             </View>
                                         </View>
                                     ) : null}
@@ -1450,7 +1522,7 @@ export default function ChatScreen() {
                                                     onPress={() => handleSend(prompt.text)}
                                                     style={[styles.promptItem, { backgroundColor: cardBg, borderColor }]}
                                                 >
-                                                    <View style={styles.promptIcon}>
+                                                    <View style={[styles.promptIcon, { backgroundColor: accentTint }]}>
                                                         <prompt.icon size={20} color={accentColor} />
                                                     </View>
                                                     <View style={styles.promptCopy}>
@@ -1478,7 +1550,7 @@ export default function ChatScreen() {
                                 styles.sendErrorBanner,
                                 {
                                     backgroundColor: sendError.type === 'limit'
-                                        ? (isDark ? 'rgba(99,102,241,0.14)' : '#EEF2FF')
+                                        ? accentTint
                                         : (isDark ? 'rgba(239,68,68,0.12)' : '#FEF2F2'),
                                     borderColor: sendError.type === 'limit' ? accentColor + '55' : '#EF444455',
                                 },
@@ -1572,7 +1644,7 @@ export default function ChatScreen() {
                                 <>
                                     <TouchableOpacity
                                         onPress={openVoiceRecorder}
-                                        style={[styles.iconBtn, { backgroundColor: isDark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.10)' }]}
+                                        style={[styles.iconBtn, { backgroundColor: accentTint }]}
                                         accessibilityRole="button"
                                         accessibilityLabel={t('voiceMode.composerRecord')}
                                     >
@@ -1633,10 +1705,10 @@ export default function ChatScreen() {
                                 selectThread(null);
                                 setIsThreadsVisible(false);
                             }}
-                            style={[styles.newConvBtn, { backgroundColor: 'rgba(99,102,241,0.1)', borderColor: 'rgba(99,102,241,0.3)' }]}
+                            style={[styles.newConvBtn, { backgroundColor: accentTint, borderColor: accentColor + '4D' }]}
                         >
                             <Plus size={20} color={accentColor} />
-                            <Text style={styles.newConvText}>{t('threads.newConversation')}</Text>
+                            <Text style={[styles.newConvText, { color: accentColor }]}>{t('threads.newConversation')}</Text>
                         </TouchableOpacity>
 
                         {isLoadingThreads ? (
@@ -1677,18 +1749,21 @@ const styles = StyleSheet.create({
     messageRowUser: { alignItems: 'flex-end' },
     messageContainer: {
         flexDirection: 'row',
-        alignItems: 'flex-end',
         maxWidth: '88%',
-        gap: 8,
+        gap: 10,
     },
     messageContainerAssistant: {
         alignSelf: 'flex-start',
+        alignItems: 'flex-start',
+        maxWidth: '92%',
     },
     messageContainerAssistantWide: {
         maxWidth: '100%',
     },
     messageContainerUser: {
         alignSelf: 'flex-end',
+        alignItems: 'flex-end',
+        maxWidth: '82%',
     },
     messageStack: {
         flexShrink: 1,
@@ -1705,37 +1780,26 @@ const styles = StyleSheet.create({
     },
     aiAvatar: {
         borderWidth: 1,
-        borderColor: 'rgba(99,102,241,0.20)',
-    },
-    avatarImage: {
-        width: '100%',
-        height: '100%',
-        borderRadius: 15,
-    },
-    avatarInitial: {
-        color: '#FFFFFF',
-        fontSize: 12,
-        fontWeight: '800',
     },
     messageBubble: {
-        paddingVertical: 10,
-        paddingHorizontal: 14,
-        borderWidth: 1,
+        paddingVertical: 11,
+        paddingHorizontal: 16,
         position: 'relative',
         flexShrink: 1,
     },
-    messageBubbleAssistant: {
-        borderRadius: 18,
-        borderBottomLeftRadius: 6,
+    // Assistant replies read as open text on the canvas (modern AI-chat
+    // grammar) — no box, so short answers stop looking like empty cards.
+    messageBlockAssistant: {
+        paddingTop: 4,
+        flexShrink: 1,
     },
     messageBubbleUser: {
-        borderRadius: 18,
+        borderRadius: 20,
         borderBottomRightRadius: 6,
-        borderColor: 'transparent',
     },
     messageText: {
-        fontSize: 15,
-        lineHeight: 22,
+        fontSize: 15.5,
+        lineHeight: 23,
         flexWrap: 'wrap',
     },
     formattedMessage: {
@@ -1785,14 +1849,14 @@ const styles = StyleSheet.create({
     },
     messageActions: {
         flexDirection: 'row',
-        justifyContent: 'flex-end',
-        gap: 6,
-        marginTop: 6,
+        justifyContent: 'flex-start',
+        gap: 4,
+        marginTop: 8,
     },
     speakBtn: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
+        width: 30,
+        height: 30,
+        borderRadius: 15,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -1821,17 +1885,20 @@ const styles = StyleSheet.create({
         paddingRight: 16,
     },
     opportunityCard: {
-        width: 210,
-        borderRadius: 14,
+        width: 236,
+        borderRadius: 16,
         borderWidth: 1,
         overflow: 'hidden',
     },
+    opportunityCardTop: {
+        borderWidth: 1.5,
+    },
     opportunityLoadingCard: {
-        minHeight: 228,
+        minHeight: 214,
     },
     opportunityLoadingImage: {
         width: '100%',
-        height: 104,
+        height: 120,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -1845,12 +1912,6 @@ const styles = StyleSheet.create({
     },
     loadingLineMedium: {
         width: '74%',
-    },
-    loadingButton: {
-        width: '100%',
-        height: 34,
-        borderRadius: 10,
-        marginTop: 2,
     },
     viewMoreOpportunityCard: {
         width: 132,
@@ -1882,85 +1943,73 @@ const styles = StyleSheet.create({
         lineHeight: 15,
         textAlign: 'center',
     },
+    opportunityImageWrap: {
+        position: 'relative',
+    },
     opportunityImage: {
         width: '100%',
-        height: 104,
+        height: 120,
     },
     opportunityImageFallback: {
-        height: 104,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    opportunityBody: {
-        minHeight: 124,
-        padding: 10,
-        gap: 8,
-        justifyContent: 'space-between',
+    // Pills overlaid on the card image: category (bottom-left), deadline
+    // urgency (top-right), top-pick (top-left).
+    imagePill: {
+        position: 'absolute',
+        borderRadius: 999,
+        paddingHorizontal: 9,
+        paddingVertical: 4,
+        maxWidth: 150,
     },
-    opportunityTopRow: {
+    imagePillTopLeft: { top: 8, left: 8 },
+    imagePillTopRight: { top: 8, right: 8 },
+    imagePillBottomLeft: { bottom: 8, left: 8 },
+    imagePillText: {
+        color: '#F8FAFC',
+        fontSize: 10.5,
+        fontWeight: '700',
+    },
+    opportunityBody: {
+        minHeight: 94,
+        padding: 12,
+        gap: 4,
+    },
+    matchBadge: {
+        fontSize: 12,
+        fontWeight: '800',
+        flexShrink: 1,
+    },
+    opportunityTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+        lineHeight: 19,
+    },
+    opportunityOrg: {
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    opportunityFooter: {
+        marginTop: 'auto',
+        paddingTop: 6,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: 8,
     },
-    opportunityCategory: {
-        flexShrink: 1,
-        maxWidth: 112,
-        fontSize: 10,
-        fontWeight: '800',
-        textTransform: 'uppercase',
-    },
-    opportunityMetaDot: {
-        fontSize: 12,
-        fontWeight: '900',
-    },
-    opportunityDeadline: {
+    opportunityGo: {
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        alignItems: 'center',
+        justifyContent: 'center',
         flexShrink: 0,
-        fontSize: 10,
-        fontWeight: '800',
-        textTransform: 'uppercase',
-    },
-    matchBadge: {
-        fontSize: 10,
-        fontWeight: '800',
-    },
-    opportunityTitle: {
-        fontSize: 13,
-        fontWeight: '800',
-        lineHeight: 17,
     },
     opportunityMeta: {
         fontSize: 12,
         fontWeight: '600',
-    },
-    cardHint: {
-        fontSize: 10,
-        fontWeight: '700',
-        textTransform: 'uppercase',
-        letterSpacing: 0.7,
-    },
-    opportunitySummary: {
-        fontSize: 12,
-        lineHeight: 17,
-    },
-    opportunityFacts: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 8,
-    },
-    factPill: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        maxWidth: '100%',
-    },
-    factText: {
-        fontSize: 11,
-        fontWeight: '600',
-        maxWidth: 150,
-    },
-    opportunityActions: {
-        paddingTop: 0,
+        flexShrink: 1,
     },
     followUpBar: {
         flexDirection: 'row',
@@ -1975,16 +2024,16 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     followUpChip: {
-        minHeight: 30,
+        minHeight: 32,
         borderRadius: 999,
         borderWidth: 1,
-        paddingHorizontal: 11,
+        paddingHorizontal: 12,
         alignItems: 'center',
         justifyContent: 'center',
     },
     followUpChipText: {
-        fontSize: 12,
-        fontWeight: '800',
+        fontSize: 12.5,
+        fontWeight: '700',
     },
     roadmapBuilderPanel: {
         width: SCREEN_WIDTH,
@@ -2018,18 +2067,6 @@ const styles = StyleSheet.create({
         fontSize: 13,
         lineHeight: 18,
         fontWeight: '700',
-    },
-    roadmapInlineButton: {
-        height: 34,
-        borderRadius: 999,
-        borderWidth: 1,
-        paddingHorizontal: 12,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    roadmapInlineButtonText: {
-        fontSize: 12,
-        fontWeight: '900',
     },
     roadmapMatchRail: {
         gap: 12,
@@ -2074,12 +2111,6 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 12,
         fontWeight: '900',
-    },
-    smartActions: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 6,
-        paddingTop: 1,
     },
     imageCardStack: {
         gap: 8,
@@ -2171,53 +2202,13 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: '700',
     },
-    smartActionChip: {
-        minHeight: 30,
-        borderRadius: 999,
-        borderWidth: 1,
-        paddingHorizontal: 9,
-        paddingVertical: 6,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 5,
-    },
-    smartActionText: {
-        fontSize: 11,
-        fontWeight: '800',
-    },
-    secondaryCta: {
-        flex: 1,
-        height: 36,
-        borderRadius: 10,
-        borderWidth: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    secondaryCtaText: {
-        fontSize: 12,
-        fontWeight: '800',
-    },
-    primaryCta: {
-        width: '100%',
-        height: 34,
-        borderRadius: 10,
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexDirection: 'row',
-        gap: 6,
-    },
-    primaryCtaText: {
-        color: '#FFFFFF',
-        fontSize: 12,
-        fontWeight: '800',
-    },
     emptyContainer: {
         alignItems: 'center',
         justifyContent: 'center',
         paddingTop: 64,
         width: '100%',
     },
-    emptyIcon: { width: 80, height: 80, borderRadius: 24, backgroundColor: 'rgba(99,102,241,0.1)', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+    emptyIcon: { width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
     emptyTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 8 },
     emptyDesc: { fontSize: 14, textAlign: 'center', paddingHorizontal: 28, lineHeight: 20 },
     promptsContainer: {
@@ -2241,7 +2232,6 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 12,
-        backgroundColor: 'rgba(99,102,241,0.1)',
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 12,
@@ -2265,34 +2255,29 @@ const styles = StyleSheet.create({
     },
     typingRow: {
         flexDirection: 'row',
-        alignItems: 'flex-end',
-        gap: 8,
+        alignItems: 'center',
+        gap: 10,
         marginTop: 2,
         marginBottom: 14,
         maxWidth: '88%',
     },
-    typingBubble: {
-        minHeight: 42,
-        borderRadius: 18,
-        borderBottomLeftRadius: 6,
-        borderWidth: 1,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
+    typingInline: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 10,
+        gap: 8,
+        paddingVertical: 6,
     },
     typingText: {
-        fontSize: 12,
-        fontWeight: '700',
+        fontSize: 12.5,
+        fontWeight: '600',
     },
     typingDots: {
         flexDirection: 'row',
-        gap: 3,
+        gap: 4,
     },
     typingDot: {
-        width: 5,
-        height: 5,
+        width: 6,
+        height: 6,
         borderRadius: 3,
     },
     inputWrapper: {
@@ -2360,7 +2345,7 @@ const styles = StyleSheet.create({
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
     modalTitle: { fontSize: 20, fontWeight: 'bold' },
     newConvBtn: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 12, marginBottom: 16, borderWidth: 1 },
-    newConvText: { color: '#6366F1', fontWeight: 'bold', marginLeft: 12 },
+    newConvText: { fontWeight: 'bold', marginLeft: 12 },
     threadItem: { padding: 14, borderRadius: 12, marginBottom: 8, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     threadContent: { flex: 1, marginRight: 12 },
     threadTitle: { fontSize: 14, fontWeight: 'bold', marginBottom: 4 },

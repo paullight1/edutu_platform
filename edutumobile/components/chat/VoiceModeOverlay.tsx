@@ -296,41 +296,57 @@ function VoiceSessionScreen({
                 ) : null}
             </View>
 
-            {/* Controls — ChatGPT voice-mode grammar: neutral circles + red end */}
-            <View style={[styles.controls, { paddingBottom: Math.max(insets.bottom, 16) + 14 }]}>
-                <TouchableOpacity
-                    onPress={session.toggleMute}
-                    activeOpacity={0.8}
-                    style={[styles.controlBtn, session.muted && styles.controlBtnMuted]}
-                    accessibilityRole="button"
-                    accessibilityLabel={session.muted ? t('voiceMode.unmute') : t('voiceMode.mute')}
-                >
-                    {session.muted ? (
-                        <MicOff size={22} color="#0A0A0A" strokeWidth={2.1} />
-                    ) : (
-                        <Mic size={22} color="#E5E7EB" strokeWidth={2.1} />
-                    )}
-                </TouchableOpacity>
+            {/* Controls — ChatGPT voice-mode grammar: neutral circles + red end.
+                Each gets a caption so the icons are unambiguous on first use. */}
+            <View style={[styles.controls, { paddingBottom: Math.max(insets.bottom, 16) + 10 }]}>
+                <View style={[styles.controlCol, styles.controlColSide]}>
+                    <TouchableOpacity
+                        onPress={session.toggleMute}
+                        activeOpacity={0.8}
+                        style={[styles.controlBtn, session.muted && styles.controlBtnMuted]}
+                        accessibilityRole="button"
+                        accessibilityLabel={session.muted ? t('voiceMode.unmute') : t('voiceMode.mute')}
+                    >
+                        {session.muted ? (
+                            <MicOff size={22} color="#0A0A0A" strokeWidth={2.1} />
+                        ) : (
+                            <Mic size={22} color="#E5E7EB" strokeWidth={2.1} />
+                        )}
+                    </TouchableOpacity>
+                    <Text style={styles.controlLabel} numberOfLines={1}>
+                        {session.muted ? t('voiceMode.unmute') : t('voiceMode.mute')}
+                    </Text>
+                </View>
 
-                <TouchableOpacity
-                    onPress={handleEnd}
-                    activeOpacity={0.85}
-                    style={styles.endBtn}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('voiceMode.end')}
-                >
-                    <X size={26} color="#FFFFFF" strokeWidth={2.4} />
-                </TouchableOpacity>
+                <View style={styles.controlCol}>
+                    <TouchableOpacity
+                        onPress={handleEnd}
+                        activeOpacity={0.85}
+                        style={styles.endBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('voiceMode.end')}
+                    >
+                        <X size={26} color="#FFFFFF" strokeWidth={2.4} />
+                    </TouchableOpacity>
+                    <Text style={styles.controlLabel} numberOfLines={1}>
+                        {t('voiceMode.end')}
+                    </Text>
+                </View>
 
-                <TouchableOpacity
-                    onPress={handleOpenChat}
-                    activeOpacity={0.8}
-                    style={styles.controlBtn}
-                    accessibilityRole="button"
-                    accessibilityLabel={t('voiceMode.openChat')}
-                >
-                    <MessageSquare size={22} color="#E5E7EB" strokeWidth={2.1} />
-                </TouchableOpacity>
+                <View style={[styles.controlCol, styles.controlColSide]}>
+                    <TouchableOpacity
+                        onPress={handleOpenChat}
+                        activeOpacity={0.8}
+                        style={styles.controlBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('voiceMode.openChat')}
+                    >
+                        <MessageSquare size={22} color="#E5E7EB" strokeWidth={2.1} />
+                    </TouchableOpacity>
+                    <Text style={styles.controlLabel} numberOfLines={1}>
+                        {t('voiceMode.openChat')}
+                    </Text>
+                </View>
             </View>
 
             <VoiceSettingsSheet visible={settingsOpen} onClose={handleCloseSettings} />
@@ -429,12 +445,16 @@ const styles = StyleSheet.create({
         borderRadius: 130,
     },
     statusText: {
-        color: '#9CA3AF',
+        color: '#D1D5DB',
         fontSize: 15,
         fontWeight: '500',
         textAlign: 'center',
         paddingHorizontal: 40,
         lineHeight: 22,
+        // Keeps the label legible when it sits over the orb's bright core.
+        textShadowColor: 'rgba(0,0,0,0.65)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 8,
     },
     captions: {
         minHeight: 92,
@@ -443,7 +463,7 @@ const styles = StyleSheet.create({
         gap: 10,
     },
     captionUser: {
-        color: '#6B7280',
+        color: '#9CA3AF',
         fontSize: 13.5,
         fontWeight: '600',
         textAlign: 'center',
@@ -481,10 +501,26 @@ const styles = StyleSheet.create({
     },
     controls: {
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'center',
-        gap: 28,
+        gap: 24,
         paddingTop: 18,
+    },
+    controlCol: {
+        alignItems: 'center',
+        gap: 7,
+        minWidth: 76,
+    },
+    // Optically centres the 60px side circles against the 72px end button.
+    controlColSide: {
+        paddingTop: 6,
+    },
+    controlLabel: {
+        color: '#9CA3AF',
+        fontSize: 11.5,
+        fontWeight: '600',
+        maxWidth: 96,
+        textAlign: 'center',
     },
     controlBtn: {
         width: 60,
