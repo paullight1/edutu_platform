@@ -1,4 +1,4 @@
-import { View, Text, FlatList, Image, StyleSheet, ActivityIndicator, Alert, ScrollView, TouchableOpacity, Modal, TextInput } from "react-native";
+import { View, Text, FlatList, Image, StyleSheet, ActivityIndicator, Alert, Linking, ScrollView, TouchableOpacity, Modal, TextInput } from "react-native";
 import React, { useState, useCallback, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -436,7 +436,12 @@ function AdminCreatorApplicationsContent() {
                                             <Text style={[styles.detailLabel, { color: textSecondary }]}>{t('admin.creatorApplications.modal.linkedin')}</Text>
                                             <TouchableOpacity
                                                 style={styles.linkRow}
-                                                onPress={() => {/* open link */}}
+                                                onPress={() => {
+                                                    const url = selectedApp.linkedin_url?.startsWith('http')
+                                                        ? selectedApp.linkedin_url
+                                                        : `https://${selectedApp.linkedin_url}`;
+                                                    Linking.openURL(url).catch(() => {});
+                                                }}
                                             >
                                                 <ExternalLink size={14} color={colors.primary} />
                                                 <Text style={[styles.linkText, { color: colors.primary }]} numberOfLines={1}>

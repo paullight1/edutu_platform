@@ -161,7 +161,8 @@
             "savedTitle": "Roadmap saved",
             "savedMessage": "It’s now in your Roadmaps → My Roadmaps.",
             "updatedTitle": "Changes saved",
-            "updatedMessage": "Your roadmap has been updated."
+            "updatedMessage": "Your roadmap has been updated.",
+            "unpublishedMessage": "Your roadmap is private again — only you can see it."
         },
         "wizard": {
             "basicsTitle": "Roadmap Basics",
@@ -216,7 +217,8 @@
             "loadRoadmaps": "Couldn’t load your roadmaps.",
             "timeout": "Request timed out. Check your connection and try again.",
             "deleteFailed": "Couldn’t delete this roadmap.",
-            "followFailed": "Couldn’t start this roadmap."
+            "followFailed": "Couldn’t start this roadmap.",
+            "visibilityFailed": "Couldn't change this roadmap's visibility. Please try again."
         },
         "badge": {
             "personal": "Personal",
@@ -245,7 +247,9 @@
         "followSuccess": {
             "title": "Added to your goals",
             "message": "Each step is now a trackable goal in your Goals tab."
-        }
+        },
+        "listDegraded": "Your roadmaps couldn't be refreshed.",
+        "listDegradedRetry": "Tap to retry"
     },
     "mentorApply": {
         "title": "Become a Mentor",

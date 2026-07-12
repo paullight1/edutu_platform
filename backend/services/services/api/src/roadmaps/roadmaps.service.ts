@@ -350,6 +350,42 @@ export class RoadmapsService {
     return { success: true, id };
   }
 
+  // Catalog visibility is the one status transition owners may make, and only
+  // through here — publishing stays gated on approved-creator/admin while
+  // unpublishing is always allowed to the owner.
+  async setMineVisibility(userId: string, id: string, publish: boolean) {
+    await this.requireOwnedRoadmap(userId, id);
+
+    if (publish) {
+      const dbUserId = toDatabaseUserId(userId);
+      const [profile] = await db
+        .select()
+        .from(profiles)
+        .where(eq(profiles.userId, dbUserId));
+
+      const isApprovedCreator = profile?.creatorStatus === "approved";
+      const isAdmin = profile?.role === "admin" || profile?.role === "moderator";
+      if (!isApprovedCreator && !isAdmin) {
+        throw new ForbiddenException(
+          "Only approved creators can publish roadmaps.",
+        );
+      }
+    }
+
+    const [item] = await db
+      .update(roadmaps)
+      .set({
+        status: publish ? "published" : "personal",
+        publishedAt: publish ? new Date() : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(roadmaps.id, id))
+      .returning();
+
+    await this.invalidateRoadmapCache();
+    return this.serializeRoadmap(item);
+  }
+
   async update(id: string, dto: UpdateRoadmapDto) {
     const existing = await this.findOne(id);
 

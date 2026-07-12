@@ -1,509 +1,591 @@
 {
-  "creatorApply": {
-    "title": "كن منشئ محتوى",
-    "types": {
-      "scholarship": { "label": "منحة دراسية", "desc": "منح دراسية أكاديمية ومنح مالية" },
-      "fellowship": { "label": "زمالة", "desc": "زمالات بحثية ومهنية" },
-      "internship": { "label": "تدريب", "desc": "برامج تدريب مهني" },
-      "job": { "label": "وظيفة بدوام كامل", "desc": "عروض توظيف بدوام كامل" },
-      "program": { "label": "مسرّعة/برنامج", "desc": "مسرّعات أعمال وبرامج تدريبية" },
-      "other": { "label": "أخرى", "desc": "فرص أخرى" }
+    "creatorApply": {
+        "title": "كن منشئ محتوى",
+        "types": {
+            "scholarship": {
+                "label": "منحة دراسية",
+                "desc": "منح دراسية أكاديمية ومنح مالية"
+            },
+            "fellowship": {
+                "label": "زمالة",
+                "desc": "زمالات بحثية ومهنية"
+            },
+            "internship": {
+                "label": "تدريب",
+                "desc": "برامج تدريب مهني"
+            },
+            "job": {
+                "label": "وظيفة بدوام كامل",
+                "desc": "عروض توظيف بدوام كامل"
+            },
+            "program": {
+                "label": "مسرّعة/برنامج",
+                "desc": "مسرّعات أعمال وبرامج تدريبية"
+            },
+            "other": {
+                "label": "أخرى",
+                "desc": "فرص أخرى"
+            }
+        },
+        "motivations": {
+            "helpOthers": "أريد مساعدة الآخرين على تحقيق ما حققته",
+            "mentor": "أستمتع بالإرشاد ومشاركة المعرفة",
+            "giveBack": "أريد رد الجميل للمجتمع",
+            "document": "أريد توثيق رحلتي للآخرين",
+            "payForward": "أؤمن بتقديم الخير للآخرين كما قُدّم لي"
+        },
+        "alerts": {
+            "uploadImageFailed": "فشل رفع الصورة. يرجى المحاولة مرة أخرى.",
+            "submitFailed": "فشل الاتصال. يرجى المحاولة مرة أخرى."
+        },
+        "success": {
+            "headerTitle": "تم إرسال الطلب",
+            "title": "مرحبًا بك في مجتمع المنشئين!",
+            "text": "لقد استلمنا طلبك ويسعدنا مراجعة رحلتك. سيتحقق فريقنا من مؤهلاتك خلال 2-3 أيام عمل.",
+            "applicationId": "رقم الطلب",
+            "status": "الحالة",
+            "pendingReview": "قيد المراجعة",
+            "responseTime": "مدة الرد",
+            "responseTimeValue": "2-3 أيام",
+            "backToProfile": "العودة إلى الملف الشخصي"
+        },
+        "intro": {
+            "heroTitle": "شارك قصة نجاحك",
+            "heroSubtitle": "لقد حققت إنجازًا مذهلًا. ألهم الجيل القادم بمشاركة خارطة طريقك نحو النجاح.",
+            "you": "أنت",
+            "yourName": "اسمك",
+            "futureCreator": "منشئ مستقبلي",
+            "statStudentsHelped": "طلاب تمت مساعدتهم",
+            "statSuccessStories": "قصص نجاح",
+            "statRevenueShare": "نسبة الإيرادات",
+            "benefit": "بصفتك منشئًا موثّقًا، ستحصل على <bold>85% من الإيرادات</bold> من كل عملية بيع لخارطة طريق وستصل إلى آلاف المتعلمين حول العالم."
+        },
+        "motivation": {
+            "title": "ما الذي يحفزك؟",
+            "desc": "اختر السبب الذي يصف بشكل أفضل رغبتك في أن تصبح منشئ محتوى."
+        },
+        "achievement": {
+            "title": "إنجازك",
+            "desc": "أخبرنا عن الفرصة التي حصلت عليها لنساعد الآخرين على اتباع مسارك.",
+            "typeLabel": "نوع الفرصة",
+            "nameLabel": "اسم الفرصة",
+            "namePlaceholder": "مثال: منحة مؤسسة Mastercard 2024",
+            "linkedinLabel": "ملف LinkedIn الشخصي",
+            "portfolioLabel": "رابط معرض الأعمال (اختياري)",
+            "portfolioPlaceholder": "رابط معرض أعمالك أو موقعك الشخصي"
+        },
+        "verification": {
+            "title": "التحقق",
+            "desc": "نتحقق من جميع المنشئين للحفاظ على الجودة والثقة. ارفع مستندًا لتأكيد إنجازك.",
+            "documentLabel": "مستند التحقق",
+            "documentHint": "ارفع خطاب الجائزة أو الشهادة أو بريد القبول الإلكتروني أو الهوية",
+            "tapToUpload": "اضغط للرفع",
+            "acceptedFormats": "الصيغ المقبولة: JPG وPNG",
+            "verified": "تم التحقق",
+            "storyLabel": "قصتك",
+            "storyPlaceholder": "شارك رحلتك - كيف استعددت، والتحديات التي واجهتها، ونصائحك للآخرين...",
+            "socialLabel": "روابط التواصل الاجتماعي (اختياري)",
+            "socialPlaceholder": "Twitter، YouTube، إلخ. (مفصولة بفواصل)"
+        },
+        "review": {
+            "title": "مراجعة الطلب",
+            "desc": "تحقق من تفاصيلك قبل الإرسال.",
+            "motivation": "الدافع",
+            "achievement": "الإنجاز",
+            "type": "النوع",
+            "name": "الاسم",
+            "verification": "التحقق",
+            "documentUploaded": "تم رفع المستند",
+            "bio": "نبذة تعريفية",
+            "callout": "ستتم مراجعة طلبك خلال <bold>2-3 أيام عمل</bold>. سيتم إخطارك فور الموافقة."
+        },
+        "submitApplication": "إرسال الطلب"
     },
-    "motivations": {
-      "helpOthers": "أريد مساعدة الآخرين على تحقيق ما حققته",
-      "mentor": "أستمتع بالإرشاد ومشاركة المعرفة",
-      "giveBack": "أريد رد الجميل للمجتمع",
-      "document": "أريد توثيق رحلتي للآخرين",
-      "payForward": "أؤمن بتقديم الخير للآخرين كما قُدّم لي"
-    },
-    "alerts": {
-      "uploadImageFailed": "فشل رفع الصورة. يرجى المحاولة مرة أخرى.",
-      "submitFailed": "فشل الاتصال. يرجى المحاولة مرة أخرى."
-    },
-    "success": {
-      "headerTitle": "تم إرسال الطلب",
-      "title": "مرحبًا بك في مجتمع المنشئين!",
-      "text": "لقد استلمنا طلبك ويسعدنا مراجعة رحلتك. سيتحقق فريقنا من مؤهلاتك خلال 2-3 أيام عمل.",
-      "applicationId": "رقم الطلب",
-      "status": "الحالة",
-      "pendingReview": "قيد المراجعة",
-      "responseTime": "مدة الرد",
-      "responseTimeValue": "2-3 أيام",
-      "backToProfile": "العودة إلى الملف الشخصي"
-    },
-    "intro": {
-      "heroTitle": "شارك قصة نجاحك",
-      "heroSubtitle": "لقد حققت إنجازًا مذهلًا. ألهم الجيل القادم بمشاركة خارطة طريقك نحو النجاح.",
-      "you": "أنت",
-      "yourName": "اسمك",
-      "futureCreator": "منشئ مستقبلي",
-      "statStudentsHelped": "طلاب تمت مساعدتهم",
-      "statSuccessStories": "قصص نجاح",
-      "statRevenueShare": "نسبة الإيرادات",
-      "benefit": "بصفتك منشئًا موثّقًا، ستحصل على <bold>85% من الإيرادات</bold> من كل عملية بيع لخارطة طريق وستصل إلى آلاف المتعلمين حول العالم."
-    },
-    "motivation": {
-      "title": "ما الذي يحفزك؟",
-      "desc": "اختر السبب الذي يصف بشكل أفضل رغبتك في أن تصبح منشئ محتوى."
-    },
-    "achievement": {
-      "title": "إنجازك",
-      "desc": "أخبرنا عن الفرصة التي حصلت عليها لنساعد الآخرين على اتباع مسارك.",
-      "typeLabel": "نوع الفرصة",
-      "nameLabel": "اسم الفرصة",
-      "namePlaceholder": "مثال: منحة مؤسسة Mastercard 2024",
-      "linkedinLabel": "ملف LinkedIn الشخصي",
-      "portfolioLabel": "رابط معرض الأعمال (اختياري)",
-      "portfolioPlaceholder": "رابط معرض أعمالك أو موقعك الشخصي"
-    },
-    "verification": {
-      "title": "التحقق",
-      "desc": "نتحقق من جميع المنشئين للحفاظ على الجودة والثقة. ارفع مستندًا لتأكيد إنجازك.",
-      "documentLabel": "مستند التحقق",
-      "documentHint": "ارفع خطاب الجائزة أو الشهادة أو بريد القبول الإلكتروني أو الهوية",
-      "tapToUpload": "اضغط للرفع",
-      "acceptedFormats": "الصيغ المقبولة: JPG وPNG",
-      "verified": "تم التحقق",
-      "storyLabel": "قصتك",
-      "storyPlaceholder": "شارك رحلتك - كيف استعددت، والتحديات التي واجهتها، ونصائحك للآخرين...",
-      "socialLabel": "روابط التواصل الاجتماعي (اختياري)",
-      "socialPlaceholder": "Twitter، YouTube، إلخ. (مفصولة بفواصل)"
-    },
-    "review": {
-      "title": "مراجعة الطلب",
-      "desc": "تحقق من تفاصيلك قبل الإرسال.",
-      "motivation": "الدافع",
-      "achievement": "الإنجاز",
-      "type": "النوع",
-      "name": "الاسم",
-      "verification": "التحقق",
-      "documentUploaded": "تم رفع المستند",
-      "bio": "نبذة تعريفية",
-      "callout": "ستتم مراجعة طلبك خلال <bold>2-3 أيام عمل</bold>. سيتم إخطارك فور الموافقة."
-    },
-    "submitApplication": "إرسال الطلب"
-  },
-  "creatorDashboard": {
-    "title": "استوديو المنشئ",
-    "subtitle": "أنشئ خرائط طريقك وأدرها",
-    "loading": "جارٍ تحميل استوديو المنشئ...",
-    "longLoad": {
-      "title": "يستغرق هذا وقتًا أطول من المتوقع",
-      "text": "يرجى المحاولة لاحقًا أو العودة ريثما نعيد الاتصال.",
-      "tryAgain": "حاول مرة أخرى"
-    },
-    "access": {
-      "pendingBadge": "الطلب قيد المراجعة",
-      "pendingDesc": "يقوم فريقنا بمراجعة طلبك. سنخطرك فور الموافقة عليه. يستغرق ذلك عادةً 2-3 أيام عمل.",
-      "pendingInfo": "في أثناء انتظارك، يمكنك تصفح خرائط طريق المنشئين الآخرين للإلهام.",
-      "browseRoadmaps": "تصفح خرائط الطريق",
-      "rejectedBadge": "لم تتم الموافقة على الطلب",
-      "rejectedDesc": "للأسف، لم تتم الموافقة على طلبك. يمكنك تقديم طلب جديد مع تفاصيل إضافية.",
-      "reapply": "إعادة التقديم",
-      "noneDesc": "انضم إلى مجتمع المنشئين لدينا وشارك معرفتك مع آلاف المتعلمين. اكسب أرصدة بينما تساعد الآخرين على تحقيق أهدافهم.",
-      "perkRevenue": "85% من الإيرادات",
-      "perkReach": "الوصول إلى أكثر من 10 آلاف طالب",
-      "perkBadge": "شارة منشئ موثّق",
-      "applyCta": "قدّم لتصبح منشئ محتوى"
-    },
-    "welcomeGreeting": "مرحبًا بعودتك،",
-    "creatorFallback": "منشئ",
-    "createRoadmap": "إنشاء خارطة طريق",
-    "overview": "نظرة عامة",
-    "stats": {
-      "totalCredits": "إجمالي الأرصدة",
-      "totalStudents": "إجمالي الطلاب",
-      "roadmaps": "خرائط الطريق"
-    },
-    "rewards": {
-      "title": "مكافآت المنشئ",
-      "text": "تكسب <bold>85%</bold> من كل عملية بيع لخارطة طريق."
-    },
-    "myRoadmaps": "خرائط طريقي",
-    "empty": {
-      "title": "لا توجد خرائط طريق بعد",
-      "subtext": "أنشئ خارطة طريقك الأولى وابدأ مشاركة معرفتك مع المجتمع.",
-      "cta": "أنشئ خارطة طريقك الأولى"
-    },
-    "free": "مجاني",
-    "priceCr": "{{price}} رصيد",
-    "alerts": {
-      "thumbnailUploaded": "تم رفع الصورة المصغرة!",
-      "uploadFailedTitle": "فشل الرفع",
-      "fileUploaded": "تم رفع الملف بنجاح.",
-      "missingInfoTitle": "معلومات ناقصة",
-      "missingInfoMessage": "يرجى تعبئة العنوان والوصف.",
-      "missingCurriculumTitle": "المنهج ناقص",
-      "missingCurriculumMessage": "أضف مرحلة واحدة على الأقل لخارطة الطريق.",
-      "publishFailed": "تعذّر نشر خارطة الطريق.",
-      "publishedTitle": "نجاح!",
-      "publishedMessage": "تم نشر خارطة طريقك وأصبحت مرئية للمتعلمين.",
-      "failedTitle": "فشل",
-      "failedFallback": "يرجى المحاولة مرة أخرى."
-    },
-    "wizard": {
-      "basicsTitle": "أساسيات خارطة الطريق",
-      "basicsDesc": "أخبرنا عن خارطة طريقك",
-      "curriculumTitle": "مراحل المنهج",
-      "curriculumDesc": "حدّد مراحل التعلّم",
-      "resourcesTitle": "الموارد والملفات",
-      "resourcesDesc": "أضف مواد داعمة",
-      "reviewTitle": "المراجعة والإرسال",
-      "reviewDesc": "تحقق قبل الإرسال",
-      "basicsCallout": "أنت تنشئ <bold>خارطة طريق</bold> — دليل تعلّم خطوة بخطوة يساعد الطلاب على تحقيق أهداف محددة.",
-      "titleLabel": "عنوان خارطة الطريق",
-      "titlePlaceholder": "مثال: خارطة طريق شاملة لتطوير الويب",
-      "descriptionLabel": "الوصف",
-      "descriptionPlaceholder": "ماذا سيتعلم الطلاب؟ وما النتائج التي يمكنهم توقعها؟",
-      "categoryLabel": "الفئة",
-      "thumbnailLabel": "الصورة المصغرة",
-      "uploaded": "تم الرفع",
-      "browseDevice": "التصفح من الجهاز",
-      "ratioHint": "يُنصح بنسبة 16:9",
-      "priceLabel": "السعر (أرصدة)",
-      "pricePlaceholder": "0 لخارطة طريق مجانية",
-      "experienceLabel": "خبرتك",
-      "experiencePlaceholder": "لماذا أنت مؤهل لإنشاء خارطة الطريق هذه؟",
-      "curriculumCallout": "قسّم خارطة طريقك إلى <bold>مراحل</bold>. تمثل كل مرحلة محطة إنجاز رئيسية في رحلة الطالب.",
-      "stageNumber": "المرحلة {{number}}",
-      "stageTitlePlaceholder": "عنوان المرحلة (مثال: الأساسيات)",
-      "stageDescPlaceholder": "وصف موجز لهذه المرحلة",
-      "stageDurationPlaceholder": "المدة (مثال: الأسبوع 1-2)",
-      "addStage": "إضافة مرحلة",
-      "resourcesCallout": "أضف موارد مثل الملفات النموذجية أو القوالب أو المستندات التي يمكن للطلاب تنزيلها.",
-      "resourceNamePlaceholder": "اسم المورد",
-      "uploadFile": "رفع ملف",
-      "addResource": "إضافة مورد",
-      "reviewCallout": "راجع تفاصيل خارطة طريقك قبل النشر. بصفتك منشئًا معتمدًا، ستُنشر للمتعلمين فورًا.",
-      "reviewBasics": "الأساسيات",
-      "reviewTitleLabel": "العنوان",
-      "reviewCategoryLabel": "الفئة",
-      "reviewPriceLabel": "السعر",
-      "priceCredits": "{{price}} من الأرصدة",
-      "reviewCurriculum": "المنهج ({{total}} مراحل)",
-      "reviewResources": "الموارد ({{total}})",
-      "untitled": "بدون عنوان",
-      "fileAttached": "✓ {{fileName}}",
-      "submitForReview": "إرسال للمراجعة"
-    }
-  },
-  "mentorApply": {
-    "title": "كن مرشدًا",
-    "alerts": {
-      "notSignedInTitle": "لم يتم تسجيل الدخول",
-      "notSignedInMessage": "يرجى تسجيل الدخول لتقديم طلب إرشاد."
-    },
-    "success": {
-      "title": "تم إرسال الطلب!",
-      "desc": "شكرًا لتقديمك لتكون مرشدًا. سنراجع طلبك ونرد عليك خلال 2-3 أيام عمل.",
-      "backToProfile": "العودة إلى الملف الشخصي"
-    },
-    "motivations": {
-      "helpOthers": "أريد مساعدة الآخرين على تحقيق ما حققته",
-      "mentor": "أستمتع بالإرشاد ومشاركة المعرفة",
-      "giveBack": "أريد رد الجميل للمجتمع",
-      "document": "أريد توثيق رحلتي للآخرين",
-      "payForward": "أؤمن بتقديم الخير للآخرين كما قُدّم لي"
-    },
-    "contentTypes": {
-      "mentorship": { "label": "إرشاد", "desc": "توجيه فردي" },
-      "course": { "label": "دورة", "desc": "مسارات تعلّم" },
-      "template": { "label": "قوالب", "desc": "قوالب CV وسير ذاتية" },
-      "resource": { "label": "موارد", "desc": "مواد دراسية" }
-    },
-    "intro": {
-      "heroTitle": "شارك\n<accent>قصة نجاحك</accent>",
-      "heroDesc": "لقد حققت إنجازًا مذهلًا. ساعد الآخرين على الوصول إليه أيضًا بمشاركة معرفتك وخبرتك.",
-      "statLearners": "متعلمون",
-      "statMentors": "مرشدون",
-      "statRevenue": "إيرادات",
-      "info": "صِل إلى متعلمين من أكثر من 31 دولة. يمكن لخبرتك أن تغيّر حياة شخص ما في أي مكان في العالم.",
-      "getStarted": "ابدأ الآن"
-    },
-    "motivation": {
-      "title": "ما الذي يحفزك؟",
-      "desc": "اختر السبب الذي يصف بشكل أفضل رغبتك في الإرشاد."
-    },
-    "details": {
-      "title": "أخبرنا عن نفسك",
-      "desc": "ساعد المتعلمين على فهم خبرتك.",
-      "displayNameLabel": "الاسم المعروض",
-      "displayNamePlaceholder": "كيف يجب أن يعرفك المتعلمون؟",
-      "teachLabel": "ماذا ستعلّم؟",
-      "bioLabel": "نبذتك التعريفية",
-      "bioPlaceholder": "شارك خلفيتك وإنجازاتك...",
-      "experienceLabel": "سنوات الخبرة",
-      "experiencePlaceholder": "مثال: 5 سنوات في هندسة البرمجيات",
-      "linkedinLabel": "رابط LinkedIn",
-      "portfolioLabel": "رابط معرض الأعمال",
-      "reviewApplication": "مراجعة الطلب"
-    },
-    "review": {
-      "title": "راجع طلبك",
-      "desc": "تأكد من أن كل شيء يبدو جيدًا قبل الإرسال.",
-      "displayName": "الاسم المعروض",
-      "motivation": "الدافع",
-      "contentType": "نوع المحتوى",
-      "experience": "الخبرة",
-      "bio": "نبذة تعريفية",
-      "linkedin": "LinkedIn",
-      "portfolio": "معرض الأعمال",
-      "notProvided": "غير مُقدَّم",
-      "submitting": "جارٍ الإرسال...",
-      "submit": "إرسال الطلب"
-    }
-  },
-  "admin": {
-    "creatorApplications": {
-      "title": "طلبات المنشئين",
-      "subtitle": "راجع الطلبات وأدرها",
-      "alerts": {
-        "loadFailed": "فشل تحميل الطلبات.",
-        "approvedSuccess": "تمت الموافقة على الطلب بنجاح.",
-        "rejectedSuccess": "تم رفض الطلب بنجاح.",
-        "reviewFailed": "فشلت مراجعة الطلب."
-      },
-      "unknown": "غير معروف",
-      "unknownUser": "مستخدم غير معروف",
-      "status": {
-        "pending": "قيد الانتظار",
-        "approved": "موافَق عليه",
-        "rejected": "مرفوض"
-      },
-      "filters": { "all": "الكل" },
-      "stats": { "total": "الإجمالي" },
-      "loading": "جارٍ تحميل الطلبات...",
-      "empty": {
-        "title": "لا توجد طلبات",
-        "pending": "لا توجد طلبات قيد الانتظار لمراجعتها.",
-        "generic": "لم يُعثر على طلبات."
-      },
-      "modal": {
-        "title": "تفاصيل الطلب",
-        "reviewedOn": "تمت المراجعة في {{date}}",
-        "applicant": "مقدّم الطلب",
-        "opportunity": "الفرصة",
-        "motivation": "الدافع",
-        "bio": "نبذة تعريفية",
-        "linkedin": "LinkedIn",
-        "verificationDocument": "مستند التحقق",
-        "proofUrl": "رابط الإثبات",
-        "appliedOn": "تاريخ التقديم",
-        "reviewerNotes": "ملاحظات المراجع",
-        "notePlaceholder": "أضف ملاحظة حول هذا القرار...",
-        "reject": "رفض",
-        "approve": "موافقة"
-      }
-    },
-    "premiumFeatures": {
-      "title": "الميزات المميزة",
-      "subtitle": "إدارة أعلام الميزات عبر التحديثات الهوائية",
-      "alerts": {
-        "loadFailed": "فشل تحميل أعلام الميزات.",
-        "validationTitle": "خطأ في التحقق",
-        "validationMessage": "التسمية والوصف مطلوبان.",
-        "updated": "تم تحديث علم الميزة بنجاح.",
-        "saveFailed": "فشل حفظ علم الميزة.",
-        "statusUpdateFailed": "فشل تحديث الحالة.",
-        "proUpdateFailed": "فشل تحديث متطلب Pro."
-      },
-      "stats": {
-        "total": "الإجمالي",
-        "enabled": "مفعّلة",
-        "proOnly": "لمشتركي Pro فقط"
-      },
-      "searchPlaceholder": "ابحث في الميزات...",
-      "filters": {
-        "all": "الكل",
-        "enabled": "مفعّلة",
-        "disabled": "معطّلة",
-        "proOnly": "لمشتركي Pro فقط"
-      },
-      "status": {
-        "enabled": "مفعّلة",
-        "disabled": "معطّلة"
-      },
-      "toggles": {
-        "enabled": "مفعّلة",
-        "proOnly": "لمشتركي Pro فقط"
-      },
-      "loading": "جارٍ تحميل أعلام الميزات...",
-      "empty": {
-        "title": "لا توجد أعلام ميزات",
-        "filtered": "لا توجد ميزات مطابقة لعامل التصفية الحالي.",
-        "none": "لم يُعثر على أعلام ميزات في قاعدة البيانات."
-      },
-      "modal": {
-        "title": "تعديل علم الميزة",
-        "labelLabel": "التسمية *",
-        "labelPlaceholder": "مثال: المعلّم الذكي",
-        "descriptionLabel": "الوصف *",
-        "descriptionPlaceholder": "صف ما تفعله هذه الميزة...",
-        "sortOrderLabel": "ترتيب العرض",
-        "submit": "تحديث علم الميزة"
-      }
-    },
-    "testimonials": {
-      "title": "شهادات العملاء",
-      "subtitle": "إدارة شهادات العملاء",
-      "alerts": {
-        "loadFailed": "فشل تحميل الشهادات.",
-        "validationTitle": "خطأ في التحقق",
-        "validationMessage": "الاسم والدور ونص التقييم مطلوبة.",
-        "updated": "تم تحديث الشهادة بنجاح.",
-        "added": "تمت إضافة الشهادة بنجاح.",
-        "saveFailed": "فشل حفظ الشهادة.",
-        "deleteTitle": "حذف الشهادة",
-        "deleteMessage": "هل أنت متأكد من أنك تريد حذف \"{{name}}\"؟ لا يمكن التراجع عن هذا الإجراء.",
-        "deleted": "تم حذف الشهادة.",
-        "deleteFailed": "فشل حذف الشهادة.",
-        "statusUpdateFailed": "فشل تحديث الحالة."
-      },
-      "stats": {
-        "total": "الإجمالي",
-        "active": "نشطة",
-        "inactive": "غير نشطة"
-      },
-      "filters": { "all": "الكل" },
-      "status": {
-        "active": "نشطة",
-        "inactive": "غير نشطة"
-      },
-      "videoLinked": "تم ربط فيديو YouTube",
-      "addButton": "إضافة شهادة",
-      "loading": "جارٍ تحميل الشهادات...",
-      "empty": {
-        "title": "لا توجد شهادات",
-        "filtered": "لا توجد شهادات مطابقة لعامل التصفية الحالي.",
-        "none": "اضغط على الزر أعلاه لإضافة شهادتك الأولى."
-      },
-      "modal": {
-        "editTitle": "تعديل الشهادة",
-        "nameLabel": "الاسم *",
-        "namePlaceholder": "مثال: محمد أحمد",
-        "roleLabel": "الدور *",
-        "rolePlaceholder": "مثال: مهندس برمجيات",
-        "countryLabel": "الدولة <dim>(اختياري)</dim>",
-        "countryPlaceholder": "مثال: 🇳🇬 نيجيريا",
-        "ratingLabel": "التقييم",
-        "reviewLabel": "نص التقييم *",
-        "reviewPlaceholder": "اكتب نص الشهادة...",
-        "youtubeLabel": "رابط YouTube <dim>(اختياري)</dim>",
-        "videoId": "معرّف الفيديو: {{id}}",
-        "videoIdError": "تعذّر استخراج معرّف الفيديو من الرابط",
-        "update": "تحديث الشهادة"
-      }
-    },
-    "roadmapCreate": {
-      "title": "إنشاء خارطة طريق",
-      "alerts": {
-        "coverUploadFailed": "فشل رفع صورة الغلاف",
-        "resourceRequired": "يرجى تعبئة عنوان المورد ورابطه",
-        "fileUploadFailed": "فشل رفع الملف",
-        "requiredFields": "يرجى تعبئة العنوان والملخص ومرحلة واحدة على الأقل",
-        "created": "تم إنشاء خارطة الطريق بنجاح!",
-        "createFailed": "فشل إنشاء خارطة الطريق. يرجى المحاولة مرة أخرى."
-      },
-      "basicInfo": "المعلومات الأساسية",
-      "uploadCover": "رفع صورة الغلاف",
-      "titleLabel": "العنوان",
-      "titlePlaceholder": "مثال: معسكر شامل لتطوير الويب",
-      "summaryLabel": "الملخص",
-      "summaryPlaceholder": "وصف موجز لخارطة الطريق هذه...",
-      "categoryLabel": "الفئة",
-      "categories": {
-        "education": "تعليم",
-        "programming": "برمجة",
-        "business": "أعمال",
-        "career": "مسار مهني",
-        "design": "تصميم",
-        "marketing": "تسويق",
-        "other": "أخرى"
-      },
-      "difficultyLabel": "الصعوبة",
-      "difficulty": {
-        "beginner": "مبتدئ",
-        "intermediate": "متوسط",
-        "advanced": "متقدم"
-      },
-      "priceLabel": "السعر",
-      "price": {
+    "creatorDashboard": {
+        "title": "استوديو المنشئ",
+        "subtitle": "أنشئ خرائط طريقك وأدرها",
+        "loading": "جارٍ تحميل استوديو المنشئ...",
+        "longLoad": {
+            "title": "يستغرق هذا وقتًا أطول من المتوقع",
+            "text": "يرجى المحاولة لاحقًا أو العودة ريثما نعيد الاتصال.",
+            "tryAgain": "حاول مرة أخرى"
+        },
+        "access": {
+            "pendingBadge": "الطلب قيد المراجعة",
+            "pendingDesc": "يقوم فريقنا بمراجعة طلبك. سنخطرك فور الموافقة عليه. يستغرق ذلك عادةً 2-3 أيام عمل.",
+            "pendingInfo": "في أثناء انتظارك، يمكنك تصفح خرائط طريق المنشئين الآخرين للإلهام.",
+            "browseRoadmaps": "تصفح خرائط الطريق",
+            "rejectedBadge": "لم تتم الموافقة على الطلب",
+            "rejectedDesc": "للأسف، لم تتم الموافقة على طلبك. يمكنك تقديم طلب جديد مع تفاصيل إضافية.",
+            "reapply": "إعادة التقديم",
+            "noneDesc": "انضم إلى مجتمع المنشئين لدينا وشارك معرفتك مع آلاف المتعلمين. اكسب أرصدة بينما تساعد الآخرين على تحقيق أهدافهم.",
+            "perkRevenue": "85% من الإيرادات",
+            "perkReach": "الوصول إلى أكثر من 10 آلاف طالب",
+            "perkBadge": "شارة منشئ موثّق",
+            "applyCta": "قدّم لتصبح منشئ محتوى"
+        },
+        "welcomeGreeting": "مرحبًا بعودتك،",
+        "creatorFallback": "منشئ",
+        "createRoadmap": "إنشاء خارطة طريق",
+        "overview": "نظرة عامة",
+        "stats": {
+            "totalCredits": "إجمالي الأرصدة",
+            "totalStudents": "إجمالي الطلاب",
+            "roadmaps": "خرائط الطريق"
+        },
+        "rewards": {
+            "title": "مكافآت المنشئ",
+            "text": "تكسب <bold>85%</bold> من كل عملية بيع لخارطة طريق."
+        },
+        "myRoadmaps": "خرائط طريقي",
+        "empty": {
+            "title": "لا توجد خرائط طريق بعد",
+            "subtext": "أنشئ خارطة طريقك الأولى وابدأ مشاركة معرفتك مع المجتمع.",
+            "cta": "أنشئ خارطة طريقك الأولى"
+        },
         "free": "مجاني",
-        "premium": "مميز"
-      },
-      "durationLabel": "المدة",
-      "durationPlaceholder": "مثال: 3 أشهر",
-      "tagsLabel": "الوسوم (مفصولة بفواصل)",
-      "tagsPlaceholder": "مثال: javascript, react, تطوير الويب",
-      "outcomesLabel": "نتائج التعلّم (واحدة في كل سطر)",
-      "outcomesPlaceholder": "- بناء تطبيقات متكاملة\\n- إتقان React وNode.js\\n- النشر في بيئة الإنتاج",
-      "resources": "الموارد",
-      "resourceTitlePlaceholder": "عنوان المورد",
-      "resourceDescriptionPlaceholder": "الوصف",
-      "resourceUrlPlaceholder": "الرابط",
-      "typeLabel": "النوع",
-      "resourceTypes": {
-        "article": "مقالة",
-        "video": "فيديو",
-        "course": "دورة",
-        "tool": "أداة",
-        "book": "كتاب",
-        "other": "أخرى"
-      },
-      "costLabel": "التكلفة",
-      "cost": {
-        "free": "مجاني",
-        "paid": "مدفوع"
-      },
-      "resourceMeta": "{{type}} • {{cost}}",
-      "addResource": "إضافة مورد",
-      "uploadDoc": "رفع PDF/مستند (اختياري)",
-      "stages": "مراحل خارطة الطريق",
-      "stageTitlePlaceholder": "عنوان المرحلة {{number}}",
-      "stageDescriptionPlaceholder": "وصف المرحلة",
-      "stageDurationPlaceholder": "المدة (مثال: أسبوعان)",
-      "milestonePlaceholder": "محطة إنجاز",
-      "tasks": "المهام",
-      "taskTitlePlaceholder": "عنوان المهمة",
-      "taskDescriptionPlaceholder": "وصف المهمة",
-      "taskDurationPlaceholder": "المدة",
-      "taskOutcomePlaceholder": "النتيجة المتوقعة",
-      "addTask": "إضافة مهمة",
-      "checkpointPlaceholder": "نقطة تحقق / ناتج مطلوب"
-    }
-  },
-  "notifications": {
-    "goalDeadlineToday": {
-      "title": "الموعد النهائي للهدف اليوم! 🎯",
-      "body": "لا تنسَ: {{title}}"
+        "priceCr": "{{price}} رصيد",
+        "alerts": {
+            "thumbnailUploaded": "تم رفع الصورة المصغرة!",
+            "uploadFailedTitle": "فشل الرفع",
+            "fileUploaded": "تم رفع الملف بنجاح.",
+            "missingInfoTitle": "معلومات ناقصة",
+            "missingInfoMessage": "يرجى تعبئة العنوان والوصف.",
+            "missingCurriculumTitle": "المنهج ناقص",
+            "missingCurriculumMessage": "أضف مرحلة واحدة على الأقل لخارطة الطريق.",
+            "publishFailed": "تعذّر نشر خارطة الطريق.",
+            "publishedTitle": "نجاح!",
+            "publishedMessage": "تم نشر خارطة طريقك وأصبحت مرئية للمتعلمين.",
+            "failedTitle": "فشل",
+            "failedFallback": "يرجى المحاولة مرة أخرى.",
+            "savedTitle": "تم حفظ خريطة الطريق",
+            "savedMessage": "أصبحت الآن في خرائط الطريق ← خرائطي.",
+            "updatedTitle": "تم حفظ التغييرات",
+            "updatedMessage": "تم تحديث خريطة الطريق الخاصة بك.",
+            "unpublishedMessage": "أصبحت خريطة طريقك خاصة مجددًا — أنت وحدك من يمكنه رؤيتها."
+        },
+        "wizard": {
+            "basicsTitle": "أساسيات خارطة الطريق",
+            "basicsDesc": "أخبرنا عن خارطة طريقك",
+            "curriculumTitle": "مراحل المنهج",
+            "curriculumDesc": "حدّد مراحل التعلّم",
+            "resourcesTitle": "الموارد والملفات",
+            "resourcesDesc": "أضف مواد داعمة",
+            "reviewTitle": "المراجعة والإرسال",
+            "reviewDesc": "تحقق قبل الإرسال",
+            "basicsCallout": "أنت تنشئ <bold>خارطة طريق</bold> — دليل تعلّم خطوة بخطوة يساعد الطلاب على تحقيق أهداف محددة.",
+            "titleLabel": "عنوان خارطة الطريق",
+            "titlePlaceholder": "مثال: خارطة طريق شاملة لتطوير الويب",
+            "descriptionLabel": "الوصف",
+            "descriptionPlaceholder": "ماذا سيتعلم الطلاب؟ وما النتائج التي يمكنهم توقعها؟",
+            "categoryLabel": "الفئة",
+            "thumbnailLabel": "الصورة المصغرة",
+            "uploaded": "تم الرفع",
+            "browseDevice": "التصفح من الجهاز",
+            "ratioHint": "يُنصح بنسبة 16:9",
+            "priceLabel": "السعر (أرصدة)",
+            "pricePlaceholder": "0 لخارطة طريق مجانية",
+            "experienceLabel": "خبرتك",
+            "experiencePlaceholder": "لماذا أنت مؤهل لإنشاء خارطة الطريق هذه؟",
+            "curriculumCallout": "قسّم خارطة طريقك إلى <bold>مراحل</bold>. تمثل كل مرحلة محطة إنجاز رئيسية في رحلة الطالب.",
+            "stageNumber": "المرحلة {{number}}",
+            "stageTitlePlaceholder": "عنوان المرحلة (مثال: الأساسيات)",
+            "stageDescPlaceholder": "وصف موجز لهذه المرحلة",
+            "stageDurationPlaceholder": "المدة (مثال: الأسبوع 1-2)",
+            "addStage": "إضافة مرحلة",
+            "resourcesCallout": "أضف موارد مثل الملفات النموذجية أو القوالب أو المستندات التي يمكن للطلاب تنزيلها.",
+            "resourceNamePlaceholder": "اسم المورد",
+            "uploadFile": "رفع ملف",
+            "addResource": "إضافة مورد",
+            "reviewCallout": "راجع تفاصيل خارطة طريقك قبل النشر. بصفتك منشئًا معتمدًا، ستُنشر للمتعلمين فورًا.",
+            "reviewBasics": "الأساسيات",
+            "reviewTitleLabel": "العنوان",
+            "reviewCategoryLabel": "الفئة",
+            "reviewPriceLabel": "السعر",
+            "priceCredits": "{{price}} من الأرصدة",
+            "reviewCurriculum": "المنهج ({{total}} مراحل)",
+            "reviewResources": "الموارد ({{total}})",
+            "untitled": "بدون عنوان",
+            "fileAttached": "✓ {{fileName}}",
+            "submitForReview": "إرسال للمراجعة",
+            "editCallout": "حدّث خريطة الطريق الخاصة بك. تُحفظ التغييرات في خرائطي.",
+            "publishNow": "انشر الآن",
+            "saveChanges": "حفظ التغييرات",
+            "saveRoadmap": "حفظ خريطة الطريق"
+        },
+        "actions": {
+            "edit": "تعديل",
+            "follow": "متابعة"
+        },
+        "badge": {
+            "personal": "شخصي",
+            "published": "منشور"
+        },
+        "deleteConfirm": {
+            "title": "حذف خريطة الطريق؟",
+            "message": "سيتم حذف \"{{title}}\" نهائيًا. لا يمكن التراجع عن ذلك."
+        },
+        "errors": {
+            "deleteFailed": "تعذّر حذف خريطة الطريق هذه.",
+            "followFailed": "تعذّر بدء خريطة الطريق هذه.",
+            "loadRoadmaps": "تعذّر تحميل خرائط الطريق الخاصة بك.",
+            "timeout": "انتهت مهلة الطلب. تحقّق من اتصالك وحاول مجددًا.",
+            "visibilityFailed": "تعذّر تغيير ظهور خريطة الطريق هذه. حاول مجددًا."
+        },
+        "followSuccess": {
+            "title": "أُضيفت إلى أهدافك",
+            "message": "أصبحت كل خطوة هدفًا يمكن تتبعه في تبويب الأهداف."
+        },
+        "upsell": {
+            "title": "كن منشئًا موثّقًا",
+            "text": "انشر خرائط طريقك في الكتالوج العام وصِل إلى آلاف المتعلمين."
+        },
+        "visibility": {
+            "lockedText": "كن منشئًا موثّقًا لنشر هذا للعامة.",
+            "personalText": "أنت وحدك من يمكنه رؤية هذا. يظهر في خرائط الطريق ← خرائطي.",
+            "personalTitle": "حفظ في خرائطي",
+            "publicText": "يمكن للجميع اكتشاف خريطة الطريق هذه ومتابعتها.",
+            "publicTitle": "النشر في الكتالوج العام",
+            "unlock": "فتح"
+        },
+        "listDegraded": "تعذّر تحديث خرائط الطريق الخاصة بك.",
+        "listDegradedRetry": "اضغط لإعادة المحاولة"
     },
-    "deadlineTomorrow": {
-      "title": "الموعد النهائي غدًا! ⏱️",
-      "body": "قادم: {{title}}"
+    "mentorApply": {
+        "title": "كن مرشدًا",
+        "alerts": {
+            "notSignedInTitle": "لم يتم تسجيل الدخول",
+            "notSignedInMessage": "يرجى تسجيل الدخول لتقديم طلب إرشاد."
+        },
+        "success": {
+            "title": "تم إرسال الطلب!",
+            "desc": "شكرًا لتقديمك لتكون مرشدًا. سنراجع طلبك ونرد عليك خلال 2-3 أيام عمل.",
+            "backToProfile": "العودة إلى الملف الشخصي"
+        },
+        "motivations": {
+            "helpOthers": "أريد مساعدة الآخرين على تحقيق ما حققته",
+            "mentor": "أستمتع بالإرشاد ومشاركة المعرفة",
+            "giveBack": "أريد رد الجميل للمجتمع",
+            "document": "أريد توثيق رحلتي للآخرين",
+            "payForward": "أؤمن بتقديم الخير للآخرين كما قُدّم لي"
+        },
+        "contentTypes": {
+            "mentorship": {
+                "label": "إرشاد",
+                "desc": "توجيه فردي"
+            },
+            "course": {
+                "label": "دورة",
+                "desc": "مسارات تعلّم"
+            },
+            "template": {
+                "label": "قوالب",
+                "desc": "قوالب CV وسير ذاتية"
+            },
+            "resource": {
+                "label": "موارد",
+                "desc": "مواد دراسية"
+            }
+        },
+        "intro": {
+            "heroTitle": "شارك\n<accent>قصة نجاحك</accent>",
+            "heroDesc": "لقد حققت إنجازًا مذهلًا. ساعد الآخرين على الوصول إليه أيضًا بمشاركة معرفتك وخبرتك.",
+            "statLearners": "متعلمون",
+            "statMentors": "مرشدون",
+            "statRevenue": "إيرادات",
+            "info": "صِل إلى متعلمين من أكثر من 31 دولة. يمكن لخبرتك أن تغيّر حياة شخص ما في أي مكان في العالم.",
+            "getStarted": "ابدأ الآن"
+        },
+        "motivation": {
+            "title": "ما الذي يحفزك؟",
+            "desc": "اختر السبب الذي يصف بشكل أفضل رغبتك في الإرشاد."
+        },
+        "details": {
+            "title": "أخبرنا عن نفسك",
+            "desc": "ساعد المتعلمين على فهم خبرتك.",
+            "displayNameLabel": "الاسم المعروض",
+            "displayNamePlaceholder": "كيف يجب أن يعرفك المتعلمون؟",
+            "teachLabel": "ماذا ستعلّم؟",
+            "bioLabel": "نبذتك التعريفية",
+            "bioPlaceholder": "شارك خلفيتك وإنجازاتك...",
+            "experienceLabel": "سنوات الخبرة",
+            "experiencePlaceholder": "مثال: 5 سنوات في هندسة البرمجيات",
+            "linkedinLabel": "رابط LinkedIn",
+            "portfolioLabel": "رابط معرض الأعمال",
+            "reviewApplication": "مراجعة الطلب"
+        },
+        "review": {
+            "title": "راجع طلبك",
+            "desc": "تأكد من أن كل شيء يبدو جيدًا قبل الإرسال.",
+            "displayName": "الاسم المعروض",
+            "motivation": "الدافع",
+            "contentType": "نوع المحتوى",
+            "experience": "الخبرة",
+            "bio": "نبذة تعريفية",
+            "linkedin": "LinkedIn",
+            "portfolio": "معرض الأعمال",
+            "notProvided": "غير مُقدَّم",
+            "submitting": "جارٍ الإرسال...",
+            "submit": "إرسال الطلب"
+        }
     },
-    "deadlineApproaching": {
-      "title": "الموعد النهائي يقترب 🗓️",
-      "body": "متبقٍّ 3 أيام على: {{title}}"
+    "admin": {
+        "creatorApplications": {
+            "title": "طلبات المنشئين",
+            "subtitle": "راجع الطلبات وأدرها",
+            "alerts": {
+                "loadFailed": "فشل تحميل الطلبات.",
+                "approvedSuccess": "تمت الموافقة على الطلب بنجاح.",
+                "rejectedSuccess": "تم رفض الطلب بنجاح.",
+                "reviewFailed": "فشلت مراجعة الطلب."
+            },
+            "unknown": "غير معروف",
+            "unknownUser": "مستخدم غير معروف",
+            "status": {
+                "pending": "قيد الانتظار",
+                "approved": "موافَق عليه",
+                "rejected": "مرفوض"
+            },
+            "filters": {
+                "all": "الكل"
+            },
+            "stats": {
+                "total": "الإجمالي"
+            },
+            "loading": "جارٍ تحميل الطلبات...",
+            "empty": {
+                "title": "لا توجد طلبات",
+                "pending": "لا توجد طلبات قيد الانتظار لمراجعتها.",
+                "generic": "لم يُعثر على طلبات."
+            },
+            "modal": {
+                "title": "تفاصيل الطلب",
+                "reviewedOn": "تمت المراجعة في {{date}}",
+                "applicant": "مقدّم الطلب",
+                "opportunity": "الفرصة",
+                "motivation": "الدافع",
+                "bio": "نبذة تعريفية",
+                "linkedin": "LinkedIn",
+                "verificationDocument": "مستند التحقق",
+                "proofUrl": "رابط الإثبات",
+                "appliedOn": "تاريخ التقديم",
+                "reviewerNotes": "ملاحظات المراجع",
+                "notePlaceholder": "أضف ملاحظة حول هذا القرار...",
+                "reject": "رفض",
+                "approve": "موافقة"
+            }
+        },
+        "premiumFeatures": {
+            "title": "الميزات المميزة",
+            "subtitle": "إدارة أعلام الميزات عبر التحديثات الهوائية",
+            "alerts": {
+                "loadFailed": "فشل تحميل أعلام الميزات.",
+                "validationTitle": "خطأ في التحقق",
+                "validationMessage": "التسمية والوصف مطلوبان.",
+                "updated": "تم تحديث علم الميزة بنجاح.",
+                "saveFailed": "فشل حفظ علم الميزة.",
+                "statusUpdateFailed": "فشل تحديث الحالة.",
+                "proUpdateFailed": "فشل تحديث متطلب Pro."
+            },
+            "stats": {
+                "total": "الإجمالي",
+                "enabled": "مفعّلة",
+                "proOnly": "لمشتركي Pro فقط"
+            },
+            "searchPlaceholder": "ابحث في الميزات...",
+            "filters": {
+                "all": "الكل",
+                "enabled": "مفعّلة",
+                "disabled": "معطّلة",
+                "proOnly": "لمشتركي Pro فقط"
+            },
+            "status": {
+                "enabled": "مفعّلة",
+                "disabled": "معطّلة"
+            },
+            "toggles": {
+                "enabled": "مفعّلة",
+                "proOnly": "لمشتركي Pro فقط"
+            },
+            "loading": "جارٍ تحميل أعلام الميزات...",
+            "empty": {
+                "title": "لا توجد أعلام ميزات",
+                "filtered": "لا توجد ميزات مطابقة لعامل التصفية الحالي.",
+                "none": "لم يُعثر على أعلام ميزات في قاعدة البيانات."
+            },
+            "modal": {
+                "title": "تعديل علم الميزة",
+                "labelLabel": "التسمية *",
+                "labelPlaceholder": "مثال: المعلّم الذكي",
+                "descriptionLabel": "الوصف *",
+                "descriptionPlaceholder": "صف ما تفعله هذه الميزة...",
+                "sortOrderLabel": "ترتيب العرض",
+                "submit": "تحديث علم الميزة"
+            }
+        },
+        "testimonials": {
+            "title": "شهادات العملاء",
+            "subtitle": "إدارة شهادات العملاء",
+            "alerts": {
+                "loadFailed": "فشل تحميل الشهادات.",
+                "validationTitle": "خطأ في التحقق",
+                "validationMessage": "الاسم والدور ونص التقييم مطلوبة.",
+                "updated": "تم تحديث الشهادة بنجاح.",
+                "added": "تمت إضافة الشهادة بنجاح.",
+                "saveFailed": "فشل حفظ الشهادة.",
+                "deleteTitle": "حذف الشهادة",
+                "deleteMessage": "هل أنت متأكد من أنك تريد حذف \"{{name}}\"؟ لا يمكن التراجع عن هذا الإجراء.",
+                "deleted": "تم حذف الشهادة.",
+                "deleteFailed": "فشل حذف الشهادة.",
+                "statusUpdateFailed": "فشل تحديث الحالة."
+            },
+            "stats": {
+                "total": "الإجمالي",
+                "active": "نشطة",
+                "inactive": "غير نشطة"
+            },
+            "filters": {
+                "all": "الكل"
+            },
+            "status": {
+                "active": "نشطة",
+                "inactive": "غير نشطة"
+            },
+            "videoLinked": "تم ربط فيديو YouTube",
+            "addButton": "إضافة شهادة",
+            "loading": "جارٍ تحميل الشهادات...",
+            "empty": {
+                "title": "لا توجد شهادات",
+                "filtered": "لا توجد شهادات مطابقة لعامل التصفية الحالي.",
+                "none": "اضغط على الزر أعلاه لإضافة شهادتك الأولى."
+            },
+            "modal": {
+                "editTitle": "تعديل الشهادة",
+                "nameLabel": "الاسم *",
+                "namePlaceholder": "مثال: محمد أحمد",
+                "roleLabel": "الدور *",
+                "rolePlaceholder": "مثال: مهندس برمجيات",
+                "countryLabel": "الدولة <dim>(اختياري)</dim>",
+                "countryPlaceholder": "مثال: 🇳🇬 نيجيريا",
+                "ratingLabel": "التقييم",
+                "reviewLabel": "نص التقييم *",
+                "reviewPlaceholder": "اكتب نص الشهادة...",
+                "youtubeLabel": "رابط YouTube <dim>(اختياري)</dim>",
+                "videoId": "معرّف الفيديو: {{id}}",
+                "videoIdError": "تعذّر استخراج معرّف الفيديو من الرابط",
+                "update": "تحديث الشهادة"
+            }
+        },
+        "roadmapCreate": {
+            "title": "إنشاء خارطة طريق",
+            "alerts": {
+                "coverUploadFailed": "فشل رفع صورة الغلاف",
+                "resourceRequired": "يرجى تعبئة عنوان المورد ورابطه",
+                "fileUploadFailed": "فشل رفع الملف",
+                "requiredFields": "يرجى تعبئة العنوان والملخص ومرحلة واحدة على الأقل",
+                "created": "تم إنشاء خارطة الطريق بنجاح!",
+                "createFailed": "فشل إنشاء خارطة الطريق. يرجى المحاولة مرة أخرى."
+            },
+            "basicInfo": "المعلومات الأساسية",
+            "uploadCover": "رفع صورة الغلاف",
+            "titleLabel": "العنوان",
+            "titlePlaceholder": "مثال: معسكر شامل لتطوير الويب",
+            "summaryLabel": "الملخص",
+            "summaryPlaceholder": "وصف موجز لخارطة الطريق هذه...",
+            "categoryLabel": "الفئة",
+            "categories": {
+                "education": "تعليم",
+                "programming": "برمجة",
+                "business": "أعمال",
+                "career": "مسار مهني",
+                "design": "تصميم",
+                "marketing": "تسويق",
+                "other": "أخرى"
+            },
+            "difficultyLabel": "الصعوبة",
+            "difficulty": {
+                "beginner": "مبتدئ",
+                "intermediate": "متوسط",
+                "advanced": "متقدم"
+            },
+            "priceLabel": "السعر",
+            "price": {
+                "free": "مجاني",
+                "premium": "مميز"
+            },
+            "durationLabel": "المدة",
+            "durationPlaceholder": "مثال: 3 أشهر",
+            "tagsLabel": "الوسوم (مفصولة بفواصل)",
+            "tagsPlaceholder": "مثال: javascript, react, تطوير الويب",
+            "outcomesLabel": "نتائج التعلّم (واحدة في كل سطر)",
+            "outcomesPlaceholder": "- بناء تطبيقات متكاملة\\n- إتقان React وNode.js\\n- النشر في بيئة الإنتاج",
+            "resources": "الموارد",
+            "resourceTitlePlaceholder": "عنوان المورد",
+            "resourceDescriptionPlaceholder": "الوصف",
+            "resourceUrlPlaceholder": "الرابط",
+            "typeLabel": "النوع",
+            "resourceTypes": {
+                "article": "مقالة",
+                "video": "فيديو",
+                "course": "دورة",
+                "tool": "أداة",
+                "book": "كتاب",
+                "other": "أخرى"
+            },
+            "costLabel": "التكلفة",
+            "cost": {
+                "free": "مجاني",
+                "paid": "مدفوع"
+            },
+            "resourceMeta": "{{type}} • {{cost}}",
+            "addResource": "إضافة مورد",
+            "uploadDoc": "رفع PDF/مستند (اختياري)",
+            "stages": "مراحل خارطة الطريق",
+            "stageTitlePlaceholder": "عنوان المرحلة {{number}}",
+            "stageDescriptionPlaceholder": "وصف المرحلة",
+            "stageDurationPlaceholder": "المدة (مثال: أسبوعان)",
+            "milestonePlaceholder": "محطة إنجاز",
+            "tasks": "المهام",
+            "taskTitlePlaceholder": "عنوان المهمة",
+            "taskDescriptionPlaceholder": "وصف المهمة",
+            "taskDurationPlaceholder": "المدة",
+            "taskOutcomePlaceholder": "النتيجة المتوقعة",
+            "addTask": "إضافة مهمة",
+            "checkpointPlaceholder": "نقطة تحقق / ناتج مطلوب"
+        }
+    },
+    "notifications": {
+        "goalDeadlineToday": {
+            "title": "الموعد النهائي للهدف اليوم! 🎯",
+            "body": "لا تنسَ: {{title}}"
+        },
+        "deadlineTomorrow": {
+            "title": "الموعد النهائي غدًا! ⏱️",
+            "body": "قادم: {{title}}"
+        },
+        "deadlineApproaching": {
+            "title": "الموعد النهائي يقترب 🗓️",
+            "body": "متبقٍّ 3 أيام على: {{title}}"
+        }
+    },
+    "share": {
+        "notSpecified": "غير محدد",
+        "rollingDeadline": "مستمر / غير محدد",
+        "fundingAvailable": "التمويل متاح",
+        "openOpportunity": "فرصة مفتوحة",
+        "openEligibility": "متاحة للمتقدمين المؤهلين",
+        "detailsInApp": "التفاصيل متوفرة في Edutu.",
+        "fallbackTitle": "فرصة من Edutu",
+        "deadlinePassed": "انتهى الموعد النهائي!",
+        "stillActive": "ما زالت متاحة!",
+        "sponsor": "الجهة الراعية: {{name}}",
+        "benefits": "المزايا:",
+        "category": "الفئة: {{category}}",
+        "categoryFallback": "فرصة",
+        "eligibleCountry": "الدولة المؤهلة: {{country}}",
+        "deadline": "الموعد النهائي: {{deadline}}",
+        "applyCta": "اضغط على الرابط أدناه للتقديم📌",
+        "shareWithFriends": "يرجى مشاركتها مع أصدقائك المهتمين.",
+        "dialogTitle": "مشاركة الفرصة"
     }
-  },
-  "share": {
-    "notSpecified": "غير محدد",
-    "rollingDeadline": "مستمر / غير محدد",
-    "fundingAvailable": "التمويل متاح",
-    "openOpportunity": "فرصة مفتوحة",
-    "openEligibility": "متاحة للمتقدمين المؤهلين",
-    "detailsInApp": "التفاصيل متوفرة في Edutu.",
-    "fallbackTitle": "فرصة من Edutu",
-    "deadlinePassed": "انتهى الموعد النهائي!",
-    "stillActive": "ما زالت متاحة!",
-    "sponsor": "الجهة الراعية: {{name}}",
-    "benefits": "المزايا:",
-    "category": "الفئة: {{category}}",
-    "categoryFallback": "فرصة",
-    "eligibleCountry": "الدولة المؤهلة: {{country}}",
-    "deadline": "الموعد النهائي: {{deadline}}",
-    "applyCta": "اضغط على الرابط أدناه للتقديم📌",
-    "shareWithFriends": "يرجى مشاركتها مع أصدقائك المهتمين.",
-    "dialogTitle": "مشاركة الفرصة"
-  }
 }

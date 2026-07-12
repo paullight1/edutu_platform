@@ -371,12 +371,13 @@ describe('Admin creator applications screen', () => {
         }),
       ),
     );
-    expect(mockProfileUpdates).toContainEqual(
-      expect.objectContaining({
-        userId: 'user-1',
-        payload: { creator_status: 'approved' },
-      }),
-    );
+    // creator_status is a protected profiles column (migration 015) — the
+    // fallback grants it through the SECURITY DEFINER RPC, never a direct update.
+    expect(mockRpc).toHaveBeenCalledWith('set_creator_status', {
+      p_status: 'approved',
+      p_user_id: 'user-1',
+    });
+    expect(mockProfileUpdates).toHaveLength(0);
     expect(mockInvoke).toHaveBeenCalledWith('clerk-metadata', {
       body: {
         userId: 'user-1',

@@ -5,6 +5,7 @@ import { Text, TouchableOpacity, View } from 'react-native';
 const mockReplace = jest.fn();
 const mockInsert = jest.fn().mockResolvedValue({ error: null });
 const mockUpdateEq = jest.fn().mockResolvedValue({ data: null, error: null });
+const mockRpc = jest.fn().mockResolvedValue({ data: null, error: null });
 const mockLaunchImageLibraryAsync = jest.fn();
 const mockStorageUpload = jest.fn().mockResolvedValue({ data: null, error: null });
 const mockGetPublicUrl = jest.fn(() => ({ data: { publicUrl: 'https://files.example.com/kyc.jpg' } }));
@@ -36,6 +37,7 @@ const mockSupabase = {
 
     return {};
   }),
+  rpc: (...args: unknown[]) => mockRpc(...args),
   storage: {
     from: jest.fn(() => ({
       upload: (...args: unknown[]) => mockStorageUpload(...args),
@@ -198,6 +200,7 @@ describe('mobile creator apply flow', () => {
     mockReplace.mockClear();
     mockInsert.mockClear();
     mockUpdateEq.mockClear();
+    mockRpc.mockClear();
     mockLaunchImageLibraryAsync.mockReset();
     mockStorageUpload.mockClear();
     mockGetPublicUrl.mockClear();
@@ -309,6 +312,7 @@ describe('mobile creator apply flow', () => {
     expect(mockSupabase.from).toHaveBeenCalledWith('creator_applications');
     expect(mockInsert).toHaveBeenCalledWith(expect.objectContaining({
       user_id: 'safe-creator-user-1',
+      application_kind: 'creator',
       motivation: 'I want to help others achieve what I achieved',
       opportunity_type: 'scholarship',
       opportunity_title: 'Mastercard Foundation Scholarship 2024',
@@ -316,10 +320,14 @@ describe('mobile creator apply flow', () => {
       portfolio_url: 'https://portfolio.example.com',
       bio: 'Creator bio',
       social_links: 'Twitter, YouTube',
-      kyc_image_url: 'https://files.example.com/kyc.jpg',
+      // KYC docs live in the PRIVATE creator-applications bucket, so the row
+      // stores the storage path (admins resolve a signed URL), never a public URL.
+      kyc_image_url: expect.stringMatching(/^kyc\/safe-creator-user-1\/\d+\.jpg$/),
       status: 'pending',
+      applied_at: expect.any(String),
     }));
-    expect(mockUpdateEq).toHaveBeenCalledWith('user_id', 'safe-creator-user-1');
+    // creator_status is a protected column — set via the SECURITY DEFINER RPC.
+    expect(mockRpc).toHaveBeenCalledWith('set_creator_status', { p_status: 'pending' });
     expect(mockSupabase.storage.from).toHaveBeenCalledWith('creator-applications');
 
     await waitFor(() => expect(getByText('Welcome to the Creator Community!')).toBeTruthy());

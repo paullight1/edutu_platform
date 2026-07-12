@@ -73,11 +73,14 @@ export default function CreatorDashboard() {
     const { getToken } = useAuth();
     const router = useRouter();
     const { isDark, colors } = useTheme();
-    const { isLoading: accessLoading, isApproved, checkAccess } = useCreatorAccess(supabase, user?.id || null);
+    const { isLoading: accessLoading, isApproved, isPending, isRejected, checkAccess } = useCreatorAccess(supabase, user?.id || null);
 
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [dashError, setDashError] = useState<string | null>(null);
+    // The roadmaps list failed to load and degraded to empty — distinct from a
+    // genuinely empty list so the UI can offer a retry instead of lying.
+    const [listDegraded, setListDegraded] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [showWizard, setShowWizard] = useState(false);
     const [wizardStep, setWizardStep] = useState<WizardStep>('basics');
@@ -113,6 +116,7 @@ export default function CreatorDashboard() {
             return;
         }
         setDashError(null);
+        setListDegraded(false);
         try {
             const token = await getToken();
 
@@ -138,9 +142,11 @@ export default function CreatorDashboard() {
                     list = Array.isArray(mine) ? mine : [];
                 } else {
                     console.warn(`Creator dashboard: /roadmaps/mine returned ${res.status}; showing empty state`);
+                    setListDegraded(true);
                 }
             } catch (e) {
                 console.warn('Creator dashboard: roadmaps request failed; showing empty state', e);
+                setListDegraded(true);
             }
 
             // Credits are a nice-to-have stat — never let them block the screen.
@@ -278,6 +284,9 @@ export default function CreatorDashboard() {
             //  - approved creator opting to publish → POST /roadmaps/creator (public catalog)
             //  - everyone else → POST /roadmaps/mine (private "My Roadmaps")
             const goingPublic = !editingId && isApproved && publishPublicly;
+            const wasPublished = editingId
+                ? data?.listings?.find((l: any) => l.id === editingId)?.status === 'published'
+                : false;
             const endpoint = editingId
                 ? `${API_URL}/roadmaps/mine/${editingId}`
                 : goingPublic
@@ -307,7 +316,11 @@ export default function CreatorDashboard() {
                         avatar: user?.imageUrl,
                         email: user?.primaryEmailAddress?.emailAddress,
                         price: newListing.price || '0',
-                        verified: true,
+                        verified: isApproved,
+                        // The backend category enum is coarser than the wizard's
+                        // (course/event/… collapse into education/career/skills), so
+                        // keep the wizard's own key here for a lossless edit round-trip.
+                        wizardCategory: newListing.category,
                     },
                     steps: roadmapStages.map((stage, index) => ({
                         id: stage.id,
@@ -334,6 +347,24 @@ export default function CreatorDashboard() {
                 throw new Error(data?.message || data?.error || t('creatorDashboard.alerts.publishFailed'));
             }
 
+            // Visibility is deliberately not part of PUT /roadmaps/mine/:id (the
+            // backend strips status there), so an edit that flips the toggle goes
+            // through the dedicated publish/unpublish endpoints afterwards.
+            const visibilityChanged = !!editingId && isApproved && publishPublicly !== wasPublished;
+            if (visibilityChanged) {
+                const visRes = await fetchWithTimeout(
+                    `${API_URL}/roadmaps/mine/${editingId}/${publishPublicly ? 'publish' : 'unpublish'}`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                        },
+                    },
+                );
+                if (!visRes.ok) throw new Error(t('creatorDashboard.errors.visibilityFailed'));
+            }
+
             const wasEditing = !!editingId;
             resetWizard();
             setShowWizard(false);
@@ -343,7 +374,11 @@ export default function CreatorDashboard() {
                     ? t('creatorDashboard.alerts.updatedTitle')
                     : t('creatorDashboard.alerts.savedTitle'),
                 wasEditing
-                    ? t('creatorDashboard.alerts.updatedMessage')
+                    ? visibilityChanged
+                        ? publishPublicly
+                            ? t('creatorDashboard.alerts.publishedMessage')
+                            : t('creatorDashboard.alerts.unpublishedMessage')
+                        : t('creatorDashboard.alerts.updatedMessage')
                     : goingPublic
                         ? t('creatorDashboard.alerts.publishedMessage')
                         : t('creatorDashboard.alerts.savedMessage'),
@@ -379,12 +414,15 @@ export default function CreatorDashboard() {
         const reverseCat: Record<string, string> = {
             education: 'course', career: 'event', skills: 'template',
         };
+        // creatorProof.wizardCategory keeps the wizard's own key (the backend enum
+        // is coarser); the reverse map is only a fallback for older roadmaps.
+        const proof = r.creator_proof || r.creatorProof || {};
         setEditingId(listing.id);
-        setPublishPublicly(false);
+        setPublishPublicly(listing.status === 'published');
         setNewListing({
             title: r.title || '',
             description: (r.description || '').split('\n\n')[0] || r.description || '',
-            category: reverseCat[r.category] || 'course',
+            category: proof.wizardCategory || reverseCat[r.category] || 'course',
             price: String(r.creator_proof?.price ?? r.creatorProof?.price ?? '0'),
             experiences: '',
             image_url: r.cover_image || r.coverImage || '',
@@ -590,8 +628,44 @@ export default function CreatorDashboard() {
                     ))}
                 </Animated.ScrollView>
 
-                {/* Rewards banner (approved creators) / publish upsell (everyone else) */}
-                {isApproved ? (
+                {/* Status banner: rewards (approved) / under review (pending) /
+                    not approved + reapply (rejected) / publish upsell (never applied) */}
+                {isPending ? (
+                    <View style={styles.rewardBanner}>
+                        <LinearGradient
+                            colors={isDark ? ['#1E1B4B', '#312E81'] : ['#E0E7FF', '#C7D2FE']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.rewardGradient}
+                        >
+                            <Clock color={isDark ? "#818CF8" : "#4F46E5"} size={28} />
+                            <View style={styles.rewardTextGroup}>
+                                <Text style={[styles.rewardTitle, { color: isDark ? "white" : "#1E1B4B" }]}>{t('creatorDashboard.access.pendingBadge')}</Text>
+                                <Text style={[styles.rewardText, { color: isDark ? "#A5B4FC" : "#4338CA" }]}>{t('creatorDashboard.access.pendingDesc')}</Text>
+                            </View>
+                        </LinearGradient>
+                    </View>
+                ) : isRejected ? (
+                    <TouchableOpacity
+                        style={styles.rewardBanner}
+                        activeOpacity={0.85}
+                        onPress={() => router.push('/creator-apply')}
+                    >
+                        <LinearGradient
+                            colors={isDark ? ['#1E1B4B', '#312E81'] : ['#E0E7FF', '#C7D2FE']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.rewardGradient}
+                        >
+                            <AlertCircle color={isDark ? "#818CF8" : "#4F46E5"} size={28} />
+                            <View style={styles.rewardTextGroup}>
+                                <Text style={[styles.rewardTitle, { color: isDark ? "white" : "#1E1B4B" }]}>{t('creatorDashboard.access.rejectedBadge')}</Text>
+                                <Text style={[styles.rewardText, { color: isDark ? "#A5B4FC" : "#4338CA" }]}>{t('creatorDashboard.access.rejectedDesc')}</Text>
+                            </View>
+                            <ChevronRight color={isDark ? "#A5B4FC" : "#4338CA"} size={20} />
+                        </LinearGradient>
+                    </TouchableOpacity>
+                ) : isApproved ? (
                     <View style={styles.rewardBanner}>
                         <LinearGradient
                             colors={isDark ? ['#1E1B4B', '#312E81'] : ['#E0E7FF', '#C7D2FE']}
@@ -638,6 +712,20 @@ export default function CreatorDashboard() {
                             <Text style={[styles.sectionTitle, { color: textPrimary }]}>{t('creatorDashboard.myRoadmaps')}</Text>
                         </View>
                     </View>
+
+                    {listDegraded && (
+                        <TouchableOpacity
+                            style={[styles.infoCallout, { backgroundColor: 'rgba(245, 158, 11, 0.08)', borderColor: 'rgba(245, 158, 11, 0.25)', marginHorizontal: 0 }]}
+                            activeOpacity={0.8}
+                            onPress={retryLoading}
+                        >
+                            <AlertCircle size={16} color="#F59E0B" />
+                            <Text style={[styles.infoCalloutText, { color: textSecondary }]}>
+                                {t('creatorDashboard.listDegraded')}{' '}
+                                <Text style={{ color: colors.accent, fontWeight: '700' }}>{t('creatorDashboard.listDegradedRetry')}</Text>
+                            </Text>
+                        </TouchableOpacity>
+                    )}
 
                     {(!data?.listings || data.listings.length === 0) ? (
                         <View style={[styles.emptyState, { backgroundColor: cardBg, borderColor }]}>
@@ -1034,9 +1122,9 @@ export default function CreatorDashboard() {
                                     </View>
 
                                     {/* Where it lands: private My Roadmaps by default; approved creators
-                                        can flip it public into the shared catalog. */}
-                                    {!editingId && (
-                                        <TouchableOpacity
+                                        can flip it public into the shared catalog — including from an
+                                        edit, which is also the only way to unpublish. */}
+                                    <TouchableOpacity
                                             style={[styles.visibilityRow, { backgroundColor: cardBg, borderColor }]}
                                             activeOpacity={isApproved ? 0.8 : 1}
                                             onPress={() => isApproved && setPublishPublicly(v => !v)}
@@ -1065,8 +1153,7 @@ export default function CreatorDashboard() {
                                                     <Text style={[styles.visibilityUnlock, { color: colors.accent }]}>{t('creatorDashboard.visibility.unlock')}</Text>
                                                 </TouchableOpacity>
                                             )}
-                                        </TouchableOpacity>
-                                    )}
+                                    </TouchableOpacity>
 
                                     <View style={[styles.reviewCard, { backgroundColor: cardBg, borderColor }]}>
                                         <Text style={[styles.reviewSectionTitle, { color: textPrimary }]}>{t('creatorDashboard.wizard.reviewBasics')}</Text>

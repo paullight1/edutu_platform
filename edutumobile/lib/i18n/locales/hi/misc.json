@@ -1,509 +1,591 @@
 {
-  "creatorApply": {
-    "title": "क्रिएटर बनें",
-    "types": {
-      "scholarship": { "label": "स्कॉलरशिप", "desc": "शैक्षणिक स्कॉलरशिप और ग्रांट" },
-      "fellowship": { "label": "फ़ेलोशिप", "desc": "रिसर्च और प्रोफ़ेशनल फ़ेलोशिप" },
-      "internship": { "label": "इंटर्नशिप", "desc": "प्रोफ़ेशनल इंटर्नशिप प्रोग्राम" },
-      "job": { "label": "फ़ुल-टाइम नौकरी", "desc": "फ़ुल-टाइम रोज़गार के ऑफ़र" },
-      "program": { "label": "एक्सेलरेटर/प्रोग्राम", "desc": "एक्सेलरेटर और ट्रेनिंग प्रोग्राम" },
-      "other": { "label": "अन्य", "desc": "अन्य अवसर" }
+    "creatorApply": {
+        "title": "क्रिएटर बनें",
+        "types": {
+            "scholarship": {
+                "label": "स्कॉलरशिप",
+                "desc": "शैक्षणिक स्कॉलरशिप और ग्रांट"
+            },
+            "fellowship": {
+                "label": "फ़ेलोशिप",
+                "desc": "रिसर्च और प्रोफ़ेशनल फ़ेलोशिप"
+            },
+            "internship": {
+                "label": "इंटर्नशिप",
+                "desc": "प्रोफ़ेशनल इंटर्नशिप प्रोग्राम"
+            },
+            "job": {
+                "label": "फ़ुल-टाइम नौकरी",
+                "desc": "फ़ुल-टाइम रोज़गार के ऑफ़र"
+            },
+            "program": {
+                "label": "एक्सेलरेटर/प्रोग्राम",
+                "desc": "एक्सेलरेटर और ट्रेनिंग प्रोग्राम"
+            },
+            "other": {
+                "label": "अन्य",
+                "desc": "अन्य अवसर"
+            }
+        },
+        "motivations": {
+            "helpOthers": "मैंने जो हासिल किया, वह दूसरों को हासिल करने में मदद करना चाहता/चाहती हूँ",
+            "mentor": "मुझे मेंटरिंग और ज्ञान बाँटना पसंद है",
+            "giveBack": "मैं समुदाय को कुछ लौटाना चाहता/चाहती हूँ",
+            "document": "मैं अपनी यात्रा दूसरों के लिए दर्ज करना चाहता/चाहती हूँ",
+            "payForward": "मैं आगे बढ़ाकर लौटाने में विश्वास रखता/रखती हूँ"
+        },
+        "alerts": {
+            "uploadImageFailed": "इमेज अपलोड नहीं हो सकी। कृपया फिर से कोशिश करें।",
+            "submitFailed": "कनेक्शन विफल रहा। कृपया फिर से कोशिश करें।"
+        },
+        "success": {
+            "headerTitle": "आवेदन सबमिट हो गया",
+            "title": "क्रिएटर समुदाय में आपका स्वागत है!",
+            "text": "हमें आपका आवेदन मिल गया है और हम आपकी यात्रा की समीक्षा के लिए उत्साहित हैं। हमारी टीम 2-3 कार्यदिवसों में आपके क्रेडेंशियल्स सत्यापित करेगी।",
+            "applicationId": "आवेदन ID",
+            "status": "स्टेटस",
+            "pendingReview": "समीक्षा लंबित",
+            "responseTime": "जवाब का समय",
+            "responseTimeValue": "2-3 दिन",
+            "backToProfile": "प्रोफ़ाइल पर वापस जाएँ"
+        },
+        "intro": {
+            "heroTitle": "अपनी जीत की कहानी साझा करें",
+            "heroSubtitle": "आपने कुछ अद्भुत हासिल किया है। सफलता का अपना रोडमैप साझा करके अगली पीढ़ी को प्रेरित करें।",
+            "you": "आप",
+            "yourName": "आपका नाम",
+            "futureCreator": "भावी क्रिएटर",
+            "statStudentsHelped": "छात्रों की मदद की",
+            "statSuccessStories": "सफलता की कहानियाँ",
+            "statRevenueShare": "रेवेन्यू शेयर",
+            "benefit": "वेरिफ़ाइड क्रिएटर के रूप में आप हर रोडमैप बिक्री से <bold>85% रेवेन्यू शेयर</bold> कमाएँगे और दुनिया भर के हज़ारों लर्नर्स तक पहुँचेंगे।"
+        },
+        "motivation": {
+            "title": "आपको क्या प्रेरित करता है?",
+            "desc": "वह कारण चुनें जो सबसे अच्छी तरह बताता हो कि आप क्रिएटर क्यों बनना चाहते हैं।"
+        },
+        "achievement": {
+            "title": "आपकी उपलब्धि",
+            "desc": "हमें उस अवसर के बारे में बताएँ जो आपने हासिल किया, ताकि हम दूसरों को आपकी राह पर चलने में मदद कर सकें।",
+            "typeLabel": "अवसर का प्रकार",
+            "nameLabel": "अवसर का नाम",
+            "namePlaceholder": "जैसे, Mastercard Foundation Scholarship 2024",
+            "linkedinLabel": "LinkedIn प्रोफ़ाइल",
+            "portfolioLabel": "पोर्टफ़ोलियो URL (वैकल्पिक)",
+            "portfolioPlaceholder": "अपने पोर्टफ़ोलियो या निजी वेबसाइट का लिंक"
+        },
+        "verification": {
+            "title": "सत्यापन",
+            "desc": "गुणवत्ता और भरोसा बनाए रखने के लिए हम सभी क्रिएटर्स को सत्यापित करते हैं। अपनी उपलब्धि की पुष्टि के लिए एक दस्तावेज़ अपलोड करें।",
+            "documentLabel": "सत्यापन दस्तावेज़",
+            "documentHint": "अपना अवॉर्ड लेटर, सर्टिफ़िकेट, स्वीकृति ईमेल या ID अपलोड करें",
+            "tapToUpload": "अपलोड करने के लिए टैप करें",
+            "acceptedFormats": "JPG, PNG मान्य हैं",
+            "verified": "सत्यापित",
+            "storyLabel": "आपकी कहानी",
+            "storyPlaceholder": "अपनी यात्रा साझा करें - आपने तैयारी कैसे की, किन चुनौतियों का सामना किया, और दूसरों के लिए सलाह...",
+            "socialLabel": "सोशल लिंक (वैकल्पिक)",
+            "socialPlaceholder": "Twitter, YouTube आदि (कॉमा से अलग करें)"
+        },
+        "review": {
+            "title": "आवेदन की समीक्षा करें",
+            "desc": "सबमिट करने से पहले अपनी जानकारी दोबारा जाँच लें।",
+            "motivation": "प्रेरणा",
+            "achievement": "उपलब्धि",
+            "type": "प्रकार",
+            "name": "नाम",
+            "verification": "सत्यापन",
+            "documentUploaded": "दस्तावेज़ अपलोड हो गया",
+            "bio": "बायो",
+            "callout": "आपके आवेदन की समीक्षा <bold>2-3 कार्यदिवसों</bold> में की जाएगी। स्वीकृत होने पर आपको सूचित किया जाएगा।"
+        },
+        "submitApplication": "आवेदन सबमिट करें"
     },
-    "motivations": {
-      "helpOthers": "मैंने जो हासिल किया, वह दूसरों को हासिल करने में मदद करना चाहता/चाहती हूँ",
-      "mentor": "मुझे मेंटरिंग और ज्ञान बाँटना पसंद है",
-      "giveBack": "मैं समुदाय को कुछ लौटाना चाहता/चाहती हूँ",
-      "document": "मैं अपनी यात्रा दूसरों के लिए दर्ज करना चाहता/चाहती हूँ",
-      "payForward": "मैं आगे बढ़ाकर लौटाने में विश्वास रखता/रखती हूँ"
-    },
-    "alerts": {
-      "uploadImageFailed": "इमेज अपलोड नहीं हो सकी। कृपया फिर से कोशिश करें।",
-      "submitFailed": "कनेक्शन विफल रहा। कृपया फिर से कोशिश करें।"
-    },
-    "success": {
-      "headerTitle": "आवेदन सबमिट हो गया",
-      "title": "क्रिएटर समुदाय में आपका स्वागत है!",
-      "text": "हमें आपका आवेदन मिल गया है और हम आपकी यात्रा की समीक्षा के लिए उत्साहित हैं। हमारी टीम 2-3 कार्यदिवसों में आपके क्रेडेंशियल्स सत्यापित करेगी।",
-      "applicationId": "आवेदन ID",
-      "status": "स्टेटस",
-      "pendingReview": "समीक्षा लंबित",
-      "responseTime": "जवाब का समय",
-      "responseTimeValue": "2-3 दिन",
-      "backToProfile": "प्रोफ़ाइल पर वापस जाएँ"
-    },
-    "intro": {
-      "heroTitle": "अपनी जीत की कहानी साझा करें",
-      "heroSubtitle": "आपने कुछ अद्भुत हासिल किया है। सफलता का अपना रोडमैप साझा करके अगली पीढ़ी को प्रेरित करें।",
-      "you": "आप",
-      "yourName": "आपका नाम",
-      "futureCreator": "भावी क्रिएटर",
-      "statStudentsHelped": "छात्रों की मदद की",
-      "statSuccessStories": "सफलता की कहानियाँ",
-      "statRevenueShare": "रेवेन्यू शेयर",
-      "benefit": "वेरिफ़ाइड क्रिएटर के रूप में आप हर रोडमैप बिक्री से <bold>85% रेवेन्यू शेयर</bold> कमाएँगे और दुनिया भर के हज़ारों लर्नर्स तक पहुँचेंगे।"
-    },
-    "motivation": {
-      "title": "आपको क्या प्रेरित करता है?",
-      "desc": "वह कारण चुनें जो सबसे अच्छी तरह बताता हो कि आप क्रिएटर क्यों बनना चाहते हैं।"
-    },
-    "achievement": {
-      "title": "आपकी उपलब्धि",
-      "desc": "हमें उस अवसर के बारे में बताएँ जो आपने हासिल किया, ताकि हम दूसरों को आपकी राह पर चलने में मदद कर सकें।",
-      "typeLabel": "अवसर का प्रकार",
-      "nameLabel": "अवसर का नाम",
-      "namePlaceholder": "जैसे, Mastercard Foundation Scholarship 2024",
-      "linkedinLabel": "LinkedIn प्रोफ़ाइल",
-      "portfolioLabel": "पोर्टफ़ोलियो URL (वैकल्पिक)",
-      "portfolioPlaceholder": "अपने पोर्टफ़ोलियो या निजी वेबसाइट का लिंक"
-    },
-    "verification": {
-      "title": "सत्यापन",
-      "desc": "गुणवत्ता और भरोसा बनाए रखने के लिए हम सभी क्रिएटर्स को सत्यापित करते हैं। अपनी उपलब्धि की पुष्टि के लिए एक दस्तावेज़ अपलोड करें।",
-      "documentLabel": "सत्यापन दस्तावेज़",
-      "documentHint": "अपना अवॉर्ड लेटर, सर्टिफ़िकेट, स्वीकृति ईमेल या ID अपलोड करें",
-      "tapToUpload": "अपलोड करने के लिए टैप करें",
-      "acceptedFormats": "JPG, PNG मान्य हैं",
-      "verified": "सत्यापित",
-      "storyLabel": "आपकी कहानी",
-      "storyPlaceholder": "अपनी यात्रा साझा करें - आपने तैयारी कैसे की, किन चुनौतियों का सामना किया, और दूसरों के लिए सलाह...",
-      "socialLabel": "सोशल लिंक (वैकल्पिक)",
-      "socialPlaceholder": "Twitter, YouTube आदि (कॉमा से अलग करें)"
-    },
-    "review": {
-      "title": "आवेदन की समीक्षा करें",
-      "desc": "सबमिट करने से पहले अपनी जानकारी दोबारा जाँच लें।",
-      "motivation": "प्रेरणा",
-      "achievement": "उपलब्धि",
-      "type": "प्रकार",
-      "name": "नाम",
-      "verification": "सत्यापन",
-      "documentUploaded": "दस्तावेज़ अपलोड हो गया",
-      "bio": "बायो",
-      "callout": "आपके आवेदन की समीक्षा <bold>2-3 कार्यदिवसों</bold> में की जाएगी। स्वीकृत होने पर आपको सूचित किया जाएगा।"
-    },
-    "submitApplication": "आवेदन सबमिट करें"
-  },
-  "creatorDashboard": {
-    "title": "क्रिएटर स्टूडियो",
-    "subtitle": "अपने रोडमैप बनाएँ और मैनेज करें",
-    "loading": "क्रिएटर स्टूडियो लोड हो रहा है...",
-    "longLoad": {
-      "title": "इसमें उम्मीद से ज़्यादा समय लग रहा है",
-      "text": "कृपया बाद में फिर से कोशिश करें या हमारे दोबारा कनेक्ट होने तक वापस जाएँ।",
-      "tryAgain": "फिर से कोशिश करें"
-    },
-    "access": {
-      "pendingBadge": "आवेदन लंबित",
-      "pendingDesc": "हमारी टीम आपके आवेदन की समीक्षा कर रही है। स्वीकृत होते ही हम आपको सूचित करेंगे। इसमें आमतौर पर 2-3 कार्यदिवस लगते हैं।",
-      "pendingInfo": "इंतज़ार के दौरान आप प्रेरणा के लिए दूसरे क्रिएटर्स के रोडमैप ब्राउज़ कर सकते हैं।",
-      "browseRoadmaps": "रोडमैप ब्राउज़ करें",
-      "rejectedBadge": "आवेदन स्वीकृत नहीं हुआ",
-      "rejectedDesc": "अफ़सोस, आपका आवेदन स्वीकृत नहीं हुआ। आप अतिरिक्त जानकारी के साथ नया आवेदन सबमिट कर सकते हैं।",
-      "reapply": "फिर से अप्लाई करें",
-      "noneDesc": "हमारे क्रिएटर समुदाय से जुड़ें और अपना ज्ञान हज़ारों लर्नर्स के साथ साझा करें। दूसरों को उनके लक्ष्य पाने में मदद करते हुए क्रेडिट कमाएँ।",
-      "perkRevenue": "85% रेवेन्यू शेयर",
-      "perkReach": "10K+ छात्रों तक पहुँचें",
-      "perkBadge": "वेरिफ़ाइड क्रिएटर बैज",
-      "applyCta": "क्रिएटर बनने के लिए अप्लाई करें"
-    },
-    "welcomeGreeting": "वापसी पर स्वागत है,",
-    "creatorFallback": "क्रिएटर",
-    "createRoadmap": "रोडमैप बनाएँ",
-    "overview": "अवलोकन",
-    "stats": {
-      "totalCredits": "कुल क्रेडिट",
-      "totalStudents": "कुल छात्र",
-      "roadmaps": "रोडमैप"
-    },
-    "rewards": {
-      "title": "क्रिएटर रिवॉर्ड",
-      "text": "हर रोडमैप बिक्री का <bold>85%</bold> आप कमाते हैं।"
-    },
-    "myRoadmaps": "मेरे रोडमैप",
-    "empty": {
-      "title": "अभी कोई रोडमैप नहीं",
-      "subtext": "अपना पहला रोडमैप बनाएँ और समुदाय के साथ अपना ज्ञान साझा करना शुरू करें।",
-      "cta": "अपना पहला रोडमैप बनाएँ"
-    },
-    "free": "मुफ़्त",
-    "priceCr": "{{price}} cr",
-    "alerts": {
-      "thumbnailUploaded": "थंबनेल अपलोड हो गया!",
-      "uploadFailedTitle": "अपलोड विफल",
-      "fileUploaded": "फ़ाइल सफलतापूर्वक अपलोड हो गई।",
-      "missingInfoTitle": "जानकारी अधूरी है",
-      "missingInfoMessage": "कृपया शीर्षक और विवरण भरें।",
-      "missingCurriculumTitle": "पाठ्यक्रम अधूरा है",
-      "missingCurriculumMessage": "कम से कम एक रोडमैप चरण जोड़ें।",
-      "publishFailed": "रोडमैप प्रकाशित नहीं हो सका।",
-      "publishedTitle": "सफल!",
-      "publishedMessage": "आपका रोडमैप प्रकाशित हो गया है और लर्नर्स को दिखाई दे रहा है।",
-      "failedTitle": "विफल",
-      "failedFallback": "कृपया फिर से कोशिश करें।"
-    },
-    "wizard": {
-      "basicsTitle": "रोडमैप की बुनियादी जानकारी",
-      "basicsDesc": "हमें अपने रोडमैप के बारे में बताएँ",
-      "curriculumTitle": "पाठ्यक्रम के चरण",
-      "curriculumDesc": "सीखने के चरण तय करें",
-      "resourcesTitle": "संसाधन और फ़ाइलें",
-      "resourcesDesc": "सहायक सामग्री जोड़ें",
-      "reviewTitle": "समीक्षा करें और सबमिट करें",
-      "reviewDesc": "सबमिट करने से पहले दोबारा जाँच लें",
-      "basicsCallout": "आप एक <bold>रोडमैप</bold> बना रहे हैं — एक चरण-दर-चरण लर्निंग गाइड जो छात्रों को खास लक्ष्य पाने में मदद करती है।",
-      "titleLabel": "रोडमैप का शीर्षक",
-      "titlePlaceholder": "जैसे, Complete Web Development Roadmap",
-      "descriptionLabel": "विवरण",
-      "descriptionPlaceholder": "छात्र क्या सीखेंगे? वे किन परिणामों की उम्मीद कर सकते हैं?",
-      "categoryLabel": "श्रेणी",
-      "thumbnailLabel": "थंबनेल इमेज",
-      "uploaded": "अपलोड हो गया",
-      "browseDevice": "डिवाइस से चुनें",
-      "ratioHint": "16:9 अनुपात की सलाह दी जाती है",
-      "priceLabel": "क़ीमत (क्रेडिट)",
-      "pricePlaceholder": "मुफ़्त रोडमैप के लिए 0",
-      "experienceLabel": "आपका अनुभव",
-      "experiencePlaceholder": "आप यह रोडमैप बनाने के योग्य क्यों हैं?",
-      "curriculumCallout": "अपने रोडमैप को <bold>चरणों</bold> में बाँटें। हर चरण छात्र की यात्रा का एक अहम पड़ाव दर्शाता है।",
-      "stageNumber": "चरण {{number}}",
-      "stageTitlePlaceholder": "चरण का शीर्षक (जैसे, बुनियादी बातें)",
-      "stageDescPlaceholder": "इस चरण का संक्षिप्त विवरण",
-      "stageDurationPlaceholder": "अवधि (जैसे, सप्ताह 1-2)",
-      "addStage": "चरण जोड़ें",
-      "resourcesCallout": "सैंपल फ़ाइलें, टेम्पलेट या दस्तावेज़ जैसे संसाधन जोड़ें जिन्हें छात्र डाउनलोड कर सकें।",
-      "resourceNamePlaceholder": "संसाधन का नाम",
-      "uploadFile": "फ़ाइल अपलोड करें",
-      "addResource": "संसाधन जोड़ें",
-      "reviewCallout": "प्रकाशित करने से पहले अपने रोडमैप की जानकारी की समीक्षा करें। स्वीकृत क्रिएटर होने के नाते यह तुरंत लर्नर्स के लिए लाइव हो जाता है।",
-      "reviewBasics": "बुनियादी जानकारी",
-      "reviewTitleLabel": "शीर्षक",
-      "reviewCategoryLabel": "श्रेणी",
-      "reviewPriceLabel": "क़ीमत",
-      "priceCredits": "{{price}} क्रेडिट",
-      "reviewCurriculum": "पाठ्यक्रम ({{total}} चरण)",
-      "reviewResources": "संसाधन ({{total}})",
-      "untitled": "बिना शीर्षक",
-      "fileAttached": "✓ {{fileName}}",
-      "submitForReview": "समीक्षा के लिए सबमिट करें"
-    }
-  },
-  "mentorApply": {
-    "title": "मेंटर बनें",
-    "alerts": {
-      "notSignedInTitle": "साइन इन नहीं है",
-      "notSignedInMessage": "मेंटर आवेदन सबमिट करने के लिए कृपया साइन इन करें।"
-    },
-    "success": {
-      "title": "आवेदन भेज दिया गया!",
-      "desc": "मेंटर बनने के लिए अप्लाई करने के लिए धन्यवाद। हम आपके आवेदन की समीक्षा करेंगे और 2-3 कार्यदिवसों में आपसे संपर्क करेंगे।",
-      "backToProfile": "प्रोफ़ाइल पर वापस जाएँ"
-    },
-    "motivations": {
-      "helpOthers": "मैंने जो हासिल किया, वह दूसरों को हासिल करने में मदद करना चाहता/चाहती हूँ",
-      "mentor": "मुझे मेंटरिंग और ज्ञान बाँटना पसंद है",
-      "giveBack": "मैं समुदाय को कुछ लौटाना चाहता/चाहती हूँ",
-      "document": "मैं अपनी यात्रा दूसरों के लिए दर्ज करना चाहता/चाहती हूँ",
-      "payForward": "मैं आगे बढ़ाकर लौटाने में विश्वास रखता/रखती हूँ"
-    },
-    "contentTypes": {
-      "mentorship": { "label": "मेंटरशिप", "desc": "1-on-1 मार्गदर्शन" },
-      "course": { "label": "कोर्स", "desc": "लर्निंग पाथ" },
-      "template": { "label": "टेम्पलेट", "desc": "CV और रेज़्यूमे टेम्पलेट" },
-      "resource": { "label": "संसाधन", "desc": "अध्ययन सामग्री" }
-    },
-    "intro": {
-      "heroTitle": "अपनी\n<accent>सफलता की कहानी</accent> साझा करें",
-      "heroDesc": "आपने कुछ अद्भुत हासिल किया है। अपना ज्ञान और अनुभव साझा करके दूसरों को भी वहाँ पहुँचने में मदद करें।",
-      "statLearners": "लर्नर्स",
-      "statMentors": "मेंटर",
-      "statRevenue": "रेवेन्यू",
-      "info": "31+ देशों के लर्नर्स तक पहुँचें। आपका अनुभव दुनिया में कहीं भी किसी की ज़िंदगी बदल सकता है।",
-      "getStarted": "शुरू करें"
-    },
-    "motivation": {
-      "title": "आपको क्या प्रेरित करता है?",
-      "desc": "वह कारण चुनें जो सबसे अच्छी तरह बताता हो कि आप मेंटर क्यों बनना चाहते हैं।"
-    },
-    "details": {
-      "title": "हमें अपने बारे में बताएँ",
-      "desc": "लर्नर्स को अपनी विशेषज्ञता समझने में मदद करें।",
-      "displayNameLabel": "डिस्प्ले नाम",
-      "displayNamePlaceholder": "लर्नर्स आपको किस नाम से जानें?",
-      "teachLabel": "आप क्या सिखाएँगे?",
-      "bioLabel": "आपकी बायो",
-      "bioPlaceholder": "अपनी पृष्ठभूमि, उपलब्धियाँ साझा करें...",
-      "experienceLabel": "अनुभव के वर्ष",
-      "experiencePlaceholder": "जैसे, सॉफ़्टवेयर इंजीनियरिंग में 5 साल",
-      "linkedinLabel": "LinkedIn URL",
-      "portfolioLabel": "पोर्टफ़ोलियो URL",
-      "reviewApplication": "आवेदन की समीक्षा करें"
-    },
-    "review": {
-      "title": "अपने आवेदन की समीक्षा करें",
-      "desc": "सबमिट करने से पहले सुनिश्चित करें कि सब कुछ ठीक है।",
-      "displayName": "डिस्प्ले नाम",
-      "motivation": "प्रेरणा",
-      "contentType": "कंटेंट का प्रकार",
-      "experience": "अनुभव",
-      "bio": "बायो",
-      "linkedin": "LinkedIn",
-      "portfolio": "पोर्टफ़ोलियो",
-      "notProvided": "नहीं दिया गया",
-      "submitting": "सबमिट हो रहा है...",
-      "submit": "आवेदन सबमिट करें"
-    }
-  },
-  "admin": {
-    "creatorApplications": {
-      "title": "क्रिएटर आवेदन",
-      "subtitle": "आवेदनों की समीक्षा और प्रबंधन करें",
-      "alerts": {
-        "loadFailed": "आवेदन लोड नहीं हो सके।",
-        "approvedSuccess": "आवेदन सफलतापूर्वक स्वीकृत हुआ।",
-        "rejectedSuccess": "आवेदन सफलतापूर्वक अस्वीकृत हुआ।",
-        "reviewFailed": "आवेदन की समीक्षा नहीं हो सकी।"
-      },
-      "unknown": "अज्ञात",
-      "unknownUser": "अज्ञात उपयोगकर्ता",
-      "status": {
-        "pending": "लंबित",
-        "approved": "स्वीकृत",
-        "rejected": "अस्वीकृत"
-      },
-      "filters": { "all": "सभी" },
-      "stats": { "total": "कुल" },
-      "loading": "आवेदन लोड हो रहे हैं...",
-      "empty": {
-        "title": "कोई आवेदन नहीं",
-        "pending": "समीक्षा के लिए कोई लंबित आवेदन नहीं है।",
-        "generic": "कोई आवेदन नहीं मिला।"
-      },
-      "modal": {
-        "title": "आवेदन का विवरण",
-        "reviewedOn": "{{date}} को समीक्षा की गई",
-        "applicant": "आवेदक",
-        "opportunity": "अवसर",
-        "motivation": "प्रेरणा",
-        "bio": "बायो",
-        "linkedin": "LinkedIn",
-        "verificationDocument": "सत्यापन दस्तावेज़",
-        "proofUrl": "प्रमाण URL",
-        "appliedOn": "आवेदन की तारीख़",
-        "reviewerNotes": "समीक्षक की टिप्पणियाँ",
-        "notePlaceholder": "इस निर्णय के बारे में एक नोट जोड़ें...",
-        "reject": "अस्वीकृत करें",
-        "approve": "स्वीकृत करें"
-      }
-    },
-    "premiumFeatures": {
-      "title": "प्रीमियम फ़ीचर",
-      "subtitle": "OTA फ़ीचर फ़्लैग मैनेज करें",
-      "alerts": {
-        "loadFailed": "फ़ीचर फ़्लैग लोड नहीं हो सके।",
-        "validationTitle": "वैलिडेशन त्रुटि",
-        "validationMessage": "लेबल और विवरण ज़रूरी हैं।",
-        "updated": "फ़ीचर फ़्लैग सफलतापूर्वक अपडेट हुआ।",
-        "saveFailed": "फ़ीचर फ़्लैग सेव नहीं हो सका।",
-        "statusUpdateFailed": "स्टेटस अपडेट नहीं हो सका।",
-        "proUpdateFailed": "प्रो आवश्यकता अपडेट नहीं हो सकी।"
-      },
-      "stats": {
-        "total": "कुल",
-        "enabled": "सक्षम",
-        "proOnly": "केवल प्रो"
-      },
-      "searchPlaceholder": "फ़ीचर खोजें...",
-      "filters": {
-        "all": "सभी",
-        "enabled": "सक्षम",
-        "disabled": "अक्षम",
-        "proOnly": "केवल प्रो"
-      },
-      "status": {
-        "enabled": "सक्षम",
-        "disabled": "अक्षम"
-      },
-      "toggles": {
-        "enabled": "सक्षम",
-        "proOnly": "केवल प्रो"
-      },
-      "loading": "फ़ीचर फ़्लैग लोड हो रहे हैं...",
-      "empty": {
-        "title": "कोई फ़ीचर फ़्लैग नहीं",
-        "filtered": "मौजूदा फ़िल्टर से कोई फ़ीचर मेल नहीं खाता।",
-        "none": "डेटाबेस में कोई फ़ीचर फ़्लैग नहीं मिला।"
-      },
-      "modal": {
-        "title": "फ़ीचर फ़्लैग संपादित करें",
-        "labelLabel": "लेबल *",
-        "labelPlaceholder": "जैसे, AI ट्यूटर",
-        "descriptionLabel": "विवरण *",
-        "descriptionPlaceholder": "बताएँ कि यह फ़ीचर क्या करता है...",
-        "sortOrderLabel": "क्रम",
-        "submit": "फ़ीचर फ़्लैग अपडेट करें"
-      }
-    },
-    "testimonials": {
-      "title": "प्रशंसापत्र",
-      "subtitle": "क्लाइंट प्रशंसापत्र मैनेज करें",
-      "alerts": {
-        "loadFailed": "प्रशंसापत्र लोड नहीं हो सके।",
-        "validationTitle": "वैलिडेशन त्रुटि",
-        "validationMessage": "नाम, भूमिका और समीक्षा का टेक्स्ट ज़रूरी हैं।",
-        "updated": "प्रशंसापत्र सफलतापूर्वक अपडेट हुआ।",
-        "added": "प्रशंसापत्र सफलतापूर्वक जोड़ा गया।",
-        "saveFailed": "प्रशंसापत्र सेव नहीं हो सका।",
-        "deleteTitle": "प्रशंसापत्र हटाएँ",
-        "deleteMessage": "क्या आप वाकई \"{{name}}\" को हटाना चाहते हैं? यह क्रिया पूर्ववत नहीं की जा सकती।",
-        "deleted": "प्रशंसापत्र हटा दिया गया।",
-        "deleteFailed": "प्रशंसापत्र हटाया नहीं जा सका।",
-        "statusUpdateFailed": "स्टेटस अपडेट नहीं हो सका।"
-      },
-      "stats": {
-        "total": "कुल",
-        "active": "सक्रिय",
-        "inactive": "निष्क्रिय"
-      },
-      "filters": { "all": "सभी" },
-      "status": {
-        "active": "सक्रिय",
-        "inactive": "निष्क्रिय"
-      },
-      "videoLinked": "YouTube वीडियो लिंक किया गया",
-      "addButton": "प्रशंसापत्र जोड़ें",
-      "loading": "प्रशंसापत्र लोड हो रहे हैं...",
-      "empty": {
-        "title": "कोई प्रशंसापत्र नहीं",
-        "filtered": "मौजूदा फ़िल्टर से कोई प्रशंसापत्र मेल नहीं खाता।",
-        "none": "अपना पहला प्रशंसापत्र जोड़ने के लिए ऊपर दिए बटन पर टैप करें।"
-      },
-      "modal": {
-        "editTitle": "प्रशंसापत्र संपादित करें",
-        "nameLabel": "नाम *",
-        "namePlaceholder": "जैसे, John Doe",
-        "roleLabel": "भूमिका *",
-        "rolePlaceholder": "जैसे, सॉफ़्टवेयर इंजीनियर",
-        "countryLabel": "देश <dim>(वैकल्पिक)</dim>",
-        "countryPlaceholder": "जैसे, 🇳🇬 Nigeria",
-        "ratingLabel": "रेटिंग",
-        "reviewLabel": "समीक्षा का टेक्स्ट *",
-        "reviewPlaceholder": "प्रशंसापत्र की समीक्षा लिखें...",
-        "youtubeLabel": "YouTube URL <dim>(वैकल्पिक)</dim>",
-        "videoId": "वीडियो ID: {{id}}",
-        "videoIdError": "URL से वीडियो ID नहीं निकाली जा सकी",
-        "update": "प्रशंसापत्र अपडेट करें"
-      }
-    },
-    "roadmapCreate": {
-      "title": "रोडमैप बनाएँ",
-      "alerts": {
-        "coverUploadFailed": "कवर इमेज अपलोड नहीं हो सकी",
-        "resourceRequired": "कृपया संसाधन का शीर्षक और URL भरें",
-        "fileUploadFailed": "फ़ाइल अपलोड नहीं हो सकी",
-        "requiredFields": "कृपया शीर्षक, सारांश और कम से कम एक चरण भरें",
-        "created": "रोडमैप सफलतापूर्वक बन गया!",
-        "createFailed": "रोडमैप नहीं बन सका। कृपया फिर से कोशिश करें।"
-      },
-      "basicInfo": "बुनियादी जानकारी",
-      "uploadCover": "कवर इमेज अपलोड करें",
-      "titleLabel": "शीर्षक",
-      "titlePlaceholder": "जैसे, Complete Web Development Bootcamp",
-      "summaryLabel": "सारांश",
-      "summaryPlaceholder": "इस रोडमैप का संक्षिप्त विवरण...",
-      "categoryLabel": "श्रेणी",
-      "categories": {
-        "education": "शिक्षा",
-        "programming": "प्रोग्रामिंग",
-        "business": "बिज़नेस",
-        "career": "करियर",
-        "design": "डिज़ाइन",
-        "marketing": "मार्केटिंग",
-        "other": "अन्य"
-      },
-      "difficultyLabel": "कठिनाई",
-      "difficulty": {
-        "beginner": "शुरुआती",
-        "intermediate": "मध्यम",
-        "advanced": "उन्नत"
-      },
-      "priceLabel": "क़ीमत",
-      "price": {
+    "creatorDashboard": {
+        "title": "क्रिएटर स्टूडियो",
+        "subtitle": "अपने रोडमैप बनाएँ और मैनेज करें",
+        "loading": "क्रिएटर स्टूडियो लोड हो रहा है...",
+        "longLoad": {
+            "title": "इसमें उम्मीद से ज़्यादा समय लग रहा है",
+            "text": "कृपया बाद में फिर से कोशिश करें या हमारे दोबारा कनेक्ट होने तक वापस जाएँ।",
+            "tryAgain": "फिर से कोशिश करें"
+        },
+        "access": {
+            "pendingBadge": "आवेदन लंबित",
+            "pendingDesc": "हमारी टीम आपके आवेदन की समीक्षा कर रही है। स्वीकृत होते ही हम आपको सूचित करेंगे। इसमें आमतौर पर 2-3 कार्यदिवस लगते हैं।",
+            "pendingInfo": "इंतज़ार के दौरान आप प्रेरणा के लिए दूसरे क्रिएटर्स के रोडमैप ब्राउज़ कर सकते हैं।",
+            "browseRoadmaps": "रोडमैप ब्राउज़ करें",
+            "rejectedBadge": "आवेदन स्वीकृत नहीं हुआ",
+            "rejectedDesc": "अफ़सोस, आपका आवेदन स्वीकृत नहीं हुआ। आप अतिरिक्त जानकारी के साथ नया आवेदन सबमिट कर सकते हैं।",
+            "reapply": "फिर से अप्लाई करें",
+            "noneDesc": "हमारे क्रिएटर समुदाय से जुड़ें और अपना ज्ञान हज़ारों लर्नर्स के साथ साझा करें। दूसरों को उनके लक्ष्य पाने में मदद करते हुए क्रेडिट कमाएँ।",
+            "perkRevenue": "85% रेवेन्यू शेयर",
+            "perkReach": "10K+ छात्रों तक पहुँचें",
+            "perkBadge": "वेरिफ़ाइड क्रिएटर बैज",
+            "applyCta": "क्रिएटर बनने के लिए अप्लाई करें"
+        },
+        "welcomeGreeting": "वापसी पर स्वागत है,",
+        "creatorFallback": "क्रिएटर",
+        "createRoadmap": "रोडमैप बनाएँ",
+        "overview": "अवलोकन",
+        "stats": {
+            "totalCredits": "कुल क्रेडिट",
+            "totalStudents": "कुल छात्र",
+            "roadmaps": "रोडमैप"
+        },
+        "rewards": {
+            "title": "क्रिएटर रिवॉर्ड",
+            "text": "हर रोडमैप बिक्री का <bold>85%</bold> आप कमाते हैं।"
+        },
+        "myRoadmaps": "मेरे रोडमैप",
+        "empty": {
+            "title": "अभी कोई रोडमैप नहीं",
+            "subtext": "अपना पहला रोडमैप बनाएँ और समुदाय के साथ अपना ज्ञान साझा करना शुरू करें।",
+            "cta": "अपना पहला रोडमैप बनाएँ"
+        },
         "free": "मुफ़्त",
-        "premium": "प्रीमियम"
-      },
-      "durationLabel": "अवधि",
-      "durationPlaceholder": "जैसे, 3 महीने",
-      "tagsLabel": "टैग (कॉमा से अलग करें)",
-      "tagsPlaceholder": "जैसे, javascript, react, web development",
-      "outcomesLabel": "सीखने के परिणाम (प्रति पंक्ति एक)",
-      "outcomesPlaceholder": "- फ़ुल-स्टैक ऐप्लिकेशन बनाएँ\\n- React और Node.js में महारत पाएँ\\n- प्रोडक्शन में डिप्लॉय करें",
-      "resources": "संसाधन",
-      "resourceTitlePlaceholder": "संसाधन का शीर्षक",
-      "resourceDescriptionPlaceholder": "विवरण",
-      "resourceUrlPlaceholder": "URL",
-      "typeLabel": "प्रकार",
-      "resourceTypes": {
-        "article": "लेख",
-        "video": "वीडियो",
-        "course": "कोर्स",
-        "tool": "टूल",
-        "book": "किताब",
-        "other": "अन्य"
-      },
-      "costLabel": "लागत",
-      "cost": {
-        "free": "मुफ़्त",
-        "paid": "सशुल्क"
-      },
-      "resourceMeta": "{{type}} • {{cost}}",
-      "addResource": "संसाधन जोड़ें",
-      "uploadDoc": "PDF/डॉक अपलोड करें (वैकल्पिक)",
-      "stages": "रोडमैप के चरण",
-      "stageTitlePlaceholder": "चरण {{number}} का शीर्षक",
-      "stageDescriptionPlaceholder": "चरण का विवरण",
-      "stageDurationPlaceholder": "अवधि (जैसे, 2 हफ़्ते)",
-      "milestonePlaceholder": "माइलस्टोन",
-      "tasks": "टास्क",
-      "taskTitlePlaceholder": "टास्क का शीर्षक",
-      "taskDescriptionPlaceholder": "टास्क का विवरण",
-      "taskDurationPlaceholder": "अवधि",
-      "taskOutcomePlaceholder": "अपेक्षित परिणाम",
-      "addTask": "टास्क जोड़ें",
-      "checkpointPlaceholder": "चेकपॉइंट / डिलिवरेबल"
-    }
-  },
-  "notifications": {
-    "goalDeadlineToday": {
-      "title": "लक्ष्य की डेडलाइन आज है! 🎯",
-      "body": "भूलें नहीं: {{title}}"
+        "priceCr": "{{price}} cr",
+        "alerts": {
+            "thumbnailUploaded": "थंबनेल अपलोड हो गया!",
+            "uploadFailedTitle": "अपलोड विफल",
+            "fileUploaded": "फ़ाइल सफलतापूर्वक अपलोड हो गई।",
+            "missingInfoTitle": "जानकारी अधूरी है",
+            "missingInfoMessage": "कृपया शीर्षक और विवरण भरें।",
+            "missingCurriculumTitle": "पाठ्यक्रम अधूरा है",
+            "missingCurriculumMessage": "कम से कम एक रोडमैप चरण जोड़ें।",
+            "publishFailed": "रोडमैप प्रकाशित नहीं हो सका।",
+            "publishedTitle": "सफल!",
+            "publishedMessage": "आपका रोडमैप प्रकाशित हो गया है और लर्नर्स को दिखाई दे रहा है।",
+            "failedTitle": "विफल",
+            "failedFallback": "कृपया फिर से कोशिश करें।",
+            "savedTitle": "रोडमैप सहेजा गया",
+            "savedMessage": "यह अब आपके रोडमैप्स → मेरे रोडमैप्स में है।",
+            "updatedTitle": "बदलाव सहेजे गए",
+            "updatedMessage": "आपका रोडमैप अपडेट हो गया है।",
+            "unpublishedMessage": "आपका रोडमैप फिर से निजी है — इसे केवल आप देख सकते हैं।"
+        },
+        "wizard": {
+            "basicsTitle": "रोडमैप की बुनियादी जानकारी",
+            "basicsDesc": "हमें अपने रोडमैप के बारे में बताएँ",
+            "curriculumTitle": "पाठ्यक्रम के चरण",
+            "curriculumDesc": "सीखने के चरण तय करें",
+            "resourcesTitle": "संसाधन और फ़ाइलें",
+            "resourcesDesc": "सहायक सामग्री जोड़ें",
+            "reviewTitle": "समीक्षा करें और सबमिट करें",
+            "reviewDesc": "सबमिट करने से पहले दोबारा जाँच लें",
+            "basicsCallout": "आप एक <bold>रोडमैप</bold> बना रहे हैं — एक चरण-दर-चरण लर्निंग गाइड जो छात्रों को खास लक्ष्य पाने में मदद करती है।",
+            "titleLabel": "रोडमैप का शीर्षक",
+            "titlePlaceholder": "जैसे, Complete Web Development Roadmap",
+            "descriptionLabel": "विवरण",
+            "descriptionPlaceholder": "छात्र क्या सीखेंगे? वे किन परिणामों की उम्मीद कर सकते हैं?",
+            "categoryLabel": "श्रेणी",
+            "thumbnailLabel": "थंबनेल इमेज",
+            "uploaded": "अपलोड हो गया",
+            "browseDevice": "डिवाइस से चुनें",
+            "ratioHint": "16:9 अनुपात की सलाह दी जाती है",
+            "priceLabel": "क़ीमत (क्रेडिट)",
+            "pricePlaceholder": "मुफ़्त रोडमैप के लिए 0",
+            "experienceLabel": "आपका अनुभव",
+            "experiencePlaceholder": "आप यह रोडमैप बनाने के योग्य क्यों हैं?",
+            "curriculumCallout": "अपने रोडमैप को <bold>चरणों</bold> में बाँटें। हर चरण छात्र की यात्रा का एक अहम पड़ाव दर्शाता है।",
+            "stageNumber": "चरण {{number}}",
+            "stageTitlePlaceholder": "चरण का शीर्षक (जैसे, बुनियादी बातें)",
+            "stageDescPlaceholder": "इस चरण का संक्षिप्त विवरण",
+            "stageDurationPlaceholder": "अवधि (जैसे, सप्ताह 1-2)",
+            "addStage": "चरण जोड़ें",
+            "resourcesCallout": "सैंपल फ़ाइलें, टेम्पलेट या दस्तावेज़ जैसे संसाधन जोड़ें जिन्हें छात्र डाउनलोड कर सकें।",
+            "resourceNamePlaceholder": "संसाधन का नाम",
+            "uploadFile": "फ़ाइल अपलोड करें",
+            "addResource": "संसाधन जोड़ें",
+            "reviewCallout": "प्रकाशित करने से पहले अपने रोडमैप की जानकारी की समीक्षा करें। स्वीकृत क्रिएटर होने के नाते यह तुरंत लर्नर्स के लिए लाइव हो जाता है।",
+            "reviewBasics": "बुनियादी जानकारी",
+            "reviewTitleLabel": "शीर्षक",
+            "reviewCategoryLabel": "श्रेणी",
+            "reviewPriceLabel": "क़ीमत",
+            "priceCredits": "{{price}} क्रेडिट",
+            "reviewCurriculum": "पाठ्यक्रम ({{total}} चरण)",
+            "reviewResources": "संसाधन ({{total}})",
+            "untitled": "बिना शीर्षक",
+            "fileAttached": "✓ {{fileName}}",
+            "submitForReview": "समीक्षा के लिए सबमिट करें",
+            "editCallout": "अपना रोडमैप अपडेट करें। बदलाव मेरे रोडमैप्स में सहेजे जाते हैं।",
+            "publishNow": "अभी प्रकाशित करें",
+            "saveChanges": "बदलाव सहेजें",
+            "saveRoadmap": "रोडमैप सहेजें"
+        },
+        "actions": {
+            "edit": "संपादित करें",
+            "follow": "फ़ॉलो करें"
+        },
+        "badge": {
+            "personal": "निजी",
+            "published": "प्रकाशित"
+        },
+        "deleteConfirm": {
+            "title": "रोडमैप हटाएँ?",
+            "message": "\"{{title}}\" स्थायी रूप से हटा दिया जाएगा। इसे पूर्ववत नहीं किया जा सकता।"
+        },
+        "errors": {
+            "deleteFailed": "यह रोडमैप हटाया नहीं जा सका।",
+            "followFailed": "यह रोडमैप शुरू नहीं हो सका।",
+            "loadRoadmaps": "आपके रोडमैप्स लोड नहीं हो सके।",
+            "timeout": "अनुरोध का समय समाप्त हो गया। अपना कनेक्शन जाँचें और फिर से कोशिश करें।",
+            "visibilityFailed": "इस रोडमैप की दृश्यता बदली नहीं जा सकी। फिर से कोशिश करें।"
+        },
+        "followSuccess": {
+            "title": "आपके लक्ष्यों में जोड़ा गया",
+            "message": "हर चरण अब आपके लक्ष्य टैब में ट्रैक करने योग्य लक्ष्य है।"
+        },
+        "upsell": {
+            "title": "सत्यापित क्रिएटर बनें",
+            "text": "अपने रोडमैप्स सार्वजनिक कैटलॉग में प्रकाशित करें और हज़ारों शिक्षार्थियों तक पहुँचें।"
+        },
+        "visibility": {
+            "lockedText": "इसे सार्वजनिक रूप से प्रकाशित करने के लिए सत्यापित क्रिएटर बनें।",
+            "personalText": "इसे केवल आप देख सकते हैं। यह रोडमैप्स → मेरे रोडमैप्स में दिखता है।",
+            "personalTitle": "मेरे रोडमैप्स में सहेजें",
+            "publicText": "हर कोई इस रोडमैप को खोज और फ़ॉलो कर सकता है।",
+            "publicTitle": "सार्वजनिक कैटलॉग में प्रकाशित करें",
+            "unlock": "अनलॉक करें"
+        },
+        "listDegraded": "आपके रोडमैप्स रीफ़्रेश नहीं हो सके।",
+        "listDegradedRetry": "फिर से कोशिश करने के लिए टैप करें"
     },
-    "deadlineTomorrow": {
-      "title": "डेडलाइन कल है! ⏱️",
-      "body": "आने वाली: {{title}}"
+    "mentorApply": {
+        "title": "मेंटर बनें",
+        "alerts": {
+            "notSignedInTitle": "साइन इन नहीं है",
+            "notSignedInMessage": "मेंटर आवेदन सबमिट करने के लिए कृपया साइन इन करें।"
+        },
+        "success": {
+            "title": "आवेदन भेज दिया गया!",
+            "desc": "मेंटर बनने के लिए अप्लाई करने के लिए धन्यवाद। हम आपके आवेदन की समीक्षा करेंगे और 2-3 कार्यदिवसों में आपसे संपर्क करेंगे।",
+            "backToProfile": "प्रोफ़ाइल पर वापस जाएँ"
+        },
+        "motivations": {
+            "helpOthers": "मैंने जो हासिल किया, वह दूसरों को हासिल करने में मदद करना चाहता/चाहती हूँ",
+            "mentor": "मुझे मेंटरिंग और ज्ञान बाँटना पसंद है",
+            "giveBack": "मैं समुदाय को कुछ लौटाना चाहता/चाहती हूँ",
+            "document": "मैं अपनी यात्रा दूसरों के लिए दर्ज करना चाहता/चाहती हूँ",
+            "payForward": "मैं आगे बढ़ाकर लौटाने में विश्वास रखता/रखती हूँ"
+        },
+        "contentTypes": {
+            "mentorship": {
+                "label": "मेंटरशिप",
+                "desc": "1-on-1 मार्गदर्शन"
+            },
+            "course": {
+                "label": "कोर्स",
+                "desc": "लर्निंग पाथ"
+            },
+            "template": {
+                "label": "टेम्पलेट",
+                "desc": "CV और रेज़्यूमे टेम्पलेट"
+            },
+            "resource": {
+                "label": "संसाधन",
+                "desc": "अध्ययन सामग्री"
+            }
+        },
+        "intro": {
+            "heroTitle": "अपनी\n<accent>सफलता की कहानी</accent> साझा करें",
+            "heroDesc": "आपने कुछ अद्भुत हासिल किया है। अपना ज्ञान और अनुभव साझा करके दूसरों को भी वहाँ पहुँचने में मदद करें।",
+            "statLearners": "लर्नर्स",
+            "statMentors": "मेंटर",
+            "statRevenue": "रेवेन्यू",
+            "info": "31+ देशों के लर्नर्स तक पहुँचें। आपका अनुभव दुनिया में कहीं भी किसी की ज़िंदगी बदल सकता है।",
+            "getStarted": "शुरू करें"
+        },
+        "motivation": {
+            "title": "आपको क्या प्रेरित करता है?",
+            "desc": "वह कारण चुनें जो सबसे अच्छी तरह बताता हो कि आप मेंटर क्यों बनना चाहते हैं।"
+        },
+        "details": {
+            "title": "हमें अपने बारे में बताएँ",
+            "desc": "लर्नर्स को अपनी विशेषज्ञता समझने में मदद करें।",
+            "displayNameLabel": "डिस्प्ले नाम",
+            "displayNamePlaceholder": "लर्नर्स आपको किस नाम से जानें?",
+            "teachLabel": "आप क्या सिखाएँगे?",
+            "bioLabel": "आपकी बायो",
+            "bioPlaceholder": "अपनी पृष्ठभूमि, उपलब्धियाँ साझा करें...",
+            "experienceLabel": "अनुभव के वर्ष",
+            "experiencePlaceholder": "जैसे, सॉफ़्टवेयर इंजीनियरिंग में 5 साल",
+            "linkedinLabel": "LinkedIn URL",
+            "portfolioLabel": "पोर्टफ़ोलियो URL",
+            "reviewApplication": "आवेदन की समीक्षा करें"
+        },
+        "review": {
+            "title": "अपने आवेदन की समीक्षा करें",
+            "desc": "सबमिट करने से पहले सुनिश्चित करें कि सब कुछ ठीक है।",
+            "displayName": "डिस्प्ले नाम",
+            "motivation": "प्रेरणा",
+            "contentType": "कंटेंट का प्रकार",
+            "experience": "अनुभव",
+            "bio": "बायो",
+            "linkedin": "LinkedIn",
+            "portfolio": "पोर्टफ़ोलियो",
+            "notProvided": "नहीं दिया गया",
+            "submitting": "सबमिट हो रहा है...",
+            "submit": "आवेदन सबमिट करें"
+        }
     },
-    "deadlineApproaching": {
-      "title": "डेडलाइन नज़दीक है 🗓️",
-      "body": "{{title}} के लिए 3 दिन बाकी"
+    "admin": {
+        "creatorApplications": {
+            "title": "क्रिएटर आवेदन",
+            "subtitle": "आवेदनों की समीक्षा और प्रबंधन करें",
+            "alerts": {
+                "loadFailed": "आवेदन लोड नहीं हो सके।",
+                "approvedSuccess": "आवेदन सफलतापूर्वक स्वीकृत हुआ।",
+                "rejectedSuccess": "आवेदन सफलतापूर्वक अस्वीकृत हुआ।",
+                "reviewFailed": "आवेदन की समीक्षा नहीं हो सकी।"
+            },
+            "unknown": "अज्ञात",
+            "unknownUser": "अज्ञात उपयोगकर्ता",
+            "status": {
+                "pending": "लंबित",
+                "approved": "स्वीकृत",
+                "rejected": "अस्वीकृत"
+            },
+            "filters": {
+                "all": "सभी"
+            },
+            "stats": {
+                "total": "कुल"
+            },
+            "loading": "आवेदन लोड हो रहे हैं...",
+            "empty": {
+                "title": "कोई आवेदन नहीं",
+                "pending": "समीक्षा के लिए कोई लंबित आवेदन नहीं है।",
+                "generic": "कोई आवेदन नहीं मिला।"
+            },
+            "modal": {
+                "title": "आवेदन का विवरण",
+                "reviewedOn": "{{date}} को समीक्षा की गई",
+                "applicant": "आवेदक",
+                "opportunity": "अवसर",
+                "motivation": "प्रेरणा",
+                "bio": "बायो",
+                "linkedin": "LinkedIn",
+                "verificationDocument": "सत्यापन दस्तावेज़",
+                "proofUrl": "प्रमाण URL",
+                "appliedOn": "आवेदन की तारीख़",
+                "reviewerNotes": "समीक्षक की टिप्पणियाँ",
+                "notePlaceholder": "इस निर्णय के बारे में एक नोट जोड़ें...",
+                "reject": "अस्वीकृत करें",
+                "approve": "स्वीकृत करें"
+            }
+        },
+        "premiumFeatures": {
+            "title": "प्रीमियम फ़ीचर",
+            "subtitle": "OTA फ़ीचर फ़्लैग मैनेज करें",
+            "alerts": {
+                "loadFailed": "फ़ीचर फ़्लैग लोड नहीं हो सके।",
+                "validationTitle": "वैलिडेशन त्रुटि",
+                "validationMessage": "लेबल और विवरण ज़रूरी हैं।",
+                "updated": "फ़ीचर फ़्लैग सफलतापूर्वक अपडेट हुआ।",
+                "saveFailed": "फ़ीचर फ़्लैग सेव नहीं हो सका।",
+                "statusUpdateFailed": "स्टेटस अपडेट नहीं हो सका।",
+                "proUpdateFailed": "प्रो आवश्यकता अपडेट नहीं हो सकी।"
+            },
+            "stats": {
+                "total": "कुल",
+                "enabled": "सक्षम",
+                "proOnly": "केवल प्रो"
+            },
+            "searchPlaceholder": "फ़ीचर खोजें...",
+            "filters": {
+                "all": "सभी",
+                "enabled": "सक्षम",
+                "disabled": "अक्षम",
+                "proOnly": "केवल प्रो"
+            },
+            "status": {
+                "enabled": "सक्षम",
+                "disabled": "अक्षम"
+            },
+            "toggles": {
+                "enabled": "सक्षम",
+                "proOnly": "केवल प्रो"
+            },
+            "loading": "फ़ीचर फ़्लैग लोड हो रहे हैं...",
+            "empty": {
+                "title": "कोई फ़ीचर फ़्लैग नहीं",
+                "filtered": "मौजूदा फ़िल्टर से कोई फ़ीचर मेल नहीं खाता।",
+                "none": "डेटाबेस में कोई फ़ीचर फ़्लैग नहीं मिला।"
+            },
+            "modal": {
+                "title": "फ़ीचर फ़्लैग संपादित करें",
+                "labelLabel": "लेबल *",
+                "labelPlaceholder": "जैसे, AI ट्यूटर",
+                "descriptionLabel": "विवरण *",
+                "descriptionPlaceholder": "बताएँ कि यह फ़ीचर क्या करता है...",
+                "sortOrderLabel": "क्रम",
+                "submit": "फ़ीचर फ़्लैग अपडेट करें"
+            }
+        },
+        "testimonials": {
+            "title": "प्रशंसापत्र",
+            "subtitle": "क्लाइंट प्रशंसापत्र मैनेज करें",
+            "alerts": {
+                "loadFailed": "प्रशंसापत्र लोड नहीं हो सके।",
+                "validationTitle": "वैलिडेशन त्रुटि",
+                "validationMessage": "नाम, भूमिका और समीक्षा का टेक्स्ट ज़रूरी हैं।",
+                "updated": "प्रशंसापत्र सफलतापूर्वक अपडेट हुआ।",
+                "added": "प्रशंसापत्र सफलतापूर्वक जोड़ा गया।",
+                "saveFailed": "प्रशंसापत्र सेव नहीं हो सका।",
+                "deleteTitle": "प्रशंसापत्र हटाएँ",
+                "deleteMessage": "क्या आप वाकई \"{{name}}\" को हटाना चाहते हैं? यह क्रिया पूर्ववत नहीं की जा सकती।",
+                "deleted": "प्रशंसापत्र हटा दिया गया।",
+                "deleteFailed": "प्रशंसापत्र हटाया नहीं जा सका।",
+                "statusUpdateFailed": "स्टेटस अपडेट नहीं हो सका।"
+            },
+            "stats": {
+                "total": "कुल",
+                "active": "सक्रिय",
+                "inactive": "निष्क्रिय"
+            },
+            "filters": {
+                "all": "सभी"
+            },
+            "status": {
+                "active": "सक्रिय",
+                "inactive": "निष्क्रिय"
+            },
+            "videoLinked": "YouTube वीडियो लिंक किया गया",
+            "addButton": "प्रशंसापत्र जोड़ें",
+            "loading": "प्रशंसापत्र लोड हो रहे हैं...",
+            "empty": {
+                "title": "कोई प्रशंसापत्र नहीं",
+                "filtered": "मौजूदा फ़िल्टर से कोई प्रशंसापत्र मेल नहीं खाता।",
+                "none": "अपना पहला प्रशंसापत्र जोड़ने के लिए ऊपर दिए बटन पर टैप करें।"
+            },
+            "modal": {
+                "editTitle": "प्रशंसापत्र संपादित करें",
+                "nameLabel": "नाम *",
+                "namePlaceholder": "जैसे, John Doe",
+                "roleLabel": "भूमिका *",
+                "rolePlaceholder": "जैसे, सॉफ़्टवेयर इंजीनियर",
+                "countryLabel": "देश <dim>(वैकल्पिक)</dim>",
+                "countryPlaceholder": "जैसे, 🇳🇬 Nigeria",
+                "ratingLabel": "रेटिंग",
+                "reviewLabel": "समीक्षा का टेक्स्ट *",
+                "reviewPlaceholder": "प्रशंसापत्र की समीक्षा लिखें...",
+                "youtubeLabel": "YouTube URL <dim>(वैकल्पिक)</dim>",
+                "videoId": "वीडियो ID: {{id}}",
+                "videoIdError": "URL से वीडियो ID नहीं निकाली जा सकी",
+                "update": "प्रशंसापत्र अपडेट करें"
+            }
+        },
+        "roadmapCreate": {
+            "title": "रोडमैप बनाएँ",
+            "alerts": {
+                "coverUploadFailed": "कवर इमेज अपलोड नहीं हो सकी",
+                "resourceRequired": "कृपया संसाधन का शीर्षक और URL भरें",
+                "fileUploadFailed": "फ़ाइल अपलोड नहीं हो सकी",
+                "requiredFields": "कृपया शीर्षक, सारांश और कम से कम एक चरण भरें",
+                "created": "रोडमैप सफलतापूर्वक बन गया!",
+                "createFailed": "रोडमैप नहीं बन सका। कृपया फिर से कोशिश करें।"
+            },
+            "basicInfo": "बुनियादी जानकारी",
+            "uploadCover": "कवर इमेज अपलोड करें",
+            "titleLabel": "शीर्षक",
+            "titlePlaceholder": "जैसे, Complete Web Development Bootcamp",
+            "summaryLabel": "सारांश",
+            "summaryPlaceholder": "इस रोडमैप का संक्षिप्त विवरण...",
+            "categoryLabel": "श्रेणी",
+            "categories": {
+                "education": "शिक्षा",
+                "programming": "प्रोग्रामिंग",
+                "business": "बिज़नेस",
+                "career": "करियर",
+                "design": "डिज़ाइन",
+                "marketing": "मार्केटिंग",
+                "other": "अन्य"
+            },
+            "difficultyLabel": "कठिनाई",
+            "difficulty": {
+                "beginner": "शुरुआती",
+                "intermediate": "मध्यम",
+                "advanced": "उन्नत"
+            },
+            "priceLabel": "क़ीमत",
+            "price": {
+                "free": "मुफ़्त",
+                "premium": "प्रीमियम"
+            },
+            "durationLabel": "अवधि",
+            "durationPlaceholder": "जैसे, 3 महीने",
+            "tagsLabel": "टैग (कॉमा से अलग करें)",
+            "tagsPlaceholder": "जैसे, javascript, react, web development",
+            "outcomesLabel": "सीखने के परिणाम (प्रति पंक्ति एक)",
+            "outcomesPlaceholder": "- फ़ुल-स्टैक ऐप्लिकेशन बनाएँ\\n- React और Node.js में महारत पाएँ\\n- प्रोडक्शन में डिप्लॉय करें",
+            "resources": "संसाधन",
+            "resourceTitlePlaceholder": "संसाधन का शीर्षक",
+            "resourceDescriptionPlaceholder": "विवरण",
+            "resourceUrlPlaceholder": "URL",
+            "typeLabel": "प्रकार",
+            "resourceTypes": {
+                "article": "लेख",
+                "video": "वीडियो",
+                "course": "कोर्स",
+                "tool": "टूल",
+                "book": "किताब",
+                "other": "अन्य"
+            },
+            "costLabel": "लागत",
+            "cost": {
+                "free": "मुफ़्त",
+                "paid": "सशुल्क"
+            },
+            "resourceMeta": "{{type}} • {{cost}}",
+            "addResource": "संसाधन जोड़ें",
+            "uploadDoc": "PDF/डॉक अपलोड करें (वैकल्पिक)",
+            "stages": "रोडमैप के चरण",
+            "stageTitlePlaceholder": "चरण {{number}} का शीर्षक",
+            "stageDescriptionPlaceholder": "चरण का विवरण",
+            "stageDurationPlaceholder": "अवधि (जैसे, 2 हफ़्ते)",
+            "milestonePlaceholder": "माइलस्टोन",
+            "tasks": "टास्क",
+            "taskTitlePlaceholder": "टास्क का शीर्षक",
+            "taskDescriptionPlaceholder": "टास्क का विवरण",
+            "taskDurationPlaceholder": "अवधि",
+            "taskOutcomePlaceholder": "अपेक्षित परिणाम",
+            "addTask": "टास्क जोड़ें",
+            "checkpointPlaceholder": "चेकपॉइंट / डिलिवरेबल"
+        }
+    },
+    "notifications": {
+        "goalDeadlineToday": {
+            "title": "लक्ष्य की डेडलाइन आज है! 🎯",
+            "body": "भूलें नहीं: {{title}}"
+        },
+        "deadlineTomorrow": {
+            "title": "डेडलाइन कल है! ⏱️",
+            "body": "आने वाली: {{title}}"
+        },
+        "deadlineApproaching": {
+            "title": "डेडलाइन नज़दीक है 🗓️",
+            "body": "{{title}} के लिए 3 दिन बाकी"
+        }
+    },
+    "share": {
+        "notSpecified": "निर्दिष्ट नहीं",
+        "rollingDeadline": "रोलिंग / निर्दिष्ट नहीं",
+        "fundingAvailable": "फ़ंडिंग उपलब्ध",
+        "openOpportunity": "खुला अवसर",
+        "openEligibility": "योग्य आवेदकों के लिए खुला",
+        "detailsInApp": "विवरण Edutu में उपलब्ध है।",
+        "fallbackTitle": "Edutu अवसर",
+        "deadlinePassed": "डेडलाइन निकल गई!",
+        "stillActive": "अभी भी सक्रिय!",
+        "sponsor": "प्रायोजक: {{name}}",
+        "benefits": "लाभ:",
+        "category": "श्रेणी: {{category}}",
+        "categoryFallback": "अवसर",
+        "eligibleCountry": "योग्य देश: {{country}}",
+        "deadline": "डेडलाइन: {{deadline}}",
+        "applyCta": "अप्लाई करने के लिए नीचे दिए लिंक पर क्लिक करें📌",
+        "shareWithFriends": "कृपया अपने उन दोस्तों के साथ शेयर करें जिन्हें इसमें रुचि हो सकती है।",
+        "dialogTitle": "अवसर शेयर करें"
     }
-  },
-  "share": {
-    "notSpecified": "निर्दिष्ट नहीं",
-    "rollingDeadline": "रोलिंग / निर्दिष्ट नहीं",
-    "fundingAvailable": "फ़ंडिंग उपलब्ध",
-    "openOpportunity": "खुला अवसर",
-    "openEligibility": "योग्य आवेदकों के लिए खुला",
-    "detailsInApp": "विवरण Edutu में उपलब्ध है।",
-    "fallbackTitle": "Edutu अवसर",
-    "deadlinePassed": "डेडलाइन निकल गई!",
-    "stillActive": "अभी भी सक्रिय!",
-    "sponsor": "प्रायोजक: {{name}}",
-    "benefits": "लाभ:",
-    "category": "श्रेणी: {{category}}",
-    "categoryFallback": "अवसर",
-    "eligibleCountry": "योग्य देश: {{country}}",
-    "deadline": "डेडलाइन: {{deadline}}",
-    "applyCta": "अप्लाई करने के लिए नीचे दिए लिंक पर क्लिक करें📌",
-    "shareWithFriends": "कृपया अपने उन दोस्तों के साथ शेयर करें जिन्हें इसमें रुचि हो सकती है।",
-    "dialogTitle": "अवसर शेयर करें"
-  }
 }

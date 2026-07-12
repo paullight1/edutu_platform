@@ -1,509 +1,591 @@
 {
-  "creatorApply": {
-    "title": "Kuwa Mtayarishaji",
-    "types": {
-      "scholarship": { "label": "Ufadhili wa Masomo", "desc": "Ufadhili wa masomo na ruzuku za kitaaluma" },
-      "fellowship": { "label": "Ufadhili wa Utafiti", "desc": "Ufadhili wa utafiti na wa kitaaluma" },
-      "internship": { "label": "Mafunzo Kazini", "desc": "Programu za mafunzo ya kitaalamu kazini" },
-      "job": { "label": "Kazi ya Kudumu", "desc": "Ajira za muda wote" },
-      "program": { "label": "Kiongeza-kasi/Programu", "desc": "Viongeza-kasi na programu za mafunzo" },
-      "other": { "label": "Nyingine", "desc": "Fursa nyinginezo" }
+    "creatorApply": {
+        "title": "Kuwa Mtayarishaji",
+        "types": {
+            "scholarship": {
+                "label": "Ufadhili wa Masomo",
+                "desc": "Ufadhili wa masomo na ruzuku za kitaaluma"
+            },
+            "fellowship": {
+                "label": "Ufadhili wa Utafiti",
+                "desc": "Ufadhili wa utafiti na wa kitaaluma"
+            },
+            "internship": {
+                "label": "Mafunzo Kazini",
+                "desc": "Programu za mafunzo ya kitaalamu kazini"
+            },
+            "job": {
+                "label": "Kazi ya Kudumu",
+                "desc": "Ajira za muda wote"
+            },
+            "program": {
+                "label": "Kiongeza-kasi/Programu",
+                "desc": "Viongeza-kasi na programu za mafunzo"
+            },
+            "other": {
+                "label": "Nyingine",
+                "desc": "Fursa nyinginezo"
+            }
+        },
+        "motivations": {
+            "helpOthers": "Nataka kuwasaidia wengine kufanikisha nilichofanikisha",
+            "mentor": "Ninafurahia kushauri na kushiriki maarifa",
+            "giveBack": "Nataka kurudisha fadhila kwa jamii",
+            "document": "Nataka kuandika safari yangu kwa ajili ya wengine",
+            "payForward": "Naamini katika kusambaza wema mbele"
+        },
+        "alerts": {
+            "uploadImageFailed": "Imeshindikana kupakia picha. Tafadhali jaribu tena.",
+            "submitFailed": "Muunganisho umeshindikana. Tafadhali jaribu tena."
+        },
+        "success": {
+            "headerTitle": "Ombi Limewasilishwa",
+            "title": "Karibu kwenye Jamii ya Watayarishaji!",
+            "text": "Tumepokea ombi lako na tuna hamu ya kupitia safari yako. Timu yetu itathibitisha sifa zako ndani ya siku 2-3 za kazi.",
+            "applicationId": "Nambari ya Ombi",
+            "status": "Hali",
+            "pendingReview": "Inasubiri Mapitio",
+            "responseTime": "Muda wa Majibu",
+            "responseTimeValue": "Siku 2-3",
+            "backToProfile": "Rudi kwenye Wasifu"
+        },
+        "intro": {
+            "heroTitle": "Shiriki Hadithi ya Ushindi Wako",
+            "heroSubtitle": "Umefanikisha jambo la ajabu. Wahamasishe kizazi kijacho kwa kushiriki ramani yako ya njia kuelekea mafanikio.",
+            "you": "Wewe",
+            "yourName": "Jina Lako",
+            "futureCreator": "Mtayarishaji wa Baadaye",
+            "statStudentsHelped": "Wanafunzi Waliosaidiwa",
+            "statSuccessStories": "Hadithi za Mafanikio",
+            "statRevenueShare": "Mgao wa Mapato",
+            "benefit": "Ukiwa mtayarishaji aliyethibitishwa, utapata <bold>mgao wa mapato wa 85%</bold> kutoka kila mauzo ya ramani ya njia na kuwafikia maelfu ya wanafunzi duniani kote."
+        },
+        "motivation": {
+            "title": "Nini kinakupa motisha?",
+            "desc": "Chagua sababu inayoeleza vyema kwa nini unataka kuwa mtayarishaji."
+        },
+        "achievement": {
+            "title": "Mafanikio Yako",
+            "desc": "Tueleze kuhusu fursa uliyoipata ili tuwasaidie wengine kufuata njia yako.",
+            "typeLabel": "Aina ya Fursa",
+            "nameLabel": "Jina la Fursa",
+            "namePlaceholder": "k.m., Mastercard Foundation Scholarship 2024",
+            "linkedinLabel": "Wasifu wa LinkedIn",
+            "portfolioLabel": "Kiungo cha Kazi Zako (Hiari)",
+            "portfolioPlaceholder": "Kiungo cha kazi zako au tovuti yako binafsi"
+        },
+        "verification": {
+            "title": "Uthibitishaji",
+            "desc": "Tunathibitisha watayarishaji wote ili kudumisha ubora na uaminifu. Pakia hati ili kuthibitisha mafanikio yako.",
+            "documentLabel": "Hati ya Uthibitishaji",
+            "documentHint": "Pakia barua yako ya tuzo, cheti, barua pepe ya kukubaliwa, au kitambulisho",
+            "tapToUpload": "Gusa kupakia",
+            "acceptedFormats": "JPG, PNG zinakubaliwa",
+            "verified": "Imethibitishwa",
+            "storyLabel": "Hadithi Yako",
+            "storyPlaceholder": "Shiriki safari yako - jinsi ulivyojiandaa, changamoto ulizokabiliana nazo, na ushauri kwa wengine...",
+            "socialLabel": "Viungo vya Mitandao ya Kijamii (Hiari)",
+            "socialPlaceholder": "Twitter, YouTube, n.k. (tenganisha kwa koma)"
+        },
+        "review": {
+            "title": "Pitia Ombi",
+            "desc": "Hakiki maelezo yako kabla ya kuwasilisha.",
+            "motivation": "Motisha",
+            "achievement": "Mafanikio",
+            "type": "Aina",
+            "name": "Jina",
+            "verification": "Uthibitishaji",
+            "documentUploaded": "Hati imepakiwa",
+            "bio": "Wasifu Mfupi",
+            "callout": "Ombi lako litapitiwa ndani ya <bold>siku 2-3 za kazi</bold>. Utaarifiwa mara litakapoidhinishwa."
+        },
+        "submitApplication": "Wasilisha Ombi"
     },
-    "motivations": {
-      "helpOthers": "Nataka kuwasaidia wengine kufanikisha nilichofanikisha",
-      "mentor": "Ninafurahia kushauri na kushiriki maarifa",
-      "giveBack": "Nataka kurudisha fadhila kwa jamii",
-      "document": "Nataka kuandika safari yangu kwa ajili ya wengine",
-      "payForward": "Naamini katika kusambaza wema mbele"
-    },
-    "alerts": {
-      "uploadImageFailed": "Imeshindikana kupakia picha. Tafadhali jaribu tena.",
-      "submitFailed": "Muunganisho umeshindikana. Tafadhali jaribu tena."
-    },
-    "success": {
-      "headerTitle": "Ombi Limewasilishwa",
-      "title": "Karibu kwenye Jamii ya Watayarishaji!",
-      "text": "Tumepokea ombi lako na tuna hamu ya kupitia safari yako. Timu yetu itathibitisha sifa zako ndani ya siku 2-3 za kazi.",
-      "applicationId": "Nambari ya Ombi",
-      "status": "Hali",
-      "pendingReview": "Inasubiri Mapitio",
-      "responseTime": "Muda wa Majibu",
-      "responseTimeValue": "Siku 2-3",
-      "backToProfile": "Rudi kwenye Wasifu"
-    },
-    "intro": {
-      "heroTitle": "Shiriki Hadithi ya Ushindi Wako",
-      "heroSubtitle": "Umefanikisha jambo la ajabu. Wahamasishe kizazi kijacho kwa kushiriki ramani yako ya njia kuelekea mafanikio.",
-      "you": "Wewe",
-      "yourName": "Jina Lako",
-      "futureCreator": "Mtayarishaji wa Baadaye",
-      "statStudentsHelped": "Wanafunzi Waliosaidiwa",
-      "statSuccessStories": "Hadithi za Mafanikio",
-      "statRevenueShare": "Mgao wa Mapato",
-      "benefit": "Ukiwa mtayarishaji aliyethibitishwa, utapata <bold>mgao wa mapato wa 85%</bold> kutoka kila mauzo ya ramani ya njia na kuwafikia maelfu ya wanafunzi duniani kote."
-    },
-    "motivation": {
-      "title": "Nini kinakupa motisha?",
-      "desc": "Chagua sababu inayoeleza vyema kwa nini unataka kuwa mtayarishaji."
-    },
-    "achievement": {
-      "title": "Mafanikio Yako",
-      "desc": "Tueleze kuhusu fursa uliyoipata ili tuwasaidie wengine kufuata njia yako.",
-      "typeLabel": "Aina ya Fursa",
-      "nameLabel": "Jina la Fursa",
-      "namePlaceholder": "k.m., Mastercard Foundation Scholarship 2024",
-      "linkedinLabel": "Wasifu wa LinkedIn",
-      "portfolioLabel": "Kiungo cha Kazi Zako (Hiari)",
-      "portfolioPlaceholder": "Kiungo cha kazi zako au tovuti yako binafsi"
-    },
-    "verification": {
-      "title": "Uthibitishaji",
-      "desc": "Tunathibitisha watayarishaji wote ili kudumisha ubora na uaminifu. Pakia hati ili kuthibitisha mafanikio yako.",
-      "documentLabel": "Hati ya Uthibitishaji",
-      "documentHint": "Pakia barua yako ya tuzo, cheti, barua pepe ya kukubaliwa, au kitambulisho",
-      "tapToUpload": "Gusa kupakia",
-      "acceptedFormats": "JPG, PNG zinakubaliwa",
-      "verified": "Imethibitishwa",
-      "storyLabel": "Hadithi Yako",
-      "storyPlaceholder": "Shiriki safari yako - jinsi ulivyojiandaa, changamoto ulizokabiliana nazo, na ushauri kwa wengine...",
-      "socialLabel": "Viungo vya Mitandao ya Kijamii (Hiari)",
-      "socialPlaceholder": "Twitter, YouTube, n.k. (tenganisha kwa koma)"
-    },
-    "review": {
-      "title": "Pitia Ombi",
-      "desc": "Hakiki maelezo yako kabla ya kuwasilisha.",
-      "motivation": "Motisha",
-      "achievement": "Mafanikio",
-      "type": "Aina",
-      "name": "Jina",
-      "verification": "Uthibitishaji",
-      "documentUploaded": "Hati imepakiwa",
-      "bio": "Wasifu Mfupi",
-      "callout": "Ombi lako litapitiwa ndani ya <bold>siku 2-3 za kazi</bold>. Utaarifiwa mara litakapoidhinishwa."
-    },
-    "submitApplication": "Wasilisha Ombi"
-  },
-  "creatorDashboard": {
-    "title": "Studio ya Mtayarishaji",
-    "subtitle": "Unda na usimamie ramani zako za njia",
-    "loading": "Inapakia Studio ya Mtayarishaji...",
-    "longLoad": {
-      "title": "Hii inachukua muda mrefu kuliko ilivyotarajiwa",
-      "text": "Tafadhali jaribu tena baadaye au rudi nyuma tunapounganisha tena.",
-      "tryAgain": "Jaribu Tena"
-    },
-    "access": {
-      "pendingBadge": "Ombi Linasubiri",
-      "pendingDesc": "Ombi lako linapitiwa na timu yetu. Tutakuarifu mara litakapoidhinishwa. Kwa kawaida hii huchukua siku 2-3 za kazi.",
-      "pendingInfo": "Unaposubiri, unaweza kuvinjari ramani za njia za watayarishaji wengine kwa ajili ya msukumo.",
-      "browseRoadmaps": "Vinjari Ramani za Njia",
-      "rejectedBadge": "Ombi Halikuidhinishwa",
-      "rejectedDesc": "Kwa bahati mbaya, ombi lako halikuidhinishwa. Unaweza kuwasilisha ombi jipya lenye maelezo ya ziada.",
-      "reapply": "Omba Tena",
-      "noneDesc": "Jiunge na jamii yetu ya watayarishaji na ushiriki maarifa yako na maelfu ya wanafunzi. Pata krediti huku ukiwasaidia wengine kufikia malengo yao.",
-      "perkRevenue": "Mgao wa Mapato wa 85%",
-      "perkReach": "Fikia Wanafunzi 10K+",
-      "perkBadge": "Beji ya Mtayarishaji Aliyethibitishwa",
-      "applyCta": "Omba Kuwa Mtayarishaji"
-    },
-    "welcomeGreeting": "Karibu tena,",
-    "creatorFallback": "Mtayarishaji",
-    "createRoadmap": "Unda Ramani ya Njia",
-    "overview": "Muhtasari",
-    "stats": {
-      "totalCredits": "Jumla ya Krediti",
-      "totalStudents": "Jumla ya Wanafunzi",
-      "roadmaps": "Ramani za Njia"
-    },
-    "rewards": {
-      "title": "Zawadi za Mtayarishaji",
-      "text": "Unapata <bold>85%</bold> ya kila mauzo ya ramani ya njia."
-    },
-    "myRoadmaps": "Ramani Zangu za Njia",
-    "empty": {
-      "title": "Bado hakuna ramani za njia",
-      "subtext": "Unda ramani yako ya kwanza ya njia na uanze kushiriki maarifa yako na jamii.",
-      "cta": "Unda Ramani Yako ya Kwanza ya Njia"
-    },
-    "free": "Bila malipo",
-    "priceCr": "kr {{price}}",
-    "alerts": {
-      "thumbnailUploaded": "Picha ndogo imepakiwa!",
-      "uploadFailedTitle": "Upakiaji Umeshindikana",
-      "fileUploaded": "Faili limepakiwa kwa mafanikio.",
-      "missingInfoTitle": "Taarifa Zinakosekana",
-      "missingInfoMessage": "Tafadhali jaza kichwa na maelezo.",
-      "missingCurriculumTitle": "Mtaala Unakosekana",
-      "missingCurriculumMessage": "Ongeza angalau hatua moja ya ramani ya njia.",
-      "publishFailed": "Imeshindikana kuchapisha ramani ya njia.",
-      "publishedTitle": "Imefanikiwa!",
-      "publishedMessage": "Ramani yako ya njia imechapishwa na inaonekana kwa wanafunzi.",
-      "failedTitle": "Imeshindikana",
-      "failedFallback": "Tafadhali jaribu tena."
-    },
-    "wizard": {
-      "basicsTitle": "Misingi ya Ramani ya Njia",
-      "basicsDesc": "Tueleze kuhusu ramani yako ya njia",
-      "curriculumTitle": "Hatua za Mtaala",
-      "curriculumDesc": "Fafanua hatua za kujifunza",
-      "resourcesTitle": "Rasilimali na Mafaili",
-      "resourcesDesc": "Ongeza nyenzo za ziada",
-      "reviewTitle": "Pitia na Uwasilishe",
-      "reviewDesc": "Hakiki kabla ya kuwasilisha",
-      "basicsCallout": "Unaunda <bold>ramani ya njia</bold> — mwongozo wa kujifunza wa hatua kwa hatua unaowasaidia wanafunzi kufikia malengo mahususi.",
-      "titleLabel": "Kichwa cha Ramani ya Njia",
-      "titlePlaceholder": "k.m. Ramani Kamili ya Njia ya Utengenezaji Tovuti",
-      "descriptionLabel": "Maelezo",
-      "descriptionPlaceholder": "Wanafunzi watajifunza nini? Wanaweza kutarajia matokeo gani?",
-      "categoryLabel": "Kategoria",
-      "thumbnailLabel": "Picha Ndogo",
-      "uploaded": "Imepakiwa",
-      "browseDevice": "Vinjari kutoka kwenye kifaa",
-      "ratioHint": "Uwiano wa 16:9 unapendekezwa",
-      "priceLabel": "Bei (Krediti)",
-      "pricePlaceholder": "0 kwa ramani ya njia isiyolipiwa",
-      "experienceLabel": "Uzoefu Wako",
-      "experiencePlaceholder": "Kwa nini una sifa za kuunda ramani hii ya njia?",
-      "curriculumCallout": "Gawanya ramani yako ya njia katika <bold>hatua</bold>. Kila hatua inawakilisha kipengele muhimu katika safari ya mwanafunzi.",
-      "stageNumber": "Hatua ya {{number}}",
-      "stageTitlePlaceholder": "Kichwa cha hatua (k.m. Misingi)",
-      "stageDescPlaceholder": "Maelezo mafupi ya hatua hii",
-      "stageDurationPlaceholder": "Muda (k.m. Wiki 1-2)",
-      "addStage": "Ongeza Hatua",
-      "resourcesCallout": "Ongeza rasilimali kama mafaili ya mfano, violezo, au hati ambazo wanafunzi wanaweza kupakua.",
-      "resourceNamePlaceholder": "Jina la rasilimali",
-      "uploadFile": "Pakia faili",
-      "addResource": "Ongeza Rasilimali",
-      "reviewCallout": "Pitia maelezo ya ramani yako ya njia kabla ya kuchapisha. Ukiwa mtayarishaji aliyeidhinishwa, inaonekana kwa wanafunzi mara moja.",
-      "reviewBasics": "Misingi",
-      "reviewTitleLabel": "Kichwa",
-      "reviewCategoryLabel": "Kategoria",
-      "reviewPriceLabel": "Bei",
-      "priceCredits": "Krediti {{price}}",
-      "reviewCurriculum": "Mtaala (hatua {{total}})",
-      "reviewResources": "Rasilimali ({{total}})",
-      "untitled": "Bila kichwa",
-      "fileAttached": "✓ {{fileName}}",
-      "submitForReview": "Wasilisha kwa Mapitio"
-    }
-  },
-  "mentorApply": {
-    "title": "Kuwa Mshauri",
-    "alerts": {
-      "notSignedInTitle": "Hujaingia",
-      "notSignedInMessage": "Tafadhali ingia ili kuwasilisha ombi la ushauri."
-    },
-    "success": {
-      "title": "Ombi Limetumwa!",
-      "desc": "Asante kwa kuomba kuwa mshauri. Tutapitia ombi lako na kukujibu ndani ya siku 2-3 za kazi.",
-      "backToProfile": "Rudi kwenye Wasifu"
-    },
-    "motivations": {
-      "helpOthers": "Nataka kuwasaidia wengine kufanikisha nilichofanikisha",
-      "mentor": "Ninafurahia kushauri na kushiriki maarifa",
-      "giveBack": "Nataka kurudisha fadhila kwa jamii",
-      "document": "Nataka kuandika safari yangu kwa ajili ya wengine",
-      "payForward": "Naamini katika kusambaza wema mbele"
-    },
-    "contentTypes": {
-      "mentorship": { "label": "Ushauri", "desc": "Mwongozo wa ana kwa ana" },
-      "course": { "label": "Kozi", "desc": "Njia za kujifunza" },
-      "template": { "label": "Violezo", "desc": "Violezo vya CV na wasifu wa kazi" },
-      "resource": { "label": "Rasilimali", "desc": "Nyenzo za kusoma" }
-    },
-    "intro": {
-      "heroTitle": "Shiriki\n<accent>Hadithi ya Mafanikio Yako</accent>",
-      "heroDesc": "Umefanikisha jambo la ajabu. Wasaidie wengine kufika huko pia kwa kushiriki maarifa na uzoefu wako.",
-      "statLearners": "Wanafunzi",
-      "statMentors": "Washauri",
-      "statRevenue": "Mapato",
-      "info": "Fikia wanafunzi kutoka nchi 31+. Uzoefu wako unaweza kubadilisha maisha ya mtu popote duniani.",
-      "getStarted": "Anza Sasa"
-    },
-    "motivation": {
-      "title": "Nini kinakupa motisha?",
-      "desc": "Chagua sababu inayoeleza vyema kwa nini unataka kushauri."
-    },
-    "details": {
-      "title": "Tueleze kukuhusu",
-      "desc": "Wasaidie wanafunzi kuelewa utaalamu wako.",
-      "displayNameLabel": "Jina la Kuonyesha",
-      "displayNamePlaceholder": "Wanafunzi wakujue vipi?",
-      "teachLabel": "Utafundisha nini?",
-      "bioLabel": "Wasifu Wako Mfupi",
-      "bioPlaceholder": "Shiriki historia yako, mafanikio...",
-      "experienceLabel": "Miaka ya Uzoefu",
-      "experiencePlaceholder": "k.m., miaka 5 katika uhandisi wa programu",
-      "linkedinLabel": "Kiungo cha LinkedIn",
-      "portfolioLabel": "Kiungo cha Kazi Zako",
-      "reviewApplication": "Pitia Ombi"
-    },
-    "review": {
-      "title": "Pitia ombi lako",
-      "desc": "Hakikisha kila kitu kiko sawa kabla ya kuwasilisha.",
-      "displayName": "Jina la Kuonyesha",
-      "motivation": "Motisha",
-      "contentType": "Aina ya Maudhui",
-      "experience": "Uzoefu",
-      "bio": "Wasifu Mfupi",
-      "linkedin": "LinkedIn",
-      "portfolio": "Kazi Zako",
-      "notProvided": "Haijatolewa",
-      "submitting": "Inawasilisha...",
-      "submit": "Wasilisha Ombi"
-    }
-  },
-  "admin": {
-    "creatorApplications": {
-      "title": "Maombi ya Watayarishaji",
-      "subtitle": "Pitia na usimamie maombi",
-      "alerts": {
-        "loadFailed": "Imeshindikana kupakia maombi.",
-        "approvedSuccess": "Ombi limeidhinishwa kwa mafanikio.",
-        "rejectedSuccess": "Ombi limekataliwa kwa mafanikio.",
-        "reviewFailed": "Imeshindikana kupitia ombi."
-      },
-      "unknown": "Haijulikani",
-      "unknownUser": "Mtumiaji Asiyejulikana",
-      "status": {
-        "pending": "Linasubiri",
-        "approved": "Limeidhinishwa",
-        "rejected": "Limekataliwa"
-      },
-      "filters": { "all": "Yote" },
-      "stats": { "total": "Jumla" },
-      "loading": "Inapakia maombi...",
-      "empty": {
-        "title": "Hakuna Maombi",
-        "pending": "Hakuna maombi yanayosubiri kupitiwa.",
-        "generic": "Hakuna maombi yaliyopatikana."
-      },
-      "modal": {
-        "title": "Maelezo ya Ombi",
-        "reviewedOn": "Limepitiwa {{date}}",
-        "applicant": "Mwombaji",
-        "opportunity": "Fursa",
-        "motivation": "Motisha",
-        "bio": "Wasifu Mfupi",
-        "linkedin": "LinkedIn",
-        "verificationDocument": "Hati ya Uthibitishaji",
-        "proofUrl": "Kiungo cha Uthibitisho",
-        "appliedOn": "Aliomba Tarehe",
-        "reviewerNotes": "Maelezo ya Mhakiki",
-        "notePlaceholder": "Ongeza maelezo kuhusu uamuzi huu...",
-        "reject": "Kataa",
-        "approve": "Idhinisha"
-      }
-    },
-    "premiumFeatures": {
-      "title": "Vipengele vya Premium",
-      "subtitle": "Simamia bendera za vipengele vya OTA",
-      "alerts": {
-        "loadFailed": "Imeshindikana kupakia bendera za vipengele.",
-        "validationTitle": "Hitilafu ya Uthibitishaji",
-        "validationMessage": "Lebo na maelezo yanahitajika.",
-        "updated": "Bendera ya kipengele imesasishwa kwa mafanikio.",
-        "saveFailed": "Imeshindikana kuhifadhi bendera ya kipengele.",
-        "statusUpdateFailed": "Imeshindikana kusasisha hali.",
-        "proUpdateFailed": "Imeshindikana kusasisha sharti la Pro."
-      },
-      "stats": {
-        "total": "Jumla",
-        "enabled": "Vimewashwa",
-        "proOnly": "Pro Pekee"
-      },
-      "searchPlaceholder": "Tafuta vipengele...",
-      "filters": {
-        "all": "Vyote",
-        "enabled": "Vimewashwa",
-        "disabled": "Vimezimwa",
-        "proOnly": "Pro Pekee"
-      },
-      "status": {
-        "enabled": "Kimewashwa",
-        "disabled": "Kimezimwa"
-      },
-      "toggles": {
-        "enabled": "Kimewashwa",
-        "proOnly": "Pro Pekee"
-      },
-      "loading": "Inapakia bendera za vipengele...",
-      "empty": {
-        "title": "Hakuna Bendera za Vipengele",
-        "filtered": "Hakuna vipengele vinavyolingana na kichujio cha sasa.",
-        "none": "Hakuna bendera za vipengele zilizopatikana kwenye hifadhidata."
-      },
-      "modal": {
-        "title": "Hariri Bendera ya Kipengele",
-        "labelLabel": "Lebo *",
-        "labelPlaceholder": "k.m. Mwalimu wa AI",
-        "descriptionLabel": "Maelezo *",
-        "descriptionPlaceholder": "Eleza kipengele hiki kinafanya nini...",
-        "sortOrderLabel": "Mpangilio",
-        "submit": "Sasisha Bendera ya Kipengele"
-      }
-    },
-    "testimonials": {
-      "title": "Ushuhuda",
-      "subtitle": "Simamia ushuhuda wa wateja",
-      "alerts": {
-        "loadFailed": "Imeshindikana kupakia ushuhuda.",
-        "validationTitle": "Hitilafu ya Uthibitishaji",
-        "validationMessage": "Jina, Nafasi, na maandishi ya Maoni yanahitajika.",
-        "updated": "Ushuhuda umesasishwa kwa mafanikio.",
-        "added": "Ushuhuda umeongezwa kwa mafanikio.",
-        "saveFailed": "Imeshindikana kuhifadhi ushuhuda.",
-        "deleteTitle": "Futa Ushuhuda",
-        "deleteMessage": "Una uhakika unataka kufuta \"{{name}}\"? Kitendo hiki hakiwezi kutenduliwa.",
-        "deleted": "Ushuhuda umefutwa.",
-        "deleteFailed": "Imeshindikana kufuta ushuhuda.",
-        "statusUpdateFailed": "Imeshindikana kusasisha hali."
-      },
-      "stats": {
-        "total": "Jumla",
-        "active": "Unaotumika",
-        "inactive": "Usiotumika"
-      },
-      "filters": { "all": "Yote" },
-      "status": {
-        "active": "Unaotumika",
-        "inactive": "Usiotumika"
-      },
-      "videoLinked": "Video ya YouTube imeunganishwa",
-      "addButton": "Ongeza Ushuhuda",
-      "loading": "Inapakia ushuhuda...",
-      "empty": {
-        "title": "Hakuna Ushuhuda",
-        "filtered": "Hakuna ushuhuda unaolingana na kichujio cha sasa.",
-        "none": "Gusa kitufe kilicho hapo juu ili kuongeza ushuhuda wako wa kwanza."
-      },
-      "modal": {
-        "editTitle": "Hariri Ushuhuda",
-        "nameLabel": "Jina *",
-        "namePlaceholder": "k.m. John Doe",
-        "roleLabel": "Nafasi *",
-        "rolePlaceholder": "k.m. Mhandisi wa Programu",
-        "countryLabel": "Nchi <dim>(hiari)</dim>",
-        "countryPlaceholder": "k.m. 🇳🇬 Nigeria",
-        "ratingLabel": "Ukadiriaji",
-        "reviewLabel": "Maandishi ya Maoni *",
-        "reviewPlaceholder": "Andika maoni ya ushuhuda...",
-        "youtubeLabel": "Kiungo cha YouTube <dim>(hiari)</dim>",
-        "videoId": "Nambari ya Video: {{id}}",
-        "videoIdError": "Imeshindikana kupata nambari ya video kutoka kwenye kiungo",
-        "update": "Sasisha Ushuhuda"
-      }
-    },
-    "roadmapCreate": {
-      "title": "Unda Ramani ya Njia",
-      "alerts": {
-        "coverUploadFailed": "Imeshindikana kupakia picha ya jalada",
-        "resourceRequired": "Tafadhali jaza kichwa cha rasilimali na kiungo",
-        "fileUploadFailed": "Imeshindikana kupakia faili",
-        "requiredFields": "Tafadhali jaza kichwa, muhtasari, na angalau hatua moja",
-        "created": "Ramani ya njia imeundwa kwa mafanikio!",
-        "createFailed": "Imeshindikana kuunda ramani ya njia. Tafadhali jaribu tena."
-      },
-      "basicInfo": "Taarifa za Msingi",
-      "uploadCover": "Pakia Picha ya Jalada",
-      "titleLabel": "Kichwa",
-      "titlePlaceholder": "k.m., Mafunzo Kamili ya Utengenezaji Tovuti",
-      "summaryLabel": "Muhtasari",
-      "summaryPlaceholder": "Maelezo mafupi ya ramani hii ya njia...",
-      "categoryLabel": "Kategoria",
-      "categories": {
-        "education": "Elimu",
-        "programming": "Upangaji Programu",
-        "business": "Biashara",
-        "career": "Kazi",
-        "design": "Usanifu",
-        "marketing": "Masoko",
-        "other": "Nyingine"
-      },
-      "difficultyLabel": "Ugumu",
-      "difficulty": {
-        "beginner": "Mwanzilishi",
-        "intermediate": "Wastani",
-        "advanced": "Mtaalamu"
-      },
-      "priceLabel": "Bei",
-      "price": {
+    "creatorDashboard": {
+        "title": "Studio ya Mtayarishaji",
+        "subtitle": "Unda na usimamie ramani zako za njia",
+        "loading": "Inapakia Studio ya Mtayarishaji...",
+        "longLoad": {
+            "title": "Hii inachukua muda mrefu kuliko ilivyotarajiwa",
+            "text": "Tafadhali jaribu tena baadaye au rudi nyuma tunapounganisha tena.",
+            "tryAgain": "Jaribu Tena"
+        },
+        "access": {
+            "pendingBadge": "Ombi Linasubiri",
+            "pendingDesc": "Ombi lako linapitiwa na timu yetu. Tutakuarifu mara litakapoidhinishwa. Kwa kawaida hii huchukua siku 2-3 za kazi.",
+            "pendingInfo": "Unaposubiri, unaweza kuvinjari ramani za njia za watayarishaji wengine kwa ajili ya msukumo.",
+            "browseRoadmaps": "Vinjari Ramani za Njia",
+            "rejectedBadge": "Ombi Halikuidhinishwa",
+            "rejectedDesc": "Kwa bahati mbaya, ombi lako halikuidhinishwa. Unaweza kuwasilisha ombi jipya lenye maelezo ya ziada.",
+            "reapply": "Omba Tena",
+            "noneDesc": "Jiunge na jamii yetu ya watayarishaji na ushiriki maarifa yako na maelfu ya wanafunzi. Pata krediti huku ukiwasaidia wengine kufikia malengo yao.",
+            "perkRevenue": "Mgao wa Mapato wa 85%",
+            "perkReach": "Fikia Wanafunzi 10K+",
+            "perkBadge": "Beji ya Mtayarishaji Aliyethibitishwa",
+            "applyCta": "Omba Kuwa Mtayarishaji"
+        },
+        "welcomeGreeting": "Karibu tena,",
+        "creatorFallback": "Mtayarishaji",
+        "createRoadmap": "Unda Ramani ya Njia",
+        "overview": "Muhtasari",
+        "stats": {
+            "totalCredits": "Jumla ya Krediti",
+            "totalStudents": "Jumla ya Wanafunzi",
+            "roadmaps": "Ramani za Njia"
+        },
+        "rewards": {
+            "title": "Zawadi za Mtayarishaji",
+            "text": "Unapata <bold>85%</bold> ya kila mauzo ya ramani ya njia."
+        },
+        "myRoadmaps": "Ramani Zangu za Njia",
+        "empty": {
+            "title": "Bado hakuna ramani za njia",
+            "subtext": "Unda ramani yako ya kwanza ya njia na uanze kushiriki maarifa yako na jamii.",
+            "cta": "Unda Ramani Yako ya Kwanza ya Njia"
+        },
         "free": "Bila malipo",
-        "premium": "Premium"
-      },
-      "durationLabel": "Muda",
-      "durationPlaceholder": "k.m., miezi 3",
-      "tagsLabel": "Lebo (tenganisha kwa koma)",
-      "tagsPlaceholder": "k.m., javascript, react, utengenezaji tovuti",
-      "outcomesLabel": "Matokeo ya Kujifunza (moja kwa kila mstari)",
-      "outcomesPlaceholder": "- Jenga programu kamili za tovuti\\n- Mudu React na Node.js\\n- Sambaza kwenye mazingira halisi",
-      "resources": "Rasilimali",
-      "resourceTitlePlaceholder": "Kichwa cha Rasilimali",
-      "resourceDescriptionPlaceholder": "Maelezo",
-      "resourceUrlPlaceholder": "URL",
-      "typeLabel": "Aina",
-      "resourceTypes": {
-        "article": "makala",
-        "video": "video",
-        "course": "kozi",
-        "tool": "zana",
-        "book": "kitabu",
-        "other": "nyingine"
-      },
-      "costLabel": "Gharama",
-      "cost": {
-        "free": "bila malipo",
-        "paid": "kwa malipo"
-      },
-      "resourceMeta": "{{type}} • {{cost}}",
-      "addResource": "Ongeza Rasilimali",
-      "uploadDoc": "Pakia PDF/Hati (hiari)",
-      "stages": "Hatua za Ramani ya Njia",
-      "stageTitlePlaceholder": "Kichwa cha Hatua ya {{number}}",
-      "stageDescriptionPlaceholder": "Maelezo ya Hatua",
-      "stageDurationPlaceholder": "Muda (k.m., wiki 2)",
-      "milestonePlaceholder": "Hatua muhimu",
-      "tasks": "Kazi",
-      "taskTitlePlaceholder": "Kichwa cha Kazi",
-      "taskDescriptionPlaceholder": "Maelezo ya Kazi",
-      "taskDurationPlaceholder": "Muda",
-      "taskOutcomePlaceholder": "Matokeo Yanayotarajiwa",
-      "addTask": "Ongeza Kazi",
-      "checkpointPlaceholder": "Kituo cha ukaguzi / Kinachowasilishwa"
-    }
-  },
-  "notifications": {
-    "goalDeadlineToday": {
-      "title": "Tarehe ya Mwisho ya Lengo ni Leo! 🎯",
-      "body": "Usisahau: {{title}}"
+        "priceCr": "kr {{price}}",
+        "alerts": {
+            "thumbnailUploaded": "Picha ndogo imepakiwa!",
+            "uploadFailedTitle": "Upakiaji Umeshindikana",
+            "fileUploaded": "Faili limepakiwa kwa mafanikio.",
+            "missingInfoTitle": "Taarifa Zinakosekana",
+            "missingInfoMessage": "Tafadhali jaza kichwa na maelezo.",
+            "missingCurriculumTitle": "Mtaala Unakosekana",
+            "missingCurriculumMessage": "Ongeza angalau hatua moja ya ramani ya njia.",
+            "publishFailed": "Imeshindikana kuchapisha ramani ya njia.",
+            "publishedTitle": "Imefanikiwa!",
+            "publishedMessage": "Ramani yako ya njia imechapishwa na inaonekana kwa wanafunzi.",
+            "failedTitle": "Imeshindikana",
+            "failedFallback": "Tafadhali jaribu tena.",
+            "savedTitle": "Ramani imehifadhiwa",
+            "savedMessage": "Sasa ipo kwenye Ramani → Ramani Zangu.",
+            "updatedTitle": "Mabadiliko yamehifadhiwa",
+            "updatedMessage": "Ramani yako imesasishwa.",
+            "unpublishedMessage": "Ramani yako ni ya faragha tena — wewe pekee unaweza kuiona."
+        },
+        "wizard": {
+            "basicsTitle": "Misingi ya Ramani ya Njia",
+            "basicsDesc": "Tueleze kuhusu ramani yako ya njia",
+            "curriculumTitle": "Hatua za Mtaala",
+            "curriculumDesc": "Fafanua hatua za kujifunza",
+            "resourcesTitle": "Rasilimali na Mafaili",
+            "resourcesDesc": "Ongeza nyenzo za ziada",
+            "reviewTitle": "Pitia na Uwasilishe",
+            "reviewDesc": "Hakiki kabla ya kuwasilisha",
+            "basicsCallout": "Unaunda <bold>ramani ya njia</bold> — mwongozo wa kujifunza wa hatua kwa hatua unaowasaidia wanafunzi kufikia malengo mahususi.",
+            "titleLabel": "Kichwa cha Ramani ya Njia",
+            "titlePlaceholder": "k.m. Ramani Kamili ya Njia ya Utengenezaji Tovuti",
+            "descriptionLabel": "Maelezo",
+            "descriptionPlaceholder": "Wanafunzi watajifunza nini? Wanaweza kutarajia matokeo gani?",
+            "categoryLabel": "Kategoria",
+            "thumbnailLabel": "Picha Ndogo",
+            "uploaded": "Imepakiwa",
+            "browseDevice": "Vinjari kutoka kwenye kifaa",
+            "ratioHint": "Uwiano wa 16:9 unapendekezwa",
+            "priceLabel": "Bei (Krediti)",
+            "pricePlaceholder": "0 kwa ramani ya njia isiyolipiwa",
+            "experienceLabel": "Uzoefu Wako",
+            "experiencePlaceholder": "Kwa nini una sifa za kuunda ramani hii ya njia?",
+            "curriculumCallout": "Gawanya ramani yako ya njia katika <bold>hatua</bold>. Kila hatua inawakilisha kipengele muhimu katika safari ya mwanafunzi.",
+            "stageNumber": "Hatua ya {{number}}",
+            "stageTitlePlaceholder": "Kichwa cha hatua (k.m. Misingi)",
+            "stageDescPlaceholder": "Maelezo mafupi ya hatua hii",
+            "stageDurationPlaceholder": "Muda (k.m. Wiki 1-2)",
+            "addStage": "Ongeza Hatua",
+            "resourcesCallout": "Ongeza rasilimali kama mafaili ya mfano, violezo, au hati ambazo wanafunzi wanaweza kupakua.",
+            "resourceNamePlaceholder": "Jina la rasilimali",
+            "uploadFile": "Pakia faili",
+            "addResource": "Ongeza Rasilimali",
+            "reviewCallout": "Pitia maelezo ya ramani yako ya njia kabla ya kuchapisha. Ukiwa mtayarishaji aliyeidhinishwa, inaonekana kwa wanafunzi mara moja.",
+            "reviewBasics": "Misingi",
+            "reviewTitleLabel": "Kichwa",
+            "reviewCategoryLabel": "Kategoria",
+            "reviewPriceLabel": "Bei",
+            "priceCredits": "Krediti {{price}}",
+            "reviewCurriculum": "Mtaala (hatua {{total}})",
+            "reviewResources": "Rasilimali ({{total}})",
+            "untitled": "Bila kichwa",
+            "fileAttached": "✓ {{fileName}}",
+            "submitForReview": "Wasilisha kwa Mapitio",
+            "editCallout": "Sasisha ramani yako. Mabadiliko yanahifadhiwa kwenye Ramani Zangu.",
+            "publishNow": "Chapisha Sasa",
+            "saveChanges": "Hifadhi Mabadiliko",
+            "saveRoadmap": "Hifadhi Ramani"
+        },
+        "actions": {
+            "edit": "Hariri",
+            "follow": "Fuata"
+        },
+        "badge": {
+            "personal": "Binafsi",
+            "published": "Imechapishwa"
+        },
+        "deleteConfirm": {
+            "title": "Ufute ramani?",
+            "message": "\"{{title}}\" itaondolewa kabisa. Hatua hii haiwezi kutenduliwa."
+        },
+        "errors": {
+            "deleteFailed": "Imeshindwa kufuta ramani hii.",
+            "followFailed": "Imeshindwa kuanzisha ramani hii.",
+            "loadRoadmaps": "Imeshindwa kupakia ramani zako.",
+            "timeout": "Ombi limechukua muda mrefu. Angalia muunganisho wako kisha ujaribu tena.",
+            "visibilityFailed": "Imeshindwa kubadilisha mwonekano wa ramani hii. Jaribu tena."
+        },
+        "followSuccess": {
+            "title": "Imeongezwa kwenye malengo yako",
+            "message": "Kila hatua sasa ni lengo linalofuatiliwa kwenye kichupo cha Malengo."
+        },
+        "upsell": {
+            "title": "Kuwa mtayarishaji aliyethibitishwa",
+            "text": "Chapisha ramani zako kwenye katalogi ya umma na uwafikie maelfu ya wanafunzi."
+        },
+        "visibility": {
+            "lockedText": "Kuwa mtayarishaji aliyethibitishwa ili kuchapisha hii hadharani.",
+            "personalText": "Wewe pekee unaweza kuiona. Inaonekana kwenye Ramani → Ramani Zangu.",
+            "personalTitle": "Hifadhi kwenye Ramani Zangu",
+            "publicText": "Kila mtu anaweza kugundua na kufuata ramani hii.",
+            "publicTitle": "Chapisha kwenye katalogi ya umma",
+            "unlock": "Fungua"
+        },
+        "listDegraded": "Imeshindwa kuonyesha ramani zako upya.",
+        "listDegradedRetry": "Gusa kujaribu tena"
     },
-    "deadlineTomorrow": {
-      "title": "Tarehe ya Mwisho ni Kesho! ⏱️",
-      "body": "Inakaribia: {{title}}"
+    "mentorApply": {
+        "title": "Kuwa Mshauri",
+        "alerts": {
+            "notSignedInTitle": "Hujaingia",
+            "notSignedInMessage": "Tafadhali ingia ili kuwasilisha ombi la ushauri."
+        },
+        "success": {
+            "title": "Ombi Limetumwa!",
+            "desc": "Asante kwa kuomba kuwa mshauri. Tutapitia ombi lako na kukujibu ndani ya siku 2-3 za kazi.",
+            "backToProfile": "Rudi kwenye Wasifu"
+        },
+        "motivations": {
+            "helpOthers": "Nataka kuwasaidia wengine kufanikisha nilichofanikisha",
+            "mentor": "Ninafurahia kushauri na kushiriki maarifa",
+            "giveBack": "Nataka kurudisha fadhila kwa jamii",
+            "document": "Nataka kuandika safari yangu kwa ajili ya wengine",
+            "payForward": "Naamini katika kusambaza wema mbele"
+        },
+        "contentTypes": {
+            "mentorship": {
+                "label": "Ushauri",
+                "desc": "Mwongozo wa ana kwa ana"
+            },
+            "course": {
+                "label": "Kozi",
+                "desc": "Njia za kujifunza"
+            },
+            "template": {
+                "label": "Violezo",
+                "desc": "Violezo vya CV na wasifu wa kazi"
+            },
+            "resource": {
+                "label": "Rasilimali",
+                "desc": "Nyenzo za kusoma"
+            }
+        },
+        "intro": {
+            "heroTitle": "Shiriki\n<accent>Hadithi ya Mafanikio Yako</accent>",
+            "heroDesc": "Umefanikisha jambo la ajabu. Wasaidie wengine kufika huko pia kwa kushiriki maarifa na uzoefu wako.",
+            "statLearners": "Wanafunzi",
+            "statMentors": "Washauri",
+            "statRevenue": "Mapato",
+            "info": "Fikia wanafunzi kutoka nchi 31+. Uzoefu wako unaweza kubadilisha maisha ya mtu popote duniani.",
+            "getStarted": "Anza Sasa"
+        },
+        "motivation": {
+            "title": "Nini kinakupa motisha?",
+            "desc": "Chagua sababu inayoeleza vyema kwa nini unataka kushauri."
+        },
+        "details": {
+            "title": "Tueleze kukuhusu",
+            "desc": "Wasaidie wanafunzi kuelewa utaalamu wako.",
+            "displayNameLabel": "Jina la Kuonyesha",
+            "displayNamePlaceholder": "Wanafunzi wakujue vipi?",
+            "teachLabel": "Utafundisha nini?",
+            "bioLabel": "Wasifu Wako Mfupi",
+            "bioPlaceholder": "Shiriki historia yako, mafanikio...",
+            "experienceLabel": "Miaka ya Uzoefu",
+            "experiencePlaceholder": "k.m., miaka 5 katika uhandisi wa programu",
+            "linkedinLabel": "Kiungo cha LinkedIn",
+            "portfolioLabel": "Kiungo cha Kazi Zako",
+            "reviewApplication": "Pitia Ombi"
+        },
+        "review": {
+            "title": "Pitia ombi lako",
+            "desc": "Hakikisha kila kitu kiko sawa kabla ya kuwasilisha.",
+            "displayName": "Jina la Kuonyesha",
+            "motivation": "Motisha",
+            "contentType": "Aina ya Maudhui",
+            "experience": "Uzoefu",
+            "bio": "Wasifu Mfupi",
+            "linkedin": "LinkedIn",
+            "portfolio": "Kazi Zako",
+            "notProvided": "Haijatolewa",
+            "submitting": "Inawasilisha...",
+            "submit": "Wasilisha Ombi"
+        }
     },
-    "deadlineApproaching": {
-      "title": "Tarehe ya Mwisho Inakaribia 🗓️",
-      "body": "Zimebaki siku 3 kwa: {{title}}"
+    "admin": {
+        "creatorApplications": {
+            "title": "Maombi ya Watayarishaji",
+            "subtitle": "Pitia na usimamie maombi",
+            "alerts": {
+                "loadFailed": "Imeshindikana kupakia maombi.",
+                "approvedSuccess": "Ombi limeidhinishwa kwa mafanikio.",
+                "rejectedSuccess": "Ombi limekataliwa kwa mafanikio.",
+                "reviewFailed": "Imeshindikana kupitia ombi."
+            },
+            "unknown": "Haijulikani",
+            "unknownUser": "Mtumiaji Asiyejulikana",
+            "status": {
+                "pending": "Linasubiri",
+                "approved": "Limeidhinishwa",
+                "rejected": "Limekataliwa"
+            },
+            "filters": {
+                "all": "Yote"
+            },
+            "stats": {
+                "total": "Jumla"
+            },
+            "loading": "Inapakia maombi...",
+            "empty": {
+                "title": "Hakuna Maombi",
+                "pending": "Hakuna maombi yanayosubiri kupitiwa.",
+                "generic": "Hakuna maombi yaliyopatikana."
+            },
+            "modal": {
+                "title": "Maelezo ya Ombi",
+                "reviewedOn": "Limepitiwa {{date}}",
+                "applicant": "Mwombaji",
+                "opportunity": "Fursa",
+                "motivation": "Motisha",
+                "bio": "Wasifu Mfupi",
+                "linkedin": "LinkedIn",
+                "verificationDocument": "Hati ya Uthibitishaji",
+                "proofUrl": "Kiungo cha Uthibitisho",
+                "appliedOn": "Aliomba Tarehe",
+                "reviewerNotes": "Maelezo ya Mhakiki",
+                "notePlaceholder": "Ongeza maelezo kuhusu uamuzi huu...",
+                "reject": "Kataa",
+                "approve": "Idhinisha"
+            }
+        },
+        "premiumFeatures": {
+            "title": "Vipengele vya Premium",
+            "subtitle": "Simamia bendera za vipengele vya OTA",
+            "alerts": {
+                "loadFailed": "Imeshindikana kupakia bendera za vipengele.",
+                "validationTitle": "Hitilafu ya Uthibitishaji",
+                "validationMessage": "Lebo na maelezo yanahitajika.",
+                "updated": "Bendera ya kipengele imesasishwa kwa mafanikio.",
+                "saveFailed": "Imeshindikana kuhifadhi bendera ya kipengele.",
+                "statusUpdateFailed": "Imeshindikana kusasisha hali.",
+                "proUpdateFailed": "Imeshindikana kusasisha sharti la Pro."
+            },
+            "stats": {
+                "total": "Jumla",
+                "enabled": "Vimewashwa",
+                "proOnly": "Pro Pekee"
+            },
+            "searchPlaceholder": "Tafuta vipengele...",
+            "filters": {
+                "all": "Vyote",
+                "enabled": "Vimewashwa",
+                "disabled": "Vimezimwa",
+                "proOnly": "Pro Pekee"
+            },
+            "status": {
+                "enabled": "Kimewashwa",
+                "disabled": "Kimezimwa"
+            },
+            "toggles": {
+                "enabled": "Kimewashwa",
+                "proOnly": "Pro Pekee"
+            },
+            "loading": "Inapakia bendera za vipengele...",
+            "empty": {
+                "title": "Hakuna Bendera za Vipengele",
+                "filtered": "Hakuna vipengele vinavyolingana na kichujio cha sasa.",
+                "none": "Hakuna bendera za vipengele zilizopatikana kwenye hifadhidata."
+            },
+            "modal": {
+                "title": "Hariri Bendera ya Kipengele",
+                "labelLabel": "Lebo *",
+                "labelPlaceholder": "k.m. Mwalimu wa AI",
+                "descriptionLabel": "Maelezo *",
+                "descriptionPlaceholder": "Eleza kipengele hiki kinafanya nini...",
+                "sortOrderLabel": "Mpangilio",
+                "submit": "Sasisha Bendera ya Kipengele"
+            }
+        },
+        "testimonials": {
+            "title": "Ushuhuda",
+            "subtitle": "Simamia ushuhuda wa wateja",
+            "alerts": {
+                "loadFailed": "Imeshindikana kupakia ushuhuda.",
+                "validationTitle": "Hitilafu ya Uthibitishaji",
+                "validationMessage": "Jina, Nafasi, na maandishi ya Maoni yanahitajika.",
+                "updated": "Ushuhuda umesasishwa kwa mafanikio.",
+                "added": "Ushuhuda umeongezwa kwa mafanikio.",
+                "saveFailed": "Imeshindikana kuhifadhi ushuhuda.",
+                "deleteTitle": "Futa Ushuhuda",
+                "deleteMessage": "Una uhakika unataka kufuta \"{{name}}\"? Kitendo hiki hakiwezi kutenduliwa.",
+                "deleted": "Ushuhuda umefutwa.",
+                "deleteFailed": "Imeshindikana kufuta ushuhuda.",
+                "statusUpdateFailed": "Imeshindikana kusasisha hali."
+            },
+            "stats": {
+                "total": "Jumla",
+                "active": "Unaotumika",
+                "inactive": "Usiotumika"
+            },
+            "filters": {
+                "all": "Yote"
+            },
+            "status": {
+                "active": "Unaotumika",
+                "inactive": "Usiotumika"
+            },
+            "videoLinked": "Video ya YouTube imeunganishwa",
+            "addButton": "Ongeza Ushuhuda",
+            "loading": "Inapakia ushuhuda...",
+            "empty": {
+                "title": "Hakuna Ushuhuda",
+                "filtered": "Hakuna ushuhuda unaolingana na kichujio cha sasa.",
+                "none": "Gusa kitufe kilicho hapo juu ili kuongeza ushuhuda wako wa kwanza."
+            },
+            "modal": {
+                "editTitle": "Hariri Ushuhuda",
+                "nameLabel": "Jina *",
+                "namePlaceholder": "k.m. John Doe",
+                "roleLabel": "Nafasi *",
+                "rolePlaceholder": "k.m. Mhandisi wa Programu",
+                "countryLabel": "Nchi <dim>(hiari)</dim>",
+                "countryPlaceholder": "k.m. 🇳🇬 Nigeria",
+                "ratingLabel": "Ukadiriaji",
+                "reviewLabel": "Maandishi ya Maoni *",
+                "reviewPlaceholder": "Andika maoni ya ushuhuda...",
+                "youtubeLabel": "Kiungo cha YouTube <dim>(hiari)</dim>",
+                "videoId": "Nambari ya Video: {{id}}",
+                "videoIdError": "Imeshindikana kupata nambari ya video kutoka kwenye kiungo",
+                "update": "Sasisha Ushuhuda"
+            }
+        },
+        "roadmapCreate": {
+            "title": "Unda Ramani ya Njia",
+            "alerts": {
+                "coverUploadFailed": "Imeshindikana kupakia picha ya jalada",
+                "resourceRequired": "Tafadhali jaza kichwa cha rasilimali na kiungo",
+                "fileUploadFailed": "Imeshindikana kupakia faili",
+                "requiredFields": "Tafadhali jaza kichwa, muhtasari, na angalau hatua moja",
+                "created": "Ramani ya njia imeundwa kwa mafanikio!",
+                "createFailed": "Imeshindikana kuunda ramani ya njia. Tafadhali jaribu tena."
+            },
+            "basicInfo": "Taarifa za Msingi",
+            "uploadCover": "Pakia Picha ya Jalada",
+            "titleLabel": "Kichwa",
+            "titlePlaceholder": "k.m., Mafunzo Kamili ya Utengenezaji Tovuti",
+            "summaryLabel": "Muhtasari",
+            "summaryPlaceholder": "Maelezo mafupi ya ramani hii ya njia...",
+            "categoryLabel": "Kategoria",
+            "categories": {
+                "education": "Elimu",
+                "programming": "Upangaji Programu",
+                "business": "Biashara",
+                "career": "Kazi",
+                "design": "Usanifu",
+                "marketing": "Masoko",
+                "other": "Nyingine"
+            },
+            "difficultyLabel": "Ugumu",
+            "difficulty": {
+                "beginner": "Mwanzilishi",
+                "intermediate": "Wastani",
+                "advanced": "Mtaalamu"
+            },
+            "priceLabel": "Bei",
+            "price": {
+                "free": "Bila malipo",
+                "premium": "Premium"
+            },
+            "durationLabel": "Muda",
+            "durationPlaceholder": "k.m., miezi 3",
+            "tagsLabel": "Lebo (tenganisha kwa koma)",
+            "tagsPlaceholder": "k.m., javascript, react, utengenezaji tovuti",
+            "outcomesLabel": "Matokeo ya Kujifunza (moja kwa kila mstari)",
+            "outcomesPlaceholder": "- Jenga programu kamili za tovuti\\n- Mudu React na Node.js\\n- Sambaza kwenye mazingira halisi",
+            "resources": "Rasilimali",
+            "resourceTitlePlaceholder": "Kichwa cha Rasilimali",
+            "resourceDescriptionPlaceholder": "Maelezo",
+            "resourceUrlPlaceholder": "URL",
+            "typeLabel": "Aina",
+            "resourceTypes": {
+                "article": "makala",
+                "video": "video",
+                "course": "kozi",
+                "tool": "zana",
+                "book": "kitabu",
+                "other": "nyingine"
+            },
+            "costLabel": "Gharama",
+            "cost": {
+                "free": "bila malipo",
+                "paid": "kwa malipo"
+            },
+            "resourceMeta": "{{type}} • {{cost}}",
+            "addResource": "Ongeza Rasilimali",
+            "uploadDoc": "Pakia PDF/Hati (hiari)",
+            "stages": "Hatua za Ramani ya Njia",
+            "stageTitlePlaceholder": "Kichwa cha Hatua ya {{number}}",
+            "stageDescriptionPlaceholder": "Maelezo ya Hatua",
+            "stageDurationPlaceholder": "Muda (k.m., wiki 2)",
+            "milestonePlaceholder": "Hatua muhimu",
+            "tasks": "Kazi",
+            "taskTitlePlaceholder": "Kichwa cha Kazi",
+            "taskDescriptionPlaceholder": "Maelezo ya Kazi",
+            "taskDurationPlaceholder": "Muda",
+            "taskOutcomePlaceholder": "Matokeo Yanayotarajiwa",
+            "addTask": "Ongeza Kazi",
+            "checkpointPlaceholder": "Kituo cha ukaguzi / Kinachowasilishwa"
+        }
+    },
+    "notifications": {
+        "goalDeadlineToday": {
+            "title": "Tarehe ya Mwisho ya Lengo ni Leo! 🎯",
+            "body": "Usisahau: {{title}}"
+        },
+        "deadlineTomorrow": {
+            "title": "Tarehe ya Mwisho ni Kesho! ⏱️",
+            "body": "Inakaribia: {{title}}"
+        },
+        "deadlineApproaching": {
+            "title": "Tarehe ya Mwisho Inakaribia 🗓️",
+            "body": "Zimebaki siku 3 kwa: {{title}}"
+        }
+    },
+    "share": {
+        "notSpecified": "Haijabainishwa",
+        "rollingDeadline": "Inaendelea / Haijabainishwa",
+        "fundingAvailable": "Ufadhili unapatikana",
+        "openOpportunity": "Fursa iliyo wazi",
+        "openEligibility": "Wazi kwa waombaji wanaostahiki",
+        "detailsInApp": "Maelezo yanapatikana kwenye Edutu.",
+        "fallbackTitle": "Fursa ya Edutu",
+        "deadlinePassed": "Tarehe ya Mwisho Imepita!",
+        "stillActive": "Bado Inaendelea!",
+        "sponsor": "Mdhamini: {{name}}",
+        "benefits": "Manufaa:",
+        "category": "Kategoria: {{category}}",
+        "categoryFallback": "Fursa",
+        "eligibleCountry": "Nchi Inayostahiki: {{country}}",
+        "deadline": "Tarehe ya mwisho: {{deadline}}",
+        "applyCta": "Bofya kiungo kilicho hapa chini ili kuomba📌",
+        "shareWithFriends": "Tafadhali shiriki na marafiki zako ambao wanaweza kuvutiwa.",
+        "dialogTitle": "Shiriki fursa"
     }
-  },
-  "share": {
-    "notSpecified": "Haijabainishwa",
-    "rollingDeadline": "Inaendelea / Haijabainishwa",
-    "fundingAvailable": "Ufadhili unapatikana",
-    "openOpportunity": "Fursa iliyo wazi",
-    "openEligibility": "Wazi kwa waombaji wanaostahiki",
-    "detailsInApp": "Maelezo yanapatikana kwenye Edutu.",
-    "fallbackTitle": "Fursa ya Edutu",
-    "deadlinePassed": "Tarehe ya Mwisho Imepita!",
-    "stillActive": "Bado Inaendelea!",
-    "sponsor": "Mdhamini: {{name}}",
-    "benefits": "Manufaa:",
-    "category": "Kategoria: {{category}}",
-    "categoryFallback": "Fursa",
-    "eligibleCountry": "Nchi Inayostahiki: {{country}}",
-    "deadline": "Tarehe ya mwisho: {{deadline}}",
-    "applyCta": "Bofya kiungo kilicho hapa chini ili kuomba📌",
-    "shareWithFriends": "Tafadhali shiriki na marafiki zako ambao wanaweza kuvutiwa.",
-    "dialogTitle": "Shiriki fursa"
-  }
 }

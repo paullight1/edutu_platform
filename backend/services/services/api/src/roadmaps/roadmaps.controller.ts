@@ -174,6 +174,16 @@ export class RoadmapsController {
     return this.roadmapsService.removeMine(userId, id);
   }
 
+  @Post("mine/:id/publish")
+  publishMine(@Param("id") id: string, @CurrentUser("id") userId: string) {
+    return this.roadmapsService.setMineVisibility(userId, id, true);
+  }
+
+  @Post("mine/:id/unpublish")
+  unpublishMine(@Param("id") id: string, @CurrentUser("id") userId: string) {
+    return this.roadmapsService.setMineVisibility(userId, id, false);
+  }
+
   @Put(":id")
   @UseGuards(AdminGuard)
   update(
