@@ -66,6 +66,19 @@ jest.mock('expo-linear-gradient', () => ({
   LinearGradient: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+jest.mock('../components/ui/AnimatedPressable', () => {
+  const React = require('react');
+  const { TouchableOpacity } = require('react-native');
+  return {
+    AnimatedPressable: ({ children, ...props }: { children: React.ReactNode }) => (
+      <TouchableOpacity {...props}>{children}</TouchableOpacity>
+    ),
+    AnimatedTouchableOpacity: ({ children, ...props }: { children: React.ReactNode }) => (
+      <TouchableOpacity {...props}>{children}</TouchableOpacity>
+    ),
+  };
+});
+
 jest.mock('lucide-react-native', () => {
   const React = require('react');
   const { Text } = require('react-native');
@@ -213,6 +226,18 @@ jest.mock('../components/ui/AdBanner', () => ({
 jest.mock('../lib/discoveryCategoryIcons', () => ({
   getDiscoveryCategoryIconXml: (type: string) => `<svg>${type}</svg>`,
   getDiscoveryCategoryIconSource: () => 1,
+}));
+
+jest.mock('../lib/shareOpportunity', () => ({
+  shareOpportunity: jest.fn(),
+}));
+
+jest.mock('expo-haptics', () => ({
+  impactAsync: jest.fn(),
+  selectionAsync: jest.fn(),
+  notificationAsync: jest.fn(),
+  ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy' },
+  NotificationFeedbackType: { Success: 'success', Warning: 'warning', Error: 'error' },
 }));
 
 jest.mock('../lib/opportunityWidgetSync', () => ({
