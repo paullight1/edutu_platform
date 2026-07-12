@@ -80,7 +80,7 @@ const EDITOR_TILE_WIDTH: Record<DiscoveryTileSize, number> = {
 const ICON_SQUARE = 60;
 const EDITOR_FACE_HEIGHT: Record<DiscoveryTileSize, number> = {
     icon: ICON_SQUARE,
-    card: 64,
+    card: 62, // matches the homepage discoveryCard height
     long: 56,
 };
 // Ordered narrow→wide; the edge-drag resize handle snaps between these.
@@ -1799,7 +1799,7 @@ const styles = StyleSheet.create({
     },
     discoveryCard: {
         width: CARD_WIDTH,
-        height: 72,
+        height: 62,
         borderRadius: 16,
         overflow: 'hidden',
         backgroundColor: '#0F172A',
@@ -1884,10 +1884,10 @@ const styles = StyleSheet.create({
     },
     discoveryTitle: {
         color: '#FFFFFF',
-        fontSize: 16,
-        lineHeight: 20,
+        fontSize: 14,
+        lineHeight: 18,
         fontWeight: '800',
-        letterSpacing: 0.3,
+        letterSpacing: 0.2,
         textAlign: 'center',
         textShadowColor: 'rgba(0,0,0,0.7)',
         textShadowOffset: { width: 0, height: 1 },
