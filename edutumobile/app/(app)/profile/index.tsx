@@ -21,20 +21,12 @@ import {
     HelpCircle,
     MessageCircle,
     User,
-    Mail,
-    MapPin,
-    Briefcase,
-    GraduationCap,
-    Edit3,
     Sparkles,
     Crown,
     Users,
     Wrench,
     Megaphone,
     Zap,
-    Target,
-    CheckCircle2,
-    Calendar,
     Tag,
     BadgeCheck,
 } from 'lucide-react-native';
@@ -46,12 +38,10 @@ import { supabase } from "../../../lib/supabase";
 import { toSafeUUID } from "@edutu/core/src/utils/auth";
 import { fetchProfile, type BackendProfile } from '@edutu/core/src/services/profile';
 import { setProfileFabHidden } from '../../../lib/navFabStore';
-import { useOpportunities } from '@edutu/core/src/hooks/useOpportunities';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
-import i18n from '../../../lib/i18n';
 
 function PremiumButton({ isPro }: { isPro: boolean }) {
     const router = useRouter();
@@ -79,56 +69,6 @@ function PremiumButton({ isPro }: { isPro: boolean }) {
     );
 }
 
-function getUserLookupIds(userId: string): string[] {
-    return Array.from(new Set([userId, toSafeUUID(userId)]));
-}
-
-function formatProfileDeadline(deadline?: string | null): string {
-    if (!deadline) return i18n.t('profile:view.deadline.none');
-
-    const dueDate = new Date(deadline);
-    if (Number.isNaN(dueDate.getTime())) return i18n.t('profile:view.deadline.none');
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const dueDay = new Date(dueDate);
-    dueDay.setHours(0, 0, 0, 0);
-
-    const diffDays = Math.ceil((dueDay.getTime() - today.getTime()) / 86400000);
-    if (diffDays <= 0) return i18n.t('profile:view.deadline.today');
-    if (diffDays === 1) return i18n.t('profile:view.deadline.tomorrow');
-    if (diffDays <= 7) return i18n.t('profile:view.deadline.days', { count: diffDays });
-
-    return dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-function ProfileStatCard({
-    title,
-    value,
-    icon: Icon,
-    colors,
-    onPress,
-}: {
-    title: string;
-    value: string | number;
-    icon: React.ComponentType<{ size: number; color: string; strokeWidth?: number }>;
-    colors: [string, string];
-    onPress?: () => void;
-}) {
-    return (
-        <TouchableOpacity activeOpacity={0.82} onPress={onPress} style={styles.statCard}>
-            <LinearGradient colors={colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.statGradient}>
-                <View style={styles.statGhostIcon}>
-                    <Icon size={42} color="rgba(255,255,255,0.16)" strokeWidth={1.5} />
-                </View>
-                <Text style={styles.statTitle} numberOfLines={1}>{title}</Text>
-                <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{value}</Text>
-            </LinearGradient>
-        </TouchableOpacity>
-    );
-}
-
 export default function ProfileScreen() {
     const { isDark, colors } = useTheme();
     const { user } = useUser();
@@ -146,18 +86,6 @@ export default function ProfileScreen() {
     // Canonical saved profile (backend row) — the header must reflect what the
     // user actually saved on the edit screen, not stale onboarding metadata.
     const [savedProfile, setSavedProfile] = useState<BackendProfile | null>(null);
-    const [profileStats, setProfileStats] = useState({
-        activeGoals: 0,
-        completedGoals: 0,
-        appliedOpps: 0,
-        nextDeadline: formatProfileDeadline(null),
-    });
-
-    const { data: matchedOpportunities } = useOpportunities({
-        supabase,
-        userId: user?.id,
-        getAuthToken: getToken,
-    });
 
     // Refetch on every focus so returning from the edit screen shows the
     // values that were just saved (the screen stays mounted behind the stack).
@@ -213,67 +141,6 @@ export default function ProfileScreen() {
         checkRole();
     }, [user]);
 
-    useEffect(() => {
-        const fetchProfileStats = async () => {
-            if (!user) return;
-
-            try {
-                const lookupIds = getUserLookupIds(user.id);
-                const { data: goalRows } = await supabase
-                    .from('goals')
-                    .select('id, title, status, progress, deadline')
-                    .in('user_id', lookupIds);
-
-                const goals = goalRows || [];
-                const activeGoals = goals.filter((goal: any) =>
-                    goal.status === 'active' && Number(goal.progress || 0) < 100
-                );
-                const completedGoals = goals.filter((goal: any) =>
-                    goal.status === 'completed' || Number(goal.progress || 0) >= 100
-                );
-
-                const { count: appliedCount } = await supabase
-                    .from('opportunity_applications')
-                    .select('*', { count: 'exact', head: true })
-                    .in('user_id', lookupIds);
-
-                const { data: bookmarks } = await supabase
-                    .from('bookmarks')
-                    .select('opportunity_id')
-                    .in('user_id', lookupIds);
-
-                const uniqueBookmarkIds = Array.from(new Set(bookmarks?.map((bookmark: any) => bookmark.opportunity_id) || []));
-                let nextDeadline = formatProfileDeadline(null);
-
-                if (uniqueBookmarkIds.length > 0) {
-                    const { data: opps } = await supabase
-                        .from('opportunities')
-                        .select('title, deadline, close_date')
-                        .in('id', uniqueBookmarkIds)
-                        .limit(100);
-
-                    const nextSavedDeadline = (opps || [])
-                        .map((opp: any) => ({ ...opp, due: opp.deadline || opp.close_date }))
-                        .filter((opp: any) => opp.due && new Date(opp.due).getTime() >= Date.now())
-                        .sort((a: any, b: any) => new Date(a.due).getTime() - new Date(b.due).getTime())[0];
-
-                    nextDeadline = formatProfileDeadline(nextSavedDeadline?.due);
-                }
-
-                setProfileStats({
-                    activeGoals: activeGoals.length,
-                    completedGoals: completedGoals.length,
-                    appliedOpps: appliedCount || 0,
-                    nextDeadline,
-                });
-            } catch (error) {
-                console.error('Failed to fetch profile stats:', error);
-            }
-        };
-
-        fetchProfileStats();
-    }, [user]);
-
     const menuGroups = [
         {
             title: t('view.menu.tools'),
@@ -318,76 +185,41 @@ export default function ProfileScreen() {
                 onScroll={handleScroll}
                 scrollEventThrottle={32}
             >
-                {/* Clean Profile Card */}
-                <View style={[styles.profileCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <View style={styles.profileHeader}>
-                        {/* Avatar */}
-                        <View style={styles.avatarSection}>
-                            {user?.imageUrl ? (
-                                <Image
-                                    source={{ uri: user.imageUrl }}
-                                    style={styles.avatar}
+                {/* One-line profile card — the full profile (identity, stats,
+                    applied opportunities) lives on /profile/view. */}
+                <TouchableOpacity
+                    style={[styles.profileLineCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                    onPress={() => router.push('/profile/view')}
+                    activeOpacity={0.7}
+                >
+                    {user?.imageUrl ? (
+                        <Image source={{ uri: user.imageUrl }} style={styles.lineAvatar} />
+                    ) : (
+                        <View style={[styles.lineAvatarPlaceholder, { backgroundColor: colors.primary }]}>
+                            <User size={22} color="#fff" />
+                        </View>
+                    )}
+                    <View style={styles.lineInfo}>
+                        <View style={styles.userNameRow}>
+                            <Text style={[styles.lineName, { color: colors.foreground }]} numberOfLines={1}>
+                                {user?.fullName || t('view.userFallback')}
+                            </Text>
+                            {isPro && (
+                                <BadgeCheck
+                                    size={16}
+                                    color="#FFFFFF"
+                                    fill="#3B82F6"
+                                    accessibilityLabel={t('view.verified')}
                                 />
-                            ) : (
-                                <View style={[styles.avatarPlaceholder, { backgroundColor: colors.primary }]}>
-                                    <User size={40} color="#fff" />
-                                </View>
                             )}
-                            <TouchableOpacity
-                                style={[styles.editAvatarBtn, { backgroundColor: colors.primary }]}
-                                onPress={() => router.push('/profile/edit')}
-                            >
-                                <Edit3 size={14} color="#fff" />
-                            </TouchableOpacity>
                         </View>
-
-                        {/* User Info */}
-                        <View style={styles.userInfo}>
-                            <View style={styles.userNameRow}>
-                                <Text style={[styles.userName, { color: colors.foreground }]}>
-                                    {user?.fullName || t('view.userFallback')}
-                                </Text>
-                                {isPro && (
-                                    <BadgeCheck
-                                        size={20}
-                                        color="#FFFFFF"
-                                        fill="#3B82F6"
-                                        accessibilityLabel={t('view.verified')}
-                                    />
-                                )}
-                            </View>
-                            <Text style={[styles.userEmail, { color: textSecondary }]}>
-                                {user?.primaryEmailAddress?.emailAddress || ''}
-                            </Text>
-                        </View>
+                        <Text style={[styles.lineSub, { color: textSecondary }]} numberOfLines={1}>
+                            {savedProfile?.country || (user?.unsafeMetadata?.country as string) || user?.primaryEmailAddress?.emailAddress || ''}
+                            {(savedProfile?.major || savedProfile?.school) ? ` · ${savedProfile?.major || savedProfile?.school}` : ''}
+                        </Text>
                     </View>
-
-                    {/* Quick Info Row */}
-                    <View style={[styles.infoRow, { borderTopColor: colors.border }]}>
-                        <View style={styles.infoItem}>
-                            <MapPin size={16} color={textSecondary} />
-                            <Text style={[styles.infoText, { color: textSecondary }]}>
-                                {savedProfile?.country || (user?.unsafeMetadata?.country as string) || t('view.notSet')}
-                            </Text>
-                        </View>
-                        <View style={styles.infoDivider} />
-                        <View style={styles.infoItem}>
-                            <GraduationCap size={16} color={textSecondary} />
-                            <Text style={[styles.infoText, { color: textSecondary }]}>
-                                {savedProfile?.major || savedProfile?.school || (user?.unsafeMetadata?.education as string) || t('view.studentFallback')}
-                            </Text>
-                        </View>
-                    </View>
-
-                    {/* Edit Profile Button */}
-                    <TouchableOpacity
-                        style={[styles.editProfileBtn, { backgroundColor: colors.primary }]}
-                        onPress={() => router.push('/profile/edit')}
-                    >
-                        <Edit3 size={16} color="#fff" />
-                        <Text style={styles.editProfileText}>{t('view.editProfile')}</Text>
-                    </TouchableOpacity>
-                </View>
+                    <ChevronRight size={18} color={textSecondary} />
+                </TouchableOpacity>
 
                 {profilePending && (
                     <Animated.View entering={FadeInDown.duration(360)}>
@@ -414,75 +246,27 @@ export default function ProfileScreen() {
                     </Animated.View>
                 )}
 
-                <View style={styles.statsSection}>
-                    <View style={styles.statsGrid}>
-                        <ProfileStatCard
-                            title={t('view.stats.activeGoals')}
-                            value={String(profileStats.activeGoals)}
-                            icon={Target}
-                            colors={['#3B4FE4', '#6366F1']}
-                            onPress={() => router.push('/goals')}
-                        />
-                        <ProfileStatCard
-                            title={t('view.stats.matches')}
-                            value={String(matchedOpportunities.length)}
-                            icon={Sparkles}
-                            colors={['#2563eb', '#3b82f6']}
-                            onPress={() => router.push('/opportunities')}
-                        />
-                        <ProfileStatCard
-                            title={t('view.stats.applied')}
-                            value={String(profileStats.appliedOpps)}
-                            icon={CheckCircle2}
-                            colors={['#059669', '#10B981']}
-                            onPress={() => router.push('/applied')}
-                        />
-                        <ProfileStatCard
-                            title={t('view.stats.deadline')}
-                            value={profileStats.nextDeadline}
-                            icon={Calendar}
-                            colors={['#D97706', '#F59E0B']}
-                            onPress={() => router.push('/deadlines')}
-                        />
-                    </View>
-                </View>
-
-                {/* Upgrade to Premium */}
+                {/* Upgrade to Premium — single line; the paywall does the selling. */}
                 {!isPro && (
                     <Animated.View entering={FadeInDown.duration(360)}>
                         <TouchableOpacity
                             onPress={() => router.push('/paywall')}
                             activeOpacity={0.88}
-                            style={styles.upgradeCardWrap}
+                            style={styles.upgradeLineWrap}
                         >
                             <LinearGradient
                                 colors={['#4338CA', '#6366F1', '#8B5CF6']}
                                 start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 1 }}
-                                style={styles.upgradeCard}
+                                end={{ x: 1, y: 0 }}
+                                style={styles.upgradeLine}
                             >
-                                <View style={styles.upgradeGhostIcon}>
-                                    <Crown size={92} color="rgba(255,255,255,0.12)" strokeWidth={1.2} />
+                                <View style={styles.upgradeIconWrap}>
+                                    <Zap size={16} color="#FDE047" fill="#FDE047" />
                                 </View>
-                                <View style={styles.upgradeHeader}>
-                                    <View style={styles.upgradeIconWrap}>
-                                        <Zap size={18} color="#FDE047" fill="#FDE047" />
-                                    </View>
-                                    <Text style={styles.upgradeTitle}>{t('view.upgrade.title')}</Text>
-                                </View>
-                                <Text style={styles.upgradeDesc}>{t('view.upgrade.desc')}</Text>
-                                <View style={styles.upgradePerks}>
-                                    {[t('view.upgrade.perk1'), t('view.upgrade.perk2'), t('view.upgrade.perk3')].map((perk) => (
-                                        <View key={perk} style={styles.upgradePerkRow}>
-                                            <BadgeCheck size={14} color="#4338CA" fill="#FFFFFF" />
-                                            <Text style={styles.upgradePerkText}>{perk}</Text>
-                                        </View>
-                                    ))}
-                                </View>
-                                <View style={styles.upgradeCta}>
-                                    <Crown size={16} color="#4338CA" />
-                                    <Text style={styles.upgradeCtaText}>{t('view.upgrade.cta')}</Text>
-                                </View>
+                                <Text style={styles.upgradeLineText} numberOfLines={1}>
+                                    {t('view.upgrade.title')}
+                                </Text>
+                                <ChevronRight size={16} color="rgba(255,255,255,0.9)" />
                             </LinearGradient>
                         </TouchableOpacity>
                     </Animated.View>
@@ -614,95 +398,44 @@ const styles = StyleSheet.create({
         paddingTop: 16,
         paddingHorizontal: 20,
     },
-    profileCard: {
-        borderRadius: 20,
-        padding: 20,
-        marginBottom: 24,
-        borderWidth: 1,
-    },
-    profileHeader: {
+    profileLineCard: {
+        flexDirection: 'row',
         alignItems: 'center',
-    },
-    avatarSection: {
-        position: 'relative',
+        gap: 12,
+        borderRadius: 16,
+        borderWidth: 1,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
         marginBottom: 16,
     },
-    avatar: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
+    lineAvatar: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
     },
-    avatarPlaceholder: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
+    lineAvatarPlaceholder: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    editAvatarBtn: {
-        position: 'absolute',
-        bottom: 0,
-        right: 0,
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 2,
-        borderColor: '#fff',
+    lineInfo: {
+        flex: 1,
     },
-    userInfo: {
-        alignItems: 'center',
+    lineName: {
+        fontSize: 16,
+        fontWeight: '700',
+        flexShrink: 1,
+    },
+    lineSub: {
+        fontSize: 12,
+        marginTop: 2,
     },
     userNameRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
-        marginBottom: 4,
-    },
-    userName: {
-        fontSize: 22,
-        fontWeight: '600',
-    },
-    userEmail: {
-        fontSize: 14,
-    },
-    infoRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginTop: 20,
-        paddingTop: 16,
-        borderTopWidth: 1,
-    },
-    infoItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-        justifyContent: 'center',
-    },
-    infoText: {
-        fontSize: 13,
-        marginLeft: 6,
-    },
-    infoDivider: {
-        width: 1,
-        height: 20,
-        backgroundColor: 'rgba(0,0,0,0.1)',
-    },
-    editProfileBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginTop: 20,
-        paddingVertical: 12,
-        borderRadius: 12,
-        gap: 8,
-    },
-    editProfileText: {
-        color: '#fff',
-        fontSize: 15,
-        fontWeight: '600',
     },
     completeProfileCard: {
         flexDirection: 'row',
@@ -742,120 +475,34 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '700',
     },
-    statsSection: {
-        marginBottom: 24,
-    },
-    statsGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 12,
-    },
-    statCard: {
-        width: '48%',
-        height: 96,
-        borderRadius: 20,
-        overflow: 'hidden',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-        elevation: 3,
-    },
-    statGradient: {
-        flex: 1,
-        justifyContent: 'center',
-        padding: 14,
-        gap: 8,
-    },
-    statGhostIcon: {
-        position: 'absolute',
-        right: -10,
-        bottom: -10,
-        transform: [{ rotate: '-8deg' }],
-    },
-    statTitle: {
-        color: 'rgba(255,255,255,0.82)',
-        fontSize: 9,
-        fontWeight: '900',
-        textTransform: 'uppercase',
-        letterSpacing: 0.4,
-    },
-    statValue: {
-        color: '#FFFFFF',
-        fontSize: 25,
-        fontWeight: '900',
-    },
-    upgradeCardWrap: {
-        marginBottom: 24,
-        borderRadius: 20,
+    upgradeLineWrap: {
+        marginBottom: 16,
+        borderRadius: 14,
         shadowColor: '#6366F1',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.28,
-        shadowRadius: 12,
-        elevation: 6,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.22,
+        shadowRadius: 8,
+        elevation: 4,
     },
-    upgradeCard: {
-        borderRadius: 20,
-        padding: 18,
-        overflow: 'hidden',
-    },
-    upgradeGhostIcon: {
-        position: 'absolute',
-        right: -16,
-        top: -14,
-        transform: [{ rotate: '12deg' }],
-    },
-    upgradeHeader: {
+    upgradeLine: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
-        marginBottom: 6,
+        gap: 10,
+        borderRadius: 14,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
     },
     upgradeIconWrap: {
-        width: 30,
-        height: 30,
-        borderRadius: 9,
+        width: 26,
+        height: 26,
+        borderRadius: 8,
         backgroundColor: 'rgba(255,255,255,0.18)',
         alignItems: 'center',
         justifyContent: 'center',
     },
-    upgradeTitle: {
-        color: '#FFFFFF',
-        fontSize: 17,
-        fontWeight: '800',
+    upgradeLineText: {
         flex: 1,
-    },
-    upgradeDesc: {
-        color: 'rgba(255,255,255,0.85)',
-        fontSize: 13,
-        lineHeight: 18,
-        marginBottom: 12,
-    },
-    upgradePerks: {
-        gap: 6,
-        marginBottom: 14,
-    },
-    upgradePerkRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    upgradePerkText: {
-        color: 'rgba(255,255,255,0.95)',
-        fontSize: 12.5,
-        fontWeight: '600',
-    },
-    upgradeCta: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        backgroundColor: '#FFFFFF',
-        borderRadius: 12,
-        paddingVertical: 11,
-    },
-    upgradeCtaText: {
-        color: '#4338CA',
+        color: '#FFFFFF',
         fontSize: 14,
         fontWeight: '800',
     },
