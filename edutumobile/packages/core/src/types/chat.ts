@@ -85,12 +85,21 @@ export interface ChatDocumentCard {
   fileName?: string;
 }
 
+/** Branded share-card image for an opportunity, rendered inline in chat. */
+export interface ChatImageCard {
+  opportunityId: string;
+  title: string;
+  url: string;
+  format: 'png' | 'svg';
+}
+
 export interface ChatMessageMetadata {
   opportunities?: ChatOpportunityCard[];
   smartActions?: ChatSmartAction[];
   actionButtons?: ChatActionButton[];
   deviceActions?: ChatDeviceAction[];
   documents?: ChatDocumentCard[];
+  images?: ChatImageCard[];
   optimistic?: boolean;
   intent?: 'opportunity_search' | 'career_guidance' | 'study_help' | 'general';
 }
