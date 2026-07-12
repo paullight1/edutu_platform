@@ -203,6 +203,8 @@ jest.mock('../lib/supabase', () => ({
         in: jest.fn().mockResolvedValue({ data: [] }),
       })),
     })),
+    // The shell claims the daily login credit on mount.
+    rpc: jest.fn().mockResolvedValue({ data: null, error: null }),
   },
 }));
 
@@ -315,7 +317,7 @@ describe('mobile app shell and home dashboard', () => {
     expect(getByText('Discover')).toBeTruthy();
     expect(getByText('Plan')).toBeTruthy();
     expect(getByText('Me')).toBeTruthy();
-    expect(getByLabelText('Open Edutu AI chat')).toBeTruthy();
+    expect(getByLabelText('Open Edutu AI')).toBeTruthy();
   });
 
   it('renders the home dashboard with discovery and quick-action routes', async () => {

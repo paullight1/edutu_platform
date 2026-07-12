@@ -69,11 +69,12 @@
     },
     "discoveryEditor": {
       "title": "Customize categories",
-      "subtitle": "Hold and drag to arrange. Tap ⤢ to resize, − to remove.",
+      "subtitle": "Hold and drag to arrange. Drag a tile’s edge to resize, − to remove.",
       "save": "Save",
       "more": "More categories",
       "remove": "Remove {{title}}",
-      "resize": "Resize {{title}}"
+      "resize": "Drag to resize {{title}}",
+      "add": "Add {{title}}"
     }
   },
   "notifications": {

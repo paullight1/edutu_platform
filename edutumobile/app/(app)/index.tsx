@@ -16,14 +16,14 @@ import {
     X,
     Plus,
     Minus,
-    Maximize2,
 } from "lucide-react-native";
 import { useTheme } from "../../components/context/ThemeContext";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
+    FadeIn,
     FadeInDown,
     FadeInUp,
-    LinearTransition,
+    FadeOut,
     runOnJS,
     useAnimatedStyle,
     useSharedValue,
@@ -66,8 +66,8 @@ const RAIL_CARD_WIDTH = Math.min(Math.round(width * 0.74), 300);
 // ─── Home discovery tiles (widget-style sizes) ──────────────────────────────
 const HOME_GRID_WIDTH = width - 40;
 const ICON_TILE_WIDTH = (HOME_GRID_WIDTH - 3 * CARD_GAP) / 4;
-// Editor grid sits inside 20px backdrop padding + 20px sheet padding per side.
-const EDITOR_GRID_WIDTH = width - 80;
+// Editor is a full-width bottom sheet with 20px padding per side.
+const EDITOR_GRID_WIDTH = width - 40;
 const EDITOR_GAP = 10;
 const EDITOR_TILE_WIDTH: Record<DiscoveryTileSize, number> = {
     icon: (EDITOR_GRID_WIDTH - 3 * EDITOR_GAP) / 4,
@@ -79,11 +79,15 @@ const EDITOR_FACE_HEIGHT: Record<DiscoveryTileSize, number> = {
     card: 64,
     long: 56,
 };
-const NEXT_TILE_SIZE: Record<DiscoveryTileSize, DiscoveryTileSize> = {
-    icon: 'card',
-    card: 'long',
-    long: 'icon',
-};
+// Ordered narrow→wide; the edge-drag resize handle snaps between these.
+const EDITOR_TILE_SIZE_STEPS: Array<{ size: DiscoveryTileSize; width: number }> = [
+    { size: 'icon', width: EDITOR_TILE_WIDTH.icon },
+    { size: 'card', width: EDITOR_TILE_WIDTH.card },
+    { size: 'long', width: EDITOR_TILE_WIDTH.long },
+];
+// How far past the narrowest/widest step the finger can stretch a tile —
+// gives the drag an elastic end-stop instead of a hard wall.
+const RESIZE_OVERDRAG = 14;
 
 // ─── Quick Actions Grid Component ─────────────────────────────────────────────
 // `title` holds an i18n key (home namespace); translated at render time.
@@ -224,98 +228,207 @@ function DiscoveryTileGrid({ router, entries, textPrimary }: { router: any; entr
 }
 
 // ─── Widget-style homepage editor ───────────────────────────────────────────
-type EditorTileLayout = { x: number; y: number; width: number; height: number };
+type TileRect = { x: number; y: number; w: number; h: number };
 
-// One draggable/resizable tile in the editor's WYSIWYG grid. Long-press then
-// drag to rearrange; the − badge removes it, the ⤢ badge cycles icon→card→long.
+const EDITOR_ICON_LABEL_HEIGHT = 21;
+// Snappy but soft — shared by every tile movement so the whole board feels
+// like one physical system.
+const TILE_SPRING = { damping: 22, stiffness: 260, mass: 0.7 };
+
+/**
+ * Derives every tile's rect from the draft order (same wrap rules as the
+ * homepage grid). Tiles are absolutely positioned from these rects and
+ * spring toward them, so resize/reorder/remove all glide — no layout jumps.
+ */
+function computeEditorLayout(tiles: HomeCategoryTile[]): { rects: Map<DiscoveryCategoryId, TileRect>; height: number } {
+    const rects = new Map<DiscoveryCategoryId, TileRect>();
+    let x = 0;
+    let y = 0;
+    let rowHeight = 0;
+    for (const tile of tiles) {
+        const w = EDITOR_TILE_WIDTH[tile.size];
+        const h = EDITOR_FACE_HEIGHT[tile.size] + (tile.size === 'icon' ? EDITOR_ICON_LABEL_HEIGHT : 0);
+        if (x > 0 && x + w > EDITOR_GRID_WIDTH + 0.5) {
+            x = 0;
+            y += rowHeight + EDITOR_GAP;
+            rowHeight = 0;
+        }
+        rects.set(tile.id, { x, y, w, h });
+        x += w + EDITOR_GAP;
+        rowHeight = Math.max(rowHeight, h);
+    }
+    return { rects, height: y + rowHeight };
+}
+
+// One tile on the editor board. Springs toward its computed rect; long-press
+// picks it up (it then follows the finger while the others reflow live).
+// The − badge removes it; dragging the right-edge handle left/right resizes
+// it iOS-widget style, live-snapping between icon → card → long.
 function EditorTile({
     tile,
     category,
     title,
     labelColor,
+    rect,
+    held,
+    gestureEnabled,
     canRemove,
-    onLayoutTile,
     onDragStart,
-    onDrop,
-    onCycleSize,
+    onDragMove,
+    onDragEnd,
+    onResizeStart,
+    onResize,
+    onResizeEnd,
     onRemove,
 }: {
     tile: HomeCategoryTile;
     category: DiscoveryCategory;
     title: string;
     labelColor: string;
+    rect: TileRect;
+    held: boolean;
+    gestureEnabled: boolean;
     canRemove: boolean;
-    onLayoutTile: (id: DiscoveryCategoryId, layout: EditorTileLayout) => void;
     onDragStart: (id: DiscoveryCategoryId) => void;
-    onDrop: (id: DiscoveryCategoryId, dx: number, dy: number) => void;
-    onCycleSize: (id: DiscoveryCategoryId) => void;
+    onDragMove: (id: DiscoveryCategoryId, dx: number, dy: number) => void;
+    onDragEnd: (id: DiscoveryCategoryId) => void;
+    onResizeStart: (id: DiscoveryCategoryId) => void;
+    onResize: (id: DiscoveryCategoryId, size: DiscoveryTileSize) => void;
+    onResizeEnd: (id: DiscoveryCategoryId) => void;
     onRemove: (id: DiscoveryCategoryId) => void;
 }) {
     const { t } = useTranslation('home');
-    const tx = useSharedValue(0);
-    const ty = useSharedValue(0);
+    const px = useSharedValue(rect.x);
+    const py = useSharedValue(rect.y);
+    const pw = useSharedValue(rect.w);
+    const faceH = useSharedValue(EDITOR_FACE_HEIGHT[tile.size]);
+    const startX = useSharedValue(0);
+    const startY = useSharedValue(0);
     const scale = useSharedValue(1);
-    const lift = useSharedValue(0);
+    // Width the finger owns during an edge drag; committedW tracks the width
+    // of the size the drag has snapped to so far.
+    const resizeActive = useSharedValue(false);
+    const resizeStartW = useSharedValue(0);
+    const committedW = useSharedValue(rect.w);
+
+    // Spring toward the derived rect — except position while the finger owns
+    // it (live reorders keep moving the rect underneath a held tile), and
+    // width while the edge handle owns it.
+    useEffect(() => {
+        committedW.value = rect.w;
+        faceH.value = withSpring(EDITOR_FACE_HEIGHT[tile.size], TILE_SPRING);
+        if (!resizeActive.value) {
+            pw.value = withSpring(rect.w, TILE_SPRING);
+        }
+        if (!held) {
+            px.value = withSpring(rect.x, TILE_SPRING);
+            py.value = withSpring(rect.y, TILE_SPRING);
+        }
+    }, [rect.x, rect.y, rect.w, tile.size, held, px, py, pw, faceH, committedW, resizeActive]);
 
     const pan = Gesture.Pan()
-        .activateAfterLongPress(220)
+        .enabled(gestureEnabled)
+        .activateAfterLongPress(200)
         .onStart(() => {
-            scale.value = withSpring(1.07, { damping: 14 });
-            lift.value = 30;
+            startX.value = px.value;
+            startY.value = py.value;
+            scale.value = withSpring(1.05, TILE_SPRING);
             runOnJS(onDragStart)(tile.id);
         })
         .onUpdate((event) => {
-            tx.value = event.translationX;
-            ty.value = event.translationY;
-        })
-        .onEnd((event) => {
-            runOnJS(onDrop)(tile.id, event.translationX, event.translationY);
+            px.value = startX.value + event.translationX;
+            py.value = startY.value + event.translationY;
+            runOnJS(onDragMove)(tile.id, event.translationX, event.translationY);
         })
         .onFinalize(() => {
-            scale.value = withSpring(1, { damping: 14 });
-            lift.value = 0;
-            tx.value = withSpring(0, { damping: 18, stiffness: 220 });
-            ty.value = withSpring(0, { damping: 18, stiffness: 220 });
+            scale.value = withSpring(1, TILE_SPRING);
+            runOnJS(onDragEnd)(tile.id);
         });
 
-    const dragStyle = useAnimatedStyle(() => ({
-        transform: [{ translateX: tx.value }, { translateY: ty.value }, { scale: scale.value }],
-        zIndex: lift.value,
-        elevation: lift.value,
+    // Edge-drag resize (iOS widget style): the width follows the finger and
+    // the committed size live-snaps to the nearest step, so the board reflows
+    // while you drag. Horizontal-only so vertical swipes still scroll.
+    const resizePan = Gesture.Pan()
+        .enabled(gestureEnabled)
+        .activeOffsetX([-8, 8])
+        .failOffsetY([-14, 14])
+        .onStart(() => {
+            resizeActive.value = true;
+            resizeStartW.value = pw.value;
+            runOnJS(onResizeStart)(tile.id);
+        })
+        .onUpdate((event) => {
+            const minW = EDITOR_TILE_SIZE_STEPS[0].width - RESIZE_OVERDRAG;
+            const maxW = EDITOR_TILE_SIZE_STEPS[EDITOR_TILE_SIZE_STEPS.length - 1].width + RESIZE_OVERDRAG;
+            const nextW = Math.min(maxW, Math.max(minW, resizeStartW.value + event.translationX));
+            pw.value = nextW;
+            let nearest = EDITOR_TILE_SIZE_STEPS[0];
+            for (const step of EDITOR_TILE_SIZE_STEPS) {
+                if (Math.abs(step.width - nextW) < Math.abs(nearest.width - nextW)) nearest = step;
+            }
+            if (nearest.width !== committedW.value) {
+                committedW.value = nearest.width;
+                runOnJS(onResize)(tile.id, nearest.size);
+            }
+        })
+        .onFinalize(() => {
+            resizeActive.value = false;
+            pw.value = withSpring(committedW.value, TILE_SPRING);
+            runOnJS(onResizeEnd)(tile.id);
+        });
+
+    const tileStyle = useAnimatedStyle(() => ({
+        position: 'absolute' as const,
+        left: 0,
+        top: 0,
+        width: pw.value,
+        transform: [{ translateX: px.value }, { translateY: py.value }, { scale: scale.value }],
+        zIndex: held || resizeActive.value ? 100 : 0,
+        elevation: held ? 10 : 0,
+        shadowOpacity: held ? 0.35 : 0,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 6 },
     }));
+
+    const faceStyle = useAnimatedStyle(() => ({ height: faceH.value }));
 
     return (
         <GestureDetector gesture={pan}>
-            <Animated.View
-                layout={LinearTransition.springify().damping(20)}
-                onLayout={(event) => onLayoutTile(tile.id, event.nativeEvent.layout)}
-                style={[{ width: EDITOR_TILE_WIDTH[tile.size] }, dragStyle]}
-            >
-                <View style={[styles.editorFace, { height: EDITOR_FACE_HEIGHT[tile.size] }]}>
-                    <View style={styles.editorFaceClip}>
+            <Animated.View style={tileStyle} exiting={FadeOut.duration(140)}>
+                <Animated.View style={[styles.editorFace, faceStyle]}>
+                    {/* Crossfade the face when the size changes so content never snaps. */}
+                    <Animated.View key={tile.size} entering={FadeIn.duration(180)} style={styles.editorFaceClip}>
                         <DiscoveryTileFace item={category} size={tile.size} title={title} />
-                    </View>
+                    </Animated.View>
                     {canRemove && (
                         <TouchableOpacity
                             onPress={() => onRemove(tile.id)}
-                            hitSlop={8}
-                            style={styles.editorRemoveBadge}
+                            hitSlop={10}
+                            disabled={!gestureEnabled && !held}
+                            style={[styles.editorBadge, styles.editorRemoveBadge]}
                             accessibilityLabel={t('home.discoveryEditor.remove', { defaultValue: 'Remove {{title}}', title })}
                         >
-                            <Minus size={12} color="#FFFFFF" strokeWidth={3} />
+                            <Minus size={11} color="#FFFFFF" strokeWidth={3} />
                         </TouchableOpacity>
                     )}
-                    <TouchableOpacity
-                        onPress={() => onCycleSize(tile.id)}
-                        hitSlop={8}
-                        style={styles.editorSizeBadge}
-                        accessibilityLabel={t('home.discoveryEditor.resize', { defaultValue: 'Resize {{title}}', title })}
-                    >
-                        <Maximize2 size={11} color="#FFFFFF" strokeWidth={2.5} />
-                    </TouchableOpacity>
-                </View>
+                    <GestureDetector gesture={resizePan}>
+                        <View
+                            style={styles.editorResizeZone}
+                            hitSlop={{ left: 8, right: 8, top: 8, bottom: 8 }}
+                            accessibilityLabel={t('home.discoveryEditor.resize', { defaultValue: 'Drag to resize {{title}}', title })}
+                        >
+                            <View style={styles.editorResizeHandle} />
+                        </View>
+                    </GestureDetector>
+                </Animated.View>
                 {tile.size === 'icon' && (
-                    <Text style={[styles.editorIconLabel, { color: labelColor }]} numberOfLines={1}>{title}</Text>
+                    <Animated.Text
+                        entering={FadeIn.duration(180)}
+                        style={[styles.editorIconLabel, { color: labelColor }]}
+                        numberOfLines={1}
+                    >
+                        {title}
+                    </Animated.Text>
                 )}
             </Animated.View>
         </GestureDetector>
@@ -323,7 +436,7 @@ function EditorTile({
 }
 
 // Widget-style editor: tiles render at their real size; long-press drag to
-// rearrange, ⤢ cycles the size, − removes, and the chips below add more.
+// rearrange, edge-drag resizes, − removes, and the chips below add more.
 function HomeCategoriesEditor({
     visible,
     tiles,
@@ -342,67 +455,97 @@ function HomeCategoriesEditor({
     textSecondary: string;
 }) {
     const { t } = useTranslation('home');
+    const insets = useSafeAreaInsets();
     const [draft, setDraft] = useState<HomeCategoryTile[]>(tiles);
     const [draggingId, setDraggingId] = useState<DiscoveryCategoryId | null>(null);
-    const layoutsRef = useRef(new Map<DiscoveryCategoryId, EditorTileLayout>());
+    const [resizingId, setResizingId] = useState<DiscoveryCategoryId | null>(null);
+
+    // Every tile position derives from the draft order — single source of truth.
+    const layout = useMemo(() => computeEditorLayout(draft), [draft]);
+    const layoutRef = useRef(layout);
+    layoutRef.current = layout;
+    const draftRef = useRef(draft);
+    draftRef.current = draft;
+    // Rect of the held tile at pickup — finger math stays anchored to it even
+    // as live reorders move the tile's slot underneath.
+    const anchorRef = useRef<TileRect | null>(null);
+    const lastReorderAtRef = useRef(0);
+
+    const canvasHeight = useSharedValue(layout.height);
+    useEffect(() => {
+        canvasHeight.value = withSpring(layout.height, TILE_SPRING);
+    }, [layout.height, canvasHeight]);
+    const canvasStyle = useAnimatedStyle(() => ({ height: canvasHeight.value }));
 
     useEffect(() => {
-        if (visible) {
-            setDraft(tiles);
-            layoutsRef.current.clear();
-        }
+        if (visible) setDraft(tiles);
     }, [visible, tiles]);
 
-    const handleLayoutTile = useCallback((id: DiscoveryCategoryId, layout: EditorTileLayout) => {
-        layoutsRef.current.set(id, layout);
-    }, []);
-
     const handleDragStart = useCallback((id: DiscoveryCategoryId) => {
+        anchorRef.current = layoutRef.current.rects.get(id) ?? null;
         setDraggingId(id);
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }, []);
 
-    // Reorder on release: the dragged tile lands at whichever tile its centre
-    // was dropped on; layout transitions animate everyone into place.
-    const handleDrop = useCallback((id: DiscoveryCategoryId, dx: number, dy: number) => {
-        setDraggingId(null);
+    // Live reorder: whenever the held tile's centre enters another tile's
+    // slot, move it there immediately — the rest of the board glides aside.
+    const handleDragMove = useCallback((id: DiscoveryCategoryId, dx: number, dy: number) => {
+        const anchor = anchorRef.current;
+        if (!anchor) return;
+        const now = Date.now();
+        if (now - lastReorderAtRef.current < 80) return;
+        const centerX = anchor.x + anchor.w / 2 + dx;
+        const centerY = anchor.y + anchor.h / 2 + dy;
+        const current = draftRef.current;
+        const rects = layoutRef.current.rects;
+        const fromIndex = current.findIndex((entry) => entry.id === id);
+        if (fromIndex < 0) return;
+        let target = fromIndex;
+        for (let i = 0; i < current.length; i += 1) {
+            if (current[i].id === id) continue;
+            const slot = rects.get(current[i].id);
+            if (!slot) continue;
+            if (
+                centerX >= slot.x && centerX <= slot.x + slot.w &&
+                centerY >= slot.y && centerY <= slot.y + slot.h
+            ) {
+                target = i;
+                break;
+            }
+        }
+        if (target === fromIndex) return;
+        lastReorderAtRef.current = now;
+        void Haptics.selectionAsync();
         setDraft((prev) => {
-            const fromIndex = prev.findIndex((entry) => entry.id === id);
-            const own = layoutsRef.current.get(id);
-            if (fromIndex < 0 || !own) return prev;
-            const centerX = own.x + own.width / 2 + dx;
-            const centerY = own.y + own.height / 2 + dy;
-            let target = fromIndex;
-            for (let i = 0; i < prev.length; i += 1) {
-                if (prev[i].id === id) continue;
-                const slot = layoutsRef.current.get(prev[i].id);
-                if (!slot) continue;
-                if (
-                    centerX >= slot.x && centerX <= slot.x + slot.width &&
-                    centerY >= slot.y && centerY <= slot.y + slot.height
-                ) {
-                    target = i;
-                    break;
-                }
-            }
-            if (target === fromIndex) {
-                // Dropped past the last row → send to the end.
-                const bottoms = Array.from(layoutsRef.current.values()).map((slot) => slot.y + slot.height);
-                if (bottoms.length && centerY > Math.max(...bottoms)) target = prev.length - 1;
-            }
-            if (target === fromIndex) return prev;
+            const from = prev.findIndex((entry) => entry.id === id);
+            if (from < 0) return prev;
             const next = [...prev];
-            const [moved] = next.splice(fromIndex, 1);
+            const [moved] = next.splice(from, 1);
             next.splice(target, 0, moved);
             return next;
         });
     }, []);
 
-    const handleCycleSize = useCallback((id: DiscoveryCategoryId) => {
+    const handleDragEnd = useCallback((id: DiscoveryCategoryId) => {
+        anchorRef.current = null;
+        setDraggingId((current) => (current === id ? null : current));
+    }, []);
+
+    const handleResizeStart = useCallback((id: DiscoveryCategoryId) => {
+        setResizingId(id);
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }, []);
+
+    // Fired each time the edge drag snaps to a new size step.
+    const handleResize = useCallback((id: DiscoveryCategoryId, size: DiscoveryTileSize) => {
+        void Haptics.selectionAsync();
         setDraft((prev) => prev.map((entry) => (
-            entry.id === id ? { ...entry, size: NEXT_TILE_SIZE[entry.size] } : entry
+            entry.id === id ? { ...entry, size } : entry
         )));
+    }, []);
+
+    const handleResizeEnd = useCallback((id: DiscoveryCategoryId) => {
+        setResizingId((current) => (current === id ? null : current));
     }, []);
 
     const handleRemove = useCallback((id: DiscoveryCategoryId) => {
@@ -419,20 +562,24 @@ function HomeCategoriesEditor({
     );
 
     return (
-        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <GestureHandlerRootView style={{ flex: 1 }}>
                 <Pressable style={styles.editorBackdrop} onPress={onClose}>
                     <Pressable
-                        style={[styles.editorSheet, { backgroundColor: isDark ? '#0F172A' : '#FFFFFF' }]}
+                        style={[
+                            styles.editorSheet,
+                            { backgroundColor: isDark ? '#0F172A' : '#FFFFFF', paddingBottom: Math.max(insets.bottom, 12) + 8 },
+                        ]}
                         onPress={() => { }}
                     >
+                        <View style={[styles.editorGrabber, { backgroundColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(15,23,42,0.14)' }]} />
                         <View style={styles.editorHeader}>
                             <View style={{ flex: 1 }}>
                                 <Text style={[styles.editorTitle, { color: textPrimary }]}>
                                     {t('home.discoveryEditor.title', { defaultValue: 'Customize categories' })}
                                 </Text>
                                 <Text style={[styles.editorSubtitle, { color: textSecondary }]}>
-                                    {t('home.discoveryEditor.subtitle', { defaultValue: 'Hold and drag to arrange. Tap ⤢ to resize, − to remove.' })}
+                                    {t('home.discoveryEditor.subtitle', { defaultValue: 'Hold and drag to arrange. Drag a tile’s edge to resize, − to remove.' })}
                                 </Text>
                             </View>
                             <TouchableOpacity onPress={onClose} hitSlop={8} style={styles.editorCloseBtn}>
@@ -441,13 +588,15 @@ function HomeCategoriesEditor({
                         </View>
                         <ScrollView
                             style={styles.editorScroll}
-                            scrollEnabled={draggingId === null}
+                            scrollEnabled={draggingId === null && resizingId === null}
                             showsVerticalScrollIndicator={false}
                         >
-                            <View style={styles.editorGrid}>
+                            <Animated.View style={[styles.editorCanvas, canvasStyle]}>
                                 {draft.map((entry) => {
                                     const category = getDiscoveryCategory(entry.id);
-                                    if (!category) return null;
+                                    const rect = layout.rects.get(entry.id);
+                                    if (!category || !rect) return null;
+                                    const activeId = draggingId ?? resizingId;
                                     return (
                                         <EditorTile
                                             key={entry.id}
@@ -455,40 +604,51 @@ function HomeCategoriesEditor({
                                             category={category}
                                             title={t(category.homeTitleKey, { defaultValue: category.fallbackTitle })}
                                             labelColor={textPrimary}
+                                            rect={rect}
+                                            held={draggingId === entry.id}
+                                            gestureEnabled={activeId === null || activeId === entry.id}
                                             canRemove={draft.length > 1}
-                                            onLayoutTile={handleLayoutTile}
                                             onDragStart={handleDragStart}
-                                            onDrop={handleDrop}
-                                            onCycleSize={handleCycleSize}
+                                            onDragMove={handleDragMove}
+                                            onDragEnd={handleDragEnd}
+                                            onResizeStart={handleResizeStart}
+                                            onResize={handleResize}
+                                            onResizeEnd={handleResizeEnd}
                                             onRemove={handleRemove}
                                         />
                                     );
                                 })}
-                            </View>
+                            </Animated.View>
                             {available.length > 0 && (
                                 <>
                                     <Text style={[styles.editorMoreTitle, { color: textSecondary }]}>
                                         {t('home.discoveryEditor.more', { defaultValue: 'More categories' })}
                                     </Text>
-                                    <View style={styles.editorAddRow}>
-                                        {available.map((category) => {
-                                            const Glyph = DISCOVERY_TILE_GLYPHS[category.id];
-                                            return (
-                                                <AnimatedPressable
-                                                    key={category.id}
-                                                    onPress={() => handleAdd(category.id)}
-                                                    style={[styles.editorAddChip, { borderColor: `${category.accent}55`, backgroundColor: `${category.accent}1F` }]}
-                                                    hapticFeedback="light"
-                                                    scaleTo={0.94}
-                                                >
-                                                    <Glyph size={14} color={category.accent} strokeWidth={2} />
-                                                    <Text style={[styles.editorAddChipText, { color: textPrimary }]} numberOfLines={1}>
-                                                        {t(category.homeTitleKey, { defaultValue: category.fallbackTitle })}
-                                                    </Text>
-                                                    <Plus size={13} color={category.accent} strokeWidth={2.5} />
-                                                </AnimatedPressable>
-                                            );
-                                        })}
+                                    <View style={styles.editorAddGrid}>
+                                        {available.map((category) => (
+                                            <AnimatedPressable
+                                                key={category.id}
+                                                onPress={() => handleAdd(category.id)}
+                                                style={styles.editorAddCard}
+                                                hapticFeedback="light"
+                                                scaleTo={0.96}
+                                                accessibilityLabel={t('home.discoveryEditor.add', {
+                                                    defaultValue: 'Add {{title}}',
+                                                    title: t(category.homeTitleKey, { defaultValue: category.fallbackTitle }),
+                                                })}
+                                            >
+                                                <View style={styles.editorAddCardFace}>
+                                                    <DiscoveryTileFace
+                                                        item={category}
+                                                        size="card"
+                                                        title={t(category.homeTitleKey, { defaultValue: category.fallbackTitle })}
+                                                    />
+                                                </View>
+                                                <View style={[styles.editorBadge, styles.editorAddBadge]}>
+                                                    <Plus size={11} color="#FFFFFF" strokeWidth={3} />
+                                                </View>
+                                            </AnimatedPressable>
+                                        ))}
                                     </View>
                                 </>
                             )}
@@ -1730,31 +1890,34 @@ const styles = StyleSheet.create({
     editorBackdrop: {
         flex: 1,
         backgroundColor: 'rgba(2,6,23,0.6)',
-        justifyContent: 'center',
-        paddingHorizontal: 20,
+        justifyContent: 'flex-end',
     },
     editorSheet: {
-        borderRadius: 24,
-        padding: 20,
-        maxHeight: '86%',
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
+        paddingHorizontal: 20,
+        paddingTop: 10,
+        maxHeight: '88%',
+    },
+    editorGrabber: {
+        alignSelf: 'center',
+        width: 40,
+        height: 4,
+        borderRadius: 2,
+        marginBottom: 12,
     },
     editorScroll: {
         flexGrow: 0,
     },
-    editorGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        alignItems: 'flex-start',
-        columnGap: EDITOR_GAP,
-        rowGap: 14,
-        paddingTop: 8,
-        marginBottom: 14,
+    // Absolute-positioned tile board; height is animated to fit the rows.
+    editorCanvas: {
+        position: 'relative',
+        marginTop: 4,
+        marginBottom: 18,
     },
     editorFace: {
         width: '100%',
         borderRadius: 16,
-        // NOT hidden: the − / ⤢ badges hang over the tile edge.
-        overflow: 'visible',
     },
     editorFaceClip: {
         flex: 1,
@@ -1764,35 +1927,56 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.14)',
     },
-    editorRemoveBadge: {
+    editorBadge: {
         position: 'absolute',
-        top: -7,
-        left: -7,
-        width: 22,
-        height: 22,
-        borderRadius: 11,
-        backgroundColor: '#EF4444',
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.45)',
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 2,
     },
-    editorSizeBadge: {
+    editorRemoveBadge: {
+        top: 5,
+        right: 5,
+        backgroundColor: 'rgba(239,68,68,0.95)',
+    },
+    // Right-edge resize grip (iOS widget style): generous invisible grab zone
+    // with a small visible pill riding the tile's edge.
+    editorResizeZone: {
         position: 'absolute',
-        bottom: -7,
-        right: -7,
-        width: 22,
-        height: 22,
-        borderRadius: 11,
-        backgroundColor: 'rgba(15,23,42,0.85)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.35)',
+        right: -8,
+        top: 0,
+        bottom: 0,
+        width: 24,
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 2,
+        zIndex: 3,
+    },
+    editorResizeHandle: {
+        width: 5,
+        height: 26,
+        borderRadius: 3,
+        backgroundColor: 'rgba(255,255,255,0.92)',
+        borderWidth: 1,
+        borderColor: 'rgba(2,6,23,0.35)',
+        shadowColor: '#000',
+        shadowOpacity: 0.25,
+        shadowRadius: 3,
+        shadowOffset: { width: 0, height: 1 },
+        elevation: 3,
+    },
+    editorAddBadge: {
+        top: 5,
+        right: 5,
+        backgroundColor: 'rgba(2,6,23,0.6)',
     },
     editorIconLabel: {
         marginTop: 5,
         fontSize: 10,
+        lineHeight: 16,
         fontWeight: '600',
         textAlign: 'center',
     },
@@ -1801,27 +1985,24 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         textTransform: 'uppercase',
         letterSpacing: 0.6,
-        marginBottom: 8,
+        marginBottom: 10,
     },
-    editorAddRow: {
+    editorAddGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: 8,
+        gap: EDITOR_GAP,
         marginBottom: 8,
     },
-    editorAddChip: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        borderRadius: 999,
-        borderWidth: 1,
-        paddingVertical: 7,
-        paddingHorizontal: 12,
+    editorAddCard: {
+        width: EDITOR_TILE_WIDTH.card,
+        height: 56,
+        borderRadius: 16,
     },
-    editorAddChipText: {
-        fontSize: 13,
-        fontWeight: '600',
-        maxWidth: 140,
+    editorAddCardFace: {
+        flex: 1,
+        borderRadius: 16,
+        overflow: 'hidden',
+        opacity: 0.55,
     },
     editorHeader: {
         flexDirection: 'row',
