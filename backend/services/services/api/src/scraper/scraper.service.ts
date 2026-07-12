@@ -3,6 +3,7 @@ import { SchedulerRegistry } from "@nestjs/schedule";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { CronJob } from "cron";
 import axios from "axios";
+import { HttpsProxyAgent } from "https-proxy-agent";
 import { z } from "zod";
 import * as cheerio from "cheerio";
 import { pool } from "../db";
@@ -197,6 +198,25 @@ const BROWSER_HEADERS = {
   "Sec-Fetch-Site": "none",
   "Upgrade-Insecure-Requests": "1",
 };
+
+// Optional egress proxy for blocked sources. Cloudflare-protected sites
+// (scholarshipsads, jobs.smartyacad.com) block datacenter IPs like Render's
+// while serving residential traffic fine — set SCRAPER_PROXY_URL to an
+// http(s)://user:pass@host:port proxy and blocked fetches retry through it.
+// Fetches always go direct first; the proxy is only used after a 403 or a
+// detected bot-challenge page, so normal traffic never pays the proxy cost.
+const SCRAPER_PROXY_URL = process.env.SCRAPER_PROXY_URL;
+const scraperProxyAgent = SCRAPER_PROXY_URL
+  ? new HttpsProxyAgent(SCRAPER_PROXY_URL)
+  : null;
+const PROXY_AXIOS_CONFIG = scraperProxyAgent
+  ? {
+      httpAgent: scraperProxyAgent,
+      httpsAgent: scraperProxyAgent,
+      // Disable axios's env-based proxy handling — the agent does the work.
+      proxy: false as const,
+    }
+  : {};
 
 const DEFAULT_CONTENT_SELECTORS =
   'article, .entry-content, .post-content, main, [class*="content"], [class*="article"]';
@@ -1591,6 +1611,16 @@ export class ScraperService implements OnModuleInit {
           await this.delay(LIST_PAGE_DELAY_MS);
         }
 
+        // A source that fetched fine but discovered nothing at all is almost
+        // never healthy — selectors drifted, the site emptied, or a bot
+        // challenge is serving empty-looking pages. Say so in the job log
+        // instead of reporting a clean success.
+        if (urlsDiscovered === 0 && sourceWarnings.length === 0) {
+          sourceWarnings.push(
+            `No items discovered from "${source.name}" — possible bot blocking or changed page structure`,
+          );
+        }
+
         await this.updateSourceStatus(
           source.id,
           true,
@@ -2331,12 +2361,14 @@ export class ScraperService implements OnModuleInit {
     url: string,
     timeoutMs: number,
     attempt = 1,
+    viaProxy = false,
   ): Promise<string> {
     try {
       const res = await axios.get(url, {
         timeout: timeoutMs,
         headers: BROWSER_HEADERS,
         validateStatus: (s) => s < 500,
+        ...(viaProxy ? PROXY_AXIOS_CONFIG : {}),
       });
 
       if (res.status === 429) {
@@ -2350,12 +2382,28 @@ export class ScraperService implements OnModuleInit {
           `  ⏳ 429 on ${url} — backing off ${backoff / 1000}s (attempt ${attempt}/${MAX_BACKOFF_ATTEMPTS})`,
         );
         await this.delay(backoff);
-        return this.fetchWithBackoff(url, timeoutMs, attempt + 1);
+        return this.fetchWithBackoff(url, timeoutMs, attempt + 1, viaProxy);
       }
 
       if (res.status >= 400) throw new Error(`HTTP ${res.status} for ${url}`);
+      // A bot-challenge interstitial is a block wearing an HTTP 200 — parsing
+      // it as content silently yields zero items and hides the real problem.
+      if (
+        typeof res.data === "string" &&
+        this.looksLikeBotChallenge(res.data)
+      ) {
+        throw new Error(`Bot challenge (Cloudflare) for ${url}`);
+      }
       return res.data;
     } catch (err: any) {
+      // Blocked (403 or challenge page) and an egress proxy is configured →
+      // retry once through it before giving up.
+      if (!viaProxy && scraperProxyAgent && this.isBlockedFetchError(err)) {
+        this.logger.warn(
+          `  ↳ Blocked on ${url} — retrying via SCRAPER_PROXY_URL`,
+        );
+        return this.fetchWithBackoff(url, timeoutMs, attempt, true);
+      }
       // Retry transient failures: 429, 5xx, and common network errors.
       // Non-429 4xx responses are never retried.
       if (this.isRetryableFetchError(err) && attempt < MAX_BACKOFF_ATTEMPTS) {
@@ -2369,10 +2417,29 @@ export class ScraperService implements OnModuleInit {
           `  ⏳ ${reason} on ${url} — backing off ${backoff / 1000}s (attempt ${attempt}/${MAX_BACKOFF_ATTEMPTS})`,
         );
         await this.delay(backoff);
-        return this.fetchWithBackoff(url, timeoutMs, attempt + 1);
+        return this.fetchWithBackoff(url, timeoutMs, attempt + 1, viaProxy);
       }
       throw err;
     }
+  }
+
+  /**
+   * Cloudflare (and similar WAF) browser challenges come back as small HTTP
+   * 200 HTML pages. Size-capped so real article pages never match on an
+   * incidental phrase.
+   */
+  private looksLikeBotChallenge(html: string): boolean {
+    if (!html || html.length > 60_000) return false;
+    return /just a moment|checking your browser|cf-browser-verification|challenge-platform|__cf_chl_|attention required!?\s*[|·]\s*cloudflare|verify you are human/i.test(
+      html,
+    );
+  }
+
+  /** True when the fetch failed because the origin blocked us (vs. transient). */
+  private isBlockedFetchError(err: any): boolean {
+    if (err?.response?.status === 403) return true;
+    const message = String(err?.message ?? "");
+    return /^HTTP 403 /.test(message) || /bot challenge/i.test(message);
   }
 
   /** True for errors worth retrying: 429/5xx responses or transient network errors. */
@@ -2584,6 +2651,36 @@ ${text}`;
 
   // ─── List Extraction ─────────────────────────────────────────────────────
 
+  /**
+   * REST fetch with the same block handling as fetchWithBackoff: a JSON
+   * endpoint answering with a bot-challenge page (HTTP 200 HTML) or 403 is a
+   * block — retry once through the egress proxy when one is configured,
+   * otherwise fail loudly instead of parsing the challenge as "no posts".
+   */
+  private async fetchRestResponse(
+    url: string,
+    timeoutMs: number,
+    viaProxy = false,
+  ): Promise<{ status: number; data: any }> {
+    const res = await axios.get(url, {
+      timeout: timeoutMs,
+      headers: BROWSER_HEADERS,
+      validateStatus: (status) => status < 500,
+      ...(viaProxy ? PROXY_AXIOS_CONFIG : {}),
+    });
+    const blocked =
+      res.status === 403 ||
+      (typeof res.data === "string" && this.looksLikeBotChallenge(res.data));
+    if (blocked && !viaProxy && scraperProxyAgent) {
+      this.logger.warn(`  ↳ Blocked on ${url} — retrying via SCRAPER_PROXY_URL`);
+      return this.fetchRestResponse(url, timeoutMs, true);
+    }
+    if (blocked) {
+      throw new Error(`Bot challenge (Cloudflare) or 403 for ${url}`);
+    }
+    return res;
+  }
+
   private isDixcoverHubSource(source: ScrapeSource): boolean {
     try {
       return (
@@ -2627,6 +2724,10 @@ ${text}`;
       );
     }
 
+    // Last stage: no swallowing. If HTML discovery also fails (e.g. the whole
+    // site is behind a bot challenge), the error must propagate into the
+    // page-error path so it reaches sourceWarnings and the job log — swallowed
+    // errors here spent weeks masquerading as "success, 0 items".
     try {
       const pageUrl = this.buildPageUrl(source.url, page);
       const html = await this.fetchListHTML(pageUrl);
@@ -2638,10 +2739,12 @@ ${text}`;
       }
       return htmlItems;
     } catch (error: any) {
-      this.logger.warn(
-        `  ↳ DixcoverHub HTML discovery failed: ${error.message}`,
-      );
-      return [];
+      // Running past the last page: 404/400 on page N>1 is normal
+      // end-of-pagination, not a failure worth a warning.
+      if (page > 1 && /HTTP (404|400)\b/.test(error?.message ?? "")) {
+        return [];
+      }
+      throw error;
     }
   }
 
@@ -2654,11 +2757,7 @@ ${text}`;
     if (!categorySlug) return [];
 
     const categoryUrl = `${sourceUrl.origin}/wp-json/wp/v2/categories?slug=${encodeURIComponent(categorySlug)}`;
-    const categoryResponse = await axios.get(categoryUrl, {
-      timeout: 15_000,
-      headers: BROWSER_HEADERS,
-      validateStatus: (status) => status < 500,
-    });
+    const categoryResponse = await this.fetchRestResponse(categoryUrl, 15_000);
 
     if (categoryResponse.status >= 400) {
       throw new Error(`Category REST returned HTTP ${categoryResponse.status}`);
@@ -2668,11 +2767,7 @@ ${text}`;
     if (!categoryId) return [];
 
     const postsUrl = `${sourceUrl.origin}/wp-json/wp/v2/posts?categories=${categoryId}&per_page=${MAX_ITEMS_PER_PAGE}&page=${page}&_embed=1`;
-    const postsResponse = await axios.get(postsUrl, {
-      timeout: 20_000,
-      headers: BROWSER_HEADERS,
-      validateStatus: (status) => status < 500,
-    });
+    const postsResponse = await this.fetchRestResponse(postsUrl, 20_000);
 
     if (postsResponse.status === 400 && page > 1) return [];
     if (postsResponse.status >= 400) {

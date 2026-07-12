@@ -44,6 +44,7 @@
     "docx": "^9.7.1",
     "drizzle-orm": "^0.45.1",
     "helmet": "^8.2.0",
+    "https-proxy-agent": "^7.0.5",
     "ioredis": "^5.4.1",
     "pdf-parse": "^2.4.5",
     "pdfkit": "^0.19.1",
