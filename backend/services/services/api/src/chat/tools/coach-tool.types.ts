@@ -35,6 +35,14 @@ export interface DocumentCard {
   fileName?: string;
 }
 
+/** Shareable opportunity image (the branded share card) shown inline in chat. */
+export interface ImageCard {
+  opportunityId: string;
+  title: string;
+  url: string;
+  format: "png" | "svg";
+}
+
 /**
  * Per-turn context handed to every tool. The collect* sinks accumulate what
  * the reply will carry (cards, buttons, device effects) so tools stay pure
@@ -47,6 +55,7 @@ export interface CoachToolContext {
   collectDeviceActions(actions: DeviceAction[]): void;
   collectActionButtons(buttons: ActionButton[]): void;
   collectDocuments(documents: DocumentCard[]): void;
+  collectImages(images: ImageCard[]): void;
 }
 
 export interface CoachTool<Args = any> {
