@@ -192,8 +192,10 @@ export class OpportunityDeadlineRemindersService {
             ? `Deadline today: ${title}`
             : `${daysBefore} day${daysBefore === 1 ? "" : "s"} left: ${title}`,
         body: this.reminderBody(daysBefore, nextAction),
-        kind: "opportunity-deadline",
-        severity: daysBefore <= 1 ? "warning" : "info",
+        kind: "deadline-reminder" as const,
+        severity: (daysBefore <= 1 ? "warning" : "info") as
+          | "warning"
+          | "info",
         scheduledFor: scheduledFor.toISOString(),
         dedupeKey: `opp-deadline:${candidate.opportunity_id}:${daysBefore}`,
         metadata: {
@@ -202,7 +204,7 @@ export class OpportunityDeadlineRemindersService {
           daysBefore,
           nextAction,
         },
-      } as BroadcastNotificationDto;
+      };
     });
   }
 

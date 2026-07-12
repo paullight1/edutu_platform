@@ -35,6 +35,7 @@ import { CopilotModule } from "./copilot/copilot.module";
 import { SavedSearchesModule } from "./saved-searches/saved-searches.module";
 import { MonetizationModule } from "./monetization/monetization.module";
 import { AlertsModule } from "./alerts/alerts.module";
+import { DocumentsModule } from "./documents/documents.module";
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { AlertsModule } from "./alerts/alerts.module";
     ProfileModule,
     MeModule,
     ChatModule,
+    DocumentsModule,
     SettingsModule,
     MonetizationModule,
     AdminModule,

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toSafeUUID } from '../utils/auth';
+import { recordOpportunitySignal } from './opportunitySignals';
 
 const DISMISSED_OPPORTUNITIES_KEY = 'edutu_dismissed_opportunities';
 
@@ -59,6 +60,31 @@ export async function addDismissedOpportunityId(userId: string, opportunityId: s
   } catch {
     // Ignore persistence failures — dismissals should never break the feed.
   }
+}
+
+/**
+ * Full "not interested" flow: hides the opportunity locally (instant UX,
+ * works offline) AND records a backend `dismiss` signal so the ranking
+ * engine learns from it (−100 weight + category exclusion) across devices.
+ * Both halves are best-effort.
+ */
+export async function dismissOpportunity(
+  userId: string,
+  opportunityId: string,
+  getAuthToken?: () => Promise<string | null | undefined>,
+  context?: string,
+): Promise<void> {
+  await addDismissedOpportunityId(userId, opportunityId);
+  void recordOpportunitySignal(
+    {
+      opportunityId,
+      signalType: 'dismiss',
+      signalValue: 1,
+      source: 'mobile',
+      context: context ?? 'not_interested',
+    },
+    getAuthToken,
+  );
 }
 
 export async function clearDismissedOpportunityIds(userId: string): Promise<void> {

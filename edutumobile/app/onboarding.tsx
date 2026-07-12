@@ -715,7 +715,12 @@ export default function OnboardingScreen() {
         if (draft.country) patch.country = draft.country
         if (draft.schoolName) patch.school = draft.schoolName
         if (draft.pursuit) patch.degree = draft.pursuit
-        if (draft.interests.length) patch.interests = draft.interests
+        if (typeof draft.age === 'number' && Number.isFinite(draft.age)) patch.age = draft.age
+        // Ambitions fold into interests for the backend row — the profile
+        // schema has no ambitions column, and the recommendation embedding is
+        // built from interests, so "study abroad"-style answers belong there.
+        const interestSignals = Array.from(new Set([...draft.interests, ...draft.ambitions].filter(Boolean)))
+        if (interestSignals.length) patch.interests = interestSignals
         if (Object.keys(patch).length === 0) return
         try {
             await updateProfile(getToken, patch)

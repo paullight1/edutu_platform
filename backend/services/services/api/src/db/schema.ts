@@ -12,6 +12,7 @@ import {
   date,
   vector,
   primaryKey,
+  real,
 } from "drizzle-orm/pg-core";
 
 // Users table (mirrors Supabase auth.users mostly, but owned by us for app profiles)
@@ -41,6 +42,9 @@ export const profiles = pgTable("profiles", {
     .default({}),
   settings: jsonb("settings").$type<Record<string, unknown>>().default({}),
   creatorRejectionReason: text("creator_rejection_reason"),
+  // IANA timezone (e.g. 'Africa/Lagos') synced from the device on app start;
+  // used by the alert engine to honor quiet hours in local time.
+  timezone: text("timezone"),
   // Stamped (throttled) by ClerkAuthGuard on authenticated requests;
   // drives the admin "active users" metric.
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
@@ -320,6 +324,56 @@ export const userOpportunitySignals = pgTable(
     index("idx_user_signals_user_id").on(table.userId),
     index("idx_user_signals_opportunity_id").on(table.opportunityId),
     index("idx_user_signals_type").on(table.signalType),
+  ],
+);
+
+// Durable facts the AI coach has learned about a user (from chat extraction,
+// behavior, or onboarding). Injected into the agent's system prompt and folded
+// into the profile-embedding text so learned interests shift recommendations.
+// kind: 'interest' | 'preference' | 'dislike' | 'fact' | 'context'
+export const userAiMemories = pgTable(
+  "user_ai_memories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // TEXT (not uuid): stores whatever id shape auth hands us, matching the
+    // live user_profile_embeddings drift precedent.
+    userId: text("user_id").notNull(),
+    kind: text("kind").notNull(),
+    content: text("content").notNull(),
+    source: text("source").notNull().default("chat"),
+    confidence: real("confidence").notNull().default(0.7),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }).defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+  },
+  (table) => [index("idx_user_ai_memories_user").on(table.userId, table.lastUsedAt)],
+);
+
+// AI-authored documents (CVs, SOPs, cover letters, essays) created/edited via
+// the coach chat. content is a discriminated union by `type`; history holds
+// prior content versions for undo. Exports live in the private 'ai-documents'
+// storage bucket.
+export const aiDocuments = pgTable(
+  "ai_documents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id").notNull(),
+    type: text("type").notNull(),
+    title: text("title").notNull(),
+    content: jsonb("content").$type<Record<string, unknown>>().notNull(),
+    opportunityId: uuid("opportunity_id").references(() => opportunities.id, {
+      onDelete: "set null",
+    }),
+    version: integer("version").notNull().default(1),
+    history: jsonb("history")
+      .$type<Array<Record<string, unknown>>>()
+      .notNull()
+      .default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    index("idx_ai_documents_user").on(table.userId, table.updatedAt),
   ],
 );
 

@@ -16,6 +16,7 @@ import {
     Pencil,
     Target,
     Route,
+    Menu,
 } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
@@ -32,6 +33,7 @@ import { ToastProvider, useToast } from "../../components/context/ToastContext";
 import { UpgradeSheetProvider } from "../../components/context/UpgradeSheetContext";
 import { useCreditRewards } from "@edutu/core/src/hooks/useCreditRewards";
 import { EdutuLogo } from "../../components/branding/EdutuLogo";
+import { FeatureMenu } from "../../components/ui/FeatureMenu";
 import { WelcomeHintSystem } from "../../components/ui/WelcomeHintSystem";
 import { LoginOfferModal } from "../../components/ui/LoginOfferModal";
 import { ModuleLockOverlay } from "../../components/mobile-control/ModuleLockOverlay";
@@ -40,6 +42,7 @@ import { openVoiceMode } from "../../lib/voiceModeStore";
 import { useNavFabState } from "../../lib/navFabStore";
 import * as Notifications from "expo-notifications";
 import { notificationService, registerForPushNotificationsAsync } from "../../lib/notifications";
+import { updateProfile } from "@edutu/core/src/services/profile";
 import { supabase } from "../../lib/supabase";
 import { useNotifications } from "@edutu/core/src/hooks/useNotifications";
 import { useProStatus } from "@edutu/core/src/hooks/useProStatus";
@@ -257,6 +260,7 @@ function AppHeader({ isDark, colors, unreadNotifications }: { isDark: boolean, c
     const { t } = useTranslation('home');
     const { user } = useUser();
     const { isPro, isLoading: proLoading } = useProStatus(supabase, user?.id || null);
+    const [menuOpen, setMenuOpen] = useState(false);
 
     return (
         <View style={[
@@ -269,6 +273,15 @@ function AppHeader({ isDark, colors, unreadNotifications }: { isDark: boolean, c
         ]}>
             <View style={styles.headerInner}>
                 <View style={styles.brandContainer}>
+                    <TouchableOpacity
+                        onPress={() => setMenuOpen(true)}
+                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('header.menu', { defaultValue: 'Open menu' })}
+                        style={[styles.menuBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)" }]}
+                    >
+                        <Menu size={20} color={accentColor} strokeWidth={2} />
+                    </TouchableOpacity>
                     <EdutuLogo size={36} frameless />
                     <HeaderLogoTitle
                         color={isDark ? "#FFFFFF" : "#0F172A"}
@@ -303,6 +316,13 @@ function AppHeader({ isDark, colors, unreadNotifications }: { isDark: boolean, c
                     {unreadNotifications > 0 && <View style={[styles.bellBadge, { borderColor: colors.background }]} />}
                 </TouchableOpacity>
             </View>
+
+            <FeatureMenu
+                visible={menuOpen}
+                onClose={() => setMenuOpen(false)}
+                isDark={isDark}
+                colors={colors}
+            />
         </View>
     );
 }
@@ -780,6 +800,14 @@ export default function AppLayout() {
             // session tokens expire in ~60s, so the token must be minted fresh
             // right before the sync POST — otherwise it 401s as expired.
             await registerForPushNotificationsAsync(userId, getToken);
+            // Sync the device timezone so proactive alerts honor quiet hours
+            // in the user's local time (fire-and-forget, once per launch).
+            try {
+                const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                if (timezone) await updateProfile(getToken, { timezone });
+            } catch {
+                // Non-fatal — alerts fall back to UTC quiet hours.
+            }
         })();
     }, [getToken, isSignedIn, userId]);
 
@@ -1214,6 +1242,13 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '600',
         marginTop: 1,
+    },
+    menuBtn: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     bellBtn: {
         width: 42,

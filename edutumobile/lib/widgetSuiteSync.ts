@@ -45,6 +45,7 @@ import { getWidgetLogoUri } from './widgetLogo';
 
 const ANDROID_DEADLINES_FILE = 'edutu_widget_deadlines.json';
 const ANDROID_TRENDING_FILE = 'edutu_widget_trending.json';
+const ANDROID_NEWS_FILE = 'edutu_widget_news.json';
 const DEADLINES_CACHE_KEY = 'edutu-widget-deadlines-cache-v1';
 
 // Matches the opportunity widget: enough midnights that every relative label
@@ -444,6 +445,34 @@ export function syncChatWidget(extras: { logoUri?: string; now?: Date } = {}): v
 }
 
 // ---------------------------------------------------------------------------
+// News widget (published blog posts — trending global-opportunity news)
+// ---------------------------------------------------------------------------
+
+export async function syncNewsWidget(): Promise<void> {
+  try {
+    // Lazily required so widget sync never adds to app-startup cost.
+    const { fetchNewsPosts } = require('./news') as typeof import('./news');
+    const posts = await fetchNewsPosts(6);
+    if (!posts.length) return; // keep whatever the widget last showed
+
+    writeAndroidWidgetFile(
+      ANDROID_NEWS_FILE,
+      posts.map((post) => ({
+        id: post.id,
+        title: post.title,
+        category: post.category || 'News',
+        excerpt: post.excerpt || '',
+        imageUrl: post.coverImage || '',
+        publishedAt: post.publishedAt || '',
+        url: post.url,
+      })),
+    );
+  } catch {
+    // Best effort.
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Suite
 // ---------------------------------------------------------------------------
 
@@ -458,6 +487,7 @@ export async function syncWidgetSuite(options: SyncWidgetSuiteOptions = {}): Pro
     syncAndUpdateOpportunityWidgetSnapshot({ userId: options.userId, logoUri }).catch(() => undefined),
     syncDeadlineWidget({ userId: options.userId, getToken: options.getToken, logoUri }),
     syncTrendingWidget({ logoUri }),
+    syncNewsWidget(),
     Promise.resolve(syncChatWidget({ logoUri })),
   ]);
 }

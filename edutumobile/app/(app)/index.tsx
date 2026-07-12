@@ -635,6 +635,154 @@ function FeaturedCarousel({ data, isDark, bookmarkedIds, onOpen, onBookmark, onS
     );
 }
 
+// ─── Your Best Shots ─────────────────────────────────────────────────────────
+// The product thesis as a UX object: not an infinite feed, but the max-3
+// opportunities the user is genuinely competitive for (match >= 60).
+const BEST_SHOT_MIN_MATCH = 60;
+const BEST_SHOT_CARD_WIDTH = Math.min(Math.round(width * 0.72), 290);
+
+function BestShotCard({ item, isDark, textPrimary, textSecondary, onPress, index = 0 }: {
+    item: Opportunity;
+    isDark: boolean;
+    textPrimary: string;
+    textSecondary: string;
+    onPress?: () => void;
+    index?: number;
+}) {
+    const deadlineBadge = useMemo(() => getDeadlineBadge(item.deadline), [item.deadline]);
+    const deadlineColor = deadlineBadge.level === 'none'
+        ? textSecondary
+        : urgencyColor(deadlineBadge.level);
+    const matchPct = Math.round(item.match ?? 0);
+    const topReason = item.matchReasons?.[0];
+
+    return (
+        <AnimatedPressable
+            onPress={onPress}
+            style={[styles.bestShotCard, {
+                backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : '#FFFFFF',
+                borderColor: isDark ? 'rgba(99,102,241,0.35)' : 'rgba(99,102,241,0.25)',
+            }]}
+            entering={FadeInDown.delay(index * 80).duration(360).springify()}
+            hapticFeedback="medium"
+            scaleTo={0.97}
+        >
+            <View style={styles.bestShotTopRow}>
+                <View style={styles.bestShotMatchBadge}>
+                    <Sparkles size={10} color="#FFFFFF" />
+                    <Text style={styles.bestShotMatchText}>{matchPct}% match</Text>
+                </View>
+                <View style={styles.deadlineRow}>
+                    <View style={[styles.deadlineDot, { backgroundColor: deadlineColor }]} />
+                    <Text style={[styles.bestShotDeadline, { color: deadlineColor }]}>
+                        {deadlineBadge.shortLabel}
+                    </Text>
+                </View>
+            </View>
+            <Text style={[styles.bestShotTitle, { color: textPrimary }]} numberOfLines={2}>{item.title}</Text>
+            {topReason ? (
+                <Text style={[styles.bestShotReason, { color: textSecondary }]} numberOfLines={2}>
+                    {topReason}
+                </Text>
+            ) : null}
+            <View style={styles.bestShotFooter}>
+                <Text style={styles.bestShotCta}>Start here</Text>
+                <ChevronRight size={14} color="#6366F1" />
+            </View>
+        </AnimatedPressable>
+    );
+}
+
+function BestShotsSection({ opportunities, loading, isDark, textPrimary, textSecondary, onOpen, onCompleteProfile }: {
+    opportunities: Opportunity[];
+    loading: boolean;
+    isDark: boolean;
+    textPrimary: string;
+    textSecondary: string;
+    onOpen: (item: Opportunity) => void;
+    onCompleteProfile: () => void;
+}) {
+    const bestShots = useMemo(
+        () => opportunities
+            .filter((o) => Math.round(o.match ?? 0) >= BEST_SHOT_MIN_MATCH)
+            .sort((a, b) => (b.match ?? 0) - (a.match ?? 0))
+            .slice(0, 3),
+        [opportunities],
+    );
+
+    // While the feed is still loading, don't flash the "complete your profile"
+    // empty state — wait for real data before rendering anything.
+    if (loading && bestShots.length === 0) return null;
+
+    return (
+        <Animated.View entering={FadeInDown.duration(400).delay(80)} style={styles.sectionSpacing}>
+            <View style={styles.sectionHeader}>
+                <View style={styles.sectionTitleGroup}>
+                    <View style={[styles.sectionIcon, { backgroundColor: isDark ? 'rgba(99,102,241,0.15)' : '#F0F0FF' }]}>
+                        <Sparkles size={16} color="#6366F1" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={[styles.sectionTitle, { color: textPrimary }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>
+                            Your best shots
+                        </Text>
+                        <Text style={[styles.bestShotSubtitle, { color: textSecondary }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>
+                            Fewer, winnable — these are yours.
+                        </Text>
+                    </View>
+                </View>
+            </View>
+            {bestShots.length > 0 ? (
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.bestShotRail}
+                    snapToInterval={BEST_SHOT_CARD_WIDTH + CARD_GAP}
+                    decelerationRate="fast"
+                >
+                    {bestShots.map((item, idx) => (
+                        <BestShotCard
+                            key={item.id}
+                            item={item}
+                            isDark={isDark}
+                            textPrimary={textPrimary}
+                            textSecondary={textSecondary}
+                            index={idx}
+                            onPress={() => onOpen(item)}
+                        />
+                    ))}
+                </ScrollView>
+            ) : (
+                <AnimatedPressable
+                    onPress={onCompleteProfile}
+                    style={[styles.bestShotEmptyCard, {
+                        backgroundColor: isDark ? 'rgba(99,102,241,0.07)' : '#F5F5FF',
+                        borderColor: isDark ? 'rgba(99,102,241,0.35)' : 'rgba(99,102,241,0.3)',
+                    }]}
+                    entering={FadeInDown.duration(360).springify()}
+                    hapticFeedback="light"
+                    scaleTo={0.98}
+                >
+                    <View style={[styles.posterFillerIcon, { backgroundColor: isDark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.12)' }]}>
+                        <Target size={20} color="#6366F1" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={[styles.featuredEmptyTitle, { color: isDark ? '#E2E8F0' : '#1E293B' }]} maxFontSizeMultiplier={1.3}>
+                            Your best shots are still forming
+                        </Text>
+                        <Text style={[styles.featuredEmptyDesc, { color: textSecondary }]} numberOfLines={3} maxFontSizeMultiplier={1.3}>
+                            The more we know about you, the sharper the match. Complete your profile and we'll surface the few you can actually win.
+                        </Text>
+                    </View>
+                    <View style={[styles.featuredEmptyCta, { backgroundColor: isDark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.1)' }]}>
+                        <Text style={styles.featuredEmptyCtaText} maxFontSizeMultiplier={1.2}>Complete profile</Text>
+                        <ChevronRight size={14} color={isDark ? '#A5B4FC' : '#4F46E5'} />
+                    </View>
+                </AnimatedPressable>
+            )}
+        </Animated.View>
+    );
+}
+
 // ─── Compact Recommended Row ─────────────────────────────────────────────────
 // A slim horizontal card (thumbnail + content) used for the home "Recommended"
 // preview so it stays small and multiple rows fit without a giant rail.
@@ -937,6 +1085,20 @@ export default function Dashboard() {
                     </View>
                     <QuickActionsGrid router={router} />
                 </Animated.View>
+
+                {/* Your Best Shots — the winnable few, above the general feed */}
+                <BestShotsSection
+                    opportunities={opportunities}
+                    loading={opportunitiesLoading}
+                    isDark={isDark}
+                    textPrimary={textPrimary}
+                    textSecondary={textSecondary}
+                    onOpen={(item) => {
+                        recordOpportunityOpen(item.id);
+                        router.push(`/opportunities/${item.id}`);
+                    }}
+                    onCompleteProfile={() => router.push('/profile')}
+                />
 
                 {/* Recommended Opportunities — compact 3-row preview */}
                 {otherOpportunities.length > 0 ? (
@@ -1848,5 +2010,73 @@ const styles = StyleSheet.create({
     notificationDesc: {
         fontSize: 13,
         lineHeight: 18,
+    },
+    bestShotSubtitle: {
+        fontSize: 12,
+        marginTop: 1,
+    },
+    bestShotRail: {
+        paddingRight: 20,
+        gap: CARD_GAP,
+    },
+    bestShotCard: {
+        width: BEST_SHOT_CARD_WIDTH,
+        borderRadius: 16,
+        borderWidth: 1.5,
+        padding: 14,
+    },
+    bestShotTopRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 8,
+        marginBottom: 10,
+    },
+    bestShotMatchBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: '#6366F1',
+        borderRadius: 999,
+        paddingHorizontal: 9,
+        paddingVertical: 4,
+    },
+    bestShotMatchText: {
+        color: '#FFFFFF',
+        fontSize: 11,
+        fontWeight: '800',
+    },
+    bestShotDeadline: {
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    bestShotTitle: {
+        fontSize: 15,
+        fontWeight: '800',
+        lineHeight: 20,
+    },
+    bestShotReason: {
+        fontSize: 12,
+        lineHeight: 17,
+        marginTop: 5,
+    },
+    bestShotFooter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 2,
+        marginTop: 10,
+    },
+    bestShotCta: {
+        color: '#6366F1',
+        fontSize: 12,
+        fontWeight: '800',
+    },
+    bestShotEmptyCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        borderWidth: 1,
+        borderRadius: 16,
+        padding: 14,
     },
 });

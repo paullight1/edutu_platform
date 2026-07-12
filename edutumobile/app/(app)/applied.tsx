@@ -1,7 +1,9 @@
-import { Alert, View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Image, ScrollView } from "react-native";
+import { Alert, View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Image, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Calendar, ChevronRight, Clock, Globe, ArrowRight } from "lucide-react-native";
+import { Calendar, ChevronRight, Clock, Globe, ArrowRight, Heart, Sparkles, Check } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Haptics from "expo-haptics";
 import { useTheme } from "../../components/context/ThemeContext";
 import { useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
@@ -16,11 +18,16 @@ import {
   updateTrackedApplicationStatus,
 } from "../../packages/core/src/services/applications";
 import { getDeadlineBadge } from "../../packages/core/src/utils/deadline";
+import { useOpportunities } from "../../packages/core/src/hooks/useOpportunities";
+import type { Opportunity } from "../../packages/core/src/types/opportunity";
 import { BrandedLoader } from "../../components/ui/BrandedLoader";
 import { useTranslation } from "react-i18next";
 import i18n from "../../lib/i18n";
 
 const STATUS_OPTIONS: ApplicationStatus[] = ['draft', 'submitted', 'interview', 'offer', 'rejected', 'withdrawn'];
+
+// One-line reflections users leave after a rejection, keyed by application id.
+const REJECTION_REFLECTIONS_KEY = 'edutu_rejection_reflections';
 
 // Stat-board / filter keys: the forward stages plus "all" and a combined
 // terminal bucket ("closed" = rejected + withdrawn).
@@ -83,6 +90,117 @@ function PipelineStepper({ status, inactiveColor }: { status: ApplicationStatus;
   );
 }
 
+// Supportive inline card shown right after the user marks an application
+// rejected: warm reframe + optional one-line reflection + the next best shot.
+function RejectionSupportCard({
+  initialReflection,
+  onSaveReflection,
+  nextBestShot,
+  onOpenNext,
+  cardBg,
+  borderColor,
+  accentColor,
+  textPrimary,
+  textSecondary,
+}: {
+  initialReflection: string;
+  onSaveReflection: (text: string) => void;
+  nextBestShot: Opportunity | null;
+  onOpenNext: (opportunity: Opportunity) => void;
+  cardBg: string;
+  borderColor: string;
+  accentColor: string;
+  textPrimary: string;
+  textSecondary: string;
+}) {
+  const [reflection, setReflection] = useState(initialReflection);
+  const [saved, setSaved] = useState(Boolean(initialReflection));
+
+  const handleSave = () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onSaveReflection(reflection.trim());
+    setSaved(true);
+  };
+
+  const nextMatchPct = nextBestShot ? Math.round(nextBestShot.match ?? 0) : 0;
+  const nextDeadline = nextBestShot ? getDeadlineBadge(nextBestShot.deadline) : null;
+
+  return (
+    <View style={[styles.rejectionCard, { backgroundColor: cardBg, borderColor }]}>
+      <View style={styles.rejectionHeader}>
+        <Heart size={16} color="#F472B6" />
+        <Text style={[styles.rejectionTitle, { color: textPrimary }]}>
+          This one said no. That's data, not a verdict.
+        </Text>
+      </View>
+      <Text style={[styles.rejectionBody, { color: textSecondary }]}>
+        Every strong applicant collects rejections on the way to a yes. If anything stood out about this one, note it — future you will use it.
+      </Text>
+      <View style={styles.reflectionRow}>
+        <TextInput
+          value={reflection}
+          onChangeText={(value) => {
+            setReflection(value);
+            setSaved(false);
+          }}
+          placeholder="One line: what would you do differently?"
+          placeholderTextColor={textSecondary}
+          style={[styles.reflectionInput, { color: textPrimary, borderColor }]}
+          maxLength={200}
+          returnKeyType="done"
+          onSubmitEditing={handleSave}
+        />
+        <TouchableOpacity
+          onPress={handleSave}
+          disabled={!reflection.trim() || saved}
+          style={[
+            styles.reflectionSaveBtn,
+            { backgroundColor: saved ? '#10B98122' : `${accentColor}1A`, borderColor: saved ? '#10B98155' : `${accentColor}40` },
+          ]}
+          activeOpacity={0.75}
+        >
+          {saved && reflection.trim() ? (
+            <Check size={14} color="#10B981" />
+          ) : (
+            <Text style={{ color: accentColor, fontSize: 11, fontWeight: '700' }}>Save</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+      {nextBestShot ? (
+        <View style={[styles.nextShotBox, { borderColor: `${accentColor}35`, backgroundColor: `${accentColor}0D` }]}>
+          <View style={styles.rejectionHeader}>
+            <Sparkles size={13} color={accentColor} />
+            <Text style={[styles.nextShotLabel, { color: accentColor }]}>YOUR NEXT BEST SHOT</Text>
+          </View>
+          <Text style={[styles.nextShotTitle, { color: textPrimary }]} numberOfLines={2}>
+            {nextBestShot.title}
+          </Text>
+          <View style={styles.nextShotMetaRow}>
+            {nextMatchPct >= 40 ? (
+              <Text style={{ color: accentColor, fontSize: 11, fontWeight: '800' }}>
+                {nextMatchPct}% match
+              </Text>
+            ) : null}
+            {nextDeadline ? (
+              <Text style={{ color: textSecondary, fontSize: 11, fontWeight: '600' }}>
+                {nextDeadline.shortLabel}
+              </Text>
+            ) : null}
+          </View>
+          <TouchableOpacity
+            onPress={() => onOpenNext(nextBestShot)}
+            style={[styles.nextShotCta, { backgroundColor: accentColor }]}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.nextShotCtaText}>Open it — your profile fits</Text>
+            <ArrowRight size={13} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 export default function AppliedPage() {
   const { t } = useTranslation('home');
   const { isDark, colors } = useTheme();
@@ -93,6 +211,34 @@ export default function AppliedPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<StatFilter>('all');
+  // Post-rejection support: the application just marked rejected this session,
+  // plus stored one-line reflections keyed by application id.
+  const [rejectionCardId, setRejectionCardId] = useState<string | null>(null);
+  const [reflections, setReflections] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    AsyncStorage.getItem(REJECTION_REFLECTIONS_KEY)
+      .then((raw) => {
+        if (raw) setReflections(JSON.parse(raw));
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const saveReflection = useCallback((applicationId: string, text: string) => {
+    setReflections((current) => {
+      const next = { ...current, [applicationId]: text };
+      void AsyncStorage.setItem(REJECTION_REFLECTIONS_KEY, JSON.stringify(next)).catch(() => undefined);
+      return next;
+    });
+  }, []);
+
+  // Feed used to surface "your next best shot" after a rejection — only
+  // consulted when the rejection card is visible.
+  const { data: feedOpportunities } = useOpportunities({
+    supabase,
+    userId: user?.id,
+    getAuthToken: getToken,
+  });
 
   const textPrimary = colors.foreground;
   const textSecondary = isDark ? '#94A3B8' : '#64748B';
@@ -138,6 +284,11 @@ export default function AppliedPage() {
       setApplications((current) => current.map((item) => (
         item.id === applicationId ? { ...item, status } : item
       )));
+      if (status === 'rejected') {
+        setRejectionCardId(applicationId);
+      } else {
+        setRejectionCardId((current) => (current === applicationId ? null : current));
+      }
     } catch (error) {
       console.error('Failed to update application status:', error);
       Alert.alert(t('applied.statusNotUpdatedTitle'), t('applied.statusNotUpdatedMessage'));
@@ -200,12 +351,29 @@ export default function AppliedPage() {
     );
   }, [updateStatus, t]);
 
+  const trackedOpportunityIds = useMemo(
+    () => new Set(applications.map((item) => item.opportunity_id)),
+    [applications],
+  );
+
+  // Highest-match opportunity the user isn't already tracking.
+  const nextBestShot = useMemo(() => {
+    const candidates = feedOpportunities.filter((item) => !trackedOpportunityIds.has(item.id));
+    if (!candidates.length) return null;
+    return [...candidates].sort((a, b) => (b.match ?? 0) - (a.match ?? 0))[0];
+  }, [feedOpportunities, trackedOpportunityIds]);
+
+  const openNextBestShot = useCallback((opportunity: Opportunity) => {
+    router.push(`/opportunities/${opportunity.id}`);
+  }, [router]);
+
   const headerSubtitle = useMemo(() => {
     if (loading) return t('common:states.loading');
     return t('applied.appliedCount', { count: applications.length });
   }, [applications.length, loading, t]);
 
   const renderApplication = useCallback(({ item }: { item: AppliedOpportunity }) => (
+    <View>
     <TouchableOpacity
       style={[styles.card, { backgroundColor: cardBg, borderColor }]}
       activeOpacity={0.85}
@@ -259,7 +427,21 @@ export default function AppliedPage() {
       </View>
       <ChevronRight size={18} color={textSecondary} />
     </TouchableOpacity>
-  ), [accentColor, advanceStatus, cardBg, borderColor, isDark, openStatusPicker, router, stepInactiveColor, textPrimary, textSecondary, t]);
+    {item.status === 'rejected' && rejectionCardId === item.id ? (
+      <RejectionSupportCard
+        initialReflection={reflections[item.id] ?? ''}
+        onSaveReflection={(text) => saveReflection(item.id, text)}
+        nextBestShot={nextBestShot}
+        onOpenNext={openNextBestShot}
+        cardBg={cardBg}
+        borderColor={borderColor}
+        accentColor={accentColor}
+        textPrimary={textPrimary}
+        textSecondary={textSecondary}
+      />
+    ) : null}
+    </View>
+  ), [accentColor, advanceStatus, cardBg, borderColor, isDark, openStatusPicker, router, stepInactiveColor, textPrimary, textSecondary, t, rejectionCardId, reflections, saveReflection, nextBestShot, openNextBestShot]);
 
   const renderStatBoard = () => {
     if (applications.length === 0) return null;
@@ -521,5 +703,87 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     fontWeight: '500',
+  },
+  rejectionCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 14,
+    marginTop: -4,
+    marginBottom: 12,
+  },
+  rejectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  rejectionTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    flex: 1,
+  },
+  rejectionBody: {
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 6,
+  },
+  reflectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+  },
+  reflectionInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    fontSize: 13,
+  },
+  reflectionSaveBtn: {
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 48,
+  },
+  nextShotBox: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    marginTop: 12,
+  },
+  nextShotLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+  nextShotTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    lineHeight: 18,
+    marginTop: 6,
+  },
+  nextShotMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 5,
+  },
+  nextShotCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 10,
+    paddingVertical: 9,
+    marginTop: 10,
+  },
+  nextShotCtaText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });

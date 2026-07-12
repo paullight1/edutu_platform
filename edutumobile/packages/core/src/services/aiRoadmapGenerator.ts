@@ -219,6 +219,14 @@ export async function fetchOpportunityPlanEnrichment(
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
+        // Lets the server ground the plan on the verified opportunity row
+        // instead of trusting these client-side fields. UUID-gated: some
+        // cached/legacy items carry non-uuid ids the backend would reject.
+        opportunityId: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          opportunity.id ?? ''
+        )
+          ? opportunity.id
+          : undefined,
         title: opportunity.title,
         organization: opportunity.organization,
         category: opportunity.category,

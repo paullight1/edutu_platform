@@ -294,6 +294,10 @@ export class ProfileService {
       updateData.interestedCountries = dto.interestedCountries ?? null;
     }
 
+    if (Object.prototype.hasOwnProperty.call(dto, "timezone")) {
+      updateData.timezone = dto.timezone ?? null;
+    }
+
     if (Object.prototype.hasOwnProperty.call(dto, "interests")) {
       updateData.interests = dto.interests ?? null;
     }
