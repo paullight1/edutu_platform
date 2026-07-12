@@ -69,8 +69,11 @@
     },
     "discoveryEditor": {
       "title": "Customize categories",
-      "subtitle": "Choose which cards show on your homepage.",
-      "save": "Save"
+      "subtitle": "Hold and drag to arrange. Tap ⤢ to resize, − to remove.",
+      "save": "Save",
+      "more": "More categories",
+      "remove": "Remove {{title}}",
+      "resize": "Resize {{title}}"
     }
   },
   "notifications": {

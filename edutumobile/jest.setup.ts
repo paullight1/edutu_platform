@@ -57,6 +57,8 @@ jest.mock('react-native-reanimated', () => {
     withDecay: <T>(value: T) => value,
     interpolate: () => 0,
     interpolateColor: () => '#000000',
+    Extrapolation: { CLAMP: 'clamp', EXTEND: 'extend', IDENTITY: 'identity' },
+    Extrapolate: { CLAMP: 'clamp', EXTEND: 'extend', IDENTITY: 'identity' },
     runOnJS: (fn: (...args: unknown[]) => unknown) => fn,
     runOnUI: (fn: (...args: unknown[]) => unknown) => fn,
     cancelAnimation: () => {},
@@ -75,10 +77,14 @@ jest.mock('react-native-reanimated', () => {
     FadeOut: reanimatedBuilder,
     FadeOutUp: reanimatedBuilder,
     Layout: reanimatedBuilder,
+    LinearTransition: reanimatedBuilder,
+    PinwheelIn: reanimatedBuilder,
+    ZoomIn: reanimatedBuilder,
     SlideInRight: reanimatedBuilder,
     SlideOutLeft: reanimatedBuilder,
   };
 });
+
 
 jest.mock('react-native-worklets', () => ({
   __esModule: true,
@@ -95,6 +101,14 @@ jest.mock('react-native-worklets', () => ({
 jest.mock('expo-status-bar', () => ({
   StatusBar: () => null,
 }));
+
+jest.mock('expo-glass-effect', () => {
+  const { View } = require('react-native');
+  return {
+    GlassView: View,
+    isLiquidGlassAvailable: () => false,
+  };
+});
 
 jest.mock('expo-notifications', () => ({
   setNotificationHandler: jest.fn(),

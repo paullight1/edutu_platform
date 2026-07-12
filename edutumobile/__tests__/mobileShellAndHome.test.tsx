@@ -128,20 +128,21 @@ jest.mock('expo-blur', () => ({
 jest.mock('lucide-react-native', () => {
   const React = require('react');
   const { Text } = require('react-native');
-  const icon = (name: string) => () => <Text>{name}</Text>;
-  return {
-    Bell: icon('Bell'),
-    BookmarkPlus: icon('BookmarkPlus'),
-    ChevronRight: icon('ChevronRight'),
-    Compass: icon('Compass'),
-    FileText: icon('FileText'),
-    Home: icon('Home'),
-    ShoppingBag: icon('ShoppingBag'),
-    Sparkles: icon('Sparkles'),
-    Store: icon('Store'),
-    Target: icon('Target'),
-    UserCircle: icon('UserCircle'),
-  };
+  // Serve a stub for ANY icon name so new icons never break the suite.
+  const cache = new Map<PropertyKey, () => React.JSX.Element>();
+  return new Proxy(
+    {},
+    {
+      get: (_target, name: PropertyKey) => {
+        if (name === '__esModule') return true;
+        if (!cache.has(name)) {
+          const Icon = () => <Text>{String(name)}</Text>;
+          cache.set(name, Icon);
+        }
+        return cache.get(name);
+      },
+    },
+  );
 });
 
 jest.mock('../hooks/useDeepLink', () => ({
@@ -336,7 +337,7 @@ describe('mobile app shell and home dashboard', () => {
     expect(getAllByText('Campus Internship').length).toBeGreaterThan(0);
 
     fireEvent.press(getByText('Programs'));
-    expect(mockPush).toHaveBeenCalledWith({ pathname: '/opportunities', params: { category: 'grants' } });
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/opportunities', params: { category: 'programs' } });
 
     fireEvent.press(getByText('Roadmaps'));
     expect(mockPush).toHaveBeenCalledWith('/roadmaps');
