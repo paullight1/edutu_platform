@@ -41,6 +41,10 @@ export interface ProfileUpdateInput {
   dateOfBirth?: string | null;
   interests?: string[] | null;
   skills?: string[] | null;
+  age?: number | null;
+  interestedCountries?: string[] | null;
+  /** IANA name like 'Africa/Lagos' — drives local-time quiet hours for alerts. */
+  timezone?: string | null;
 }
 
 /**

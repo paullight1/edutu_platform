@@ -4,37 +4,28 @@ import {
   Alert,
   AppState,
   type AppStateStatus,
+  Image,
   Linking,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import {
-  Check,
-  Crown,
-  Download,
-  ExternalLink,
-  Palette,
-  Settings2,
-  Sparkles,
-  Star,
-  Tag,
-  Zap,
-} from 'lucide-react-native';
+import { Check, Settings2, X } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { PurchasesPackage } from 'react-native-purchases';
 import { useUser, useAuth } from '@clerk/clerk-expo';
-import { useTheme } from '../../components/context/ThemeContext';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { BrandedLoader } from '../../components/ui/BrandedLoader';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { supabase } from '../../lib/supabase';
 import { fetchMobileControlConfig } from '../../lib/mobileControl';
+import { getCachedOpportunitiesSnapshot } from '@edutu/core/src/services/opportunities';
 import {
   getOfferings,
   initRevenueCat,
@@ -57,15 +48,13 @@ import {
 } from '../../lib/pricing';
 import { useTranslation } from 'react-i18next';
 
-// `text` holds an i18n key (home namespace); translated at render time.
-const PREMIUM_FEATURES = [
-  { icon: Sparkles, text: 'paywall.features.unlimitedAi' },
-  { icon: Palette, text: 'paywall.features.premiumTemplates' },
-  { icon: Zap, text: 'paywall.features.aiTailoring' },
-  { icon: Star, text: 'paywall.features.priorityTools' },
-  { icon: Download, text: 'paywall.features.pdfExport' },
-  { icon: Check, text: 'paywall.features.advancedFilters' },
-];
+// The paywall is intentionally ALWAYS dark (reference design): the collage of
+// opportunity posters + near-black canvas reads premium in both app themes.
+const CANVAS = '#0A0A0F';
+const CARD_BG = '#16161C';
+const CARD_BORDER = 'rgba(255,255,255,0.10)';
+const TEXT_DIM = 'rgba(255,255,255,0.55)';
+const ACCENT = '#8B9DFF';
 
 export default function PaywallScreen() {
   const { t } = useTranslation('home');
@@ -73,11 +62,14 @@ export default function PaywallScreen() {
   const { getToken } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { isDark, colors } = useTheme();
   const { isPro, isLoading: proLoading, refreshStatus } = useProStatus(supabase, user?.id || null);
 
-  const [selectedPlan, setSelectedPlan] = useState<BillingPlan>('yearly');
+  const [selectedPlan, setSelectedPlan] = useState<BillingPlan>('weekly');
   const [pricing, setPricing] = useState<PricingConfig>(DEFAULT_PRICING);
+  // Real opportunity posters (Mastercard Foundation, scholarships, country
+  // programs…) from the offline snapshot — the collage sells what Pro unlocks.
+  const [heroImages, setHeroImages] = useState<string[]>([]);
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const [redirecting, setRedirecting] = useState(false);
   // iOS-only in-app purchase state.
   const [iapPackages, setIapPackages] = useState<PurchasesPackage[]>([]);
@@ -102,23 +94,18 @@ export default function PaywallScreen() {
     return () => { cancelled = true; };
   }, [user?.id]);
 
-  const selectedPackage = iapPackages.find((pkg) =>
-    selectedPlan === 'monthly'
-      ? pkg.identifier.includes('month')
-      : pkg.identifier.includes('year'),
-  );
+  const iapPackageForPlan = (plan: BillingPlan) =>
+    iapPackages.find((pkg) =>
+      plan === 'weekly'
+        ? pkg.identifier.includes('week')
+        : plan === 'monthly'
+          ? pkg.identifier.includes('month')
+          : pkg.identifier.includes('year'),
+    );
+  const selectedPackage = iapPackageForPlan(selectedPlan);
   // On iOS use IAP only when a matching StoreKit product actually loaded;
   // otherwise fall back to the web checkout so the button is never a dead end.
   const iapActive = USE_NATIVE_IAP && Boolean(selectedPackage);
-
-  const accent = colors.accent;
-  const textSecondary = isDark ? '#94A3B8' : '#64748B';
-  const surface = isDark ? 'rgba(255,255,255,0.05)' : '#FFFFFF';
-  const softSurface = isDark ? 'rgba(255,255,255,0.035)' : '#F8FAFC';
-  const borderColor = isDark ? 'rgba(255,255,255,0.09)' : '#E2E8F0';
-  const gradientColors: [string, string] = isDark
-    ? [colors.background, '#0F172A']
-    : [colors.background, '#F8FAFC'];
 
   // Admin-controlled prices/currency/promo (mobile-control config). Falls back
   // to DEFAULT_PRICING if the feed is unreachable, so the paywall always works.
@@ -127,6 +114,24 @@ export default function PaywallScreen() {
     fetchMobileControlConfig()
       .then((config) => { if (!cancelled) setPricing(config.pricing); })
       .catch(() => { /* keep defaults */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getCachedOpportunitiesSnapshot()
+      .then((opportunities) => {
+        if (cancelled) return;
+        const urls = Array.from(
+          new Set(
+            (opportunities || [])
+              .map((opportunity: any) => opportunity?.image)
+              .filter((url: unknown): url is string => typeof url === 'string' && /^https?:\/\//.test(url)),
+          ),
+        ).slice(0, 9);
+        setHeroImages(urls);
+      })
+      .catch(() => { /* gradient-only hero */ });
     return () => { cancelled = true; };
   }, []);
 
@@ -218,190 +223,260 @@ export default function PaywallScreen() {
     await openExternal(`${base}/start?${q.toString()}`);
   }, [user?.id, pricing.manageUrl, getToken, openExternal]);
 
-  const renderPrice = (plan: BillingPlan) => {
-    // On iOS show the exact localized StoreKit price when available.
-    const pkg = iapPackages.find((p) =>
-      plan === 'monthly' ? p.identifier.includes('month') : p.identifier.includes('year'),
-    );
-    if (USE_NATIVE_IAP && pkg?.product?.priceString) {
-      return (
-        <View style={styles.priceInline}>
-          <Text style={[styles.price, { color: colors.foreground }]}>{pkg.product.priceString}</Text>
-        </View>
-      );
-    }
-    const price = effectivePrice(pricing, plan);
-    const discounted = hasPromoDiscount(pricing, plan);
-    const regular = plan === 'monthly' ? pricing.monthlyPrice : pricing.yearlyPrice;
-    return (
-      <View style={styles.priceInline}>
-        <Text style={[styles.price, { color: colors.foreground }]}>{formatMoney(price, pricing.currency)}</Text>
-        {discounted && (
-          <Text style={[styles.priceStrike, { color: textSecondary }]}>{formatMoney(regular, pricing.currency)}</Text>
-        )}
-      </View>
-    );
+  // Admin pricing is the single source of truth for what we display. When the
+  // charge actually goes through Apple IAP, the exact StoreKit price is shown
+  // as a footnote instead of replacing the admin price (stale App Store
+  // products were rendering "$9.99" over the real ₦ prices).
+  const displayPrice = (plan: BillingPlan) => effectivePrice(pricing, plan);
+
+  const regularPriceOf = (plan: BillingPlan) =>
+    plan === 'weekly' ? pricing.weeklyPrice : plan === 'monthly' ? pricing.monthlyPrice : pricing.yearlyPrice;
+
+  const planLabel = (plan: BillingPlan) =>
+    plan === 'weekly' ? t('paywall.weekly') : plan === 'monthly' ? t('paywall.monthly') : t('paywall.yearly');
+
+  // Reference-style merchandising chips above each plan.
+  const planBadge = (plan: BillingPlan) =>
+    plan === 'weekly'
+      ? t('paywall.badgeMostTaken')
+      : plan === 'monthly'
+        ? t('paywall.badgePopular')
+        : t('paywall.badgeBestDeal');
+
+  // Everything compared on one axis: what the plan costs per week.
+  const perWeekOf = (plan: BillingPlan) => {
+    const price = displayPrice(plan);
+    return plan === 'weekly' ? price : plan === 'monthly' ? price / 4.33 : price / 52;
   };
 
-  const priceCaption = (plan: BillingPlan) => {
-    if (plan === 'monthly') return t('paywall.billedMonthly');
-    const perMonth = effectivePrice(pricing, 'yearly') / 12;
-    return t('paywall.perMonthBilledYearly', { price: formatMoney(perMonth, pricing.currency) });
+  const promoOffPct = (plan: BillingPlan) => {
+    const regular = regularPriceOf(plan);
+    const price = displayPrice(plan);
+    if (!hasPromoDiscount(pricing, plan) || regular <= 0) return 0;
+    return Math.max(0, Math.round((1 - price / regular) * 100));
   };
 
   if (proLoading) {
     return (
-      <LinearGradient colors={gradientColors} style={styles.container}>
+      <View style={[styles.container, { backgroundColor: CANVAS }]}>
         <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
           <ScreenHeader title={t('paywall.title')} showBack />
           <View style={styles.centered}>
             <BrandedLoader label={t('paywall.loading')} />
           </View>
         </SafeAreaView>
-      </LinearGradient>
+      </View>
     );
   }
 
+  // Full-screen tilted mosaic of real opportunity posters behind everything
+  // (reference style): imagery owns the top ~60%, then a scrim melts it into
+  // the near-black canvas where the copy, plan cards, and CTA live.
+  const tileWidth = screenWidth * 0.42;
+  const tileHeight = screenWidth * 0.36;
+  const collage = heroImages.length >= 3 && (
+    <View style={styles.collageWrap} pointerEvents="none">
+      <View
+        style={[
+          styles.collageGrid,
+          { width: screenWidth * 1.45, marginLeft: -screenWidth * 0.22, marginTop: -tileHeight * 0.35 },
+        ]}
+      >
+        {[0, 1, 2].map((column) => (
+          <View key={column} style={[styles.collageColumn, column === 1 && { marginTop: -tileHeight * 0.45 }]}>
+            {heroImages
+              .filter((_, index) => index % 3 === column)
+              .slice(0, 3)
+              .map((url) => (
+                <Image
+                  key={url}
+                  source={{ uri: url }}
+                  style={[styles.collageImage, { width: tileWidth, height: tileHeight }]}
+                  resizeMode="cover"
+                />
+              ))}
+          </View>
+        ))}
+      </View>
+      {/* Scrim: imagery clear up top, solid canvas by ~70% down the screen. */}
+      <LinearGradient
+        colors={['rgba(10,10,15,0.18)', 'rgba(10,10,15,0.45)', 'rgba(10,10,15,0.92)', CANVAS]}
+        locations={[0, 0.38, 0.62, 0.74]}
+        style={StyleSheet.absoluteFill}
+      />
+    </View>
+  );
+
   return (
-    <LinearGradient colors={gradientColors} style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-        <ScreenHeader
-          title={t('paywall.title')}
-          subtitle={isPro ? t('paywall.subscriptionActive') : t('paywall.simpleAccess')}
-          showBack
+    <View style={[styles.container, { backgroundColor: CANVAS }]}>
+      {collage || (
+        <LinearGradient
+          colors={[CANVAS, '#0B1B3F', CANVAS]}
+          style={StyleSheet.absoluteFill}
         />
+      )}
 
-        <ScrollView
-          style={styles.scrollView}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
-        >
-          <View style={[styles.hero, { backgroundColor: surface, borderColor }]}>
-            <View style={[styles.heroIcon, { backgroundColor: `${accent}18` }]}>
-              <Crown size={32} color={accent} />
-            </View>
-            <Text style={[styles.heroTitle, { color: colors.foreground }]}>
-              {isPro ? t('paywall.premiumIsActive') : t('paywall.unlockPremium')}
-            </Text>
-            <Text style={[styles.heroText, { color: textSecondary }]}>
-              {isPro ? t('paywall.heroActive') : t('paywall.heroUpsell')}
-            </Text>
-          </View>
-
-          {!isPro && pricing.promo.active && (
-            <View style={[styles.promoBanner, { backgroundColor: `${accent}14`, borderColor: `${accent}44` }]}>
-              <View style={[styles.promoIcon, { backgroundColor: accent }]}>
-                <Tag size={16} color="#FFFFFF" />
-              </View>
-              <Text style={[styles.promoText, { color: colors.foreground }]} numberOfLines={2}>
-                {pricing.promo.label || t('paywall.promoDefault')}
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+        contentContainerStyle={{
+          minHeight: screenHeight,
+          paddingTop: insets.top + 10,
+          paddingBottom: Math.max(insets.bottom, 14),
+          paddingHorizontal: 18,
+          justifyContent: 'flex-end',
+        }}
+      >
+        {/* Overlay controls pinned to the very top */}
+        <View style={[styles.topRow, { top: insets.top + 10 }]}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            activeOpacity={0.7}
+            style={styles.closeButton}
+            accessibilityRole="button"
+            accessibilityLabel={t('paywall.notNow')}
+          >
+            <X size={19} color="rgba(255,255,255,0.85)" />
+          </TouchableOpacity>
+          {USE_NATIVE_IAP && !isPro ? (
+            <TouchableOpacity onPress={handleRestore} disabled={restoring} activeOpacity={0.7} style={styles.restoreButton}>
+              <Text style={styles.restoreText}>
+                {restoring ? t('paywall.loading') : t('paywall.restore')}
               </Text>
-            </View>
-          )}
+            </TouchableOpacity>
+          ) : null}
+        </View>
 
-          {!isPro && (
-            <>
-              <View style={[styles.planSwitch, { backgroundColor: softSurface, borderColor }]}>
-                {(['monthly', 'yearly'] as BillingPlan[]).map((plan) => {
-                  const active = selectedPlan === plan;
-                  return (
-                    <TouchableOpacity
-                      key={plan}
-                      onPress={() => setSelectedPlan(plan)}
-                      activeOpacity={0.8}
-                      style={[styles.planOption, active && { backgroundColor: `${accent}18` }]}
+        {/* Brand mini-mark */}
+        <View style={styles.brandRow}>
+          <Text style={styles.brandText}>edutu</Text>
+          <View style={styles.proPill}>
+            <Text style={styles.proPillText}>{t('paywall.proBadge')}</Text>
+          </View>
+        </View>
+
+        {/* Two-tone headline over the collage */}
+        <View style={styles.headline}>
+          <Text style={[styles.headlineLine, { color: ACCENT }]}>
+            {isPro ? t('paywall.premiumIsActive') : t('paywall.heroLine1')}
+          </Text>
+          {!isPro && <Text style={[styles.headlineLine, { color: '#FFFFFF' }]}>{t('paywall.heroLine2')}</Text>}
+        </View>
+        <Text style={styles.subtitle} numberOfLines={2}>
+          {isPro ? t('paywall.heroActive') : t('paywall.heroUpsell')}
+        </Text>
+
+        {!isPro ? (
+          <>
+            {/* Plan cards — reference layout: chip / name / price pill / per-week */}
+            <View style={styles.planRow}>
+              {(['monthly', 'weekly', 'yearly'] as BillingPlan[]).map((plan) => {
+                const active = selectedPlan === plan;
+                const discounted = hasPromoDiscount(pricing, plan);
+                const offPct = promoOffPct(plan);
+                return (
+                  <TouchableOpacity
+                    key={plan}
+                    onPress={() => setSelectedPlan(plan)}
+                    activeOpacity={0.85}
+                    style={[
+                      styles.planCard,
+                      active && styles.planCardActive,
+                      { borderColor: active ? ACCENT : CARD_BORDER },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={planLabel(plan)}
+                  >
+                    {discounted && offPct > 0 && (
+                      <View style={styles.offBurst}>
+                        <Text style={styles.offBurstText}>{t('paywall.promoOff', { pct: offPct })}</Text>
+                      </View>
+                    )}
+                    {active && (
+                      <View style={styles.planCheckBadge}>
+                        <Check size={11} color={CANVAS} strokeWidth={3.4} />
+                      </View>
+                    )}
+                    <View
+                      style={[
+                        styles.planBadgeChip,
+                        active ? { backgroundColor: ACCENT } : { backgroundColor: 'rgba(255,255,255,0.08)' },
+                      ]}
                     >
-                      <Text style={[styles.planLabel, { color: active ? accent : textSecondary }]}>
-                        {plan === 'monthly' ? t('paywall.monthly') : t('paywall.yearly')}
+                      <Text
+                        style={[styles.planBadgeText, { color: active ? CANVAS : 'rgba(255,255,255,0.85)' }]}
+                        numberOfLines={1}
+                      >
+                        {planBadge(plan)}
                       </Text>
-                      {plan === 'yearly' && (
-                        <Text style={[styles.planPill, { color: active ? accent : textSecondary }]}>
-                          {t('paywall.save')}
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+                    </View>
+                    <Text style={styles.planName} numberOfLines={1} adjustsFontSizeToFit>
+                      {planLabel(plan)}
+                    </Text>
+                    <View style={styles.pricePill}>
+                      <Text style={styles.pricePillText} numberOfLines={1} adjustsFontSizeToFit>
+                        {formatMoney(displayPrice(plan), pricing.currency)}
+                      </Text>
+                    </View>
+                    {discounted && (
+                      <Text style={styles.planStrike} numberOfLines={1}>
+                        {formatMoney(regularPriceOf(plan), pricing.currency)}
+                      </Text>
+                    )}
+                    <View style={styles.perWeekDivider} />
+                    <Text style={styles.perWeekText} numberOfLines={1} adjustsFontSizeToFit>
+                      {t('paywall.perWeek', {
+                        price: formatMoney(Math.round(perWeekOf(plan) * 100) / 100, pricing.currency),
+                      })}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-              <View style={[styles.priceCard, { backgroundColor: surface, borderColor }]}>
-                {renderPrice(selectedPlan)}
-                <Text style={[styles.priceCaption, { color: textSecondary }]}>{priceCaption(selectedPlan)}</Text>
-              </View>
-            </>
-          )}
-
-          <View style={styles.features}>
-            {PREMIUM_FEATURES.map((feature) => (
-              <View key={feature.text} style={[styles.featureRow, { backgroundColor: surface, borderColor }]}>
-                <View style={[styles.featureIcon, { backgroundColor: `${accent}14` }]}>
-                  <feature.icon size={16} color={accent} />
-                </View>
-                <Text style={[styles.featureText, { color: colors.foreground }]}>{t(feature.text)}</Text>
-              </View>
-            ))}
-          </View>
-
-          {isPro ? (
-            <>
-              <TouchableOpacity
-                activeOpacity={0.9}
-                onPress={handleManage}
-                style={[styles.secondaryButton, { backgroundColor: surface, borderColor }]}
-              >
-                <Settings2 size={18} color={colors.foreground} />
-                <Text style={[styles.secondaryButtonText, { color: colors.foreground }]}>{t('paywall.manageSubscription')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity activeOpacity={0.85} onPress={() => router.back()} style={styles.textButton}>
-                <Text style={[styles.textButtonLabel, { color: textSecondary }]}>{t('paywall.backToApp')}</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <TouchableOpacity activeOpacity={0.9} disabled={redirecting || purchasing} onPress={handleCheckout} style={styles.subscribeButton}>
-                <LinearGradient
-                  colors={[colors.primary, accent]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.subscribeGradient}
-                >
-                  {(redirecting || purchasing) ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : iapActive ? (
-                    <>
-                      <Crown size={18} color="#FFFFFF" />
-                      <Text style={styles.subscribeText}>{t('paywall.subscribe')}</Text>
-                    </>
-                  ) : (
-                    <>
-                      <ExternalLink size={18} color="#FFFFFF" />
-                      <Text style={styles.subscribeText}>{t('paywall.continueCheckout')}</Text>
-                    </>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
-
-              {/* iOS IAP renews via the App Store; web checkout notes pay.edutu.org. */}
-              <Text style={[styles.secureNote, { color: textSecondary }]}>
-                {iapActive ? t('paywall.renewalNote') : t('paywall.secureNote')}
-              </Text>
-
-              {USE_NATIVE_IAP && (
-                <TouchableOpacity activeOpacity={0.85} disabled={restoring} onPress={handleRestore} style={styles.textButton}>
-                  <Text style={[styles.textButtonLabel, { color: textSecondary }]}>
-                    {restoring ? t('paywall.loading') : t('paywall.restore')}
-                  </Text>
-                </TouchableOpacity>
+            {/* Big white CTA (reference style) */}
+            <TouchableOpacity
+              activeOpacity={0.9}
+              disabled={redirecting || purchasing}
+              onPress={handleCheckout}
+              style={styles.ctaButton}
+            >
+              {(redirecting || purchasing) ? (
+                <ActivityIndicator color={CANVAS} />
+              ) : (
+                <Text style={styles.ctaText}>{t('paywall.subscribe')}</Text>
               )}
+            </TouchableOpacity>
 
-              <TouchableOpacity activeOpacity={0.85} onPress={() => router.back()} style={styles.textButton}>
-                <Text style={[styles.textButtonLabel, { color: textSecondary }]}>{t('paywall.notNow')}</Text>
+            <Text style={styles.secureNote} numberOfLines={2}>
+              {iapActive ? t('paywall.renewalNote') : t('paywall.secureNote')}
+            </Text>
+
+            <View style={styles.legalRow}>
+              <TouchableOpacity activeOpacity={0.7} onPress={() => void Linking.openURL('https://edutu.org/terms')}>
+                <Text style={styles.legalLink}>{t('paywall.terms')}</Text>
               </TouchableOpacity>
-            </>
-          )}
-        </ScrollView>
-      </SafeAreaView>
-    </LinearGradient>
+              <Text style={styles.legalDot}>·</Text>
+              <TouchableOpacity activeOpacity={0.7} onPress={() => void Linking.openURL('https://edutu.org/privacy')}>
+                <Text style={styles.legalLink}>{t('paywall.privacy')}</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : (
+          <>
+            <TouchableOpacity activeOpacity={0.9} onPress={handleManage} style={styles.manageButton}>
+              <Settings2 size={18} color="#FFFFFF" />
+              <Text style={styles.manageText}>{t('paywall.manageSubscription')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity activeOpacity={0.85} onPress={() => router.back()} style={styles.textButton}>
+              <Text style={styles.textButtonLabel}>{t('paywall.backToApp')}</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -410,71 +485,190 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scrollView: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 18 },
-  hero: {
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-    marginBottom: 16,
-  },
-  heroIcon: { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
-  heroTitle: { fontSize: 24, fontWeight: '600', textAlign: 'center', marginBottom: 8 },
-  heroText: { fontSize: 14, lineHeight: 21, textAlign: 'center' },
 
-  promoBanner: {
+  // ── Background collage ──
+  collageWrap: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
+  collageGrid: {
+    flexDirection: 'row',
+    gap: 10,
+    transform: [{ rotate: '-8deg' }],
+  },
+  collageColumn: { gap: 10 },
+  collageImage: {
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+
+  // ── Top controls ──
+  topRow: {
+    position: 'absolute',
+    left: 18,
+    right: 18,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    borderWidth: 1,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 14,
+    justifyContent: 'space-between',
+    zIndex: 5,
   },
-  promoIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  promoText: { flex: 1, fontSize: 13.5, fontWeight: '700', lineHeight: 19 },
+  closeButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  restoreButton: { minHeight: 34, justifyContent: 'center', paddingHorizontal: 4 },
+  restoreText: { color: 'rgba(255,255,255,0.92)', fontSize: 14.5, fontWeight: '600' },
 
-  planSwitch: { flexDirection: 'row', borderRadius: 16, borderWidth: 1, padding: 4, marginBottom: 14 },
-  planOption: { flex: 1, minHeight: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
-  planLabel: { fontSize: 14, fontWeight: '600' },
-  planPill: { fontSize: 11, fontWeight: '600' },
-
-  priceCard: { borderRadius: 18, borderWidth: 1, padding: 18, alignItems: 'center', marginBottom: 18 },
-  priceInline: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
-  price: { fontSize: 36, fontWeight: '700' },
-  priceStrike: { fontSize: 18, fontWeight: '600', textDecorationLine: 'line-through' },
-  priceCaption: { fontSize: 13, marginTop: 4 },
-
-  features: { gap: 10, marginBottom: 18 },
-  featureRow: { minHeight: 54, borderRadius: 15, borderWidth: 1, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  featureIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  featureText: { flex: 1, fontSize: 13, lineHeight: 18, fontWeight: '500' },
-
-  subscribeButton: { borderRadius: 18, overflow: 'hidden', marginTop: 2 },
-  subscribeGradient: {
-    minHeight: 56,
+  // ── Copy ──
+  brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    gap: 8,
+    marginBottom: 10,
+  },
+  brandText: { color: '#FFFFFF', fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
+  proPill: {
+    borderWidth: 1.3,
+    borderColor: 'rgba(255,255,255,0.75)',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  proPillText: { color: '#FFFFFF', fontSize: 10.5, fontWeight: '800', letterSpacing: 1.5 },
+  headline: { alignItems: 'center', marginBottom: 10 },
+  headlineLine: { fontSize: 30, fontWeight: '800', letterSpacing: -0.6, lineHeight: 37, textAlign: 'center' },
+  subtitle: {
+    color: TEXT_DIM,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    paddingHorizontal: 24,
+    marginBottom: 20,
+  },
+
+  // ── Plan cards ──
+  planRow: { flexDirection: 'row', gap: 9, marginBottom: 18, alignItems: 'flex-end' },
+  planCard: {
+    flex: 1,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    backgroundColor: CARD_BG,
+    paddingHorizontal: 8,
+    paddingTop: 12,
+    paddingBottom: 12,
+    alignItems: 'center',
+  },
+  planCardActive: {
+    borderWidth: 2.5,
+    paddingTop: 16,
+    paddingBottom: 16,
+    shadowColor: ACCENT,
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
+  },
+  planCheckBadge: {
+    position: 'absolute',
+    top: -9,
+    right: -7,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: ACCENT,
+    zIndex: 3,
+  },
+  planBadgeChip: {
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    marginBottom: 9,
+    maxWidth: '100%',
+  },
+  planBadgeText: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.7, textTransform: 'uppercase' },
+  planName: { color: '#FFFFFF', fontSize: 17, fontWeight: '700', marginBottom: 8 },
+  pricePill: {
+    backgroundColor: 'rgba(255,255,255,0.09)',
+    borderRadius: 999,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    maxWidth: '100%',
+  },
+  pricePillText: { color: '#FFFFFF', fontSize: 13.5, fontWeight: '800' },
+  planStrike: {
+    color: TEXT_DIM,
+    fontSize: 11.5,
+    fontWeight: '600',
+    textDecorationLine: 'line-through',
+    marginTop: 4,
+  },
+  offBurst: {
+    position: 'absolute',
+    top: -12,
+    right: -9,
+    backgroundColor: '#FF6600',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    transform: [{ rotate: '9deg' }],
+    zIndex: 4,
+  },
+  offBurstText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+  perWeekDivider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.14)',
+    alignSelf: 'stretch',
+    marginTop: 11,
+    marginBottom: 8,
+  },
+  perWeekText: { color: 'rgba(255,255,255,0.8)', fontSize: 11.5, fontWeight: '700' },
+
+  // ── CTA + legal ──
+  ctaButton: {
+    minHeight: 58,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 18,
   },
-  subscribeText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
-  secureNote: { fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 12 },
+  ctaText: { color: CANVAS, fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
+  secureNote: {
+    color: TEXT_DIM,
+    fontSize: 11,
+    lineHeight: 15,
+    textAlign: 'center',
+    marginTop: 10,
+    paddingHorizontal: 10,
+  },
+  legalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 30,
+    marginTop: 2,
+  },
+  legalLink: { color: TEXT_DIM, fontSize: 12, fontWeight: '600' },
+  legalDot: { color: TEXT_DIM, fontSize: 12 },
 
-  secondaryButton: {
+  // ── Pro-active state ──
+  manageButton: {
     minHeight: 54,
     borderRadius: 18,
     borderWidth: 1,
+    borderColor: CARD_BORDER,
+    backgroundColor: CARD_BG,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
   },
-  secondaryButtonText: { fontSize: 15, fontWeight: '600' },
-
-  textButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
-  textButtonLabel: { fontSize: 15, fontWeight: '600' },
+  manageText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
+  textButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  textButtonLabel: { color: TEXT_DIM, fontSize: 15, fontWeight: '600' },
 });

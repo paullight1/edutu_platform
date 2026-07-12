@@ -28,6 +28,9 @@ export const UpdateProfileSchema = z
     interestedCountries: nullableStringArray,
     interests: nullableStringArray,
     skills: nullableStringArray,
+    // IANA name like 'Africa/Lagos'; synced from the device for local-time
+    // quiet hours on proactive alerts.
+    timezone: nullableTrimmedString,
   })
   .strict()
   .refine((value) => Object.keys(value).length > 0, {

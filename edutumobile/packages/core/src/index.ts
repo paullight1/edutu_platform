@@ -7,6 +7,7 @@ export * from './types/cv';
 export * from './types/feature-flags';
 
 export * from './services/supabase';
+export * from './services/productApi';
 export * from './services/chat';
 export * from './services/opportunities';
 export * from './services/opportunityCategorization';

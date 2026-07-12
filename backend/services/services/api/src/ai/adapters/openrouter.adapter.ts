@@ -1,11 +1,14 @@
 import { Injectable } from "@nestjs/common";
 import {
+  AiChatOptions,
+  AiChatResult,
   AiGenerateOptions,
   AiGenerateResult,
   AiProviderAdapter,
   AiRouteConfig,
 } from "../ai.types";
 import { aiFetch } from "./ai-http";
+import { buildOpenAiChatBody, parseOpenAiChatResponse } from "./openai-compat";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -76,5 +79,42 @@ export class OpenRouterAdapter implements AiProviderAdapter {
         totalTokens: payload?.usage?.total_tokens,
       },
     };
+  }
+
+  async generateChat(
+    config: AiRouteConfig,
+    options: AiChatOptions,
+  ): Promise<AiChatResult> {
+    if (!config.apiKey) {
+      throw new Error("OpenRouter API key is not configured");
+    }
+
+    const response = await aiFetch(
+      OPENROUTER_URL,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${config.apiKey}`,
+          "HTTP-Referer":
+            process.env.OPENROUTER_REFERRER || "https://edutu.app",
+          "X-Title": process.env.OPENROUTER_TITLE || "Edutu AI",
+        },
+        body: JSON.stringify(buildOpenAiChatBody(config, options)),
+      },
+      { label: "OpenRouter" },
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `OpenRouter chat request failed: ${response.status} ${await response.text()}`,
+      );
+    }
+
+    return parseOpenAiChatResponse(
+      await response.json(),
+      this.provider,
+      config.model,
+    );
   }
 }

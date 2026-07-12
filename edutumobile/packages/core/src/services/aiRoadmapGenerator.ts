@@ -1,4 +1,5 @@
 import { Opportunity } from '../types/opportunity';
+import { isAiBillingError, throwIfBillingResponse, type GetAuthToken } from './productApi';
 
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://edutu-platform.onrender.com').replace(/\/$/, '');
 
@@ -179,6 +180,12 @@ export interface RoadmapGenerationOptions {
   /** Applicant snapshot — personalizes both the local plan and the AI prompt. */
   profile?: ApplicantProfile;
   signal?: AbortSignal;
+  /**
+   * Clerk session token getter — /roadmaps/ai/* endpoints are authenticated
+   * and credit-metered server-side, so the bearer token is required for the
+   * AI enrichment step (without it, only the deterministic plan is returned).
+   */
+  getAuthToken?: GetAuthToken;
 }
 
 interface OpportunityPlanEnrichment {
@@ -200,13 +207,26 @@ interface OpportunityPlanEnrichment {
 export async function fetchOpportunityPlanEnrichment(
   opportunity: Opportunity,
   milestones: RoadmapMilestone[],
-  options: Pick<RoadmapGenerationOptions, 'hoursPerWeek' | 'currentLevel' | 'profile' | 'signal'> = {}
+  options: Pick<RoadmapGenerationOptions, 'hoursPerWeek' | 'currentLevel' | 'profile' | 'signal' | 'getAuthToken'> = {}
 ): Promise<OpportunityPlanEnrichment | null> {
   try {
+    // /roadmaps/ai/* is authenticated + credit-metered server-side.
+    const token = options.getAuthToken ? await options.getAuthToken() : null;
     const response = await fetch(`${API_URL}/roadmaps/ai/opportunity-plan`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify({
+        // Lets the server ground the plan on the verified opportunity row
+        // instead of trusting these client-side fields. UUID-gated: some
+        // cached/legacy items carry non-uuid ids the backend would reject.
+        opportunityId: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          opportunity.id ?? ''
+        )
+          ? opportunity.id
+          : undefined,
         title: opportunity.title,
         organization: opportunity.organization,
         category: opportunity.category,
@@ -221,9 +241,14 @@ export async function fetchOpportunityPlanEnrichment(
       }),
       signal: options.signal,
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      // 402 insufficient_credits / 429 limit must surface to the user.
+      await throwIfBillingResponse(response);
+      return null;
+    }
     return (await response.json()) as OpportunityPlanEnrichment;
-  } catch {
+  } catch (error) {
+    if (isAiBillingError(error)) throw error;
     return null;
   }
 }

@@ -6,6 +6,7 @@ export type NotificationKind =
   | "goal-progress"
   | "opportunity-highlight"
   | "opportunity-alert"
+  | "deadline-reminder"
   | "admin-broadcast"
   | "system";
 

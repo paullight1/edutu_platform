@@ -9,6 +9,8 @@ import {
 } from "../db/schema";
 import { AiEncryptionService } from "./ai-encryption.service";
 import {
+  AiChatOptions,
+  AiChatResult,
   AiEmbedOptions,
   AiEmbedResult,
   AiGenerateOptions,
@@ -78,6 +80,50 @@ const DEFAULT_ROUTES: Record<
     provider: "deepseek",
     model: "deepseek-chat",
     temperature: 0.2,
+    isEnabled: true,
+  },
+  // Agentic coach: multi-turn tool loop. Warmer temperature for personality;
+  // token cap covers tool-call JSON plus the final reply.
+  "chat.agent": {
+    provider: "deepseek",
+    model: "deepseek-chat",
+    temperature: 0.6,
+    maxOutputTokens: 1024,
+    isEnabled: true,
+  },
+  // Documents studio: SOP drafting wants some voice; edits must be surgical.
+  "docs.sop": {
+    provider: "deepseek",
+    model: "deepseek-chat",
+    temperature: 0.5,
+    maxOutputTokens: 2048,
+    responseMimeType: "application/json",
+    isEnabled: true,
+  },
+  "docs.edit": {
+    provider: "deepseek",
+    model: "deepseek-chat",
+    temperature: 0.2,
+    maxOutputTokens: 4096,
+    responseMimeType: "application/json",
+    isEnabled: true,
+  },
+  // One-line jovial push copy for proactive coach alerts.
+  "coach.pulse": {
+    provider: "deepseek",
+    model: "deepseek-chat",
+    temperature: 0.7,
+    maxOutputTokens: 160,
+    responseMimeType: "application/json",
+    isEnabled: true,
+  },
+  // Post-turn distillation of durable user facts — cheap and deterministic.
+  "memory.extract": {
+    provider: "deepseek",
+    model: "deepseek-chat",
+    temperature: 0.1,
+    maxOutputTokens: 512,
+    responseMimeType: "application/json",
     isEnabled: true,
   },
   "chat.transcribe": {
@@ -284,6 +330,112 @@ export class AiService {
               fallbackError,
             );
           }
+        }
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Multi-turn chat with tool calling. Routes like generateText, but hops to
+   * a chat-capable adapter when the routed provider lacks generateChat, and
+   * never response-caches (conversations are not deterministic).
+   */
+  async generateChat(options: AiChatOptions): Promise<AiChatResult> {
+    const startedAt = Date.now();
+    let route = await this.resolveRoute({
+      feature: options.feature,
+      prompt: "",
+    });
+
+    if (!route.isEnabled) {
+      throw new Error(`AI feature ${options.feature} is disabled`);
+    }
+
+    let adapter = this.adapters.get(route.provider);
+    if (!adapter?.generateChat) {
+      // Same defensive hop as key-less rerouting: prefer any provider whose
+      // adapter can actually run a tool-calling conversation.
+      for (const candidate of ["deepseek", "openrouter"] as const) {
+        const candidateAdapter = this.adapters.get(candidate);
+        const candidateKey = this.getEnvKey(candidate);
+        if (candidateAdapter?.generateChat && candidateKey) {
+          route = {
+            ...route,
+            provider: candidate,
+            model: this.getDefaultModel(candidate) || "deepseek-chat",
+            apiKey: candidateKey,
+          };
+          adapter = candidateAdapter;
+          break;
+        }
+      }
+    }
+    if (!adapter?.generateChat) {
+      throw new Error(
+        `No chat-capable AI provider available for ${options.feature}`,
+      );
+    }
+
+    const logOptions: AiGenerateOptions = {
+      feature: options.feature,
+      userId: options.userId,
+      prompt: `[chat:${options.messages.length} messages, ${options.tools?.length ?? 0} tools]`,
+      metadata: options.metadata,
+    };
+
+    try {
+      const result = await adapter.generateChat(route, options);
+      void this.logUsage(
+        logOptions,
+        route,
+        {
+          text: result.text,
+          provider: result.provider,
+          model: result.model,
+          usage: result.usage,
+        },
+        Date.now() - startedAt,
+      );
+      return result;
+    } catch (error) {
+      void this.logUsage(logOptions, route, null, Date.now() - startedAt, error);
+
+      const fallbackRoute = await this.resolveFallbackRoute(route);
+      const fallbackAdapter = fallbackRoute
+        ? this.adapters.get(fallbackRoute.provider)
+        : undefined;
+      if (fallbackRoute && fallbackAdapter?.generateChat) {
+        this.logger.warn(
+          `AI chat feature ${options.feature} failed on ${route.provider}; failing over to ${fallbackRoute.provider}`,
+        );
+        const fallbackStartedAt = Date.now();
+        try {
+          const result = await fallbackAdapter.generateChat(
+            fallbackRoute,
+            options,
+          );
+          void this.logUsage(
+            logOptions,
+            fallbackRoute,
+            {
+              text: result.text,
+              provider: result.provider,
+              model: result.model,
+              usage: result.usage,
+            },
+            Date.now() - fallbackStartedAt,
+          );
+          return result;
+        } catch (fallbackError) {
+          void this.logUsage(
+            logOptions,
+            fallbackRoute,
+            null,
+            Date.now() - fallbackStartedAt,
+            fallbackError,
+          );
         }
       }
 
@@ -547,7 +699,7 @@ export class AiService {
       isEnabled: true,
     };
 
-    const provider = this.normalizeProvider(
+    let provider = this.normalizeProvider(
       storedRoute?.provider || fallback.provider,
     );
     let providerKey: string | null = null;
@@ -560,12 +712,37 @@ export class AiService {
       providerKey = null;
     }
 
+    let model =
+      storedRoute?.model || this.getDefaultModel(provider) || fallback.model;
+    let apiKey = providerKey || this.getEnvKey(provider);
+
+    // Defensive rerouting for chat/JSON features (not embeddings): an admin
+    // override in ai_routes can point a feature at a provider whose key isn't
+    // configured (e.g. gemini). Rather than fail every call with "API key is
+    // not configured", switch to any chat provider that does have a key so the
+    // feature keeps working. Embeddings keep their pinned provider (only Gemini
+    // supports them here) and degrade to null elsewhere.
+    if (!apiKey && !options.feature.startsWith("embeddings.")) {
+      for (const candidate of ["deepseek", "openrouter", "gemini"] as const) {
+        if (candidate === provider) continue;
+        const candidateKey = this.getEnvKey(candidate);
+        if (candidateKey) {
+          this.logger.warn(
+            `No API key for ${provider} (feature ${options.feature}); rerouting to ${candidate}`,
+          );
+          provider = candidate;
+          apiKey = candidateKey;
+          model = this.getDefaultModel(candidate) || model;
+          break;
+        }
+      }
+    }
+
     return {
       feature: options.feature,
       provider,
-      model:
-        storedRoute?.model || this.getDefaultModel(provider) || fallback.model,
-      apiKey: providerKey || this.getEnvKey(provider),
+      model,
+      apiKey,
       systemPrompt:
         storedRoute?.systemPrompt ||
         fallback.systemPrompt ||
@@ -707,6 +884,14 @@ export class AiService {
       .trim();
   }
 
+  // Attribute usage to the end user: explicit option first, then the userId
+  // most feature services already put in metadata.
+  private usageUserId(options: AiGenerateOptions): string | null {
+    const fromMeta = options.metadata?.userId ?? options.metadata?.user_id;
+    const value = options.userId ?? fromMeta;
+    return typeof value === "string" && value ? value.slice(0, 128) : null;
+  }
+
   private async logUsage(
     options: AiGenerateOptions,
     route: AiRouteConfig,
@@ -717,6 +902,7 @@ export class AiService {
     try {
       await db.insert(aiUsageLogs).values({
         feature: options.feature,
+        userId: this.usageUserId(options),
         provider: route.provider,
         model: route.model,
         status: error ? "error" : "success",
@@ -742,6 +928,7 @@ export class AiService {
       const completionTokens = result?.usage?.completionTokens ?? null;
       const totalTokens = result?.usage?.totalTokens ?? null;
       await db.insert(aiUsageEvents).values({
+        userId: this.usageUserId(options),
         provider: route.provider,
         model: route.model,
         route: options.feature,

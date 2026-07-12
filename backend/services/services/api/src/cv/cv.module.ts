@@ -8,5 +8,6 @@ import { AiModule } from "../ai";
   imports: [AiModule],
   controllers: [CvController],
   providers: [CvService, LinkedInImportService],
+  exports: [CvService],
 })
 export class CvModule {}

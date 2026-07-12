@@ -9,6 +9,10 @@ import { pool } from "../db";
 import { AiService } from "../ai";
 import { OpportunityShareCardService } from "../opportunities/opportunity-share-card.service";
 import { classifyOpportunity } from "../opportunities/opportunity-categorization";
+import {
+  parseDeadlineDetailed,
+  extractDeadlineText,
+} from "../opportunities/deadline.util";
 import { ScraperAlertsService } from "./scraper-alerts.service";
 import { RobotsChecker } from "./robots-checker";
 import { OpportunityDedupService } from "./opportunity-dedup.service";
@@ -236,7 +240,9 @@ const PUBLIC_TAG_BLOCKLIST = new Set([
   "source",
 ]);
 
-// Category keyword map
+// Category keyword map — matched on word boundaries, never as raw substrings
+// (a bare `includes("ai")` once tagged anything containing "aid"/"training"/
+// "available" as Computer Science).
 const CATEGORY_MAP: Record<string, string[]> = {
   "Computer Science": [
     "computer science",
@@ -262,6 +268,18 @@ const CATEGORY_MAP: Record<string, string[]> = {
   Science: ["physics", "chemistry", "mathematics", "research"],
   Education: ["education", "teaching", "teacher"],
 };
+
+const CATEGORY_PATTERNS: Array<[string, RegExp]> = Object.entries(
+  CATEGORY_MAP,
+).map(([category, keywords]) => [
+  category,
+  new RegExp(
+    `\\b(?:${keywords
+      .map((kw) => kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+"))
+      .join("|")})\\b`,
+    "i",
+  ),
+]);
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
@@ -2919,10 +2937,11 @@ ${text}`;
     // A year in the title ("MIP 2026") anchors year-less deadline fragments
     // ("Deadline: April 30") to the right edition instead of a guess.
     const titleYear = item.title?.match(/\b(20\d{2})\b/)?.[1];
-    const closeDate = this.parseDeadlineDate(
+    const parsedDeadline = parseDeadlineDetailed(
       item.deadline,
       titleYear ? Number(titleYear) : null,
     );
+    const closeDate = parsedDeadline.date;
     const quality = this.evaluateOpportunityQuality(item);
     const summary = this.normalizeSummary(
       item.summary || this.createFallbackSummary(item),
@@ -2981,7 +3000,7 @@ ${text}`;
       summary,
       organization,
       category:
-        this.categorize(item.title, item.description ?? "") ??
+        this.categorize(item.title) ??
         this.displayCategoryFor(classification.canonicalCategory),
       canonical_category: classification.canonicalCategory,
       close_date: closeDate,
@@ -3032,6 +3051,14 @@ ${text}`;
         extraction_quality_score: quality.score,
         extraction_missing_fields: quality.missingFields,
         deadline_passed_at_scrape: deadlinePassed,
+        // Provenance for the stored deadline: raw source wording plus whether
+        // the year was stated ("explicit") or projected ("inferred"). The
+        // verification job re-confirms inferred/unknown deadlines against the
+        // live page before ever closing an opportunity on them.
+        deadline_raw_text: item.deadline
+          ? String(item.deadline).slice(0, 120)
+          : null,
+        deadline_confidence: parsedDeadline.confidence,
         low_extraction_confidence: lowExtractionConfidence,
         description_length: item.description?.length ?? 0,
         needs_review: !publishable,
@@ -3470,149 +3497,17 @@ ${text}`;
     }
   }
 
-  /**
-   * Parse a scraped deadline into a trustworthy ISO date, or null.
-   *
-   * Scraped deadlines arrive as messy fragments ("Deadline: 15th March 2026
-   * at 11:59 PM GMT", "March 5"). `new Date(...)` on those either fails
-   * (losing a real deadline) or misparses ("March 5" → year 2001). This
-   * parser extracts explicit date patterns, infers the next occurrence when
-   * the year is omitted, and rejects implausible results — a wrong date is
-   * far more confusing to users than no date.
-   */
   /** Clamp any inferred type into the DB constraint set. */
   private toAllowedType(type: string): string {
     return ALLOWED_OPPORTUNITY_TYPES.has(type) ? type : "scholarship";
   }
 
+  /** See parseDeadlineDetailed in opportunities/deadline.util.ts. */
   private parseDeadlineDate(
     raw: string | null | undefined,
     contextYear: number | null = null,
   ): string | null {
-    if (!raw) return null;
-    const text = String(raw).replace(/\s+/g, " ").trim();
-    if (!text) return null;
-    // Legitimate "no fixed deadline" phrasings — not a parse failure.
-    if (
-      /\b(rolling|ongoing|open\s+until\s+filled|no\s+deadline|continuous|year[-\s]round|always\s+open)\b/i.test(
-        text,
-      )
-    ) {
-      return null;
-    }
-
-    const cleaned = text.replace(/(\d{1,2})(?:st|nd|rd|th)\b/gi, "$1");
-    const MONTHS = [
-      "january",
-      "february",
-      "march",
-      "april",
-      "may",
-      "june",
-      "july",
-      "august",
-      "september",
-      "october",
-      "november",
-      "december",
-    ];
-    const monthIndex = (name: string) => {
-      const idx = MONTHS.findIndex((m) =>
-        m.startsWith(name.toLowerCase().slice(0, 3)),
-      );
-      return idx >= 0 ? idx : null;
-    };
-    const MONTH_NAME_RE = `${MONTH_PATTERN}|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept?|Oct|Nov|Dec`;
-
-    let year: number | null = null;
-    let month: number | null = null;
-    let day: number | null = null;
-
-    const iso = cleaned.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);
-    const dayFirst = cleaned.match(
-      new RegExp(
-        `\\b(\\d{1,2})\\s+(${MONTH_NAME_RE})\\.?(?:\\s*,?\\s+(20\\d{2}))?`,
-        "i",
-      ),
-    );
-    const monthFirst = cleaned.match(
-      new RegExp(
-        `\\b(${MONTH_NAME_RE})\\.?\\s+(\\d{1,2})(?:\\s*,?\\s+(20\\d{2}))?`,
-        "i",
-      ),
-    );
-    const numeric = cleaned.match(/\b(\d{1,2})[/.](\d{1,2})[/.](20\d{2})\b/);
-
-    if (iso) {
-      year = Number(iso[1]);
-      month = Number(iso[2]) - 1;
-      day = Number(iso[3]);
-    } else if (dayFirst) {
-      day = Number(dayFirst[1]);
-      month = monthIndex(dayFirst[2]);
-      year = dayFirst[3] ? Number(dayFirst[3]) : null;
-    } else if (monthFirst) {
-      month = monthIndex(monthFirst[1]);
-      day = Number(monthFirst[2]);
-      year = monthFirst[3] ? Number(monthFirst[3]) : null;
-    } else if (numeric) {
-      const a = Number(numeric[1]);
-      const b = Number(numeric[2]);
-      year = Number(numeric[3]);
-      // Disambiguate d/m vs m/d; when both are plausible, day-first — the
-      // engine's sources overwhelmingly use international date order.
-      if (a > 12) {
-        day = a;
-        month = b - 1;
-      } else if (b > 12) {
-        month = a - 1;
-        day = b;
-      } else {
-        day = a;
-        month = b - 1;
-      }
-    }
-
-    if (month === null || day === null || day < 1 || day > 31 || month > 11) {
-      return null;
-    }
-
-    const now = new Date();
-    if (year === null && contextYear && contextYear >= 2000) {
-      // The page names its edition year (e.g. in the title) — trust it. A
-      // passed deadline is then caught by the publish gate instead of being
-      // silently projected into next year.
-      year = contextYear;
-    }
-    if (year === null) {
-      // No year stated anywhere → the next occurrence of that day/month.
-      year = now.getUTCFullYear();
-      const candidate = new Date(Date.UTC(year, month, day));
-      if (candidate.getTime() < now.getTime() - 24 * 3600 * 1000) {
-        year += 1;
-      }
-    }
-
-    const parsed = new Date(Date.UTC(year, month, day));
-    if (
-      isNaN(parsed.getTime()) ||
-      parsed.getUTCMonth() !== month || // rejects overflow like 31 February
-      parsed.getUTCDate() !== day
-    ) {
-      return null;
-    }
-
-    // Plausibility window: older than a year or further out than three years
-    // is almost certainly a misparse or stale page — drop it.
-    const yearMs = 365 * 24 * 3600 * 1000;
-    if (
-      parsed.getTime() < now.getTime() - yearMs ||
-      parsed.getTime() > now.getTime() + 3 * yearMs
-    ) {
-      return null;
-    }
-
-    return parsed.toISOString().split("T")[0];
+    return parseDeadlineDetailed(raw, contextYear).date;
   }
 
   /**
@@ -3680,17 +3575,7 @@ ${text}`;
   }
 
   private extractDeadline(text: string): string | null {
-    const patterns = [
-      /deadline[:\s]*([^\n,]{5,40})/i,
-      /closes?\s+(?:on\s+)?([^\n,]{5,40})/i,
-      new RegExp(`(${MONTH_PATTERN})\\s+\\d{1,2},?\\s+\\d{4}`, "i"),
-      new RegExp(`\\d{1,2}\\s+(${MONTH_PATTERN})\\s+\\d{4}`, "i"),
-    ];
-    for (const p of patterns) {
-      const m = text.match(p);
-      if (m) return m[0].trim().substring(0, 60);
-    }
-    return null;
+    return extractDeadlineText(text);
   }
 
   private extractLocation(text: string): string | undefined {
@@ -3701,10 +3586,12 @@ ${text}`;
     return m ? m[1].trim() : undefined;
   }
 
-  private categorize(title = "", description = ""): string | null {
-    const t = `${title} ${description}`.toLowerCase();
-    for (const [category, keywords] of Object.entries(CATEGORY_MAP)) {
-      if (keywords.some((kw) => t.includes(kw))) return category;
+  // Field-of-study is only trusted from the title — descriptions mention
+  // fields incidentally ("transform public health…") and mislabel generic
+  // scholarships.
+  private categorize(title = ""): string | null {
+    for (const [category, pattern] of CATEGORY_PATTERNS) {
+      if (pattern.test(title)) return category;
     }
     // No keyword hit — let the caller derive a label from the canonical
     // classification instead of defaulting to a generic "General".

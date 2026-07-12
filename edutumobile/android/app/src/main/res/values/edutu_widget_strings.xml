@@ -35,6 +35,12 @@
   <string name="edutu_trending_thumblist_widget_name">Edutu Trending List</string>
   <string name="edutu_trending_thumblist_widget_description">A ranked list of trending opportunities with photo thumbnails.</string>
 
+  <string name="edutu_news_widget_name">Edutu News</string>
+  <string name="edutu_news_widget_description">Trending news about global opportunities from the Edutu blog.</string>
+  <string name="edutu_news_widget_empty">Opportunity news &amp; tips</string>
+  <!-- Website blog base the news widget opens articles from (no trailing slash). -->
+  <string name="edutu_news_blog_base" translatable="false">https://edutu.org/blog</string>
+
   <string name="edutu_chat_widget_name">Ask Edutu</string>
   <string name="edutu_chat_widget_description">Jump straight into a chat with your AI opportunity coach.</string>
   <string name="edutu_widget_chat_title">Ask Edutu AI</string>

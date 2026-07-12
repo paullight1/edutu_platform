@@ -111,6 +111,19 @@ interface OpportunityShareResponse {
 
 type OpportunityStatus = Opportunity["status"];
 
+// Discovery tabs the mobile app shows; bulk "move to category" targets these.
+const BULK_MOVE_CATEGORIES = [
+  "Scholarships",
+  "Internships",
+  "Programs",
+  "Fellowships",
+  "Grants",
+  "Graduate Programs",
+  "Bootcamps",
+  "Events",
+  "Competitions",
+] as const;
+
 type CreationMode = "manual" | "url" | "bulk";
 type ViewMode = "table" | "grid";
 
@@ -247,6 +260,38 @@ function isExpiredOpportunity(
   opportunity: Pick<Opportunity, "close_date" | "status">,
 ) {
   return opportunity.status === "closed" || isPastDate(opportunity.close_date);
+}
+
+/**
+ * Status as it should be displayed: an "active" row whose deadline already
+ * passed reads as closed — the hourly verification job just hasn't flipped
+ * it yet, and showing Active next to a red past date is a contradiction.
+ */
+function effectiveStatus(
+  opportunity: Pick<Opportunity, "close_date" | "status">,
+) {
+  if (opportunity.status === "active" && isPastDate(opportunity.close_date)) {
+    return "closed" as const;
+  }
+  return opportunity.status;
+}
+
+/**
+ * Deadline cell text. Distinguishes a legitimately open-ended opportunity
+ * ("Rolling") from a failed extraction ("Unknown"), and marks dates whose
+ * year the scraper inferred rather than read from the source.
+ */
+function deadlineDisplay(
+  opportunity: Pick<Opportunity, "close_date" | "metadata">,
+) {
+  const formatted = formatOpportunityDate(opportunity.close_date);
+  const confidence = opportunity.metadata?.deadline_confidence as
+    | string
+    | undefined;
+  if (formatted) {
+    return confidence === "inferred" ? `${formatted} (est.)` : formatted;
+  }
+  return confidence === "rolling" ? "Rolling" : "Unknown";
 }
 
 function getPublicAppBaseUrl() {
@@ -1252,6 +1297,48 @@ export default function Opportunities() {
     }
   }
 
+  async function handleBulkCategoryMove(category: string) {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0 || !category || bulkActionBusy) return;
+    if (
+      !window.confirm(
+        `Move ${ids.length} selected opportunit${ids.length === 1 ? "y" : "ies"} to ${category}?`,
+      )
+    )
+      return;
+    setBulkActionBusy(true);
+    try {
+      const response = await fetch(
+        `${NEST_API_URL}/opportunities/admin/bulk-category`,
+        {
+          method: "POST",
+          headers: await getAdminHeaders(),
+          body: JSON.stringify({ ids, category }),
+        },
+      );
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.message || "Bulk category move failed");
+      }
+      const result = await response.json().catch(() => ({}));
+      const updated =
+        typeof result.updated === "number" ? result.updated : ids.length;
+      setSelectedIds(new Set());
+      void fetchOpportunities();
+      showPageNotice(
+        "success",
+        `${updated} opportunit${updated === 1 ? "y" : "ies"} moved to ${category}.`,
+      );
+    } catch (error: unknown) {
+      showPageNotice(
+        "error",
+        getErrorMessage(error, "Bulk category move failed"),
+      );
+    } finally {
+      setBulkActionBusy(false);
+    }
+  }
+
   async function handleBulkDelete() {
     const ids = Array.from(selectedIds);
     if (ids.length === 0 || bulkActionBusy) return;
@@ -2192,6 +2279,31 @@ export default function Opportunities() {
           )}
           AI Complete
         </button>
+        <select
+          aria-label="Move selected to category"
+          disabled={bulkActionBusy}
+          value=""
+          onChange={(event) => {
+            const category = event.target.value;
+            event.target.value = "";
+            if (category) void handleBulkCategoryMove(category);
+          }}
+          style={{
+            padding: "6px 10px",
+            borderRadius: "8px",
+            border: "1px solid var(--border-color)",
+            background: "var(--bg-secondary)",
+            color: "var(--text-primary)",
+            fontSize: "13px",
+          }}
+        >
+          <option value="">Move to category…</option>
+          {BULK_MOVE_CATEGORIES.map((category) => (
+            <option key={category} value={category}>
+              {category}
+            </option>
+          ))}
+        </select>
         <button
           type="button"
           className="btn btn-secondary danger"
@@ -2305,7 +2417,7 @@ export default function Opportunities() {
                     <td>
                       <span
                         style={{
-                          ...getStatusStyle(opp.status),
+                          ...getStatusStyle(effectiveStatus(opp)),
                           padding: "4px 9px",
                           borderRadius: "999px",
                           fontSize: "12px",
@@ -2315,12 +2427,10 @@ export default function Opportunities() {
                       >
                         {needsReview
                           ? "Needs review"
-                          : (opp.status || "draft").replace("_", " ")}
+                          : (effectiveStatus(opp) || "draft").replace("_", " ")}
                       </span>
                     </td>
-                    <td>
-                      {formatOpportunityDate(opp.close_date) || "No deadline"}
-                    </td>
+                    <td>{deadlineDisplay(opp)}</td>
                     <td>
                       {opp.is_remote ? "Remote" : opp.location || "Not set"}
                     </td>
@@ -2722,7 +2832,7 @@ export default function Opportunities() {
                   ),
                   170,
                 );
-                const deadline = formatOpportunityDate(opp.close_date);
+                const deadline = deadlineDisplay(opp);
 
                 return (
                   <article
@@ -2776,11 +2886,14 @@ export default function Opportunities() {
                         <div className="opportunity-card-sub">
                           <span
                             className="opportunity-status-badge"
-                            style={getStatusStyle(opp.status)}
+                            style={getStatusStyle(effectiveStatus(opp))}
                           >
                             {needsReview
                               ? "Needs review"
-                              : (opp.status || "draft").replace("_", " ")}
+                              : (effectiveStatus(opp) || "draft").replace(
+                                  "_",
+                                  " ",
+                                )}
                           </span>
                           {opp.is_featured && (
                             <span className="opportunity-featured-badge">
@@ -2797,7 +2910,7 @@ export default function Opportunities() {
                             }`}
                           >
                             <Calendar size={11} />
-                            {deadline || "No deadline"}
+                            {deadline}
                           </span>
                         </div>
                       </div>
@@ -2832,7 +2945,7 @@ export default function Opportunities() {
                             }
                           >
                             <Calendar size={13} />
-                            {deadline || "No deadline"}
+                            {deadline}
                           </span>
                         </div>
 

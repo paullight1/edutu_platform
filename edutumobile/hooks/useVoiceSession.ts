@@ -73,6 +73,9 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
   const heardSpeechRef = useRef(false);
   const lastVoiceAtRef = useRef(0);
   const threadIdRef = useRef<string | null>(null);
+  // Last observed recording length — reported with the transcription request
+  // so server-side usage metering can bill real seconds, not estimates.
+  const durationMsRef = useRef(0);
   const modeRef = useRef(mode);
   modeRef.current = mode;
   // Ref mirror so async callbacks (TTS onDone fires long after render) see
@@ -167,6 +170,7 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
         mode: 'transcribe',
         audio: { mimeType: 'audio/m4a', data: base64 },
         language: i18n.language?.split('-')[0] || 'en',
+        durationSeconds: Math.round(durationMsRef.current / 100) / 10 || undefined,
       }),
     });
     if (!res.ok) {
@@ -233,6 +237,9 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
         message: trimmed,
         userId,
         authToken: await getAuthToken(),
+        // Voice channel: the AI answers in speakable prose (no bullets/emoji/UI
+        // references) and leans harder on profile personalization.
+        channel: 'voice',
       });
       if (!activeRef.current) return;
 
@@ -265,6 +272,7 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
 
     const db = recorderState.metering;
     const now = Date.now();
+    durationMsRef.current = recorderState.durationMillis || durationMsRef.current;
 
     if (typeof db === 'number' && Number.isFinite(db)) {
       const normalized = (db - LEVEL_DB_FLOOR) / (LEVEL_DB_CEIL - LEVEL_DB_FLOOR);
@@ -343,6 +351,9 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
       void edutuSpeak(greeting, {
         voice: getVoiceSettings().ttsVoice,
         language: i18n.language?.split('-')[0] || 'en',
+        // Same sentence every session — replay the cached mp3 (per voice+lang)
+        // instead of paying for a fresh synthesis each time.
+        cacheKey: `greeting-${i18n.language?.split('-')[0] || 'en'}`,
         getAuthToken,
         onProgress: setSpokenRatio,
         onDone: resumeAfterTurn,

@@ -370,8 +370,9 @@ export class CopilotService {
   "essayPrompts": [{ "id": "kebab-slug", "prompt": "a likely essay/statement question for this application", "guidance": "1-2 sentences on what reviewers want here", "suggestedAngle": "1 sentence: the strongest angle for THIS applicant" }]
 }`,
       "Rules:",
-      "- checklist: 6-10 items covering required documents, eligibility proofs, preparation steps and submission steps. Derive from the opportunity's requirements/application process where given; otherwise infer what this kind of program always requires.",
-      "- essayPrompts: 2-4 prompts. If the opportunity text mentions specific essay/statement questions, use those verbatim. Otherwise infer the most likely prompts for this program type.",
+      "- checklist: 6-10 items covering required documents, eligibility proofs, preparation steps and submission steps. Derive from the opportunity's requirements/application process where given. Where the listing is silent, only include universal staples (CV, transcripts, referees, deadline buffer) and phrase them as 'confirm on the official page' — never present a guessed requirement as fact.",
+      "- essayPrompts: 2-4 prompts. If the opportunity text mentions specific essay/statement questions, use those verbatim. Otherwise mark predicted prompts clearly in the guidance as 'predicted — the official form may differ'.",
+      "- Never invent eligibility rules, deadlines, fees, or award amounts that are not in the OPPORTUNITY text. When something material is unknown, the checklist item should be to verify it at the source.",
       "- Direct, encouraging, never bureaucratic. No markdown in values.",
       "",
       `OPPORTUNITY:\n${this.describeOpportunity(opportunity)}`,

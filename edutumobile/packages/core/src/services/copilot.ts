@@ -179,6 +179,70 @@ export async function updateKitChecklist(
 }
 
 // ---------------------------------------------------------------------------
+// Referee outreach email (generated locally — there is no matching backend
+// endpoint shape for this, and a well-interpolated template beats a round-trip)
+// ---------------------------------------------------------------------------
+
+export interface RefereeEmailInput {
+  userName?: string | null;
+  /** e.g. program of study or field, when known */
+  program?: string | null;
+  opportunityTitle: string;
+  organization?: string | null;
+  deadline?: string | null;
+}
+
+/** A ready-to-send referee/recommendation request email. */
+export function buildRefereeRequestEmail(input: RefereeEmailInput): string {
+  const name = (input.userName || '').trim() || 'Your name';
+  const title = input.opportunityTitle.trim();
+  const org = (input.organization || '').trim();
+  const programLine = (input.program || '').trim();
+
+  let deadlineLine = 'The application deadline is coming up soon';
+  let refereeDeadlineNote =
+    'to give you plenty of time, it would be a huge help to have the letter about two weeks before then.';
+  if (input.deadline) {
+    const date = new Date(input.deadline);
+    if (!Number.isNaN(date.getTime())) {
+      const formatted = date.toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      });
+      deadlineLine = `The application deadline is ${formatted}`;
+      const lead = new Date(date.getTime() - 14 * 24 * 60 * 60 * 1000);
+      refereeDeadlineNote = `to stay safely ahead of it, it would be a huge help to have the letter by ${lead.toLocaleDateString(
+        'en-US',
+        { month: 'long', day: 'numeric' },
+      )} (about two weeks before).`;
+    }
+  }
+
+  return [
+    `Subject: Recommendation request — ${title}`,
+    '',
+    'Dear [Referee name],',
+    '',
+    `I hope you're doing well. I'm applying to ${title}${org ? ` (run by ${org})` : ''} and it would mean a great deal to have your support — your perspective on my work is one I value most.`,
+    '',
+    `${deadlineLine}, and ${refereeDeadlineNote}`,
+    '',
+    'To make it as easy as possible, I can send over:',
+    '- A short summary of the opportunity and what the reviewers look for',
+    `- My current CV${programLine ? ` and a note on my work in ${programLine}` : ''}`,
+    '- The 2-3 specific projects or moments I hope you might speak to',
+    '',
+    'Please let me know if you are able to write the letter — and if the timing is tight, I completely understand.',
+    '',
+    'Thank you so much for considering it.',
+    '',
+    'Warm regards,',
+    name,
+  ].join('\n');
+}
+
+// ---------------------------------------------------------------------------
 // Local fallbacks
 // ---------------------------------------------------------------------------
 

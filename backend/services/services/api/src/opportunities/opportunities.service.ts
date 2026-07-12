@@ -37,6 +37,7 @@ import {
 import {
   categorizeOpportunity,
   classifyOpportunity,
+  type OpportunityCanonicalCategory,
 } from "./opportunity-categorization";
 // Note: Apify scraper disabled - using crawl4ai instead
 // import {
@@ -1076,7 +1077,10 @@ export class OpportunitiesService {
         count(*) filter (where is_featured = true)::int as featured,
         count(*) filter (
           where status = 'pending_review'
-             or coalesce(metadata->>'needs_review', 'false') = 'true'
+             or (
+               coalesce(metadata->>'needs_review', 'false') = 'true'
+               and status not in ('active', 'rejected', 'closed')
+             )
         )::int as "needsReview",
         count(*) filter (
           where close_date is not null
@@ -1482,6 +1486,61 @@ export class OpportunitiesService {
     return { updated: updatedIds.length };
   }
 
+  // Admin bulk re-categorization: moves selected rows to another discovery
+  // tab. Writes both the display label (category) and canonical_category so
+  // list filters and the mobile tabs agree.
+  async bulkUpdateCategory(
+    ids: string[],
+    canonical: OpportunityCanonicalCategory,
+  ) {
+    const labels: Record<string, string> = {
+      scholarships: "Scholarships",
+      internships: "Internships",
+      programs: "Programs",
+      fellowships: "Fellowships",
+      grants: "Grants",
+      graduate_programs: "Graduate Programs",
+      bootcamps: "Bootcamps",
+      events: "Events",
+      jobs: "Jobs",
+      competitions: "Competitions",
+    };
+    const label = labels[canonical] ?? canonical;
+
+    this.invalidateReadCaches();
+
+    if (this.supabase) {
+      const { data, error } = await this.supabase
+        .from("opportunities")
+        .update({
+          category: label,
+          canonical_category: canonical,
+          updated_at: new Date().toISOString(),
+        })
+        .in("id", ids)
+        .select("id");
+
+      if (!error) {
+        return { updated: (data ?? []).length, category: label };
+      }
+      this.logger.warn(
+        `Canonical bulk category update failed, falling back to Drizzle schema: ${error.message}`,
+      );
+    }
+
+    const rows = await db
+      .update(opportunities)
+      .set({
+        category: label,
+        canonicalCategory: canonical,
+        updatedAt: new Date(),
+      })
+      .where(inArray(opportunities.id, ids))
+      .returning({ id: opportunities.id });
+
+    return { updated: rows.length, category: label };
+  }
+
   // Admin bulk delete: one batched DELETE across all ids.
   async bulkRemove(ids: string[]) {
     this.invalidateReadCaches();
@@ -1562,6 +1621,25 @@ export class OpportunitiesService {
       sourceUrl,
       sourceTextLength: sourceText.length,
     });
+
+    // The AI provider returned nothing usable (missing/invalid key, outage, or
+    // schema rejection). Proceeding would recompute the same quality score off
+    // the unchanged content and report a misleading "complete" — surface the
+    // real failure so the admin can retry or fix the provider key instead.
+    if (!aiData) {
+      const existingScore = Number(opportunity.quality_score) || 0;
+      return {
+        success: false,
+        error:
+          "AI enhancement is temporarily unavailable (no response from the AI provider). Please check the AI provider key and try again.",
+        completeness: {
+          status: existingScore >= 70 ? "complete" : "not_complete",
+          score: existingScore,
+          missingFields: [],
+          checkedAt: new Date().toISOString(),
+        },
+      };
+    }
 
     const requirements = Array.isArray(aiData?.requirements)
       ? aiData.requirements.filter(Boolean)

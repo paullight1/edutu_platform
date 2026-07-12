@@ -17,7 +17,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
     Target,
-    Plus,
     Search,
     Sparkles,
     Filter,
@@ -53,6 +52,7 @@ import type { GoalStatusFilter } from '../../../components/goals';
 import type { Goal } from '@edutu/core/src/hooks/useGoals';
 import { AdBanner, BannerConfig } from '../../../components/ui/AdBanner';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 
 const { width } = Dimensions.get('window');
 const CARD_GAP = 10;
@@ -292,9 +292,21 @@ export default function GoalsDashboard() {
 
     const handleCompleteGoal = useCallback(async (id: string) => {
         await updateGoal(id, { status: 'completed', progress: 100 });
+        // Celebrate + narrate progress — milestones should feel witnessed,
+        // not just silently re-rendered.
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        const total = goals.length;
+        const done = goals.filter((g) => g.status === 'completed' || g.id === id).length;
+        if (total > 0) {
+            showToast({
+                emoji: '🏁',
+                variant: 'success',
+                message: `${done} of ${total} done — further than most applicants ever get.`,
+            });
+        }
         // Reward completion (server grants at most once/day; toast via onEarned).
         void award('COMPLETE_GOAL');
-    }, [updateGoal, award]);
+    }, [updateGoal, award, goals, showToast]);
 
     const [bookmarkedOpps, setBookmarkedOpps] = useState<{ id: string, title: string, closeDate: string }[]>([]);
     const [personalizedOpps, setPersonalizedOpps] = useState<Opportunity[]>([]);
@@ -667,14 +679,6 @@ export default function GoalsDashboard() {
 
                 <View style={{ height: 100 }} />
             </ScrollView>
-
-            <TouchableOpacity
-                onPress={() => router.push('/goals/add')}
-                style={[styles.fab, { backgroundColor: colors.accent, shadowColor: colors.accent }]}
-                activeOpacity={0.8}
-            >
-                <Plus size={24} color="white" strokeWidth={3} />
-            </TouchableOpacity>
         </SafeAreaView>
     );
 }
@@ -682,20 +686,6 @@ export default function GoalsDashboard() {
 const styles = StyleSheet.create({
     root: { flex: 1 },
     content: { paddingHorizontal: 16, paddingTop: 16 },
-    fab: {
-        position: 'absolute',
-        bottom: 30,
-        right: 24,
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        alignItems: 'center',
-        justifyContent: 'center',
-        elevation: 8,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 10,
-    },
 
     // Share Opportunities Banner
     shareBanner: {

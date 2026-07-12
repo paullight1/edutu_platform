@@ -33,6 +33,9 @@ import { CalendarModule } from "./calendar/calendar.module";
 import { CacheModule } from "./common/cache/cache.module";
 import { CopilotModule } from "./copilot/copilot.module";
 import { SavedSearchesModule } from "./saved-searches/saved-searches.module";
+import { MonetizationModule } from "./monetization/monetization.module";
+import { AlertsModule } from "./alerts/alerts.module";
+import { DocumentsModule } from "./documents/documents.module";
 
 @Module({
   imports: [
@@ -63,7 +66,9 @@ import { SavedSearchesModule } from "./saved-searches/saved-searches.module";
     ProfileModule,
     MeModule,
     ChatModule,
+    DocumentsModule,
     SettingsModule,
+    MonetizationModule,
     AdminModule,
     HealthModule,
     EventsModule,
@@ -72,6 +77,7 @@ import { SavedSearchesModule } from "./saved-searches/saved-searches.module";
     CalendarModule,
     CopilotModule,
     SavedSearchesModule,
+    AlertsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -49,6 +49,7 @@ import {
   Info,
   Plus,
   Check,
+  EyeOff,
 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth, useUser } from "@clerk/clerk-expo";
@@ -69,6 +70,7 @@ import {
 } from "../../../packages/core/src/services/bookmarks";
 import { trackOpportunityApplication } from "../../../packages/core/src/services/applications";
 import { recordOpportunitySignal } from "@edutu/core/src/services/opportunitySignals";
+import { dismissOpportunity } from "@edutu/core/src/services/dismissedOpportunities";
 import { Opportunity } from "@edutu/core/src/types/opportunity";
 import { CHAT_CONTEXT_SENTINEL } from "@edutu/core/src/types/chat";
 import { useGoals } from "@edutu/core/src/hooks/useGoals";
@@ -86,6 +88,8 @@ import {
   AIGeneratedRoadmap,
   ApplicantProfile,
 } from "@edutu/core/src/services/aiRoadmapGenerator";
+import { isAiBillingError } from "@edutu/core/src/services/productApi";
+import { useUpgradeSheet } from "../../../components/context/UpgradeSheetContext";
 import { useStaggeredReveal } from "../../../packages/core/src/hooks/useStaggeredReveal";
 import { RoadmapTimeline } from "../../../components/roadmap/RoadmapTimeline";
 import {
@@ -430,10 +434,10 @@ export default function OpportunityDetailScreen() {
   const { user } = useUser();
   const { getToken } = useAuth();
   const { isDark, colors } = useTheme();
+  const upgradeSheet = useUpgradeSheet();
   const { createGoal, updateGoal } = useGoals(supabase, user?.id || null);
   const {
     credits,
-    spendCredits,
     isLoading: creditsLoading,
   } = useCredits(supabase, user?.id || null);
   const { isPro, isLoading: proLoading } = useProStatus(
@@ -645,6 +649,30 @@ export default function OpportunityDetailScreen() {
     }
   };
 
+  // "Not interested" — hides it locally and teaches the ranking engine
+  // (backend dismiss signal). Confirmed first: it excludes the whole category
+  // from future recommendations, which users shouldn't trigger by accident.
+  const handleNotInterested = useCallback(() => {
+    if (!user?.id || !id) return;
+    Alert.alert(
+      t("detail.notInterestedTitle", { defaultValue: "Hide this opportunity?" }),
+      t("detail.notInterestedMsg", {
+        defaultValue: "We'll hide it and show you fewer like it.",
+      }),
+      [
+        { text: t("common:actions.cancel", { defaultValue: "Cancel" }), style: "cancel" },
+        {
+          text: t("detail.notInterestedCta", { defaultValue: "Hide" }),
+          style: "destructive",
+          onPress: () => {
+            void dismissOpportunity(user.id, id, getToken, "detail_not_interested");
+            router.back();
+          },
+        },
+      ],
+    );
+  }, [user?.id, id, getToken, router, t]);
+
   const handleApply = useCallback(async () => {
     // Guard against any stray whitespace in a scraped/cached link — a raw space
     // makes the URL unclickable and Linking.openURL reject it.
@@ -725,6 +753,13 @@ export default function OpportunityDetailScreen() {
 
   const handleShare = useCallback(async () => {
     if (!opportunity) return;
+    void recordOpportunitySignal({
+      opportunityId: opportunity.id,
+      signalType: "share",
+      signalValue: 2,
+      source: "mobile_detail",
+      context: "detail_share",
+    }, getToken);
     try {
       const sharePayload = await getBackendSharePayload(opportunity);
       const link =
@@ -787,32 +822,24 @@ export default function OpportunityDetailScreen() {
       console.error("Failed to share:", error);
       setSharingCard(false);
     }
-  }, [opportunity]);
+  }, [opportunity, getToken]);
 
   const generateAIPath = useCallback(async () => {
     if (!opportunity) return;
 
+    // Pre-flight UX check only — the backend now debits credits itself and
+    // answers 402/429 when the user can't afford the action (handled below).
     if (!isPro && credits < ROADMAP_CREDIT_COST) {
       Alert.alert(
         t("detail.alerts.insufficientCreditsTitle"),
         t("detail.alerts.insufficientCreditsMsg", { cost: ROADMAP_CREDIT_COST, credits }),
         [
           { text: t("common:actions.cancel"), style: "cancel" },
-          { text: t("detail.alerts.getCredits"), onPress: () => router.push("/paywall") },
+          { text: t("detail.alerts.getCredits"), onPress: () => router.push("/wallet") },
+          { text: t("common:adBanner.upgradePro.actionLabel"), onPress: () => router.push("/paywall") },
         ],
       );
       return;
-    }
-
-    if (!isPro) {
-      const success = await spendCredits(
-        ROADMAP_CREDIT_COST,
-        t("detail.goals.aiRoadmapCredit", { title: opportunity.title }),
-      );
-      if (!success) {
-        Alert.alert(t("common:states.error"), t("detail.alerts.deductFailed"));
-        return;
-      }
     }
 
     setGeneratingRoadmap(true);
@@ -842,15 +869,38 @@ export default function OpportunityDetailScreen() {
       // Real generation: deterministic dated scaffold + backend LLM enrichment,
       // tuned by the user's time/level intake and profile. Falls back to the
       // offline scaffold automatically if the API is unreachable.
-      const roadmap = await generateRoadmap(opportunity, { ...intake, profile });
+      const roadmap = await generateRoadmap(opportunity, {
+        ...intake,
+        profile,
+        // /roadmaps/ai/* is authenticated + credit-metered server-side.
+        getAuthToken: getToken,
+      });
       setGeneratedRoadmap(roadmap);
       setCustomMilestones(roadmap.milestones);
       setCompletedMilestoneIds([]);
       setSelectedChecklistItems(roadmap.checklist.map((c) => c.id));
+    } catch (error) {
+      // Server billing refusal (402 insufficient credits / 429 fair-use limit).
+      if (!isAiBillingError(error)) throw error;
+      // Prefer the shared upgrade bottom sheet; the alert stays as a fallback
+      // if the provider isn't mounted for any reason.
+      if (upgradeSheet) {
+        upgradeSheet.show(error.message);
+      } else {
+        Alert.alert(
+          t("detail.alerts.insufficientCreditsTitle"),
+          error.message,
+          [
+            { text: t("common:actions.cancel"), style: "cancel" },
+            { text: t("detail.alerts.getCredits"), onPress: () => router.push("/wallet") },
+            { text: t("common:adBanner.upgradePro.actionLabel"), onPress: () => router.push("/paywall") },
+          ],
+        );
+      }
     } finally {
       setGeneratingRoadmap(false);
     }
-  }, [opportunity, isPro, credits, spendCredits, router, intake, user?.unsafeMetadata, t]);
+  }, [opportunity, isPro, credits, getToken, router, intake, user?.unsafeMetadata, t, upgradeSheet]);
 
   const handleExportCalendar = useCallback(async () => {
     if (!generatedRoadmap || !opportunity) return;
@@ -2104,6 +2154,25 @@ export default function OpportunityDetailScreen() {
               )}
             </TouchableOpacity>
           </View>
+
+          {/* Not interested — quiet escape hatch that trains recommendations */}
+          <TouchableOpacity
+            onPress={handleNotInterested}
+            activeOpacity={0.6}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              paddingVertical: 14,
+              marginTop: 4,
+            }}
+          >
+            <EyeOff size={14} color={textSecondary} />
+            <Text style={{ fontSize: 13, fontWeight: "600", color: textSecondary }}>
+              {t("detail.notInterestedLink", { defaultValue: "Not interested in this" })}
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 

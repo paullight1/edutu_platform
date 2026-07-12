@@ -1,19 +1,32 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import {
+  AlertTriangle,
   CheckCircle,
-  XCircle,
+  ChevronRight,
   Clock,
-  MessageCircleQuestion,
-  Loader2,
-  RefreshCw,
-  Search,
   ExternalLink,
   Inbox,
+  Info,
+  Loader2,
+  MessageCircleQuestion,
+  MessagesSquare,
+  RefreshCw,
+  Reply,
+  Search,
   X,
+  XCircle,
 } from "lucide-react";
 import { backendFetchJson } from "../lib/backend";
 
 type SubmissionStatus = "pending" | "needs_info" | "approved" | "rejected";
+type FilterKey = SubmissionStatus | "all";
 
 type ThreadEntry = { role: "admin" | "user"; message: string; at: string };
 
@@ -43,14 +56,19 @@ interface Submission {
   updated_at: string;
 }
 
-type Banner = { type: "success" | "warning" | "error" | "info"; message: string };
+type Banner = { type: "success" | "error" | "info"; message: string };
 
-const TABS: { key: SubmissionStatus | "all"; label: string }[] = [
-  { key: "pending", label: "Pending" },
-  { key: "needs_info", label: "Awaiting info" },
-  { key: "approved", label: "Approved" },
-  { key: "rejected", label: "Rejected" },
-  { key: "all", label: "All" },
+const FILTERS: {
+  key: FilterKey;
+  label: string;
+  icon: typeof Inbox;
+  accent: string;
+}[] = [
+  { key: "all", label: "All submissions", icon: Inbox, accent: "var(--text-tertiary)" },
+  { key: "pending", label: "Pending review", icon: Clock, accent: "var(--warning)" },
+  { key: "needs_info", label: "Awaiting info", icon: MessageCircleQuestion, accent: "var(--apple-blue)" },
+  { key: "approved", label: "Approved", icon: CheckCircle, accent: "var(--success)" },
+  { key: "rejected", label: "Rejected", icon: XCircle, accent: "var(--danger)" },
 ];
 
 const STATUS_META: Record<SubmissionStatus, { label: string; badge: string }> = {
@@ -58,6 +76,29 @@ const STATUS_META: Record<SubmissionStatus, { label: string; badge: string }> = 
   needs_info: { label: "Awaiting info", badge: "badge-primary" },
   approved: { label: "Approved", badge: "badge-success" },
   rejected: { label: "Rejected", badge: "badge-danger" },
+};
+
+const EMPTY_COPY: Record<FilterKey, { title: string; hint: string }> = {
+  all: {
+    title: "No submissions yet",
+    hint: "When users submit opportunities from the Edutu app or website, they land here for review.",
+  },
+  pending: {
+    title: "Queue is clear",
+    hint: "No submissions are waiting for review right now. New user submissions arrive here automatically.",
+  },
+  needs_info: {
+    title: "Nothing awaiting info",
+    hint: "Submissions you've asked follow-up questions about will sit here until the submitter replies.",
+  },
+  approved: {
+    title: "No approved submissions",
+    hint: "Approved submissions become live opportunities and are listed here for reference.",
+  },
+  rejected: {
+    title: "No rejected submissions",
+    hint: "Submissions you decline stay here so you can revisit the decision history.",
+  },
 };
 
 function timeAgo(iso: string) {
@@ -69,50 +110,97 @@ function timeAgo(iso: string) {
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.round(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.round(hrs / 24)}d ago`;
+  const days = Math.round(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function deadlineInfo(iso: string | null) {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  const days = Math.ceil((date.getTime() - Date.now()) / 86400000);
+  const text = date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  return { text, days };
+}
+
+// A pending submission whose latest thread entry is from the submitter came
+// back from a "needs info" round trip — surface that to the reviewer.
+function hasFreshReply(item: Submission) {
+  if (item.status !== "pending" || !item.thread?.length) return false;
+  return item.thread[item.thread.length - 1].role === "user";
 }
 
 export default function Submissions() {
   const [items, setItems] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<SubmissionStatus | "all">("pending");
+  const [filter, setFilter] = useState<FilterKey>("pending");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Submission | null>(null);
   const [note, setNote] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [banner, setBanner] = useState<Banner | null>(null);
+  const [confirmReject, setConfirmReject] = useState(false);
+  const [lastSynced, setLastSynced] = useState<Date | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
-  const fetchData = useCallback(
-    async (opts: { quiet?: boolean } = {}) => {
-      if (!opts.quiet) setLoading(true);
-      else setRefreshing(true);
-      try {
-        const query = activeTab === "all" ? "" : `?status=${activeTab}`;
-        const rows = await backendFetchJson<Submission[]>(
-          `/admin/opportunity-submissions${query}`,
-        );
-        setItems(Array.isArray(rows) ? rows : []);
-        setBanner(null);
-      } catch (error) {
-        setBanner({
-          type: "error",
-          message:
-            error instanceof Error
-              ? `Couldn't load submissions: ${error.message}`
-              : "Couldn't load submissions.",
-        });
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [activeTab],
-  );
+  // Fetch the whole queue once; tabs and counts filter client-side so the
+  // status tiles always reflect reality and tab switches are instant.
+  const fetchData = useCallback(async (opts: { quiet?: boolean } = {}) => {
+    if (!opts.quiet) setLoading(true);
+    else setRefreshing(true);
+    try {
+      const rows = await backendFetchJson<Submission[]>(
+        "/admin/opportunity-submissions",
+      );
+      setItems(Array.isArray(rows) ? rows : []);
+      setLoadError(null);
+      setLastSynced(new Date());
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : "Couldn't load submissions.",
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchData();
+    const interval = setInterval(() => fetchData({ quiet: true }), 60000);
+    return () => clearInterval(interval);
   }, [fetchData]);
+
+  // Success/info banners dismiss themselves; errors stay until acknowledged.
+  useEffect(() => {
+    if (!banner || banner.type === "error") return;
+    const t = setTimeout(() => setBanner(null), 6000);
+    return () => clearTimeout(t);
+  }, [banner]);
+
+  useEffect(() => {
+    if (!selected) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelected(null);
+    };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [selected]);
 
   const review = useCallback(
     async (
@@ -152,29 +240,58 @@ export default function Submissions() {
     [fetchData],
   );
 
-  const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) return items;
-    return items.filter(
-      (item) =>
-        item.title.toLowerCase().includes(term) ||
-        (item.organization || "").toLowerCase().includes(term) ||
-        (item.category || "").toLowerCase().includes(term),
-    );
-  }, [items, search]);
-
   const counts = useMemo(() => {
-    const c = { pending: 0, needs_info: 0, approved: 0, rejected: 0 };
-    for (const item of items) {
-      if (item.status in c) c[item.status] += 1;
-    }
+    const c: Record<FilterKey, number> = {
+      all: items.length,
+      pending: 0,
+      needs_info: 0,
+      approved: 0,
+      rejected: 0,
+    };
+    for (const item of items) c[item.status] += 1;
     return c;
   }, [items]);
+
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return items.filter((item) => {
+      if (filter !== "all" && item.status !== filter) return false;
+      if (!term) return true;
+      return [item.title, item.organization, item.category, item.location]
+        .some((field) => (field || "").toLowerCase().includes(term));
+    });
+  }, [items, filter, search]);
 
   const openDetail = (submission: Submission) => {
     setSelected(submission);
     setNote("");
+    setConfirmReject(false);
   };
+
+  const handleReject = () => {
+    if (!selected) return;
+    if (!confirmReject) {
+      setConfirmReject(true);
+      return;
+    }
+    review(selected, "rejected", note.trim() || undefined);
+  };
+
+  const bannerAccent =
+    banner?.type === "error"
+      ? "var(--danger)"
+      : banner?.type === "success"
+        ? "var(--success)"
+        : "var(--apple-blue)";
+  const BannerIcon =
+    banner?.type === "error"
+      ? AlertTriangle
+      : banner?.type === "success"
+        ? CheckCircle
+        : Info;
+
+  const emptyCopy = EMPTY_COPY[filter];
+  const searching = search.trim().length > 0;
 
   return (
     <div>
@@ -202,331 +319,433 @@ export default function Submissions() {
 
       {banner && (
         <div
-          className={`card`}
-          style={{
-            marginBottom: 16,
-            borderLeft: `3px solid ${
-              banner.type === "error"
-                ? "var(--danger)"
-                : banner.type === "success"
-                  ? "var(--success)"
-                  : "var(--apple-blue)"
-            }`,
-          }}
+          className="subs-banner"
+          role="status"
+          style={{ "--banner-accent": bannerAccent } as CSSProperties}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-            }}
+          <BannerIcon size={17} className="subs-banner-icon" />
+          <span>{banner.message}</span>
+          <button
+            className="subs-banner-dismiss"
+            onClick={() => setBanner(null)}
+            aria-label="Dismiss"
           >
-            <span style={{ color: "var(--text-primary)" }}>{banner.message}</span>
-            <button
-              className="btn btn-secondary btn-pill"
-              onClick={() => setBanner(null)}
-              style={{ padding: "4px 8px" }}
-            >
-              <X size={14} />
-            </button>
-          </div>
+            <X size={15} />
+          </button>
         </div>
       )}
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-4" style={{ marginBottom: 16 }}>
-        {(["pending", "needs_info", "approved", "rejected"] as SubmissionStatus[]).map(
-          (key) => (
-            <div key={key} className="card">
-              <div style={{ color: "var(--text-secondary)", fontSize: 13 }}>
-                {STATUS_META[key].label}
-              </div>
-              <div
-                style={{
-                  fontSize: 28,
-                  fontWeight: 800,
-                  color: "var(--text-primary)",
-                }}
-              >
-                {counts[key]}
-              </div>
-            </div>
-          ),
-        )}
+      {/* Status tiles double as the filter */}
+      <div className="subs-tiles" role="tablist" aria-label="Filter by status">
+        {FILTERS.map(({ key, label, icon: Icon, accent }) => (
+          <button
+            key={key}
+            role="tab"
+            aria-selected={filter === key}
+            className={`subs-tile ${filter === key ? "active" : ""}`}
+            style={{ "--tile-accent": accent } as CSSProperties}
+            onClick={() => setFilter(key)}
+          >
+            <span className="subs-tile-icon">
+              <Icon size={17} />
+            </span>
+            <span>
+              <span className="subs-tile-count">
+                {loading ? "–" : counts[key]}
+              </span>
+              <span className="subs-tile-label">{label}</span>
+            </span>
+          </button>
+        ))}
       </div>
 
-      {/* Filters */}
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div
-          style={{
-            display: "flex",
-            gap: 12,
-            flexWrap: "wrap",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {TABS.map((tab) => (
-              <button
-                key={tab.key}
-                className={`btn btn-pill ${
-                  activeTab === tab.key ? "btn-primary" : "btn-secondary"
-                }`}
-                onClick={() => setActiveTab(tab.key)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-          <div style={{ position: "relative", minWidth: 220 }}>
-            <Search
-              size={16}
-              style={{
-                position: "absolute",
-                left: 10,
-                top: "50%",
-                transform: "translateY(-50%)",
-                color: "var(--text-tertiary)",
-              }}
-            />
-            <input
-              className="input-field"
-              placeholder="Search title, org, category"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{ paddingLeft: 32 }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* List */}
-      {loading ? (
-        <div className="card" style={{ textAlign: "center", padding: 48 }}>
-          <Loader2
-            size={24}
-            className="animate-spin"
-            style={{ color: "var(--apple-blue)" }}
+      <div className="subs-toolbar">
+        <div className="subs-search">
+          <Search size={16} className="subs-search-icon" />
+          <input
+            ref={searchRef}
+            className="input-field"
+            placeholder="Search title, org, category, location"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search submissions"
           />
+          {searching && (
+            <button
+              className="subs-search-clear"
+              onClick={() => {
+                setSearch("");
+                searchRef.current?.focus();
+              }}
+              aria-label="Clear search"
+            >
+              <X size={13} />
+            </button>
+          )}
         </div>
-      ) : filtered.length === 0 ? (
-        <div
-          className="card"
-          style={{ textAlign: "center", padding: 48, color: "var(--text-secondary)" }}
-        >
-          <Inbox size={32} style={{ marginBottom: 8 }} />
-          <div>No submissions in this view.</div>
+        <div className="subs-toolbar-meta">
+          {!loading && (
+            <span>
+              {filtered.length} {filtered.length === 1 ? "submission" : "submissions"}
+            </span>
+          )}
+          {lastSynced && (
+            <span>Updated {timeAgo(lastSynced.toISOString())}</span>
+          )}
         </div>
-      ) : (
-        <div className="table-container">
+      </div>
+
+      {loading ? (
+        <div className="table-container subs-table-container">
           <table className="table">
             <thead>
               <tr>
                 <th>Opportunity</th>
                 <th>Category</th>
+                <th>Deadline</th>
                 <th>Status</th>
                 <th>Submitted</th>
-                <th style={{ textAlign: "right" }}>Actions</th>
+                <th />
               </tr>
             </thead>
             <tbody>
-              {filtered.map((item) => (
-                <tr key={item.id}>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i}>
                   <td>
-                    <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>
-                      {item.title}
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div className="subs-skeleton" style={{ width: 40, height: 40, borderRadius: 9 }} />
+                      <div style={{ flex: 1, display: "grid", gap: 6 }}>
+                        <div className="subs-skeleton" style={{ width: "60%" }} />
+                        <div className="subs-skeleton" style={{ width: "35%" }} />
+                      </div>
                     </div>
-                    <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-                      {item.organization || "—"}
-                    </div>
                   </td>
-                  <td style={{ color: "var(--text-secondary)" }}>
-                    {item.category || "—"}
-                  </td>
-                  <td>
-                    <span className={`badge ${STATUS_META[item.status].badge}`}>
-                      {STATUS_META[item.status].label}
-                    </span>
-                  </td>
-                  <td style={{ color: "var(--text-secondary)", fontSize: 13 }}>
-                    {timeAgo(item.submitted_at)}
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    <button
-                      className="btn btn-secondary btn-pill"
-                      onClick={() => openDetail(item)}
-                    >
-                      Review
-                    </button>
-                  </td>
+                  <td><div className="subs-skeleton" style={{ width: 80 }} /></td>
+                  <td><div className="subs-skeleton" style={{ width: 90 }} /></td>
+                  <td><div className="subs-skeleton" style={{ width: 90, borderRadius: 980 }} /></td>
+                  <td><div className="subs-skeleton" style={{ width: 56 }} /></td>
+                  <td />
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      ) : loadError ? (
+        <div className="card subs-empty">
+          <div className="subs-empty-icon">
+            <AlertTriangle size={22} />
+          </div>
+          <div className="subs-empty-title">Couldn't load submissions</div>
+          <p className="subs-empty-hint">{loadError}</p>
+          <button className="btn btn-primary" onClick={() => fetchData()}>
+            <RefreshCw size={16} /> Try again
+          </button>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="card subs-empty">
+          <div className="subs-empty-icon">
+            {searching ? <Search size={22} /> : <Inbox size={22} />}
+          </div>
+          <div className="subs-empty-title">
+            {searching ? "No matches" : emptyCopy.title}
+          </div>
+          <p className="subs-empty-hint">
+            {searching
+              ? `Nothing in ${filter === "all" ? "any status" : `"${FILTERS.find((f) => f.key === filter)?.label}"`} matches "${search.trim()}".`
+              : emptyCopy.hint}
+          </p>
+          {searching ? (
+            <button className="btn btn-secondary" onClick={() => setSearch("")}>
+              Clear search
+            </button>
+          ) : filter !== "all" && counts.all > 0 ? (
+            <button className="btn btn-secondary" onClick={() => setFilter("all")}>
+              View all {counts.all}
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <div className="table-container subs-table-container">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Opportunity</th>
+                <th>Category</th>
+                <th>Deadline</th>
+                <th>Status</th>
+                <th>Submitted</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((item) => {
+                const deadline = deadlineInfo(item.deadline);
+                const threadCount = item.thread?.length ?? 0;
+                return (
+                  <tr
+                    key={item.id}
+                    className="subs-row"
+                    onClick={() => openDetail(item)}
+                  >
+                    <td>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        {item.image_url ? (
+                          <img
+                            className="subs-thumb"
+                            src={item.image_url}
+                            alt=""
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="subs-thumb-fallback" aria-hidden>
+                            {(item.title || "?").charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div style={{ minWidth: 0 }}>
+                          <div
+                            style={{
+                              fontWeight: 600,
+                              color: "var(--text-primary)",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                            }}
+                          >
+                            <span
+                              style={{
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                maxWidth: 340,
+                              }}
+                            >
+                              {item.title}
+                            </span>
+                            {hasFreshReply(item) && (
+                              <span className="subs-reply-chip">
+                                <Reply size={11} /> New reply
+                              </span>
+                            )}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: "var(--text-secondary)",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
+                            <span>{item.organization || "—"}</span>
+                            {threadCount > 0 && (
+                              <span
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 3,
+                                  color: "var(--text-tertiary)",
+                                }}
+                              >
+                                <MessagesSquare size={11} /> {threadCount}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ color: "var(--text-secondary)" }}>
+                      {item.category || "—"}
+                    </td>
+                    <td>
+                      {deadline ? (
+                        <span
+                          style={{
+                            fontSize: 13,
+                            color:
+                              deadline.days < 0
+                                ? "var(--danger)"
+                                : deadline.days <= 7
+                                  ? "var(--warning)"
+                                  : "var(--text-secondary)",
+                          }}
+                        >
+                          {deadline.text}
+                          {deadline.days >= 0 && deadline.days <= 7
+                            ? ` · ${deadline.days}d left`
+                            : deadline.days < 0
+                              ? " · passed"
+                              : ""}
+                        </span>
+                      ) : (
+                        <span style={{ color: "var(--text-tertiary)" }}>—</span>
+                      )}
+                    </td>
+                    <td>
+                      <span className={`badge ${STATUS_META[item.status].badge}`}>
+                        {STATUS_META[item.status].label}
+                      </span>
+                    </td>
+                    <td style={{ color: "var(--text-secondary)", fontSize: 13 }}>
+                      {timeAgo(item.submitted_at)}
+                    </td>
+                    <td style={{ textAlign: "right", width: 36 }}>
+                      <ChevronRight size={16} style={{ color: "var(--text-tertiary)" }} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
-      {/* Detail / action modal */}
+      {/* Review modal */}
       {selected && (
         <div
+          className="subs-modal-overlay"
           onClick={() => setSelected(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-            zIndex: 1000,
-          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Review ${selected.title}`}
         >
-          <div
-            className="card card-elevated"
-            onClick={(e) => e.stopPropagation()}
-            style={{ width: "100%", maxWidth: 640, maxHeight: "90vh", overflowY: "auto" }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                gap: 12,
-              }}
-            >
-              <div>
-                <h2 style={{ margin: 0, color: "var(--text-primary)" }}>
-                  {selected.title}
-                </h2>
-                <div style={{ color: "var(--text-secondary)", marginTop: 2 }}>
-                  {selected.organization || "No organization"} ·{" "}
+          <div className="subs-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="subs-modal-header">
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <h3 style={{ margin: 0 }}>{selected.title}</h3>
+                <div
+                  style={{
+                    color: "var(--text-secondary)",
+                    marginTop: 4,
+                    fontSize: 14,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <span>{selected.organization || "No organization"}</span>
                   <span className={`badge ${STATUS_META[selected.status].badge}`}>
                     {STATUS_META[selected.status].label}
+                  </span>
+                  <span style={{ color: "var(--text-tertiary)", fontSize: 13 }}>
+                    Submitted {timeAgo(selected.submitted_at)}
                   </span>
                 </div>
               </div>
               <button
-                className="btn btn-secondary btn-pill"
+                className="subs-modal-close"
                 onClick={() => setSelected(null)}
-                style={{ padding: "4px 8px" }}
+                aria-label="Close"
               >
                 <X size={16} />
               </button>
             </div>
 
-            <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
-              <DetailRow label="Category" value={selected.category} />
-              <DetailRow label="Type" value={selected.type} />
-              <DetailRow
-                label="Location"
-                value={
-                  selected.is_remote
-                    ? `${selected.location || "Anywhere"} (remote)`
-                    : selected.location
-                }
-              />
-              <DetailRow
-                label="Deadline"
-                value={
-                  selected.deadline
-                    ? new Date(selected.deadline).toLocaleDateString()
-                    : null
-                }
-              />
-              <DetailRow label="Summary" value={selected.summary} />
-              <DetailRow label="Description" value={selected.description} multiline />
-              <DetailRow label="Eligibility" value={selected.eligibility} multiline />
-              <DetailRow label="Benefits" value={selected.benefits} multiline />
-              {selected.apply_url && (
-                <LinkRow label="Apply URL" url={selected.apply_url} />
+            <div className="subs-modal-body">
+              {selected.image_url && (
+                <img
+                  className="subs-hero-image"
+                  src={selected.image_url}
+                  alt=""
+                />
               )}
-              {selected.source_url && (
-                <LinkRow label="Source URL" url={selected.source_url} />
+
+              <div className="subs-meta-grid">
+                <MetaItem label="Category" value={selected.category} />
+                <MetaItem label="Type" value={selected.type} />
+                <MetaItem
+                  label="Location"
+                  value={
+                    selected.is_remote
+                      ? `${selected.location || "Anywhere"} (remote)`
+                      : selected.location
+                  }
+                />
+                <MetaItem
+                  label="Deadline"
+                  value={deadlineInfo(selected.deadline)?.text ?? null}
+                />
+                <MetaItem label="Summary" value={selected.summary} full />
+                <MetaItem
+                  label="Description"
+                  value={selected.description}
+                  full
+                  multiline
+                />
+                <MetaItem
+                  label="Eligibility"
+                  value={selected.eligibility}
+                  full
+                  multiline
+                />
+                <MetaItem label="Benefits" value={selected.benefits} full multiline />
+                {selected.apply_url && (
+                  <MetaLink label="Apply URL" url={selected.apply_url} />
+                )}
+                {selected.source_url && (
+                  <MetaLink label="Source URL" url={selected.source_url} />
+                )}
+              </div>
+
+              {selected.thread && selected.thread.length > 0 && (
+                <div className="subs-thread">
+                  <div className="subs-meta-label" style={{ marginBottom: 8 }}>
+                    Conversation
+                  </div>
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {selected.thread.map((entry, i) => (
+                      <div
+                        key={i}
+                        className={`subs-thread-bubble ${entry.role === "admin" ? "admin" : ""}`}
+                      >
+                        <div className="subs-thread-who">
+                          {entry.role === "admin" ? "Edutu team" : "Submitter"} ·{" "}
+                          {timeAgo(entry.at)}
+                        </div>
+                        {entry.message}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selected.status !== "approved" && selected.status !== "rejected" && (
+                <div style={{ marginTop: 20 }}>
+                  <label
+                    className="subs-meta-label"
+                    htmlFor="subs-note"
+                    style={{ display: "block" }}
+                  >
+                    Message to submitter
+                  </label>
+                  <textarea
+                    id="subs-note"
+                    className="input-field"
+                    rows={3}
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="e.g. Can you add the official application link and the deadline?"
+                    style={{ marginTop: 6, fontSize: 15, resize: "vertical" }}
+                  />
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "var(--text-tertiary)",
+                      marginTop: 5,
+                    }}
+                  >
+                    Required to request info · optional for approve and reject ·
+                    the submitter is notified either way.
+                  </div>
+                </div>
               )}
             </div>
 
-            {selected.thread && selected.thread.length > 0 && (
-              <div style={{ marginTop: 16 }}>
-                <div
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: "var(--text-secondary)",
-                    marginBottom: 6,
-                  }}
-                >
-                  Conversation
-                </div>
-                <div style={{ display: "grid", gap: 8 }}>
-                  {selected.thread.map((entry, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        padding: 10,
-                        borderRadius: 10,
-                        background:
-                          entry.role === "admin"
-                            ? "var(--bg-tertiary)"
-                            : "var(--bg-secondary)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color: "var(--text-tertiary)",
-                          marginBottom: 2,
-                        }}
-                      >
-                        {entry.role === "admin" ? "Edutu team" : "Submitter"} ·{" "}
-                        {timeAgo(entry.at)}
-                      </div>
-                      <div style={{ color: "var(--text-primary)", fontSize: 14 }}>
-                        {entry.message}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {selected.status !== "approved" && selected.status !== "rejected" && (
-              <div style={{ marginTop: 16 }}>
-                <label
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: "var(--text-secondary)",
-                  }}
-                >
-                  Message to submitter (required to request info; optional otherwise)
-                </label>
-                <textarea
-                  className="input-field"
-                  rows={3}
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="e.g. Can you add the official application link and the deadline?"
-                  style={{ marginTop: 6, width: "100%" }}
-                />
-              </div>
-            )}
-
-            <div
-              style={{
-                marginTop: 16,
-                display: "flex",
-                gap: 8,
-                flexWrap: "wrap",
-                justifyContent: "flex-end",
-              }}
-            >
+            <div className="subs-modal-footer">
               {selected.approved_opportunity_id && (
                 <a
                   className="btn btn-secondary"
-                  href={`/opportunities`}
+                  href="/opportunities"
                   style={{ marginRight: "auto" }}
                 >
                   <ExternalLink size={16} /> View published
@@ -534,16 +753,17 @@ export default function Submissions() {
               )}
               {selected.status !== "rejected" && (
                 <button
-                  className="btn btn-danger"
+                  className={confirmReject ? "btn btn-danger" : "btn btn-secondary"}
                   disabled={actionLoading === selected.id}
-                  onClick={() => review(selected, "rejected", note.trim() || undefined)}
+                  onClick={handleReject}
+                  onBlur={() => setConfirmReject(false)}
                 >
                   {actionLoading === selected.id ? (
                     <Loader2 size={16} className="animate-spin" />
                   ) : (
                     <XCircle size={16} />
                   )}
-                  Reject
+                  {confirmReject ? "Confirm reject" : "Reject"}
                 </button>
               )}
               {selected.status !== "needs_info" && selected.status !== "approved" && (
@@ -583,27 +803,24 @@ export default function Submissions() {
   );
 }
 
-function DetailRow({
+function MetaItem({
   label,
   value,
+  full,
   multiline,
 }: {
   label: string;
   value?: string | null;
+  full?: boolean;
   multiline?: boolean;
 }) {
   if (!value) return null;
   return (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-tertiary)" }}>
-        {label}
-      </div>
+    <div className={full ? "subs-meta-full" : undefined}>
+      <div className="subs-meta-label">{label}</div>
       <div
-        style={{
-          color: "var(--text-primary)",
-          fontSize: 14,
-          whiteSpace: multiline ? "pre-wrap" : "normal",
-        }}
+        className="subs-meta-value"
+        style={multiline ? { whiteSpace: "pre-wrap" } : undefined}
       >
         {value}
       </div>
@@ -611,26 +828,18 @@ function DetailRow({
   );
 }
 
-function LinkRow({ label, url }: { label: string; url: string }) {
+function MetaLink({ label, url }: { label: string; url: string }) {
   return (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-tertiary)" }}>
-        {label}
-      </div>
+    <div className="subs-meta-full">
+      <div className="subs-meta-label">{label}</div>
       <a
         href={url}
         target="_blank"
         rel="noreferrer"
-        style={{
-          color: "var(--apple-blue)",
-          fontSize: 14,
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 4,
-          wordBreak: "break-all",
-        }}
+        className="subs-meta-value"
+        style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
       >
-        {url} <ExternalLink size={12} />
+        {url} <ExternalLink size={12} style={{ flex: "none" }} />
       </a>
     </div>
   );

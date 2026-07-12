@@ -35,7 +35,16 @@ export async function claimDailyLoginCredit(
   const { data, error } = await supabase.rpc('claim_daily_credit');
 
   if (error) {
-    console.error('Failed to claim daily login credit:', error);
+    // PGRST301 = Supabase rejected the caller's JWT (e.g. the Clerk instance
+    // isn't registered under Supabase Third-Party Auth). Auth-config issues
+    // are environment problems, not user-visible failures — warn, don't error.
+    if (error.code === 'PGRST301') {
+      console.warn(
+        'Daily credit skipped: Supabase rejected the auth token (register the Clerk instance under Supabase → Authentication → Third-Party Auth).',
+      );
+    } else {
+      console.error('Failed to claim daily login credit:', error);
+    }
     return { earned: 0, streak: 0 };
   }
 

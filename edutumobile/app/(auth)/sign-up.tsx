@@ -21,6 +21,7 @@ import {
 } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { AuthShell } from '../../components/auth/AuthShell';
+import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
 import { useTheme } from '../../components/context/ThemeContext';
 
 function ErrorBox({ message }: { message: string }) {
@@ -70,6 +71,17 @@ export default function SignUpScreen() {
   const [code, setCode] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
+  // OTP UX: one hidden input drives six visible cells; auto-submit at 6 digits.
+  const codeInputRef = React.useRef<TextInput>(null);
+  const [codeFocused, setCodeFocused] = React.useState(false);
+  const [resendCooldown, setResendCooldown] = React.useState(0);
+  const lastSubmittedCodeRef = React.useRef('');
+
+  React.useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => setResendCooldown((s) => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   const continueExistingSession = () => {
     const destination = user && !user.unsafeMetadata?.onboardingComplete ? '/onboarding' : '/(app)';
@@ -115,6 +127,8 @@ export default function SignUpScreen() {
 
       await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
       setPendingVerification(true);
+      setResendCooldown(30);
+      setTimeout(() => codeInputRef.current?.focus(), 400);
     } catch (err: any) {
       if (isExistingSessionError(err)) {
         continueExistingSession();
@@ -162,17 +176,33 @@ export default function SignUpScreen() {
   };
 
   const resendCode = async () => {
-    if (!isLoaded) {
+    if (!isLoaded || resendCooldown > 0) {
       return;
     }
 
     try {
       await signUp.prepareEmailAddressVerification({ strategy: 'email_code' });
+      setCode('');
+      setError('');
+      lastSubmittedCodeRef.current = '';
+      setResendCooldown(30);
+      codeInputRef.current?.focus();
       Alert.alert(t('signUp.alerts.codeSent.title'), t('signUp.alerts.codeSent.message', { email: emailAddress }));
     } catch {
       Alert.alert(t('signUp.alerts.resendFailed.title'), t('signUp.alerts.resendFailed.message'));
     }
   };
+
+  // Submit the moment the sixth digit lands — no extra tap needed. The ref
+  // guards against re-submitting the same (possibly wrong) code in a loop.
+  React.useEffect(() => {
+    if (!pendingVerification || loading) return;
+    if (code.length === 6 && lastSubmittedCodeRef.current !== code) {
+      lastSubmittedCodeRef.current = code;
+      void onVerifyPress();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, pendingVerification, loading]);
 
   if (pendingVerification) {
     return (
@@ -185,22 +215,43 @@ export default function SignUpScreen() {
 
         <View style={styles.verifyCard}>
           <Text style={[styles.verifyLabel, { color: colors.textSecondary }]}>{t('signUp.verify.codeLabel')}</Text>
+
+          {/* Six OTP cells driven by one invisible input (keeps native
+              keyboard, paste and autofill working). */}
+          <Pressable style={styles.otpRow} onPress={() => codeInputRef.current?.focus()}>
+            {Array.from({ length: 6 }).map((_, index) => {
+              const digit = code[index] ?? '';
+              const isActive = codeFocused && index === Math.min(code.length, 5);
+              return (
+                <View
+                  key={index}
+                  style={[
+                    styles.otpCell,
+                    {
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#F8FAFC',
+                      borderColor: isActive ? colors.accent : digit ? colors.textSecondary : colors.border,
+                      borderWidth: isActive ? 2 : 1,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.otpDigit, { color: colors.foreground }]}>{digit}</Text>
+                  {isActive && !digit && <View style={[styles.otpCaret, { backgroundColor: colors.accent }]} />}
+                </View>
+              );
+            })}
+          </Pressable>
           <TextInput
+            ref={codeInputRef}
             value={code}
-            onChangeText={setCode}
-            placeholder="000000"
-            placeholderTextColor={colors.textSecondary}
+            onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))}
+            onFocus={() => setCodeFocused(true)}
+            onBlur={() => setCodeFocused(false)}
             keyboardType="number-pad"
+            textContentType="oneTimeCode"
+            autoComplete="one-time-code"
             maxLength={6}
-            textAlign="center"
-            style={[
-              styles.codeInput,
-              {
-                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#F8FAFC',
-                borderColor: colors.border,
-                color: colors.foreground,
-              },
-            ]}
+            style={styles.otpHiddenInput}
+            caretHidden
           />
         </View>
 
@@ -218,8 +269,31 @@ export default function SignUpScreen() {
           </Text>
         </Pressable>
 
-        <Pressable style={styles.resendButton} onPress={resendCode}>
-          <Text style={[styles.resendText, { color: colors.accent }]}>{t('signUp.verify.resend')}</Text>
+        <Pressable style={styles.resendButton} onPress={resendCode} disabled={resendCooldown > 0}>
+          <Text
+            style={[
+              styles.resendText,
+              { color: resendCooldown > 0 ? colors.textSecondary : colors.accent },
+            ]}
+          >
+            {resendCooldown > 0
+              ? t('signUp.verify.resendIn', { seconds: resendCooldown })
+              : t('signUp.verify.resend')}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={styles.resendButton}
+          onPress={() => {
+            setPendingVerification(false);
+            setCode('');
+            setError('');
+            lastSubmittedCodeRef.current = '';
+          }}
+        >
+          <Text style={[styles.wrongEmailText, { color: colors.textSecondary }]}>
+            {t('signUp.verify.wrongEmail')}
+          </Text>
         </Pressable>
       </AuthShell>
     );
@@ -296,6 +370,8 @@ export default function SignUpScreen() {
         {!loading ? <ArrowRight color="#FFFFFF" size={18} /> : null}
       </Pressable>
 
+      <GoogleSignInButton onError={setError} />
+
       <Text style={[styles.consentText, { color: colors.textSecondary }]}>
         {t('signUp.consent.prefix')}{' '}
         <Text
@@ -364,14 +440,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  codeInput: {
-    height: 64,
-    borderRadius: 16,
-    borderWidth: 1,
-    fontSize: 24,
-    fontWeight: '800',
-    letterSpacing: 6,
+  otpRow: {
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    alignSelf: 'stretch',
   },
+  otpCell: {
+    flex: 1,
+    maxWidth: 52,
+    height: 58,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  otpDigit: { fontSize: 24, fontWeight: '800' },
+  otpCaret: { position: 'absolute', width: 2, height: 24, borderRadius: 1, opacity: 0.9 },
+  otpHiddenInput: {
+    position: 'absolute',
+    opacity: 0.01,
+    height: 1,
+    width: 1,
+  },
+  wrongEmailText: { fontSize: 13.5, fontWeight: '600', textDecorationLine: 'underline' },
   verifyCard: {
     borderRadius: 16,
     borderWidth: 1,

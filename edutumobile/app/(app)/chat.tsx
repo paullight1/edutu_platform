@@ -38,6 +38,7 @@ import {
     AlertCircle,
     RotateCcw,
     Flag,
+    FileText,
 } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth, useUser } from '@clerk/clerk-expo';
@@ -48,12 +49,15 @@ import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { supabase } from '../../lib/supabase';
 import { useChat } from '@edutu/core/src/hooks/useChat';
 import { ChatRateLimitError } from '@edutu/core/src/services/chat';
-import { ChatMessage, ChatOpportunityCard, ChatThread, stripChatContext } from '@edutu/core/src/types/chat';
+import { ChatActionButton, ChatDeviceAction, ChatDocumentCard, ChatMessage, ChatOpportunityCard, ChatThread, stripChatContext } from '@edutu/core/src/types/chat';
+import { syncMilestonesToCalendar } from '../../lib/calendarSync';
 import { useGoals } from '@edutu/core/src/hooks/useGoals';
+import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { useOpportunities } from '@edutu/core/src/hooks/useOpportunities';
 import { Opportunity } from '@edutu/core/src/types/opportunity';
 import { generateRoadmapFromOpportunity } from '@edutu/core/src/services/aiRoadmapGenerator';
 import { useTextToSpeech } from '../../hooks/useTextToSpeech';
+import { setPremiumVoiceEnabled } from '../../lib/edutuSpeech';
 import { EdutuLogo } from '../../components/branding/EdutuLogo';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { BrandedLoader } from '../../components/ui/BrandedLoader';
@@ -343,6 +347,13 @@ export default function ChatScreen() {
         getAuthToken: getToken,
     });
 
+    // Premium neural TTS (the message play button) is a Pro perk — free users
+    // fall back to the device voice. Fail-open while entitlements resolve.
+    const { isPro, isLoading: proLoading } = useProStatus(supabase, user?.id || null);
+    useEffect(() => {
+        setPremiumVoiceEnabled(isPro || proLoading);
+    }, [isPro, proLoading]);
+
     const {
         isSpeaking,
         speak,
@@ -373,6 +384,47 @@ export default function ChatScreen() {
         setVoiceRecOpen(false);
     }, [voiceRec]);
 
+    // Executes device-side effects the agent's tools requested (local goal
+    // reminders + optional device-calendar events). Runs only for messages
+    // freshly returned by sendMessage — resuming an old thread never
+    // re-schedules anything.
+    const runDeviceActions = useCallback(async (actions: ChatDeviceAction[]) => {
+        for (const action of actions) {
+            try {
+                if (action.type === 'notifications.schedule') {
+                    const goals = Array.isArray(action.payload?.goals) ? action.payload.goals as Array<{ id?: string; title?: string; deadline?: string }> : [];
+                    for (const goal of goals) {
+                        if (goal.id && goal.title && goal.deadline) {
+                            await notificationService.scheduleGoalReminder(goal.id, goal.title, goal.deadline);
+                        }
+                    }
+                } else if (action.type === 'calendar.sync') {
+                    const title = typeof action.payload?.title === 'string' ? action.payload.title : 'Edutu plan';
+                    const milestones = Array.isArray(action.payload?.milestones)
+                        ? (action.payload.milestones as Array<{ title?: string; dueDate?: string }>).filter(m => m.title)
+                        : [];
+                    if (!milestones.length) continue;
+                    const deadline = typeof action.payload?.deadline === 'string' ? action.payload.deadline : null;
+                    Alert.alert(
+                        t('deviceActions.calendarTitle', { defaultValue: 'Add to your calendar?' }),
+                        t('deviceActions.calendarBody', { defaultValue: '{{count}} plan dates can be added to your device calendar.', count: milestones.length }),
+                        [
+                            { text: t('common:actions.cancel', { defaultValue: 'Not now' }), style: 'cancel' },
+                            {
+                                text: t('deviceActions.calendarCta', { defaultValue: 'Add dates' }),
+                                onPress: () => {
+                                    void syncMilestonesToCalendar(title, milestones as Array<{ title: string; dueDate?: string }>, deadline);
+                                },
+                            },
+                        ],
+                    );
+                }
+            } catch (error) {
+                console.warn('Device action failed (non-fatal):', error);
+            }
+        }
+    }, [t]);
+
     const handleSend = useCallback(async (overrideText?: string) => {
         const text = (overrideText || input).trim();
         if (!text) return;
@@ -381,8 +433,10 @@ export default function ChatScreen() {
         lastAttemptRef.current = text;
         lastBotMessageRef.current = null;
         try {
-            await sendMessage(text);
+            const result = await sendMessage(text);
             lastAttemptRef.current = null;
+            const deviceActions = result?.assistantMessage?.metadata?.deviceActions;
+            if (deviceActions?.length) void runDeviceActions(deviceActions);
         } catch (err) {
             console.error('Failed to send message:', err);
             const isLimit = err instanceof ChatRateLimitError || (err as any)?.name === 'ChatRateLimitError';
@@ -391,7 +445,7 @@ export default function ChatScreen() {
                 message: isLimit ? t('limit.body') : t('limit.errorBody'),
             });
         }
-    }, [input, sendMessage, t]);
+    }, [input, sendMessage, runDeviceActions, t]);
 
     const handleRetrySend = useCallback(() => {
         const text = lastAttemptRef.current;
@@ -413,6 +467,57 @@ export default function ChatScreen() {
     const handleViewOpportunity = useCallback((opportunityId: string) => {
         router.push(`/opportunities/${opportunityId}`);
     }, [router]);
+
+    // Document cards: exported files open directly; drafts route the export
+    // request back through chat so the agent produces a fresh signed link.
+    const handleDocumentAction = useCallback((doc: ChatDocumentCard, format?: 'pdf' | 'docx') => {
+        if (doc.url && (!format || format === doc.format)) {
+            void Linking.openURL(doc.url).catch(() => {
+                Alert.alert(t('documents.openFailedTitle', { defaultValue: "Couldn't open the file" }), t('documents.openFailedBody', { defaultValue: 'The link may have expired — ask me to export it again.' }));
+            });
+            return;
+        }
+        void handleSend(
+            t('documents.exportPrompt', {
+                defaultValue: 'Export "{{title}}" as {{format}}',
+                title: doc.title,
+                format: (format || 'pdf').toUpperCase(),
+            }),
+        );
+    }, [handleSend, t]);
+
+    // One-tap chips under agent replies. Navigation kinds route directly;
+    // creation kinds go back through chat so the agent runs the real tool
+    // (metered, confirmed, and it can report the outcome in-conversation).
+    const handleActionButton = useCallback((button: ChatActionButton) => {
+        switch (button.kind) {
+            case 'open_route': {
+                const route = typeof button.payload?.route === 'string' ? button.payload.route : null;
+                if (route) router.push(route as never);
+                break;
+            }
+            case 'view_opportunity': {
+                const id = typeof button.payload?.opportunityId === 'string' ? button.payload.opportunityId : null;
+                if (id) handleViewOpportunity(id);
+                break;
+            }
+            case 'spin_again':
+                void handleSend(t('actions.spinAgainPrompt', { defaultValue: 'Spin me another opportunity!' }));
+                break;
+            case 'create_goals':
+                void handleSend(t('actions.createGoalsPrompt', { defaultValue: 'Yes — turn those milestones into goals for me.' }));
+                break;
+            case 'create_roadmap': {
+                const id = typeof button.payload?.opportunityId === 'string' ? button.payload.opportunityId : null;
+                void handleSend(
+                    id
+                        ? t('actions.createRoadmapPromptFor', { defaultValue: 'Yes, build me the roadmap for that opportunity.' })
+                        : t('actions.createRoadmapPrompt', { defaultValue: 'Yes, build me that roadmap.' }),
+                );
+                break;
+            }
+        }
+    }, [router, handleViewOpportunity, handleSend, t]);
 
     const handleApplyOpportunity = useCallback(async (opportunity: ChatOpportunityCard) => {
         if (opportunity.applyUrl) {
@@ -1053,6 +1158,79 @@ export default function ChatScreen() {
                                 ) : null}
                             </View>
                         )}
+                        {isBot && (item.metadata?.documents?.length ?? 0) > 0 ? (
+                            <View style={styles.documentCardStack}>
+                                {(item.metadata?.documents ?? []).map((doc) => (
+                                    <View
+                                        key={`${doc.docId}-v${doc.version}`}
+                                        style={[styles.documentCard, { backgroundColor: cardBg, borderColor }]}
+                                    >
+                                        <View style={[styles.documentIconWrap, { backgroundColor: isDark ? 'rgba(99,102,241,0.14)' : '#EEF2FF' }]}>
+                                            <FileText size={20} color={accentColor} />
+                                        </View>
+                                        <View style={{ flex: 1, minWidth: 0 }}>
+                                            <Text numberOfLines={1} style={[styles.documentTitle, { color: textPrimary }]}>
+                                                {doc.title}
+                                            </Text>
+                                            <Text style={[styles.documentMeta, { color: textSecondary }]}>
+                                                {t(`documents.type.${doc.type}`, { defaultValue: doc.type === 'cv' ? 'CV' : doc.type === 'sop' ? 'Statement of Purpose' : doc.type === 'cover_letter' ? 'Cover letter' : 'Essay' })}
+                                                {` · v${doc.version}`}
+                                                {doc.url && doc.format ? ` · ${doc.format.toUpperCase()} ${t('documents.ready', { defaultValue: 'ready' })}` : ''}
+                                            </Text>
+                                            <View style={styles.documentActions}>
+                                                {doc.url ? (
+                                                    <TouchableOpacity
+                                                        onPress={() => handleDocumentAction(doc)}
+                                                        style={[styles.documentBtn, { backgroundColor: accentColor }]}
+                                                    >
+                                                        <Text style={styles.documentBtnText}>
+                                                            {t('documents.download', { defaultValue: 'Download' })}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                ) : (
+                                                    <>
+                                                        <TouchableOpacity
+                                                            onPress={() => handleDocumentAction(doc, 'pdf')}
+                                                            style={[styles.documentBtn, { backgroundColor: accentColor }]}
+                                                        >
+                                                            <Text style={styles.documentBtnText}>PDF</Text>
+                                                        </TouchableOpacity>
+                                                        <TouchableOpacity
+                                                            onPress={() => handleDocumentAction(doc, 'docx')}
+                                                            style={[styles.documentBtnOutline, { borderColor: accentColor }]}
+                                                        >
+                                                            <Text style={[styles.documentBtnOutlineText, { color: accentColor }]}>DOCX</Text>
+                                                        </TouchableOpacity>
+                                                    </>
+                                                )}
+                                            </View>
+                                        </View>
+                                    </View>
+                                ))}
+                            </View>
+                        ) : null}
+                        {isBot && (item.metadata?.actionButtons?.length ?? 0) > 0 ? (
+                            <View style={styles.agentActionRow}>
+                                {(item.metadata?.actionButtons ?? []).map((button) => (
+                                    <TouchableOpacity
+                                        key={button.id}
+                                        onPress={() => handleActionButton(button)}
+                                        activeOpacity={0.8}
+                                        style={[
+                                            styles.agentActionChip,
+                                            {
+                                                borderColor: accentColor,
+                                                backgroundColor: isDark ? 'rgba(99,102,241,0.12)' : '#EEF2FF',
+                                            },
+                                        ]}
+                                    >
+                                        <Text style={[styles.agentActionChipText, { color: accentColor }]} numberOfLines={1}>
+                                            {button.label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        ) : null}
                     </View>
                     {!isBot ? (
                         <View style={[styles.avatar, { backgroundColor: isDark ? '#475569' : '#64748B' }]}>
@@ -1838,6 +2016,73 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
         gap: 6,
         paddingTop: 1,
+    },
+    documentCardStack: {
+        gap: 8,
+        marginTop: 8,
+    },
+    documentCard: {
+        flexDirection: 'row',
+        gap: 10,
+        padding: 12,
+        borderRadius: 14,
+        borderWidth: 1,
+    },
+    documentIconWrap: {
+        width: 40,
+        height: 40,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    documentTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    documentMeta: {
+        fontSize: 11.5,
+        marginTop: 1,
+    },
+    documentActions: {
+        flexDirection: 'row',
+        gap: 8,
+        marginTop: 8,
+    },
+    documentBtn: {
+        paddingHorizontal: 14,
+        paddingVertical: 6,
+        borderRadius: 8,
+    },
+    documentBtnText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    documentBtnOutline: {
+        paddingHorizontal: 14,
+        paddingVertical: 6,
+        borderRadius: 8,
+        borderWidth: 1.5,
+    },
+    documentBtnOutlineText: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    agentActionRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginTop: 8,
+    },
+    agentActionChip: {
+        borderWidth: 1.5,
+        borderRadius: 999,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+    },
+    agentActionChipText: {
+        fontSize: 13,
+        fontWeight: '700',
     },
     smartActionChip: {
         minHeight: 30,

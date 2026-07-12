@@ -4,10 +4,13 @@ import {
   Get,
   Headers,
   Post,
+  Query,
   Req,
   UnauthorizedException,
+  UseGuards,
 } from "@nestjs/common";
 import { Public, CurrentUser } from "../auth";
+import { AdminGuard } from "../auth/admin.guard";
 import { BillingService } from "./billing.service";
 import type { CreateCheckoutDto } from "./dto/billing.dto";
 
@@ -27,6 +30,23 @@ export class BillingController {
     @Body() dto: CreateCheckoutDto,
   ) {
     return this.billingService.createCheckout(userId, email, dto);
+  }
+
+  // Admin monetization oversight: revenue, subscribers, credit purchases and
+  // spend, top spenders, today's AI usage — powers the admin Monetization page.
+  @Get("admin/overview")
+  @UseGuards(AdminGuard)
+  getAdminOverview() {
+    return this.billingService.getAdminOverview();
+  }
+
+  @Get("admin/transactions")
+  @UseGuards(AdminGuard)
+  listAdminTransactions(
+    @Query("limit") limit?: number,
+    @Query("offset") offset?: number,
+  ) {
+    return this.billingService.listAdminTransactions(limit, offset);
   }
 
   @Public()

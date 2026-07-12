@@ -107,7 +107,7 @@ describe("AiService.embed", () => {
     expect(mockedAiFetch).not.toHaveBeenCalled();
   });
 
-  it("returns null when the routed provider has no embeddings support", async () => {
+  it("reroutes to gemini when the routed provider has no embeddings support", async () => {
     process.env.GEMINI_API_KEY = "test-key";
     const service = buildService();
     // Force a deepseek route through a feature with no embeddings default.
@@ -116,11 +116,12 @@ describe("AiService.embed", () => {
       input: "text",
     });
 
-    // chat.coach resolves to deepseek, whose adapter lacks generateEmbedding —
-    // but first the model guard pins text-embedding-004; provider stays
-    // deepseek, so the adapter check must return null.
-    expect(result).toBeNull();
-    expect(mockedAiFetch).not.toHaveBeenCalled();
+    // chat.coach resolves to deepseek, whose adapter lacks generateEmbedding.
+    // Embeddings must stay on gemini, so the service reroutes there instead
+    // of silently dropping the embedding.
+    expect(result).not.toBeNull();
+    expect(result?.provider).toBe("gemini");
+    expect(result?.embeddings.length).toBeGreaterThan(0);
   });
 
   it("returns null instead of throwing when the request fails", async () => {

@@ -98,7 +98,11 @@ export const AIAssistDtoSchema = z.object({
 });
 
 export const OpportunityPlanDtoSchema = z.object({
-  title: z.string().min(3),
+  // When set, the server loads the verified opportunity row and uses ITS
+  // title/deadline/requirements — client-sent fields become a fallback only.
+  // Plans must never be built on unverified client-supplied opportunity data.
+  opportunityId: z.string().uuid().optional(),
+  title: z.string().min(3).optional(),
   organization: z.string().optional(),
   category: z.string().optional(),
   deadline: z.string().optional(),
@@ -124,6 +128,8 @@ export const OpportunityPlanDtoSchema = z.object({
       ambitions: z.array(z.string().max(200)).max(20).optional(),
     })
     .optional(),
+}).refine((dto) => Boolean(dto.opportunityId || dto.title), {
+  message: "Provide opportunityId or title",
 });
 
 export const AdoptRoadmapDtoSchema = z.object({

@@ -12,9 +12,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '@clerk/clerk-expo';
 import { useTranslation } from 'react-i18next';
-import { Check, Sparkles } from 'lucide-react-native';
+import { Check, Lock, Sparkles } from 'lucide-react-native';
 import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
-import { speak as edutuSpeak } from '../../lib/edutuSpeech';
+import { speak as edutuSpeak, isPremiumVoiceEnabled } from '../../lib/edutuSpeech';
 import {
     ORB_DESIGNS,
     OrbDesign,
@@ -130,6 +130,9 @@ export function VoiceSettingsSheet({ visible, onClose }: VoiceSettingsSheetProps
     const insets = useSafeAreaInsets();
     const settings = useVoiceSettings();
     const { getToken } = useAuth();
+    // Premium neural voices are Pro-only (the overlay sets this flag from the
+    // user's entitlements before the sheet can open).
+    const premiumUnlocked = isPremiumVoiceEnabled();
 
     const designLabels: Record<OrbDesign, string> = useMemo(() => ({
         particles: t('voiceMode.designParticles'),
@@ -209,7 +212,7 @@ export function VoiceSettingsSheet({ visible, onClose }: VoiceSettingsSheetProps
                                 key={voice.id}
                                 onPress={() => previewVoice(voice.id)}
                                 activeOpacity={0.7}
-                                style={styles.voiceRow}
+                                style={[styles.voiceRow, !premiumUnlocked && styles.voiceRowLocked]}
                                 accessibilityRole="button"
                                 accessibilityState={{ selected }}
                             >
@@ -217,11 +220,21 @@ export function VoiceSettingsSheet({ visible, onClose }: VoiceSettingsSheetProps
                                     <Text style={styles.voiceName} numberOfLines={1}>{voice.label}</Text>
                                     <Text style={styles.voiceMeta} numberOfLines={1}>{voice.tone}</Text>
                                 </View>
+                                {!premiumUnlocked ? (
+                                    <View style={styles.proPill}>
+                                        <Lock size={10} color="#FBBF24" strokeWidth={2.6} />
+                                        <Text style={styles.proPillText}>PRO</Text>
+                                    </View>
+                                ) : null}
                                 {selected ? <Check size={18} color="#818CF8" strokeWidth={2.6} /> : null}
                             </TouchableOpacity>
                         );
                     })}
-                    <Text style={styles.voiceHint}>{t('voiceMode.voiceHint')}</Text>
+                    <Text style={styles.voiceHint}>
+                        {premiumUnlocked
+                            ? t('voiceMode.voiceHint')
+                            : t('voiceMode.voiceProHint', { defaultValue: 'Premium voices are an Edutu Pro perk — upgrade to hear Edutu in these natural neural voices. Free plan uses your device voice.' })}
+                    </Text>
                 </ScrollView>
             </Animated.View>
         </View>
@@ -441,6 +454,27 @@ const styles = StyleSheet.create({
         color: '#6B7280',
         fontSize: 12,
         marginTop: 1,
+    },
+    voiceRowLocked: {
+        opacity: 0.75,
+    },
+    proPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        backgroundColor: 'rgba(251,191,36,0.14)',
+        borderColor: 'rgba(251,191,36,0.4)',
+        borderWidth: StyleSheet.hairlineWidth,
+        borderRadius: 999,
+        paddingHorizontal: 7,
+        paddingVertical: 3,
+        marginRight: 8,
+    },
+    proPillText: {
+        color: '#FBBF24',
+        fontSize: 9,
+        fontWeight: '800',
+        letterSpacing: 0.6,
     },
     voiceHint: {
         color: '#6B7280',

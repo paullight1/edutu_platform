@@ -12,11 +12,22 @@ import {
   Loader2,
   RefreshCcw,
   Search,
+  Sparkles,
   Trash2,
   Trophy,
+  X,
 } from 'lucide-react';
 import { useAuth as useAppAuth } from '../hooks/useAuth';
+import { usePersonalization } from '../hooks/usePersonalization';
 import PullToRefresh from './ui/PullToRefresh';
+import CelebrationBurst from './ui/CelebrationBurst';
+import { useToast } from './ui/ToastProvider';
+import { MatchScoreBadge, TopMatchReason } from './opportunity/MatchInsights';
+import { getDeadlineBadge, urgencyTextClasses } from '../services/deadlineUrgency';
+import { fetchOpportunities, isOpportunityExpired } from '../services/opportunities';
+import { getBookmarks } from '../services/bookmarks';
+import type { MatchResult } from '../services/personalizedRecommendations';
+import type { Opportunity } from '../types/opportunity';
 import {
   APPLICATION_PIPELINE,
   getApplications,
@@ -45,6 +56,38 @@ const STATUS_OPTIONS: ApplicationStatus[] = [
   'rejected',
   'withdrawn',
 ];
+
+/**
+ * Per-stage celebration copy for forward moves through the pipeline.
+ * Draft has no entry — creating a draft isn't a milestone yet.
+ */
+const CELEBRATION_COPY: Partial<Record<ApplicationStatus, { title: string; description: string }>> = {
+  submitted: {
+    title: 'Submitted. The hardest part is behind you.',
+    description: 'Most people never press send — you just did.',
+  },
+  interview: {
+    title: 'Interview! They noticed you.',
+    description: 'Your application stood out. Time to prepare for the conversation.',
+  },
+  offer: {
+    title: 'An offer. Huge congratulations!',
+    description: 'You put in the work and it paid off — take a moment to enjoy this.',
+  },
+};
+
+/** localStorage map of application id → optional post-rejection reflection. */
+const REJECTION_REFLECTIONS_KEY = 'edutu_rejection_reflections';
+
+function readReflections(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(REJECTION_REFLECTIONS_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
 
 /** Stage index within the active pipeline, or -1 for terminal states. */
 function pipelineIndex(status: ApplicationStatus): number {
@@ -128,6 +171,59 @@ export default function ApplicationsPage() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
+  const { explainOpportunity } = usePersonalization();
+
+  // Post-rejection flow: which card shows the supportive panel, the saved
+  // reflections map, and the recomputed "next best shot" suggestion.
+  const [rejectionPanelId, setRejectionPanelId] = useState<string | null>(null);
+  const [reflections, setReflections] = useState<Record<string, string>>(readReflections);
+  const [nextBestShot, setNextBestShot] = useState<{
+    opportunity: Opportunity;
+    match: MatchResult;
+  } | null>(null);
+  const [nextShotLoading, setNextShotLoading] = useState(false);
+  // Celebration burst is reserved for the biggest moment: an offer.
+  const [celebrating, setCelebrating] = useState(false);
+
+  const saveReflection = useCallback((applicationId: string, text: string) => {
+    setReflections((current) => {
+      const next = { ...current, [applicationId]: text };
+      try {
+        window.localStorage.setItem(REJECTION_REFLECTIONS_KEY, JSON.stringify(next));
+      } catch {
+        // Storage unavailable — the reflection still lives in state.
+      }
+      return next;
+    });
+  }, []);
+
+  // Find the top-scoring active opportunity the user hasn't already applied
+  // to or saved, using the SWR opportunities snapshot + evaluateMatch.
+  const loadNextBestShot = useCallback(async () => {
+    setNextShotLoading(true);
+    setNextBestShot(null);
+    try {
+      const token = await getToken().catch(() => null);
+      const [all, saved] = await Promise.all([
+        fetchOpportunities(),
+        user?.id ? getBookmarks(user.id, token).catch(() => []) : Promise.resolve([]),
+      ]);
+      const excluded = new Set<string>();
+      for (const application of applications) excluded.add(application.opportunity_id);
+      for (const bookmark of saved) excluded.add(bookmark.opportunity_id);
+
+      const best = all
+        .filter((opportunity) => !excluded.has(opportunity.id) && !isOpportunityExpired(opportunity))
+        .map((opportunity) => ({ opportunity, match: explainOpportunity(opportunity) }))
+        .sort((a, b) => b.match.score - a.match.score)[0];
+      setNextBestShot(best ?? null);
+    } catch {
+      setNextBestShot(null);
+    } finally {
+      setNextShotLoading(false);
+    }
+  }, [applications, explainOpportunity, getToken, user?.id]);
 
   const resolveToken = useCallback(async () => {
     const token = await getToken().catch(() => null);
@@ -184,6 +280,21 @@ export default function ApplicationsPage() {
       setApplications((current) =>
         current.map((item) => (item.id === application.id ? { ...item, ...updated } : item)),
       );
+
+      if (status === 'rejected') {
+        // Never a dead-end: open the supportive panel and line up the next shot.
+        setRejectionPanelId(application.id);
+        void loadNextBestShot();
+      } else {
+        if (rejectionPanelId === application.id) setRejectionPanelId(null);
+        // Celebrate forward movement through the pipeline.
+        const movedForward = pipelineIndex(status) > pipelineIndex(application.status);
+        const copy = movedForward ? CELEBRATION_COPY[status] : undefined;
+        if (copy) {
+          toast.success(copy.title, copy.description);
+          if (status === 'offer') setCelebrating(true);
+        }
+      }
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : 'Unable to update application status.');
     } finally {
@@ -213,6 +324,7 @@ export default function ApplicationsPage() {
 
   return (
     <div className="min-h-[100dvh] bg-surface-body text-text-primary">
+      {celebrating ? <CelebrationBurst onDone={() => setCelebrating(false)} /> : null}
       <header className="sticky top-0 z-30 hidden border-b border-subtle bg-surface-layer/90 backdrop-blur-xl lg:block">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <button
@@ -451,6 +563,92 @@ export default function ApplicationsPage() {
                       </button>
                     </div>
                   </div>
+
+                  {application.status === 'rejected' && rejectionPanelId === application.id ? (
+                    <div className="mt-4 rounded-2xl border border-subtle bg-surface-elevated p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-text-primary">
+                            This one said no. That&apos;s data, not a verdict.
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-text-muted">
+                            Every application sharpens the next one. If you want, note what
+                            you&apos;d try differently — future you will thank you.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setRejectionPanelId(null)}
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-text-muted transition hover:bg-surface-layer hover:text-text-secondary"
+                          aria-label="Dismiss reflection panel"
+                        >
+                          <X size={15} />
+                        </button>
+                      </div>
+
+                      <textarea
+                        value={reflections[application.id] ?? ''}
+                        onChange={(event) => saveReflection(application.id, event.target.value)}
+                        rows={3}
+                        placeholder="Optional: what would you try differently next time?"
+                        className="mt-3 w-full resize-none rounded-xl border border-subtle bg-surface-layer p-3 text-sm text-text-secondary outline-none transition placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand/20"
+                      />
+
+                      <div className="mt-3 border-t border-subtle pt-3">
+                        <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand">
+                          <Sparkles size={13} />
+                          Your next best shot
+                        </p>
+                        {nextShotLoading ? (
+                          <div className="mt-2 flex items-center gap-2 text-sm text-text-muted">
+                            <Loader2 size={15} className="animate-spin" />
+                            Finding your strongest open match…
+                          </div>
+                        ) : nextBestShot ? (
+                          <div className="mt-2 flex flex-col gap-3 rounded-xl border border-subtle bg-surface-layer p-3.5 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <MatchScoreBadge score={nextBestShot.match.score} />
+                                {(() => {
+                                  const badge = getDeadlineBadge(nextBestShot.opportunity.deadline);
+                                  return badge.level !== 'none' ? (
+                                    <span className={`text-xs text-text-muted ${urgencyTextClasses(badge.level)}`}>
+                                      {badge.label}
+                                    </span>
+                                  ) : null;
+                                })()}
+                              </div>
+                              <p className="mt-1.5 line-clamp-1 text-sm font-semibold text-text-primary">
+                                {nextBestShot.opportunity.title}
+                              </p>
+                              <TopMatchReason reason={nextBestShot.match.reasons[0]} />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/opportunity/${nextBestShot.opportunity.id}`)}
+                              className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand px-4 text-sm font-bold text-white transition hover:bg-brand-700"
+                            >
+                              View opportunity
+                              <ArrowRight size={15} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="text-sm text-text-muted">
+                              Nothing scored highly enough right now — new opportunities land daily.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => navigate('/opportunities')}
+                              className="inline-flex h-9 shrink-0 items-center justify-center rounded-xl border border-subtle px-3 text-sm font-bold text-text-secondary transition hover:bg-surface-layer"
+                            >
+                              Browse opportunities
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
                 </article>
               ))}
             </div>

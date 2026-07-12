@@ -11,3 +11,4 @@ import './TrendingGridWidget';
 import './TrendingTickerWidget';
 import './TrendingThumbListWidget';
 import './ChatWidget';
+import './NewsWidget';

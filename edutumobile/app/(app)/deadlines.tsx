@@ -104,25 +104,42 @@ export default function DeadlinesScreen() {
     const { t } = useTranslation('home');
     const { isDark, colors } = useTheme();
     const router = useRouter();
-    const { user } = useUser();
+    const { user, isLoaded } = useUser();
     const { getToken } = useAuth();
 
     const [deadlines, setDeadlines] = useState<DeadlineItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [loadError, setLoadError] = useState(false);
 
     const fetchDeadlines = useCallback(async () => {
-        if (!user) return;
+        if (!user) {
+            // Clerk finished loading with no user — stop the spinner instead
+            // of spinning forever waiting for a fetch that will never start.
+            if (isLoaded) {
+                setLoading(false);
+                setRefreshing(false);
+            }
+            return;
+        }
         try {
             setLoading(true);
-            setDeadlines(await fetchOpportunityDeadlines(supabase, user.id, getToken));
+            setLoadError(false);
+            const result = await Promise.race([
+                fetchOpportunityDeadlines(supabase, user.id, getToken),
+                new Promise<never>((_, reject) =>
+                    setTimeout(() => reject(new Error('deadlines fetch timed out')), 15000),
+                ),
+            ]);
+            setDeadlines(result);
         } catch (error) {
             console.error('Error fetching deadlines:', error);
+            setLoadError(true);
         } finally {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [getToken, user]);
+    }, [getToken, user, isLoaded]);
 
     useEffect(() => {
         fetchDeadlines();
@@ -191,7 +208,26 @@ export default function DeadlinesScreen() {
                 renderItem={() => null}
                 ListHeaderComponent={
                     <>
-                        {totalDeadlines === 0 ? (
+                        {loadError && totalDeadlines === 0 ? (
+                            <View style={styles.errorState}>
+                                <AlertCircle size={40} color="#F59E0B" />
+                                <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
+                                    {t('deadlines.errorTitle', { defaultValue: "Couldn't load deadlines" })}
+                                </Text>
+                                <Text style={[styles.emptyDesc, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                                    {t('deadlines.errorDescription', { defaultValue: 'Check your connection and try again.' })}
+                                </Text>
+                                <TouchableOpacity
+                                    style={[styles.emptyBtn, { backgroundColor: colors.accent }]}
+                                    onPress={() => void fetchDeadlines()}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={styles.emptyBtnText}>
+                                        {t('deadlines.retry', { defaultValue: 'Retry' })}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : totalDeadlines === 0 ? (
                             <LottieState
                                 preset="deadlineEmpty"
                                 title={t('deadlines.emptyTitle')}
@@ -335,6 +371,13 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '600',
         color: '#64748B',
+    },
+    errorState: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 80,
+        paddingHorizontal: 40,
+        gap: 4,
     },
     emptyState: {
         alignItems: 'center',

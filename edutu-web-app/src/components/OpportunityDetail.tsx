@@ -798,7 +798,7 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
         </div>
 
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <article className="space-y-7">
+          <article className="min-w-0 space-y-7">
             <header className="space-y-4 border-b border-subtle pb-6">
               <div className="relative overflow-hidden rounded-[28px] border border-subtle bg-surface-elevated shadow-soft">
                 <ImageWithFallback
@@ -816,15 +816,15 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
               <p className="text-sm font-semibold text-brand">
                 Opportunity detail
               </p>
-              <h1 className="max-w-3xl font-display text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl">
+              <h1 className="max-w-3xl break-words font-display text-3xl font-semibold tracking-tight text-text-primary sm:text-4xl">
                 {opportunity.title}
               </h1>
               {!embedded && opportunity.organization ? (
-                <p className="max-w-3xl text-lg leading-8 text-text-secondary">
+                <p className="max-w-3xl break-words text-lg leading-8 text-text-secondary">
                   {opportunity.organization}
                 </p>
               ) : null}
-              <div className="max-w-3xl space-y-3 text-base leading-7 text-text-secondary">
+              <div className="max-w-3xl space-y-3 break-words text-base leading-7 text-text-secondary [overflow-wrap:anywhere]">
                 {descriptionParagraphs.length > 0 ? (
                   descriptionParagraphs.map((paragraph, index) => (
                     <p key={`${paragraph.slice(0, 40)}-${index}`}>

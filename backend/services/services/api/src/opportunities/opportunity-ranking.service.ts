@@ -580,6 +580,7 @@ export class OpportunityRankingService {
                  (case s.signal_type
                     when 'view' then 2
                     when 'click' then 5
+                    when 'share' then 10
                     when 'save' then 12
                     when 'apply' then 18
                     when 'chat_like' then 8
@@ -760,12 +761,18 @@ export class OpportunityRankingService {
     const weights: Record<string, number> = {
       view: 2,
       click: 5,
+      share: 10,
       save: 12,
       apply: 18,
       chat_like: 8,
       chat_dislike: -12,
       recommended_in_chat: 1,
       dismiss: -100,
+      // Outcomes outweigh intent: an offer is the strongest evidence of fit
+      // we ever get; a rejection still shows real engagement with the type.
+      outcome_offer: 25,
+      outcome_rejected: 3,
+      outcome_withdrawn: -5,
     };
 
     // Build the weight lookup as a parameterized CASE so the weights above stay

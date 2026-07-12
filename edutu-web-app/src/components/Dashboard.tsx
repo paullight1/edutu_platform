@@ -15,6 +15,7 @@ import {
   Share2,
   Shuffle,
   Sparkles,
+  Target,
   X,
   UserCheck,
   Users,
@@ -47,6 +48,7 @@ import {
   getDeadlineBadge,
   urgencyTextClasses,
 } from "../services/deadlineUrgency";
+import { isOpportunityExpired } from "../services/opportunities";
 import {
   shareOpportunity,
   shareOutcomeMessage,
@@ -655,6 +657,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       preferences: personalizationPreferences,
       personalizeFeed,
       trackInteraction,
+      explainOpportunity,
       isPersonalized,
       ready: personalizationReady,
     } = usePersonalization();
@@ -999,6 +1002,21 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           : shuffleOpportunityFeed(filteredOpportunityFeed, homeShuffleSeed),
       [filteredOpportunityFeed, homeShuffleSeed, isPersonalized, personalizeFeed],
     );
+
+    // "Your Best Shots" — the top 3 genuinely winnable matches (score >= 60).
+    // Deliberately tiny: the product promise is narrowing, not more scrolling.
+    const bestShots = useMemo(() => {
+      if (!user?.id || !isPersonalized) return [];
+      return normalizedOpportunityFeed
+        .filter((opportunity: any) => !isOpportunityExpired(opportunity))
+        .map((opportunity: any) => ({
+          opportunity,
+          match: explainOpportunity(opportunity),
+        }))
+        .filter((item) => item.match.score >= 60)
+        .sort((a, b) => b.match.score - a.match.score)
+        .slice(0, 3);
+    }, [explainOpportunity, isPersonalized, normalizedOpportunityFeed, user?.id]);
 
     const visibleHomeOpportunities = useMemo(
       () => shuffledOpportunityFeed.slice(0, homeFeedLimit),
@@ -1829,6 +1847,94 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
             <section className="sm:hidden mb-6">
               <BannerCarousel banners={DEFAULT_BANNERS} mobileHeight="150px" />
             </section>
+
+            {/* Your Best Shots — the winnable shortlist, always above the feed */}
+            {user?.id && personalizationReady && !opportunitiesLoading ? (
+              <motion.section
+                initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                aria-labelledby="best-shots-heading"
+              >
+                <div className="rounded-[24px] border border-subtle bg-surface-layer p-5 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-brand/10 text-brand">
+                      <Target size={19} />
+                    </span>
+                    <div className="min-w-0">
+                      <h2
+                        id="best-shots-heading"
+                        className="text-lg font-semibold tracking-tight text-text-primary"
+                      >
+                        Your Best Shots
+                      </h2>
+                      <p className="mt-0.5 text-xs font-medium leading-5 text-text-muted">
+                        Fewer, winnable — these are yours.
+                      </p>
+                    </div>
+                  </div>
+
+                  {bestShots.length > 0 ? (
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {bestShots.map(({ opportunity, match }) => {
+                        const deadlineBadge = getDeadlineBadge(
+                          opportunity.deadline,
+                        );
+                        return (
+                          <article
+                            key={opportunity.id}
+                            className="flex flex-col rounded-2xl border border-subtle bg-surface-elevated p-4"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <MatchScoreBadge score={match.score} />
+                              {deadlineBadge.level !== "none" ? (
+                                <span
+                                  className={`inline-flex items-center gap-1 text-xs text-text-muted ${urgencyTextClasses(deadlineBadge.level)}`}
+                                >
+                                  <Clock size={12} />
+                                  {deadlineBadge.label}
+                                </span>
+                              ) : null}
+                            </div>
+                            <h3 className="mt-2.5 line-clamp-2 text-sm font-semibold leading-5 text-text-primary">
+                              {opportunity.title}
+                            </h3>
+                            <TopMatchReason reason={match.reasons[0]} />
+                            <div className="mt-auto pt-3">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenOpportunity(opportunity)}
+                                className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-brand-500 px-4 text-sm font-semibold text-white transition hover:bg-brand-600 active:scale-[0.98]"
+                              >
+                                Start here
+                                <ChevronRight size={15} />
+                              </button>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="mt-4 rounded-2xl border border-dashed border-subtle bg-surface-elevated p-5 text-center">
+                      <p className="text-sm font-semibold text-text-primary">
+                        No strong matches yet — and that&apos;s fixable.
+                      </p>
+                      <p className="mx-auto mt-1 max-w-md text-xs font-medium leading-5 text-text-muted">
+                        The more Edutu knows about your field, goals and region,
+                        the sharper this shortlist gets.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => routerNavigate("/app/personalization")}
+                        className="mt-3 inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-brand-500 px-4 text-sm font-semibold text-white transition hover:bg-brand-600 active:scale-[0.98]"
+                      >
+                        <Sparkles size={15} />
+                        Complete your profile
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </motion.section>
+            ) : null}
 
             {/* Content Layout */}
             <div className="grid lg:grid-cols-12 gap-8 pb-8">

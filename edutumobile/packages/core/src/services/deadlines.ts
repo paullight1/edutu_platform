@@ -87,7 +87,7 @@ export async function fetchOpportunityDeadlines(
         deadline
       )
     `)
-    .eq('user_id', toSafeUUID(userId))
+    .in('user_id', getUserLookupIds(userId))
     .eq('type', 'opportunity');
 
   if (appliedError) throw appliedError;

@@ -22,12 +22,18 @@ export const OpportunitySignalSchema = z.object({
   signalType: z.enum([
     "view",
     "click",
+    "share",
     "save",
     "dismiss",
     "apply",
     "chat_like",
     "chat_dislike",
     "recommended_in_chat",
+    // Real application outcomes, recorded when the user resolves an
+    // application — the only signals that teach the engine what they WIN.
+    "outcome_offer",
+    "outcome_rejected",
+    "outcome_withdrawn",
   ]),
   signalValue: z.number().int().min(-10).max(10).optional(),
   source: z.string().max(100).optional(),

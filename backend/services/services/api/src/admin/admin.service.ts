@@ -9,10 +9,12 @@ import type { ClerkClient } from "@clerk/clerk-sdk-node";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { eq, desc, count, gte, sql } from "drizzle-orm";
 import { AuditService } from "../common/audit";
+import { toDatabaseUserId } from "../common/user-id";
 import { db } from "../db";
 import { creatorApplications, opportunities, profiles } from "../db/schema";
 import {
   type AdminAiUsageSummaryResponse,
+  type AdminVoiceUsageResponse,
   type AdminDashboardActivity,
   type AdminDashboardResponse,
   type AdminDashboardStats,
@@ -66,6 +68,11 @@ const ROLE_METADATA_KEY = "role";
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
   private supabaseAdminClient: SupabaseClient | null | undefined;
+  // Users authenticate via TWO systems (Clerk + legacy Supabase auth), but a
+  // profiles row only exists after a user's first API hit — so counting
+  // profiles alone undercounts. Cache the merged auth directory briefly.
+  private authDirectoryCache: { at: number; users: AdminUserRecord[] } | null =
+    null;
 
   constructor(
     @Inject("ClerkClient") private readonly clerkClient: ClerkClient,
@@ -86,7 +93,10 @@ export class AdminService {
         .from(profiles)
         .orderBy(desc(profiles.createdAt));
 
-      const normalizedUsers = rows.map((row) => this.toUserRecord(row));
+      const normalizedUsers = this.mergeUsersWithAuthDirectory(
+        rows.map((row) => this.toUserRecord(row)),
+        await this.fetchAuthDirectoryUsers(),
+      );
       const users = this.filterUsers(normalizedUsers, search, role);
 
       return {
@@ -356,7 +366,10 @@ export class AdminService {
           .limit(5),
       ]);
 
-      const users = userRows.map((row) => this.toUserRecord(row));
+      const users = this.mergeUsersWithAuthDirectory(
+        userRows.map((row) => this.toUserRecord(row)),
+        await this.fetchAuthDirectoryUsers(),
+      );
       const opportunityCount = this.extractCount(activeOpportunitiesResult);
       const opportunitiesThisWeek = this.extractCount(
         opportunitiesThisWeekResult,
@@ -481,8 +494,11 @@ export class AdminService {
 
       if (error) throw error;
 
-      const normalizedUsers = (data || []).map((row) =>
-        this.toUserRecordFromSupabase(row as SupabaseProfileRow),
+      const normalizedUsers = this.mergeUsersWithAuthDirectory(
+        (data || []).map((row) =>
+          this.toUserRecordFromSupabase(row as SupabaseProfileRow),
+        ),
+        await this.fetchAuthDirectoryUsers(),
       );
       const users = this.filterUsers(normalizedUsers, search, role);
 
@@ -572,8 +588,11 @@ export class AdminService {
 
       if (firstError) throw firstError;
 
-      const users = (profilesResult.data || []).map((row) =>
-        this.toUserRecordFromSupabase(row as SupabaseProfileRow),
+      const users = this.mergeUsersWithAuthDirectory(
+        (profilesResult.data || []).map((row) =>
+          this.toUserRecordFromSupabase(row as SupabaseProfileRow),
+        ),
+        await this.fetchAuthDirectoryUsers(),
       );
       const creatorApplicationsData = creatorApplicationsResult.data || [];
       const recentOpportunities = recentOpportunitiesResult.data || [];
@@ -850,6 +869,205 @@ export class AdminService {
         : null;
 
     return this.supabaseAdminClient;
+  }
+
+  /**
+   * Full user directory across both auth systems. Never throws — returns []
+   * on failure so the profiles-only view still renders.
+   */
+  private async fetchAuthDirectoryUsers(): Promise<AdminUserRecord[]> {
+    const now = Date.now();
+    if (this.authDirectoryCache && now - this.authDirectoryCache.at < 60_000) {
+      return this.authDirectoryCache.users;
+    }
+
+    const [clerkUsers, supabaseUsers] = await Promise.all([
+      this.fetchClerkDirectory(),
+      this.fetchSupabaseAuthDirectory(),
+    ]);
+
+    const users = [...clerkUsers, ...supabaseUsers];
+    this.authDirectoryCache = { at: now, users };
+    return users;
+  }
+
+  private async fetchClerkDirectory(): Promise<AdminUserRecord[]> {
+    const users: AdminUserRecord[] = [];
+    try {
+      const pageSize = 100;
+      for (let offset = 0; offset < 2000; offset += pageSize) {
+        const page = await this.clerkClient.users.getUserList({
+          limit: pageSize,
+          offset,
+          orderBy: "-created_at",
+        });
+        const data = page.data || [];
+        for (const user of data) {
+          const email =
+            user.primaryEmailAddress?.emailAddress ||
+            user.emailAddresses?.[0]?.emailAddress ||
+            null;
+          const metadataRole = this.toRecord(user.publicMetadata)[
+            ROLE_METADATA_KEY
+          ];
+          users.push(
+            this.toDirectoryUserRecord({
+              userId: user.id,
+              fullName:
+                [user.firstName, user.lastName]
+                  .filter(Boolean)
+                  .join(" ")
+                  .trim() || null,
+              email,
+              role: typeof metadataRole === "string" ? metadataRole : null,
+              createdAt: new Date(user.createdAt).toISOString(),
+              updatedAt: new Date(
+                user.updatedAt || user.createdAt,
+              ).toISOString(),
+            }),
+          );
+        }
+        if (data.length < pageSize) break;
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Unable to list Clerk users for admin directory: ${this.errorMessage(error)}`,
+      );
+    }
+    return users;
+  }
+
+  private async fetchSupabaseAuthDirectory(): Promise<AdminUserRecord[]> {
+    const supabase = this.getSupabaseAdminClient();
+    if (!supabase) return [];
+
+    try {
+      const { data, error } = await supabase.auth.admin.listUsers({
+        page: 1,
+        perPage: 1000,
+      });
+      if (error) throw error;
+
+      return (data.users || []).map((user) => {
+        const metadata = this.toRecord(user.user_metadata);
+        const fullName =
+          (typeof metadata.full_name === "string" && metadata.full_name) ||
+          (typeof metadata.name === "string" && metadata.name) ||
+          null;
+        const appRole = this.toRecord(user.app_metadata)[ROLE_METADATA_KEY];
+
+        return this.toDirectoryUserRecord({
+          userId: user.id,
+          fullName,
+          email: user.email || null,
+          role: typeof appRole === "string" ? appRole : null,
+          createdAt: this.dateToIso(user.created_at),
+          updatedAt: this.dateToIso(user.updated_at || user.created_at),
+        });
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Unable to list Supabase auth users for admin directory: ${this.errorMessage(error)}`,
+      );
+      return [];
+    }
+  }
+
+  private toDirectoryUserRecord(input: {
+    userId: string;
+    fullName: string | null;
+    email: string | null;
+    role: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }): AdminUserRecord {
+    return {
+      userId: input.userId,
+      fullName: input.fullName?.trim() || "Anonymous User",
+      email: input.email?.trim() || "No email",
+      role: input.role?.trim() || "user",
+      country: null,
+      skills: [],
+      creditsBalance: 0,
+      creatorStatus: "none",
+      creatorRejectionReason: null,
+      creatorMetadata: {},
+      createdAt: input.createdAt,
+      updatedAt: input.updatedAt,
+    };
+  }
+
+  /**
+   * Profiles + auth-directory union. Profiles rows are keyed inconsistently
+   * (auth UUIDs, hashed Clerk ids from the guard, raw Clerk ids from older
+   * mobile writes), so dedupe by every id variant AND by email.
+   */
+  private mergeUsersWithAuthDirectory(
+    profileUsers: AdminUserRecord[],
+    directoryUsers: AdminUserRecord[],
+  ): AdminUserRecord[] {
+    const ids = new Set(
+      profileUsers.map((user) => user.userId.toLowerCase()),
+    );
+    const emails = new Set(
+      profileUsers
+        .map((user) => user.email.toLowerCase())
+        .filter((email) => email && email !== "no email"),
+    );
+
+    const merged = [...profileUsers];
+    const missing: AdminUserRecord[] = [];
+
+    for (const user of directoryUsers) {
+      const idVariants = [
+        user.userId.toLowerCase(),
+        toDatabaseUserId(user.userId).toLowerCase(),
+      ];
+      const email = user.email.toLowerCase();
+
+      if (idVariants.some((id) => ids.has(id))) continue;
+      if (email !== "no email" && emails.has(email)) continue;
+
+      idVariants.forEach((id) => ids.add(id));
+      if (email !== "no email") emails.add(email);
+      merged.push(user);
+      missing.push(user);
+    }
+
+    if (missing.length > 0) {
+      this.backfillMissingProfiles(missing);
+    }
+
+    return merged.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  }
+
+  /**
+   * Fire-and-forget: give directory-only users a profiles row (same hashed
+   * keying as ClerkAuthGuard) so every profiles-based metric — monetization,
+   * active users, credits — converges to the real user count.
+   */
+  private backfillMissingProfiles(users: AdminUserRecord[]): void {
+    void Promise.allSettled(
+      users.map((user) =>
+        db
+          .insert(profiles)
+          .values({
+            userId: toDatabaseUserId(user.userId),
+            email: user.email === "No email" ? null : user.email,
+            fullName: user.fullName === "Anonymous User" ? null : user.fullName,
+            createdAt: new Date(user.createdAt),
+          })
+          .onConflictDoNothing()
+          .execute(),
+      ),
+    ).catch((error) => {
+      this.logger.warn(
+        `Profile backfill from auth directory failed: ${this.errorMessage(error)}`,
+      );
+    });
   }
 
   private filterUsers(
@@ -1173,6 +1391,128 @@ export class AdminService {
       // instead of a 500 so the admin dashboard degrades gracefully.
       this.logger.warn(
         `AI usage summary unavailable: ${this.errorMessage(error)}`,
+      );
+      return { ...empty, success: false, error: this.errorMessage(error) };
+    }
+  }
+
+  // Voice AI (TTS synthesis + Whisper STT) global usage, recorded per request
+  // by the chat-proxy edge function into ai_voice_usage. Powers the admin
+  // Monetization "Usage" section so voice spend is visible next to revenue.
+  async getVoiceUsage(daysInput?: string): Promise<AdminVoiceUsageResponse> {
+    const parsed = Number(daysInput);
+    const days =
+      Number.isFinite(parsed) && parsed > 0
+        ? Math.min(Math.floor(parsed), 365)
+        : 30;
+
+    // USD per minute of audio. Overridable so a provider price change is a
+    // config edit, not a deploy.
+    const ttsPerMinuteUsd = Number(process.env.VOICE_TTS_USD_PER_MIN || 0.015);
+    const sttPerMinuteUsd = Number(process.env.VOICE_STT_USD_PER_MIN || 0.006);
+
+    const empty: AdminVoiceUsageResponse = {
+      success: true,
+      days,
+      pricing: { ttsPerMinuteUsd, sttPerMinuteUsd },
+      totals: {
+        ttsSeconds: 0,
+        sttSeconds: 0,
+        ttsRequests: 0,
+        sttRequests: 0,
+        activeUsers: 0,
+        estimatedCostUsd: 0,
+      },
+      perDay: [],
+      perVoice: [],
+    };
+
+    try {
+      const since = sql`now() - make_interval(days => ${days})`;
+
+      const [totalsResult, perDayResult, perVoiceResult] = await Promise.all([
+        db.execute(sql`
+          select
+            coalesce(sum(seconds) filter (where kind = 'tts'), 0)::numeric as tts_seconds,
+            coalesce(sum(seconds) filter (where kind = 'stt'), 0)::numeric as stt_seconds,
+            count(*) filter (where kind = 'tts')::int as tts_requests,
+            count(*) filter (where kind = 'stt')::int as stt_requests,
+            count(distinct user_id)::int as active_users
+          from ai_voice_usage
+          where created_at >= ${since}
+        `),
+        db.execute(sql`
+          select
+            to_char(date_trunc('day', created_at), 'YYYY-MM-DD') as day,
+            coalesce(sum(seconds) filter (where kind = 'tts'), 0)::numeric as tts_seconds,
+            coalesce(sum(seconds) filter (where kind = 'stt'), 0)::numeric as stt_seconds,
+            count(*)::int as requests
+          from ai_voice_usage
+          where created_at >= ${since}
+          group by 1
+          order by 1 asc
+        `),
+        db.execute(sql`
+          select
+            coalesce(voice, 'unknown') as voice,
+            count(*)::int as requests,
+            coalesce(sum(seconds), 0)::numeric as tts_seconds
+          from ai_voice_usage
+          where created_at >= ${since} and kind = 'tts'
+          group by 1
+          order by 3 desc
+        `),
+      ]);
+
+      const costOf = (ttsSeconds: number, sttSeconds: number) =>
+        Math.round(
+          ((ttsSeconds / 60) * ttsPerMinuteUsd +
+            (sttSeconds / 60) * sttPerMinuteUsd) *
+            10000,
+        ) / 10000;
+
+      const totalsRow =
+        this.extractRows<Record<string, unknown>>(totalsResult)[0] || {};
+      const ttsSeconds = Number(totalsRow.tts_seconds ?? 0);
+      const sttSeconds = Number(totalsRow.stt_seconds ?? 0);
+
+      return {
+        success: true,
+        days,
+        pricing: { ttsPerMinuteUsd, sttPerMinuteUsd },
+        totals: {
+          ttsSeconds,
+          sttSeconds,
+          ttsRequests: Number(totalsRow.tts_requests ?? 0),
+          sttRequests: Number(totalsRow.stt_requests ?? 0),
+          activeUsers: Number(totalsRow.active_users ?? 0),
+          estimatedCostUsd: costOf(ttsSeconds, sttSeconds),
+        },
+        perDay: this.extractRows<Record<string, unknown>>(perDayResult).map(
+          (row) => {
+            const dayTts = Number(row.tts_seconds ?? 0);
+            const dayStt = Number(row.stt_seconds ?? 0);
+            return {
+              day: String(row.day ?? ""),
+              ttsSeconds: dayTts,
+              sttSeconds: dayStt,
+              requests: Number(row.requests ?? 0),
+              estimatedCostUsd: costOf(dayTts, dayStt),
+            };
+          },
+        ),
+        perVoice: this.extractRows<Record<string, unknown>>(perVoiceResult).map(
+          (row) => ({
+            voice: String(row.voice ?? "unknown"),
+            requests: Number(row.requests ?? 0),
+            ttsSeconds: Number(row.tts_seconds ?? 0),
+          }),
+        ),
+      };
+    } catch (error) {
+      // Table may not exist yet — degrade gracefully like the AI summary.
+      this.logger.warn(
+        `Voice usage summary unavailable: ${this.errorMessage(error)}`,
       );
       return { ...empty, success: false, error: this.errorMessage(error) };
     }
