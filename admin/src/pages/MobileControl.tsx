@@ -309,7 +309,7 @@ export default function MobileControl() {
                 items={campaigns}
                 emptyText="No messages yet. Create one on the left — start it as a draft, then set it to “active” when it should appear in the app."
                 editingId={campaignDraft.id}
-                onEdit={setCampaignDraft}
+                onEdit={(item) => setCampaignDraft(item)}
                 onRemove={(item) => void remove('campaigns', item)}
                 onToggle={(item) => void toggleCampaignStatus(item)}
                 renderMeta={(item) => `${item.campaign_type} · shows on ${item.placement === 'global' ? 'every screen' : item.placement}`}
@@ -330,7 +330,7 @@ export default function MobileControl() {
                 items={widgets}
                 emptyText="No widget feeds yet. Feeds power the home-screen and lock-screen widgets on users’ phones."
                 editingId={widgetDraft.id}
-                onEdit={setWidgetDraft}
+                onEdit={(item) => setWidgetDraft(item)}
                 onRemove={(item) => void remove('widgets', item)}
                 onToggle={(item) => void toggleWidgetStatus(item)}
                 renderMeta={(item) => `${item.feed_type.replace('_', ' ')} · ${item.placement.replace('_', ' ')}`}
