@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post } from "@nestjs/common";
 import { CurrentUser } from "../auth";
+import { AiMetered } from "../monetization/ai-metered.decorator";
 import { ChatService } from "./chat.service";
 
 @Controller("chat")
@@ -28,10 +29,16 @@ export class ChatController {
   }
 
   @Post("messages")
+  @AiMetered("chatMessage")
   sendMessage(
     @CurrentUser("id") userId: string,
     @Body()
-    body: { threadId?: string | null; message?: string; userId?: string },
+    body: {
+      threadId?: string | null;
+      message?: string;
+      userId?: string;
+      channel?: "text" | "voice";
+    },
   ) {
     return this.chatService.sendMessage(userId, body);
   }

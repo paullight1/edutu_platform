@@ -270,15 +270,26 @@ export default function RoadmapsScreen() {
     const loadIntentQuestions = async () => {
         setIntentLoading(true);
         try {
+            // /roadmaps/ai/* is authenticated + credit-metered server-side —
+            // send the Clerk bearer token; a 402/429 simply falls back to the
+            // default intent questions below.
+            const token = await getAuthToken();
             const res = await apiFetch('/roadmaps/ai/assist', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                },
                 body: JSON.stringify({ topic: 'learning and career growth', category: category !== 'All' ? category.toLowerCase() : undefined }),
             });
             if (res?.ok) {
                 const data = await res.json();
                 setIntentQuestions(data.questions || []);
                 setShowIntentModal(true);
+            } else {
+                // Non-ok (incl. 402 insufficient credits / 429 limit): the
+                // default questions are a perfectly good, free experience.
+                throw new Error(`assist unavailable (${res?.status ?? 'offline'})`);
             }
         } catch (e) {
             console.error('Failed to load intent questions:', e);

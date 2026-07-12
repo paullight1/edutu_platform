@@ -14,6 +14,11 @@ import type {
   BillingStatus,
   CreateCheckoutDto,
 } from "./dto/billing.dto";
+import { SettingsService } from "../settings/settings.service";
+import {
+  DEFAULT_ADMIN_SETTINGS,
+  type PricingSettings,
+} from "../settings/settings.dto";
 
 const PRO_FEATURES = [
   "ai_roadmap",
@@ -24,19 +29,27 @@ const PRO_FEATURES = [
   "creator_tools",
 ] as const;
 
-const PLAN_CONFIG: Record<
+// Static per-plan metadata only. AMOUNTS come from admin_settings.pricing
+// (single source of truth, editable in the admin monetization screen) so
+// what the paywall shows is exactly what Paystack charges.
+const PLAN_META: Record<
   BillingInterval,
-  { amount: number; label: string; envPlanCode: string }
+  { label: string; envPlanCode: string; periodDays: number }
 > = {
+  weekly: {
+    label: "Edutu Pro Weekly",
+    envPlanCode: "PAYSTACK_PLAN_WEEKLY",
+    periodDays: 7,
+  },
   monthly: {
-    amount: 1000,
     label: "Edutu Pro Monthly",
     envPlanCode: "PAYSTACK_PLAN_MONTHLY",
+    periodDays: 30,
   },
   yearly: {
-    amount: 7200,
     label: "Edutu Pro Yearly",
     envPlanCode: "PAYSTACK_PLAN_YEARLY",
+    periodDays: 365,
   },
 };
 
@@ -56,6 +69,31 @@ type BillingTransactionRow = {
 export class BillingService {
   private readonly logger = new Logger(BillingService.name);
   private supabase: SupabaseClient | null = null;
+
+  constructor(private readonly settingsService: SettingsService) {}
+
+  // Admin-controlled pricing (currency, plan amounts, credit packs, promo).
+  private async getPricing(): Promise<PricingSettings> {
+    const { settings } = await this.settingsService.getSettings();
+    return settings.pricing ?? DEFAULT_ADMIN_SETTINGS.pricing;
+  }
+
+  private planAmount(pricing: PricingSettings, plan: BillingInterval): number {
+    const base =
+      plan === "weekly"
+        ? pricing.weeklyPrice
+        : plan === "yearly"
+          ? pricing.yearlyPrice
+          : pricing.monthlyPrice;
+    if (!pricing.promo?.active) return base;
+    const promo =
+      plan === "weekly"
+        ? pricing.promo.weeklyPrice
+        : plan === "yearly"
+          ? pricing.promo.yearlyPrice
+          : pricing.promo.monthlyPrice;
+    return promo != null && promo > 0 ? promo : base;
+  }
 
   async getStatus(userId: string): Promise<BillingStatus> {
     if (!userId) {
@@ -189,8 +227,11 @@ export class BillingService {
     if (!email) throw new BadRequestException("A billing email is required");
 
     const isApiCredits = dto.feature === "api_credits";
-    const plan: BillingInterval = dto.plan === "yearly" ? "yearly" : "monthly";
-    const config = PLAN_CONFIG[plan];
+    const isCreditPack = dto.feature === "credits";
+    const plan: BillingInterval =
+      dto.plan === "yearly" || dto.plan === "weekly" ? dto.plan : "monthly";
+    const meta = PLAN_META[plan];
+    const pricing = await this.getPricing();
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
     const publicUrl =
       process.env.BILLING_PUBLIC_URL ||
@@ -211,30 +252,48 @@ export class BillingService {
     callbackUrl.searchParams.set("reference", reference);
     if (dto.returnTo) callbackUrl.searchParams.set("returnTo", dto.returnTo);
 
-    const apiCreditCount = isApiCredits
-      ? Math.max(Number(dto.credits ?? 1000) || 1000, 1)
-      : null;
-    const amount = isApiCredits
-      ? (apiCreditCount ?? 0) * 100
-      : config.amount * 100;
+    // Amounts are resolved SERVER-SIDE from admin pricing — clients only name
+    // a plan or a pack; they can never set the price they pay.
+    let creditCount: number | null = null;
+    let chargeAmount: number;
+    if (isCreditPack) {
+      const requested = Number(dto.credits ?? 0);
+      const pack = (pricing.creditPacks ?? []).find(
+        (p) => p.credits === requested,
+      );
+      if (!pack) {
+        throw new BadRequestException(
+          "Unknown credit pack. Pick one of the packs on the pricing page.",
+        );
+      }
+      creditCount = pack.credits;
+      chargeAmount = pack.price;
+    } else if (isApiCredits) {
+      // Legacy developer API top-up: ₦1 per credit.
+      creditCount = Math.max(Number(dto.credits ?? 1000) || 1000, 1);
+      chargeAmount = creditCount;
+    } else {
+      chargeAmount = this.planAmount(pricing, plan);
+    }
+    const amount = Math.round(chargeAmount * 100);
 
     const body: Record<string, unknown> = {
       email,
       amount,
-      currency: "NGN",
+      currency: pricing.currency || "NGN",
       reference,
       callback_url: callbackUrl.toString(),
       metadata: {
         user_id: userId,
         plan,
         feature: dto.feature ?? "pro",
-        credits: apiCreditCount,
+        credits: creditCount,
         return_to: dto.returnTo ?? null,
       },
     };
 
-    if (!isApiCredits) {
-      const planCode = process.env[config.envPlanCode];
+    if (!isApiCredits && !isCreditPack) {
+      const planCode = process.env[meta.envPlanCode];
       if (planCode) {
         body.plan = planCode;
       }
@@ -264,9 +323,9 @@ export class BillingService {
       user_id: userId,
       provider: "paystack",
       provider_reference: reference,
-      type: isApiCredits ? "credit_topup" : "subscription",
-      amount: isApiCredits ? (apiCreditCount ?? 0) : config.amount,
-      currency: "NGN",
+      type: isApiCredits || isCreditPack ? "credit_topup" : "subscription",
+      amount: chargeAmount,
+      currency: pricing.currency || "NGN",
       status: "pending",
       metadata: body.metadata,
     });
@@ -303,7 +362,10 @@ export class BillingService {
 
     const data = payload.data ?? {};
     const userId = data.metadata?.user_id;
-    const plan = data.metadata?.plan === "yearly" ? "yearly" : "monthly";
+    const plan: BillingInterval =
+      data.metadata?.plan === "yearly" || data.metadata?.plan === "weekly"
+        ? data.metadata.plan
+        : "monthly";
     const reference = data.reference;
     const feature = data.metadata?.feature ?? "pro";
 
@@ -311,24 +373,25 @@ export class BillingService {
       throw new BadRequestException("Webhook missing metadata");
     }
 
-    if (feature === "api_credits") {
+    if (feature === "api_credits" || feature === "credits") {
       const credits = Math.max(
         Number(
           data.metadata?.credits ?? Math.round(Number(data.amount ?? 0) / 100),
         ) || 0,
         1,
       );
-      await this.recordApiCreditsPurchase({
+      await this.recordCreditsPurchase({
         userId,
         credits,
         reference,
         payload: data,
+        source: feature === "credits" ? "credit_pack" : "api_credit_purchase",
       });
       return { received: true };
     }
 
     const periodEnd = new Date();
-    periodEnd.setMonth(periodEnd.getMonth() + (plan === "yearly" ? 12 : 1));
+    periodEnd.setDate(periodEnd.getDate() + PLAN_META[plan].periodDays);
 
     const supabase = this.getSupabase();
     if (!supabase) {
@@ -388,6 +451,85 @@ export class BillingService {
     return { received: true };
   }
 
+  // ─── Admin oversight: revenue, subscribers, credit flow, AI cost ────────
+  async getAdminOverview() {
+    const [revenue, subs, credits, topSpenders, aiUsage, recent] =
+      await Promise.all([
+        db.execute(sql`
+          select
+            coalesce(sum(amount) filter (where created_at >= date_trunc('month', now())), 0) as month_revenue,
+            coalesce(sum(amount) filter (where created_at >= now() - interval '30 days'), 0) as last_30d_revenue,
+            coalesce(sum(amount), 0) as total_revenue,
+            count(*) filter (where created_at >= now() - interval '30 days') as last_30d_count
+          from billing_transactions
+          where status = 'completed'
+        `),
+        db.execute(sql`
+          select plan, count(*)::int as count
+          from billing_subscriptions
+          where status = 'active'
+            and (current_period_end is null or current_period_end > now())
+          group by plan
+        `),
+        db.execute(sql`
+          select
+            coalesce(sum(amount) filter (where type = 'purchase'), 0) as purchased,
+            coalesce(sum(-amount) filter (where type = 'spend'), 0) as spent,
+            coalesce(sum(amount) filter (where type in ('reward', 'admin_grant')), 0) as granted
+          from credit_transactions
+          where created_at >= now() - interval '30 days'
+        `),
+        db.execute(sql`
+          select user_id, coalesce(sum(-amount), 0)::int as credits_spent
+          from credit_transactions
+          where type = 'spend' and created_at >= now() - interval '30 days'
+          group by user_id
+          order by credits_spent desc
+          limit 10
+        `),
+        db.execute(sql`
+          select
+            coalesce(sum(chat_messages), 0)::int as chat_messages_today,
+            coalesce(sum(action_credits), 0)::int as action_credits_today,
+            count(distinct user_id)::int as active_ai_users_today
+          from user_ai_usage_daily
+          where day = current_date
+        `),
+        db.execute(sql`
+          select id, user_id, provider, provider_reference, type, amount,
+                 currency, status, metadata, created_at
+          from billing_transactions
+          order by created_at desc
+          limit 20
+        `),
+      ]);
+
+    const rows = (r: unknown) => (r as { rows?: any[] }).rows ?? [];
+    const pricing = await this.getPricing();
+    return {
+      pricing,
+      revenue: rows(revenue)[0] ?? {},
+      activeSubscriptions: rows(subs),
+      credits30d: rows(credits)[0] ?? {},
+      topCreditSpenders30d: rows(topSpenders),
+      aiUsageToday: rows(aiUsage)[0] ?? {},
+      recentTransactions: rows(recent),
+    };
+  }
+
+  async listAdminTransactions(limit = 50, offset = 0) {
+    const capped = Math.min(Math.max(Number(limit) || 50, 1), 200);
+    const skip = Math.max(Number(offset) || 0, 0);
+    const result = await db.execute(sql`
+      select id, user_id, provider, provider_reference, type, amount,
+             currency, status, metadata, created_at
+      from billing_transactions
+      order by created_at desc
+      limit ${capped} offset ${skip}
+    `);
+    return { transactions: (result as { rows?: any[] }).rows ?? [] };
+  }
+
   private getSupabase(): SupabaseClient | null {
     if (this.supabase) return this.supabase;
 
@@ -417,11 +559,12 @@ export class BillingService {
     }
   }
 
-  private async recordApiCreditsPurchase(input: {
+  private async recordCreditsPurchase(input: {
     userId: string;
     credits: number;
     reference: string;
     payload: any;
+    source: "credit_pack" | "api_credit_purchase";
   }) {
     const supabase = this.getSupabase();
     if (!supabase) {
@@ -450,19 +593,36 @@ export class BillingService {
     await db.transaction(async (tx) => {
       await tx.execute(sql`select set_config('app.credit_op', 'on', true)`);
 
-      const inserted = await tx.execute(sql`
-        insert into credit_transactions
-          (user_id, amount, type, description, related_id, related_type)
-        values
-          (${input.userId}, ${input.credits}, 'purchase',
-           ${`API credit top-up: +${input.credits}`},
-           ${input.reference}, 'api_credit_purchase')
-        on conflict (related_type, related_id)
-          where related_id is not null
-            and related_type in ('api_request', 'api_credit_purchase')
-        do nothing
-        returning id
-      `);
+      const description =
+        input.source === "credit_pack"
+          ? `Credit pack purchase: +${input.credits}`
+          : `API credit top-up: +${input.credits}`;
+      const inserted =
+        input.source === "credit_pack"
+          ? await tx.execute(sql`
+              insert into credit_transactions
+                (user_id, amount, type, description, related_id, related_type)
+              values
+                (${input.userId}, ${input.credits}, 'purchase',
+                 ${description}, ${input.reference}, 'credit_pack')
+              on conflict (related_type, related_id)
+                where related_id is not null
+                  and related_type in ('credit_pack')
+              do nothing
+              returning id
+            `)
+          : await tx.execute(sql`
+              insert into credit_transactions
+                (user_id, amount, type, description, related_id, related_type)
+              values
+                (${input.userId}, ${input.credits}, 'purchase',
+                 ${description}, ${input.reference}, 'api_credit_purchase')
+              on conflict (related_type, related_id)
+                where related_id is not null
+                  and related_type in ('api_request', 'api_credit_purchase')
+              do nothing
+              returning id
+            `);
 
       const insertedRows =
         (inserted as { rows?: unknown[] }).rows ?? [];
@@ -500,10 +660,10 @@ export class BillingService {
   private describeBillingTransaction(row: BillingTransactionRow) {
     const type = row.type ?? "subscription";
     if (type === "credit_topup") {
-      const credits = Number(row.amount ?? 0);
+      const credits = Number(row.metadata?.credits ?? row.amount ?? 0);
       return Number.isFinite(credits) && credits > 0
-        ? `API credit top-up for ${credits.toLocaleString()} credits`
-        : "API credit top-up";
+        ? `Credit top-up for ${credits.toLocaleString()} credits`
+        : "Credit top-up";
     }
 
     const metadataFeature = row.metadata?.feature;

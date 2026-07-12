@@ -615,6 +615,13 @@ export class NotificationsService {
           ),
         );
 
+      // Dedicated Android channels (created by the app on launch) let
+      // opportunity/deadline alerts pop as heads-up notifications.
+      const channelId =
+        typeof dto.metadata?.androidChannelId === "string"
+          ? dto.metadata.androidChannelId
+          : "default";
+
       for (const tokenBatch of this.chunk(tokens, PUSH_BATCH_SIZE)) {
         const messages = tokenBatch.map((item) => ({
           to: item.token,
@@ -622,6 +629,7 @@ export class NotificationsService {
           body: dto.body,
           sound: "default",
           priority: "high",
+          channelId,
           data: {
             kind: dto.kind || "admin-broadcast",
             severity: dto.severity || "info",

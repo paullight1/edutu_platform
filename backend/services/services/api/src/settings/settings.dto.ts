@@ -75,14 +75,64 @@ const MobileAppSettingsSchema = z.object({
 const PricingPromoSchema = z.object({
   active: z.boolean(),
   label: z.string().trim().max(120),
+  weeklyPrice: z.number().min(0).max(10_000_000).nullable().default(null),
   monthlyPrice: z.number().min(0).max(10_000_000).nullable(),
   yearlyPrice: z.number().min(0).max(10_000_000).nullable(),
 });
 
+// One purchasable credit bundle. Server-side checkout only accepts packs from
+// this list, so the admin fully controls what can be bought and for how much.
+const CreditPackSchema = z.object({
+  credits: z.number().int().min(1).max(1_000_000),
+  price: z.number().min(0).max(10_000_000),
+  label: z.string().trim().max(60).default(""),
+});
+
+// Credit price of each AI action. Debited server-side by the metering
+// interceptor for non-Pro users; Pro users count against the fair-use caps.
+const AiCostsSchema = z.object({
+  chatMessage: z.number().int().min(0).max(1000),
+  roadmapGeneration: z.number().int().min(0).max(10_000),
+  copilotKit: z.number().int().min(0).max(10_000),
+  copilotAssist: z.number().int().min(0).max(10_000),
+  cvAi: z.number().int().min(0).max(10_000),
+  voicePerMinute: z.number().int().min(0).max(10_000),
+});
+
+const FreeTierSchema = z.object({
+  // Free chat messages per day before credits are debited / paywall shows.
+  dailyChatMessages: z.number().int().min(0).max(10_000),
+  signupCredits: z.number().int().min(0).max(100_000),
+});
+
+// Fair-use ceilings for Pro subscribers — "unlimited" with an abuse backstop.
+const ProFairUseSchema = z.object({
+  dailyChatMessages: z.number().int().min(0).max(100_000),
+  dailyActionCredits: z.number().int().min(0).max(1_000_000),
+});
+
 const PricingSettingsSchema = z.object({
   currency: z.string().trim().min(3).max(4),
+  weeklyPrice: z.number().min(0).max(10_000_000).default(2000),
   monthlyPrice: z.number().min(0).max(10_000_000),
   yearlyPrice: z.number().min(0).max(10_000_000),
+  creditPacks: z.array(CreditPackSchema).max(8).default([]),
+  aiCosts: AiCostsSchema.default({
+    chatMessage: 1,
+    roadmapGeneration: 10,
+    copilotKit: 15,
+    copilotAssist: 5,
+    cvAi: 10,
+    voicePerMinute: 5,
+  }),
+  freeTier: FreeTierSchema.default({
+    dailyChatMessages: 10,
+    signupCredits: 50,
+  }),
+  proFairUse: ProFairUseSchema.default({
+    dailyChatMessages: 200,
+    dailyActionCredits: 300,
+  }),
   checkoutBaseUrl: z.string().trim().url().max(300),
   manageUrl: z.string().trim().url().max(300),
   promo: PricingPromoSchema,
@@ -173,13 +223,37 @@ export const DEFAULT_ADMIN_SETTINGS: ResolvedAdminSettings = {
     },
     moduleLocks: {},
   },
+  // Nigeria-first pricing (NGN, Paystack). Sustainability model 2026-07:
+  // covers 3-person payroll + infra at ~100 paying subscribers.
   pricing: {
-    currency: "USD",
-    monthlyPrice: 9.99,
-    yearlyPrice: 71.88,
+    currency: "NGN",
+    weeklyPrice: 2000,
+    monthlyPrice: 6500,
+    yearlyPrice: 60000,
+    creditPacks: [
+      { credits: 100, price: 1500, label: "Starter" },
+      { credits: 250, price: 3000, label: "Best value" },
+      { credits: 700, price: 7000, label: "Power" },
+    ],
+    aiCosts: {
+      chatMessage: 1,
+      roadmapGeneration: 10,
+      copilotKit: 15,
+      copilotAssist: 5,
+      cvAi: 10,
+      voicePerMinute: 5,
+    },
+    freeTier: { dailyChatMessages: 10, signupCredits: 50 },
+    proFairUse: { dailyChatMessages: 200, dailyActionCredits: 300 },
     checkoutBaseUrl: "https://pay.edutu.org",
     manageUrl: "https://pay.edutu.org/account",
-    promo: { active: false, label: "", monthlyPrice: null, yearlyPrice: null },
+    promo: {
+      active: false,
+      label: "",
+      weeklyPrice: null,
+      monthlyPrice: null,
+      yearlyPrice: null,
+    },
   },
 };
 
@@ -226,6 +300,21 @@ export function mergeAdminSettings(value: unknown): ResolvedAdminSettings {
     pricing: {
       ...DEFAULT_ADMIN_SETTINGS.pricing,
       ...(partial.pricing ?? {}),
+      creditPacks:
+        partial.pricing?.creditPacks ??
+        DEFAULT_ADMIN_SETTINGS.pricing.creditPacks,
+      aiCosts: {
+        ...DEFAULT_ADMIN_SETTINGS.pricing.aiCosts,
+        ...(partial.pricing?.aiCosts ?? {}),
+      },
+      freeTier: {
+        ...DEFAULT_ADMIN_SETTINGS.pricing.freeTier,
+        ...(partial.pricing?.freeTier ?? {}),
+      },
+      proFairUse: {
+        ...DEFAULT_ADMIN_SETTINGS.pricing.proFairUse,
+        ...(partial.pricing?.proFairUse ?? {}),
+      },
       promo: {
         ...DEFAULT_ADMIN_SETTINGS.pricing.promo,
         ...(partial.pricing?.promo ?? {}),

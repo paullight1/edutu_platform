@@ -39,6 +39,8 @@ import {
 import { AiService } from "../ai";
 import { toDatabaseUserId } from "../common/user-id";
 import { CacheService } from "../common/cache/cache.service";
+import { NotificationsService } from "../notifications/notifications.service";
+import type { BroadcastNotificationDto } from "../notifications/dto/notification.dto";
 
 const ROADMAPS_CACHE_PREFIX = "roadmaps:";
 
@@ -74,6 +76,7 @@ export class RoadmapsService {
     private readonly aiService: AiService,
     @Optional() private readonly goalsService?: GoalsService,
     @Optional() private readonly cache?: CacheService,
+    @Optional() private readonly notificationsService?: NotificationsService,
   ) {}
 
   private async invalidateRoadmapCache(): Promise<void> {
@@ -594,7 +597,62 @@ export class RoadmapsService {
       goalsCreated = await this.createAdoptionGoals(userId, roadmap, adoptedPlan);
     }
 
+    // Per-step reminders arrive via the goals pipeline above, but the
+    // 30/14/7/3/1-day countdown to the *target deadline* was previously only
+    // computed for the API response and never delivered. Enqueue it — with
+    // the next incomplete step in the body, so each ping is an action.
+    await this.scheduleDeadlineReminders(userId, enrollment, roadmap);
+
     return { ...this.serializeEnrollment(enrollment, roadmap), goalsCreated };
+  }
+
+  private async scheduleDeadlineReminders(
+    userId: string,
+    enrollment: any,
+    roadmap: any,
+  ) {
+    if (!this.notificationsService) return;
+
+    const schedule = this.buildReminderSchedule(enrollment, roadmap).filter(
+      (item) => item.type === "opportunity_deadline",
+    );
+    const steps = ((enrollment.adoptedPlan?.steps ||
+      []) as AdoptedPlanStep[]).filter((step) => !step.completed);
+    const nextStep = steps.length ? steps[0].title : null;
+
+    const notifications: BroadcastNotificationDto[] = schedule.map((item) => ({
+      title: item.title,
+      body: nextStep
+        ? `Next small move: ${nextStep}. Fifteen focused minutes today keeps you ahead.`
+        : item.body,
+      kind: "roadmap-deadline",
+      severity:
+        "daysBefore" in item && Number(item.daysBefore) <= 3
+          ? "warning"
+          : "info",
+      scheduledFor: item.scheduledFor,
+      dedupeKey: item.id,
+      metadata: {
+        roadmapId: enrollment.roadmapId,
+        enrollmentId: enrollment.id,
+        targetOpportunityId: enrollment.targetOpportunityId ?? null,
+        nextAction: nextStep,
+      },
+    }));
+
+    try {
+      await this.notificationsService.replaceScheduledUserNotifications(
+        userId,
+        `roadmap-deadline:${enrollment.id}`,
+        notifications,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Could not schedule roadmap deadline reminders for enrollment ${enrollment.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 
   private async createAdoptionGoals(
@@ -884,6 +942,7 @@ export class RoadmapsService {
   async generateAIMatchQuestions(
     topic: string,
     category?: string,
+    userId?: string,
   ): Promise<{
     questions: Array<{
       id: string;
@@ -922,10 +981,11 @@ Then suggest a roadmap with 4-8 steps tailored to "${topic}".
     try {
       const parsed = await this.aiService.generateJson<any>({
         feature: "roadmaps.questions",
+        userId,
         prompt,
         responseMimeType: "application/json",
         temperature: 0.3,
-        metadata: { topic, category },
+        metadata: { topic, category, userId },
       });
 
       if (!parsed) return this.getDefaultMatchQuestions(topic);
@@ -958,7 +1018,10 @@ Then suggest a roadmap with 4-8 steps tailored to "${topic}".
       { id: "milestone-5", title: "Submit before deadline" },
     ];
 
-  async generateOpportunityPlan(dto: OpportunityPlanDto): Promise<{
+  async generateOpportunityPlan(
+    dto: OpportunityPlanDto,
+    userId?: string,
+  ): Promise<{
     summary: string;
     winningStrategy: string;
     milestones: Array<{ id: string; title: string; description: string }>;
@@ -1038,10 +1101,11 @@ Provide 6-10 checklist items, 3-5 support actions, one requirementActions entry 
     try {
       const parsed = await this.aiService.generateJson<any>({
         feature: "roadmaps.opportunity_plan",
+        userId,
         prompt,
         responseMimeType: "application/json",
         temperature: 0.4,
-        metadata: { title: dto.title, category: dto.category },
+        metadata: { title: dto.title, category: dto.category, userId },
       });
 
       const normalized = this.normalizeOpportunityPlan(parsed, scaffold);

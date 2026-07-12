@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@clerk/clerk-expo';
-import { BarChart3, DollarSign, ExternalLink, Save, Tag } from 'lucide-react-native';
+import { BarChart3, Coins, DollarSign, ExternalLink, Plus, Save, Tag, Trash2 } from 'lucide-react-native';
 import { requestProductApi } from '@edutu/core/src/services/productApi';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
 import { AnimatedPressable } from '../../components/ui/AnimatedPressable';
@@ -35,30 +35,47 @@ interface AdminSettingsPayload {
     error?: string;
 }
 
+/** String-backed credit-pack row so numeric inputs edit cleanly. */
+interface CreditPackForm {
+    credits: string;
+    price: string;
+    label: string;
+}
+
 /** String-backed form state so numeric inputs edit cleanly. */
 interface PricingForm {
     currency: string;
+    weeklyPrice: string;
     monthlyPrice: string;
     yearlyPrice: string;
     checkoutBaseUrl: string;
     manageUrl: string;
     promoActive: boolean;
     promoLabel: string;
+    promoWeeklyPrice: string;
     promoMonthlyPrice: string;
     promoYearlyPrice: string;
+    creditPacks: CreditPackForm[];
 }
 
 function toForm(p: PricingConfig): PricingForm {
     return {
         currency: p.currency,
+        weeklyPrice: String(p.weeklyPrice),
         monthlyPrice: String(p.monthlyPrice),
         yearlyPrice: String(p.yearlyPrice),
         checkoutBaseUrl: p.checkoutBaseUrl,
         manageUrl: p.manageUrl,
         promoActive: p.promo.active,
         promoLabel: p.promo.label,
+        promoWeeklyPrice: p.promo.weeklyPrice != null ? String(p.promo.weeklyPrice) : '',
         promoMonthlyPrice: p.promo.monthlyPrice != null ? String(p.promo.monthlyPrice) : '',
         promoYearlyPrice: p.promo.yearlyPrice != null ? String(p.promo.yearlyPrice) : '',
+        creditPacks: (p.creditPacks ?? []).map((pack) => ({
+            credits: String(pack.credits),
+            price: String(pack.price),
+            label: pack.label ?? '',
+        })),
     };
 }
 
@@ -86,6 +103,18 @@ function AdminPricingContent() {
     const set = <K extends keyof PricingForm>(key: K, value: PricingForm[K]) =>
         setForm((prev) => ({ ...prev, [key]: value }));
 
+    const setPack = (index: number, key: keyof CreditPackForm, value: string) =>
+        setForm((prev) => ({
+            ...prev,
+            creditPacks: prev.creditPacks.map((row, i) => (i === index ? { ...row, [key]: value } : row)),
+        }));
+
+    const addPack = () =>
+        setForm((prev) => ({ ...prev, creditPacks: [...prev.creditPacks, { credits: '', price: '', label: '' }] }));
+
+    const removePack = (index: number) =>
+        setForm((prev) => ({ ...prev, creditPacks: prev.creditPacks.filter((_, i) => i !== index) }));
+
     const load = useCallback(async () => {
         setLoading(true);
         const response = await requestProductApi<AdminSettingsPayload>('/admin/settings', {}, getToken);
@@ -103,6 +132,7 @@ function AdminPricingContent() {
     const handleSave = async () => {
         if (!fullSettings) return;
 
+        const weekly = parsePrice(form.weeklyPrice);
         const monthly = parsePrice(form.monthlyPrice);
         const yearly = parsePrice(form.yearlyPrice);
         const currency = form.currency.trim().toUpperCase();
@@ -111,8 +141,8 @@ function AdminPricingContent() {
             Alert.alert('Invalid currency', 'Use a 3-letter ISO code like NGN, USD or GHS.');
             return;
         }
-        if (monthly == null || yearly == null) {
-            Alert.alert('Invalid price', 'Monthly and yearly prices must be valid non-negative numbers.');
+        if (weekly == null || monthly == null || yearly == null) {
+            Alert.alert('Invalid price', 'Weekly, monthly and yearly prices must be valid non-negative numbers.');
             return;
         }
         if (!/^https?:\/\//.test(form.checkoutBaseUrl.trim()) || !/^https?:\/\//.test(form.manageUrl.trim())) {
@@ -120,8 +150,25 @@ function AdminPricingContent() {
             return;
         }
 
+        // Ignore fully-empty rows; reject half-filled ones.
+        const packRows = form.creditPacks.filter((row) => row.credits.trim() || row.price.trim() || row.label.trim());
+        const creditPacks = packRows.map((row) => ({
+            credits: parsePrice(row.credits),
+            price: parsePrice(row.price),
+            label: row.label.trim() || undefined,
+        }));
+        if (creditPacks.some((pack) => pack.credits == null || pack.price == null)) {
+            Alert.alert('Invalid credit pack', 'Every credit pack needs a valid credits amount and price.');
+            return;
+        }
+
         const pricing: PricingConfig = {
+            // Preserve any server-managed billing knobs living on the pricing
+            // object (aiCosts, freeTier, proFairUse, …) that this screen
+            // doesn't edit.
+            ...((fullSettings.pricing as object) ?? {}),
             currency,
+            weeklyPrice: weekly,
             monthlyPrice: monthly,
             yearlyPrice: yearly,
             checkoutBaseUrl: form.checkoutBaseUrl.trim().replace(/\/$/, ''),
@@ -129,9 +176,11 @@ function AdminPricingContent() {
             promo: {
                 active: form.promoActive,
                 label: form.promoLabel.trim(),
+                weeklyPrice: form.promoWeeklyPrice.trim() ? parsePrice(form.promoWeeklyPrice) : null,
                 monthlyPrice: form.promoMonthlyPrice.trim() ? parsePrice(form.promoMonthlyPrice) : null,
                 yearlyPrice: form.promoYearlyPrice.trim() ? parsePrice(form.promoYearlyPrice) : null,
             },
+            creditPacks: creditPacks as PricingConfig['creditPacks'],
         };
 
         setSaving(true);
@@ -217,8 +266,9 @@ function AdminPricingContent() {
                     </View>
                     <View style={[styles.card, { backgroundColor: cardBg, borderColor: inputBorder }]}>
                         {field('Currency (ISO code)', form.currency, (v) => set('currency', v), { placeholder: 'NGN', autoCapitalize: 'characters' })}
-                        {field('Monthly price', form.monthlyPrice, (v) => set('monthlyPrice', v), { keyboardType: 'decimal-pad', placeholder: '4000' })}
-                        {field('Yearly price', form.yearlyPrice, (v) => set('yearlyPrice', v), { keyboardType: 'decimal-pad', placeholder: '40000' })}
+                        {field('Weekly price', form.weeklyPrice, (v) => set('weeklyPrice', v), { keyboardType: 'decimal-pad', placeholder: '2000' })}
+                        {field('Monthly price', form.monthlyPrice, (v) => set('monthlyPrice', v), { keyboardType: 'decimal-pad', placeholder: '6500' })}
+                        {field('Yearly price', form.yearlyPrice, (v) => set('yearlyPrice', v), { keyboardType: 'decimal-pad', placeholder: '60000' })}
                     </View>
 
                     <View style={styles.sectionHeader}>
@@ -241,10 +291,42 @@ function AdminPricingContent() {
                         {form.promoActive && (
                             <>
                                 {field('Promo label', form.promoLabel, (v) => set('promoLabel', v), { placeholder: 'New Year Bonanza — 50% off' })}
+                                {field('Promo weekly price (optional)', form.promoWeeklyPrice, (v) => set('promoWeeklyPrice', v), { keyboardType: 'decimal-pad', placeholder: 'blank = keep regular' })}
                                 {field('Promo monthly price (optional)', form.promoMonthlyPrice, (v) => set('promoMonthlyPrice', v), { keyboardType: 'decimal-pad', placeholder: 'blank = keep regular' })}
                                 {field('Promo yearly price (optional)', form.promoYearlyPrice, (v) => set('promoYearlyPrice', v), { keyboardType: 'decimal-pad', placeholder: 'blank = keep regular' })}
                             </>
                         )}
+                    </View>
+
+                    <View style={styles.sectionHeader}>
+                        <Coins size={16} color={colors.accent} />
+                        <Text style={[styles.sectionTitle, { color: textPrimary }]}>Credit packs</Text>
+                    </View>
+                    <View style={[styles.card, { backgroundColor: cardBg, borderColor: inputBorder }]}>
+                        <Text style={[styles.switchHint, { color: textSecondary }]}>
+                            One-off credit top-ups shown in the wallet. Prices are in the currency above.
+                        </Text>
+                        {form.creditPacks.map((pack, index) => (
+                            <View key={index} style={[styles.packRow, { borderColor: inputBorder }]}>
+                                <View style={styles.packInputs}>
+                                    {field('Credits', pack.credits, (v) => setPack(index, 'credits', v), { keyboardType: 'decimal-pad', placeholder: '50' })}
+                                    {field('Price', pack.price, (v) => setPack(index, 'price', v), { keyboardType: 'decimal-pad', placeholder: '1000' })}
+                                    {field('Label (optional)', pack.label, (v) => setPack(index, 'label', v), { placeholder: 'Starter pack' })}
+                                </View>
+                                <TouchableOpacity
+                                    onPress={() => removePack(index)}
+                                    style={styles.packRemove}
+                                    activeOpacity={0.7}
+                                    accessibilityLabel={`Remove credit pack ${index + 1}`}
+                                >
+                                    <Trash2 size={18} color="#EF4444" />
+                                </TouchableOpacity>
+                            </View>
+                        ))}
+                        <TouchableOpacity onPress={addPack} activeOpacity={0.8} style={[styles.packAdd, { borderColor: inputBorder }]}>
+                            <Plus size={16} color={colors.accent} />
+                            <Text style={[styles.packAddText, { color: colors.accent }]}>Add credit pack</Text>
+                        </TouchableOpacity>
                     </View>
 
                     <View style={styles.sectionHeader}>
@@ -314,6 +396,11 @@ const styles = StyleSheet.create({
     switchHint: { fontSize: 12, lineHeight: 17, marginTop: 2 },
     saveButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, borderRadius: 16, paddingVertical: 16, marginTop: 4 },
     saveButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+    packRow: { flexDirection: 'row', gap: 10, borderWidth: 1, borderRadius: 14, padding: 12 },
+    packInputs: { flex: 1, gap: 12 },
+    packRemove: { width: 36, alignItems: 'center', justifyContent: 'center' },
+    packAdd: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderStyle: 'dashed', borderRadius: 14, paddingVertical: 12 },
+    packAddText: { fontSize: 14, fontWeight: '700' },
     revenueButton: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, padding: 16, marginTop: 14 },
     revenueTitle: { fontSize: 15, fontWeight: '700' },
     revenueHint: { fontSize: 12, marginTop: 2 },

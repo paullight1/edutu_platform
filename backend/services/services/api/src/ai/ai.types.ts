@@ -26,6 +26,8 @@ export type AiFeature =
 
 export interface AiGenerateOptions {
   feature: AiFeature;
+  // End user this call is billed/attributed to (per-user cost analytics).
+  userId?: string | null;
   prompt: string;
   systemInstruction?: string | null;
   responseMimeType?: string | null;

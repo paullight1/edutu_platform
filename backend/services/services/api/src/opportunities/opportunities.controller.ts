@@ -20,16 +20,19 @@ import { Throttle } from "@nestjs/throttler";
 import { timingSafeEqual } from "crypto";
 import type { Response } from "express";
 import {
+  BulkCategorySchema,
   BulkIdsSchema,
   BulkImportSchema,
   BulkStatusSchema,
   CreateOpportunitySchema,
   UpdateOpportunitySchema,
+  type BulkCategoryDto,
   type BulkIdsDto,
   type BulkImportDto,
   type BulkStatusDto,
   type CreateOpportunityDto,
 } from "./dto/create-opportunity.dto";
+import { normalizeCategory } from "./opportunity-categorization";
 import {
   OpportunityPreferenceSchema,
   OpportunitySignalSchema,
@@ -267,6 +270,18 @@ export class OpportunitiesController {
   ) {
     const normalized = this.normalizeAdminStatus(body.status);
     return this.opportunitiesService.bulkUpdateStatus(body.ids, normalized);
+  }
+
+  @Post("admin/bulk-category")
+  @UseGuards(AdminGuard)
+  adminBulkCategory(
+    @Body(new ZodValidationPipe(BulkCategorySchema)) body: BulkCategoryDto,
+  ) {
+    const canonical = normalizeCategory(body.category);
+    if (!canonical || canonical === "other") {
+      throw new BadRequestException("Unsupported opportunity category");
+    }
+    return this.opportunitiesService.bulkUpdateCategory(body.ids, canonical);
   }
 
   @Post("admin/bulk-delete")

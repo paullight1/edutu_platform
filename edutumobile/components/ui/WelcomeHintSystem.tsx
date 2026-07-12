@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BlurView } from 'expo-blur';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Bell, Compass, Home, MessageCircle, ShoppingBag, UserCircle } from 'lucide-react-native';
@@ -260,7 +261,17 @@ export function WelcomeHintSystem({ userId, enabled, isDark, onComplete }: Welco
 
   return (
     <Animated.View style={[styles.overlay, { opacity }]} pointerEvents="auto">
-      <View style={styles.scrim} />
+      {/* Pressable (even a no-op) is required to actually swallow touches;
+          a plain View lets taps fall through to the screen underneath. */}
+      <Pressable style={StyleSheet.absoluteFill} accessible={false}>
+        <BlurView
+          intensity={30}
+          tint="dark"
+          experimentalBlurMethod="dimezisBlurView"
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.scrim} />
+      </Pressable>
       <View style={[styles.focusRing, focusStyle]} pointerEvents="none" />
 
       <Animated.View

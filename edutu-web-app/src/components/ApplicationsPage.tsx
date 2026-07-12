@@ -12,11 +12,22 @@ import {
   Loader2,
   RefreshCcw,
   Search,
+  Sparkles,
   Trash2,
   Trophy,
+  X,
 } from 'lucide-react';
 import { useAuth as useAppAuth } from '../hooks/useAuth';
+import { usePersonalization } from '../hooks/usePersonalization';
 import PullToRefresh from './ui/PullToRefresh';
+import CelebrationBurst from './ui/CelebrationBurst';
+import { useToast } from './ui/ToastProvider';
+import { MatchScoreBadge, TopMatchReason } from './opportunity/MatchInsights';
+import { getDeadlineBadge, urgencyTextClasses } from '../services/deadlineUrgency';
+import { fetchOpportunities, isOpportunityExpired } from '../services/opportunities';
+import { getBookmarks } from '../services/bookmarks';
+import type { MatchResult } from '../services/personalizedRecommendations';
+import type { Opportunity } from '../types/opportunity';
 import {
   APPLICATION_PIPELINE,
   getApplications,
@@ -45,6 +56,38 @@ const STATUS_OPTIONS: ApplicationStatus[] = [
   'rejected',
   'withdrawn',
 ];
+
+/**
+ * Per-stage celebration copy for forward moves through the pipeline.
+ * Draft has no entry — creating a draft isn't a milestone yet.
+ */
+const CELEBRATION_COPY: Partial<Record<ApplicationStatus, { title: string; description: string }>> = {
+  submitted: {
+    title: 'Submitted. The hardest part is behind you.',
+    description: 'Most people never press send — you just did.',
+  },
+  interview: {
+    title: 'Interview! They noticed you.',
+    description: 'Your application stood out. Time to prepare for the conversation.',
+  },
+  offer: {
+    title: 'An offer. Huge congratulations!',
+    description: 'You put in the work and it paid off — take a moment to enjoy this.',
+  },
+};
+
+/** localStorage map of application id → optional post-rejection reflection. */
+const REJECTION_REFLECTIONS_KEY = 'edutu_rejection_reflections';
+
+function readReflections(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(REJECTION_REFLECTIONS_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
 
 /** Stage index within the active pipeline, or -1 for terminal states. */
 function pipelineIndex(status: ApplicationStatus): number {

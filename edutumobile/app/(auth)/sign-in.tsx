@@ -5,6 +5,7 @@ import { useAuth, useSignIn, useUser } from '@clerk/clerk-expo';
 import { ArrowRight, Eye, EyeOff, Lock, LogIn, Mail, ShieldCheck } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { AuthShell } from '../../components/auth/AuthShell';
+import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
 import { useTheme } from '../../components/context/ThemeContext';
 import i18n from '../../lib/i18n';
 
@@ -127,10 +128,19 @@ export default function SignInPage() {
     setLoading(true);
 
     try {
-      const signInAttempt = await signIn.create({
-        identifier: emailAddress,
+      let signInAttempt = await signIn.create({
+        identifier: emailAddress.trim(),
         password,
       });
+
+      // Some Clerk configurations create the attempt without running the
+      // password check — finish the password factor explicitly in that case.
+      if (
+        signInAttempt.status === 'needs_first_factor' &&
+        (signInAttempt.supportedFirstFactors ?? []).some((f: any) => f?.strategy === 'password')
+      ) {
+        signInAttempt = await signIn.attemptFirstFactor({ strategy: 'password', password });
+      }
 
       if (signInAttempt.status === 'complete') {
         setFailedEmail('');
@@ -140,8 +150,27 @@ export default function SignInPage() {
         setFailedEmail('');
         setFailedAttempts(0);
         await beginSecondFactor(signInAttempt);
+      } else if (signInAttempt.status === 'needs_new_password') {
+        setError(t('signIn.errors.needsNewPassword', {
+          defaultValue: 'You need to set a new password. Use "Forgot password?" below.',
+        }));
       } else {
-        setError(t('signIn.errors.notCompleted'));
+        // status null = the SignIn resource never hydrated from the API —
+        // usually the native app isn't allowlisted on the production Clerk
+        // instance (Dashboard → Native applications) or the Native API is off.
+        console.warn('Unhandled sign-in status', {
+          status: signInAttempt.status ?? null,
+          id: (signInAttempt as any)?.id ?? null,
+          supportedFirstFactors: (signInAttempt.supportedFirstFactors ?? []).map((f: any) => f?.strategy),
+          firstFactorVerification: (signInAttempt as any)?.firstFactorVerification?.status ?? null,
+        });
+        setError(
+          signInAttempt.status == null
+            ? t('signIn.errors.serviceUnavailable', {
+                defaultValue: 'Could not reach the sign-in service. Check your connection and try again.',
+              })
+            : t('signIn.errors.notCompleted'),
+        );
       }
     } catch (err: any) {
       if (isExistingSessionError(err)) {
@@ -157,7 +186,7 @@ export default function SignInPage() {
         setFailedAttempts(nextFailedAttempts);
       }
 
-      setError(err.errors?.[0]?.message || t('signIn.errors.failed'));
+      setError(err.errors?.[0]?.longMessage || err.errors?.[0]?.message || t('signIn.errors.failed'));
     } finally {
       setLoading(false);
     }
@@ -422,6 +451,8 @@ export default function SignInPage() {
               <ArrowRight color="#FFFFFF" size={18} />
               <Text style={styles.signInButtonText}>{loading ? t('signIn.signingIn') : t('signIn.signInButton')}</Text>
             </Pressable>
+
+            <GoogleSignInButton onError={setError} />
 
             <Pressable onPress={handleForgotPassword} style={styles.forgotLink}>
               <Text style={[styles.footerLink, { color: '#2563EB' }]}>

@@ -6,6 +6,7 @@ import {
   Linking,
   Modal,
   Platform,
+  Share,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,8 +24,11 @@ import {
   FileText,
   Lightbulb,
   ListChecks,
+  Mail,
   MessageCircle,
+  PartyPopper,
   PenLine,
+  Share2,
   RefreshCw,
   Flag,
   Sparkles,
@@ -38,9 +42,12 @@ import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import { BrandedLoader } from "../../../components/ui/BrandedLoader";
 import { ProgressBar } from "../../../components/ui/ProgressBar";
 import { AnimatedPressable } from "../../../components/ui/AnimatedPressable";
+import * as Haptics from "expo-haptics";
 import Animated, {
   FadeIn,
   FadeInDown,
+  FadeOut,
+  ZoomIn,
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
@@ -55,6 +62,7 @@ import {
   getCachedOpportunity,
 } from "@edutu/core/src/services/opportunities";
 import {
+  buildRefereeRequestEmail,
   fetchApplicationKit,
   generateApplicationKit,
   generateEssayOutline,
@@ -71,6 +79,8 @@ import {
 import { recordOpportunitySignal } from "@edutu/core/src/services/opportunitySignals";
 import { Opportunity } from "@edutu/core/src/types/opportunity";
 import { useCredits } from "@edutu/core/src/hooks/useCredits";
+import { isAiBillingError } from "@edutu/core/src/services/productApi";
+import { useUpgradeSheet } from "../../../components/context/UpgradeSheetContext";
 import { useProStatus } from "@edutu/core/src/hooks/useProStatus";
 import { getDeadlineBadge, urgencyColor } from "@edutu/core/src/utils/deadline";
 
@@ -92,6 +102,34 @@ const CHECKLIST_SECTIONS: Array<{
   { key: "preparation", label: "Preparation" },
   { key: "submission", label: "Submission" },
 ];
+
+// Specific, category-aware praise shown when a checklist item is ticked —
+// being seen doing the work is half of why people keep doing it.
+const TICK_PRAISE: Record<KitChecklistItem["category"], string[]> = {
+  eligibility: [
+    "Requirement confirmed — you're officially in the running.",
+    "Eligibility box ticked. You belong in this race.",
+  ],
+  documents: [
+    "One more document locked in — reviewers can tell who came prepared.",
+    "That's the paperwork sorted. The boring parts win applications.",
+  ],
+  preparation: [
+    "That's the referee sorted — the hard part is momentum, and you have it.",
+    "Groundwork done. Most applicants never get this organized.",
+  ],
+  submission: [
+    "So close now — you're nearer to submitted than most ever get.",
+    "Final stretch. Every tick here is a step you won't panic about later.",
+  ],
+};
+
+const CATEGORY_COMPLETE_COPY: Record<KitChecklistItem["category"], string> = {
+  eligibility: "Eligibility: fully confirmed. Nothing can disqualify you on a technicality.",
+  documents: "Documents: complete. That entire section is behind you.",
+  preparation: "Preparation: done. You've built the application most people only plan.",
+  submission: "Submission steps: complete. You are genuinely ready.",
+};
 
 // The three things the kit delivers — each with its own accent so the intro
 // reads as a colourful, scannable set rather than three identical grey rows.
@@ -176,8 +214,9 @@ export default function ApplicationCopilotScreen() {
   const { getToken } = useAuth();
   const { isDark, colors } = useTheme();
   const reportAIContent = useReportAIContent("copilot");
-  const { credits, spendCredits } = useCredits(supabase, user?.id || null);
+  const { credits } = useCredits(supabase, user?.id || null);
   const { isPro } = useProStatus(supabase, user?.id || null);
+  const upgradeSheet = useUpgradeSheet();
 
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
   const [kit, setKit] = useState<ApplicationKit | null>(null);
@@ -196,6 +235,20 @@ export default function ApplicationCopilotScreen() {
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const draftDirtyRef = useRef(false);
+
+  // Celebration state: per-item praise line + a bigger banner when a whole
+  // checklist category completes. Both auto-dismiss.
+  const [praise, setPraise] = useState<{ itemId: string; text: string } | null>(null);
+  const [categoryBanner, setCategoryBanner] = useState<string | null>(null);
+  const praiseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (praiseTimerRef.current) clearTimeout(praiseTimerRef.current);
+    if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+  }, []);
+
+  // Referee outreach email draft modal
+  const [refereeDraft, setRefereeDraft] = useState<string | null>(null);
 
   // Clerk's getToken can be a new reference every render; keep it in a ref so
   // the load effect can call the latest one without re-running (which would
@@ -275,6 +328,31 @@ export default function ApplicationCopilotScreen() {
   const doneCount = checklist.filter((item) => checklistState[item.id]).length;
   const checklistProgress = checklist.length ? doneCount / checklist.length : 0;
 
+  // Server-side billing refusal (402 insufficient credits / 429 fair-use
+  // limit) — the backend debits credits now, so this alert is the real gate.
+  const showBillingAlert = useCallback(
+    (error: unknown): boolean => {
+      if (!isAiBillingError(error)) return false;
+      // Prefer the shared upgrade bottom sheet; the alert stays as a fallback
+      // if the provider isn't mounted for any reason.
+      if (upgradeSheet) {
+        upgradeSheet.show(error.message);
+        return true;
+      }
+      Alert.alert(
+        error.code === "limit" ? "Limit reached" : "Not enough credits",
+        error.message,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Buy Credits", onPress: () => router.push("/wallet" as never) },
+          { text: "Go Pro", onPress: () => router.push("/paywall" as never) },
+        ],
+      );
+      return true;
+    },
+    [router, upgradeSheet],
+  );
+
   const essayEntryFor = useCallback(
     (promptId: string): EssayWorkspaceEntry | undefined =>
       kit?.essays?.find((entry) => entry.promptId === promptId),
@@ -289,28 +367,19 @@ export default function ApplicationCopilotScreen() {
     async (refresh = false) => {
       if (!opportunity) return;
 
-      if (!refresh) {
-        if (!isPro && credits < KIT_CREDIT_COST) {
-          Alert.alert(
-            "Insufficient Credits",
-            `The Application Co-pilot kit requires ${KIT_CREDIT_COST} credits. You have ${credits}. Upgrade to Pro for unlimited access or buy more credits.`,
-            [
-              { text: "Cancel", style: "cancel" },
-              { text: "Get Credits", onPress: () => router.push("/paywall" as never) },
-            ],
-          );
-          return;
-        }
-        if (!isPro) {
-          const success = await spendCredits(
-            KIT_CREDIT_COST,
-            `Application kit: ${opportunity.title}`,
-          );
-          if (!success) {
-            Alert.alert("Error", "Failed to deduct credits. Please try again.");
-            return;
-          }
-        }
+      // Pre-flight UX check only — the server is the source of truth and
+      // debits credits itself (402/429 below is the real gate).
+      if (!refresh && !isPro && credits < KIT_CREDIT_COST) {
+        Alert.alert(
+          "Insufficient Credits",
+          `The Application Co-pilot kit requires ${KIT_CREDIT_COST} credits. You have ${credits}. Upgrade to Pro for unlimited access or buy more credits.`,
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Buy Credits", onPress: () => router.push("/wallet" as never) },
+            { text: "Go Pro", onPress: () => router.push("/paywall" as never) },
+          ],
+        );
+        return;
       }
 
       setGenerating(true);
@@ -338,11 +407,13 @@ export default function ApplicationCopilotScreen() {
           },
           getToken,
         );
+      } catch (error) {
+        if (!showBillingAlert(error)) throw error;
       } finally {
         setGenerating(false);
       }
     },
-    [opportunity, isPro, credits, spendCredits, getToken, router],
+    [opportunity, isPro, credits, getToken, router, showBillingAlert],
   );
 
   const confirmRefresh = useCallback(() => {
@@ -426,10 +497,12 @@ export default function ApplicationCopilotScreen() {
       );
       setOutline(generated);
       syncEssayEntry(activePrompt.id, activePrompt.prompt, { outline: generated });
+    } catch (error) {
+      if (!showBillingAlert(error)) throw error;
     } finally {
       setOutlineLoading(false);
     }
-  }, [activePrompt, id, getToken, syncEssayEntry]);
+  }, [activePrompt, id, getToken, syncEssayEntry, showBillingAlert]);
 
   const handleFeedback = useCallback(async () => {
     if (!activePrompt || !id) return;
@@ -454,10 +527,12 @@ export default function ApplicationCopilotScreen() {
         draft: trimmed,
         feedback: result,
       });
+    } catch (error) {
+      if (!showBillingAlert(error)) throw error;
     } finally {
       setFeedbackLoading(false);
     }
-  }, [activePrompt, id, draft, getToken, syncEssayEntry]);
+  }, [activePrompt, id, draft, getToken, syncEssayEntry, showBillingAlert]);
 
   const persistDraft = useCallback(async () => {
     if (!activePrompt || !id || !draftDirtyRef.current) return;

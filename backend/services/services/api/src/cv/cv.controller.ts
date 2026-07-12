@@ -11,6 +11,7 @@ import {
 import { FileInterceptor } from "@nestjs/platform-express";
 import { memoryStorage } from "multer";
 import { CurrentUser } from "../auth/current-user.decorator";
+import { AiMetered } from "../monetization/ai-metered.decorator";
 import { CvService } from "./cv.service";
 import type { GenerateCVDraftDto, TailorCVDto } from "./dto/cv-ai.dto";
 import type { SaveCVRecordDto } from "./dto/cv-record.dto";
@@ -44,6 +45,7 @@ export class CvController {
   }
 
   @Post("ai/draft")
+  @AiMetered("cvAi")
   generateDraft(
     @CurrentUser("id") userId: string,
     @Body() dto: GenerateCVDraftDto,
@@ -52,6 +54,7 @@ export class CvController {
   }
 
   @Post("ai/tailor")
+  @AiMetered("cvAi")
   tailor(@CurrentUser("id") userId: string, @Body() dto: TailorCVDto) {
     return this.cvService.tailor(userId, dto);
   }

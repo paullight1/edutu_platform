@@ -47,10 +47,14 @@ export const CREDIT_AMOUNTS: Record<string, number> = {
 
 // ─── Initialization ─────────────────────────────────────────────────────────
 
+let warnedMissingApiKey = false;
+
 export async function initRevenueCat(userId: string): Promise<boolean> {
   if (!REVENUECAT_API_KEY) {
-    if (__DEV__) {
-      console.warn('RevenueCat API key not configured');
+    // Expected state until the RevenueCat key ships — warn once, not per call.
+    if (__DEV__ && !warnedMissingApiKey) {
+      warnedMissingApiKey = true;
+      console.warn('RevenueCat API key not configured (IAP disabled; web checkout is used instead)');
     }
     isRevenueCatConfigured = false;
     configuredUserId = null;

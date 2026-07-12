@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from "@nestjs/common";
 import { CurrentUser } from "../auth/current-user.decorator";
+import { AiMetered } from "../monetization/ai-metered.decorator";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 import { CopilotService } from "./copilot.service";
 import {
@@ -33,6 +34,7 @@ export class CopilotController {
   }
 
   @Post("kits/:opportunityId/generate")
+  @AiMetered("copilotKit")
   generateKit(
     @CurrentUser("id") userId: string,
     @Param("opportunityId") opportunityId: string,
@@ -46,6 +48,7 @@ export class CopilotController {
   }
 
   @Post("kits/:opportunityId/outline")
+  @AiMetered("copilotAssist")
   generateOutline(
     @CurrentUser("id") userId: string,
     @Param("opportunityId") opportunityId: string,
@@ -55,6 +58,7 @@ export class CopilotController {
   }
 
   @Post("kits/:opportunityId/feedback")
+  @AiMetered("copilotAssist")
   essayFeedback(
     @CurrentUser("id") userId: string,
     @Param("opportunityId") opportunityId: string,

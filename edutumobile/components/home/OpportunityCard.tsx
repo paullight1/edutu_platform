@@ -43,6 +43,8 @@ function OpportunityCardBase({
     index = 0,
 }: OpportunityCardProps) {
     const { t } = useTranslation('home');
+    // Dead image URLs fall back to the imageless layout instead of a blank block.
+    const [imageFailed, setImageFailed] = React.useState(false);
     const deadlineBadge = useMemo(() => getDeadlineBadge(item.deadline), [item.deadline]);
     const deadlineText = deadlineBadge.shortLabel;
     const deadlineColor = deadlineBadge.level === "none"
@@ -91,11 +93,12 @@ function OpportunityCardBase({
             }]}
             entering={FadeInDown.delay(index * 60).duration(350).springify()}
         >
-            {item.image && (
+            {item.image && !imageFailed && (
                 <Image
                     source={{ uri: item.image }}
                     style={styles.oppCardImage}
                     resizeMode="cover"
+                    onError={() => setImageFailed(true)}
                 />
             )}
             <View style={styles.oppCardContent}>

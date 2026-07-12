@@ -343,7 +343,7 @@ function DiscoveryCard({
           resizeMode="cover"
         >
           <View style={styles.discoveryTint} />
-          <Text style={styles.discoveryTitle} numberOfLines={1}>{title}</Text>
+          <Text style={styles.discoveryTitle} numberOfLines={2}>{title}</Text>
         </ImageBackground>
       ) : (
         <LinearGradient
@@ -352,7 +352,7 @@ function DiscoveryCard({
           end={{ x: 1, y: 1 }}
           style={styles.discoveryImageBg}
         >
-          <Text style={styles.discoveryTitle} numberOfLines={1}>{title}</Text>
+          <Text style={styles.discoveryTitle} numberOfLines={2}>{title}</Text>
         </LinearGradient>
       )}
     </Pressable>
@@ -610,6 +610,64 @@ function DetailCard({ item, onPress, onShare, colors, isDark }: { item: Opportun
   );
 }
 
+// ─── Compact Card (For You grid) ─────────────────────────────────────────────
+// Minimal poster: image + match %, title, one meta line. No footer, no org
+// (it usually repeats the title), no per-card match-reason boilerplate.
+function CompactCard({ item, onPress, colors }: { item: Opportunity; onPress: () => void; colors: any }) {
+  const { t } = useTranslation('opps');
+  const accent = getAccent(item);
+  const deadline = getDeadlineText(item.deadline);
+  const CategoryIcon = getCategoryIcon(item.category);
+  const locationLabel = item.isRemote ? t('shared.remote') : item.location?.split(',')[0]?.trim();
+
+  return (
+    <Pressable onPress={onPress} style={[styles.compactCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={styles.compactCardHeader}>
+        {item.image ? (
+          <Image source={{ uri: item.image }} style={styles.detailCardImage} resizeMode="cover" />
+        ) : (
+          <LinearGradient colors={[`${accent}25`, `${accent}08`]} style={styles.detailCardImageFallback}>
+            <CategoryIcon size={22} color={accent} />
+          </LinearGradient>
+        )}
+        {item.match >= FOR_YOU_THRESHOLD && (
+          <View style={[styles.detailMatchBadge, { backgroundColor: `${accent}80` }]}>
+            <Sparkles size={10} color="white" />
+            <Text style={styles.detailMatchText}>{item.match}%</Text>
+          </View>
+        )}
+        {item.category ? (
+          <View style={styles.compactCategoryBadge}>
+            <Text style={styles.compactCategoryText} numberOfLines={1}>{item.category}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.compactCardBody}>
+        <Text style={[styles.compactCardTitle, { color: colors.foreground }]} numberOfLines={2}>
+          {item.title}
+        </Text>
+        <View style={styles.compactCardMeta}>
+          {locationLabel ? (
+            <View style={styles.compactMetaItem}>
+              <MapPin size={11} color={colors.textSecondary} />
+              <Text style={[styles.compactMetaText, { color: colors.textSecondary }]} numberOfLines={1}>
+                {locationLabel}
+              </Text>
+            </View>
+          ) : null}
+          {deadline.days !== null && (
+            <View style={styles.compactMetaItem}>
+              <Clock size={11} color={deadline.color} />
+              <Text style={[styles.compactMetaText, { color: deadline.color }]}>{deadline.text}</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
 // ─── List Row (for list view) ────────────────────────────────────────────────
 function ListRow({ item, onPress, onShare, colors, isDark }: { item: Opportunity; onPress: () => void; onShare: (item: Opportunity) => void; colors: any; isDark: boolean }) {
   const { t } = useTranslation('opps');
@@ -852,9 +910,11 @@ export default function OpportunitiesScreen() {
   }, [forYou, explore]);
 
   const openOpportunity = (opportunityId: string, context: string) => {
+    // A deliberate card tap is a 'click' (weight 5 in the ranking engine);
+    // 'view' (weight 2) is reserved for the detail screen actually loading.
     void recordOpportunitySignal({
       opportunityId,
-      signalType: 'view',
+      signalType: 'click',
       signalValue: 1,
       source: 'mobile_explore',
       context,
@@ -1163,12 +1223,10 @@ export default function OpportunitiesScreen() {
                 ) : forYou.length > 0 ? (
                   <View style={styles.forYouGrid}>
                     {forYou.slice(0, 4).map((item) => (
-                      <DetailCard
+                      <CompactCard
                         key={`for-you-${item.id}`}
                         item={item}
                         colors={colors}
-                        isDark={isDark}
-                        onShare={handleShareOpportunity}
                         onPress={() => openOpportunity(item.id, 'for_you_featured_open')}
                       />
                     ))}
@@ -1506,10 +1564,11 @@ const styles = StyleSheet.create({
   },
   discoveryTitle: {
     color: '#FFFFFF',
-    fontSize: 16,
-    lineHeight: 20,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: '800',
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
+    paddingHorizontal: 8,
     textAlign: 'center',
     textShadowColor: 'rgba(0,0,0,0.7)',
     textShadowOffset: { width: 0, height: 1 },
@@ -1609,6 +1668,15 @@ const styles = StyleSheet.create({
   },
 
   // Detail Card (Grid)
+  compactCard: { width: CARD_WIDTH, borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  compactCardHeader: { height: 84, position: 'relative' },
+  compactCategoryBadge: { position: 'absolute', bottom: 6, left: 6, maxWidth: '80%', backgroundColor: 'rgba(2,6,23,0.65)', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
+  compactCategoryText: { color: 'white', fontSize: 8.5, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
+  compactCardBody: { padding: 10, gap: 6 },
+  compactCardTitle: { fontSize: 13, lineHeight: 18, fontWeight: '700' },
+  compactCardMeta: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  compactMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 3, flexShrink: 1 },
+  compactMetaText: { fontSize: 10.5, fontWeight: '600' },
   detailCard: { width: CARD_WIDTH, borderRadius: 16, borderWidth: 1, overflow: 'hidden', marginBottom: 12 },
   detailCardHeader: { height: 110, position: 'relative' },
   detailCardImage: { width: '100%', height: '100%' },

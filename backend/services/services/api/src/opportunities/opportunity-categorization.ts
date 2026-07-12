@@ -181,7 +181,7 @@ function normalizeText(value: unknown): string {
   return String(value).toLowerCase();
 }
 
-function normalizeCategory(
+export function normalizeCategory(
   value: unknown,
 ): OpportunityCanonicalCategory | null {
   const key = normalizeText(value)
