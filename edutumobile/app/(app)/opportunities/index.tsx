@@ -3,7 +3,6 @@ import {
   Alert,
   FlatList,
   Image,
-  ImageBackground,
   Linking,
   Pressable,
   RefreshControl,
@@ -46,8 +45,18 @@ import {
   ArrowDownWideNarrow,
   Bell,
   AlertCircle,
+  GraduationCap,
+  Briefcase,
+  Layers,
+  Medal,
+  HandCoins,
+  BookOpen,
+  Rocket,
+  CalendarDays,
 } from 'lucide-react-native';
+import { FadeInUp } from 'react-native-reanimated';
 import { ScreenHeader } from '../../../components/ui/ScreenHeader';
+import { AnimatedPressable } from '../../../components/ui/AnimatedPressable';
 import { useTheme } from '../../../components/context/ThemeContext';
 import { supabase } from '../../../lib/supabase';
 import { useOpportunities } from '@edutu/core/src/hooks/useOpportunities';
@@ -74,6 +83,8 @@ const SORT_OPTIONS: Array<{ id: SortMode; label: string }> = [
 const { width } = Dimensions.get('window');
 const FOR_YOU_THRESHOLD = 35;
 const CARD_WIDTH = (width - 60) / 2;
+// 4 tiles per row: screen minus list padding (20×2) and 3 inter-tile gaps.
+const DISCOVERY_TILE_WIDTH = (width - 40 - 3 * 8) / 4;
 
 // Cards come from the shared catalog (mirrors Supabase opportunity_categories
 // and the backend canonical categories). `label` is an i18n key in 'opps'.
@@ -83,8 +94,36 @@ const DISCOVERY_CARDS = DISCOVERY_CATEGORY_CATALOG.map((category) => ({
   fallbackTitle: category.fallbackTitle,
   icon: category.icon,
   colors: category.colors,
+  accent: category.accent,
   image: category.image,
 }));
+
+// Chooser tiles get a distinct glyph per category; the shared catalog `icon`
+// field only has 5 coarse types, so the 1:1 mapping lives here.
+const DISCOVERY_TILE_ICONS: Record<DiscoveryCategoryId, typeof GraduationCap> = {
+  scholarships: GraduationCap,
+  internships: Briefcase,
+  programs: Layers,
+  fellowships: Medal,
+  grants: HandCoins,
+  graduate_programs: BookOpen,
+  bootcamps: Rocket,
+  events: CalendarDays,
+};
+
+// Solid gradient pairs for the chooser tiles (same visual language as the
+// home-screen quick actions); catalog `colors` are rgba hero overlays, too
+// translucent for small tiles.
+const DISCOVERY_TILE_GRADIENTS: Record<DiscoveryCategoryId, [string, string]> = {
+  scholarships: ['#F97316', '#DC2626'],
+  internships: ['#3B82F6', '#1D4ED8'],
+  programs: ['#10B981', '#059669'],
+  fellowships: ['#8B5CF6', '#6D28D9'],
+  grants: ['#14B8A6', '#0D9488'],
+  graduate_programs: ['#7C3AED', '#4C1D95'],
+  bootcamps: ['#EC4899', '#BE185D'],
+  events: ['#0EA5E9', '#0369A1'],
+};
 
 // `title`/`desc` hold i18n keys in the 'opps' namespace, translated at render time.
 const OTHER_FEATURES = [
@@ -326,36 +365,40 @@ function DiscoveryCard({
   item,
   active,
   onPress,
+  index = 0,
 }: {
   item: typeof DISCOVERY_CARDS[number];
   active: boolean;
   onPress: () => void;
+  index?: number;
 }) {
   const { t } = useTranslation('opps');
+  const { colors } = useTheme();
   const title = t(item.label, { defaultValue: item.fallbackTitle });
+  const Icon = DISCOVERY_TILE_ICONS[item.id];
   return (
-    <Pressable onPress={onPress} style={[styles.discoveryCard, active && styles.discoveryCardActive]}>
-      {item.image ? (
-        <ImageBackground
-          source={item.image}
-          style={styles.discoveryImageBg}
-          imageStyle={styles.discoveryImageRadius}
-          resizeMode="cover"
-        >
-          <View style={styles.discoveryTint} />
-          <Text style={styles.discoveryTitle} numberOfLines={2}>{title}</Text>
-        </ImageBackground>
-      ) : (
-        <LinearGradient
-          colors={item.colors as [string, string]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.discoveryImageBg}
-        >
-          <Text style={styles.discoveryTitle} numberOfLines={2}>{title}</Text>
-        </LinearGradient>
-      )}
-    </Pressable>
+    <AnimatedPressable
+      onPress={onPress}
+      style={styles.discoveryCard}
+      entering={FadeInUp.delay(80 + index * 60).duration(400).springify()}
+      hapticFeedback="medium"
+      scaleTo={0.92}
+    >
+      <LinearGradient
+        colors={DISCOVERY_TILE_GRADIENTS[item.id]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.discoveryIconTile, active && styles.discoveryCardActive]}
+      >
+        <Icon color="#FFFFFF" size={28} strokeWidth={1.5} />
+      </LinearGradient>
+      <Text
+        style={[styles.discoveryTitle, { color: active ? colors.foreground : colors.textSecondary }]}
+        numberOfLines={2}
+      >
+        {title}
+      </Text>
+    </AnimatedPressable>
   );
 }
 
@@ -1172,11 +1215,12 @@ export default function OpportunitiesScreen() {
                 </View>
 
                 <View style={styles.discoveryGrid}>
-                  {DISCOVERY_CARDS.map((card) => (
+                  {DISCOVERY_CARDS.map((card, index) => (
                     <DiscoveryCard
                       key={card.id}
                       item={card}
                       active={false}
+                      index={index}
                       onPress={() => handleDiscoveryPress(card.id)}
                     />
                   ))}
@@ -1512,14 +1556,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   broadIntroTitle: {
-    fontSize: 22,
-    lineHeight: 28,
-    fontWeight: '900',
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: '800',
   },
   broadIntroBody: {
-    marginTop: 5,
-    fontSize: 13,
-    lineHeight: 19,
+    marginTop: 3,
+    fontSize: 12,
+    lineHeight: 17,
     fontWeight: '600',
   },
   discoveryGrid: {
@@ -1528,51 +1572,35 @@ const styles = StyleSheet.create({
     // Keep each tile at its own height — without this the row can stretch its
     // children to fill the FlatList header, blowing the cards up full-screen.
     alignItems: 'flex-start',
-    gap: 10,
+    gap: 8,
+    rowGap: 16,
     marginTop: 16,
-    marginBottom: 18,
+    marginBottom: 20,
   },
   discoveryCard: {
-    width: CARD_WIDTH,
-    height: 72,
-    borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: '#0F172A',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
+    width: DISCOVERY_TILE_WIDTH,
+    alignItems: 'center',
   },
   discoveryCardActive: {
-    borderColor: '#FFFFFF',
     shadowColor: '#000',
     shadowOpacity: 0.18,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
     elevation: 5,
   },
-  discoveryImageBg: {
-    flex: 1,
+  discoveryIconTile: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 10,
-  },
-  discoveryImageRadius: {
-    borderRadius: 16,
-  },
-  discoveryTint: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(2,6,23,0.30)',
+    marginBottom: 8,
   },
   discoveryTitle: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    lineHeight: 18,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-    paddingHorizontal: 8,
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: '600',
     textAlign: 'center',
-    textShadowColor: 'rgba(0,0,0,0.7)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 5,
   },
   viewModeWrapper: { flexDirection: 'row', borderRadius: 12, borderWidth: 1, padding: 3, gap: 4 },
   viewModeBtn: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: 10 },
