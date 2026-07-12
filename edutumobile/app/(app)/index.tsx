@@ -74,8 +74,12 @@ const EDITOR_TILE_WIDTH: Record<DiscoveryTileSize, number> = {
     card: (EDITOR_GRID_WIDTH - EDITOR_GAP) / 2,
     long: EDITOR_GRID_WIDTH,
 };
+// Icon faces are a fixed compact square (centered in their quarter-width
+// slot) so the smallest size actually renders smallest — deriving it from the
+// slot width made icon tiles taller than card tiles.
+const ICON_SQUARE = 60;
 const EDITOR_FACE_HEIGHT: Record<DiscoveryTileSize, number> = {
-    icon: (EDITOR_GRID_WIDTH - 3 * EDITOR_GAP) / 4,
+    icon: ICON_SQUARE,
     card: 64,
     long: 56,
 };
@@ -141,7 +145,7 @@ function DiscoveryTileFace({ item, size, title }: { item: DiscoveryCategory; siz
                 end={{ x: 1, y: 1 }}
                 style={styles.iconTileSquare}
             >
-                <Glyph size={26} color="#FFFFFF" strokeWidth={1.7} />
+                <Glyph size={24} color="#FFFFFF" strokeWidth={1.7} />
             </LinearGradient>
         );
     }
@@ -347,11 +351,15 @@ function EditorTile({
 
     // Edge-drag resize (iOS widget style): the width follows the finger and
     // the committed size live-snaps to the nearest step, so the board reflows
-    // while you drag. Horizontal-only so vertical swipes still scroll.
+    // while you drag. Horizontal-only so vertical swipes still scroll. The
+    // gesture's hitSlop confines it to a strip along the tile's right edge —
+    // it shares one detector with the reorder pan (see Gesture.Exclusive
+    // below); a nested detector loses the arbitration race and never fires.
     const resizePan = Gesture.Pan()
         .enabled(gestureEnabled)
-        .activeOffsetX([-8, 8])
-        .failOffsetY([-14, 14])
+        .hitSlop({ width: 36, right: 10 })
+        .activeOffsetX([-6, 6])
+        .failOffsetY([-16, 16])
         .onStart(() => {
             resizeActive.value = true;
             resizeStartW.value = pw.value;
@@ -377,6 +385,11 @@ function EditorTile({
             runOnJS(onResizeEnd)(tile.id);
         });
 
+    // Resize wins on the edge strip; the reorder pan only activates once the
+    // resize gesture is out of the running (touch outside the strip, or
+    // vertical movement failing it).
+    const tileGesture = Gesture.Exclusive(resizePan, pan);
+
     const tileStyle = useAnimatedStyle(() => ({
         position: 'absolute' as const,
         left: 0,
@@ -393,11 +406,15 @@ function EditorTile({
     const faceStyle = useAnimatedStyle(() => ({ height: faceH.value }));
 
     return (
-        <GestureDetector gesture={pan}>
+        <GestureDetector gesture={tileGesture}>
             <Animated.View style={tileStyle} exiting={FadeOut.duration(140)}>
                 <Animated.View style={[styles.editorFace, faceStyle]}>
                     {/* Crossfade the face when the size changes so content never snaps. */}
-                    <Animated.View key={tile.size} entering={FadeIn.duration(180)} style={styles.editorFaceClip}>
+                    <Animated.View
+                        key={tile.size}
+                        entering={FadeIn.duration(180)}
+                        style={[styles.editorFaceClip, tile.size === 'icon' && styles.editorFaceClipIcon]}
+                    >
                         <DiscoveryTileFace item={category} size={tile.size} title={title} />
                     </Animated.View>
                     {canRemove && (
@@ -405,21 +422,22 @@ function EditorTile({
                             onPress={() => onRemove(tile.id)}
                             hitSlop={10}
                             disabled={!gestureEnabled && !held}
-                            style={[styles.editorBadge, styles.editorRemoveBadge]}
+                            style={[
+                                styles.editorBadge,
+                                styles.editorRemoveBadge,
+                                // Ride the corner of the centered icon square, not the slot.
+                                tile.size === 'icon' && { right: (rect.w - ICON_SQUARE) / 2 + 2 },
+                            ]}
                             accessibilityLabel={t('home.discoveryEditor.remove', { defaultValue: 'Remove {{title}}', title })}
                         >
                             <Minus size={11} color="#FFFFFF" strokeWidth={3} />
                         </TouchableOpacity>
                     )}
-                    <GestureDetector gesture={resizePan}>
-                        <View
-                            style={styles.editorResizeZone}
-                            hitSlop={{ left: 8, right: 8, top: 8, bottom: 8 }}
-                            accessibilityLabel={t('home.discoveryEditor.resize', { defaultValue: 'Drag to resize {{title}}', title })}
-                        >
-                            <View style={styles.editorResizeHandle} />
-                        </View>
-                    </GestureDetector>
+                    {/* Purely visual — the resize gesture lives on the tile
+                        root, confined to this edge strip via its hitSlop. */}
+                    <View style={styles.editorResizeZone} pointerEvents="none">
+                        <View style={styles.editorResizeHandle} />
+                    </View>
                 </Animated.View>
                 {tile.size === 'icon' && (
                     <Animated.Text
@@ -1794,14 +1812,16 @@ const styles = StyleSheet.create({
     },
     iconTileBox: {
         width: '100%',
-        height: ICON_TILE_WIDTH,
+        height: ICON_SQUARE,
+        alignItems: 'center',
     },
     iconTileSquare: {
-        flex: 1,
-        width: '100%',
-        borderRadius: 18,
+        width: ICON_SQUARE,
+        height: ICON_SQUARE,
+        borderRadius: 17,
         alignItems: 'center',
         justifyContent: 'center',
+        alignSelf: 'center',
     },
     iconTileLabel: {
         marginTop: 6,
@@ -1926,6 +1946,12 @@ const styles = StyleSheet.create({
         backgroundColor: '#0F172A',
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.14)',
+    },
+    // Icon faces are a small centered square — no slot-wide chrome behind them.
+    editorFaceClipIcon: {
+        backgroundColor: 'transparent',
+        borderWidth: 0,
+        justifyContent: 'center',
     },
     editorBadge: {
         position: 'absolute',
