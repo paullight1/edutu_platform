@@ -250,10 +250,15 @@ export class GoalsService {
         daysBefore === 0
           ? "Goal deadline today"
           : `${daysBefore} day${daysBefore === 1 ? "" : "s"} until goal deadline`;
+      // The ping should hand over an action, not just a countdown.
+      const body =
+        daysBefore === 0
+          ? `Last call: ${goal.title}. Finish it today — you're closer than it feels.`
+          : `Next small move: ${goal.title}. Fifteen focused minutes today keeps you ahead.`;
 
       return {
         title,
-        body: goal.title,
+        body,
         kind: "goal-reminder",
         severity: daysBefore <= 1 ? "warning" : "info",
         scheduledFor: scheduledFor.toISOString(),

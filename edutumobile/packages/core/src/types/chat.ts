@@ -59,9 +59,38 @@ export interface ChatSmartAction {
   route?: string;
 }
 
+/** One-tap follow-up produced by an agent tool (rendered as chips under the reply). */
+export interface ChatActionButton {
+  id: string;
+  kind: 'view_opportunity' | 'create_roadmap' | 'create_goals' | 'spin_again' | 'open_route';
+  label: string;
+  payload: Record<string, unknown>;
+}
+
+/** Device-side effect the app executes after an agent action (server can't touch the phone). */
+export interface ChatDeviceAction {
+  type: 'calendar.sync' | 'notifications.schedule';
+  payload: Record<string, unknown>;
+}
+
+/** AI document (CV/SOP/…) referenced by an assistant reply — rendered as a card. */
+export interface ChatDocumentCard {
+  docId: string;
+  type: 'cv' | 'sop' | 'cover_letter' | 'essay';
+  title: string;
+  version: number;
+  /** Present right after an export — signed download link (valid ~7 days). */
+  url?: string;
+  format?: 'pdf' | 'docx';
+  fileName?: string;
+}
+
 export interface ChatMessageMetadata {
   opportunities?: ChatOpportunityCard[];
   smartActions?: ChatSmartAction[];
+  actionButtons?: ChatActionButton[];
+  deviceActions?: ChatDeviceAction[];
+  documents?: ChatDocumentCard[];
   optimistic?: boolean;
   intent?: 'opportunity_search' | 'career_guidance' | 'study_help' | 'general';
 }

@@ -109,6 +109,15 @@ jest.mock('expo-notifications', () => ({
   getLastNotificationResponseAsync: jest.fn().mockResolvedValue(null),
 }));
 
+jest.mock('expo-calendar', () => ({
+  requestCalendarPermissionsAsync: jest.fn().mockResolvedValue({ granted: true }),
+  getCalendarsAsync: jest.fn().mockResolvedValue([]),
+  createCalendarAsync: jest.fn().mockResolvedValue('calendar-id'),
+  createEventAsync: jest.fn().mockResolvedValue('event-id'),
+  EntityTypes: { EVENT: 'event' },
+  CalendarType: { LOCAL: 'local' },
+}));
+
 jest.mock('react-native-webview', () => {
   const React = require('react');
   const { View } = require('react-native');

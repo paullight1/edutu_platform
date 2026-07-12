@@ -160,6 +160,8 @@ export class MeService {
 
     this.throwIfSupabaseError(error, "Could not create application");
 
+    await this.recordOutcomeSignal(dbUserId, dto.opportunityId, status);
+
     const [application] = await this.hydrateApplications([data as TableRow]);
     return application;
   }
@@ -199,8 +201,52 @@ export class MeService {
     this.throwIfSupabaseError(error, "Could not update application");
     if (!data) throw new NotFoundException("Application not found");
 
+    if (typeof dto.status === "string") {
+      await this.recordOutcomeSignal(
+        dbUserId,
+        String((data as TableRow).opportunity_id ?? ""),
+        dto.status,
+      );
+    }
+
     const [application] = await this.hydrateApplications([data as TableRow]);
     return application;
+  }
+
+  /**
+   * Resolved application outcomes are the only signals that teach the
+   * recommendation engine what this user actually WINS (not just what they
+   * click). Recorded fire-and-forget — an analytics miss must never fail
+   * the user's status update.
+   */
+  private async recordOutcomeSignal(
+    dbUserId: string,
+    opportunityId: string,
+    status: string,
+  ) {
+    const signalByStatus: Record<string, string> = {
+      offer: "outcome_offer",
+      rejected: "outcome_rejected",
+      withdrawn: "outcome_withdrawn",
+    };
+    const signalType = signalByStatus[status];
+    if (!signalType || !opportunityId) return;
+
+    const { error } = await this.client
+      .from("user_opportunity_signals")
+      .insert({
+        user_id: dbUserId,
+        opportunity_id: opportunityId,
+        signal_type: signalType,
+        signal_value: 1,
+        source: "applications",
+        context: "application_status_change",
+      });
+    if (error) {
+      this.logger?.warn?.(
+        `Could not record ${signalType} signal: ${error.message}`,
+      );
+    }
   }
 
   async deleteApplication(userId: string, applicationId: string) {

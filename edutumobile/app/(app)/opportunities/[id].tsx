@@ -49,6 +49,7 @@ import {
   Info,
   Plus,
   Check,
+  EyeOff,
 } from "lucide-react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth, useUser } from "@clerk/clerk-expo";
@@ -69,6 +70,7 @@ import {
 } from "../../../packages/core/src/services/bookmarks";
 import { trackOpportunityApplication } from "../../../packages/core/src/services/applications";
 import { recordOpportunitySignal } from "@edutu/core/src/services/opportunitySignals";
+import { dismissOpportunity } from "@edutu/core/src/services/dismissedOpportunities";
 import { Opportunity } from "@edutu/core/src/types/opportunity";
 import { CHAT_CONTEXT_SENTINEL } from "@edutu/core/src/types/chat";
 import { useGoals } from "@edutu/core/src/hooks/useGoals";
@@ -646,6 +648,30 @@ export default function OpportunityDetailScreen() {
       setBookmarkLoading(false);
     }
   };
+
+  // "Not interested" — hides it locally and teaches the ranking engine
+  // (backend dismiss signal). Confirmed first: it excludes the whole category
+  // from future recommendations, which users shouldn't trigger by accident.
+  const handleNotInterested = useCallback(() => {
+    if (!user?.id || !id) return;
+    Alert.alert(
+      t("detail.notInterestedTitle", { defaultValue: "Hide this opportunity?" }),
+      t("detail.notInterestedMsg", {
+        defaultValue: "We'll hide it and show you fewer like it.",
+      }),
+      [
+        { text: t("common:actions.cancel", { defaultValue: "Cancel" }), style: "cancel" },
+        {
+          text: t("detail.notInterestedCta", { defaultValue: "Hide" }),
+          style: "destructive",
+          onPress: () => {
+            void dismissOpportunity(user.id, id, getToken, "detail_not_interested");
+            router.back();
+          },
+        },
+      ],
+    );
+  }, [user?.id, id, getToken, router, t]);
 
   const handleApply = useCallback(async () => {
     // Guard against any stray whitespace in a scraped/cached link — a raw space
@@ -2128,6 +2154,25 @@ export default function OpportunityDetailScreen() {
               )}
             </TouchableOpacity>
           </View>
+
+          {/* Not interested — quiet escape hatch that trains recommendations */}
+          <TouchableOpacity
+            onPress={handleNotInterested}
+            activeOpacity={0.6}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              paddingVertical: 14,
+              marginTop: 4,
+            }}
+          >
+            <EyeOff size={14} color={textSecondary} />
+            <Text style={{ fontSize: 13, fontWeight: "600", color: textSecondary }}>
+              {t("detail.notInterestedLink", { defaultValue: "Not interested in this" })}
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 

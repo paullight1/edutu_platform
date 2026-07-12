@@ -768,6 +768,11 @@ export class OpportunityRankingService {
       chat_dislike: -12,
       recommended_in_chat: 1,
       dismiss: -100,
+      // Outcomes outweigh intent: an offer is the strongest evidence of fit
+      // we ever get; a rejection still shows real engagement with the type.
+      outcome_offer: 25,
+      outcome_rejected: 3,
+      outcome_withdrawn: -5,
     };
 
     // Build the weight lookup as a parameterized CASE so the weights above stay

@@ -49,6 +49,66 @@ function atLocalNoon(dateString: string): Date {
 }
 
 /**
+ * Generic variant for agent-created plans/goals: one all-day event per dated
+ * milestone, plus an optional deadline event. Same Edutu calendar + alarms
+ * as roadmap sync.
+ */
+export async function syncMilestonesToCalendar(
+  planTitle: string,
+  milestones: Array<{ title: string; dueDate?: string | null }>,
+  deadline?: string | null,
+): Promise<CalendarSyncResult> {
+  try {
+    const granted = await ensurePermission();
+    if (!granted) {
+      return { ok: false, eventCount: 0, reason: 'Calendar permission was not granted.', eventIds: [] };
+    }
+
+    const calendarId = await getEdutuCalendarId();
+    const eventIds: string[] = [];
+    const seen = new Set<string>();
+
+    const events = [
+      ...milestones
+        .filter((milestone) => milestone.dueDate)
+        .map((milestone) => ({
+          title: `🎯 ${milestone.title}`,
+          date: milestone.dueDate as string,
+          notes: planTitle,
+        })),
+      ...(deadline
+        ? [{ title: `⏰ DEADLINE: ${planTitle}`, date: deadline, notes: 'Official deadline. Submit before this date!' }]
+        : []),
+    ];
+
+    for (const event of events) {
+      const key = `${event.date}|${event.title}`;
+      if (seen.has(key) || !event.date) continue;
+      seen.add(key);
+      const start = atLocalNoon(event.date);
+      const id = await Calendar.createEventAsync(calendarId, {
+        title: event.title,
+        notes: event.notes,
+        startDate: start,
+        endDate: new Date(start.getTime() + 60 * 60 * 1000),
+        allDay: true,
+        alarms: [{ relativeOffset: -9 * 60 }],
+      });
+      eventIds.push(id);
+    }
+
+    return { ok: true, eventCount: eventIds.length, eventIds };
+  } catch (error) {
+    return {
+      ok: false,
+      eventCount: 0,
+      reason: error instanceof Error ? error.message : 'Calendar sync failed',
+      eventIds: [],
+    };
+  }
+}
+
+/**
  * Writes the roadmap's key dates to the device calendar: one event per
  * milestone plus the submission target and the official deadline.
  */

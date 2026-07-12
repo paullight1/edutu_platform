@@ -1,5 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import {
+  AiChatOptions,
+  AiChatResult,
   AiEmbedOptions,
   AiEmbedResult,
   AiGenerateOptions,
@@ -8,6 +10,7 @@ import {
   AiRouteConfig,
 } from "../ai.types";
 import { aiFetch } from "./ai-http";
+import { buildOpenAiChatBody, parseOpenAiChatResponse } from "./openai-compat";
 
 // Gemini batchEmbedContents accepts at most 100 inputs per request.
 const GEMINI_EMBED_BATCH_LIMIT = 100;
@@ -104,6 +107,41 @@ export class DeepSeekAdapter implements AiProviderAdapter {
         totalTokens: payload?.usage?.total_tokens,
       },
     };
+  }
+
+  async generateChat(
+    config: AiRouteConfig,
+    options: AiChatOptions,
+  ): Promise<AiChatResult> {
+    if (!config.apiKey) {
+      throw new Error("DeepSeek API key is not configured");
+    }
+
+    const response = await aiFetch(
+      DEEPSEEK_API_URL,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${config.apiKey}`,
+        },
+        body: JSON.stringify(buildOpenAiChatBody(config, options)),
+      },
+      { label: "DeepSeek" },
+    );
+
+    if (!response.ok) {
+      const failureText = await response.text();
+      throw new Error(
+        `DeepSeek chat request failed: ${response.status} ${failureText}`,
+      );
+    }
+
+    return parseOpenAiChatResponse(
+      await response.json(),
+      this.provider,
+      config.model || "deepseek-chat",
+    );
   }
 }
 

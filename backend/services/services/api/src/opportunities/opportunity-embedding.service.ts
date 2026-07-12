@@ -207,9 +207,15 @@ export class OpportunityEmbeddingService {
     preferences: PreferencesLike,
   ): Promise<number[] | null> {
     try {
-      const hash = this.profileHash(profile, preferences);
-      const text = this.buildProfileText(profile, preferences);
+      // Chat-learned interests/dislikes enrich the embedding text so what the
+      // coach learns moves recommendations everywhere. Hashing the combined
+      // text keeps the stored-vector invalidation contract: new memory →
+      // new hash → re-embed on next request.
+      const memoryText = await this.buildMemoryText(userId);
+      const baseText = this.buildProfileText(profile, preferences);
+      const text = [baseText, memoryText].filter(Boolean).join("\n");
       if (!text) return null;
+      const hash = createHash("sha256").update(text).digest("hex");
 
       const cached = this.profileEmbeddingCache.get(userId);
       if (cached && cached.hash === hash) return cached.embedding;
@@ -269,6 +275,42 @@ export class OpportunityEmbeddingService {
         }`,
       );
       return null;
+    }
+  }
+
+  /**
+   * Interest/preference/dislike memories the AI coach has learned, formatted
+   * for the embedding text. Empty string on any failure — memories must never
+   * break profile embeddings.
+   */
+  private async buildMemoryText(userId: string): Promise<string> {
+    try {
+      const result = await db.execute(sql`
+        select kind, content from user_ai_memories
+        where user_id = ${userId}
+          and kind in ('interest', 'preference', 'dislike')
+          and (expires_at is null or expires_at > now())
+        order by last_used_at desc
+        limit 15
+      `);
+      const rows =
+        (result as unknown as { rows?: Array<{ kind: string; content: string }> })
+          .rows ?? [];
+      if (!rows.length) return "";
+      const liked = rows
+        .filter((row) => row.kind !== "dislike")
+        .map((row) => row.content);
+      const disliked = rows
+        .filter((row) => row.kind === "dislike")
+        .map((row) => row.content);
+      return [
+        liked.length ? `Learned interests: ${liked.join("; ")}` : "",
+        disliked.length ? `Wants to avoid: ${disliked.join("; ")}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    } catch {
+      return "";
     }
   }
 

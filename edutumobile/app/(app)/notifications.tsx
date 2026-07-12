@@ -4,8 +4,11 @@ import {
     Text,
     FlatList,
     TouchableOpacity,
-    StyleSheet
+    StyleSheet,
+    Image,
+    ScrollView
 } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
     Bell,
@@ -17,7 +20,9 @@ import {
     Trash2,
     Calendar,
     Settings,
-    Lock
+    Lock,
+    Newspaper,
+    ChevronRight
 } from 'lucide-react-native';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
@@ -29,6 +34,7 @@ import { useTheme } from '../../components/context/ThemeContext';
 import { notificationService } from '../../lib/notifications';
 import { BrandedLoader } from '../../components/ui/BrandedLoader';
 import { useTranslation } from 'react-i18next';
+import { fetchNewsPosts, EDUTU_BLOG_BASE_URL, type NewsPost } from '../../lib/news';
 
 export default function NotificationsScreen() {
     const { t } = useTranslation('home');
@@ -48,6 +54,22 @@ export default function NotificationsScreen() {
 
     // Track previous unread count for haptic feedback
     const [prevUnreadCount, setPrevUnreadCount] = useState(0);
+
+    // Trending news — published Edutu blog posts (global opportunities,
+    // deadlines round-ups, tips). Best-effort: the section hides on failure.
+    const [news, setNews] = useState<NewsPost[]>([]);
+    useEffect(() => {
+        let cancelled = false;
+        fetchNewsPosts(6)
+            .then(posts => { if (!cancelled) setNews(posts); })
+            .catch(() => undefined);
+        return () => { cancelled = true; };
+    }, []);
+
+    const openNewsPost = async (url: string) => {
+        await notificationService.triggerHaptic('light');
+        WebBrowser.openBrowserAsync(url).catch(() => undefined);
+    };
 
     // Trigger haptic when new notifications arrive
     useEffect(() => {
@@ -224,6 +246,73 @@ export default function NotificationsScreen() {
                         renderItem={renderNotification}
                         showsVerticalScrollIndicator={false}
                         contentContainerStyle={styles.listContent}
+                        ListHeaderComponent={
+                            news.length > 0 ? (
+                                <View style={styles.newsSection}>
+                                    <View style={styles.newsHeader}>
+                                        <View style={styles.newsHeaderLeft}>
+                                            <Newspaper size={16} color="#6366F1" />
+                                            <Text style={[styles.newsHeaderTitle, { color: textPrimary }]}>
+                                                {t('notifications.newsTitle', { defaultValue: 'Trending news' })}
+                                            </Text>
+                                        </View>
+                                        <TouchableOpacity
+                                            onPress={() => void openNewsPost(EDUTU_BLOG_BASE_URL)}
+                                            style={styles.newsSeeAll}
+                                        >
+                                            <Text style={styles.newsSeeAllText}>
+                                                {t('notifications.newsSeeAll', { defaultValue: 'See all' })}
+                                            </Text>
+                                            <ChevronRight size={14} color="#6366F1" />
+                                        </TouchableOpacity>
+                                    </View>
+                                    <ScrollView
+                                        horizontal
+                                        showsHorizontalScrollIndicator={false}
+                                        contentContainerStyle={styles.newsScroll}
+                                    >
+                                        {news.map(post => (
+                                            <TouchableOpacity
+                                                key={post.id}
+                                                onPress={() => void openNewsPost(post.url)}
+                                                activeOpacity={0.8}
+                                                style={[styles.newsCard, { backgroundColor: cardBg, borderColor }]}
+                                            >
+                                                {post.coverImage ? (
+                                                    <Image
+                                                        source={{ uri: post.coverImage }}
+                                                        style={styles.newsImage}
+                                                        resizeMode="cover"
+                                                    />
+                                                ) : (
+                                                    <View style={[styles.newsImage, styles.newsImageFallback]}>
+                                                        <Newspaper size={22} color="#818CF8" />
+                                                    </View>
+                                                )}
+                                                <View style={styles.newsCardBody}>
+                                                    {post.category ? (
+                                                        <Text style={styles.newsCategory} numberOfLines={1}>
+                                                            {post.category.toUpperCase()}
+                                                        </Text>
+                                                    ) : null}
+                                                    <Text
+                                                        style={[styles.newsTitle, { color: textPrimary }]}
+                                                        numberOfLines={2}
+                                                    >
+                                                        {post.title}
+                                                    </Text>
+                                                    <Text style={[styles.newsDate, { color: textSecondary }]}>
+                                                        {post.publishedAt
+                                                            ? new Date(post.publishedAt).toLocaleDateString()
+                                                            : ''}
+                                                    </Text>
+                                                </View>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
+                                </View>
+                            ) : null
+                        }
                         ListEmptyComponent={
                             <View style={styles.emptyState}>
                                 <Bell size={48} color={textSecondary} />
@@ -352,6 +441,72 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         paddingVertical: 60,
+    },
+    newsSection: {
+        marginBottom: 16,
+    },
+    newsHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 10,
+    },
+    newsHeaderLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    newsHeaderTitle: {
+        fontSize: 15,
+        fontWeight: '800',
+    },
+    newsSeeAll: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 2,
+    },
+    newsSeeAllText: {
+        color: '#6366F1',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    newsScroll: {
+        gap: 12,
+        paddingRight: 8,
+    },
+    newsCard: {
+        width: 220,
+        borderRadius: 16,
+        borderWidth: 1,
+        overflow: 'hidden',
+    },
+    newsImage: {
+        width: '100%',
+        height: 100,
+    },
+    newsImageFallback: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(99,102,241,0.12)',
+    },
+    newsCardBody: {
+        padding: 12,
+    },
+    newsCategory: {
+        color: '#6366F1',
+        fontSize: 10,
+        fontWeight: '800',
+        letterSpacing: 0.6,
+        marginBottom: 4,
+    },
+    newsTitle: {
+        fontSize: 13,
+        fontWeight: '700',
+        lineHeight: 18,
+    },
+    newsDate: {
+        fontSize: 11,
+        marginTop: 6,
     },
     emptyTitle: {
         fontSize: 18,

@@ -130,16 +130,20 @@ describe("RoadmapsService", () => {
 
   it("rejects adoption for non-published roadmaps", async () => {
     const rejection = new NotFoundException("Roadmap not found");
-    const findPublishedById = jest
-      .spyOn(service, "findPublishedById")
+    // adopt() resolves the roadmap via findAdoptableRoadmap (which also
+    // allows the creator's own unpublished roadmaps), not findPublishedById.
+    const findAdoptableRoadmap = jest
+      .spyOn(service as any, "findAdoptableRoadmap")
       .mockRejectedValue(rejection);
 
     await expect(service.adopt("user-1", "draft-roadmap", {})).rejects.toBe(
       rejection,
     );
 
-    expect(findPublishedById).toHaveBeenCalledWith("draft-roadmap");
-    expect(mockedDb.select).not.toHaveBeenCalled();
+    expect(findAdoptableRoadmap).toHaveBeenCalledWith(
+      "user-1",
+      "draft-roadmap",
+    );
     expect(mockedDb.insert).not.toHaveBeenCalled();
   });
 

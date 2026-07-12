@@ -327,6 +327,12 @@ export default function ApplicationCopilotScreen() {
   const checklistState = kit?.checklistState ?? {};
   const doneCount = checklist.filter((item) => checklistState[item.id]).length;
   const checklistProgress = checklist.length ? doneCount / checklist.length : 0;
+  const stepsLeft = checklist.length - doneCount;
+  const isReady = checklist.length > 0 && stepsLeft === 0;
+  const essaysDrafted = (kit?.essays ?? []).filter(
+    (entry) => (entry.draft ?? "").trim().length > 0,
+  ).length;
+  const essayPromptCount = kit?.kit.essayPrompts.length ?? 0;
 
   // Server-side billing refusal (402 insufficient credits / 429 fair-use
   // limit) — the backend debits credits now, so this alert is the real gate.
@@ -447,9 +453,63 @@ export default function ApplicationCopilotScreen() {
           : current,
       );
       void updateKitChecklist(id, { itemId: item.id, done: nextDone }, getToken);
+
+      if (nextDone) {
+        // Did this tick complete its whole category?
+        const nextState = { ...checklistState, [item.id]: true };
+        const categoryItems = (kit.kit.checklist ?? []).filter(
+          (entry) => entry.category === item.category,
+        );
+        const categoryDone =
+          categoryItems.length > 0 && categoryItems.every((entry) => nextState[entry.id]);
+
+        if (categoryDone) {
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          setPraise(null);
+          setCategoryBanner(CATEGORY_COMPLETE_COPY[item.category]);
+          if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+          bannerTimerRef.current = setTimeout(() => setCategoryBanner(null), 3500);
+        } else {
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          const lines = TICK_PRAISE[item.category];
+          setPraise({ itemId: item.id, text: lines[Math.floor(Math.random() * lines.length)] });
+          if (praiseTimerRef.current) clearTimeout(praiseTimerRef.current);
+          praiseTimerRef.current = setTimeout(() => setPraise(null), 2800);
+        }
+      } else if (praise?.itemId === item.id) {
+        setPraise(null);
+      }
     },
-    [kit, id, checklistState, getToken],
+    [kit, id, checklistState, getToken, praise?.itemId],
   );
+
+  // -------------------------------------------------------------------------
+  // Referee outreach email
+  // -------------------------------------------------------------------------
+
+  const isRefereeItem = useCallback(
+    (item: KitChecklistItem) =>
+      item.id === "referees" || /refere|recommendation letter|recommender/i.test(item.label),
+    [],
+  );
+
+  const openRefereeDraft = useCallback(() => {
+    if (!opportunity) return;
+    setRefereeDraft(
+      buildRefereeRequestEmail({
+        userName: user?.fullName || user?.firstName || null,
+        opportunityTitle: opportunity.title,
+        organization: opportunity.organization,
+        deadline: opportunity.deadline,
+      }),
+    );
+  }, [opportunity, user?.fullName, user?.firstName]);
+
+  const shareRefereeDraft = useCallback(() => {
+    if (!refereeDraft) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    void Share.share({ message: refereeDraft }).catch(() => undefined);
+  }, [refereeDraft]);
 
   // -------------------------------------------------------------------------
   // Essay workspace
@@ -845,6 +905,21 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
               </Text>
             </View>
             <ProgressBar progress={Math.round(checklistProgress * 100)} variant="green" />
+            {categoryBanner ? (
+              <Animated.View
+                entering={ZoomIn.duration(320)}
+                exiting={FadeOut.duration(250)}
+                style={[
+                  styles.celebrateBanner,
+                  { backgroundColor: `${colors.success}16`, borderColor: `${colors.success}45` },
+                ]}
+              >
+                <PartyPopper size={18} color={colors.success} />
+                <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: "700", flex: 1, lineHeight: 18 }}>
+                  {categoryBanner}
+                </Text>
+              </Animated.View>
+            ) : null}
             {CHECKLIST_SECTIONS.map((section) => {
               const items = checklist.filter((item) => item.category === section.key);
               if (!items.length) return null;
@@ -863,7 +938,9 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
                         activeOpacity={0.7}
                       >
                         {done ? (
-                          <CheckCircle2 size={20} color={colors.success} />
+                          <Animated.View entering={ZoomIn.duration(280)}>
+                            <CheckCircle2 size={20} color={colors.success} />
+                          </Animated.View>
                         ) : (
                           <Circle size={20} color={colors.border} />
                         )}
@@ -881,6 +958,33 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
                             <Text style={{ color: textSecondary, fontSize: 12, marginTop: 2 }}>
                               {item.detail}
                             </Text>
+                          ) : null}
+                          {praise?.itemId === item.id ? (
+                            <Animated.Text
+                              entering={FadeInDown.duration(300)}
+                              exiting={FadeOut.duration(250)}
+                              style={{ color: colors.success, fontSize: 12, fontWeight: "700", marginTop: 4 }}
+                            >
+                              {praise.text}
+                            </Animated.Text>
+                          ) : null}
+                          {isRefereeItem(item) ? (
+                            <TouchableOpacity
+                              onPress={(e) => {
+                                e.stopPropagation();
+                                openRefereeDraft();
+                              }}
+                              style={[
+                                styles.refereeBtn,
+                                { borderColor: `${colors.accent}40`, backgroundColor: `${colors.accent}0D` },
+                              ]}
+                              activeOpacity={0.8}
+                            >
+                              <Mail size={13} color={colors.accent} />
+                              <Text style={{ color: colors.accent, fontSize: 12, fontWeight: "700" }}>
+                                Draft the ask
+                              </Text>
+                            </TouchableOpacity>
                           ) : null}
                         </View>
                       </TouchableOpacity>
@@ -943,6 +1047,44 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
             })}
           </View>
 
+          {/* Final review gate: a celebratory "ready to submit" panel once the
+              checklist hits 100%, summarizing what's complete. */}
+          {isReady ? (
+            <Animated.View
+              entering={ZoomIn.duration(360)}
+              style={[
+                styles.readyPanel,
+                { backgroundColor: `${colors.success}12`, borderColor: `${colors.success}50` },
+              ]}
+            >
+              <View style={styles.readyHeader}>
+                <PartyPopper size={20} color={colors.success} />
+                <Text style={{ color: colors.foreground, fontSize: 16, fontWeight: "900", flex: 1 }}>
+                  Ready to submit
+                </Text>
+              </View>
+              <Text style={{ color: textSecondary, fontSize: 13, lineHeight: 19, marginTop: 6 }}>
+                Everything on this application is in place. Most applicants never get here.
+              </Text>
+              <View style={{ marginTop: 10, gap: 6 }}>
+                {[
+                  "Winning angle locked in",
+                  `Checklist complete — ${doneCount}/${checklist.length} steps done`,
+                  essayPromptCount > 0
+                    ? `Essays: ${essaysDrafted}/${essayPromptCount} drafted`
+                    : "No essays required",
+                ].map((line) => (
+                  <View key={line} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <CheckCircle2 size={15} color={colors.success} />
+                    <Text style={{ color: colors.foreground, fontSize: 13, fontWeight: "600" }}>
+                      {line}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </Animated.View>
+          ) : null}
+
           {/* Cross-feature CTAs */}
           <View style={styles.ctaRow}>
             <TouchableOpacity
@@ -965,13 +1107,23 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
           {opportunity.applyUrl ? (
             <TouchableOpacity onPress={openApply} activeOpacity={0.85} style={{ marginTop: 10 }}>
               <LinearGradient
-                colors={[colors.accent, `${colors.accent}CC`]}
+                colors={
+                  isReady
+                    ? [colors.success, `${colors.success}CC`]
+                    : [colors.accent, `${colors.accent}CC`]
+                }
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.applyBtn}
               >
                 <ExternalLink size={18} color="#FFFFFF" />
-                <Text style={styles.generateCTAText}>Apply Now</Text>
+                <Text style={styles.generateCTAText}>
+                  {isReady
+                    ? "Apply Now — you're ready"
+                    : stepsLeft > 0
+                      ? `Apply Now · ${stepsLeft} step${stepsLeft === 1 ? "" : "s"} left before you're ready`
+                      : "Apply Now"}
+                </Text>
               </LinearGradient>
             </TouchableOpacity>
           ) : null}
@@ -1230,6 +1382,57 @@ Deadline: ${opportunity.deadline || "Rolling"}`;
         </SafeAreaView>
       </Modal>
 
+      {/* Referee outreach email draft */}
+      <Modal
+        visible={Boolean(refereeDraft)}
+        animationType="slide"
+        onRequestClose={() => setRefereeDraft(null)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: textSecondary, fontSize: 11, fontWeight: "700" }}>
+                REFEREE REQUEST
+              </Text>
+              <Text
+                style={{ color: colors.foreground, fontSize: 15, fontWeight: "700", marginTop: 2 }}
+                numberOfLines={2}
+              >
+                A ready-to-send ask for your recommender
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setRefereeDraft(null)}
+              style={[styles.headerBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)" }]}
+            >
+              <X size={18} color={colors.foreground} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+            <Text style={{ color: textSecondary, fontSize: 12, lineHeight: 18, marginBottom: 12 }}>
+              Personalize the [Referee name] greeting, then send it. Referees say yes far more
+              often when the ask is specific and two weeks ahead.
+            </Text>
+            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text selectable style={{ color: colors.foreground, fontSize: 14, lineHeight: 22 }}>
+                {refereeDraft}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={shareRefereeDraft} activeOpacity={0.85}>
+              <LinearGradient
+                colors={[colors.accent, `${colors.accent}CC`]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.applyBtn}
+              >
+                <Share2 size={17} color="#FFFFFF" />
+                <Text style={styles.generateCTAText}>Copy or share the email</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
       {/* Animated launch overlay while we hand off to the application URL */}
       <Modal visible={Boolean(openingUrl)} transparent animationType="fade">
         <View style={styles.launchOverlay}>
@@ -1445,4 +1648,31 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   editCard: { borderWidth: 1, borderRadius: 12, padding: 10, marginTop: 8 },
+  celebrateBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginTop: 12,
+  },
+  refereeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginTop: 8,
+  },
+  readyPanel: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 14,
+  },
+  readyHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
 });

@@ -9,6 +9,7 @@ import {
 } from "../db/schema";
 import { NotificationsService } from "../notifications/notifications.service";
 import { OpportunityRankingService } from "../opportunities/opportunity-ranking.service";
+import { AiService } from "../ai";
 
 type QuietHours = { start: string; end: string } | null;
 
@@ -24,12 +25,28 @@ interface ScoredOpportunity {
   match_reasons: string[];
 }
 
+interface EligibleUser {
+  userId: string;
+  quietHours: QuietHours;
+  timezone: string | null;
+  firstName: string | null;
+}
+
+interface AlertPick {
+  id: string;
+  title: string;
+  score: number;
+  reason: string | null;
+  othersCount: number;
+}
+
 interface DeadlinePair {
   userId: string;
   opportunityId: string;
   title: string;
   daysLeft: number;
   quietHours: QuietHours;
+  timezone: string | null;
 }
 
 const DEFAULT_QUIET_HOURS = { start: "22:00", end: "08:00" };
@@ -40,6 +57,9 @@ const MIN_SCORE = Number(process.env.ALERTS_MIN_SCORE || 62);
 const DAILY_CAP = Number(process.env.ALERTS_DAILY_CAP || 2);
 const MAX_USERS_PER_RUN = Number(process.env.ALERTS_MAX_USERS_PER_RUN || 500);
 const FRESH_WINDOW_HOURS = Number(process.env.ALERTS_FRESH_HOURS || 26);
+// When no fresh opportunity clears the bar for a user, fall back to their top
+// personalized matches from the whole active catalog (never-alerted only).
+const BACKFILL_ENABLED = process.env.ALERTS_BACKFILL !== "false";
 const SCORE_BATCH = 50; // scoreOpportunitiesForUser caps at 50 ids
 const USER_CONCURRENCY = 3;
 const DEADLINE_OFFSETS = [1, 3, 7];
@@ -70,6 +90,7 @@ export class OpportunityAlertsService {
   constructor(
     private readonly notificationsService: NotificationsService,
     private readonly rankingService: OpportunityRankingService,
+    private readonly aiService: AiService,
   ) {}
 
   // 09:15 UTC: after the midnight scrape and several hourly embedding
@@ -273,8 +294,9 @@ export class OpportunityAlertsService {
       where coalesce(p.push_notifications, true)
         and coalesce(p.opportunity_alerts, true)
         and exists (
+          -- signals.user_id is text in the live schema; tokens.user_id is uuid
           select 1 from user_opportunity_signals s
-          where s.user_id = t.user_id
+          where s.user_id = t.user_id::text
             and s.created_at > now() - interval '60 days'
         )
       limit ${MAX_USERS_PER_RUN}
@@ -401,7 +423,8 @@ export class OpportunityAlertsService {
              p.quiet_hours as quiet_hours
       from user_opportunity_signals s
       join opportunities o on o.id = s.opportunity_id
-      left join notification_preferences p on p.user_id = s.user_id
+      -- signals.user_id is text in the live schema; prefs/ledger user_id is uuid
+      left join notification_preferences p on p.user_id::text = s.user_id
       where s.signal_type in ('save', 'apply')
         and o.status = 'active'
         and o.deadline is not null
@@ -413,7 +436,7 @@ export class OpportunityAlertsService {
         and coalesce(p.deadline_reminders, true)
         and not exists (
           select 1 from opportunity_alert_ledger l
-          where l.user_id = s.user_id
+          where l.user_id::text = s.user_id
             and l.opportunity_id = o.id
             and l.kind = 'deadline_' || (o.deadline::date - current_date) || 'd'
         )

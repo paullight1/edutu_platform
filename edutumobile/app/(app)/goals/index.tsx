@@ -52,6 +52,7 @@ import type { GoalStatusFilter } from '../../../components/goals';
 import type { Goal } from '@edutu/core/src/hooks/useGoals';
 import { AdBanner, BannerConfig } from '../../../components/ui/AdBanner';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 
 const { width } = Dimensions.get('window');
 const CARD_GAP = 10;
@@ -291,9 +292,21 @@ export default function GoalsDashboard() {
 
     const handleCompleteGoal = useCallback(async (id: string) => {
         await updateGoal(id, { status: 'completed', progress: 100 });
+        // Celebrate + narrate progress — milestones should feel witnessed,
+        // not just silently re-rendered.
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        const total = goals.length;
+        const done = goals.filter((g) => g.status === 'completed' || g.id === id).length;
+        if (total > 0) {
+            showToast({
+                emoji: '🏁',
+                variant: 'success',
+                message: `${done} of ${total} done — further than most applicants ever get.`,
+            });
+        }
         // Reward completion (server grants at most once/day; toast via onEarned).
         void award('COMPLETE_GOAL');
-    }, [updateGoal, award]);
+    }, [updateGoal, award, goals, showToast]);
 
     const [bookmarkedOpps, setBookmarkedOpps] = useState<{ id: string, title: string, closeDate: string }[]>([]);
     const [personalizedOpps, setPersonalizedOpps] = useState<Opportunity[]>([]);
