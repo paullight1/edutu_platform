@@ -98,22 +98,22 @@ jest.mock('expo-status-bar', () => ({
 
 jest.mock('expo-notifications', () => ({
   setNotificationHandler: jest.fn(),
-  requestPermissionsAsync: jest.fn().mockResolvedValue({ granted: true }),
-  getPermissionsAsync: jest.fn().mockResolvedValue({ granted: true }),
-  getExpoPushTokenAsync: jest.fn().mockResolvedValue({ data: 'ExponentPushToken[test]' }),
+  requestPermissionsAsync: jest.fn(async () => ({ granted: true })),
+  getPermissionsAsync: jest.fn(async () => ({ granted: true })),
+  getExpoPushTokenAsync: jest.fn(async () => ({ data: 'ExponentPushToken[test]' })),
   setNotificationChannelAsync: jest.fn(),
-  scheduleNotificationAsync: jest.fn().mockResolvedValue('notification-id'),
+  scheduleNotificationAsync: jest.fn(async () => 'notification-id'),
   cancelScheduledNotificationAsync: jest.fn(),
   addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
   addNotificationReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
-  getLastNotificationResponseAsync: jest.fn().mockResolvedValue(null),
+  getLastNotificationResponseAsync: jest.fn(async () => null),
 }));
 
 jest.mock('expo-calendar', () => ({
-  requestCalendarPermissionsAsync: jest.fn().mockResolvedValue({ granted: true }),
-  getCalendarsAsync: jest.fn().mockResolvedValue([]),
-  createCalendarAsync: jest.fn().mockResolvedValue('calendar-id'),
-  createEventAsync: jest.fn().mockResolvedValue('event-id'),
+  requestCalendarPermissionsAsync: jest.fn(async () => ({ granted: true })),
+  getCalendarsAsync: jest.fn(async () => []),
+  createCalendarAsync: jest.fn(async () => 'calendar-id'),
+  createEventAsync: jest.fn(async () => 'event-id'),
   EntityTypes: { EVENT: 'event' },
   CalendarType: { LOCAL: 'local' },
 }));
