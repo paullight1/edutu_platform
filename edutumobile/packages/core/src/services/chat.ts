@@ -27,7 +27,7 @@ function getApiBaseUrl() {
  * other failures so callers can fall back to the supabase chat-proxy path.
  */
 async function postChatMessageToBackend(
-  options: { threadId?: string | null; message: string; userId: string; authToken?: string | null },
+  options: { threadId?: string | null; message: string; userId: string; authToken?: string | null; channel?: 'text' | 'voice' },
 ): Promise<SendChatMessageResult | null> {
   const apiBaseUrl = getApiBaseUrl();
   const token = options.authToken;
@@ -51,6 +51,7 @@ async function postChatMessageToBackend(
         threadId: options.threadId,
         message: options.message,
         userId: options.userId,
+        channel: options.channel,
       }),
       signal: controller.signal,
     });
@@ -234,7 +235,7 @@ export async function renameChatThread(supabase: SupabaseClient, threadId: strin
 
 export async function sendChatMessage(
   supabase: SupabaseClient,
-  options: { threadId?: string | null; message: string; userId: string; authToken?: string | null }
+  options: { threadId?: string | null; message: string; userId: string; authToken?: string | null; channel?: 'text' | 'voice' }
 ): Promise<SendChatMessageResult> {
   try {
     const backendResult = await postChatMessageToBackend(options);
@@ -247,6 +248,7 @@ export async function sendChatMessage(
         threadId: options.threadId,
         message: options.message,
         userId: options.userId,
+        channel: options.channel,
       },
     }), CHAT_PROXY_TIMEOUT_MS);
 

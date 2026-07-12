@@ -14,6 +14,9 @@ import { useAudioPlayer } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useAuth, useUser } from '@clerk/clerk-expo';
+import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
+import { supabase } from '../../lib/supabase';
+import { setPremiumVoiceEnabled } from '../../lib/edutuSpeech';
 import { useTranslation } from 'react-i18next';
 import { MessageSquare, Mic, MicOff, Settings2, Sparkles, X } from 'lucide-react-native';
 import Animated, {
@@ -98,6 +101,13 @@ function VoiceSessionScreen({
     const router = useRouter();
     const { user } = useUser();
     const { getToken } = useAuth();
+    // Premium branded voices are a Pro perk; free users hear the device
+    // synthesizer. Fail-open while entitlements load so a slow fetch never
+    // downgrades a paying user's greeting.
+    const { isPro, isLoading: proLoading } = useProStatus(supabase, user?.id ?? null);
+    useEffect(() => {
+        setPremiumVoiceEnabled(isPro || proLoading);
+    }, [isPro, proLoading]);
     const { reducedMotion } = useTheme();
     const { design } = useVoiceSettings();
     const [settingsOpen, setSettingsOpen] = useState(false);

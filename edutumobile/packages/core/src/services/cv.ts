@@ -10,7 +10,7 @@ import {
   UserCV,
 } from '../types/cv';
 import { toSafeUUID } from '../utils/auth';
-import { requestProductApi, type GetAuthToken } from './productApi';
+import { requestProductApi, isAiBillingError, type GetAuthToken } from './productApi';
 
 const TEMPLATE_STRUCTURE: CVStructure = {
   sections: [
@@ -738,8 +738,10 @@ export async function generateCVDraftWithAI(
           source: 'ai',
         };
       }
-    } catch {
-      // fall through to the local heuristic
+    } catch (error) {
+      // Billing refusals must reach the UI (wallet/paywall CTA); anything
+      // else falls through to the local heuristic.
+      if (isAiBillingError(error)) throw error;
     }
   }
 
@@ -833,8 +835,9 @@ export async function improveCVSummaryWithAI(
       );
       const summary = response?.cv?.summary?.trim();
       if (summary) return { summary, source: 'ai' };
-    } catch {
-      // fall through
+    } catch (error) {
+      if (isAiBillingError(error)) throw error;
+      // otherwise fall through to the local composer
     }
   }
 
@@ -991,8 +994,9 @@ export async function tailorCVForOpportunity(
           missing_keywords: Array.isArray(response.missing_keywords) ? response.missing_keywords : [],
         };
       }
-    } catch {
-      // fall through to the local heuristic
+    } catch (error) {
+      if (isAiBillingError(error)) throw error;
+      // otherwise fall through to the local heuristic
     }
   }
 

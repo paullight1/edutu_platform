@@ -461,14 +461,7 @@ function FeaturedPosterCard({ item, isDark, onPress, onBookmark, onShare, bookma
                         <View style={[styles.deadlineDot, { backgroundColor: deadlineColor }]} />
                         <Text style={[styles.posterDeadline, { color: deadlineColor }]} maxFontSizeMultiplier={1.2}>{deadlineBadge.shortLabel}</Text>
                     </View>
-                    {hero ? (
-                        <View style={styles.posterHeroCta}>
-                            <Text style={styles.posterHeroCtaText} maxFontSizeMultiplier={1.2}>
-                                {t('featured.heroCta', { defaultValue: 'View details' })}
-                            </Text>
-                            <ChevronRight size={13} color="#FFFFFF" />
-                        </View>
-                    ) : onShare ? (
+                    {!hero && onShare ? (
                         <TouchableOpacity
                             onPress={(e) => { e.stopPropagation(); onShare(); }}
                             hitSlop={8}
@@ -834,9 +827,11 @@ export default function Dashboard() {
     };
 
     const recordOpportunityOpen = useCallback((opportunityId: string) => {
+        // A deliberate card tap is a 'click' (weight 5 in the ranking engine);
+        // 'view' (weight 2) is reserved for the detail screen actually loading.
         void recordOpportunitySignal({
             opportunityId,
-            signalType: 'view',
+            signalType: 'click',
             signalValue: 1,
             source: 'mobile_home',
             context: 'home_card_open',
@@ -1616,20 +1611,6 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         marginTop: -7,
         marginBottom: 10,
-    },
-    posterHeroCta: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 3,
-        backgroundColor: '#6366F1',
-        paddingHorizontal: 12,
-        paddingVertical: 7,
-        borderRadius: 999,
-    },
-    posterHeroCtaText: {
-        color: '#FFFFFF',
-        fontSize: 12,
-        fontWeight: '700',
     },
     posterFillerIcon: {
         width: 38,

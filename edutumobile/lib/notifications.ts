@@ -112,6 +112,23 @@ export async function registerForPushNotificationsAsync(userId?: string, getAuth
             vibrationPattern: [0, 250, 250, 250],
             lightColor: '#171a4f',
         });
+        // Server pushes target these via the payload channelId, so users can
+        // tune opportunity alerts and deadline reminders independently in
+        // Android settings.
+        Notifications.setNotificationChannelAsync('opportunities', {
+            name: 'Opportunity alerts',
+            description: 'New opportunities matched to your interests',
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 250, 250, 250],
+            lightColor: '#171a4f',
+        });
+        Notifications.setNotificationChannelAsync('deadlines', {
+            name: 'Deadline reminders',
+            description: 'Reminders before saved opportunities close',
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 250, 250, 250],
+            lightColor: '#171a4f',
+        });
     }
 
     return token.data;

@@ -9,6 +9,7 @@ import {
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useOpportunities } from '../hooks/useOpportunities';
+import { fetchPublishedPosts, formatPostDate, readingTime } from '../services/blog';
 import BentoBenefits from './BentoBenefits';
 import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
@@ -111,6 +112,7 @@ interface LandingArticle {
     date: string;
     readTime: string;
     image: string;
+    slug?: string;
 }
 
 const landingBlogArticles: LandingArticle[] = [
@@ -170,6 +172,27 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     const reduceMotion = useReducedMotion();
     const [openFAQ, setOpenFAQ] = useState<number | null>(null);
     const [heroWordIndex, setHeroWordIndex] = useState(0);
+    const [blogArticles, setBlogArticles] = useState<LandingArticle[]>(landingBlogArticles);
+
+    useEffect(() => {
+        const controller = new AbortController();
+        fetchPublishedPosts({ limit: 3, signal: controller.signal })
+            .then((posts) => {
+                if (!posts.length) return;
+                setBlogArticles(posts.slice(0, 3).map((post, i) => ({
+                    category: post.category || 'Insights',
+                    title: post.title,
+                    excerpt: post.excerpt || '',
+                    author: post.authorName || 'Edutu Team',
+                    date: formatPostDate(post.publishedAt || post.createdAt),
+                    readTime: readingTime(post.content),
+                    image: post.coverImage || landingBlogArticles[i % landingBlogArticles.length].image,
+                    slug: post.slug,
+                })));
+            })
+            .catch(() => { /* keep fallback articles */ });
+        return () => controller.abort();
+    }, []);
     const latestOpportunities = opportunities.slice(0, 3);
 
     const aboutFeatures: AboutFeature[] = [
@@ -525,7 +548,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         </div>
 
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                            {landingBlogArticles.map((article, index) => (
+                            {blogArticles.map((article, index) => (
                                 <motion.article
                                     key={article.title}
                                     {...fadeUp}
@@ -533,7 +556,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                     whileHover={reduceMotion ? undefined : { y: -3 }}
                                     className="overflow-hidden rounded-[22px] border border-subtle bg-surface-layer transition-colors hover:border-brand/40"
                                 >
-                                    <Link to="/blog" className="block no-underline">
+                                    <Link to={article.slug ? `/blog/${article.slug}` : '/blog'} className="block no-underline">
                                         <div className="relative h-[220px] overflow-hidden">
                                             <img src={article.image} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
                                             <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(8,18,36,0.02) 0%, rgba(8,18,36,0.24) 100%)' }} />

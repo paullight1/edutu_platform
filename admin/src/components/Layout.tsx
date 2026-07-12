@@ -22,6 +22,7 @@ import {
   Smartphone,
   CalendarDays,
   Inbox,
+  Banknote,
 } from "lucide-react";
 
 interface User {
@@ -122,7 +123,8 @@ const Layout = () => {
     { to: "/creators", icon: ShieldCheck, label: "Creators" },
     { to: "/roadmaps", icon: BookOpen, label: "Roadmaps" },
     { to: "/blog", icon: FileText, label: "Blog" },
-    { to: "/mobile-control", icon: Smartphone, label: "Mobile Control" },
+    { to: "/mobile-control", icon: Smartphone, label: "App Content" },
+    { to: "/monetization", icon: Banknote, label: "Monetization" },
     { to: "/edutu-engine", icon: Settings, label: "Edutu Engine" },
   ];
 

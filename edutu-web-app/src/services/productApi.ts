@@ -13,6 +13,28 @@ export function isProductApiUnavailableError(error: unknown): boolean {
   return error instanceof ProductApiUnavailableError;
 }
 
+/**
+ * Thrown when the backend rejects an AI call because the user is out of
+ * credits (HTTP 402, code 'insufficient_credits') or over the free daily
+ * allowance (HTTP 429, code 'limit'). Callers should catch this and open
+ * the UpgradeModal instead of showing a generic error.
+ */
+export class UpgradeRequiredError extends Error {
+  constructor(
+    message: string,
+    public code: 'insufficient_credits' | 'limit',
+    public status: number,
+    public required?: number,
+  ) {
+    super(message);
+    this.name = 'UpgradeRequiredError';
+  }
+}
+
+export function isUpgradeRequiredError(error: unknown): error is UpgradeRequiredError {
+  return error instanceof UpgradeRequiredError;
+}
+
 const REQUEST_TIMEOUT_MS = 15000;
 const MAX_ATTEMPTS = 3;
 
@@ -69,14 +91,30 @@ export async function productApiRequest<T>(
 
     if (!response.ok) {
       let message = `Product API request failed with ${response.status}`;
+      let body: { message?: string; error?: string; code?: string; required?: number } | null = null;
       try {
-        const body = await response.json();
+        body = await response.json();
         message = body?.message || body?.error || message;
       } catch {
         const text = await response.text();
         if (text) message = text;
       }
-      throw new ApiStatusError(Array.isArray(message) ? message.join(', ') : message, response.status);
+
+      const normalizedMessage = Array.isArray(message) ? message.join(', ') : message;
+
+      if (
+        (response.status === 402 && body?.code === 'insufficient_credits') ||
+        (response.status === 429 && body?.code === 'limit')
+      ) {
+        throw new UpgradeRequiredError(
+          normalizedMessage,
+          body.code as 'insufficient_credits' | 'limit',
+          response.status,
+          typeof body.required === 'number' ? body.required : undefined,
+        );
+      }
+
+      throw new ApiStatusError(normalizedMessage, response.status);
     }
 
     if (response.status === 204) return undefined as T;

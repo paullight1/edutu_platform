@@ -36,6 +36,7 @@ import {
 import { CurrentUser } from "../auth/current-user.decorator";
 import { Public } from "../auth/public.decorator";
 import { AdminGuard } from "../auth/admin.guard";
+import { AiMetered } from "../monetization/ai-metered.decorator";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 
 @Controller("roadmaps")
@@ -272,25 +273,30 @@ export class RoadmapsController {
     return this.roadmapsService.getFeedbackSummary(roadmapId);
   }
 
-  @Public()
+  // SECURITY + BILLING: these AI endpoints were @Public() — anyone on the
+  // internet could burn LLM budget. Now Clerk-authed and credit-metered.
   @Post("ai/assist")
+  @AiMetered("roadmapGeneration")
   generateAIMatch(
+    @CurrentUser("id") userId: string,
     @Body(new ZodValidationPipe(AIAssistDtoSchema))
     dto: AIAssistDto,
   ) {
     return this.roadmapsService.generateAIMatchQuestions(
       dto.topic,
       dto.category,
+      userId,
     );
   }
 
-  @Public()
   @Post("ai/opportunity-plan")
+  @AiMetered("roadmapGeneration")
   generateOpportunityPlan(
+    @CurrentUser("id") userId: string,
     @Body(new ZodValidationPipe(OpportunityPlanDtoSchema))
     dto: OpportunityPlanDto,
   ) {
-    return this.roadmapsService.generateOpportunityPlan(dto);
+    return this.roadmapsService.generateOpportunityPlan(dto, userId);
   }
 
   @Get("stats")

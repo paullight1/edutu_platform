@@ -323,6 +323,25 @@ export const userOpportunitySignals = pgTable(
   ],
 );
 
+// One row per push alert actually surfaced to a user, so the alert engine
+// never re-sends the same opportunity and can enforce per-day caps.
+// kind: 'interest' | 'deadline_7d' | 'deadline_3d' | 'deadline_1d'
+export const opportunityAlertLedger = pgTable(
+  "opportunity_alert_ledger",
+  {
+    userId: uuid("user_id").notNull(),
+    opportunityId: uuid("opportunity_id")
+      .notNull()
+      .references(() => opportunities.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    sentAt: timestamp("sent_at").defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.opportunityId, table.kind] }),
+    index("idx_alert_ledger_user_sent").on(table.userId, table.sentAt),
+  ],
+);
+
 export const apiConsumers = pgTable(
   "api_consumers",
   {
@@ -797,6 +816,7 @@ export const aiUsageLogs = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     feature: text("feature").notNull(),
+    userId: text("user_id"),
     provider: text("provider").notNull(),
     model: text("model").notNull(),
     status: text("status").notNull().default("success"),
@@ -1354,6 +1374,7 @@ export const aiUsageEvents = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    userId: text("user_id"),
     provider: text("provider").notNull(),
     model: text("model").notNull(),
     route: text("route").notNull(),

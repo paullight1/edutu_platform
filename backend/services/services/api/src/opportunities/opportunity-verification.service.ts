@@ -3,6 +3,12 @@ import { Cron, CronExpression } from "@nestjs/schedule";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
 import { opportunityVerificationRuns } from "../db/schema";
+import {
+  parseDeadlineDetailed,
+  extractDeadlineText,
+  pageSaysClosed,
+  DeadlineConfidence,
+} from "./deadline.util";
 
 export interface VerificationRunOptions {
   limit?: number;
@@ -25,6 +31,7 @@ type CandidateRow = {
   close_date: string | Date | null;
   verification_attempts: number | null;
   broken_link_count: number | null;
+  metadata: Record<string, unknown> | null;
 };
 
 type VerificationOutcome = {
@@ -36,6 +43,12 @@ type VerificationOutcome = {
   httpStatus: number | null;
   error: string | null;
   nextCheckAt: Date | null;
+  /**
+   * When set, persistOutcome also writes this to close_date/deadline (null
+   * clears a disproven date) and records newDeadlineConfidence in metadata.
+   */
+  newCloseDate?: string | null;
+  newDeadlineConfidence?: DeadlineConfidence;
 };
 
 @Injectable()
@@ -178,7 +191,8 @@ export class OpportunityVerificationService {
         opportunity.deadline,
         opportunity.close_date,
         opportunity.verification_attempts,
-        opportunity.broken_link_count
+        opportunity.broken_link_count,
+        opportunity.metadata
       from public.opportunities
       where id = ${id}::uuid
       limit 1
@@ -201,7 +215,8 @@ export class OpportunityVerificationService {
         deadline,
         close_date,
         verification_attempts,
-        broken_link_count
+        broken_link_count,
+        metadata
       from public.opportunities opportunity
       left join (
         select opportunity_id, count(*)::int as engagement_count
@@ -211,12 +226,24 @@ export class OpportunityVerificationService {
         group by opportunity_id
       ) engagement on engagement.opportunity_id = opportunity.id
       where opportunity.duplicate_of is null
-        and opportunity.status in ('active', 'pending', 'pending_review')
         and (
-          opportunity.verification_next_check_at is null
-          or opportunity.verification_next_check_at <= now()
-          or opportunity.last_verified_at is null
-          or opportunity.last_verified_at < now() - (${maxAgeHours}::text || ' hours')::interval
+          (
+            opportunity.status in ('active', 'pending', 'pending_review')
+            and (
+              opportunity.verification_next_check_at is null
+              or opportunity.verification_next_check_at <= now()
+              or opportunity.last_verified_at is null
+              or opportunity.last_verified_at < now() - (${maxAgeHours}::text || ' hours')::interval
+            )
+          )
+          -- Closed rows get periodic re-checks too: annual programs reopen
+          -- and misparsed deadlines wrongly close live opportunities. A
+          -- confirmed close schedules the next look ~30 days out.
+          or (
+            opportunity.status = 'closed'
+            and opportunity.verification_next_check_at is not null
+            and opportunity.verification_next_check_at <= now()
+          )
         )
       order by
         case when opportunity.status = 'active' then 0 else 1 end,
@@ -236,17 +263,11 @@ export class OpportunityVerificationService {
     const now = new Date();
 
     if (expiredAt && expiredAt.getTime() < now.getTime()) {
-      const outcome: VerificationOutcome = {
-        opportunityId: candidate.id,
-        title: candidate.title,
-        url: this.preferredUrl(candidate),
-        status: "expired",
-        // Canonical vocabulary: deadline-passed opportunities are "closed"
-        opportunityStatus: "closed",
-        httpStatus: null,
-        error: null,
-        nextCheckAt: null,
-      };
+      // Verify before closing: stored deadlines are scraped (and sometimes
+      // year-inferred), so a past date alone is not proof the opportunity
+      // closed. Re-read the live page — annual programs update it with the
+      // next cycle's deadline.
+      const outcome = await this.verifyExpiredAgainstSource(candidate);
       if (!dryRun) await this.persistOutcome(outcome);
       return outcome;
     }
@@ -269,8 +290,155 @@ export class OpportunityVerificationService {
 
     const check = await this.checkUrl(url);
     const outcome = this.outcomeFromCheck(candidate, url, check);
+
+    // A row with no deadline and no "rolling" signal is in limbo: it can
+    // never expire, so it would stay Active forever. While the link is
+    // healthy, keep trying to recover a real deadline from the page.
+    if (
+      check.ok &&
+      !this.expiryDate(candidate) &&
+      this.deadlineConfidence(candidate) !== "rolling"
+    ) {
+      const refreshed = await this.extractDeadlineFromSource(candidate, url);
+      if (refreshed) {
+        outcome.newCloseDate = refreshed.date;
+        outcome.newDeadlineConfidence = refreshed.confidence;
+        // Re-check soon once a deadline exists so expiry handling kicks in.
+        outcome.nextCheckAt = this.hoursFromNow(72);
+      }
+    }
+
     if (!dryRun) await this.persistOutcome(outcome);
     return outcome;
+  }
+
+  /**
+   * The stored deadline has passed. Re-read the live page before closing:
+   * - page gone (404/410) → closed
+   * - page explicitly says applications closed → closed
+   * - page shows a future deadline → refresh the date and keep it active
+   * - page alive but still shows the past deadline / no deadline → closed,
+   *   with a ~30-day re-check so annual reopenings are picked up
+   * - fetch failed transiently → leave status untouched, retry in 12h
+   */
+  private async verifyExpiredAgainstSource(
+    candidate: CandidateRow,
+  ): Promise<VerificationOutcome> {
+    const url = this.preferredUrl(candidate);
+    const base: VerificationOutcome = {
+      opportunityId: candidate.id,
+      title: candidate.title,
+      url,
+      status: "expired",
+      // Canonical vocabulary: deadline-passed opportunities are "closed"
+      opportunityStatus: "closed",
+      httpStatus: null,
+      error: null,
+      nextCheckAt: this.hoursFromNow(24 * 30),
+    };
+    if (!url) return { ...base, nextCheckAt: null };
+
+    const page = await this.fetchPageText(url);
+    base.httpStatus = page.httpStatus;
+
+    if (page.error && page.httpStatus === null) {
+      // Transient network failure — don't close on missing evidence.
+      return {
+        ...base,
+        status: "stale",
+        opportunityStatus: candidate.status || "active",
+        error: page.error,
+        nextCheckAt: this.hoursFromNow(12),
+      };
+    }
+    if (page.httpStatus === 404 || page.httpStatus === 410) {
+      return { ...base, status: "broken_link", error: page.error };
+    }
+    if (!page.text || pageSaysClosed(page.text)) {
+      return base;
+    }
+
+    const refreshed = this.parsePageDeadline(candidate, page.text);
+    if (refreshed?.date && refreshed.date >= this.isoToday()) {
+      // The live page shows a future deadline — the stored one was stale or
+      // misparsed. Reopen with the corrected date.
+      return {
+        ...base,
+        status: "verified",
+        opportunityStatus: "active",
+        newCloseDate: refreshed.date,
+        newDeadlineConfidence: refreshed.confidence,
+        nextCheckAt: this.hoursFromNow(24),
+      };
+    }
+
+    return base;
+  }
+
+  private async extractDeadlineFromSource(
+    candidate: CandidateRow,
+    url: string,
+  ) {
+    const page = await this.fetchPageText(url);
+    if (!page.text) return null;
+    const refreshed = this.parsePageDeadline(candidate, page.text);
+    return refreshed?.date ? refreshed : null;
+  }
+
+  private parsePageDeadline(candidate: CandidateRow, pageText: string) {
+    const fragment = extractDeadlineText(pageText);
+    if (!fragment) return null;
+    const titleYear = candidate.title?.match(/\b(20\d{2})\b/)?.[1];
+    return parseDeadlineDetailed(
+      fragment,
+      titleYear ? Number(titleYear) : null,
+    );
+  }
+
+  private deadlineConfidence(candidate: CandidateRow): DeadlineConfidence {
+    const value = candidate.metadata?.["deadline_confidence"];
+    return value === "explicit" ||
+      value === "inferred" ||
+      value === "rolling" ||
+      value === "unknown"
+      ? value
+      : "unknown";
+  }
+
+  private isoToday() {
+    return new Date().toISOString().split("T")[0];
+  }
+
+  private async fetchPageText(url: string): Promise<{
+    httpStatus: number | null;
+    text: string | null;
+    error: string | null;
+  }> {
+    try {
+      const response = await this.fetchWithTimeout(url, "GET", 15000);
+      if (response.status >= 400) {
+        return {
+          httpStatus: response.status,
+          text: null,
+          error: `HTTP ${response.status}`,
+        };
+      }
+      const html = (await response.text()).slice(0, 500_000);
+      const text = html
+        .replace(/<script[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style[\s\S]*?<\/style>/gi, " ")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&nbsp;/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      return { httpStatus: response.status, text, error: null };
+    } catch (error) {
+      return {
+        httpStatus: null,
+        text: null,
+        error: error instanceof Error ? error.message : "Page fetch failed",
+      };
+    }
   }
 
   private outcomeFromCheck(
@@ -311,10 +479,27 @@ export class OpportunityVerificationService {
   }
 
   private async persistOutcome(outcome: VerificationOutcome) {
+    const hasDeadlineUpdate = outcome.newCloseDate !== undefined;
     await db.execute(sql`
       update public.opportunities
       set
         status = ${outcome.opportunityStatus},
+        close_date = case
+          when ${hasDeadlineUpdate} then ${outcome.newCloseDate ?? null}::timestamptz
+          else close_date
+        end,
+        deadline = case
+          when ${hasDeadlineUpdate} then ${outcome.newCloseDate ?? null}::timestamptz
+          else deadline
+        end,
+        metadata = case
+          when ${hasDeadlineUpdate} then coalesce(metadata, '{}'::jsonb)
+            || jsonb_build_object(
+              'deadline_confidence', ${outcome.newDeadlineConfidence ?? "unknown"}::text,
+              'deadline_reverified_at', now()::text
+            )
+          else metadata
+        end,
         validation_status = case
           when ${outcome.status} = 'verified' then 'valid'
           when ${outcome.status} = 'expired' then 'expired'

@@ -141,6 +141,30 @@ export interface AdminAiUsageRouteBreakdown {
   avgLatencyMs: number | null;
 }
 
+export interface AdminVoiceUsageResponse {
+  success: boolean;
+  days: number;
+  /** Unit prices used for the estimate (USD per minute). */
+  pricing: { ttsPerMinuteUsd: number; sttPerMinuteUsd: number };
+  totals: {
+    ttsSeconds: number;
+    sttSeconds: number;
+    ttsRequests: number;
+    sttRequests: number;
+    activeUsers: number;
+    estimatedCostUsd: number;
+  };
+  perDay: Array<{
+    day: string;
+    ttsSeconds: number;
+    sttSeconds: number;
+    requests: number;
+    estimatedCostUsd: number;
+  }>;
+  perVoice: Array<{ voice: string; requests: number; ttsSeconds: number }>;
+  error?: string;
+}
+
 export interface AdminAiUsageSummaryResponse {
   success: boolean;
   days: number;

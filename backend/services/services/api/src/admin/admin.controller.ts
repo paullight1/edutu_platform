@@ -21,6 +21,7 @@ import {
   type AdminUpdateUserRoleResponse,
   type AdminUsersResponse,
   type AdminAiUsageSummaryResponse,
+  type AdminVoiceUsageResponse,
 } from "./admin.dto";
 import { AdminService } from "./admin.service";
 
@@ -73,5 +74,12 @@ export class AdminController {
     @Query("days") days?: string,
   ): Promise<AdminAiUsageSummaryResponse> {
     return this.adminService.getAiUsageSummary(days);
+  }
+
+  @Get("ai-usage/voice")
+  async getVoiceUsage(
+    @Query("days") days?: string,
+  ): Promise<AdminVoiceUsageResponse> {
+    return this.adminService.getVoiceUsage(days);
   }
 }

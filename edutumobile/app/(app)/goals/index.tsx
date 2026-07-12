@@ -17,7 +17,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
     Target,
-    Plus,
     Search,
     Sparkles,
     Filter,
@@ -667,14 +666,6 @@ export default function GoalsDashboard() {
 
                 <View style={{ height: 100 }} />
             </ScrollView>
-
-            <TouchableOpacity
-                onPress={() => router.push('/goals/add')}
-                style={[styles.fab, { backgroundColor: colors.accent, shadowColor: colors.accent }]}
-                activeOpacity={0.8}
-            >
-                <Plus size={24} color="white" strokeWidth={3} />
-            </TouchableOpacity>
         </SafeAreaView>
     );
 }
@@ -682,20 +673,6 @@ export default function GoalsDashboard() {
 const styles = StyleSheet.create({
     root: { flex: 1 },
     content: { paddingHorizontal: 16, paddingTop: 16 },
-    fab: {
-        position: 'absolute',
-        bottom: 30,
-        right: 24,
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        alignItems: 'center',
-        justifyContent: 'center',
-        elevation: 8,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 10,
-    },
 
     // Share Opportunities Banner
     shareBanner: {

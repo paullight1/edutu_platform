@@ -12,9 +12,20 @@ import {
     UserCircle,
     BadgeCheck,
     Crown,
+    Plus,
+    Pencil,
+    Target,
+    Route,
 } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
+import ReAnimated, {
+    useSharedValue,
+    useAnimatedStyle,
+    withSpring,
+    interpolate,
+    Extrapolation,
+} from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { useTheme } from "../../components/context/ThemeContext";
 import { ToastProvider, useToast } from "../../components/context/ToastContext";
@@ -26,6 +37,7 @@ import { LoginOfferModal } from "../../components/ui/LoginOfferModal";
 import { ModuleLockOverlay } from "../../components/mobile-control/ModuleLockOverlay";
 import { VoiceModeOverlay } from "../../components/chat/VoiceModeOverlay";
 import { openVoiceMode } from "../../lib/voiceModeStore";
+import { useNavFabState } from "../../lib/navFabStore";
 import * as Notifications from "expo-notifications";
 import { notificationService, registerForPushNotificationsAsync } from "../../lib/notifications";
 import { supabase } from "../../lib/supabase";
@@ -34,6 +46,11 @@ import { useProStatus } from "@edutu/core/src/hooks/useProStatus";
 import { useTranslation } from "react-i18next";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// Expanded width of the nav pill: screen minus the navRow insets (14 + 14),
+// the detached circle (66) and the row gap (10). The pill's width is animated
+// between this and 0 when it compresses into the circle.
+const NAV_PILL_WIDTH = SCREEN_WIDTH - 14 * 2 - 66 - 10;
 
 // Real Apple Liquid Glass (iOS 26+); elsewhere we use a blur fallback.
 const HAS_LIQUID_GLASS = (() => {
@@ -290,12 +307,277 @@ function AppHeader({ isDark, colors, unreadNotifications }: { isDark: boolean, c
     );
 }
 
+// ─── Contextual Morphing Nav Circle ──────────────────────────────────────────
+// The detached circle next to the tab pill. Instead of always being the AI
+// button, it morphs per tab: AI (home), tinted AI (Discover), a Plus that
+// creates goals/roadmaps (Plan), and an Edit-profile pencil (Me). On context
+// change it shrinks/rotates out, then springs back in sliding toward the
+// right-hand corner with the new icon.
+export type NavCircleKind = "ai" | "ai-discover" | "create" | "edit";
+
+interface NavCircleAction {
+    kind: NavCircleKind;
+    target: string;
+}
+
+function MorphingNavCircle({
+    action,
+    hidden,
+    accent,
+    solidColor,
+    isDark,
+    glassBackground,
+    onPress,
+    dialOpen = false,
+}: {
+    action: NavCircleAction;
+    hidden: boolean;
+    accent: string;
+    solidColor: string;
+    isDark: boolean;
+    glassBackground: (rounded: number) => React.ReactNode;
+    onPress: (action: NavCircleAction) => void;
+    dialOpen?: boolean;
+}) {
+    const { t } = useTranslation('home');
+    const [shown, setShown] = useState<NavCircleAction>(action);
+    const latestAction = useRef(action);
+    latestAction.current = action;
+
+    const morph = useRef(new Animated.Value(1)).current;   // 0 = collapsed mid-swap
+    const slide = useRef(new Animated.Value(0)).current;   // slide-in from the pill side
+    const reveal = useRef(new Animated.Value(hidden ? 0 : 1)).current; // scroll hide/show
+
+    // Plus → X rotation while the create speed-dial (owned by the layout) is open.
+    const dial = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        Animated.spring(dial, { toValue: dialOpen ? 1 : 0, friction: 7, tension: 120, useNativeDriver: true }).start();
+    }, [dialOpen, dial]);
+
+    useEffect(() => {
+        if (action.kind === shown.kind) return;
+        // Small lead-in so the pill's tabs are mid-absorption before the icon
+        // swaps — the new glyph lands right as the bar finishes compressing.
+        Animated.sequence([
+            Animated.delay(90),
+            Animated.timing(morph, {
+                toValue: 0,
+                duration: 120,
+                useNativeDriver: true,
+            }),
+        ]).start(({ finished }) => {
+            if (!finished) return;
+            setShown(latestAction.current);
+            slide.setValue(-14);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            Animated.parallel([
+                Animated.spring(morph, { toValue: 1, friction: 6, tension: 140, useNativeDriver: true }),
+                Animated.spring(slide, { toValue: 0, friction: 7, tension: 90, useNativeDriver: true }),
+            ]).start();
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [action.kind, shown.kind]);
+
+    useEffect(() => {
+        if (hidden) {
+            // Tuck away quickly and quietly while the user scrolls…
+            Animated.timing(reveal, {
+                toValue: 0,
+                duration: 180,
+                useNativeDriver: true,
+            }).start();
+        } else {
+            // …and bounce back with a touch of life when they return.
+            Animated.spring(reveal, {
+                toValue: 1,
+                friction: 7,
+                tension: 120,
+                useNativeDriver: true,
+            }).start();
+        }
+    }, [hidden, reveal]);
+
+    // Render the live action while kinds match so target/theme updates apply
+    // without re-triggering the morph.
+    const active = shown.kind === action.kind ? action : shown;
+    const isAI = active.kind === "ai" || active.kind === "ai-discover";
+
+    const overlayColor =
+        active.kind === "create" || active.kind === "edit"
+            ? `${solidColor}F0`
+            : active.kind === "ai-discover"
+                ? `${solidColor}2E`
+                : null;
+
+    const icon = (() => {
+        switch (active.kind) {
+            case "create":
+                return <Plus size={26} color="#FFFFFF" strokeWidth={2.8} />;
+            case "edit":
+                return <Pencil size={22} color="#FFFFFF" strokeWidth={2.4} />;
+            default:
+                return <Sparkles size={24} color={accent} strokeWidth={2.2} />;
+        }
+    })();
+
+    const label = (() => {
+        switch (active.kind) {
+            case "create":
+                return t('tabs.createNew', 'Create goal or roadmap');
+            case "edit":
+                return t('tabs.editProfile', 'Edit profile');
+            default:
+                return t('tabs.openEdutuAi');
+        }
+    })();
+
+    const scale = morph.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] });
+    const rotate = morph.interpolate({ inputRange: [0, 1], outputRange: ["-60deg", "0deg"] });
+    const plusRotate = dial.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "45deg"] });
+
+    return (
+        <Animated.View
+            pointerEvents={hidden ? "none" : "auto"}
+            style={{
+                opacity: Animated.multiply(morph, reveal),
+                transform: [
+                    { translateX: slide },
+                    { scale: Animated.multiply(scale, reveal) },
+                    { rotate },
+                ],
+            }}
+        >
+            <TouchableOpacity
+                onPress={() => onPress(latestAction.current)}
+                onLongPress={isAI ? () => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                    openVoiceMode('voice');
+                } : undefined}
+                delayLongPress={280}
+                activeOpacity={0.85}
+                style={styles.navCircle}
+                accessibilityRole="button"
+                accessibilityLabel={label}
+                accessibilityHint={isAI ? t('tabs.holdForVoice') : undefined}
+            >
+                {glassBackground(999)}
+                {overlayColor && (
+                    <View
+                        pointerEvents="none"
+                        style={[StyleSheet.absoluteFill, { backgroundColor: overlayColor, borderRadius: 999 }]}
+                    />
+                )}
+                {active.kind === "create" ? (
+                    <Animated.View style={{ transform: [{ rotate: plusRotate }] }}>{icon}</Animated.View>
+                ) : (
+                    icon
+                )}
+            </TouchableOpacity>
+        </Animated.View>
+    );
+}
+
+// ─── Create Speed-Dial ────────────────────────────────────────────────────────
+// "What do you want to create?" — fans out Goal / Roadmap options above the
+// Plan tab's Plus circle. Rendered at the layout root (not inside the nav row)
+// so Android still delivers touches, with a full-screen backdrop to dismiss.
+function CreateSpeedDial({
+    open,
+    bottom,
+    solidColor,
+    onSelect,
+    onClose,
+}: {
+    open: boolean;
+    bottom: number;
+    solidColor: string;
+    onSelect: (target: string) => void;
+    onClose: () => void;
+}) {
+    const { t } = useTranslation('home');
+    const dial = useRef(new Animated.Value(0)).current;
+    const [rendered, setRendered] = useState(open);
+
+    useEffect(() => {
+        if (open) {
+            setRendered(true);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            Animated.spring(dial, { toValue: 1, friction: 7, tension: 120, useNativeDriver: true }).start();
+        } else {
+            Animated.timing(dial, { toValue: 0, duration: 150, useNativeDriver: true }).start(({ finished }) => {
+                if (finished) setRendered(false);
+            });
+        }
+    }, [open, dial]);
+
+    if (!rendered) return null;
+
+    const options = [
+        { key: "goal", label: t('tabs.createGoal', 'Goal'), Icon: Target, target: "/goals/add" },
+        { key: "roadmap", label: t('tabs.createRoadmap', 'Roadmap'), Icon: Route, target: "/creator-dashboard" },
+    ];
+
+    return (
+        <View style={StyleSheet.absoluteFill} pointerEvents={open ? "auto" : "none"}>
+            <TouchableOpacity
+                activeOpacity={1}
+                onPress={onClose}
+                style={StyleSheet.absoluteFill}
+                accessibilityLabel={t('tabs.closeCreateMenu', 'Close create menu')}
+            />
+            <View pointerEvents="box-none" style={[styles.dialWrap, { bottom }]}>
+                <Animated.Text
+                    style={[
+                        styles.dialPrompt,
+                        { opacity: dial, transform: [{ translateY: dial.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] },
+                    ]}
+                >
+                    {t('tabs.createPrompt', 'What do you want to create?')}
+                </Animated.Text>
+                {options.map((option, i) => {
+                    // Stagger: later options animate over the tail of the same value.
+                    const progress = dial.interpolate({ inputRange: [i * 0.15, 1], outputRange: [0, 1], extrapolate: "clamp" });
+                    return (
+                        <Animated.View
+                            key={option.key}
+                            style={{
+                                opacity: progress,
+                                transform: [
+                                    { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [14 * (options.length - i), 0] }) },
+                                    { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) },
+                                ],
+                            }}
+                        >
+                            <TouchableOpacity
+                                onPress={() => {
+                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                                    onSelect(option.target);
+                                }}
+                                activeOpacity={0.85}
+                                style={[styles.dialOption, { backgroundColor: `${solidColor}F0` }]}
+                                accessibilityRole="button"
+                                accessibilityLabel={option.label}
+                            >
+                                <option.Icon size={18} color="#FFFFFF" strokeWidth={2.4} />
+                                <Text style={styles.dialOptionText}>{option.label}</Text>
+                            </TouchableOpacity>
+                        </Animated.View>
+                    );
+                })}
+            </View>
+        </View>
+    );
+}
+
 // ─── Bottom Navigation Bar ────────────────────────────────────────────────────
 function BottomNav({
     tabs,
     activeRoute,
     onTabPress,
-    onAIPress,
+    circleAction,
+    circleHidden,
+    onCirclePress,
+    createDialOpen,
     isDark,
     colors,
 }: {
@@ -308,11 +590,13 @@ function BottomNav({
     }>;
     activeRoute: string;
     onTabPress: (key: string, route: string) => void;
-    onAIPress: () => void;
+    circleAction: NavCircleAction;
+    circleHidden: boolean;
+    onCirclePress: (action: NavCircleAction) => void;
+    createDialOpen: boolean;
     isDark: boolean;
     colors: any;
 }) {
-    const { t } = useTranslation('home');
     const insets = useSafeAreaInsets();
     // Brighter accent + higher-contrast inactive so labels stay legible on the
     // translucent glass over dark content.
@@ -352,15 +636,53 @@ function BottomNav({
             </>
         );
 
+    // ── Collapse choreography (iOS Safari-style minimize) ────────────────────
+    // Home shows the full tab pill. On Discover / Plan / Me the pill
+    // compresses toward the right-hand corner: its width springs to zero while
+    // the tabs — anchored to the pill's shrinking left edge — slide right and
+    // are swallowed one by one by the circle, which swells as it "catches"
+    // them and lands on the contextual icon.
+    const isCollapsed = circleAction.kind !== "ai";
+    const collapse = useSharedValue(isCollapsed ? 1 : 0);
+
+    useEffect(() => {
+        collapse.value = withSpring(isCollapsed ? 1 : 0, {
+            damping: 26,
+            stiffness: 230,
+            mass: 1,
+        });
+    }, [isCollapsed, collapse]);
+
+    const pillStyle = useAnimatedStyle(() => ({
+        width: interpolate(collapse.value, [0, 1], [NAV_PILL_WIDTH, 0], Extrapolation.CLAMP),
+        opacity: interpolate(collapse.value, [0.55, 0.92], [1, 0], Extrapolation.CLAMP),
+    }));
+
+    // Tabs fade ahead of the clip so nothing gets sliced mid-glyph.
+    const pillContentStyle = useAnimatedStyle(() => ({
+        opacity: interpolate(collapse.value, [0, 0.6], [1, 0], Extrapolation.CLAMP),
+    }));
+
+    const circleSwellStyle = useAnimatedStyle(() => ({
+        transform: [
+            { scale: interpolate(collapse.value, [0, 0.7, 1], [1, 1.08, 1], Extrapolation.CLAMP) },
+        ],
+    }));
+
     return (
         <View
             style={[styles.navRow, { bottom: Math.max(insets.bottom, 10) }]}
             pointerEvents="box-none"
         >
-            {/* Main floating glass pill with the tabs */}
-            <View style={styles.navPill}>
+            {/* Main floating glass pill with the tabs; compresses into the circle */}
+            <ReAnimated.View
+                style={[styles.navPill, pillStyle]}
+                pointerEvents={isCollapsed ? "none" : "auto"}
+            >
                 {glassBackground(32)}
-                <View style={styles.navPillRow}>
+                <ReAnimated.View
+                    style={[styles.navPillRow, { width: NAV_PILL_WIDTH }, pillContentStyle]}
+                >
                     {tabs.map((tab) => {
                         const isActive = activeRoute === tab.key;
                         return (
@@ -377,27 +699,24 @@ function BottomNav({
                             />
                         );
                     })}
-                </View>
-            </View>
+                </ReAnimated.View>
+            </ReAnimated.View>
 
-            {/* Detached glass circle — the Edutu AI accessory.
-                Tap opens the chat; holding it drops straight into voice mode. */}
-            <TouchableOpacity
-                onPress={onAIPress}
-                onLongPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-                    openVoiceMode('voice');
-                }}
-                delayLongPress={280}
-                activeOpacity={0.85}
-                style={styles.navCircle}
-                accessibilityRole="button"
-                accessibilityLabel={t('tabs.openEdutuAi')}
-                accessibilityHint={t('tabs.holdForVoice')}
-            >
-                {glassBackground(999)}
-                <Sparkles size={24} color={accent} strokeWidth={2.2} />
-            </TouchableOpacity>
+            {/* Detached glass circle — a contextual action that morphs per tab.
+                Home: Edutu AI (tap = chat, hold = voice). Discover: tinted AI.
+                Plan: create goal/roadmap. Me: edit profile (hides on scroll). */}
+            <ReAnimated.View style={circleSwellStyle}>
+                <MorphingNavCircle
+                    action={circleAction}
+                    hidden={circleHidden}
+                    accent={accent}
+                    solidColor={colors.accent || "#6366F1"}
+                    isDark={isDark}
+                    glassBackground={glassBackground}
+                    onPress={onCirclePress}
+                    dialOpen={createDialOpen}
+                />
+            </ReAnimated.View>
         </View>
     );
 }
@@ -543,6 +862,30 @@ export default function AppLayout() {
         activeRoute === "roadmaps" ||
         activeRoute === "menu";
 
+    // Contextual action for the detached nav circle. On the Plan tab the
+    // target depends on where the user is: /goals* creates a personal goal,
+    // /roadmaps opens Creator Studio to build a roadmap.
+    const { profileFabHidden } = useNavFabState();
+    const normalizedPathname = pathname.toLowerCase().replace(/\/+$/, '') || '/';
+    const circleAction: NavCircleAction =
+        activeRoute === "roadmaps"
+            ? {
+                kind: "create",
+                target: normalizedPathname.startsWith("/goals") ? "/goals/add" : "/creator-dashboard",
+            }
+            : activeRoute === "menu"
+                ? { kind: "edit", target: "/profile/edit" }
+                : activeRoute === "opportunities"
+                    ? { kind: "ai-discover", target: "/chat" }
+                    : { kind: "ai", target: "/chat" };
+    const circleHidden = circleAction.kind === "edit" && profileFabHidden;
+
+    // Create speed-dial (Plan tab Plus). Closes on any navigation.
+    const [createDialOpen, setCreateDialOpen] = useState(false);
+    useEffect(() => {
+        setCreateDialOpen(false);
+    }, [pathname]);
+
     const categoryParam = Array.isArray(params.category) ? params.category[0] : params.category;
     const hasOpportunityCategory = activeRoute === "opportunities" && typeof categoryParam === "string" && categoryParam.length > 0;
     const topLevelRoutes = ["home", "opportunities", "roadmaps", "menu"];
@@ -617,14 +960,35 @@ export default function AppLayout() {
             </View>
 
             {showBottomNav && (
-                <BottomNav
-                    tabs={tabs}
-                    activeRoute={activeRoute}
-                    onTabPress={(key, route) => router.push(route as never)}
-                    onAIPress={() => router.push('/chat' as never)}
-                    isDark={isDark}
-                    colors={colors}
-                />
+                <>
+                    <CreateSpeedDial
+                        open={createDialOpen}
+                        bottom={Math.max(insets.bottom, 10) + 76}
+                        solidColor={colors.accent || "#6366F1"}
+                        onClose={() => setCreateDialOpen(false)}
+                        onSelect={(target) => {
+                            setCreateDialOpen(false);
+                            router.push(target as never);
+                        }}
+                    />
+                    <BottomNav
+                        tabs={tabs}
+                        activeRoute={activeRoute}
+                        onTabPress={(key, route) => router.push(route as never)}
+                        circleAction={circleAction}
+                        circleHidden={circleHidden}
+                        onCirclePress={(action) => {
+                            if (action.kind === "create") {
+                                setCreateDialOpen((open) => !open);
+                                return;
+                            }
+                            router.push(action.target as never);
+                        }}
+                        createDialOpen={createDialOpen}
+                        isDark={isDark}
+                        colors={colors}
+                    />
+                </>
             )}
 
             <WelcomeHintSystem
@@ -660,11 +1024,14 @@ const styles = StyleSheet.create({
         right: 14,
         flexDirection: "row",
         alignItems: "center",
+        // Right-anchored so the circle stays pinned in the corner while the
+        // pill's width collapses into it.
+        justifyContent: "flex-end",
         gap: 10,
         zIndex: 999,
     },
     navPill: {
-        flex: 1,
+        // Width is animated (NAV_PILL_WIDTH ↔ 0) by the collapse spring.
         height: 66,
         borderRadius: 33,
         borderCurve: "continuous",
@@ -680,6 +1047,42 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         paddingHorizontal: 6,
+    },
+    dialWrap: {
+        position: "absolute",
+        right: 18,
+        alignItems: "flex-end",
+        gap: 10,
+    },
+    dialPrompt: {
+        color: "#FFFFFF",
+        fontSize: 12,
+        fontWeight: "700",
+        backgroundColor: "rgba(2,6,23,0.78)",
+        overflow: "hidden",
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        borderRadius: 999,
+        marginBottom: 2,
+    },
+    dialOption: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        borderRadius: 999,
+        borderCurve: "continuous",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.2,
+        shadowRadius: 14,
+        elevation: 10,
+    },
+    dialOptionText: {
+        color: "#FFFFFF",
+        fontSize: 13,
+        fontWeight: "700",
     },
     navCircle: {
         width: 66,

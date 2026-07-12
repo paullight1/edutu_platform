@@ -53,6 +53,13 @@ export const BulkStatusSchema = z.object({
 
 export type BulkStatusDto = z.infer<typeof BulkStatusSchema>;
 
+export const BulkCategorySchema = z.object({
+  ids: BulkIdsField,
+  category: z.string().min(1),
+});
+
+export type BulkCategoryDto = z.infer<typeof BulkCategorySchema>;
+
 export const BulkIdsSchema = z.object({
   ids: BulkIdsField,
 });

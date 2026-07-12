@@ -7,6 +7,7 @@ import type {
   CommunityStoryQueryOptions,
 } from '../types/community';
 import { getApiBaseUrl } from '../lib/apiBaseUrl';
+import { productApiRequest } from './productApi';
 
 type BackendDifficulty = 'beginner' | 'intermediate' | 'advanced';
 type BackendCategory =
@@ -400,5 +401,38 @@ export async function fetchRoadmapCalendarExport(enrollmentId: string, token?: s
     `/roadmaps/enrollments/${encodeURIComponent(enrollmentId)}/calendar`,
     {},
     token,
+  );
+}
+
+// --- Roadmap AI endpoints ---
+// These now require Clerk auth and can return 402 insufficient_credits;
+// productApiRequest always sends the bearer token and surfaces
+// UpgradeRequiredError so callers can open the UpgradeModal.
+
+export interface RoadmapAiAssistInput {
+  goal?: string;
+  prompt?: string;
+  context?: Record<string, unknown>;
+}
+
+export interface RoadmapOpportunityPlanInput {
+  opportunityId: string;
+  targetDeadline?: string | null;
+  profile?: Record<string, unknown>;
+}
+
+export async function requestRoadmapAiAssist(input: RoadmapAiAssistInput, token: string) {
+  return productApiRequest<{ steps?: BackendRoadmapStep[]; [key: string]: unknown }>(
+    '/roadmaps/ai/assist',
+    token,
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+}
+
+export async function requestOpportunityPlan(input: RoadmapOpportunityPlanInput, token: string) {
+  return productApiRequest<{ steps?: BackendRoadmapStep[]; [key: string]: unknown }>(
+    '/roadmaps/ai/opportunity-plan',
+    token,
+    { method: 'POST', body: JSON.stringify(input) },
   );
 }

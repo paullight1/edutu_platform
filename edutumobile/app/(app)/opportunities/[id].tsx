@@ -86,6 +86,8 @@ import {
   AIGeneratedRoadmap,
   ApplicantProfile,
 } from "@edutu/core/src/services/aiRoadmapGenerator";
+import { isAiBillingError } from "@edutu/core/src/services/productApi";
+import { useUpgradeSheet } from "../../../components/context/UpgradeSheetContext";
 import { useStaggeredReveal } from "../../../packages/core/src/hooks/useStaggeredReveal";
 import { RoadmapTimeline } from "../../../components/roadmap/RoadmapTimeline";
 import {
@@ -430,10 +432,10 @@ export default function OpportunityDetailScreen() {
   const { user } = useUser();
   const { getToken } = useAuth();
   const { isDark, colors } = useTheme();
+  const upgradeSheet = useUpgradeSheet();
   const { createGoal, updateGoal } = useGoals(supabase, user?.id || null);
   const {
     credits,
-    spendCredits,
     isLoading: creditsLoading,
   } = useCredits(supabase, user?.id || null);
   const { isPro, isLoading: proLoading } = useProStatus(
@@ -725,6 +727,13 @@ export default function OpportunityDetailScreen() {
 
   const handleShare = useCallback(async () => {
     if (!opportunity) return;
+    void recordOpportunitySignal({
+      opportunityId: opportunity.id,
+      signalType: "share",
+      signalValue: 2,
+      source: "mobile_detail",
+      context: "detail_share",
+    }, getToken);
     try {
       const sharePayload = await getBackendSharePayload(opportunity);
       const link =
@@ -787,32 +796,24 @@ export default function OpportunityDetailScreen() {
       console.error("Failed to share:", error);
       setSharingCard(false);
     }
-  }, [opportunity]);
+  }, [opportunity, getToken]);
 
   const generateAIPath = useCallback(async () => {
     if (!opportunity) return;
 
+    // Pre-flight UX check only — the backend now debits credits itself and
+    // answers 402/429 when the user can't afford the action (handled below).
     if (!isPro && credits < ROADMAP_CREDIT_COST) {
       Alert.alert(
         t("detail.alerts.insufficientCreditsTitle"),
         t("detail.alerts.insufficientCreditsMsg", { cost: ROADMAP_CREDIT_COST, credits }),
         [
           { text: t("common:actions.cancel"), style: "cancel" },
-          { text: t("detail.alerts.getCredits"), onPress: () => router.push("/paywall") },
+          { text: t("detail.alerts.getCredits"), onPress: () => router.push("/wallet") },
+          { text: t("common:adBanner.upgradePro.actionLabel"), onPress: () => router.push("/paywall") },
         ],
       );
       return;
-    }
-
-    if (!isPro) {
-      const success = await spendCredits(
-        ROADMAP_CREDIT_COST,
-        t("detail.goals.aiRoadmapCredit", { title: opportunity.title }),
-      );
-      if (!success) {
-        Alert.alert(t("common:states.error"), t("detail.alerts.deductFailed"));
-        return;
-      }
     }
 
     setGeneratingRoadmap(true);
@@ -842,15 +843,38 @@ export default function OpportunityDetailScreen() {
       // Real generation: deterministic dated scaffold + backend LLM enrichment,
       // tuned by the user's time/level intake and profile. Falls back to the
       // offline scaffold automatically if the API is unreachable.
-      const roadmap = await generateRoadmap(opportunity, { ...intake, profile });
+      const roadmap = await generateRoadmap(opportunity, {
+        ...intake,
+        profile,
+        // /roadmaps/ai/* is authenticated + credit-metered server-side.
+        getAuthToken: getToken,
+      });
       setGeneratedRoadmap(roadmap);
       setCustomMilestones(roadmap.milestones);
       setCompletedMilestoneIds([]);
       setSelectedChecklistItems(roadmap.checklist.map((c) => c.id));
+    } catch (error) {
+      // Server billing refusal (402 insufficient credits / 429 fair-use limit).
+      if (!isAiBillingError(error)) throw error;
+      // Prefer the shared upgrade bottom sheet; the alert stays as a fallback
+      // if the provider isn't mounted for any reason.
+      if (upgradeSheet) {
+        upgradeSheet.show(error.message);
+      } else {
+        Alert.alert(
+          t("detail.alerts.insufficientCreditsTitle"),
+          error.message,
+          [
+            { text: t("common:actions.cancel"), style: "cancel" },
+            { text: t("detail.alerts.getCredits"), onPress: () => router.push("/wallet") },
+            { text: t("common:adBanner.upgradePro.actionLabel"), onPress: () => router.push("/paywall") },
+          ],
+        );
+      }
     } finally {
       setGeneratingRoadmap(false);
     }
-  }, [opportunity, isPro, credits, spendCredits, router, intake, user?.unsafeMetadata, t]);
+  }, [opportunity, isPro, credits, getToken, router, intake, user?.unsafeMetadata, t, upgradeSheet]);
 
   const handleExportCalendar = useCallback(async () => {
     if (!generatedRoadmap || !opportunity) return;

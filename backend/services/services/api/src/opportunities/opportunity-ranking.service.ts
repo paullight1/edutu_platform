@@ -580,6 +580,7 @@ export class OpportunityRankingService {
                  (case s.signal_type
                     when 'view' then 2
                     when 'click' then 5
+                    when 'share' then 10
                     when 'save' then 12
                     when 'apply' then 18
                     when 'chat_like' then 8
@@ -760,6 +761,7 @@ export class OpportunityRankingService {
     const weights: Record<string, number> = {
       view: 2,
       click: 5,
+      share: 10,
       save: 12,
       apply: 18,
       chat_like: 8,

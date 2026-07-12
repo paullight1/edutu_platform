@@ -7,7 +7,7 @@ import {
   Clock,
   Inbox,
   Loader2,
-  MessageCircleQuestion,
+  MessageCircle,
   Send,
   XCircle,
 } from 'lucide-react';
@@ -28,7 +28,7 @@ const STATUS_META: Record<
   { label: string; icon: typeof Clock; className: string }
 > = {
   pending: { label: 'In review', icon: Clock, className: 'text-amber-500' },
-  needs_info: { label: 'Info needed', icon: MessageCircleQuestion, className: 'text-brand' },
+  needs_info: { label: 'Info needed', icon: MessageCircle, className: 'text-brand' },
   approved: { label: 'Approved', icon: CheckCircle2, className: 'text-emerald-500' },
   rejected: { label: 'Not accepted', icon: XCircle, className: 'text-red-500' },
 };
@@ -316,7 +316,7 @@ export default function SubmitOpportunityPage() {
                         }}
                         className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-brand py-2.5 font-bold text-brand hover:bg-brand/5"
                       >
-                        <MessageCircleQuestion size={16} />
+                        <MessageCircle size={16} />
                         Add the requested info
                       </button>
                     )}

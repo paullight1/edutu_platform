@@ -22,6 +22,12 @@ export interface SpeakOptions {
   voice?: string | null;
   /** ISO-639-1 hint, used only by the device fallback. */
   language?: string;
+  /**
+   * Stable key for utterances repeated verbatim (the greeting). The mp3 is
+   * kept on disk keyed by (cacheKey, voice) so later sessions replay it with
+   * zero synthesis cost or latency.
+   */
+  cacheKey?: string;
   getAuthToken?: () => Promise<string | null>;
   onStart?: () => void;
   /** Fires ~10×/sec with playback position as a 0→1 ratio. */
@@ -30,6 +36,21 @@ export interface SpeakOptions {
   /** Fired when the caller (or a newer utterance) interrupts this one. */
   onStopped?: () => void;
   onError?: (error: unknown) => void;
+}
+
+// ─── Premium voice gate ───────────────────────────────────────────────────────
+// Server TTS costs real money per minute, so it is a Pro perk: free users get
+// the device synthesizer. The flag is pushed from wherever pro status is known
+// (voice overlay / chat screen) — defaults open so a slow entitlement fetch
+// never mutes a paying user.
+let premiumVoiceEnabled = true;
+
+export function setPremiumVoiceEnabled(enabled: boolean) {
+  premiumVoiceEnabled = enabled;
+}
+
+export function isPremiumVoiceEnabled() {
+  return premiumVoiceEnabled;
 }
 
 /** Strip markdown/links so neither engine reads syntax aloud. */
@@ -154,17 +175,36 @@ export async function speak(rawText: string, opts: SpeakOptions = {}): Promise<v
 
   const token = ++currentToken;
 
-  let synthesized: { audio: string; mimeType: string } | null = null;
+  if (!premiumVoiceEnabled) {
+    speakWithDevice(text, opts, token);
+    return;
+  }
+
+  // Repeated utterances (the greeting) replay from a persistent per-voice
+  // mp3 instead of re-synthesizing the same sentence every session.
+  const cacheFile = opts.cacheKey
+    ? new File(Paths.cache, `edutu-tts-cache-${opts.cacheKey}-${opts.voice || 'default'}.mp3`)
+    : null;
+  let cacheHit = false;
   try {
-    synthesized = await synthesize(text, opts.voice, opts.getAuthToken);
+    cacheHit = Boolean(cacheFile?.exists && cacheFile.size > 0);
   } catch {
-    synthesized = null;
+    cacheHit = false;
+  }
+
+  let synthesized: { audio: string; mimeType: string } | null = null;
+  if (!cacheHit) {
+    try {
+      synthesized = await synthesize(text, opts.voice, opts.getAuthToken);
+    } catch {
+      synthesized = null;
+    }
   }
 
   // A newer utterance started while we were awaiting synthesis — abandon.
   if (token !== currentToken) return;
 
-  if (!synthesized) {
+  if (!cacheHit && !synthesized) {
     speakWithDevice(text, opts, token);
     return;
   }
@@ -172,16 +212,20 @@ export async function speak(rawText: string, opts: SpeakOptions = {}): Promise<v
   try {
     await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
 
-    const file = new File(Paths.cache, `edutu-tts-${token}-${fileCounter++}.mp3`);
-    try {
-      if (file.exists) file.delete();
-    } catch {}
-    file.write(synthesized.audio, { encoding: 'base64' });
+    const file = cacheFile ?? new File(Paths.cache, `edutu-tts-${token}-${fileCounter++}.mp3`);
+    if (!cacheHit) {
+      try {
+        if (file.exists) file.delete();
+      } catch {}
+      file.write(synthesized!.audio, { encoding: 'base64' });
+    }
 
     if (token !== currentToken) {
-      try {
-        file.delete();
-      } catch {}
+      if (!cacheFile) {
+        try {
+          file.delete();
+        } catch {}
+      }
       return;
     }
 
@@ -189,6 +233,8 @@ export async function speak(rawText: string, opts: SpeakOptions = {}): Promise<v
     activePlayer = player;
 
     const cleanupFile = () => {
+      // Cached utterances stay on disk for the next session.
+      if (cacheFile) return;
       try {
         file.delete();
       } catch {}

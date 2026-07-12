@@ -25,6 +25,8 @@ import { supabase } from '../../../lib/supabase';
 import { useTheme } from '../../../components/context/ThemeContext';
 import { CVTemplate, UserCV } from '@edutu/core/src/types/cv';
 import * as cvService from '@edutu/core/src/services/cv';
+import { isAiBillingError } from '@edutu/core/src/services/productApi';
+import { useUpgradeSheet } from '../../../components/context/UpgradeSheetContext';
 import { exportCVAsPdf } from '../../../lib/exportCv';
 import { Opportunity } from '@edutu/core/src/types/opportunity';
 import { fetchOpportunities } from '@edutu/core/src/services/opportunities';
@@ -156,6 +158,7 @@ export default function CVBuilderScreen() {
     const { getToken } = useAuth();
     const router = useRouter();
     const { colors, isDark } = useTheme();
+    const upgradeSheet = useUpgradeSheet();
 
     const [activeSection, setActiveSection] = useState<CVSection>('templates');
     const [templates, setTemplates] = useState<CVTemplate[]>([]);
@@ -204,6 +207,28 @@ export default function CVBuilderScreen() {
     const defaultCvName = () => (displayName ? `${displayName}'s CV` : t('defaults.myCv'));
     const hasPro = isPro || trialActive;
 
+    // Server-side billing refusal (402 insufficient credits / 429 fair-use
+    // limit) — the backend debits credits for /cv/ai/* itself now.
+    const showBillingAlert = (error: unknown): boolean => {
+        if (!isAiBillingError(error)) return false;
+        // Prefer the shared upgrade bottom sheet; the alert stays as a
+        // fallback if the provider isn't mounted for any reason.
+        if (upgradeSheet) {
+            upgradeSheet.show(error.message);
+            return true;
+        }
+        Alert.alert(
+            error.code === 'limit' ? 'Limit reached' : 'Not enough credits',
+            error.message,
+            [
+                { text: t('common:actions.cancel'), style: 'cancel' },
+                { text: 'Buy Credits', onPress: () => router.push('/wallet' as never) },
+                { text: 'Go Pro', onPress: () => router.push('/paywall' as never) },
+            ],
+        );
+        return true;
+    };
+
     const handleLinkedInSubmit = async () => {
         if (!linkedInUrl || !user) return;
         setIsLinkedInImporting(true);
@@ -236,7 +261,9 @@ export default function CVBuilderScreen() {
         } catch (error) {
             console.error('AI CV generation error:', error);
             setIsLinkedInImporting(false);
-            Alert.alert(t('common:states.error'), t('alerts.generateFailed'));
+            if (!showBillingAlert(error)) {
+                Alert.alert(t('common:states.error'), t('alerts.generateFailed'));
+            }
         }
     };
 
@@ -301,7 +328,9 @@ export default function CVBuilderScreen() {
             }
         } catch (error) {
             console.error('Error improving summary:', error);
-            Alert.alert(t('common:states.error'), t('alerts.improveSummaryFailed'));
+            if (!showBillingAlert(error)) {
+                Alert.alert(t('common:states.error'), t('alerts.improveSummaryFailed'));
+            }
         } finally {
             setIsImprovingSummary(false);
         }
@@ -517,7 +546,9 @@ export default function CVBuilderScreen() {
             });
         } catch (error) {
             console.error('Error tailoring CV:', error);
-            Alert.alert(t('common:states.error'), t('alerts.tailorFailed'));
+            if (!showBillingAlert(error)) {
+                Alert.alert(t('common:states.error'), t('alerts.tailorFailed'));
+            }
         } finally {
             setIsTailoring(false);
         }

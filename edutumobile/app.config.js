@@ -70,6 +70,11 @@ export default {
       buildNumber: "1",
       deploymentTarget: "16.4",
       ...(enableAssociatedDomains ? { associatedDomains: ["applinks:edutu.org"] } : {}),
+      // APNs entitlement so remote push works in release builds (EAS still
+      // needs a push key configured under this bundle id).
+      entitlements: {
+        "aps-environment": "production"
+      },
       config: {
         usesNonExemptEncryption: false
       },

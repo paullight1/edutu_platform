@@ -534,6 +534,7 @@ export class MeService {
       id: `${type}:${opportunityId}`,
       type,
       title: this.asString(opportunity?.title) || "Opportunity",
+      organization: this.asString(opportunity?.organization) || undefined,
       category: this.asString(opportunity?.category) || "General",
       deadline,
       daysUntil,

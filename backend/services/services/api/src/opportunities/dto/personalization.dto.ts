@@ -22,6 +22,7 @@ export const OpportunitySignalSchema = z.object({
   signalType: z.enum([
     "view",
     "click",
+    "share",
     "save",
     "dismiss",
     "apply",

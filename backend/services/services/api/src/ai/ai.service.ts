@@ -547,7 +547,7 @@ export class AiService {
       isEnabled: true,
     };
 
-    const provider = this.normalizeProvider(
+    let provider = this.normalizeProvider(
       storedRoute?.provider || fallback.provider,
     );
     let providerKey: string | null = null;
@@ -560,12 +560,37 @@ export class AiService {
       providerKey = null;
     }
 
+    let model =
+      storedRoute?.model || this.getDefaultModel(provider) || fallback.model;
+    let apiKey = providerKey || this.getEnvKey(provider);
+
+    // Defensive rerouting for chat/JSON features (not embeddings): an admin
+    // override in ai_routes can point a feature at a provider whose key isn't
+    // configured (e.g. gemini). Rather than fail every call with "API key is
+    // not configured", switch to any chat provider that does have a key so the
+    // feature keeps working. Embeddings keep their pinned provider (only Gemini
+    // supports them here) and degrade to null elsewhere.
+    if (!apiKey && !options.feature.startsWith("embeddings.")) {
+      for (const candidate of ["deepseek", "openrouter", "gemini"] as const) {
+        if (candidate === provider) continue;
+        const candidateKey = this.getEnvKey(candidate);
+        if (candidateKey) {
+          this.logger.warn(
+            `No API key for ${provider} (feature ${options.feature}); rerouting to ${candidate}`,
+          );
+          provider = candidate;
+          apiKey = candidateKey;
+          model = this.getDefaultModel(candidate) || model;
+          break;
+        }
+      }
+    }
+
     return {
       feature: options.feature,
       provider,
-      model:
-        storedRoute?.model || this.getDefaultModel(provider) || fallback.model,
-      apiKey: providerKey || this.getEnvKey(provider),
+      model,
+      apiKey,
       systemPrompt:
         storedRoute?.systemPrompt ||
         fallback.systemPrompt ||
@@ -707,6 +732,14 @@ export class AiService {
       .trim();
   }
 
+  // Attribute usage to the end user: explicit option first, then the userId
+  // most feature services already put in metadata.
+  private usageUserId(options: AiGenerateOptions): string | null {
+    const fromMeta = options.metadata?.userId ?? options.metadata?.user_id;
+    const value = options.userId ?? fromMeta;
+    return typeof value === "string" && value ? value.slice(0, 128) : null;
+  }
+
   private async logUsage(
     options: AiGenerateOptions,
     route: AiRouteConfig,
@@ -717,6 +750,7 @@ export class AiService {
     try {
       await db.insert(aiUsageLogs).values({
         feature: options.feature,
+        userId: this.usageUserId(options),
         provider: route.provider,
         model: route.model,
         status: error ? "error" : "success",
@@ -742,6 +776,7 @@ export class AiService {
       const completionTokens = result?.usage?.completionTokens ?? null;
       const totalTokens = result?.usage?.totalTokens ?? null;
       await db.insert(aiUsageEvents).values({
+        userId: this.usageUserId(options),
         provider: route.provider,
         model: route.model,
         route: options.feature,

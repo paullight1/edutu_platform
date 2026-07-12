@@ -291,3 +291,17 @@ export async function generateCvDraft(input: GenerateCVDraftInput, token: string
     body: JSON.stringify(input),
   });
 }
+
+export interface TailorCvInput {
+  cv: CVData;
+  jobTarget?: string;
+  jobDescription?: string;
+  opportunityId?: string;
+}
+
+export async function tailorCv(input: TailorCvInput, token: string) {
+  return productApiRequest<GenerateCVDraftResponse>('/cv/ai/tailor', token, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}

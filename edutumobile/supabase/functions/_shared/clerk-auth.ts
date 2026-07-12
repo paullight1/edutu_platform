@@ -24,30 +24,46 @@ function decodeJson<T>(input: string): T {
   return JSON.parse(new TextDecoder().decode(base64UrlDecode(input))) as T;
 }
 
-// Fallback Clerk instance for this project. Used only when neither
-// CLERK_JWKS_URL nor CLERK_ISSUER_URL is configured as an edge secret, so the
-// function still verifies tokens instead of hard-failing with a 500 on every
-// request (which took the AI Coach fully offline). Derived from the app's Clerk
-// publishable key (pk_test_…calm-gecko-44.clerk.accounts.dev). Set
-// CLERK_ISSUER_URL to override for a different instance.
-const DEFAULT_CLERK_ISSUER = 'https://calm-gecko-44.clerk.accounts.dev';
+// Known Clerk instances for this project. The app moved from the pk_test
+// dev instance (calm-gecko-44) to the pk_live production instance
+// (clerk.edutu.org); tokens from either must verify, so the signing key is
+// looked up across every candidate JWKS instead of hard-failing on the first
+// miss (which silently 401'd all live users while the default pointed at the
+// dev instance). CLERK_JWKS_URL / CLERK_ISSUER_URL edge secrets still take
+// priority when set.
+const KNOWN_CLERK_ISSUERS = [
+  'https://clerk.edutu.org',
+  'https://calm-gecko-44.clerk.accounts.dev',
+];
 
-function getJwksUrl() {
+function getJwksUrls() {
+  const urls: string[] = [];
   const explicit = Deno.env.get('CLERK_JWKS_URL');
-  if (explicit) return explicit;
+  if (explicit) urls.push(explicit);
 
-  const issuer = Deno.env.get('CLERK_ISSUER_URL') || DEFAULT_CLERK_ISSUER;
-  return `${issuer.replace(/\/$/, '')}/.well-known/jwks.json`;
+  const issuer = Deno.env.get('CLERK_ISSUER_URL');
+  if (issuer) urls.push(`${issuer.replace(/\/$/, '')}/.well-known/jwks.json`);
+
+  for (const known of KNOWN_CLERK_ISSUERS) {
+    const url = `${known}/.well-known/jwks.json`;
+    if (!urls.includes(url)) urls.push(url);
+  }
+  return urls;
 }
 
 async function getSigningKey(kid: string, alg: string) {
-  const response = await fetch(getJwksUrl());
-  if (!response.ok) {
-    throw new Error('Unable to fetch Clerk JWKS');
+  let jwk: JsonWebKey | undefined;
+  for (const jwksUrl of getJwksUrls()) {
+    try {
+      const response = await fetch(jwksUrl);
+      if (!response.ok) continue;
+      const jwks = await response.json() as JsonWebKeySet;
+      jwk = jwks.keys.find((key) => key.kid === kid);
+      if (jwk) break;
+    } catch {
+      // Try the next candidate instance.
+    }
   }
-
-  const jwks = await response.json() as JsonWebKeySet;
-  const jwk = jwks.keys.find((key) => key.kid === kid);
   if (!jwk) {
     throw new Error('No matching Clerk signing key found');
   }

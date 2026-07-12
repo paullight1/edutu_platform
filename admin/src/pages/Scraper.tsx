@@ -1478,6 +1478,14 @@ export default function ScraperDashboard() {
     const rootSources = filteredSources.filter(s => !s.parent_id || !sources.find(ps => ps.id === s.parent_id));
     const getChildren = (parentId: number) => filteredSources.filter(s => s.parent_id === parentId);
 
+    // Groups render first (full-width banners), then ungrouped sources — mixing
+    // them leaves loose cards stranded around the banners and reading as group
+    // members. Alphabetical within each section keeps the order predictable.
+    const isGroupSource = (s: ScrapeSource) => Boolean(s.is_group || getChildren(s.id).length > 0);
+    const byName = (a: ScrapeSource, b: ScrapeSource) => (a.name || '').localeCompare(b.name || '');
+    const groupRoots = rootSources.filter(isGroupSource).sort(byName);
+    const plainRoots = rootSources.filter(s => !isGroupSource(s)).sort(byName);
+
     // Compact row used for sources nested inside a group's dropdown.
     const renderChildSourceRow = (source: ScrapeSource) => {
         const palette = getCategoryColor(source.category);
@@ -2118,7 +2126,24 @@ export default function ScraperDashboard() {
                         gap: 12,
                         padding: '16px 24px 24px',
                     }}>
-                        {rootSources.map(source => renderSourceCard(source))}
+                        {groupRoots.map(source => renderSourceCard(source))}
+                        {groupRoots.length > 0 && plainRoots.length > 0 && (
+                            <div style={{
+                                gridColumn: '1 / -1',
+                                display: 'flex', alignItems: 'center', gap: 10,
+                                margin: '8px 0 0',
+                            }}>
+                                <span style={{
+                                    fontSize: 11, fontWeight: 700, letterSpacing: 0.8,
+                                    textTransform: 'uppercase', color: 'var(--text-tertiary)',
+                                    flexShrink: 0,
+                                }}>
+                                    Individual sources · {plainRoots.length}
+                                </span>
+                                <div style={{ flex: 1, height: 1, background: 'var(--border-light)' }} />
+                            </div>
+                        )}
+                        {plainRoots.map(source => renderSourceCard(source))}
                     </div>
                 )}
             </div>

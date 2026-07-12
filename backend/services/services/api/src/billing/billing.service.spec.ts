@@ -1,5 +1,16 @@
 import { BadRequestException } from "@nestjs/common";
 import { BillingService } from "./billing.service";
+import { SettingsService } from "../settings/settings.service";
+import { DEFAULT_ADMIN_SETTINGS } from "../settings/settings.dto";
+
+// Settings stub: hand the service the default (NGN) pricing config.
+const settingsStub = {
+  getSettings: async () => ({
+    success: true,
+    source: "database" as const,
+    settings: DEFAULT_ADMIN_SETTINGS,
+  }),
+} as unknown as SettingsService;
 
 const PRO_SINCE_ISO = new Date(
   Date.now() - 30 * 24 * 3600 * 1000,
@@ -127,7 +138,7 @@ describe("BillingService", () => {
       }),
     } as any);
 
-    const service = new BillingService();
+    const service = new BillingService(settingsStub);
     const result = await service.createCheckout("user-1", "dev@example.com", {
       feature: "api_credits",
       credits: 1500,
@@ -160,7 +171,7 @@ describe("BillingService", () => {
   it("returns an unconfigured response when Paystack is missing", async () => {
     delete process.env.PAYSTACK_SECRET_KEY;
 
-    const service = new BillingService();
+    const service = new BillingService(settingsStub);
     const result = await service.createCheckout("user-1", "dev@example.com", {
       feature: "api_credits",
       credits: 1000,
@@ -178,7 +189,7 @@ describe("BillingService", () => {
   it("rejects webhook payloads with an invalid Paystack signature", async () => {
     process.env.PAYSTACK_SECRET_KEY = "sk_test_123";
 
-    const service = new BillingService();
+    const service = new BillingService(settingsStub);
     await expect(
       service.handlePaystackWebhook(
         Buffer.from(
@@ -215,7 +226,7 @@ describe("BillingService", () => {
   });
 
   it("includes recent billing transactions on billing status responses", async () => {
-    const service = new BillingService();
+    const service = new BillingService(settingsStub);
     (service as any).supabase = createSupabaseMock();
 
     const status = await service.getStatus("user-1");
@@ -236,7 +247,7 @@ describe("BillingService", () => {
       amount: 1000,
       currency: "NGN",
       status: "completed",
-      description: "API credit top-up for 1,000 credits",
+      description: "Credit top-up for 1,000 credits",
       createdAt: "2026-06-22T10:00:00.000Z",
     });
   });

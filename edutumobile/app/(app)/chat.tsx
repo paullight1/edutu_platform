@@ -50,10 +50,12 @@ import { useChat } from '@edutu/core/src/hooks/useChat';
 import { ChatRateLimitError } from '@edutu/core/src/services/chat';
 import { ChatMessage, ChatOpportunityCard, ChatThread, stripChatContext } from '@edutu/core/src/types/chat';
 import { useGoals } from '@edutu/core/src/hooks/useGoals';
+import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { useOpportunities } from '@edutu/core/src/hooks/useOpportunities';
 import { Opportunity } from '@edutu/core/src/types/opportunity';
 import { generateRoadmapFromOpportunity } from '@edutu/core/src/services/aiRoadmapGenerator';
 import { useTextToSpeech } from '../../hooks/useTextToSpeech';
+import { setPremiumVoiceEnabled } from '../../lib/edutuSpeech';
 import { EdutuLogo } from '../../components/branding/EdutuLogo';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { BrandedLoader } from '../../components/ui/BrandedLoader';
@@ -342,6 +344,13 @@ export default function ChatScreen() {
         userId: user?.id || undefined,
         getAuthToken: getToken,
     });
+
+    // Premium neural TTS (the message play button) is a Pro perk — free users
+    // fall back to the device voice. Fail-open while entitlements resolve.
+    const { isPro, isLoading: proLoading } = useProStatus(supabase, user?.id || null);
+    useEffect(() => {
+        setPremiumVoiceEnabled(isPro || proLoading);
+    }, [isPro, proLoading]);
 
     const {
         isSpeaking,

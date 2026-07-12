@@ -5,7 +5,9 @@ import {
     ScrollView,
     TouchableOpacity,
     StyleSheet,
-    Image
+    Image,
+    NativeSyntheticEvent,
+    NativeScrollEvent,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -43,6 +45,7 @@ import { useTheme } from "../../../components/context/ThemeContext";
 import { supabase } from "../../../lib/supabase";
 import { toSafeUUID } from "@edutu/core/src/utils/auth";
 import { fetchProfile, type BackendProfile } from '@edutu/core/src/services/profile';
+import { setProfileFabHidden } from '../../../lib/navFabStore';
 import { useOpportunities } from '@edutu/core/src/hooks/useOpportunities';
 import { useProStatus } from '@edutu/core/src/hooks/useProStatus';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -173,6 +176,26 @@ export default function ProfileScreen() {
         }, [user?.id, getToken])
     );
 
+    // The contextual nav circle shows Edit only while the profile header is in
+    // view; once the card scrolls away the circle tucks itself out of the way.
+    const fabHiddenRef = React.useRef(false);
+    useFocusEffect(
+        useCallback(() => {
+            fabHiddenRef.current = false;
+            setProfileFabHidden(false);
+            return () => setProfileFabHidden(false);
+        }, [])
+    );
+    const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+        // Hysteresis so the circle doesn't flicker around the threshold.
+        const y = event.nativeEvent.contentOffset.y;
+        const hidden = fabHiddenRef.current ? y > 200 : y > 280;
+        if (hidden !== fabHiddenRef.current) {
+            fabHiddenRef.current = hidden;
+            setProfileFabHidden(hidden);
+        }
+    }, []);
+
     useEffect(() => {
         const checkRole = async () => {
             if (!user) return;
@@ -292,6 +315,8 @@ export default function ProfileScreen() {
                 style={styles.scrollView}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
+                onScroll={handleScroll}
+                scrollEventThrottle={32}
             >
                 {/* Clean Profile Card */}
                 <View style={[styles.profileCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
