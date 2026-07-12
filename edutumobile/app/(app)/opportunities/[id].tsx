@@ -71,6 +71,8 @@ import {
 import { trackOpportunityApplication } from "../../../packages/core/src/services/applications";
 import { recordOpportunitySignal } from "@edutu/core/src/services/opportunitySignals";
 import { dismissOpportunity } from "@edutu/core/src/services/dismissedOpportunities";
+import type { DismissReason } from "@edutu/core/src/services/opportunitySignals";
+import { DismissReasonSheet } from "../../../components/opportunity/DismissReasonSheet";
 import { Opportunity } from "@edutu/core/src/types/opportunity";
 import { CHAT_CONTEXT_SENTINEL } from "@edutu/core/src/types/chat";
 import { useGoals } from "@edutu/core/src/hooks/useGoals";
@@ -516,6 +518,11 @@ export default function OpportunityDetailScreen() {
 
   const slideAnim = useRef(new Animated.Value(0)).current;
   const viewRecordedRef = useRef(false);
+  const [dismissSheetVisible, setDismissSheetVisible] = useState(false);
+  /** Set when the detail actually renders content; read at unmount for dwell. */
+  const dwellRef = useRef<{ opportunityId: string; startedAt: number } | null>(null);
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
 
   const backgroundColor = colors.background;
   const textPrimary = colors.foreground;
@@ -592,6 +599,7 @@ export default function OpportunityDetailScreen() {
   useEffect(() => {
     if (!id || !opportunity || viewRecordedRef.current) return;
     viewRecordedRef.current = true;
+    dwellRef.current = { opportunityId: id, startedAt: Date.now() };
     void recordOpportunitySignal(
       {
         opportunityId: id,
@@ -607,6 +615,30 @@ export default function OpportunityDetailScreen() {
       getToken,
     );
   }, [getToken, id, opportunity]);
+
+  // Dwell: time actually spent on the detail is a stronger interest tell than
+  // opening it. Sent once on unmount, bucketed (1: 10–30s, 2: 30–90s, 3: 90s+)
+  // so the ranking weight scales with real reading time.
+  useEffect(() => {
+    return () => {
+      const dwell = dwellRef.current;
+      if (!dwell) return;
+      const seconds = Math.round((Date.now() - dwell.startedAt) / 1000);
+      if (seconds < 10) return;
+      const bucket = seconds >= 90 ? 3 : seconds >= 30 ? 2 : 1;
+      void recordOpportunitySignal(
+        {
+          opportunityId: dwell.opportunityId,
+          signalType: "dwell",
+          signalValue: bucket,
+          source: "mobile_detail",
+          context: "detail_dwell",
+          details: { seconds },
+        },
+        getTokenRef.current,
+      );
+    };
+  }, []);
 
   const toggleBookmark = async () => {
     if (!user || !id) return;
@@ -649,29 +681,21 @@ export default function OpportunityDetailScreen() {
     }
   };
 
-  // "Not interested" — hides it locally and teaches the ranking engine
-  // (backend dismiss signal). Confirmed first: it excludes the whole category
-  // from future recommendations, which users shouldn't trigger by accident.
+  // "Not interested" — opens the typed-reason sheet instead of a blunt
+  // confirm: the reason routes differently in the ranking engine (taste vs
+  // eligibility vs dedup), so asking why makes every dismissal a better
+  // training signal AND protects users from accidentally burying a category.
   const handleNotInterested = useCallback(() => {
     if (!user?.id || !id) return;
-    Alert.alert(
-      t("detail.notInterestedTitle", { defaultValue: "Hide this opportunity?" }),
-      t("detail.notInterestedMsg", {
-        defaultValue: "We'll hide it and show you fewer like it.",
-      }),
-      [
-        { text: t("common:actions.cancel", { defaultValue: "Cancel" }), style: "cancel" },
-        {
-          text: t("detail.notInterestedCta", { defaultValue: "Hide" }),
-          style: "destructive",
-          onPress: () => {
-            void dismissOpportunity(user.id, id, getToken, "detail_not_interested");
-            router.back();
-          },
-        },
-      ],
-    );
-  }, [user?.id, id, getToken, router, t]);
+    setDismissSheetVisible(true);
+  }, [user?.id, id]);
+
+  const handleDismissReason = useCallback((reason: DismissReason) => {
+    setDismissSheetVisible(false);
+    if (!user?.id || !id) return;
+    void dismissOpportunity(user.id, id, getToken, "detail_not_interested", reason);
+    router.back();
+  }, [user?.id, id, getToken, router]);
 
   const handleApply = useCallback(async () => {
     // Guard against any stray whitespace in a scraped/cached link — a raw space
@@ -3387,6 +3411,13 @@ export default function OpportunityDetailScreen() {
           </ViewShot>
         </View>
       )}
+
+      <DismissReasonSheet
+        visible={dismissSheetVisible}
+        isDark={isDark}
+        onSelect={handleDismissReason}
+        onClose={() => setDismissSheetVisible(false)}
+      />
     </SafeAreaView>
   );
 }

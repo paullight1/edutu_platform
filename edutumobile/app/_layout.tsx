@@ -13,6 +13,7 @@ import { useAuth } from "@clerk/clerk-expo";
 import { useEffect, useRef } from "react";
 import { AppState, type AppStateStatus, View, Text } from "react-native";
 import { setSupabaseAccessTokenGetter } from "../packages/core/src/services/supabase";
+import { flushSignalQueue } from "../packages/core/src/services/signalQueue";
 import { useInAppUpdatePrompt } from "../lib/updatePrompt";
 import { MobileCampaignHost } from "../components/mobile-control/MobileCampaignHost";
 import { AppControlGate } from "../components/mobile-control/AppControlGate";
@@ -110,6 +111,12 @@ function RootLayoutContent() {
         void syncWidgetSuite({ userId: userId || undefined, getToken });
     }, [userId, getToken]);
 
+    // Deliver any behavioral signals that queued while offline / unauthed.
+    useEffect(() => {
+        if (!userId) return;
+        void flushSignalQueue(() => getToken().catch(() => null));
+    }, [userId, getToken]);
+
     // Register the background task once so iOS keeps the widget fresh even when
     // the app isn't opened. No-op in Expo Go / until the next native rebuild.
     useEffect(() => {
@@ -134,6 +141,9 @@ function RootLayoutContent() {
                         userId: userId || undefined,
                         getToken,
                     });
+                    if (userId) {
+                        void flushSignalQueue(() => getToken().catch(() => null));
+                    }
                 }
                 appState.current = nextState;
             },

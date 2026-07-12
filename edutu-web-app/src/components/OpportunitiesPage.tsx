@@ -14,6 +14,7 @@ import {
   Bookmark,
   Briefcase,
   Calendar,
+  EyeOff,
   GraduationCap,
   MapPin,
   Plus,
@@ -24,6 +25,16 @@ import {
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { ImpressionTracker } from "./opportunity/ImpressionTracker";
+import { DismissReasonDialog } from "./opportunity/DismissReasonDialog";
+import {
+  dismissOpportunity,
+  getDismissedOpportunityIds,
+} from "../services/dismissedOpportunities";
+import {
+  recordOpportunitySignal,
+  type DismissReason,
+} from "../services/opportunitySignals";
 import { format } from "date-fns";
 import { useTranslation } from "react-i18next";
 import { useOpportunities } from "../hooks/useOpportunities";
@@ -398,6 +409,7 @@ function OpportunityCard({
   expired,
   match,
   onOpen,
+  onNotInterested,
 }: {
   opportunity: Opportunity;
   onShare: (opportunity: Opportunity) => void;
@@ -409,6 +421,8 @@ function OpportunityCard({
   expired: boolean;
   match?: MatchResult | null;
   onOpen?: (opportunity: Opportunity) => void;
+  /** Opens the typed "not interested" flow. */
+  onNotInterested?: (opportunity: Opportunity) => void;
 }) {
   const funding = formatFunding(opportunity);
   const deadlineBadge = getDeadlineBadge(opportunity.deadline);
@@ -474,6 +488,17 @@ function OpportunityCard({
           >
             <Share2 size={15} />
           </button>
+          {onNotInterested ? (
+            <button
+              type="button"
+              onClick={() => onNotInterested(opportunity)}
+              className="flex h-9 w-9 items-center justify-center rounded-md bg-surface-layer text-text-secondary shadow-soft backdrop-blur transition hover:bg-surface-elevated hover:text-text-primary"
+              aria-label={`Not interested in ${opportunity.title}`}
+              title="Not interested"
+            >
+              <EyeOff size={15} />
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -587,6 +612,26 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   const [showClosed, setShowClosed] = useState(false);
   const [sortOption, setSortOption] = useState<SortOption>("recommended");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  // "Not interested": locally-hidden ids + the card awaiting a typed reason.
+  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
+  const [dismissTarget, setDismissTarget] = useState<Opportunity | null>(null);
+
+  useEffect(() => {
+    setDismissedIds(getDismissedOpportunityIds(userId));
+  }, [userId]);
+
+  const handleDismissReason = useCallback(
+    (reason: DismissReason) => {
+      const target = dismissTarget;
+      setDismissTarget(null);
+      if (!target || !userId) return;
+      dismissOpportunity(userId, target.id, getToken, "web_browse", reason);
+      setDismissedIds((prev) =>
+        prev.includes(target.id) ? prev : [...prev, target.id],
+      );
+    },
+    [dismissTarget, userId, getToken],
+  );
 
   // Hydrate which opportunities the signed-in user has already saved, so the
   // bookmark button on each card reflects real state on first paint.
@@ -703,8 +748,13 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
 
   const filteredOpportunities = useMemo(() => {
     const term = deferredSearchTerm.trim();
+    const dismissed = new Set(dismissedIds);
 
     return opportunities.filter((opportunity) => {
+      if (dismissed.has(opportunity.id)) {
+        return false;
+      }
+
       if (!showClosed && isOpportunityExpired(opportunity)) {
         return false;
       }
@@ -723,7 +773,38 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
     deferredSearchTerm,
     selectedCategoryId,
     showClosed,
+    dismissedIds,
   ]);
+
+  // Browse-intent signals: settled searches and category picks teach the
+  // engine's category affinity even before any card is opened.
+  const lastSearchSignalRef = useRef("");
+  useEffect(() => {
+    if (!isSignedIn) return;
+    const query = deferredSearchTerm.trim().toLowerCase();
+    if (query.length < 3 || query === lastSearchSignalRef.current) return;
+    lastSearchSignalRef.current = query;
+    void recordOpportunitySignal(
+      {
+        signalType: "search",
+        context: "web_browse_search",
+        details: { query },
+      },
+      getToken,
+    );
+  }, [deferredSearchTerm, isSignedIn, getToken]);
+
+  useEffect(() => {
+    if (!isSignedIn || !selectedCategoryId) return;
+    void recordOpportunitySignal(
+      {
+        signalType: "category_view",
+        context: "web_category_browse",
+        details: { category: selectedCategoryId },
+      },
+      getToken,
+    );
+  }, [selectedCategoryId, isSignedIn, getToken]);
 
   // Pull authoritative server-computed match scores for what's on screen;
   // explainOpportunity reads them synchronously once the store is primed.
@@ -1123,22 +1204,33 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
         ) : sortedOpportunities.length > 0 ? (
           <>
             <section className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))] gap-4 sm:gap-5">
-              {visibleOpportunities.map((opportunity) => (
-                <OpportunityCard
+              {visibleOpportunities.map((opportunity, index) => (
+                <ImpressionTracker
                   key={opportunity.id}
-                  opportunity={opportunity}
-                  onShare={handleShareOpportunity}
-                  isSharing={sharingId === opportunity.id}
-                  onToggleBookmark={handleToggleBookmark}
-                  isBookmarked={bookmarkedIds.has(opportunity.id)}
-                  isBookmarking={bookmarkingId === opportunity.id}
-                  detailPath={`${embedded ? "/app" : ""}/opportunity/${opportunity.id}`}
-                  expired={isOpportunityExpired(opportunity)}
-                  match={matchInsights?.get(opportunity.id) ?? null}
-                  onOpen={(item) =>
-                    trackInteraction(item, "view", { context: "card_open" })
-                  }
-                />
+                  opportunityId={opportunity.id}
+                  surface="web_browse"
+                  position={index}
+                  getToken={isSignedIn ? getToken : undefined}
+                  className="h-full"
+                >
+                  <OpportunityCard
+                    opportunity={opportunity}
+                    onShare={handleShareOpportunity}
+                    isSharing={sharingId === opportunity.id}
+                    onToggleBookmark={handleToggleBookmark}
+                    isBookmarked={bookmarkedIds.has(opportunity.id)}
+                    isBookmarking={bookmarkingId === opportunity.id}
+                    detailPath={`${embedded ? "/app" : ""}/opportunity/${opportunity.id}`}
+                    expired={isOpportunityExpired(opportunity)}
+                    match={matchInsights?.get(opportunity.id) ?? null}
+                    onOpen={(item) =>
+                      trackInteraction(item, "view", { context: "card_open" })
+                    }
+                    onNotInterested={
+                      isSignedIn ? (item) => setDismissTarget(item) : undefined
+                    }
+                  />
+                </ImpressionTracker>
               ))}
             </section>
             {hasMoreToShow ? (
@@ -1217,6 +1309,11 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
           {content}
         </PublicEditorialShell>
         )}
+        <DismissReasonDialog
+          open={dismissTarget !== null}
+          onSelect={handleDismissReason}
+          onClose={() => setDismissTarget(null)}
+        />
       </div>
     );
   }

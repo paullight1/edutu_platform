@@ -1,6 +1,16 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { and, desc, eq, gte, notInArray, or, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  notInArray,
+  or,
+  sql,
+} from "drizzle-orm";
 import { db } from "../db";
 import {
   goals,
@@ -39,6 +49,16 @@ const RECS_ANN_CANDIDATES = (() => {
 // Anonymous /recommendations/query embeds the request profile inline; cap the
 // wait so the public endpoint never blocks on the embedding provider.
 const PUBLIC_QUERY_EMBED_TIMEOUT_MS = 400;
+// Behavioral signals age out exponentially so a two-year-old save no longer
+// counts like yesterday's. Deadline-driven catalog → a short half-life.
+const RECS_SIGNAL_HALF_LIFE_DAYS = (() => {
+  const parsed = Number(process.env.RECS_SIGNAL_HALF_LIFE_DAYS);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 21;
+})();
+// An item served this many times without a single positive signal starts
+// getting suppressed (impression fatigue) — the user has already said no
+// by ignoring it.
+const IMPRESSION_FATIGUE_MIN = 5;
 
 type OpportunityRow = typeof opportunities.$inferSelect;
 type PreferenceRow = typeof userOpportunityPreferences.$inferSelect;
@@ -173,52 +193,98 @@ export class OpportunityRankingService {
   }
 
   async recordSignal(userId: string, input: OpportunitySignalDto) {
-    // Dismiss visibly reshapes the feed — drop this user's cached responses
-    // so the item disappears on the next fetch instead of after the TTL.
-    if (input.signalType === "dismiss") {
-      this.invalidateUserResponseCache(userId);
-    }
+    const [signal] = await this.recordSignals(userId, [input]);
+    return signal ?? null;
+  }
 
-    const [signal] = await db
-      .insert(userOpportunitySignals)
-      .values({
+  /**
+   * Batch ingestion (impression beacons arrive one-per-card). Dismiss routing
+   * by reason:
+   * - wrong_field (or no reason): taste signal — full negative weight AND the
+   *   item's category joins excludedCategories.
+   * - not_eligible / already_applied / deadline_too_soon: the item is hidden
+   *   (getDismissedOpportunityIds excludes it permanently) but the signal is
+   *   stored weightless and the category is NOT excluded — none of these mean
+   *   "I don't like this kind of opportunity".
+   */
+  async recordSignals(userId: string, inputs: OpportunitySignalDto[]) {
+    if (!inputs.length) return [];
+
+    const values = inputs.map((input) => {
+      const reasonPreservesTaste =
+        input.signalType === "dismiss" &&
+        input.reason &&
+        input.reason !== "wrong_field";
+
+      return {
         userId,
-        opportunityId: input.opportunityId,
+        opportunityId: input.opportunityId ?? null,
         signalType: input.signalType,
-        signalValue: input.signalValue ?? 1,
+        // Reason-typed dismisses default to weight 0 so they never poison
+        // category affinity; an explicit signalValue still wins.
+        signalValue: input.signalValue ?? (reasonPreservesTaste ? 0 : 1),
         source: input.source ?? "app",
         context: input.context ?? null,
-        details: input.details ?? null,
-      })
+        details: input.reason
+          ? { ...(input.details ?? {}), reason: input.reason }
+          : (input.details ?? null),
+      };
+    });
+
+    const signals = await db
+      .insert(userOpportunitySignals)
+      .values(values)
       .returning()
       .execute();
 
-    if (input.signalType === "dismiss") {
-      const [opportunity] = await db
-        .select({
-          category: opportunities.category,
-        })
-        .from(opportunities)
-        .where(eq(opportunities.id, input.opportunityId))
-        .execute();
+    const dismissals = inputs.filter(
+      (input) => input.signalType === "dismiss" && input.opportunityId,
+    );
 
-      if (opportunity?.category) {
-        const current = await this.getUserPreferences(userId);
-        const excludedCategories = Array.from(
-          new Set([
-            ...(current?.excludedCategories || []),
-            opportunity.category,
-          ]),
+    if (dismissals.length) {
+      // Dismiss visibly reshapes the feed — drop this user's cached responses
+      // so items disappear on the next fetch instead of after the TTL.
+      this.invalidateUserResponseCache(userId);
+
+      const tasteDismissals = dismissals.filter(
+        (input) => !input.reason || input.reason === "wrong_field",
+      );
+      if (tasteDismissals.length) {
+        await this.excludeCategoriesFor(
+          userId,
+          tasteDismissals.map((input) => input.opportunityId as string),
         );
-
-        await this.upsertUserPreferences(userId, {
-          ...(this.toPreferenceDto(current) || {}),
-          excludedCategories,
-        });
       }
     }
 
-    return signal;
+    return signals;
+  }
+
+  /** Adds the categories of the given opportunities to excludedCategories. */
+  private async excludeCategoriesFor(
+    userId: string,
+    opportunityIds: string[],
+  ) {
+    const rows = await db
+      .select({ category: opportunities.category })
+      .from(opportunities)
+      .where(inArray(opportunities.id, opportunityIds))
+      .execute();
+
+    const categories = rows
+      .map((row) => row.category)
+      .filter((category): category is string => Boolean(category));
+    if (!categories.length) return;
+
+    const current = await this.getUserPreferences(userId);
+    const excludedCategories = Array.from(
+      new Set([...(current?.excludedCategories || []), ...categories]),
+    );
+
+    await this.upsertUserPreferences(userId, {
+      ...(this.toPreferenceDto(current) || {}),
+      excludedCategories,
+    });
   }
 
   async getRecommendationsForUser(
@@ -574,9 +640,13 @@ export class OpportunityRankingService {
     userId: string,
   ): Promise<Map<string, number>> {
     try {
+      // Same weights as getUserSignalScores, with the same exponential
+      // time-decay. Second branch: category_view signals (Explore tile taps)
+      // carry the category in details and no opportunity id — browse intent
+      // feeds affinity directly.
       const result = await db.execute(sql`
-        select o.canonical_category as category,
-               sum(
+        select category, sum(raw_score) as raw_score from (
+          select o.canonical_category as category,
                  (case s.signal_type
                     when 'view' then 2
                     when 'click' then 5
@@ -587,14 +657,27 @@ export class OpportunityRankingService {
                     when 'chat_dislike' then -12
                     when 'recommended_in_chat' then 1
                     when 'dismiss' then -100
+                    when 'outcome_offer' then 25
+                    when 'outcome_rejected' then 3
+                    when 'outcome_withdrawn' then -5
+                    when 'dwell' then 3
                     else 0
                   end) * coalesce(s.signal_value, 1)
-               ) as raw_score
-        from user_opportunity_signals s
-        join opportunities o on o.id = s.opportunity_id
-        where s.user_id = ${userId}
-          and o.canonical_category is not null
-        group by o.canonical_category
+                    * exp(-0.6931471805599453 * greatest(0, extract(epoch from (now() - s.created_at))) / 86400.0 / ${RECS_SIGNAL_HALF_LIFE_DAYS}) as raw_score
+          from user_opportunity_signals s
+          join opportunities o on o.id = s.opportunity_id
+          where s.user_id = ${userId}
+            and o.canonical_category is not null
+          union all
+          select s.details->>'category' as category,
+                 3 * coalesce(s.signal_value, 1)
+                   * exp(-0.6931471805599453 * greatest(0, extract(epoch from (now() - s.created_at))) / 86400.0 / ${RECS_SIGNAL_HALF_LIFE_DAYS}) as raw_score
+          from user_opportunity_signals s
+          where s.user_id = ${userId}
+            and s.signal_type = 'category_view'
+            and coalesce(s.details->>'category', '') <> ''
+        ) signal_categories
+        group by category
       `);
 
       const rows =
@@ -773,6 +856,11 @@ export class OpportunityRankingService {
       outcome_offer: 25,
       outcome_rejected: 3,
       outcome_withdrawn: -5,
+      // Exposure is not endorsement: impressions carry no weight directly —
+      // they power the fatigue suppression below and CTR evaluation.
+      impression: 0,
+      // Reading a detail screen for a while is a stronger tell than opening it.
+      dwell: 3,
     };
 
     // Build the weight lookup as a parameterized CASE so the weights above stay
@@ -788,30 +876,56 @@ export class OpportunityRankingService {
       sql` `,
     );
 
-    // delta = weight(signalType) * signalValue (default 1). Positive/negative
-    // sum the raw deltas; only the total score is clamped to [-30, 30] — this
-    // matches the previous JS behaviour exactly.
-    const delta = sql`(${weightCase}) * coalesce(${userOpportunitySignals.signalValue}, 1)`;
+    // delta = weight * signalValue * time-decay. The exponential decay
+    // (half-life RECS_SIGNAL_HALF_LIFE_DAYS) ages interactions out so last
+    // month's click no longer counts like this morning's. Positive/negative
+    // sum the raw deltas; only the total score is clamped to [-30, 30].
+    const decay = sql`exp(-0.6931471805599453 * greatest(0, extract(epoch from (now() - ${userOpportunitySignals.createdAt}))) / 86400.0 / ${RECS_SIGNAL_HALF_LIFE_DAYS})`;
+    const delta = sql`(${weightCase}) * coalesce(${userOpportunitySignals.signalValue}, 1) * ${decay}`;
 
     const rows = await db
       .select({
         opportunityId: userOpportunitySignals.opportunityId,
-        score: sql<number>`greatest(-30, least(30, sum(${delta})))::int`,
-        positive: sql<number>`sum(case when ${delta} > 0 then ${delta} else 0 end)::int`,
-        negative: sql<number>`sum(case when ${delta} < 0 then -(${delta}) else 0 end)::int`,
+        score: sql<number>`round(greatest(-30, least(30, sum(${delta}))))::int`,
+        positive: sql<number>`round(sum(case when ${delta} > 0 then ${delta} else 0 end))::int`,
+        negative: sql<number>`round(sum(case when ${delta} < 0 then -(${delta}) else 0 end))::int`,
+        impressions: sql<number>`count(*) filter (where ${userOpportunitySignals.signalType} = 'impression')::int`,
       })
       .from(userOpportunitySignals)
-      .where(eq(userOpportunitySignals.userId, userId))
+      .where(
+        and(
+          eq(userOpportunitySignals.userId, userId),
+          // Non-item signals (search/category_view) have no opportunity to
+          // score against — they only feed category affinity.
+          isNotNull(userOpportunitySignals.opportunityId),
+        ),
+      )
       .groupBy(userOpportunitySignals.opportunityId)
       .execute();
 
     const scores = new Map<string, SignalScore>();
     for (const row of rows) {
+      if (!row.opportunityId) continue;
+      let score = Number(row.score) || 0;
+      const positive = Number(row.positive) || 0;
+      const impressions = Number(row.impressions) || 0;
+
+      // Impression fatigue: served IMPRESSION_FATIGUE_MIN+ times with zero
+      // positive engagement means the user is scrolling past it — push the
+      // behavior component below neutral, harder the longer it's ignored.
+      if (positive === 0 && impressions >= IMPRESSION_FATIGUE_MIN) {
+        const fatigue = Math.min(
+          20,
+          (impressions - IMPRESSION_FATIGUE_MIN + 1) * 5,
+        );
+        score = Math.min(score, -fatigue);
+      }
+
       scores.set(row.opportunityId, {
-        score: Number(row.score) || 0,
-        positive: Number(row.positive) || 0,
+        score,
+        positive,
         negative: Number(row.negative) || 0,
-        counts: {},
+        counts: { impression: impressions },
       });
     }
 

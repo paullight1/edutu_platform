@@ -53,6 +53,7 @@ import { supabase } from '../../../lib/supabase';
 import { useOpportunities } from '@edutu/core/src/hooks/useOpportunities';
 import { Opportunity } from '@edutu/core/src/types/opportunity';
 import { recordOpportunitySignal } from '@edutu/core/src/services/opportunitySignals';
+import { markImpression } from '../../../lib/impressions';
 import { createSavedSearch } from '@edutu/core/src/services/savedSearches';
 import { getDeadlineBadge, urgencyColor } from '@edutu/core/src/utils/deadline';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -770,6 +771,42 @@ export default function OpportunitiesScreen() {
     return () => clearTimeout(handle);
   }, [searchTerm]);
 
+  // Impressions: an item counts as SEEN when ≥60% visible for ≥500ms. Both
+  // callbacks live in refs because FlatList requires stable identities for
+  // the viewability pair across renders (and key={viewMode} remounts).
+  const impressionContextRef = useRef({ getToken, surface: 'explore_list' });
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 60,
+    minimumViewTime: 500,
+  }).current;
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: {
+      viewableItems: Array<{ item: Opportunity; index: number | null; isViewable: boolean }>;
+    }) => {
+      const { getToken: getTokenNow, surface } = impressionContextRef.current;
+      viewableItems.forEach(({ item, index, isViewable }) => {
+        if (!isViewable || !item?.id) return;
+        markImpression(item.id, surface, index ?? -1, getTokenNow);
+      });
+    },
+  ).current;
+
+  // Settled search queries are browse intent the engine can learn from
+  // (category affinity via query terms, later query understanding). Deduped
+  // against the last sent query so backspacing doesn't re-fire.
+  const lastSearchSignalRef = useRef('');
+  useEffect(() => {
+    const query = debouncedSearch.trim().toLowerCase();
+    if (query.length < 3 || query === lastSearchSignalRef.current) return;
+    lastSearchSignalRef.current = query;
+    void recordOpportunitySignal({
+      signalType: 'search',
+      source: 'mobile_explore',
+      context: 'explore_search',
+      details: { query },
+    }, getToken);
+  }, [debouncedSearch, getToken]);
+
   useFocusEffect(
     useCallback(() => {
       DISCOVERY_CARDS.forEach((card) => {
@@ -786,8 +823,20 @@ export default function OpportunitiesScreen() {
     const categoryParam = typeof params.category === 'string' ? params.category : null;
     // normalizeDiscoveryCategoryId also maps legacy slugs (singular forms,
     // training_conferences → events) onto catalog ids.
-    setSelectedDiscoveryCategory(normalizeDiscoveryCategoryId(categoryParam));
-  }, [params.category]);
+    const normalized = normalizeDiscoveryCategoryId(categoryParam);
+    setSelectedDiscoveryCategory(normalized);
+    // Single choke point for category browse intent: home tiles, the in-screen
+    // chooser, and deep links all land here. category_view feeds the ranking
+    // engine's category affinity directly (no opportunityId — payload in details).
+    if (normalized) {
+      void recordOpportunitySignal({
+        signalType: 'category_view',
+        source: 'mobile_explore',
+        context: 'category_browse',
+        details: { category: normalized },
+      }, getToken);
+    }
+  }, [params.category, getToken]);
 
   // Deep link from saved-search alerts: /opportunities?q=... preloads the search.
   useEffect(() => {
@@ -851,6 +900,16 @@ export default function OpportunitiesScreen() {
 
   const showForYouOnly = params.view === 'foryou';
   const isCategoryPage = Boolean(selectedDiscoveryCategory);
+  // Keep the impression callback's context current without breaking the
+  // stable-identity requirement on the viewability pair.
+  impressionContextRef.current = {
+    getToken,
+    surface: showForYouOnly
+      ? 'explore_for_you'
+      : selectedDiscoveryCategory
+        ? 'explore_category'
+        : 'explore_list',
+  };
   const pageTitle = selectedDiscoveryCategory ? t(getDiscoveryPageTitle(selectedDiscoveryCategory)) : t('list.title');
   const selectedDiscoveryCard = getDiscoveryCard(selectedDiscoveryCategory);
   const pageSubtitle = selectedDiscoveryCategory
@@ -1133,6 +1192,8 @@ export default function OpportunitiesScreen() {
         keyExtractor={(item) => item.id}
         key={viewMode}
         numColumns={viewMode === 'grid' ? 2 : 1}
+        viewabilityConfig={viewabilityConfig}
+        onViewableItemsChanged={onViewableItemsChanged}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 36 }}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],

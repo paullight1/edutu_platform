@@ -43,6 +43,7 @@ import PublicEditorialShell from "./PublicEditorialShell";
 import Seo from "./Seo";
 import ImageWithFallback from "./ImageWithFallback";
 import { WhyThisMatches } from "./opportunity/MatchInsights";
+import { recordOpportunitySignal } from "../services/opportunitySignals";
 import { getDefaultSeoImage, toAbsoluteUrl } from "../lib/publicSite";
 
 const PUBLIC_TAG_BLOCKLIST = new Set([
@@ -465,6 +466,32 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
       trackInteraction(opportunity, "view", { context: "detail" });
     }
     // Track once per opportunity page view.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opportunity?.id]);
+
+  // Dwell: time actually spent reading the detail is a stronger interest tell
+  // than opening it. Sent once on unmount/navigation, bucketed
+  // (1: 10–30s, 2: 30–90s, 3: 90s+) so the ranking weight scales with real
+  // reading time. Mirrors the mobile detail screen.
+  useEffect(() => {
+    const opportunityId = opportunity?.id;
+    if (!opportunityId) return;
+    const startedAt = Date.now();
+    return () => {
+      const seconds = Math.round((Date.now() - startedAt) / 1000);
+      if (seconds < 10) return;
+      const bucket = seconds >= 90 ? 3 : seconds >= 30 ? 2 : 1;
+      void recordOpportunitySignal(
+        {
+          opportunityId,
+          signalType: "dwell",
+          signalValue: bucket,
+          context: "detail_dwell",
+          details: { seconds },
+        },
+        getToken,
+      );
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opportunity?.id]);
 

@@ -91,6 +91,19 @@
       "failedMsg": "Check your connection and try again."
     }
   },
+  "dismissSheet": {
+    "title": "Not interested?",
+    "subtitle": "Tell us why — it makes your matches smarter.",
+    "wrongField": "Not my kind of opportunity",
+    "wrongFieldHint": "You'll see fewer like this",
+    "notEligible": "I'm not eligible",
+    "notEligibleHint": "Hides it without changing your interests",
+    "alreadyApplied": "I already applied",
+    "alreadyAppliedHint": "We'll keep it out of your feed",
+    "deadlineTooSoon": "Deadline is too close",
+    "deadlineTooSoonHint": "Not enough time to apply properly",
+    "cancel": "Cancel"
+  },
   "detail": {
     "headerTitle": "Opportunity Details",
     "loading": "Loading opportunity...",

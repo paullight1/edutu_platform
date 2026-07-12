@@ -17,31 +17,82 @@ export type OpportunityPreferenceDto = z.infer<
   typeof OpportunityPreferenceSchema
 >;
 
-export const OpportunitySignalSchema = z.object({
-  opportunityId: z.string().uuid(),
-  signalType: z.enum([
-    "view",
-    "click",
-    "share",
-    "save",
-    "dismiss",
-    "apply",
-    "chat_like",
-    "chat_dislike",
-    "recommended_in_chat",
-    // Real application outcomes, recorded when the user resolves an
-    // application — the only signals that teach the engine what they WIN.
-    "outcome_offer",
-    "outcome_rejected",
-    "outcome_withdrawn",
-  ]),
-  signalValue: z.number().int().min(-10).max(10).optional(),
-  source: z.string().max(100).optional(),
-  context: z.string().max(500).optional(),
-  details: z.record(z.string(), z.unknown()).optional(),
-});
+// Typed dismiss reasons route to different subsystems: wrong_field is a taste
+// signal (excludes the category), not_eligible is a profile/eligibility fact,
+// already_applied and deadline_too_soon only hide the item — neither should
+// poison the user's category affinity.
+export const DISMISS_REASONS = [
+  "not_eligible",
+  "wrong_field",
+  "already_applied",
+  "deadline_too_soon",
+] as const;
+
+export type DismissReason = (typeof DISMISS_REASONS)[number];
+
+// Signal types with no opportunity attached (query text / category browse).
+export const NON_ITEM_SIGNAL_TYPES = ["search", "category_view"] as const;
+
+export const OpportunitySignalSchema = z
+  .object({
+    // Optional only for non-item signals (search/category_view) — enforced in
+    // the superRefine below so every item signal still carries its id.
+    opportunityId: z.string().uuid().optional(),
+    signalType: z.enum([
+      "view",
+      "click",
+      "share",
+      "save",
+      "dismiss",
+      "apply",
+      "chat_like",
+      "chat_dislike",
+      "recommended_in_chat",
+      // Real application outcomes, recorded when the user resolves an
+      // application — the only signals that teach the engine what they WIN.
+      "outcome_offer",
+      "outcome_rejected",
+      "outcome_withdrawn",
+      // Served-but-not-clicked exposure (with {surface, position} in details).
+      // Weight 0 in scoring; powers impression-fatigue and, later, CTR eval.
+      "impression",
+      // Time actually spent reading a detail screen ({seconds} in details).
+      "dwell",
+      // Non-item browse intent: search ({query}) and category tile taps
+      // ({category}) — feed category affinity, not per-item scores.
+      "search",
+      "category_view",
+    ]),
+    signalValue: z.number().int().min(-10).max(10).optional(),
+    reason: z.enum(DISMISS_REASONS).optional(),
+    source: z.string().max(100).optional(),
+    context: z.string().max(500).optional(),
+    details: z.record(z.string(), z.unknown()).optional(),
+  })
+  .superRefine((value, ctx) => {
+    const isNonItem = (NON_ITEM_SIGNAL_TYPES as readonly string[]).includes(
+      value.signalType,
+    );
+    if (!isNonItem && !value.opportunityId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["opportunityId"],
+        message: `opportunityId is required for '${value.signalType}' signals`,
+      });
+    }
+  });
 
 export type OpportunitySignalDto = z.infer<typeof OpportunitySignalSchema>;
+
+// Impression beacons arrive in bursts (one per rendered card) — accept them
+// in one request instead of a request per card.
+export const OpportunitySignalBatchSchema = z.object({
+  signals: z.array(OpportunitySignalSchema).min(1).max(100),
+});
+
+export type OpportunitySignalBatchDto = z.infer<
+  typeof OpportunitySignalBatchSchema
+>;
 
 export const RecommendationQuerySchema = z.object({
   profile: z

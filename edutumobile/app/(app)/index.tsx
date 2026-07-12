@@ -38,8 +38,12 @@ import { supabase } from "../../lib/supabase";
 import { useOpportunities } from "@edutu/core/src/hooks/useOpportunities";
 import { Opportunity } from "@edutu/core/src/types/opportunity";
 import { toSafeUUID } from "@edutu/core/src/utils/auth";
-import { recordOpportunitySignal } from "@edutu/core/src/services/opportunitySignals";
+import { recordOpportunitySignal, type DismissReason } from "@edutu/core/src/services/opportunitySignals";
+import { dismissOpportunity } from "@edutu/core/src/services/dismissedOpportunities";
 import { shareOpportunity } from "../../lib/shareOpportunity";
+import { DismissReasonSheet } from "../../components/opportunity/DismissReasonSheet";
+import { ImpressionView } from "../../components/opportunity/ImpressionView";
+import { runImpressionChecks } from "../../lib/impressions";
 import { getDeadlineBadge, urgencyColor } from "@edutu/core/src/utils/deadline";
 import { AnimatedPressable } from "../../components/ui/AnimatedPressable";
 import { ShimmerCard } from "../../components/ui/Shimmer";
@@ -719,7 +723,7 @@ function QuickActionsGrid({ router }: { router: any }) {
 }
 
 // ─── Opportunity Card Component ─────────────────────────────────────────────
-function OpportunityCard({ item, isDark, textPrimary, textSecondary, accent = '#6366F1', onPress, onBookmark, onShare, bookmarked = false, horizontal = false, index = 0 }: {
+function OpportunityCard({ item, isDark, textPrimary, textSecondary, accent = '#6366F1', onPress, onBookmark, onShare, onNotInterested, bookmarked = false, horizontal = false, index = 0 }: {
     item: Opportunity;
     isDark: boolean;
     textPrimary: string;
@@ -728,6 +732,8 @@ function OpportunityCard({ item, isDark, textPrimary, textSecondary, accent = '#
     onPress?: () => void;
     onBookmark?: () => void;
     onShare?: () => void;
+    /** Long-press: opens the typed "not interested" flow. */
+    onNotInterested?: () => void;
     bookmarked?: boolean;
     horizontal?: boolean;
     index?: number;
@@ -771,6 +777,7 @@ function OpportunityCard({ item, isDark, textPrimary, textSecondary, accent = '#
     return (
         <AnimatedPressable
             onPress={onPress}
+            onLongPress={onNotInterested}
             style={[styles.opportunityCard, horizontal && styles.oppRailCard, {
                 backgroundColor: isDark ? "rgba(255,255,255,0.03)" : "#FFFFFF",
             }]}
@@ -1029,13 +1036,14 @@ function FeaturedEmptyState({ isDark, onPress }: { isDark: boolean; onPress?: ()
     );
 }
 
-function FeaturedCarousel({ data, isDark, bookmarkedIds, onOpen, onBookmark, onShare }: {
+function FeaturedCarousel({ data, isDark, bookmarkedIds, onOpen, onBookmark, onShare, getAuthToken }: {
     data: Opportunity[];
     isDark: boolean;
     bookmarkedIds: string[];
     onOpen: (item: Opportunity) => void;
     onBookmark: (id: string) => void;
     onShare: (item: Opportunity) => void;
+    getAuthToken?: () => Promise<string | null | undefined>;
 }) {
     const listRef = useRef<FlatList<Opportunity>>(null);
     const pageRef = useRef(0);
@@ -1051,6 +1059,8 @@ function FeaturedCarousel({ data, isDark, bookmarkedIds, onOpen, onBookmark, onS
             pageRef.current = (pageRef.current + 1) % pageCount;
             setActivePage(pageRef.current);
             listRef.current?.scrollToOffset({ offset: pageRef.current * FEATURED_PAGE_SNAP, animated: true });
+            // New page = new cards on screen — let their impression checks run.
+            setTimeout(() => runImpressionChecks(true), 450);
         }, FEATURED_AUTO_ADVANCE_MS);
         return () => clearInterval(timer);
     }, [paused, pageCount]);
@@ -1060,6 +1070,7 @@ function FeaturedCarousel({ data, isDark, bookmarkedIds, onOpen, onBookmark, onS
         pageRef.current = page;
         setActivePage(page);
         setPaused(false);
+        runImpressionChecks(true);
     };
 
     // Single featured item: promote it to a full-width cinematic spotlight
@@ -1067,16 +1078,23 @@ function FeaturedCarousel({ data, isDark, bookmarkedIds, onOpen, onBookmark, onS
     if (data.length === 1) {
         const item = data[0];
         return (
-            <FeaturedPosterCard
-                item={item}
-                isDark={isDark}
-                index={0}
-                hero
-                bookmarked={bookmarkedIds.includes(item.id)}
-                onPress={() => onOpen(item)}
-                onBookmark={() => onBookmark(item.id)}
-                onShare={() => onShare(item)}
-            />
+            <ImpressionView
+                opportunityId={item.id}
+                surface="home_featured"
+                position={0}
+                getAuthToken={getAuthToken}
+            >
+                <FeaturedPosterCard
+                    item={item}
+                    isDark={isDark}
+                    index={0}
+                    hero
+                    bookmarked={bookmarkedIds.includes(item.id)}
+                    onPress={() => onOpen(item)}
+                    onBookmark={() => onBookmark(item.id)}
+                    onShare={() => onShare(item)}
+                />
+            </ImpressionView>
         );
     }
 
@@ -1096,15 +1114,22 @@ function FeaturedCarousel({ data, isDark, bookmarkedIds, onOpen, onBookmark, onS
                 onMomentumScrollEnd={handleMomentumEnd}
                 getItemLayout={(_, index) => ({ length: FEATURED_ITEM_SNAP, offset: FEATURED_ITEM_SNAP * index, index })}
                 renderItem={({ item, index }) => (
-                    <FeaturedPosterCard
-                        item={item}
-                        isDark={isDark}
-                        index={index}
-                        bookmarked={bookmarkedIds.includes(item.id)}
-                        onPress={() => onOpen(item)}
-                        onBookmark={() => onBookmark(item.id)}
-                        onShare={() => onShare(item)}
-                    />
+                    <ImpressionView
+                        opportunityId={item.id}
+                        surface="home_featured"
+                        position={index}
+                        getAuthToken={getAuthToken}
+                    >
+                        <FeaturedPosterCard
+                            item={item}
+                            isDark={isDark}
+                            index={index}
+                            bookmarked={bookmarkedIds.includes(item.id)}
+                            onPress={() => onOpen(item)}
+                            onBookmark={() => onBookmark(item.id)}
+                            onShare={() => onShare(item)}
+                        />
+                    </ImpressionView>
                 )}
             />
             {pageCount > 1 && (
@@ -1252,7 +1277,7 @@ function BestShotEmptySlot({ isDark, textSecondary, onCompleteProfile }: {
     );
 }
 
-function BestShotsSection({ opportunities, loading, isDark, textPrimary, textSecondary, onOpen, onCompleteProfile }: {
+function BestShotsSection({ opportunities, loading, isDark, textPrimary, textSecondary, onOpen, onCompleteProfile, getAuthToken }: {
     opportunities: Opportunity[];
     loading: boolean;
     isDark: boolean;
@@ -1260,6 +1285,7 @@ function BestShotsSection({ opportunities, loading, isDark, textPrimary, textSec
     textSecondary: string;
     onOpen: (item: Opportunity) => void;
     onCompleteProfile: () => void;
+    getAuthToken?: () => Promise<string | null | undefined>;
 }) {
     const bestShots = useMemo(
         () => opportunities
@@ -1299,15 +1325,22 @@ function BestShotsSection({ opportunities, loading, isDark, textPrimary, textSec
                     decelerationRate="fast"
                 >
                     {bestShots.map((item, idx) => (
-                        <BestShotCard
+                        <ImpressionView
                             key={item.id}
-                            item={item}
-                            isDark={isDark}
-                            textPrimary={textPrimary}
-                            textSecondary={textSecondary}
-                            index={idx}
-                            onPress={() => onOpen(item)}
-                        />
+                            opportunityId={item.id}
+                            surface="home_best_shots"
+                            position={idx}
+                            getAuthToken={getAuthToken}
+                        >
+                            <BestShotCard
+                                item={item}
+                                isDark={isDark}
+                                textPrimary={textPrimary}
+                                textSecondary={textSecondary}
+                                index={idx}
+                                onPress={() => onOpen(item)}
+                            />
+                        </ImpressionView>
                     ))}
                 </ScrollView>
             ) : (
@@ -1451,12 +1484,24 @@ export default function Dashboard() {
     }, [user?.id]);
 
     // Fetch real opportunities from API (already filtered by backend/core logic)
-    const { data: opportunities, loading: opportunitiesLoading, refresh } = useOpportunities({
+    const { data: opportunities, loading: opportunitiesLoading, refresh, noteDismissed } = useOpportunities({
         supabase,
         userId: user?.id,
         getAuthToken: getToken,
         onSyncSnapshot: syncOpportunityWidget,
     });
+
+    // "Not interested" target — long-press on a card opens the typed-reason
+    // sheet; the chosen reason routes differently in the ranking engine.
+    const [dismissTarget, setDismissTarget] = useState<Opportunity | null>(null);
+
+    const handleDismissReason = useCallback((reason: DismissReason) => {
+        const target = dismissTarget;
+        setDismissTarget(null);
+        if (!target || !user?.id) return;
+        void dismissOpportunity(user.id, target.id, getToken, 'home_card', reason);
+        noteDismissed(target.id);
+    }, [dismissTarget, user?.id, getToken, noteDismissed]);
 
     // Featured: swipeable auto-scrolling rail, max 10
     const featuredOpportunities = useMemo(() => {
@@ -1541,6 +1586,10 @@ export default function Dashboard() {
                 style={{ flex: 1 }}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
+                // Pumps the ImpressionView visibility checks (throttled inside)
+                // so cards scrolled into view log their impressions.
+                onScroll={() => runImpressionChecks()}
+                scrollEventThrottle={100}
                 refreshControl={
                     <RefreshControl
                         refreshing={opportunitiesLoading}
@@ -1565,6 +1614,9 @@ export default function Dashboard() {
                             <Pencil size={14} color={textSecondary} />
                         </TouchableOpacity>
                     </View>
+                    {/* category_view signals fire in the explore screen's
+                        params-effect — the single choke point for tile taps,
+                        in-screen chooser picks, and deep links alike. */}
                     <DiscoveryTileGrid router={router} entries={homeTileEntries} textPrimary={textPrimary} />
                 </Animated.View>
 
@@ -1609,6 +1661,7 @@ export default function Dashboard() {
                                 }}
                                 onBookmark={toggleBookmark}
                                 onShare={handleShareOpportunity}
+                                getAuthToken={getToken}
                             />
                         ) : (
                             <FeaturedEmptyState isDark={isDark} onPress={() => router.push('/opportunities')} />
@@ -1636,6 +1689,7 @@ export default function Dashboard() {
                         router.push(`/opportunities/${item.id}`);
                     }}
                     onCompleteProfile={() => router.push('/profile')}
+                    getAuthToken={getToken}
                 />
 
                 {/* Recommended Opportunities — compact 3-row preview */}
@@ -1662,7 +1716,14 @@ export default function Dashboard() {
                         </View>
                         <View style={styles.oppGridContainer}>
                             {otherOpportunities.slice(0, 8).map((item, idx) => (
-                                <View key={item.id} style={styles.oppGridItem}>
+                                <ImpressionView
+                                    key={item.id}
+                                    opportunityId={item.id}
+                                    surface="home_recommended"
+                                    position={idx}
+                                    getAuthToken={getToken}
+                                    style={styles.oppGridItem}
+                                >
                                     <OpportunityCard
                                         item={item}
                                         isDark={isDark}
@@ -1675,9 +1736,10 @@ export default function Dashboard() {
                                         }}
                                         onBookmark={() => toggleBookmark(item.id)}
                                         onShare={() => handleShareOpportunity(item)}
+                                        onNotInterested={() => setDismissTarget(item)}
                                         bookmarked={bookmarkedIds.includes(item.id)}
                                     />
-                                </View>
+                                </ImpressionView>
                             ))}
                         </View>
                     </Animated.View>
@@ -1726,6 +1788,13 @@ export default function Dashboard() {
 
                 <View style={{ height: 100 }} />
             </ScrollView>
+
+            <DismissReasonSheet
+                visible={dismissTarget !== null}
+                isDark={isDark}
+                onSelect={handleDismissReason}
+                onClose={() => setDismissTarget(null)}
+            />
         </SafeAreaView>
     );
 }

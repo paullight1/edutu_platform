@@ -245,7 +245,13 @@ export default function AppliedPage() {
       void AsyncStorage.setItem(REJECTION_REFLECTIONS_KEY, JSON.stringify(next)).catch(() => undefined);
       return next;
     });
-  }, []);
+    // The reflection also reaches the ranking engine: a repeat PATCH with the
+    // same status carries it, and the backend merges it into the outcome
+    // signal's details (deduped server-side, so no double-counting).
+    if (user?.id && text.trim()) {
+      void updateTrackedApplicationStatus(supabase, user.id, applicationId, 'rejected', getToken, text);
+    }
+  }, [getToken, user?.id]);
 
   // Feed used to surface "your next best shot" after a rejection — only
   // consulted when the rejection card is visible.

@@ -206,6 +206,7 @@ export class MeService {
         dbUserId,
         String((data as TableRow).opportunity_id ?? ""),
         dto.status,
+        dto.reflection ? { reflection: dto.reflection } : undefined,
       );
     }
 
@@ -223,6 +224,7 @@ export class MeService {
     dbUserId: string,
     opportunityId: string,
     status: string,
+    details?: Record<string, unknown>,
   ) {
     const signalByStatus: Record<string, string> = {
       offer: "outcome_offer",
@@ -231,6 +233,33 @@ export class MeService {
     };
     const signalType = signalByStatus[status];
     if (!signalType || !opportunityId) return;
+
+    // One outcome signal per (user, opportunity, outcome): repeated saves of
+    // the same status (e.g. adding a reflection after marking rejected) merge
+    // details into the existing row instead of inflating the signal ledger.
+    const { data: existing } = await this.client
+      .from("user_opportunity_signals")
+      .select("id, details")
+      .eq("user_id", dbUserId)
+      .eq("opportunity_id", opportunityId)
+      .eq("signal_type", signalType)
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      if (details) {
+        await this.client
+          .from("user_opportunity_signals")
+          .update({
+            details: {
+              ...((existing.details as Record<string, unknown>) ?? {}),
+              ...details,
+            },
+          })
+          .eq("id", existing.id);
+      }
+      return;
+    }
 
     const { error } = await this.client
       .from("user_opportunity_signals")
@@ -241,6 +270,7 @@ export class MeService {
         signal_value: 1,
         source: "applications",
         context: "application_status_change",
+        ...(details ? { details } : {}),
       });
     if (error) {
       this.logger?.warn?.(

@@ -62,9 +62,15 @@ export function useOpportunities(options: UseOpportunitiesOptions) {
   const profileOverrideKey = useMemo(() => getProfileKey(profileOverride), [profileOverride]);
   // Merge caller-supplied exclusions with the user's stored dismissals so
   // dismissed opportunities drop out of the feed. De-duped + sorted so the
-  // effect key stays stable regardless of source ordering.
+  // effect key stays stable regardless of source ordering. Capped at 200 —
+  // the server DTO rejects longer lists (and it already excludes dismissed
+  // items on its own from the dismiss signals; this list mainly serves the
+  // offline/local path and cache-staleness windows).
   const mergedExcludeOpportunityIds = useMemo(
-    () => Array.from(new Set([...(excludeOpportunityIds ?? []), ...dismissedIds])).sort(),
+    () =>
+      Array.from(new Set([...(excludeOpportunityIds ?? []), ...dismissedIds.slice(-150)]))
+        .sort()
+        .slice(0, 200),
     [excludeOpportunityIds, dismissedIds]
   );
   const excludeOpportunityIdsRef = useRef(mergedExcludeOpportunityIds);
@@ -82,8 +88,31 @@ export function useOpportunities(options: UseOpportunitiesOptions) {
   }, [profileOverride]);
 
   useEffect(() => {
-    excludeOpportunityIdsRef.current = excludeOpportunityIds;
-  }, [excludeOpportunityIds]);
+    excludeOpportunityIdsRef.current = mergedExcludeOpportunityIds;
+  }, [mergedExcludeOpportunityIds]);
+
+  // Hydrate the user's stored dismissals so they actually shape the feed
+  // (this state previously never left []).
+  useEffect(() => {
+    let isActive = true;
+
+    if (!userId) {
+      setDismissedIds([]);
+      return () => {
+        isActive = false;
+      };
+    }
+
+    void getDismissedOpportunityIds(userId).then((ids) => {
+      if (isActive) {
+        setDismissedIds(ids);
+      }
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [userId]);
 
   useEffect(() => {
     onSyncSnapshotRef.current = onSyncSnapshot;
@@ -202,13 +231,34 @@ export function useOpportunities(options: UseOpportunitiesOptions) {
     setRefreshIndex((value) => value + 1);
   }, []);
 
+  /**
+   * Instant local removal after a dismissal: updates state (and therefore the
+   * filtered feed below) without waiting for storage hydration or a refetch.
+   * Call this right after dismissOpportunity().
+   */
+  const noteDismissed = useCallback((opportunityId: string) => {
+    if (!opportunityId) return;
+    setDismissedIds((prev) =>
+      prev.includes(opportunityId) ? prev : [...prev, opportunityId]
+    );
+  }, []);
+
+  // Dismissed items never render, even from cached snapshots written before
+  // the dismissal — the exclusion list only shapes fetches, not the cache.
+  const visibleData = useMemo(() => {
+    if (dismissedIds.length === 0) return data;
+    const dismissed = new Set(dismissedIds);
+    return data.filter((opportunity) => !dismissed.has(opportunity.id));
+  }, [data, dismissedIds]);
+
   return useMemo(
     () => ({
-      data,
+      data: visibleData,
       loading,
       error,
-      refresh
+      refresh,
+      noteDismissed
     }),
-    [data, error, loading, refresh]
+    [visibleData, error, loading, refresh, noteDismissed]
   );
 }

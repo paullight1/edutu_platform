@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toSafeUUID } from '../utils/auth';
-import { recordOpportunitySignal } from './opportunitySignals';
+import { recordOpportunitySignal, type DismissReason } from './opportunitySignals';
 
 const DISMISSED_OPPORTUNITIES_KEY = 'edutu_dismissed_opportunities';
 
@@ -65,21 +65,24 @@ export async function addDismissedOpportunityId(userId: string, opportunityId: s
 /**
  * Full "not interested" flow: hides the opportunity locally (instant UX,
  * works offline) AND records a backend `dismiss` signal so the ranking
- * engine learns from it (−100 weight + category exclusion) across devices.
- * Both halves are best-effort.
+ * engine learns from it across devices. The typed reason routes server-side:
+ * wrong_field (and no reason) = taste → −100 weight + category exclusion;
+ * not_eligible / already_applied / deadline_too_soon only hide the item and
+ * leave the user's category affinity untouched.
  */
 export async function dismissOpportunity(
   userId: string,
   opportunityId: string,
   getAuthToken?: () => Promise<string | null | undefined>,
   context?: string,
+  reason?: DismissReason,
 ): Promise<void> {
   await addDismissedOpportunityId(userId, opportunityId);
   void recordOpportunitySignal(
     {
       opportunityId,
       signalType: 'dismiss',
-      signalValue: 1,
+      ...(reason ? { reason } : {}),
       source: 'mobile',
       context: context ?? 'not_interested',
     },

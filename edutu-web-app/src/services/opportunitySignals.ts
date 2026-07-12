@@ -1,11 +1,11 @@
-import { getProductApiToken, type ClerkTokenGetter } from "../lib/clerkToken";
-import { productApiRequest } from "./productApi";
+import { type ClerkTokenGetter } from "../lib/clerkToken";
+import { enqueueSignal } from "./signalQueue";
 
 /**
  * Engagement signals mirrored to the backend recommender
- * (POST /opportunities/signals). The server folds these into the hybrid
- * scoring engine, so parity with mobile matters more than perfect delivery —
- * every call here is fire-and-forget-safe and never throws.
+ * (POST /opportunities/signals/batch). Signals persist to a localStorage
+ * queue with batched, retried delivery (see signalQueue.ts) — parity with
+ * mobile, and nothing is silently lost to an auth hiccup anymore.
  */
 
 export type OpportunitySignalType =
@@ -17,12 +17,33 @@ export type OpportunitySignalType =
   | "share"
   | "chat_like"
   | "chat_dislike"
-  | "recommended_in_chat";
+  | "recommended_in_chat"
+  // Served-but-not-clicked exposure ({surface, position} in details).
+  | "impression"
+  // Time actually spent reading a detail view ({seconds} in details).
+  | "dwell"
+  // Non-item browse intent — no opportunityId; payload rides in details.
+  | "search"
+  | "category_view";
+
+/**
+ * Typed "not interested" reasons. Each routes differently server-side:
+ * wrong_field excludes the category (taste), the others only hide the item.
+ */
+export type DismissReason =
+  | "not_eligible"
+  | "wrong_field"
+  | "already_applied"
+  | "deadline_too_soon";
+
+const NON_ITEM_SIGNAL_TYPES: OpportunitySignalType[] = ["search", "category_view"];
 
 export interface OpportunitySignalInput {
-  opportunityId: string;
+  /** Required for every signal type except search/category_view. */
+  opportunityId?: string;
   signalType: OpportunitySignalType;
   signalValue?: number;
+  reason?: DismissReason;
   source?: string;
   context?: string;
   details?: Record<string, unknown>;
@@ -73,30 +94,23 @@ export function mapInteractionToSignal(
 }
 
 /**
- * Send one engagement signal to the backend. Resolves true when accepted,
- * false on any failure (missing token, network, API error) — never throws.
+ * Records one engagement signal. Queued locally with batched, retried
+ * delivery — resolves false only for locally-invalid input; never throws.
  */
 export async function recordOpportunitySignal(
   input: OpportunitySignalInput,
   getToken: ClerkTokenGetter,
 ): Promise<boolean> {
-  try {
-    if (!input?.opportunityId || !input.signalType) return false;
+  if (!input?.signalType) return false;
+  const isNonItem = NON_ITEM_SIGNAL_TYPES.includes(input.signalType);
+  if (!input.opportunityId && !isNonItem) return false;
 
-    const token = await getProductApiToken(getToken);
-    if (!token) return false;
-
-    await productApiRequest<unknown>("/opportunities/signals", token, {
-      method: "POST",
-      body: JSON.stringify({
-        source: "web",
-        signalValue: 1,
-        ...input,
-      }),
-    });
-    return true;
-  } catch {
-    // Signals are best-effort; personalization degrades gracefully.
-    return false;
-  }
+  enqueueSignal(
+    {
+      source: "web",
+      ...input,
+    },
+    getToken,
+  );
+  return true;
 }

@@ -3,17 +3,24 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../../services/productApi", () => ({
   productApiRequest: vi.fn(),
 }));
+vi.mock("../../lib/clerkToken", () => ({
+  getProductApiToken: vi.fn(async (getToken: () => Promise<string | null>) =>
+    getToken().catch(() => null),
+  ),
+}));
 
 import { productApiRequest } from "../../services/productApi";
 import {
   mapInteractionToSignal,
   recordOpportunitySignal,
 } from "../../services/opportunitySignals";
+import { clearSignalQueue, flushSignalQueue } from "../../services/signalQueue";
 
 const productApiRequestMock = vi.mocked(productApiRequest);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clearSignalQueue();
 });
 
 describe("mapInteractionToSignal", () => {
@@ -53,7 +60,9 @@ describe("mapInteractionToSignal", () => {
   });
 });
 
-describe("recordOpportunitySignal", () => {
+// recordOpportunitySignal enqueues into the durable localStorage queue;
+// delivery happens in batches via flushSignalQueue → POST /signals/batch.
+describe("recordOpportunitySignal (queued delivery)", () => {
   const input = {
     opportunityId: "opp-1",
     signalType: "save" as const,
@@ -61,67 +70,106 @@ describe("recordOpportunitySignal", () => {
     context: "card_open",
   };
 
-  it("posts the signal with web defaults and returns true", async () => {
+  it("queues the signal with web defaults and delivers it on flush", async () => {
     productApiRequestMock.mockResolvedValueOnce({ ok: true });
 
     const result = await recordOpportunitySignal(
       input,
       async () => "token-123",
     );
-
     expect(result).toBe(true);
+
+    await flushSignalQueue(async () => "token-123");
+
     expect(productApiRequestMock).toHaveBeenCalledWith(
-      "/opportunities/signals",
+      "/opportunities/signals/batch",
       "token-123",
       expect.objectContaining({ method: "POST" }),
     );
     const body = JSON.parse(
       (productApiRequestMock.mock.calls[0][2] as RequestInit).body as string,
     );
-    expect(body).toEqual({
-      source: "web",
-      opportunityId: "opp-1",
-      signalType: "save",
-      signalValue: 3,
-      context: "card_open",
-    });
+    expect(body.signals).toEqual([
+      {
+        source: "web",
+        opportunityId: "opp-1",
+        signalType: "save",
+        signalValue: 3,
+        context: "card_open",
+      },
+    ]);
   });
 
-  it("defaults source to web and signalValue to 1 when omitted", async () => {
+  it("coalesces multiple queued signals into one batch", async () => {
     productApiRequestMock.mockResolvedValueOnce({ ok: true });
 
+    await recordOpportunitySignal(input, async () => "token-123");
     await recordOpportunitySignal(
-      { opportunityId: "opp-2", signalType: "view" },
+      { opportunityId: "opp-2", signalType: "impression", details: { surface: "web_browse", position: 4 } },
       async () => "token-123",
     );
 
+    await flushSignalQueue(async () => "token-123");
+
+    expect(productApiRequestMock).toHaveBeenCalledTimes(1);
     const body = JSON.parse(
       (productApiRequestMock.mock.calls[0][2] as RequestInit).body as string,
     );
-    expect(body.source).toBe("web");
-    expect(body.signalValue).toBe(1);
+    expect(body.signals).toHaveLength(2);
+    expect(body.signals[1].signalType).toBe("impression");
   });
 
-  it("returns false without throwing when the token is unavailable", async () => {
-    const result = await recordOpportunitySignal(input, async () => null);
+  it("accepts non-item signals (search/category_view) without an opportunityId", async () => {
+    await expect(
+      recordOpportunitySignal(
+        { signalType: "search", details: { query: "scholarships" } },
+        async () => "token-123",
+      ),
+    ).resolves.toBe(true);
+  });
 
-    expect(result).toBe(false);
+  it("rejects item signals with no opportunityId", async () => {
+    await expect(
+      recordOpportunitySignal(
+        { signalType: "click" },
+        async () => "token-123",
+      ),
+    ).resolves.toBe(false);
+  });
+
+  it("keeps the queue when the token is unavailable and retries next flush", async () => {
+    await recordOpportunitySignal(input, async () => null);
+    await flushSignalQueue(async () => null);
     expect(productApiRequestMock).not.toHaveBeenCalled();
+
+    productApiRequestMock.mockResolvedValueOnce({ ok: true });
+    await flushSignalQueue(async () => "token-123");
+    expect(productApiRequestMock).toHaveBeenCalledTimes(1);
   });
 
-  it("returns false without throwing when the API call fails", async () => {
-    productApiRequestMock.mockRejectedValueOnce(new Error("boom"));
+  it("keeps the queue on transient API failure (retried later)", async () => {
+    await recordOpportunitySignal(input, async () => "token-123");
 
-    await expect(
-      recordOpportunitySignal(input, async () => "token-123"),
-    ).resolves.toBe(false);
+    productApiRequestMock.mockRejectedValueOnce(
+      Object.assign(new Error("boom"), { status: 503 }),
+    );
+    await flushSignalQueue(async () => "token-123");
+
+    productApiRequestMock.mockResolvedValueOnce({ ok: true });
+    await flushSignalQueue(async () => "token-123");
+    expect(productApiRequestMock).toHaveBeenCalledTimes(2);
   });
 
-  it("returns false without throwing when getToken itself rejects", async () => {
-    await expect(
-      recordOpportunitySignal(input, async () => {
-        throw new Error("clerk down");
-      }),
-    ).resolves.toBe(false);
+  it("drops the batch on a 400 so an invalid payload can't wedge the queue", async () => {
+    await recordOpportunitySignal(input, async () => "token-123");
+
+    productApiRequestMock.mockRejectedValueOnce(
+      Object.assign(new Error("bad request"), { status: 400 }),
+    );
+    await flushSignalQueue(async () => "token-123");
+
+    productApiRequestMock.mockClear();
+    await flushSignalQueue(async () => "token-123");
+    expect(productApiRequestMock).not.toHaveBeenCalled();
   });
 });

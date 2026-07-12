@@ -35,10 +35,12 @@ import {
 import { normalizeCategory } from "./opportunity-categorization";
 import {
   OpportunityPreferenceSchema,
+  OpportunitySignalBatchSchema,
   OpportunitySignalSchema,
   RecommendationQuerySchema,
   UserRecommendationRequestSchema,
   type OpportunityPreferenceDto,
+  type OpportunitySignalBatchDto,
   type OpportunitySignalDto,
   type RecommendationQueryDto,
   type UserRecommendationRequestDto,
@@ -191,6 +193,19 @@ export class OpportunitiesController {
     body: OpportunitySignalDto,
   ) {
     return this.opportunitiesService.recordUserOpportunitySignal(userId, body);
+  }
+
+  @Post("signals/batch")
+  // Impression beacons: one request per feed render, not per card.
+  recordSignalBatch(
+    @CurrentUser("id") userId: string,
+    @Body(new ZodValidationPipe(OpportunitySignalBatchSchema))
+    body: OpportunitySignalBatchDto,
+  ) {
+    return this.opportunitiesService.recordUserOpportunitySignals(
+      userId,
+      body.signals,
+    );
   }
 
   @Get("sync")

@@ -160,12 +160,18 @@ export async function updateTrackedApplicationStatus(
   applicationId: string,
   status: ApplicationStatus,
   getAuthToken?: GetAuthToken,
+  // Optional one-line takeaway (e.g. after a rejection). The backend attaches
+  // it to the outcome signal it records for the ranking engine.
+  reflection?: string,
 ): Promise<boolean> {
   const apiResult = await requestProductApi<any>(
     `/me/applications/${encodeURIComponent(applicationId)}`,
     {
       method: 'PATCH',
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({
+        status,
+        ...(reflection?.trim() ? { reflection: reflection.trim() } : {}),
+      }),
     },
     getAuthToken,
   );

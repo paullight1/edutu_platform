@@ -2603,6 +2603,17 @@ ${sourceText || "No source page text was available. Still write a complete summa
     return this.opportunityRankingService.recordSignal(userId, input);
   }
 
+  async recordUserOpportunitySignals(
+    userId: string,
+    inputs: OpportunitySignalDto[],
+  ) {
+    const signals = await this.opportunityRankingService.recordSignals(
+      userId,
+      inputs,
+    );
+    return { recorded: signals.length };
+  }
+
   async getPersonalizedRecommendations(
     userId: string,
     input: UserRecommendationRequestDto,

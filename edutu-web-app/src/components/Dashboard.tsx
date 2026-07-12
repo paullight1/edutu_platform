@@ -39,6 +39,7 @@ import { useToast } from "./ui/ToastProvider";
 import type { AppUser } from "../types/user";
 import type { OnboardingProfileData } from "../types/onboarding";
 import { addBookmark, getBookmarks, removeBookmark } from "../services/bookmarks";
+import { ImpressionTracker } from "./opportunity/ImpressionTracker";
 import { getApplications } from "../services/applications";
 import { getDeadlines, type Deadline } from "../services/deadlines";
 import { fetchBackendProfile, type BackendProfile } from "../services/profile";
@@ -2184,19 +2185,26 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                           />
                         </div>
                       ) : (
-                        homeFeedItems.map((item) => {
+                        homeFeedItems.map((item, feedIndex) => {
                           const { opportunity } = item;
                           return (
-                            <DashboardOpportunityCard
+                            <ImpressionTracker
                               key={item.key}
-                              opportunity={opportunity}
-                              variant="grid"
-                              isBookmarked={isOppBookmarked(opportunity.id)}
-                              isDarkMode={isDarkMode}
-                              onOpen={handleOpenOpportunity}
-                              onToggleBookmark={handleToggleBookmark}
-                              onShare={handleShareOpportunity}
-                            />
+                              opportunityId={opportunity.id}
+                              surface="web_home_grid"
+                              position={feedIndex}
+                              getToken={getToken}
+                            >
+                              <DashboardOpportunityCard
+                                opportunity={opportunity}
+                                variant="grid"
+                                isBookmarked={isOppBookmarked(opportunity.id)}
+                                isDarkMode={isDarkMode}
+                                onOpen={handleOpenOpportunity}
+                                onToggleBookmark={handleToggleBookmark}
+                                onShare={handleShareOpportunity}
+                              />
+                            </ImpressionTracker>
                           );
                         })
                       )}
@@ -2244,19 +2252,26 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                           />
                         </div>
                       ) : (
-                        homeFeedItems.map((item) => {
+                        homeFeedItems.map((item, feedIndex) => {
                           const { opportunity } = item;
                           return (
-                            <DashboardOpportunityCard
+                            <ImpressionTracker
                               key={item.key}
-                              opportunity={opportunity}
-                              variant="list"
-                              isBookmarked={isOppBookmarked(opportunity.id)}
-                              isDarkMode={isDarkMode}
-                              onOpen={handleOpenOpportunity}
-                              onToggleBookmark={handleToggleBookmark}
-                              onShare={handleShareOpportunity}
-                            />
+                              opportunityId={opportunity.id}
+                              surface="web_home_list"
+                              position={feedIndex}
+                              getToken={getToken}
+                            >
+                              <DashboardOpportunityCard
+                                opportunity={opportunity}
+                                variant="list"
+                                isBookmarked={isOppBookmarked(opportunity.id)}
+                                isDarkMode={isDarkMode}
+                                onOpen={handleOpenOpportunity}
+                                onToggleBookmark={handleToggleBookmark}
+                                onShare={handleShareOpportunity}
+                              />
+                            </ImpressionTracker>
                           );
                         })
                       )}

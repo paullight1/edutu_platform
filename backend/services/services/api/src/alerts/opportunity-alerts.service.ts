@@ -325,10 +325,12 @@ export class OpportunityAlertsService {
           ),
         ),
     ]);
-    return new Set([
-      ...alreadyAlerted.map((r) => r.opportunityId),
-      ...alreadySeen.map((r) => r.opportunityId),
-    ]);
+    return new Set(
+      [
+        ...alreadyAlerted.map((r) => r.opportunityId),
+        ...alreadySeen.map((r) => r.opportunityId),
+      ].filter((id): id is string => Boolean(id)),
+    );
   }
 
   /**

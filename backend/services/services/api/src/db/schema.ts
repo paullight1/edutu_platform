@@ -311,9 +311,11 @@ export const userOpportunitySignals = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     userId: uuid("user_id").notNull(),
-    opportunityId: uuid("opportunity_id")
-      .notNull()
-      .references(() => opportunities.id, { onDelete: "cascade" }),
+    // Nullable: non-item signals (search, category_view) carry their payload
+    // in details ({query} / {category}) instead of an opportunity id.
+    opportunityId: uuid("opportunity_id").references(() => opportunities.id, {
+      onDelete: "cascade",
+    }),
     signalType: text("signal_type").notNull(),
     signalValue: integer("signal_value").default(1),
     source: text("source").default("app"),

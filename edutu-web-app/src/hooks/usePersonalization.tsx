@@ -20,7 +20,6 @@ import {
   type MatchResult,
   type UserProfileForRecommendations,
 } from "../services/personalizedRecommendations";
-import { trackOpportunityClick } from "../services/personalizationService";
 import { clearRecommendationCache } from "./usePersonalizedOpportunities";
 import {
   mapInteractionToSignal,
@@ -576,14 +575,6 @@ export const PersonalizationProvider: React.FC<{
         if (behaviorKey) writeJson(behaviorKey, next);
         return next;
       });
-
-      // Fire-and-forget analytics write; user_id column expects a Supabase
-      // auth UUID which Clerk IDs are not, so identity travels in metadata.
-      // TODO: retire once backend exposes engagement analytics (admin views
-      // still read this Supabase table).
-      void trackOpportunityClick(opportunity.id, type, undefined, "web-app").catch(
-        () => undefined,
-      );
 
       // Mirror the signal to the backend recommender (hybrid engine input).
       if (isSignedIn) {

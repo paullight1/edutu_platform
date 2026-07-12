@@ -39,6 +39,10 @@ export const UpdateApplicationSchema = z
     status: ApplicationStatusSchema.optional(),
     notes: z.string().trim().max(4000).nullable().optional(),
     metadata: applicationMetadataSchema.optional(),
+    // Free-text takeaway the user writes when resolving an application
+    // (e.g. after a rejection). Rides along on the outcome signal so the
+    // engine sees it — it is not stored on the application row.
+    reflection: z.string().trim().max(2000).nullable().optional(),
   })
   .strict()
   .refine((value) => Object.keys(value).length > 0, {
