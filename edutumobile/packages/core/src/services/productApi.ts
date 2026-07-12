@@ -78,7 +78,12 @@ export async function requestProductApi<T>(
   }
 
   try {
-    const token = await getAuthToken();
+    // Clerk's getToken can stall indefinitely on a flaky connection (it may
+    // refresh the session over the network) — cap it so callers never hang.
+    const token = await Promise.race([
+      getAuthToken(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), DEFAULT_TIMEOUT_MS)),
+    ]);
     if (!token) {
       return null;
     }

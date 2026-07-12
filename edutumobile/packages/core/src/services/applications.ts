@@ -89,6 +89,17 @@ function normaliseApiApplication(row: any): AppliedOpportunity {
   };
 }
 
+/** Hard cap for the direct-Supabase fallback queries. React Native fetches
+ * have no default timeout, so without an abort signal a flaky connection can
+ * leave the promise pending forever (spinner never resolves). */
+const SUPABASE_FALLBACK_TIMEOUT_MS = 10000;
+
+function fallbackAbortSignal(): AbortSignal {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), SUPABASE_FALLBACK_TIMEOUT_MS);
+  return controller.signal;
+}
+
 export async function fetchTrackedApplications(
   supabase: SupabaseClient,
   userId: string,
@@ -104,7 +115,8 @@ export async function fetchTrackedApplications(
     .from('opportunity_applications')
     .select('id, opportunity_id, status, submitted_at, created_at')
     .in('user_id', getUserLookupIds(userId))
-    .order('submitted_at', { ascending: false });
+    .order('submitted_at', { ascending: false })
+    .abortSignal(fallbackAbortSignal());
 
   if (error) throw error;
 
@@ -120,7 +132,8 @@ export async function fetchTrackedApplications(
   const { data: opps, error: oppError } = await supabase
     .from('opportunities')
     .select('id, title, organization, deadline, close_date, location, image_url, category')
-    .in('id', opportunityIds);
+    .in('id', opportunityIds)
+    .abortSignal(fallbackAbortSignal());
 
   if (oppError) throw oppError;
 
