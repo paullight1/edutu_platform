@@ -20,7 +20,7 @@
           "value": ".*(facebookexternalhit|WhatsApp|Slack|Embedly|Pinterest|Flipboard|Tumblr|Mastodon|vkShare|W3C_Validator|SkypeUriPreview|Google-InspectionTool|Applebot|bot|Bot|crawler|Crawler|spider|Spider).*"
         }
       ],
-      "destination": "/api/og?id=:id"
+      "destination": "https://edutu-platform.onrender.com/og/opportunity/:id"
     },
     {
       "source": "/opportunities",
@@ -31,10 +31,10 @@
           "value": ".*(facebookexternalhit|WhatsApp|Slack|Embedly|Pinterest|Flipboard|Tumblr|Mastodon|vkShare|W3C_Validator|SkypeUriPreview|Google-InspectionTool|Applebot|bot|Bot|crawler|Crawler|spider|Spider).*"
         }
       ],
-      "destination": "/api/og?list=1"
+      "destination": "https://edutu-platform.onrender.com/og/opportunities"
     },
     {
-      "source": "/((?!api/|assets/|icons/|manifest.webmanifest|registerSW.js|sw.js|workbox-.*\\.js|favicon.ico|apple-touch-icon.png).*)",
+      "source": "/((?!assets/|icons/|manifest.webmanifest|registerSW.js|sw.js|workbox-.*\\.js|favicon.ico|apple-touch-icon.png).*)",
       "destination": "/index.html"
     }
   ],
