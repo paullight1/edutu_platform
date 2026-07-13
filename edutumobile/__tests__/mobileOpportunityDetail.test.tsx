@@ -182,7 +182,7 @@ jest.mock('../lib/notifications', () => ({
 }));
 
 jest.mock('../lib/supabase', () => ({
-  supabase: {},
+  supabase: require('../test-utils/supabaseMock').createSupabaseMock(),
 }));
 
 jest.mock('@edutu/core/src/services/opportunities', () => ({

@@ -235,6 +235,7 @@ jest.mock('../packages/core/src/services/bookmarks', () => ({
 
 jest.mock('../lib/supabase', () => ({
   supabase: {
+    ...require('../test-utils/supabaseMock').createSupabaseMock(),
     from: jest.fn((table: string) => {
       if (table === 'bookmarks') {
         return {

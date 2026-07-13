@@ -69,6 +69,12 @@ jest.mock('expo-router', () => ({
 
 jest.mock('@clerk/clerk-expo', () => ({
   useUser: () => mockUserState,
+  useAuth: () => ({
+    getToken: jest.fn(async () => 'test-token'),
+    userId: 'user-1',
+    isSignedIn: true,
+    signOut: jest.fn(),
+  }),
 }));
 
 jest.mock('../components/context/ThemeContext', () => ({
