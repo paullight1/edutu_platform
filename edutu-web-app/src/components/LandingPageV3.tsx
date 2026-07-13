@@ -10,7 +10,6 @@ import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useOpportunities } from '../hooks/useOpportunities';
 import { fetchPublishedPosts, formatPostDate, readingTime } from '../services/blog';
-import BentoBenefits from './BentoBenefits';
 import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
 import CommunityShowcase from './CommunityShowcase';
@@ -231,7 +230,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
             <main className="relative z-10">
                 {/* ─── Hero ─────────────────────────────────────────────── */}
                 <section
-                    className="landing-hero relative flex min-h-[92vh] items-center overflow-hidden px-4 pt-28 pb-20 sm:px-6 md:min-h-dvh"
+                    className="landing-hero relative flex items-center overflow-hidden px-4 pt-24 pb-12 sm:min-h-[92vh] sm:px-6 sm:pt-28 sm:pb-20 md:min-h-dvh"
                     id="platform"
                 >
                     {/* Theme-aware gradient field (dark = deep navy, light = soft mesh) */}
@@ -253,7 +252,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             initial={reduceMotion ? undefined : { opacity: 0, y: 30 }}
                             animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                             transition={{ duration: 0.6, delay: 0.1 }}
-                            className="landing-hero-title mt-8 font-display text-[clamp(2.6rem,8vw,5rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-balance text-text-primary sm:text-[clamp(3.8rem,7vw,5.5rem)] md:text-[82px]"
+                            className="landing-hero-title font-display text-[clamp(2.6rem,8vw,5rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-balance text-text-primary sm:text-[clamp(3.8rem,7vw,5.5rem)] md:text-[82px]"
                         >
                             Your AI guide to global{' '}
                             <span className="landing-hero-highlight whitespace-nowrap sm:block">
@@ -278,7 +277,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
                             animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                             transition={{ duration: 0.6, delay: 0.2 }}
-                            className="landing-hero-copy mt-7 max-w-[600px] text-[19px] font-normal leading-[1.55] text-text-secondary"
+                            className="landing-hero-copy mt-5 max-w-[600px] text-[17px] font-normal leading-[1.5] text-text-secondary sm:mt-6 sm:text-[19px] sm:leading-[1.55]"
                         >
                             Edutu finds scholarships, fellowships, and career programs matched to
                             you — globally, automatically, before the deadline.
@@ -288,7 +287,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
                             animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                             transition={{ duration: 0.6, delay: 0.3 }}
-                            className="mt-10 flex flex-col gap-3 sm:flex-row"
+                            className="mt-5 flex w-full flex-col gap-3 sm:mt-10 sm:w-auto sm:flex-row"
                         >
                             <button
                                 onClick={onGetStarted}
@@ -378,9 +377,6 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                     </div>
                 </section>
 
-                {/* ─── Benefits ─────────────────────────────────────────── */}
-                <BentoBenefits />
-
                 {/* ─── Country reach ────────────────────────────────────── */}
                 <section className="overflow-hidden border-t border-subtle px-4 py-24 sm:px-6">
                     <div className="mx-auto mb-16 max-w-[1200px] text-center">
@@ -437,8 +433,8 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                 </section>
 
                 {/* ─── Institutions ─────────────────────────────────────── */}
-                <section className="border-t border-subtle px-4 py-24 sm:px-6">
-                    <div className="mx-auto mb-16 max-w-[1200px] text-center">
+                <section className="border-t border-subtle px-4 py-16 sm:px-6 sm:py-24">
+                    <div className="mx-auto mb-10 max-w-[1200px] text-center sm:mb-16">
                         <SectionEyebrow>Top Institutions</SectionEyebrow>
                         <h2 className="landing-section-title mt-4 font-display text-[48px] font-semibold leading-[1.04] text-text-primary sm:text-[56px]">
                             Scholarships from <span className="text-brand">World-Class</span> Universities
@@ -449,18 +445,18 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                         </p>
                     </div>
 
-                    <div className="mx-auto grid max-w-[1100px] grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-6">
+                    <div className="mx-auto grid max-w-[1100px] grid-cols-3 gap-2.5 sm:grid-cols-4 sm:gap-4 md:grid-cols-5 lg:grid-cols-6">
                         {institutions.map((inst, i) => (
                             <motion.div
                                 key={i}
                                 {...fadeUp}
                                 transition={{ duration: 0.4, delay: Math.min(i, 8) * 0.04 }}
-                                className="group flex h-[104px] items-center justify-center rounded-2xl border border-subtle bg-surface-layer/60 px-4 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-brand/40 hover:bg-surface-layer sm:h-[120px]"
+                                className="group flex h-[72px] items-center justify-center rounded-xl border border-subtle bg-surface-layer/60 px-2.5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-brand/40 hover:bg-surface-layer sm:h-[120px] sm:rounded-2xl sm:px-4"
                             >
                                 <img
                                     src={inst.logo}
                                     alt={inst.name}
-                                    className="max-h-[40px] max-w-[128px] object-contain opacity-70 grayscale transition-all duration-300 group-hover:opacity-100 group-hover:grayscale-0 dark:opacity-80 dark:brightness-0 dark:invert dark:grayscale-0 sm:max-h-[48px]"
+                                    className="max-h-[24px] max-w-[72px] object-contain opacity-70 grayscale transition-all duration-300 group-hover:opacity-100 group-hover:grayscale-0 dark:opacity-80 dark:brightness-0 dark:invert dark:grayscale-0 sm:max-h-[48px] sm:max-w-[128px]"
                                     loading="lazy"
                                     decoding="async"
                                     style={{ width: 'auto', height: 'auto' }}
@@ -473,7 +469,7 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                                             fallbackLabel.textContent = inst.name;
                                             fallbackLabel.setAttribute('data-fallback', 'true');
                                             fallbackLabel.className =
-                                                'font-display text-[17px] font-semibold tracking-tight text-text-secondary transition-colors group-hover:text-text-primary';
+                                                'text-center font-display text-[12px] font-semibold leading-tight tracking-tight text-text-secondary transition-colors group-hover:text-text-primary sm:text-[15px]';
                                             parent.appendChild(fallbackLabel);
                                         }
                                     }}

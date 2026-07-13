@@ -29,6 +29,7 @@ const moreNavItems: NavItem[] = [
   { label: "Scholarship Engine", to: "/scholarship-engine" },
   { label: "Docs", to: docsUrl, external: isExternalDocsUrl() },
   { label: "About", to: "/about" },
+  { label: "What We Believe", to: "/what-we-believe" },
   { label: "Developers", to: "/developers" },
   { label: "Events", to: "/events" },
 ];

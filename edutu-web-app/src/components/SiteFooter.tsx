@@ -31,6 +31,7 @@ const columns: FooterColumn[] = [
         title: 'Company',
         links: [
             { label: 'About', to: '/about' },
+            { label: 'What We Believe', to: '/what-we-believe' },
             { label: 'Blog', to: '/blog' },
             { label: 'Careers', to: '/careers' },
             { label: 'Download App', to: '/download' },

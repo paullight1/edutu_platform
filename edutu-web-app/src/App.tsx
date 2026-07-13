@@ -48,6 +48,7 @@ const OpportunitySharePage = lazy(
 const EventsPage = lazy(() => import("./components/EventsPage"));
 const EventDetailPage = lazy(() => import("./components/EventDetailPage"));
 const AboutPage = lazy(() => import("./components/AboutPage"));
+const WhatWeBelievePage = lazy(() => import("./components/WhatWeBelievePage"));
 const CommunityPage = lazy(() => import("./components/CommunityPage"));
 const BlogPage = lazy(() => import("./components/BlogPage"));
 const BlogPostPage = lazy(() => import("./components/BlogPostPage"));
@@ -545,6 +546,15 @@ function App() {
       <Route path="/events/:slugOrId" element={<EventDetailPage />} />
       <Route path="/mentor" element={<MentorPage />} />
       <Route path="/about" element={<AboutPage />} />
+      <Route path="/what-we-believe" element={<WhatWeBelievePage />} />
+      <Route
+        path="/beliefs"
+        element={<Navigate to="/what-we-believe" replace />}
+      />
+      <Route
+        path="/our-belief"
+        element={<Navigate to="/what-we-believe" replace />}
+      />
       <Route path="/community" element={<CommunityPage />} />
       <Route path="/blog" element={<BlogPage />} />
       <Route path="/blog/:slug" element={<BlogPostPage />} />

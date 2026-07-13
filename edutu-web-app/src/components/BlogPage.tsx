@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Search, ChevronRight, ChevronLeft, TrendingUp, Lightbulb } from 'lucide-react';
 import PublicHeader from './PublicHeader';
+import SiteFooter from './SiteFooter';
 import Seo from './Seo';
 import {
   fetchPublishedPosts,
@@ -292,15 +293,19 @@ const BlogPage: React.FC = () => {
 
           {/* Pagination */}
           {!loading && totalPages > 1 && (
-            <div className="mt-14 flex items-center justify-center gap-2">
+            <nav
+              aria-label="Blog pagination"
+              className="mt-14 flex flex-wrap items-center justify-center gap-2"
+            >
               <button
                 type="button"
                 onClick={() => goToPage(Math.max(1, page - 1))}
                 disabled={page === 1}
                 aria-label="Previous page"
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-subtle text-text-secondary transition-colors hover:border-brand/50 hover:text-brand disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex h-10 items-center gap-1 rounded-full border border-subtle pl-3 pr-4 text-sm font-semibold text-text-secondary transition-colors hover:border-brand/50 hover:text-brand disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <ChevronLeft size={18} />
+                <ChevronLeft size={16} />
+                Prev
               </button>
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
                 <button
@@ -323,11 +328,12 @@ const BlogPage: React.FC = () => {
                 onClick={() => goToPage(Math.min(totalPages, page + 1))}
                 disabled={page === totalPages}
                 aria-label="Next page"
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-subtle text-text-secondary transition-colors hover:border-brand/50 hover:text-brand disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex h-10 items-center gap-1 rounded-full border border-subtle pl-4 pr-3 text-sm font-semibold text-text-secondary transition-colors hover:border-brand/50 hover:text-brand disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <ChevronRight size={18} />
+                Next
+                <ChevronRight size={16} />
               </button>
-            </div>
+            </nav>
           )}
 
           {/* Empty / error state */}
@@ -384,6 +390,8 @@ const BlogPage: React.FC = () => {
           </motion.div>
         </div>
       </main>
+
+      <SiteFooter />
     </div>
   );
 };
