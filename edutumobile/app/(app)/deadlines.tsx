@@ -1,6 +1,6 @@
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Clock, Bookmark, CheckCircle, ChevronRight, AlertCircle } from "lucide-react-native";
+import { Clock, Bookmark, CheckCircle, ChevronRight, AlertCircle, CalendarClock } from "lucide-react-native";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useTheme } from "../../components/context/ThemeContext";
 import { useRouter } from "expo-router";
@@ -9,7 +9,6 @@ import { useAuth, useUser } from "@clerk/clerk-expo";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import { BrandedLoader } from "../../components/ui/BrandedLoader";
 import { DeadlineItem, fetchOpportunityDeadlines } from "../../packages/core/src/services/deadlines";
-import { LottieState } from "../../components/ui/LottieState";
 import { useTranslation } from "react-i18next";
 
 const DeadlineSection = ({
@@ -228,15 +227,31 @@ export default function DeadlinesScreen() {
                                 </TouchableOpacity>
                             </View>
                         ) : totalDeadlines === 0 ? (
-                            <LottieState
-                                preset="deadlineEmpty"
-                                title={t('deadlines.emptyTitle')}
-                                description={t('deadlines.emptyDescription')}
-                                actionLabel={t('deadlines.browseOpportunities')}
-                                onActionPress={() => router.push('/opportunities')}
-                                size={164}
-                                style={styles.emptyState}
-                            />
+                            <View style={styles.emptyState}>
+                                <View
+                                    style={[
+                                        styles.emptyIconWrap,
+                                        { backgroundColor: isDark ? 'rgba(16,185,129,0.14)' : 'rgba(16,185,129,0.10)' },
+                                    ]}
+                                >
+                                    <CalendarClock size={40} color="#10B981" />
+                                </View>
+                                <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
+                                    {t('deadlines.emptyTitle')}
+                                </Text>
+                                <Text style={[styles.emptyDesc, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                                    {t('deadlines.emptyDescription')}
+                                </Text>
+                                <TouchableOpacity
+                                    style={[styles.emptyBtn, { backgroundColor: colors.accent }]}
+                                    onPress={() => router.push('/opportunities')}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={styles.emptyBtnText}>
+                                        {t('deadlines.browseOpportunities')}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
                         ) : (
                             <>
                                 <DeadlineSection
@@ -384,6 +399,13 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         paddingVertical: 80,
         paddingHorizontal: 40,
+    },
+    emptyIconWrap: {
+        width: 88,
+        height: 88,
+        borderRadius: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     emptyTitle: {
         fontSize: 20,
