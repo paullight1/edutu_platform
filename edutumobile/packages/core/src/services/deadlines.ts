@@ -17,6 +17,20 @@ function getUserLookupIds(userId: string): string[] {
   return Array.from(new Set([userId, toSafeUUID(userId)]));
 }
 
+/** Hard cap for the direct-Supabase fallback queries. React Native fetches
+ * have no default timeout, so without an abort signal a flaky connection can
+ * leave the promise pending forever (spinner never resolves). */
+const SUPABASE_FALLBACK_TIMEOUT_MS = 10000;
+
+function fallbackAbortSignal(): AbortSignal {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), SUPABASE_FALLBACK_TIMEOUT_MS);
+  return controller.signal;
+}
+
+// Terminal application states carry no actionable deadline.
+const INACTIVE_APPLICATION_STATUSES = new Set(['withdrawn', 'rejected']);
+
 function getDaysRemaining(deadline?: string | null): number {
   return deadline
     ? Math.ceil((new Date(deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
@@ -74,12 +88,16 @@ export async function fetchOpportunityDeadlines(
       .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
   }
 
+  // Applied opportunities live in opportunity_applications, whose opportunity_id
+  // has a real FK to opportunities (so the embedded join resolves). The goals
+  // table has no opportunity linkage at all — querying it here for an
+  // `opportunity_id` relationship was the PGRST200 that broke this screen.
   const { data: appliedData, error: appliedError } = await supabase
-    .from('goals')
+    .from('opportunity_applications')
     .select(`
       id,
-      target_date,
       status,
+      opportunity_id,
       opportunities:opportunity_id (
         id,
         title,
@@ -88,7 +106,7 @@ export async function fetchOpportunityDeadlines(
       )
     `)
     .in('user_id', getUserLookupIds(userId))
-    .eq('type', 'opportunity');
+    .abortSignal(fallbackAbortSignal());
 
   if (appliedError) throw appliedError;
 
@@ -99,25 +117,30 @@ export async function fetchOpportunityDeadlines(
       created_at,
       opportunity_id
     `)
-    .in('user_id', getUserLookupIds(userId));
+    .in('user_id', getUserLookupIds(userId))
+    .abortSignal(fallbackAbortSignal());
 
   if (bookmarkError) throw bookmarkError;
 
-  const appliedDeadlines: DeadlineItem[] = (appliedData || []).map((goal: any) => {
-    const opp = goal.opportunities;
-    const deadline = opp?.deadline || goal.target_date || '';
+  const appliedDeadlines: DeadlineItem[] = (appliedData || [])
+    .filter((row: any) => !INACTIVE_APPLICATION_STATUSES.has(row.status))
+    .map((row: any) => {
+      // A to-one FK embed is an object, but supabase-js sometimes types it as
+      // an array — normalise so either shape works.
+      const opp = Array.isArray(row.opportunities) ? row.opportunities[0] : row.opportunities;
+      const deadline = opp?.deadline || '';
 
-    return {
-      id: goal.id,
-      title: opp?.title || 'Opportunity',
-      organization: opp?.organization || 'Unknown',
-      deadline,
-      type: 'applied',
-      opportunityId: opp?.id || '',
-      daysRemaining: getDaysRemaining(deadline),
-      status: goal.status,
-    };
-  });
+      return {
+        id: row.id,
+        title: opp?.title || 'Opportunity',
+        organization: opp?.organization || 'Unknown',
+        deadline,
+        type: 'applied' as const,
+        opportunityId: opp?.id || row.opportunity_id || '',
+        daysRemaining: getDaysRemaining(deadline),
+        status: row.status,
+      };
+    });
 
   let bookmarkDeadlines: DeadlineItem[] = [];
   if (bookmarkData && bookmarkData.length > 0) {
@@ -125,7 +148,8 @@ export async function fetchOpportunityDeadlines(
     const { data: oppDetails } = await supabase
       .from('opportunities')
       .select('id, title, organization, deadline')
-      .in('id', oppIds);
+      .in('id', oppIds)
+      .abortSignal(fallbackAbortSignal());
 
     bookmarkDeadlines = (oppDetails || []).map((opp: any) => ({
       id: `bookmark-${opp.id}`,
