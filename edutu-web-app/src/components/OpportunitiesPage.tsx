@@ -63,6 +63,7 @@ import PublicEditorialShell from "./PublicEditorialShell";
 import Seo from "./Seo";
 import { useToast } from "./ui/ToastProvider";
 import { Skeleton } from "./ui/Skeleton";
+import Pagination from "./ui/Pagination";
 import { EmptyOpportunities, EmptySearchResults } from "./ui/EmptyState";
 import {
   shareOpportunity,
@@ -210,31 +211,29 @@ function CollectionCard({
   return (
     <Link
       to={to}
-      className={`group relative flex min-h-[150px] flex-col justify-between overflow-hidden rounded-2xl border p-5 shadow-soft transition duration-200 hover:-translate-y-1 hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${card}`}
+      className={`group relative flex items-center gap-3 overflow-hidden rounded-2xl border p-3 shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 sm:gap-3.5 sm:p-4 ${card}`}
     >
       {/* Soft corner glow that intensifies on hover */}
       <div
-        className={`pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-gradient-to-br to-transparent opacity-60 blur-2xl transition-opacity duration-300 group-hover:opacity-100 ${glow}`}
+        className={`pointer-events-none absolute -right-6 -top-8 h-20 w-20 rounded-full bg-gradient-to-br to-transparent opacity-60 blur-2xl transition-opacity duration-300 group-hover:opacity-100 ${glow}`}
       />
-      <div className="relative flex items-start justify-between">
-        <span
-          className={`inline-flex h-11 w-11 items-center justify-center rounded-xl ${chip}`}
-        >
-          <Icon size={20} />
-        </span>
-        <ArrowUpRight
-          size={18}
-          className={`transition duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 ${accentText}`}
-        />
-      </div>
-      <div className="relative mt-6">
-        <h3 className="font-display text-base font-semibold leading-tight tracking-tight text-text-primary sm:text-lg">
+      <span
+        className={`relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${chip}`}
+      >
+        <Icon size={20} />
+      </span>
+      <div className="relative min-w-0 flex-1">
+        <h3 className="font-display text-sm font-semibold leading-tight tracking-tight text-text-primary sm:text-[15px]">
           {label}
         </h3>
-        <p className="mt-1 text-xs leading-snug text-text-secondary sm:text-[13px]">
+        <p className="mt-0.5 truncate text-[11px] leading-snug text-text-secondary sm:text-xs">
           {desc}
         </p>
       </div>
+      <ArrowUpRight
+        size={16}
+        className={`relative shrink-0 transition duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 ${accentText}`}
+      />
     </Link>
   );
 }
@@ -314,12 +313,108 @@ function prefetchOpportunityDetail() {
   void import("./OpportunityDetail").catch(() => {});
 }
 
-const sortOptions: { value: SortOption; labelKey: string }[] = [
-  { value: "recommended", labelKey: "opportunities.sort.recommended" },
-  { value: "deadline", labelKey: "opportunities.sort.deadline" },
-  { value: "newest", labelKey: "opportunities.sort.newest" },
-  { value: "funding", labelKey: "opportunities.sort.funding" },
+// Bright per-card colour system. Each opportunity card is tinted by its
+// category so the grid reads as a lively, colourful board instead of a wall of
+// grey. Class strings are written out in full (never interpolated) so Tailwind's
+// JIT keeps them in the build.
+type CardPalette = {
+  /** Article border + gradient tint (light + dark). */
+  card: string;
+  /** Category pill. */
+  chip: string;
+  /** Soft blurred corner glow (gradient `from-` colour). */
+  glow: string;
+};
+
+const CARD_PALETTES: CardPalette[] = [
+  {
+    card: "border-amber-400/30 bg-gradient-to-b from-amber-400/[0.15] to-amber-400/[0.04] hover:border-amber-400/60 dark:border-amber-300/25 dark:from-amber-300/[0.14] dark:to-amber-300/[0.03]",
+    chip: "border border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-200",
+    glow: "from-amber-400/40",
+  },
+  {
+    card: "border-blue-400/30 bg-gradient-to-b from-blue-400/[0.15] to-blue-400/[0.04] hover:border-blue-400/60 dark:border-blue-300/25 dark:from-blue-300/[0.14] dark:to-blue-300/[0.03]",
+    chip: "border border-blue-500/30 bg-blue-500/15 text-blue-700 dark:text-blue-200",
+    glow: "from-blue-400/40",
+  },
+  {
+    card: "border-violet-400/30 bg-gradient-to-b from-violet-400/[0.15] to-violet-400/[0.04] hover:border-violet-400/60 dark:border-violet-300/25 dark:from-violet-300/[0.14] dark:to-violet-300/[0.03]",
+    chip: "border border-violet-500/30 bg-violet-500/15 text-violet-700 dark:text-violet-200",
+    glow: "from-violet-400/40",
+  },
+  {
+    card: "border-emerald-400/30 bg-gradient-to-b from-emerald-400/[0.15] to-emerald-400/[0.04] hover:border-emerald-400/60 dark:border-emerald-300/25 dark:from-emerald-300/[0.14] dark:to-emerald-300/[0.03]",
+    chip: "border border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-200",
+    glow: "from-emerald-400/40",
+  },
+  {
+    card: "border-rose-400/30 bg-gradient-to-b from-rose-400/[0.15] to-rose-400/[0.04] hover:border-rose-400/60 dark:border-rose-300/25 dark:from-rose-300/[0.14] dark:to-rose-300/[0.03]",
+    chip: "border border-rose-500/30 bg-rose-500/15 text-rose-700 dark:text-rose-200",
+    glow: "from-rose-400/40",
+  },
+  {
+    card: "border-cyan-400/30 bg-gradient-to-b from-cyan-400/[0.15] to-cyan-400/[0.04] hover:border-cyan-400/60 dark:border-cyan-300/25 dark:from-cyan-300/[0.14] dark:to-cyan-300/[0.03]",
+    chip: "border border-cyan-500/30 bg-cyan-500/15 text-cyan-700 dark:text-cyan-200",
+    glow: "from-cyan-400/40",
+  },
+  {
+    card: "border-orange-400/30 bg-gradient-to-b from-orange-400/[0.15] to-orange-400/[0.04] hover:border-orange-400/60 dark:border-orange-300/25 dark:from-orange-300/[0.14] dark:to-orange-300/[0.03]",
+    chip: "border border-orange-500/30 bg-orange-500/15 text-orange-700 dark:text-orange-200",
+    glow: "from-orange-400/40",
+  },
+  {
+    card: "border-fuchsia-400/30 bg-gradient-to-b from-fuchsia-400/[0.15] to-fuchsia-400/[0.04] hover:border-fuchsia-400/60 dark:border-fuchsia-300/25 dark:from-fuchsia-300/[0.14] dark:to-fuchsia-300/[0.03]",
+    chip: "border border-fuchsia-500/30 bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-200",
+    glow: "from-fuchsia-400/40",
+  },
 ];
+
+// Keyword → palette so each family of opportunities gets a consistent colour.
+const CATEGORY_PALETTE_INDEX: Record<string, number> = {
+  scholarship: 0,
+  scholar: 0,
+  internship: 1,
+  intern: 1,
+  fellowship: 2,
+  fellow: 2,
+  residency: 2,
+  program: 3,
+  bootcamp: 3,
+  accelerator: 3,
+  course: 3,
+  training: 3,
+  competition: 4,
+  contest: 4,
+  challenge: 4,
+  hackathon: 4,
+  award: 4,
+  job: 5,
+  career: 5,
+  employment: 5,
+  grant: 6,
+  fund: 6,
+  conference: 7,
+  summit: 7,
+  workshop: 7,
+  event: 7,
+};
+
+function getCardPalette(opportunity: Opportunity): CardPalette {
+  const category = (opportunity.category ?? "").toLowerCase();
+  for (const keyword of Object.keys(CATEGORY_PALETTE_INDEX)) {
+    if (category.includes(keyword)) {
+      return CARD_PALETTES[CATEGORY_PALETTE_INDEX[keyword]];
+    }
+  }
+  // Unknown / missing category: pick deterministically from the id so every
+  // card is still colourful and the same card keeps the same colour.
+  const seed = opportunity.id || opportunity.title || "";
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash + seed.charCodeAt(i)) % CARD_PALETTES.length;
+  }
+  return CARD_PALETTES[hash];
+}
 
 function getOpportunityStipend(opportunity: Opportunity): number {
   const stipend = opportunity.stipend;
@@ -425,6 +520,7 @@ function OpportunityCard({
   onNotInterested?: (opportunity: Opportunity) => void;
 }) {
   const funding = formatFunding(opportunity);
+  const palette = getCardPalette(opportunity);
   const deadlineBadge = getDeadlineBadge(opportunity.deadline);
   const deadlineDisplay = (() => {
     if (expired) {
@@ -440,7 +536,13 @@ function OpportunityCard({
   })();
 
   return (
-    <article className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-subtle bg-surface-layer shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-elevated">
+    <article
+      className={`group relative flex h-full flex-col overflow-hidden rounded-2xl border shadow-soft transition duration-200 hover:-translate-y-1 hover:shadow-elevated ${palette.card}`}
+    >
+      {/* Soft coloured glow that warms the card and intensifies on hover. */}
+      <div
+        className={`pointer-events-none absolute -bottom-10 -right-8 h-32 w-32 rounded-full bg-gradient-to-br to-transparent opacity-70 blur-2xl transition-opacity duration-300 group-hover:opacity-100 ${palette.glow}`}
+      />
       <div className="relative aspect-[16/9] overflow-hidden bg-surface-elevated">
         <ImageWithFallback
           src={opportunity.image}
@@ -502,11 +604,13 @@ function OpportunityCard({
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col p-4">
+      <div className="relative flex flex-1 flex-col p-4">
         <div className="mb-3 flex flex-wrap gap-2">
           <MatchScoreBadge score={match?.score} minScore={40} />
           {opportunity.category ? (
-            <span className="inline-flex items-center rounded-md border border-brand/30 bg-brand/10 px-2 py-1 text-xs font-semibold text-brand">
+            <span
+              className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold ${palette.chip}`}
+            >
               {opportunity.category}
             </span>
           ) : null}
@@ -610,8 +714,10 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
   const [bookmarkingId, setBookmarkingId] = useState<string | null>(null);
   const [showClosed, setShowClosed] = useState(false);
-  const [sortOption, setSortOption] = useState<SortOption>("recommended");
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  // Recommended ordering is the only mode now that the sort control is gone.
+  const [sortOption] = useState<SortOption>("recommended");
+  const [page, setPage] = useState(1);
+  const resultsRef = useRef<HTMLElement | null>(null);
   // "Not interested": locally-hidden ids + the card awaiting a typed reason.
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const [dismissTarget, setDismissTarget] = useState<Opportunity | null>(null);
@@ -837,41 +943,38 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
     return sortOpportunities(filteredOpportunities, sortOption);
   }, [filteredOpportunities, sortOption, matchInsights]);
 
-  // Reset pagination only when the user changes what they're browsing —
+  // Reset to the first page only when the user changes what they're browsing —
   // NOT when server match scores hydrate and re-sort the list, which would
-  // otherwise snap a mid-scroll user back to the first page.
+  // otherwise snap the user off the page they're reading.
   useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
+    setPage(1);
   }, [searchTerm, selectedCategoryId, showClosed, sortOption]);
 
-  const visibleOpportunities = sortedOpportunities.slice(0, visibleCount);
-  const hasMoreToShow = visibleCount < sortedOpportunities.length;
+  const totalPages = Math.max(
+    1,
+    Math.ceil(sortedOpportunities.length / PAGE_SIZE),
+  );
 
-  // Auto-load the next page as the user approaches the end of the grid; the
-  // button stays as an accessible, observer-free fallback.
-  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
-  const loadMore = useCallback(() => {
-    setVisibleCount((count) => count + PAGE_SIZE);
-  }, []);
-
+  // A shrinking result set (new filter, closed toggle) can leave `page` past
+  // the end — clamp it back into range.
   useEffect(() => {
-    const sentinel = loadMoreSentinelRef.current;
-    if (!sentinel || !hasMoreToShow || typeof IntersectionObserver === "undefined") {
-      return;
-    }
+    setPage((current) => Math.min(current, totalPages));
+  }, [totalPages]);
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          loadMore();
-        }
-      },
-      { rootMargin: "600px 0px" },
-    );
+  const visibleOpportunities = sortedOpportunities.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE,
+  );
 
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [hasMoreToShow, loadMore]);
+  const goToPage = useCallback((next: number) => {
+    setPage(next);
+    // Jump back to the top of the grid so the new page starts in view. The
+    // grid's scroll-margin clears the sticky filter bar.
+    resultsRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }, []);
 
   const hasActiveFilters = Boolean(
     searchTerm.trim() || selectedCategoryId || showClosed,
@@ -970,10 +1073,39 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
     }
   };
 
+  // Single, prominent search bar shown just below the page title. Replaces the
+  // old sticky filter/sort/show-closed toolbar.
+  const searchBar = (
+    <div className="relative">
+      <Search
+        size={18}
+        className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-text-muted"
+      />
+      <input
+        type="text"
+        aria-label="Search opportunities"
+        value={searchTerm}
+        onChange={(event) => setSearchTerm(event.target.value)}
+        placeholder={t("opportunities.searchPlaceholder")}
+        className="h-12 w-full rounded-xl border border-subtle bg-surface-layer pl-11 pr-11 text-sm text-text-primary shadow-soft placeholder:text-text-muted transition focus:border-brand focus-visible:ring-2 focus-visible:ring-brand/40"
+      />
+      {searchTerm ? (
+        <button
+          type="button"
+          onClick={clearSearch}
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-text-muted transition hover:text-text-primary"
+          aria-label="Clear search"
+        >
+          <X size={16} />
+        </button>
+      ) : null}
+    </div>
+  );
+
   const content = (
     <>
         {activeCollection ? (
-          <section className="mb-4 rounded-2xl border border-subtle bg-surface-layer p-4 shadow-soft">
+          <section className="mb-6 rounded-2xl border border-subtle bg-surface-layer p-4 shadow-soft">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
@@ -995,6 +1127,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                 <X size={14} />
               </button>
             </div>
+            <div className="mt-4">{searchBar}</div>
           </section>
         ) : (
           <section className="mb-6">
@@ -1021,7 +1154,8 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                 </button>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            <div className="mb-5">{searchBar}</div>
+            <div className="grid grid-cols-1 gap-2.5 sm:gap-3 lg:grid-cols-4">
               {COLLECTIONS.map((collection) => (
                 <CollectionCard
                   key={collection.key}
@@ -1038,135 +1172,6 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
             </div>
           </section>
         )}
-
-        <section className={`sticky ${embedded ? "top-[72px]" : "top-[76px]"} z-20 rounded-2xl border border-subtle bg-surface-layer p-3 shadow-soft backdrop-blur-xl`}>
-          <div className="mb-3 flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <label className="inline-flex h-8 shrink-0 cursor-pointer select-none items-center gap-2 rounded-full border border-subtle bg-surface-layer px-3 text-xs font-semibold text-text-secondary transition hover:border-strong">
-              <input
-                type="checkbox"
-                checked={showClosed}
-                onChange={(event) => setShowClosed(event.target.checked)}
-                className="h-3.5 w-3.5 rounded border-subtle text-brand focus:ring-brand/40"
-              />
-              {t("opportunities.showClosed")}
-            </label>
-          </div>
-          <div className="relative mb-3 sm:hidden">
-            <Search
-              size={16}
-              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted"
-            />
-            <input
-              type="text"
-              aria-label="Search opportunities"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder={t("opportunities.searchPlaceholder")}
-              className="h-11 w-full rounded-xl border border-subtle bg-surface-layer pl-10 pr-10 text-sm text-text-primary placeholder:text-text-muted focus:border-brand focus-visible:ring-2 focus-visible:ring-brand/40"
-            />
-            {searchTerm ? (
-              <button
-                type="button"
-                onClick={clearSearch}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-2 text-text-muted transition hover:text-text-primary"
-                aria-label="Clear search"
-              >
-                <X size={16} />
-              </button>
-            ) : null}
-          </div>
-          <div className="flex items-center justify-between sm:hidden">
-            <p aria-live="polite" className="text-xs text-text-muted">
-              {t("opportunities.showing.opportunities", {
-                shown: visibleOpportunities.length,
-                total: sortedOpportunities.length,
-                count: sortedOpportunities.length,
-              })}
-            </p>
-            <label className="inline-flex items-center gap-2 text-xs font-semibold text-text-secondary">
-              {t("common.sort")}
-              <select
-                value={sortOption}
-                onChange={(event) =>
-                  setSortOption(event.target.value as SortOption)
-                }
-                className="h-8 rounded-lg border border-subtle bg-surface-layer pl-2.5 pr-7 text-xs font-semibold text-text-secondary focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
-              >
-                {sortOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {t(option.labelKey)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <div className="hidden space-y-3 sm:block">
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <div className="relative flex-1">
-              <Search
-                size={18}
-                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-text-muted"
-              />
-              <input
-                type="text"
-                aria-label="Search opportunities"
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder={t("opportunities.searchPlaceholder")}
-                className="h-12 w-full rounded-xl border border-subtle bg-surface-layer pl-11 pr-11 text-sm text-text-primary placeholder:text-text-muted focus:border-brand focus-visible:ring-2 focus-visible:ring-brand/40"
-              />
-              {searchTerm ? (
-                <button
-                  type="button"
-                  onClick={clearSearch}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-text-muted transition hover:text-text-primary"
-                  aria-label="Clear search"
-                >
-                  <X size={16} />
-                </button>
-              ) : null}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-3 border-t border-subtle pt-3 sm:flex-row sm:items-center sm:justify-between">
-              <p aria-live="polite" className="text-xs text-text-muted">
-                {t("opportunities.showing.opportunities", {
-                  shown: visibleOpportunities.length,
-                  total: sortedOpportunities.length,
-                  count: sortedOpportunities.length,
-                })}
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="inline-flex items-center gap-2 text-xs font-semibold text-text-secondary">
-                  {t("common.sort")}
-                  <select
-                    value={sortOption}
-                    onChange={(event) =>
-                      setSortOption(event.target.value as SortOption)
-                    }
-                    className="h-8 rounded-lg border border-subtle bg-surface-layer pl-2.5 pr-7 text-xs font-semibold text-text-secondary focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
-                  >
-                    {sortOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {t(option.labelKey)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {hasActiveFilters ? (
-                  <button
-                    type="button"
-                    onClick={clearAllFilters}
-                    className="inline-flex h-8 items-center gap-1 rounded-md border border-subtle bg-surface-layer px-2.5 text-xs font-semibold text-text-secondary transition hover:border-strong hover:bg-surface-elevated"
-                  >
-                    {t("opportunities.clearAll")}
-                    <X size={12} />
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          </div>
-        </section>
 
         {error ? (
           <section
@@ -1196,14 +1201,17 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
         ) : null}
 
         {loading ? (
-          <section className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))] gap-4 sm:gap-5">
+          <section className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
             {Array.from({ length: PAGE_SIZE }).map((_, index) => (
               <LoadingCard key={index} />
             ))}
           </section>
         ) : sortedOpportunities.length > 0 ? (
           <>
-            <section className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))] gap-4 sm:gap-5">
+            <section
+              ref={resultsRef}
+              className="mt-5 grid scroll-mt-28 grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3"
+            >
               {visibleOpportunities.map((opportunity, index) => (
                 <ImpressionTracker
                   key={opportunity.id}
@@ -1233,18 +1241,12 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
                 </ImpressionTracker>
               ))}
             </section>
-            {hasMoreToShow ? (
-              <div className="mt-6 flex flex-col items-center gap-3">
-                <div ref={loadMoreSentinelRef} aria-hidden="true" />
-                <button
-                  type="button"
-                  onClick={loadMore}
-                  className="inline-flex h-11 items-center gap-2 rounded-md border border-subtle bg-surface-layer px-5 text-sm font-semibold text-text-secondary shadow-soft transition hover:border-strong hover:bg-surface-elevated"
-                >
-                  {t("opportunities.loadMore")}
-                </button>
-              </div>
-            ) : null}
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={goToPage}
+              className="mt-8"
+            />
           </>
         ) : (
           <section className="mt-5 rounded-2xl border border-subtle bg-surface-layer p-4">
