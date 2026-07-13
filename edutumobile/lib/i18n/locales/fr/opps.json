@@ -283,7 +283,13 @@
       "howToApply": "COMMENT POSTULER",
       "applyStep": "{{number}}.  {{step}}",
       "discoverMore": "Découvrez plus d'opportunités",
-      "footerSub": "Correspondances personnalisées, parcours et rappels d'échéances"
+      "footerSub": "Correspondances personnalisées, parcours et rappels d'échéances",
+      "typeLabel": "Type",
+      "durationLabel": "Durée",
+      "audienceLabel": "Public cible",
+      "deadlineLabel": "Échéance",
+      "whatYouGain": "Ce que vous obtiendrez",
+      "applyHere": "Postuler ici"
     }
   },
   "saved": {

@@ -283,7 +283,13 @@
       "howToApply": "COMO SE CANDIDATAR",
       "applyStep": "{{number}}.  {{step}}",
       "discoverMore": "Descubra mais oportunidades",
-      "footerSub": "Combinações personalizadas, roteiros e lembretes de prazo"
+      "footerSub": "Combinações personalizadas, roteiros e lembretes de prazo",
+      "typeLabel": "Tipo",
+      "durationLabel": "Duração",
+      "audienceLabel": "Público-alvo",
+      "deadlineLabel": "Prazo",
+      "whatYouGain": "O que você ganha",
+      "applyHere": "Candidate-se aqui"
     }
   },
   "saved": {

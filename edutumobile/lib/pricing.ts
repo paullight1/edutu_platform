@@ -141,6 +141,86 @@ export function normalisePricing(payload: unknown): PricingConfig {
 
 export type BillingPlan = 'weekly' | 'monthly' | 'yearly';
 
+// ─── Admin-controlled paywall design + copy ──────────────────────────────────
+// Served alongside pricing in GET /mobile-control/config (admin_settings.
+// paywall), so admins can re-skin the paywall — headline, subtitle, badges,
+// CTA, accent color, hero style — without a store release. Every empty field
+// falls back to the app's built-in translated copy.
+
+export type PaywallHeroStyle = 'collage' | 'gradient';
+
+export interface PaywallContent {
+  /** Hero headline line 1 (rendered in the accent color). */
+  heroLine1: string;
+  /** Hero headline line 2 (rendered white). */
+  heroLine2: string;
+  subtitle: string;
+  /** Label on the big subscribe button. */
+  ctaLabel: string;
+  /** Reassurance line under the CTA (web-checkout flow only). */
+  secureNote: string;
+  /** Merchandising chip above each plan card. */
+  badgeWeekly: string;
+  badgeMonthly: string;
+  badgeYearly: string;
+  /** Optional benefit bullets; empty = no bullet list. */
+  features: string[];
+  /** #RRGGBB accent for highlights; empty = app default. */
+  accentColor: string;
+  /** 'collage' = poster mosaic hero; 'gradient' = plain gradient backdrop. */
+  heroStyle: PaywallHeroStyle;
+  /** Plan card pre-selected when the paywall opens. */
+  defaultPlan: BillingPlan;
+}
+
+export const DEFAULT_PAYWALL_CONTENT: PaywallContent = {
+  heroLine1: '',
+  heroLine2: '',
+  subtitle: '',
+  ctaLabel: '',
+  secureNote: '',
+  badgeWeekly: '',
+  badgeMonthly: '',
+  badgeYearly: '',
+  features: [],
+  accentColor: '',
+  heroStyle: 'collage',
+  defaultPlan: 'weekly',
+};
+
+function cleanText(value: unknown, maxLength: number): string {
+  return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
+}
+
+/** Defensive parse of the admin payload — any bad field falls back to a default. */
+export function normalisePaywallContent(payload: unknown): PaywallContent {
+  if (!payload || typeof payload !== 'object') return { ...DEFAULT_PAYWALL_CONTENT };
+  const r = payload as Record<string, unknown>;
+
+  const accent = cleanText(r.accentColor, 7);
+  const plan = r.defaultPlan;
+
+  return {
+    heroLine1: cleanText(r.heroLine1, 80),
+    heroLine2: cleanText(r.heroLine2, 80),
+    subtitle: cleanText(r.subtitle, 240),
+    ctaLabel: cleanText(r.ctaLabel, 60),
+    secureNote: cleanText(r.secureNote, 300),
+    badgeWeekly: cleanText(r.badgeWeekly, 30),
+    badgeMonthly: cleanText(r.badgeMonthly, 30),
+    badgeYearly: cleanText(r.badgeYearly, 30),
+    features: Array.isArray(r.features)
+      ? r.features
+          .map((feature) => cleanText(feature, 80))
+          .filter(Boolean)
+          .slice(0, 6)
+      : [],
+    accentColor: /^#[0-9a-fA-F]{6}$/.test(accent) ? accent : '',
+    heroStyle: r.heroStyle === 'gradient' ? 'gradient' : 'collage',
+    defaultPlan: plan === 'monthly' || plan === 'yearly' ? plan : 'weekly',
+  };
+}
+
 function regularPrice(pricing: PricingConfig, plan: BillingPlan): number {
   if (plan === 'weekly') return pricing.weeklyPrice;
   return plan === 'monthly' ? pricing.monthlyPrice : pricing.yearlyPrice;

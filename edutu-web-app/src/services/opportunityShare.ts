@@ -56,49 +56,28 @@ function slugify(value: string, fallback = "edutu-opportunity"): string {
 }
 
 function formatShareDeadline(value?: string | null): string {
-  if (!value) return "Not Specified";
+  if (!value) return "Not specified";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return truncateText(normalizeText(value, "Not Specified"), 80);
+    return truncateText(normalizeText(value, "Not specified"), 80);
   }
 
-  return date.toLocaleDateString("en-US", {
-    month: "long",
+  // Day-month-year (e.g. "31 July 2026") to match Edutu's audience.
+  return date.toLocaleDateString("en-GB", {
     day: "numeric",
+    month: "long",
     year: "numeric",
   });
 }
 
-function isExpired(value?: string | null): boolean {
-  if (!value) return false;
-  const date = new Date(value);
-  return !Number.isNaN(date.getTime()) && date.getTime() < Date.now();
-}
-
-function getEligibleCountry(opportunity: Opportunity): string {
-  const countries = Array.isArray(opportunity.eligibility?.countries)
-    ? opportunity.eligibility.countries
-        .map((country) => normalizeText(String(country)))
-        .filter(Boolean)
-    : [];
-
-  if (countries.length > 0) {
-    return countries.length > 3
-      ? `${countries.slice(0, 3).join(", ")} +${countries.length - 3}`
-      : countries.join(", ");
-  }
-
-  return normalizeText(opportunity.location, "All Countries");
-}
-
-function getShareBenefits(opportunity: Opportunity): string[] {
+function getShareGains(opportunity: Opportunity): string[] {
   const benefits = Array.isArray(opportunity.benefits)
     ? opportunity.benefits
-        .map((benefit) => truncateText(normalizeText(benefit), 90))
+        .map((benefit) => truncateText(normalizeText(benefit), 120))
         .filter(Boolean)
     : [];
 
-  return benefits.slice(0, 2);
+  return benefits.slice(0, 5);
 }
 
 function concatBytes(parts: Uint8Array[]): Uint8Array {
@@ -206,7 +185,11 @@ async function canvasToBlob(
 }
 
 export function buildOpportunityShareUrl(opportunityId: string): string {
-  const path = `/share/opportunity/${encodeURIComponent(opportunityId)}`;
+  // Point at the canonical opportunity page — the route the Netlify OG edge
+  // function unfurls with the real title, summary and source flyer image. The
+  // backend returns this same shape; keeping the fallback aligned means an
+  // offline/no-card share still produces a rich WhatsApp preview.
+  const path = `/opportunity/${encodeURIComponent(opportunityId)}`;
 
   return toAbsoluteUrl(path);
 }
@@ -234,37 +217,37 @@ export function buildOpportunityShareText(
   shareUrl: string,
 ): string {
   const title = normalizeText(opportunity.title, "Edutu opportunity");
-  const sponsor = normalizeText(opportunity.organization, "Edutu");
-  const category = normalizeText(opportunity.category, "Opportunity");
-  const statusLine = isExpired(opportunity.deadline)
-    ? "Deadline Passed"
-    : "Still Active";
-  const benefits = getShareBenefits(opportunity);
-  const benefitLines = (
-    benefits.length > 0 ? benefits : ["Full details available on Edutu"]
-  )
-    .map((benefit) => `- ${benefit}`)
-    .join("\n");
+  const summary = truncateText(
+    normalizeText(opportunity.summary || opportunity.description),
+    320,
+  );
+  const type = normalizeText(opportunity.category, "");
+  const deadline = formatShareDeadline(opportunity.deadline);
+  const gains = getShareGains(opportunity);
 
-  return [
-    `${statusLine}!`,
-    "",
-    title,
-    "",
-    `Sponsor: ${sponsor}`,
-    "",
-    "Benefits:",
-    benefitLines,
-    "",
-    `Category: ${category}`,
-    `Eligible Country: ${getEligibleCountry(opportunity)}`,
-    `Deadline: ${formatShareDeadline(opportunity.deadline)}`,
-    "",
-    "Open the link below to view the preview.",
-    shareUrl,
-    "",
-    "Share this with anyone who needs the link.",
-  ].join("\n");
+  const lines: string[] = [`*${title}*`];
+
+  if (summary) {
+    lines.push("", `_${summary}_`);
+  }
+
+  const facts: string[] = [];
+  if (type) facts.push(`- *Type:* ${type}`);
+  facts.push(`- *Deadline:* ${deadline}`);
+  lines.push("", ...facts);
+
+  if (gains.length > 0) {
+    lines.push(
+      "",
+      "*What You'll Gain:*",
+      "",
+      ...gains.map((gain) => `- ${gain}`),
+    );
+  }
+
+  lines.push("", "*Apply here:*", "", shareUrl);
+
+  return lines.join("\n");
 }
 
 export function buildWhatsAppShareUrl(message: string): string {

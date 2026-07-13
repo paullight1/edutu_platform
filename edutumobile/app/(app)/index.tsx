@@ -36,6 +36,7 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-g
 import * as Haptics from "expo-haptics";
 import { supabase } from "../../lib/supabase";
 import { useOpportunities } from "@edutu/core/src/hooks/useOpportunities";
+import { useProfileCompleteness } from "@edutu/core/src/hooks/useProfileCompleteness";
 import { Opportunity } from "@edutu/core/src/types/opportunity";
 import { toSafeUUID } from "@edutu/core/src/utils/auth";
 import { recordOpportunitySignal, type DismissReason } from "@edutu/core/src/services/opportunitySignals";
@@ -1211,13 +1212,35 @@ function BestShotCard({ item, isDark, textPrimary, textSecondary, onPress, index
 
 // Empty state for Best Shots: a dashed "reserved slot" that previews the real
 // BestShotCard (ghost match badge + ghost title lines) so the section shows
-// what completing the profile unlocks instead of a generic notice. The ghost
-// rows breathe slowly — "still forming" — unless the OS asks for reduced motion.
-function BestShotEmptySlot({ isDark, textSecondary, onCompleteProfile }: {
+// what's coming instead of a generic notice. The ghost rows breathe slowly —
+// "still forming" — unless the OS asks for reduced motion.
+//
+// Two variants, because an empty slot means two different things:
+//   • 'incomplete' — profile isn't filled in, so we can't score matches yet.
+//     Ask the user to complete their profile.
+//   • 'searching'  — profile is complete but nothing has cleared the match bar
+//     yet. Don't tell them to "complete their profile" (they already did);
+//     point them at the recommendations below while we keep looking.
+function BestShotEmptySlot({ isDark, textSecondary, variant, onCompleteProfile, onBrowse }: {
     isDark: boolean;
     textSecondary: string;
+    variant: 'incomplete' | 'searching';
     onCompleteProfile: () => void;
+    onBrowse: () => void;
 }) {
+    const isSearching = variant === 'searching';
+    const emptyTitle = isSearching
+        ? "Still finding your best shot"
+        : "Your strongest match lands here";
+    const emptyDesc = isSearching
+        ? "Nothing's cleared the bar yet. Browse your recommendations below while we track down a stronger fit."
+        : "Complete your profile and we'll surface the few you can actually win.";
+    const ctaLabel = isSearching ? "Browse opportunities" : "Complete profile";
+    const onPress = isSearching ? onBrowse : onCompleteProfile;
+    const a11yLabel = isSearching
+        ? "Browse opportunities while we find your best shot"
+        : "Complete your profile to unlock your best shots";
+
     const reduceMotion = useReducedMotion();
     const pulse = useSharedValue(0.9);
 
@@ -1232,9 +1255,9 @@ function BestShotEmptySlot({ isDark, textSecondary, onCompleteProfile }: {
 
     return (
         <AnimatedPressable
-            onPress={onCompleteProfile}
+            onPress={onPress}
             accessibilityRole="button"
-            accessibilityLabel="Complete your profile to unlock your best shots"
+            accessibilityLabel={a11yLabel}
             style={[styles.bestShotEmptyCard, {
                 backgroundColor: isDark ? 'rgba(99,102,241,0.06)' : '#F7F7FF',
                 borderColor: isDark ? 'rgba(99,102,241,0.32)' : 'rgba(99,102,241,0.35)',
@@ -1263,40 +1286,34 @@ function BestShotEmptySlot({ isDark, textSecondary, onCompleteProfile }: {
             <View style={[styles.bestShotEmptyDivider, { backgroundColor: isDark ? 'rgba(148,163,184,0.16)' : 'rgba(30,41,59,0.08)' }]} />
 
             <Text style={[styles.bestShotEmptyTitle, { color: isDark ? '#F1F5F9' : '#1E293B' }]} maxFontSizeMultiplier={1.3}>
-                Your strongest match lands here
+                {emptyTitle}
             </Text>
             <Text style={[styles.bestShotEmptyDesc, { color: textSecondary }]} numberOfLines={2} maxFontSizeMultiplier={1.3}>
-                Complete your profile and we'll surface the few you can actually win.
+                {emptyDesc}
             </Text>
 
             <View style={[styles.bestShotEmptyBtn, { backgroundColor: isDark ? '#6366F1' : '#4F46E5' }]}>
-                <Text style={styles.bestShotEmptyBtnText} maxFontSizeMultiplier={1.2}>Complete profile</Text>
+                <Text style={styles.bestShotEmptyBtnText} maxFontSizeMultiplier={1.2}>{ctaLabel}</Text>
                 <ChevronRight size={15} color="#FFFFFF" strokeWidth={2.5} />
             </View>
         </AnimatedPressable>
     );
 }
 
-function BestShotsSection({ opportunities, loading, isDark, textPrimary, textSecondary, onOpen, onCompleteProfile, getAuthToken }: {
-    opportunities: Opportunity[];
+function BestShotsSection({ bestShots, loading, profileComplete, isDark, textPrimary, textSecondary, onOpen, onCompleteProfile, onBrowse, getAuthToken }: {
+    bestShots: Opportunity[];
     loading: boolean;
+    profileComplete: boolean;
     isDark: boolean;
     textPrimary: string;
     textSecondary: string;
     onOpen: (item: Opportunity) => void;
     onCompleteProfile: () => void;
+    onBrowse: () => void;
     getAuthToken?: () => Promise<string | null | undefined>;
 }) {
-    const bestShots = useMemo(
-        () => opportunities
-            .filter((o) => Math.round(o.match ?? 0) >= BEST_SHOT_MIN_MATCH)
-            .sort((a, b) => (b.match ?? 0) - (a.match ?? 0))
-            .slice(0, 3),
-        [opportunities],
-    );
-
-    // While the feed is still loading, don't flash the "complete your profile"
-    // empty state — wait for real data before rendering anything.
+    // While the feed is still loading, don't flash the empty state — wait for
+    // real data before rendering anything.
     if (loading && bestShots.length === 0) return null;
 
     return (
@@ -1347,7 +1364,9 @@ function BestShotsSection({ opportunities, loading, isDark, textPrimary, textSec
                 <BestShotEmptySlot
                     isDark={isDark}
                     textSecondary={textSecondary}
+                    variant={profileComplete ? 'searching' : 'incomplete'}
                     onCompleteProfile={onCompleteProfile}
+                    onBrowse={onBrowse}
                 />
             )}
         </Animated.View>
@@ -1491,6 +1510,12 @@ export default function Dashboard() {
         onSyncSnapshot: syncOpportunityWidget,
     });
 
+    // Profile completeness drives the Best Shots empty state: an empty slot with
+    // an incomplete profile means "we can't score you yet"; with a complete
+    // profile it means "we just haven't found a strong match yet" — two very
+    // different messages.
+    const { completeness: profileCompleteness } = useProfileCompleteness(supabase, user?.id ?? null);
+
     // "Not interested" target — long-press on a card opens the typed-reason
     // sheet; the chosen reason routes differently in the ranking engine.
     const [dismissTarget, setDismissTarget] = useState<Opportunity | null>(null);
@@ -1503,15 +1528,28 @@ export default function Dashboard() {
         noteDismissed(target.id);
     }, [dismissTarget, user?.id, getToken, noteDismissed]);
 
+    // Your Best Shots — the winnable few (match >= 60). Computed here rather
+    // than inside BestShotsSection so the Recommended grid below can exclude
+    // these exact ids and the same card never shows up twice on the home screen.
+    const bestShots = useMemo(
+        () => opportunities
+            .filter((o) => Math.round(o.match ?? 0) >= BEST_SHOT_MIN_MATCH)
+            .sort((a, b) => (b.match ?? 0) - (a.match ?? 0))
+            .slice(0, 3),
+        [opportunities],
+    );
+    const bestShotIds = useMemo(() => new Set(bestShots.map((o) => o.id)), [bestShots]);
+
     // Featured: swipeable auto-scrolling rail, max 10
     const featuredOpportunities = useMemo(() => {
         return opportunities.filter(o => o.featured).slice(0, 10);
     }, [opportunities]);
 
-    // Other Recommended: max 10
+    // Other Recommended: the ranked feed minus anything already surfaced as a
+    // Best Shot, so the two sections never duplicate cards. Max 10.
     const otherOpportunities = useMemo(() => {
-        return opportunities.slice(0, 10);
-    }, [opportunities]);
+        return opportunities.filter((o) => !bestShotIds.has(o.id)).slice(0, 10);
+    }, [opportunities, bestShotIds]);
 
     const toggleBookmark = async (opportunityId: string) => {
         if (!user) return;
@@ -1679,8 +1717,9 @@ export default function Dashboard() {
 
                 {/* Your Best Shots — the winnable few, above the general feed */}
                 <BestShotsSection
-                    opportunities={opportunities}
+                    bestShots={bestShots}
                     loading={opportunitiesLoading}
+                    profileComplete={profileCompleteness.isComplete}
                     isDark={isDark}
                     textPrimary={textPrimary}
                     textSecondary={textSecondary}
@@ -1689,6 +1728,7 @@ export default function Dashboard() {
                         router.push(`/opportunities/${item.id}`);
                     }}
                     onCompleteProfile={() => router.push('/profile')}
+                    onBrowse={() => router.push('/opportunities')}
                     getAuthToken={getToken}
                 />
 

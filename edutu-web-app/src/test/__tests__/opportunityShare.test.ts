@@ -31,25 +31,25 @@ describe("opportunityShare helpers", () => {
 
   it("builds a public share URL on the current origin", () => {
     expect(buildOpportunityShareUrl(opportunity.id)).toContain(
-      "/share/opportunity/opp-123",
+      "/opportunity/opp-123",
     );
     expect(buildOpportunityShareUrl(opportunity.id)).toMatch(/^https?:\/\//);
   });
 
-  it("builds a WhatsApp-friendly share message with the public portal link", () => {
+  it("builds a WhatsApp-markdown share message with the public portal link", () => {
     const shareUrl = buildOpportunityShareUrl(opportunity.id);
     const message = buildOpportunityShareText(opportunity, shareUrl);
 
-    expect(message).toContain("Still Active!");
-    expect(message).toContain("Global Leadership Fellowship");
-    expect(message).toContain("Sponsor: Edutu Foundation");
-    expect(message).toContain("Benefits:");
-    expect(message).toContain("- Full details available on Edutu");
-    expect(message).toContain("Category: Fellowship");
-    expect(message).toContain("Eligible Country: Worldwide");
-    expect(message).toContain("Open the link below to view the preview.");
+    expect(message.startsWith("*Global Leadership Fellowship*")).toBe(true);
+    expect(message).toContain(
+      "_A fully funded leadership fellowship for emerging builders",
+    );
+    expect(message).toContain("- *Type:* Fellowship");
+    expect(message).toContain("- *Deadline:* 1 August 2026");
+    // No benefits on this fixture → no hollow "What You'll Gain" heading.
+    expect(message).not.toContain("*What You'll Gain:*");
+    expect(message).toContain("*Apply here:*");
     expect(message).toContain(shareUrl);
-    expect(message).toContain("Share this with anyone who needs the link.");
   });
 
   it("creates safe filenames for share assets", () => {

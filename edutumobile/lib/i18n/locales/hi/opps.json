@@ -283,7 +283,13 @@
       "howToApply": "अप्लाई कैसे करें",
       "applyStep": "{{number}}.  {{step}}",
       "discoverMore": "और अवसर खोजें",
-      "footerSub": "व्यक्तिगत मैच, रोडमैप और डेडलाइन रिमाइंडर"
+      "footerSub": "व्यक्तिगत मैच, रोडमैप और डेडलाइन रिमाइंडर",
+      "typeLabel": "प्रकार",
+      "durationLabel": "अवधि",
+      "audienceLabel": "लक्षित दर्शक",
+      "deadlineLabel": "डेडलाइन",
+      "whatYouGain": "आपको क्या मिलेगा",
+      "applyHere": "यहाँ आवेदन करें"
     }
   },
   "saved": {

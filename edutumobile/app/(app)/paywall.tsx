@@ -39,7 +39,9 @@ import {
 const USE_NATIVE_IAP = Platform.OS === 'ios';
 import {
   DEFAULT_PRICING,
+  DEFAULT_PAYWALL_CONTENT,
   type PricingConfig,
+  type PaywallContent,
   type BillingPlan,
   effectivePrice,
   hasPromoDiscount,
@@ -66,6 +68,11 @@ export default function PaywallScreen() {
 
   const [selectedPlan, setSelectedPlan] = useState<BillingPlan>('weekly');
   const [pricing, setPricing] = useState<PricingConfig>(DEFAULT_PRICING);
+  // Admin-controlled design + copy overrides (mobile-control config). Empty
+  // fields fall back to the built-in translated copy below.
+  const [paywall, setPaywall] = useState<PaywallContent>(DEFAULT_PAYWALL_CONTENT);
+  // Once the user taps a plan, the admin's default plan must not override it.
+  const userPickedPlanRef = useRef(false);
   // Real opportunity posters (Mastercard Foundation, scholarships, country
   // programs…) from the offline snapshot — the collage sells what Pro unlocks.
   const [heroImages, setHeroImages] = useState<string[]>([]);
@@ -107,12 +114,18 @@ export default function PaywallScreen() {
   // otherwise fall back to the web checkout so the button is never a dead end.
   const iapActive = USE_NATIVE_IAP && Boolean(selectedPackage);
 
-  // Admin-controlled prices/currency/promo (mobile-control config). Falls back
-  // to DEFAULT_PRICING if the feed is unreachable, so the paywall always works.
+  // Admin-controlled prices/currency/promo + paywall design/copy (mobile-
+  // control config). Falls back to defaults if the feed is unreachable, so the
+  // paywall always works.
   useEffect(() => {
     let cancelled = false;
     fetchMobileControlConfig()
-      .then((config) => { if (!cancelled) setPricing(config.pricing); })
+      .then((config) => {
+        if (cancelled) return;
+        setPricing(config.pricing);
+        setPaywall(config.paywall);
+        if (!userPickedPlanRef.current) setSelectedPlan(config.paywall.defaultPlan);
+      })
       .catch(() => { /* keep defaults */ });
     return () => { cancelled = true; };
   }, []);
@@ -235,13 +248,17 @@ export default function PaywallScreen() {
   const planLabel = (plan: BillingPlan) =>
     plan === 'weekly' ? t('paywall.weekly') : plan === 'monthly' ? t('paywall.monthly') : t('paywall.yearly');
 
+  // Admin override wins when set; otherwise the built-in translated copy.
+  const copy = (override: string, fallback: string) => override || fallback;
+  const accent = paywall.accentColor || ACCENT;
+
   // Reference-style merchandising chips above each plan.
   const planBadge = (plan: BillingPlan) =>
     plan === 'weekly'
-      ? t('paywall.badgeMostTaken')
+      ? copy(paywall.badgeWeekly, t('paywall.badgeMostTaken'))
       : plan === 'monthly'
-        ? t('paywall.badgePopular')
-        : t('paywall.badgeBestDeal');
+        ? copy(paywall.badgeMonthly, t('paywall.badgePopular'))
+        : copy(paywall.badgeYearly, t('paywall.badgeBestDeal'));
 
   // Everything compared on one axis: what the plan costs per week.
   const perWeekOf = (plan: BillingPlan) => {
@@ -274,7 +291,7 @@ export default function PaywallScreen() {
   // the near-black canvas where the copy, plan cards, and CTA live.
   const tileWidth = screenWidth * 0.42;
   const tileHeight = screenWidth * 0.36;
-  const collage = heroImages.length >= 3 && (
+  const collage = paywall.heroStyle !== 'gradient' && heroImages.length >= 3 && (
     <View style={styles.collageWrap} pointerEvents="none">
       <View
         style={[
@@ -358,17 +375,33 @@ export default function PaywallScreen() {
 
         {/* Two-tone headline over the collage */}
         <View style={styles.headline}>
-          <Text style={[styles.headlineLine, { color: ACCENT }]}>
-            {isPro ? t('paywall.premiumIsActive') : t('paywall.heroLine1')}
+          <Text style={[styles.headlineLine, { color: accent }]}>
+            {isPro ? t('paywall.premiumIsActive') : copy(paywall.heroLine1, t('paywall.heroLine1'))}
           </Text>
-          {!isPro && <Text style={[styles.headlineLine, { color: '#FFFFFF' }]}>{t('paywall.heroLine2')}</Text>}
+          {!isPro && (
+            <Text style={[styles.headlineLine, { color: '#FFFFFF' }]}>
+              {copy(paywall.heroLine2, t('paywall.heroLine2'))}
+            </Text>
+          )}
         </View>
         <Text style={styles.subtitle} numberOfLines={2}>
-          {isPro ? t('paywall.heroActive') : t('paywall.heroUpsell')}
+          {isPro ? t('paywall.heroActive') : copy(paywall.subtitle, t('paywall.heroUpsell'))}
         </Text>
 
         {!isPro ? (
           <>
+            {/* Optional admin-set benefit bullets */}
+            {paywall.features.length > 0 && (
+              <View style={styles.featureList}>
+                {paywall.features.map((feature) => (
+                  <View key={feature} style={styles.featureRow}>
+                    <Check size={13} color={accent} strokeWidth={3} />
+                    <Text style={styles.featureText} numberOfLines={1}>{feature}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
             {/* Plan cards — reference layout: chip / name / price pill / per-week */}
             <View style={styles.planRow}>
               {(['monthly', 'weekly', 'yearly'] as BillingPlan[]).map((plan) => {
@@ -378,12 +411,16 @@ export default function PaywallScreen() {
                 return (
                   <TouchableOpacity
                     key={plan}
-                    onPress={() => setSelectedPlan(plan)}
+                    onPress={() => {
+                      userPickedPlanRef.current = true;
+                      setSelectedPlan(plan);
+                    }}
                     activeOpacity={0.85}
                     style={[
                       styles.planCard,
                       active && styles.planCardActive,
-                      { borderColor: active ? ACCENT : CARD_BORDER },
+                      active && { shadowColor: accent },
+                      { borderColor: active ? accent : CARD_BORDER },
                     ]}
                     accessibilityRole="button"
                     accessibilityState={{ selected: active }}
@@ -395,14 +432,14 @@ export default function PaywallScreen() {
                       </View>
                     )}
                     {active && (
-                      <View style={styles.planCheckBadge}>
+                      <View style={[styles.planCheckBadge, { backgroundColor: accent }]}>
                         <Check size={11} color={CANVAS} strokeWidth={3.4} />
                       </View>
                     )}
                     <View
                       style={[
                         styles.planBadgeChip,
-                        active ? { backgroundColor: ACCENT } : { backgroundColor: 'rgba(255,255,255,0.08)' },
+                        active ? { backgroundColor: accent } : { backgroundColor: 'rgba(255,255,255,0.08)' },
                       ]}
                     >
                       <Text
@@ -446,12 +483,14 @@ export default function PaywallScreen() {
               {(redirecting || purchasing) ? (
                 <ActivityIndicator color={CANVAS} />
               ) : (
-                <Text style={styles.ctaText}>{t('paywall.subscribe')}</Text>
+                <Text style={styles.ctaText}>{copy(paywall.ctaLabel, t('paywall.subscribe'))}</Text>
               )}
             </TouchableOpacity>
 
+            {/* iOS IAP keeps the fixed renewal disclosure (App Store rules);
+                only the web-checkout note is admin-overridable. */}
             <Text style={styles.secureNote} numberOfLines={2}>
-              {iapActive ? t('paywall.renewalNote') : t('paywall.secureNote')}
+              {iapActive ? t('paywall.renewalNote') : copy(paywall.secureNote, t('paywall.secureNote'))}
             </Text>
 
             <View style={styles.legalRow}>
@@ -547,6 +586,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     marginBottom: 20,
   },
+
+  // ── Admin-set benefit bullets ──
+  featureList: { alignSelf: 'center', gap: 6, marginTop: -8, marginBottom: 18, paddingHorizontal: 12 },
+  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  featureText: { color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: '600' },
 
   // ── Plan cards ──
   planRow: { flexDirection: 'row', gap: 9, marginBottom: 18, alignItems: 'flex-end' },

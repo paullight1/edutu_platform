@@ -42,61 +42,85 @@ function toStringArray(value: unknown): string[] {
 
 function formatDeadline(value: unknown): string {
   const raw = cleanText(value);
-  if (!raw) return "Not Specified";
+  if (!raw) return "Not specified";
 
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) {
     return truncateText(raw, 80);
   }
 
-  return date.toLocaleDateString("en-US", {
-    month: "long",
+  // Day-month-year (e.g. "31 July 2026") — the format Edutu's audience reads.
+  return date.toLocaleDateString("en-GB", {
     day: "numeric",
+    month: "long",
     year: "numeric",
   });
 }
 
-function isExpired(value: unknown): boolean {
-  const raw = cleanText(value);
-  if (!raw) return false;
-  const date = new Date(raw);
-  return !Number.isNaN(date.getTime()) && date.getTime() < Date.now();
-}
-
-function getEligibleCountry(opportunity: OpportunityRecord): string {
+function getSummary(opportunity: OpportunityRecord): string {
   const metadata = asRecord(opportunity.metadata);
-  const eligibility = asRecord(opportunity.eligibility ?? metadata.eligibility);
-  const countries = toStringArray(eligibility.countries);
-
-  if (countries.length > 0) {
-    return countries.length > 3
-      ? `${countries.slice(0, 3).join(", ")} +${countries.length - 3}`
-      : countries.join(", ");
-  }
-
-  return (
-    cleanText(eligibility.nationality) ||
-    cleanText(opportunity.target_region ?? metadata.target_region) ||
-    cleanText(opportunity.location) ||
-    "All Countries"
+  const raw = cleanText(
+    opportunity.aiSummary ||
+      opportunity.ai_summary ||
+      opportunity.refined_summary ||
+      opportunity.summary ||
+      metadata.summary ||
+      opportunity.description,
   );
+  return truncateText(raw, 320);
 }
 
-function getBenefits(opportunity: OpportunityRecord): string[] {
+function getOpportunityType(opportunity: OpportunityRecord): string {
   const metadata = asRecord(opportunity.metadata);
-  const benefits = toStringArray(
-    opportunity.benefits ??
-      metadata.benefits ??
-      opportunity.funding_type ??
+  return cleanText(
+    opportunity.opportunity_type ||
+      opportunity.type ||
+      metadata.opportunity_type ||
+      metadata.type ||
+      opportunity.category ||
+      opportunity.canonical_category ||
+      opportunity.funding_type ||
       metadata.funding_type,
   );
+}
+
+function getDuration(opportunity: OpportunityRecord): string {
+  const metadata = asRecord(opportunity.metadata);
+  return cleanText(
+    opportunity.duration ||
+      opportunity.program_duration ||
+      metadata.duration ||
+      metadata.program_duration ||
+      metadata.length,
+  );
+}
+
+function getTargetAudience(opportunity: OpportunityRecord): string {
+  const metadata = asRecord(opportunity.metadata);
+  const eligibility = asRecord(opportunity.eligibility ?? metadata.eligibility);
+  return truncateText(
+    cleanText(
+      opportunity.target_audience ||
+        opportunity.audience ||
+        metadata.target_audience ||
+        metadata.audience ||
+        eligibility.audience ||
+        eligibility.target_audience,
+    ),
+    160,
+  );
+}
+
+function getGains(opportunity: OpportunityRecord): string[] {
+  const metadata = asRecord(opportunity.metadata);
+  const benefits = toStringArray(opportunity.benefits ?? metadata.benefits);
   const funding = cleanText(opportunity.funding_type ?? metadata.funding_type);
-  const merged = funding ? [funding, ...benefits] : benefits;
+  const merged = benefits.length > 0 ? benefits : funding ? [funding] : [];
 
   return Array.from(new Set(merged))
-    .map((benefit) => truncateText(benefit, 90))
+    .map((benefit) => truncateText(benefit, 120))
     .filter(Boolean)
-    .slice(0, 2);
+    .slice(0, 5);
 }
 
 export function buildOpportunityPublicShareUrl(
@@ -115,47 +139,51 @@ export function buildOpportunityPublicShareUrl(
   }
 }
 
+/**
+ * WhatsApp-native share caption. Uses WhatsApp markdown (*bold*, _italic_,
+ * "- " bullets) so the message renders as a clean, scannable card in chat.
+ *
+ * Every optional field is conditional — a line only appears when the
+ * opportunity actually carries that data, so we never ship an empty
+ * "Duration:" row or a hollow "What You'll Gain:" heading.
+ */
 export function buildOpportunityShareText(
   opportunity: OpportunityRecord,
   shareUrl: string,
 ): string {
   const title = cleanText(opportunity.title, "Edutu Opportunity");
-  const sponsor = cleanText(
-    opportunity.organization || opportunity.source,
-    "Edutu",
+  const summary = getSummary(opportunity);
+  const type = getOpportunityType(opportunity);
+  const duration = getDuration(opportunity);
+  const audience = getTargetAudience(opportunity);
+  const deadline = formatDeadline(
+    opportunity.close_date || opportunity.deadline,
   );
-  const category = cleanText(
-    opportunity.category || opportunity.canonical_category,
-    "Opportunity",
-  );
-  const deadlineValue = opportunity.close_date || opportunity.deadline;
-  const statusLine = isExpired(deadlineValue)
-    ? "Deadline Passed"
-    : "Still Active";
-  const benefits = getBenefits(opportunity);
-  const benefitLines = (
-    benefits.length > 0 ? benefits : ["Full details available on Edutu"]
-  )
-    .map((benefit, index) => `${index === 0 ? "⭐" : "✅"}${benefit}`)
-    .join("\n");
+  const gains = getGains(opportunity);
 
-  return [
-    `${statusLine}!`,
-    "",
-    title,
-    "",
-    `Sponsor: ${sponsor}`,
-    "",
-    "Benefits:",
-    benefitLines,
-    "",
-    `Category: ${category}`,
-    `Eligible Country: ${getEligibleCountry(opportunity)}`,
-    `Deadline: ${formatDeadline(deadlineValue)}`,
-    "",
-    "Click the link below to apply📌",
-    shareUrl,
-    "",
-    "Kindly share with your friends who might be interested.",
-  ].join("\n");
+  const lines: string[] = [`*${title}*`];
+
+  if (summary) {
+    lines.push("", `_${summary}_`);
+  }
+
+  const facts: string[] = [];
+  if (type) facts.push(`- *Type:* ${type}`);
+  if (duration) facts.push(`- *Duration:* ${duration}`);
+  if (audience) facts.push(`- *Target Audience:* ${audience}`);
+  facts.push(`- *Deadline:* ${deadline}`);
+  lines.push("", ...facts);
+
+  if (gains.length > 0) {
+    lines.push(
+      "",
+      "*What You'll Gain:*",
+      "",
+      ...gains.map((gain) => `- ${gain}`),
+    );
+  }
+
+  lines.push("", "*Apply here:*", "", shareUrl);
+
+  return lines.join("\n");
 }

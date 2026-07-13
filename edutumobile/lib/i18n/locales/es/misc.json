@@ -599,6 +599,12 @@
         "deadline": "Fecha límite: {{deadline}}",
         "applyCta": "Haz clic en el enlace de abajo para aplicar📌",
         "shareWithFriends": "Compártelo con tus amigos que puedan estar interesados.",
-        "dialogTitle": "Compartir oportunidad"
+        "dialogTitle": "Compartir oportunidad",
+        "typeLabel": "Tipo",
+        "durationLabel": "Duración",
+        "audienceLabel": "Público objetivo",
+        "deadlineLabel": "Fecha límite",
+        "whatYouGain": "Lo que obtendrás",
+        "applyHere": "Postula aquí"
     }
 }

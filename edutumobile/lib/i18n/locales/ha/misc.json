@@ -599,6 +599,12 @@
         "deadline": "Wa'adi: {{deadline}}",
         "applyCta": "Danna hanyar haɗin da ke ƙasa don nema📌",
         "shareWithFriends": "Da fatan za a raba wa abokanka da wataƙila suke da sha'awa.",
-        "dialogTitle": "Raba dama"
+        "dialogTitle": "Raba dama",
+        "typeLabel": "Nau'i",
+        "durationLabel": "Tsawon lokaci",
+        "audienceLabel": "Waɗanda ake nufi",
+        "deadlineLabel": "Wa'adi",
+        "whatYouGain": "Abin da za ka samu",
+        "applyHere": "Nema a nan"
     }
 }

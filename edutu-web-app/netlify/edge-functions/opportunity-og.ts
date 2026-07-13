@@ -110,19 +110,20 @@ export default async function handler(request: Request, context: Context) {
         200,
       ) ||
       "Discover scholarships, fellowships and programs with AI-guided roadmaps on Edutu.";
-    // Image priority: our branded share card → the opportunity's own image →
-    // the scraped source page's image (its OG image) → generic Edutu icon.
-    // The third step covers the user's ask: when Edutu has no image of its own,
-    // shares still carry the opportunity page's real picture, not just our icon.
+    // Image priority: the scraped source page's own flyer/poster (its OG image)
+    // → the opportunity's own image → our branded share card → generic Edutu
+    // icon. The real source flyer leads so a shared link unfurls with the bold,
+    // recognisable poster (like the source site itself shows); the branded card
+    // is only a fallback when the opportunity has no picture of its own.
     const brandedCard = clean(card?.shareCard?.url);
     const sourceImage =
       clean(opp.metadata?.source_image_url) ||
       clean(opp.source_image_url || opp.sourceImageUrl);
     const image =
-      brandedCard ||
-      clean(opp.share_image_url || opp.shareImageUrl) ||
-      clean(opp.image_url || opp.imageUrl) ||
       sourceImage ||
+      clean(opp.image_url || opp.imageUrl) ||
+      clean(opp.share_image_url || opp.shareImageUrl) ||
+      brandedCard ||
       DEFAULT_IMAGE;
     const usingBrandedCard = Boolean(brandedCard) && image === brandedCard;
     const pageUrl = `${SITE}/opportunity/${encodeURIComponent(id)}`;

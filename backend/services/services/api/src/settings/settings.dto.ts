@@ -111,6 +111,43 @@ const ProFairUseSchema = z.object({
   dailyActionCredits: z.number().int().min(0).max(1_000_000),
 });
 
+// Admin-controlled paywall design + copy, delivered over the same remote
+// config channel as pricing (public GET /mobile-control/config) so a change
+// reaches installed apps without a store release. Every field defaults to
+// empty = "use the app's built-in translated copy" — a partial edit can never
+// blank the paywall. Kept as its own top-level group (not inside pricing)
+// because older admin clients rebuild the pricing object from known keys on
+// save and would silently strip unknown nested fields.
+const PaywallSettingsSchema = z.object({
+  // Two-line hero headline: line 1 renders in the accent color, line 2 white.
+  heroLine1: z.string().trim().max(80).default(""),
+  heroLine2: z.string().trim().max(80).default(""),
+  subtitle: z.string().trim().max(240).default(""),
+  // Label on the big subscribe button.
+  ctaLabel: z.string().trim().max(60).default(""),
+  // Reassurance line under the CTA (web-checkout flow only; the iOS IAP
+  // renewal disclosure is fixed for App Store compliance).
+  secureNote: z.string().trim().max(300).default(""),
+  // Merchandising chip above each plan card.
+  badgeWeekly: z.string().trim().max(30).default(""),
+  badgeMonthly: z.string().trim().max(30).default(""),
+  badgeYearly: z.string().trim().max(30).default(""),
+  // Optional benefit bullets rendered between the headline and plan cards;
+  // empty = no bullet list (the default reference design).
+  features: z.array(z.string().trim().max(80)).max(6).default([]),
+  // Hex accent for highlights (selected plan, badges); empty = app default.
+  accentColor: z
+    .string()
+    .trim()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .or(z.literal(""))
+    .default(""),
+  // 'collage' = poster mosaic hero; 'gradient' = plain gradient backdrop.
+  heroStyle: z.enum(["collage", "gradient"]).default("collage"),
+  // Plan card pre-selected when the paywall opens.
+  defaultPlan: z.enum(["weekly", "monthly", "yearly"]).default("weekly"),
+});
+
 const PricingSettingsSchema = z.object({
   currency: z.string().trim().min(3).max(4),
   weeklyPrice: z.number().min(0).max(10_000_000).default(2000),
@@ -149,11 +186,13 @@ export const AdminSettingsSchema = z.object({
   // stored value when the group is absent from the payload.
   mobileApp: MobileAppSettingsSchema.optional(),
   pricing: PricingSettingsSchema.optional(),
+  paywall: PaywallSettingsSchema.optional(),
 });
 
 export type ModuleAccess = z.infer<typeof ModuleAccessSchema>;
 export type MobileAppSettings = z.infer<typeof MobileAppSettingsSchema>;
 export type PricingSettings = z.infer<typeof PricingSettingsSchema>;
+export type PaywallSettings = z.infer<typeof PaywallSettingsSchema>;
 
 export type AdminSettingsDto = z.infer<typeof AdminSettingsSchema>;
 
@@ -162,6 +201,7 @@ export type AdminSettingsDto = z.infer<typeof AdminSettingsSchema>;
 type ResolvedAdminSettings = AdminSettingsDto & {
   mobileApp: MobileAppSettings;
   pricing: PricingSettings;
+  paywall: PaywallSettings;
 };
 
 export interface AdminSettingsResponse {
@@ -255,6 +295,21 @@ export const DEFAULT_ADMIN_SETTINGS: ResolvedAdminSettings = {
       yearlyPrice: null,
     },
   },
+  // Empty everywhere = the app renders its own built-in translated copy.
+  paywall: {
+    heroLine1: "",
+    heroLine2: "",
+    subtitle: "",
+    ctaLabel: "",
+    secureNote: "",
+    badgeWeekly: "",
+    badgeMonthly: "",
+    badgeYearly: "",
+    features: [],
+    accentColor: "",
+    heroStyle: "collage",
+    defaultPlan: "weekly",
+  },
 };
 
 export function mergeAdminSettings(value: unknown): ResolvedAdminSettings {
@@ -320,7 +375,13 @@ export function mergeAdminSettings(value: unknown): ResolvedAdminSettings {
         ...(partial.pricing?.promo ?? {}),
       },
     },
-    // mobileApp + pricing are always constructed above; the schema marks them
-    // optional only for inbound payload compatibility.
+    paywall: {
+      ...DEFAULT_ADMIN_SETTINGS.paywall,
+      ...(partial.paywall ?? {}),
+      features:
+        partial.paywall?.features ?? DEFAULT_ADMIN_SETTINGS.paywall.features,
+    },
+    // mobileApp, pricing + paywall are always constructed above; the schema
+    // marks them optional only for inbound payload compatibility.
   }) as ResolvedAdminSettings;
 }

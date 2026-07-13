@@ -599,6 +599,12 @@
         "deadline": "截止日期：{{deadline}}",
         "applyCta": "点击下方链接申请📌",
         "shareWithFriends": "欢迎分享给可能感兴趣的朋友。",
-        "dialogTitle": "分享机会"
+        "dialogTitle": "分享机会",
+        "typeLabel": "类型",
+        "durationLabel": "时长",
+        "audienceLabel": "目标人群",
+        "deadlineLabel": "截止日期",
+        "whatYouGain": "你将获得",
+        "applyHere": "在此申请"
     }
 }

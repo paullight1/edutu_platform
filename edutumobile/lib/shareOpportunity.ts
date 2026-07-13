@@ -40,9 +40,10 @@ function formatShareDeadline(deadline?: string | null): string {
   if (!deadline) return i18n.t('misc:share.rollingDeadline');
   const parsed = new Date(deadline);
   if (Number.isNaN(parsed.getTime())) return deadline;
-  return parsed.toLocaleDateString('en-US', {
-    month: 'long',
+  // Day-month-year (e.g. "31 July 2026") to match Edutu's audience.
+  return parsed.toLocaleDateString('en-GB', {
     day: 'numeric',
+    month: 'long',
     year: 'numeric',
   });
 }
@@ -66,61 +67,51 @@ export function getShareFunding(opportunity: Opportunity): string {
   );
 }
 
-function getShareEligibility(opportunity: Opportunity): string {
-  const eligibility = (opportunity.eligibility || {}) as Record<string, any>;
-  const countries = eligibility.countries;
-  const level = eligibility.level || eligibility.degree || eligibility.education_level;
+/**
+ * WhatsApp-native fallback caption (used only when the backend share-card call
+ * fails — otherwise the backend's canonical shareText ships). Uses WhatsApp
+ * markdown (*bold*, _italic_, "- " bullets); each optional row is conditional
+ * so we never render an empty label.
+ */
+export function buildMobileOpportunityShareText(opportunity: Opportunity): string {
+  const title = cleanShareText(opportunity.title, i18n.t('misc:share.fallbackTitle'));
+  const summary = clampShareText(
+    cleanShareText(opportunity.aiSummary || opportunity.description || '', ''),
+    SHARE_TEXT_LIMITS.summary,
+  );
+  const type = cleanShareText(opportunity.category, '');
+  const duration = cleanShareText(
+    (opportunity as any).duration || (opportunity as any).program_duration || '',
+    '',
+  );
+  const audience = cleanShareText(
+    (opportunity as any).targetAudience || (opportunity as any).target_audience || '',
+    '',
+  );
+  const deadline = formatShareDeadline(opportunity.deadline);
+  const gains = (opportunity.benefits || [])
+    .map((benefit) => clampShareText(cleanShareText(benefit, ''), SHARE_TEXT_LIMITS.section))
+    .filter(Boolean)
+    .slice(0, 5);
 
-  if (Array.isArray(countries) && countries.length > 0) {
-    return countries.length > 3
-      ? `${countries.slice(0, 3).join(', ')} +${countries.length - 3}`
-      : countries.join(', ');
+  const lines: string[] = [`*${title}*`];
+
+  if (summary) lines.push('', `_${summary}_`);
+
+  const facts: string[] = [];
+  if (type) facts.push(`- *${i18n.t('misc:share.typeLabel')}:* ${type}`);
+  if (duration) facts.push(`- *${i18n.t('misc:share.durationLabel')}:* ${duration}`);
+  if (audience) facts.push(`- *${i18n.t('misc:share.audienceLabel')}:* ${audience}`);
+  facts.push(`- *${i18n.t('misc:share.deadlineLabel')}:* ${deadline}`);
+  lines.push('', ...facts);
+
+  if (gains.length > 0) {
+    lines.push('', `*${i18n.t('misc:share.whatYouGain')}:*`, '', ...gains.map((gain) => `- ${gain}`));
   }
 
-  if (typeof countries === 'string') return countries;
-  if (typeof level === 'string') return level;
-  return opportunity.location || i18n.t('misc:share.openEligibility');
-}
+  lines.push('', `*${i18n.t('misc:share.applyHere')}:*`, '', buildOpportunityShareUrl(opportunity.id));
 
-function getShareBullets(items?: string[], fallback?: string, limit = 5): string[] {
-  const cleaned = (items || [])
-    .map((item) => clampShareText(cleanShareText(item, ''), SHARE_TEXT_LIMITS.section))
-    .filter(Boolean);
-
-  if (cleaned.length > 0) return cleaned.slice(0, limit);
-  return fallback
-    ? [clampShareText(cleanShareText(fallback), SHARE_TEXT_LIMITS.section)]
-    : [i18n.t('misc:share.detailsInApp')];
-}
-
-export function buildMobileOpportunityShareText(opportunity: Opportunity): string {
-  const expired = opportunity.deadline
-    ? new Date(opportunity.deadline).getTime() < Date.now()
-    : false;
-  const benefits = getShareBullets(opportunity.benefits, getShareFunding(opportunity), 2);
-  const benefitLines = benefits
-    .map((benefit, index) => `${index === 0 ? '⭐' : '✅'}${benefit}`)
-    .join('\n');
-
-  return [
-    expired ? i18n.t('misc:share.deadlinePassed') : i18n.t('misc:share.stillActive'),
-    '',
-    cleanShareText(opportunity.title, i18n.t('misc:share.fallbackTitle')),
-    '',
-    i18n.t('misc:share.sponsor', { name: cleanShareText(opportunity.organization, 'Edutu') }),
-    '',
-    i18n.t('misc:share.benefits'),
-    benefitLines,
-    '',
-    i18n.t('misc:share.category', { category: cleanShareText(opportunity.category, i18n.t('misc:share.categoryFallback')) }),
-    i18n.t('misc:share.eligibleCountry', { country: getShareEligibility(opportunity) }),
-    i18n.t('misc:share.deadline', { deadline: formatShareDeadline(opportunity.deadline) }),
-    '',
-    i18n.t('misc:share.applyCta'),
-    buildOpportunityShareUrl(opportunity.id),
-    '',
-    i18n.t('misc:share.shareWithFriends'),
-  ].join('\n');
+  return lines.join('\n');
 }
 
 export async function getBackendSharePayload(

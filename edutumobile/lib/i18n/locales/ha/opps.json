@@ -283,7 +283,13 @@
       "howToApply": "YADDA AKE NEMA",
       "applyStep": "{{number}}.  {{step}}",
       "discoverMore": "Binciko ƙarin damammaki",
-      "footerSub": "Damammakin da suka dace da kai, taswirorin hanya da tunatarwar wa'adi"
+      "footerSub": "Damammakin da suka dace da kai, taswirorin hanya da tunatarwar wa'adi",
+      "typeLabel": "Nau'i",
+      "durationLabel": "Tsawon lokaci",
+      "audienceLabel": "Waɗanda ake nufi",
+      "deadlineLabel": "Wa'adi",
+      "whatYouGain": "Abin da za ka samu",
+      "applyHere": "Nema a nan"
     }
   },
   "saved": {

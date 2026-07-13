@@ -12,6 +12,7 @@ import type {
   MobileCampaign,
   MobileControlConfig,
   MobileFeatureFlag,
+  PaywallContentConfig,
   PricingConfig,
   WidgetFeed,
 } from "./mobile-control.types";
@@ -70,11 +71,12 @@ export class MobileControlService {
         this.listActive<WidgetFeed>(TABLES.widgetFeeds).catch(
           () => [] as WidgetFeed[],
         ),
-        // appControl + pricing come from the same admin_settings row — read it
-        // once and derive both (fail-open / defaults on error).
+        // appControl, pricing + paywall come from the same admin_settings row —
+        // read it once and derive all three (fail-open / defaults on error).
         this.getAdminGroups().catch(() => ({
           appControl: OPEN_APP_CONTROL,
           pricing: DEFAULT_ADMIN_SETTINGS.pricing,
+          paywall: DEFAULT_ADMIN_SETTINGS.paywall,
         })),
       ]);
 
@@ -86,6 +88,7 @@ export class MobileControlService {
       widgetFeeds: this.sortByPriority(widgetFeeds),
       appControl: adminGroups.appControl,
       pricing: adminGroups.pricing,
+      paywall: adminGroups.paywall,
       serverTime: new Date().toISOString(),
     };
   }
@@ -93,6 +96,7 @@ export class MobileControlService {
   private async getAdminGroups(): Promise<{
     appControl: AppControlConfig;
     pricing: PricingConfig;
+    paywall: PaywallContentConfig;
   }> {
     const { settings } = await this.settingsService.getSettings();
     const mobileApp = settings.mobileApp;
@@ -119,7 +123,12 @@ export class MobileControlService {
       },
     };
 
-    return { appControl, pricing };
+    const paywall: PaywallContentConfig = {
+      ...DEFAULT_ADMIN_SETTINGS.paywall,
+      ...(settings.paywall ?? {}),
+    };
+
+    return { appControl, pricing, paywall };
   }
 
   async listAdmin<T extends ControlRow>(table: ControlTable): Promise<T[]> {
