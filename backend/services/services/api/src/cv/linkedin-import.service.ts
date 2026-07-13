@@ -360,7 +360,7 @@ export class LinkedInImportService {
 
   /** RFC4180-ish CSV parser: handles quoted fields with embedded commas/newlines. */
   private parseCsv(input: string): Record<string, string>[] {
-    const text = input.replace(/^﻿/, "");
+    const text = input.replace(/^\uFEFF/, "");
     const rows: string[][] = [];
     let row: string[] = [];
     let field = "";
