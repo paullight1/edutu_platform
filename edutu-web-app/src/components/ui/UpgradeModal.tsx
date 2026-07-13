@@ -1,24 +1,71 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Loader2, Sparkles, Zap } from 'lucide-react';
 import { useAuth } from '@clerk/clerk-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './Dialog';
 import { createCheckout } from '../../services/billing';
+import { fetchMobileControlConfig, type RemotePricing } from '../../services/mobileControl';
 
-// Pricing defaults mirror the admin-configured backend values (NGN).
-// The public /mobile-control/config the web app fetches does not expose
-// pricing, so these hardcoded defaults are the display source of truth.
+// Display prices come from the admin-configured pricing group on the public
+// /mobile-control/config (same source as the mobile paywall + pay.edutu.org),
+// so an admin price change shows up here without a redeploy. These hardcoded
+// values are only the fallback while the config loads or if it's unreachable.
 // Actual charge amounts are resolved server-side at checkout.
-const PRO_PLANS: Array<{ plan: 'weekly' | 'monthly' | 'yearly'; label: string; price: string; note?: string }> = [
+const FALLBACK_PLANS: Array<{ plan: 'weekly' | 'monthly' | 'yearly'; label: string; price: string; note?: string }> = [
   { plan: 'weekly', label: 'Pro Weekly', price: '₦2,000' },
   { plan: 'monthly', label: 'Pro Monthly', price: '₦6,500', note: 'Most popular' },
   { plan: 'yearly', label: 'Pro Yearly', price: '₦60,000', note: 'Best value' },
 ];
 
-const CREDIT_PACKS: Array<{ credits: number; price: string }> = [
+const FALLBACK_PACKS: Array<{ credits: number; price: string }> = [
   { credits: 100, price: '₦1,500' },
   { credits: 250, price: '₦3,000' },
   { credits: 700, price: '₦7,000' },
 ];
+
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  NGN: '₦', USD: '$', GHS: '₵', KES: 'KSh', ZAR: 'R',
+  GBP: '£', EUR: '€', UGX: 'USh', TZS: 'TSh', RWF: 'FRw',
+};
+
+function formatMoney(amount: number, currency: string): string {
+  const code = (currency || 'NGN').toUpperCase();
+  const symbol = CURRENCY_SYMBOLS[code] || `${code} `;
+  const formatted = Number.isInteger(amount)
+    ? amount.toLocaleString('en-US')
+    : amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${symbol}${formatted}`;
+}
+
+/** The price actually charged for a plan (active promo override wins). */
+function effectivePrice(pricing: RemotePricing, plan: 'weekly' | 'monthly' | 'yearly'): number {
+  const regular =
+    plan === 'weekly' ? pricing.weeklyPrice : plan === 'monthly' ? pricing.monthlyPrice : pricing.yearlyPrice;
+  if (!pricing.promo?.active) return regular;
+  const override =
+    plan === 'weekly'
+      ? pricing.promo.weeklyPrice
+      : plan === 'monthly'
+        ? pricing.promo.monthlyPrice
+        : pricing.promo.yearlyPrice;
+  return typeof override === 'number' && override >= 0 ? override : regular;
+}
+
+// One fetch per page load — the modal can open repeatedly.
+let pricingPromise: Promise<RemotePricing | null> | null = null;
+function loadRemotePricing(): Promise<RemotePricing | null> {
+  if (!pricingPromise) {
+    pricingPromise = fetchMobileControlConfig()
+      .then((config) => {
+        const pricing = config?.pricing;
+        return pricing && typeof pricing.monthlyPrice === 'number' ? pricing : null;
+      })
+      .catch(() => {
+        pricingPromise = null; // retry on the next open
+        return null;
+      });
+  }
+  return pricingPromise;
+}
 
 export interface UpgradeModalProps {
   open: boolean;
@@ -33,6 +80,37 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, retu
   const { getToken } = useAuth();
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pricing, setPricing] = useState<RemotePricing | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    void loadRemotePricing().then((remote) => {
+      if (!cancelled && remote) setPricing(remote);
+    });
+    return () => { cancelled = true; };
+  }, [open]);
+
+  const proPlans = useMemo(() => {
+    if (!pricing) return FALLBACK_PLANS;
+    return FALLBACK_PLANS.map(({ plan, label, note }) => ({
+      plan,
+      label,
+      note: pricing.promo?.active && pricing.promo.label ? pricing.promo.label : note,
+      price: formatMoney(effectivePrice(pricing, plan), pricing.currency),
+    }));
+  }, [pricing]);
+
+  const creditPacks = useMemo(() => {
+    const packs = pricing?.creditPacks?.filter(
+      (pack) => typeof pack.credits === 'number' && typeof pack.price === 'number',
+    );
+    if (!packs?.length || !pricing) return FALLBACK_PACKS;
+    return packs.slice(0, 3).map((pack) => ({
+      credits: pack.credits,
+      price: formatMoney(pack.price, pricing.currency),
+    }));
+  }, [pricing]);
 
   const startCheckout = async (
     key: string,
@@ -77,7 +155,7 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, retu
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Edutu Pro</h3>
             <div className="mt-2 grid gap-2 sm:grid-cols-3">
-              {PRO_PLANS.map(({ plan, label, price, note }) => (
+              {proPlans.map(({ plan, label, price, note }) => (
                 <button
                   key={plan}
                   type="button"
@@ -101,7 +179,7 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, retu
               Credit packs
             </h3>
             <div className="mt-2 grid gap-2 sm:grid-cols-3">
-              {CREDIT_PACKS.map(({ credits, price }) => (
+              {creditPacks.map(({ credits, price }) => (
                 <button
                   key={credits}
                   type="button"

@@ -19,10 +19,28 @@ export interface MobileCampaign {
   updated_at?: string;
 }
 
+// Admin-controlled display pricing (admin_settings.pricing) served on the
+// public config. Display-only — charge amounts are resolved server-side.
+export interface RemotePricing {
+  currency: string;
+  weeklyPrice: number;
+  monthlyPrice: number;
+  yearlyPrice: number;
+  creditPacks?: Array<{ credits: number; price: number; label?: string }>;
+  promo?: {
+    active: boolean;
+    label: string;
+    weeklyPrice: number | null;
+    monthlyPrice: number | null;
+    yearlyPrice: number | null;
+  };
+}
+
 export interface MobileControlConfig {
   campaigns: MobileCampaign[];
   featureFlags: Array<Record<string, unknown>>;
   widgetFeeds: Array<Record<string, unknown>>;
+  pricing?: RemotePricing;
   serverTime: string;
 }
 

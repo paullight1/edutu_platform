@@ -2,7 +2,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getCachedOpportunitiesSnapshot } from '../packages/core/src/services/opportunities';
 import type { Opportunity } from '../packages/core/src/types/opportunity';
 import { normaliseAppControl, OPEN_APP_CONTROL, type AppControlConfig } from './appControl';
-import { normalisePricing, DEFAULT_PRICING, type PricingConfig } from './pricing';
+import {
+  normalisePricing,
+  DEFAULT_PRICING,
+  normalisePaywallContent,
+  DEFAULT_PAYWALL_CONTENT,
+  type PricingConfig,
+  type PaywallContent,
+} from './pricing';
 import { getConfig } from './config';
 
 export type CampaignType = 'popup' | 'banner' | 'notification' | 'interstitial' | 'announcement';
@@ -64,6 +71,7 @@ export interface MobileControlConfig {
   widgetFeeds: WidgetFeed[];
   appControl: AppControlConfig;
   pricing: PricingConfig;
+  paywall: PaywallContent;
   serverTime: string;
 }
 
@@ -79,6 +87,7 @@ const EMPTY_MOBILE_CONTROL_CONFIG: MobileControlConfig = {
   widgetFeeds: [],
   appControl: OPEN_APP_CONTROL,
   pricing: DEFAULT_PRICING,
+  paywall: DEFAULT_PAYWALL_CONTENT,
   serverTime: new Date(0).toISOString(),
 };
 let hasLoggedMobileControlNetworkError = false;
@@ -171,6 +180,7 @@ function normaliseMobileControlConfig(payload: unknown): MobileControlConfig {
     widgetFeeds: Array.isArray(record.widgetFeeds) ? record.widgetFeeds : [],
     appControl: normaliseAppControl(record.appControl),
     pricing: normalisePricing((record as any).pricing),
+    paywall: normalisePaywallContent((record as any).paywall),
     serverTime: typeof record.serverTime === 'string' ? record.serverTime : new Date().toISOString(),
   };
 }

@@ -1,3 +1,5 @@
+import type { PaywallSettings } from "../settings/settings.dto";
+
 export type JsonRecord = Record<string, unknown>;
 
 export interface MobileCampaign {
@@ -88,12 +90,18 @@ export interface PricingConfig {
   };
 }
 
+// Admin-controlled paywall design + copy (admin_settings.paywall) — same
+// remote-config delivery as pricing, so paywall changes ship without a store
+// release. Empty fields mean "use the app's built-in copy".
+export type PaywallContentConfig = PaywallSettings;
+
 export interface MobileControlConfig {
   campaigns: MobileCampaign[];
   featureFlags: MobileFeatureFlag[];
   widgetFeeds: WidgetFeed[];
   appControl: AppControlConfig;
   pricing: PricingConfig;
+  paywall: PaywallContentConfig;
   serverTime: string;
 }
 

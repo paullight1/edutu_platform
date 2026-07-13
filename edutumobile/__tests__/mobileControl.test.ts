@@ -21,6 +21,7 @@ import {
   OPPORTUNITY_WIDGET_SNAPSHOT_KEY,
   syncOpportunityWidgetSnapshot,
 } from '../lib/mobileControl';
+import { DEFAULT_PAYWALL_CONTENT, normalisePaywallContent } from '../lib/pricing';
 
 const baseCampaign: MobileCampaign = {
   id: 'campaign-1',
@@ -31,6 +32,49 @@ const baseCampaign: MobileCampaign = {
   status: 'active',
   priority: 1,
 };
+
+describe('paywall content normalisation', () => {
+  it('returns defaults for a missing or malformed payload', () => {
+    expect(normalisePaywallContent(undefined)).toEqual(DEFAULT_PAYWALL_CONTENT);
+    expect(normalisePaywallContent('nope')).toEqual(DEFAULT_PAYWALL_CONTENT);
+    expect(normalisePaywallContent({ heroLine1: 42, features: 'x', defaultPlan: 'daily' })).toEqual(
+      DEFAULT_PAYWALL_CONTENT,
+    );
+  });
+
+  it('keeps valid admin overrides and trims text', () => {
+    const content = normalisePaywallContent({
+      heroLine1: '  Big January Bonanza  ',
+      subtitle: 'Everything unlocked',
+      ctaLabel: 'Join now',
+      badgeMonthly: 'Hot',
+      features: ['  Unlimited AI  ', '', 'Premium CVs'],
+      accentColor: '#FF6600',
+      heroStyle: 'gradient',
+      defaultPlan: 'yearly',
+    });
+
+    expect(content.heroLine1).toBe('Big January Bonanza');
+    expect(content.subtitle).toBe('Everything unlocked');
+    expect(content.ctaLabel).toBe('Join now');
+    expect(content.badgeMonthly).toBe('Hot');
+    expect(content.features).toEqual(['Unlimited AI', 'Premium CVs']);
+    expect(content.accentColor).toBe('#FF6600');
+    expect(content.heroStyle).toBe('gradient');
+    expect(content.defaultPlan).toBe('yearly');
+    // Untouched fields stay empty so the app's translated copy is used.
+    expect(content.heroLine2).toBe('');
+  });
+
+  it('drops invalid accent colors and caps the feature list', () => {
+    const content = normalisePaywallContent({
+      accentColor: 'red',
+      features: ['1', '2', '3', '4', '5', '6', '7', '8'],
+    });
+    expect(content.accentColor).toBe('');
+    expect(content.features).toHaveLength(6);
+  });
+});
 
 describe('mobile control campaign selection', () => {
   it('rejects inactive and expired campaigns', () => {
