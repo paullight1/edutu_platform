@@ -1243,61 +1243,63 @@ function BestShotEmptySlot({ isDark, textSecondary, variant, onCompleteProfile, 
         ? "Browse opportunities while we find your best shot"
         : "Complete your profile to unlock your best shots";
 
-    const reduceMotion = useReducedMotion();
-    const pulse = useSharedValue(0.9);
-
-    useEffect(() => {
-        if (reduceMotion) return;
-        pulse.value = withRepeat(withTiming(0.45, { duration: 1400 }), -1, true);
-    }, [pulse, reduceMotion]);
-
-    const ghostStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
-
-    const ghostInk = isDark ? 'rgba(148,163,184,0.22)' : 'rgba(30,41,59,0.10)';
-
     return (
         <AnimatedPressable
             onPress={onPress}
             accessibilityRole="button"
             accessibilityLabel={a11yLabel}
             style={[styles.bestShotEmptyCard, {
-                backgroundColor: isDark ? 'rgba(99,102,241,0.06)' : '#F7F7FF',
-                borderColor: isDark ? 'rgba(99,102,241,0.32)' : 'rgba(99,102,241,0.35)',
+                backgroundColor: isDark ? 'rgba(99,102,241,0.07)' : '#F6F6FE',
+                borderColor: isDark ? 'rgba(129,140,248,0.22)' : 'rgba(99,102,241,0.16)',
             }]}
             entering={FadeInDown.duration(360).springify()}
             hapticFeedback="light"
-            scaleTo={0.98}
+            scaleTo={0.985}
         >
-            <Animated.View style={ghostStyle}>
-                <View style={styles.bestShotGhostRow}>
-                    <View style={[styles.bestShotGhostBadge, { backgroundColor: isDark ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.12)' }]}>
-                        <Sparkles size={10} color={isDark ? '#A5B4FC' : '#4F46E5'} />
-                        <Text style={[styles.bestShotGhostBadgeText, { color: isDark ? '#A5B4FC' : '#4F46E5' }]} maxFontSizeMultiplier={1.2}>
-                            —% match
-                        </Text>
-                    </View>
-                    <View style={styles.bestShotGhostMeta}>
-                        <View style={[styles.bestShotGhostDot, { backgroundColor: ghostInk }]} />
-                        <View style={[styles.bestShotGhostBar, { backgroundColor: ghostInk, width: 34 }]} />
-                    </View>
-                </View>
-                <View style={[styles.bestShotGhostBar, { backgroundColor: ghostInk, width: '74%' }]} />
-                <View style={[styles.bestShotGhostBar, { backgroundColor: ghostInk, width: '46%', marginTop: 7 }]} />
-            </Animated.View>
+            <LinearGradient
+                colors={['#818CF8', '#6366F1']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.bestShotHeroIcon}
+            >
+                <Target size={26} color="#FFFFFF" strokeWidth={2.2} />
+            </LinearGradient>
 
-            <View style={[styles.bestShotEmptyDivider, { backgroundColor: isDark ? 'rgba(148,163,184,0.16)' : 'rgba(30,41,59,0.08)' }]} />
-
-            <Text style={[styles.bestShotEmptyTitle, { color: isDark ? '#F1F5F9' : '#1E293B' }]} maxFontSizeMultiplier={1.3}>
+            <Text style={[styles.bestShotEmptyTitle, { color: isDark ? '#F8FAFC' : '#0F172A' }]} maxFontSizeMultiplier={1.3}>
                 {emptyTitle}
             </Text>
-            <Text style={[styles.bestShotEmptyDesc, { color: textSecondary }]} numberOfLines={2} maxFontSizeMultiplier={1.3}>
+            <Text style={[styles.bestShotEmptyDesc, { color: textSecondary }]} numberOfLines={3} maxFontSizeMultiplier={1.3}>
                 {emptyDesc}
             </Text>
 
-            <View style={[styles.bestShotEmptyBtn, { backgroundColor: isDark ? '#6366F1' : '#4F46E5' }]}>
+            {!isSearching ? (
+                <View style={styles.bestShotBenefitRow}>
+                    {['Fewer picks', 'Higher odds', 'Deadline-safe'].map((label) => (
+                        <View
+                            key={label}
+                            style={[styles.bestShotBenefitChip, { backgroundColor: isDark ? 'rgba(129,140,248,0.14)' : 'rgba(99,102,241,0.09)' }]}
+                        >
+                            <Text
+                                style={[styles.bestShotBenefitText, { color: isDark ? '#C7D2FE' : '#4F46E5' }]}
+                                numberOfLines={1}
+                                maxFontSizeMultiplier={1.15}
+                            >
+                                {label}
+                            </Text>
+                        </View>
+                    ))}
+                </View>
+            ) : null}
+
+            <LinearGradient
+                colors={['#6366F1', '#4F46E5']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.bestShotEmptyBtn}
+            >
                 <Text style={styles.bestShotEmptyBtnText} maxFontSizeMultiplier={1.2}>{ctaLabel}</Text>
-                <ChevronRight size={15} color="#FFFFFF" strokeWidth={2.5} />
-            </View>
+                <ChevronRight size={16} color="#FFFFFF" strokeWidth={2.6} />
+            </LinearGradient>
         </AnimatedPressable>
     );
 }
@@ -2884,70 +2886,70 @@ const styles = StyleSheet.create({
         fontWeight: '800',
     },
     bestShotEmptyCard: {
-        borderWidth: 1.5,
-        borderStyle: 'dashed',
-        borderRadius: 16,
-        padding: 16,
-    },
-    bestShotGhostRow: {
-        flexDirection: 'row',
+        borderWidth: 1,
+        borderRadius: 20,
+        paddingVertical: 24,
+        paddingHorizontal: 18,
         alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 8,
-        marginBottom: 12,
     },
-    bestShotGhostBadge: {
-        flexDirection: 'row',
+    bestShotHeroIcon: {
+        width: 56,
+        height: 56,
+        borderRadius: 18,
         alignItems: 'center',
-        gap: 4,
-        borderRadius: 999,
-        paddingHorizontal: 9,
-        paddingVertical: 4,
-    },
-    bestShotGhostBadgeText: {
-        fontSize: 11,
-        fontWeight: '800',
-    },
-    bestShotGhostMeta: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 5,
-    },
-    bestShotGhostDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-    },
-    bestShotGhostBar: {
-        height: 9,
-        borderRadius: 5,
-    },
-    bestShotEmptyDivider: {
-        height: StyleSheet.hairlineWidth,
-        marginVertical: 14,
+        justifyContent: 'center',
+        marginBottom: 14,
+        shadowColor: '#6366F1',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.35,
+        shadowRadius: 12,
+        elevation: 6,
     },
     bestShotEmptyTitle: {
-        fontSize: 15,
+        fontSize: 16,
         fontWeight: '800',
-        lineHeight: 20,
+        lineHeight: 21,
+        textAlign: 'center',
     },
     bestShotEmptyDesc: {
-        fontSize: 12.5,
-        lineHeight: 18,
-        marginTop: 4,
+        fontSize: 13,
+        lineHeight: 19,
+        marginTop: 6,
+        textAlign: 'center',
+        maxWidth: 300,
+    },
+    bestShotBenefitRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        gap: 6,
+        marginTop: 14,
+    },
+    bestShotBenefitChip: {
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 999,
+    },
+    bestShotBenefitText: {
+        fontSize: 11.5,
+        fontWeight: '700',
+        letterSpacing: 0.1,
     },
     bestShotEmptyBtn: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 3,
-        height: 42,
-        borderRadius: 12,
-        marginTop: 14,
+        gap: 4,
+        height: 50,
+        borderRadius: 14,
+        marginTop: 18,
+        alignSelf: 'stretch',
+        overflow: 'hidden',
     },
     bestShotEmptyBtnText: {
         color: '#FFFFFF',
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: '800',
+        letterSpacing: 0.2,
     },
 });
