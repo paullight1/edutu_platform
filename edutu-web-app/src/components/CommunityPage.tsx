@@ -17,7 +17,6 @@ import PublicHeader from "./PublicHeader";
 import SiteFooter from "./SiteFooter";
 import Seo from "./Seo";
 import CommunityShowcase from "./CommunityShowcase";
-import MeetTheTeam from "./MeetTheTeam";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 28 },
@@ -523,9 +522,6 @@ const CommunityPage: React.FC = () => {
             </div>
           </div>
         </section>
-
-        {/* ── Meet the team ────────────────────────────────────── */}
-        <MeetTheTeam className="border-t border-subtle" />
 
         {/* ── CTA ──────────────────────────────────────────────── */}
         <CommunityShowcase

@@ -1,11 +1,11 @@
 import {
   type ReactNode,
-  lazy,
   Suspense,
   useCallback,
   useEffect,
   useState,
 } from "react";
+import { lazyWithRetry as lazy } from "./lib/lazyWithRetry";
 import {
   Navigate,
   Route,
@@ -50,6 +50,7 @@ const EventsPage = lazy(() => import("./components/EventsPage"));
 const EventDetailPage = lazy(() => import("./components/EventDetailPage"));
 const AboutPage = lazy(() => import("./components/AboutPage"));
 const WhatWeBelievePage = lazy(() => import("./components/WhatWeBelievePage"));
+const ImpactPage = lazy(() => import("./components/ImpactPage"));
 const CommunityPage = lazy(() => import("./components/CommunityPage"));
 const BlogPage = lazy(() => import("./components/BlogPage"));
 const BlogPostPage = lazy(() => import("./components/BlogPostPage"));
@@ -542,6 +543,7 @@ function App() {
       <Route path="/events/:slugOrId" element={<EventDetailPage />} />
       <Route path="/mentor" element={<MentorPage />} />
       <Route path="/about" element={<AboutPage />} />
+      <Route path="/impact" element={<ImpactPage />} />
       <Route path="/what-we-believe" element={<WhatWeBelievePage />} />
       <Route
         path="/beliefs"

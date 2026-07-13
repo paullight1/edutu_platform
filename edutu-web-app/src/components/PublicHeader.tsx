@@ -21,7 +21,7 @@ const docsUrl = getDocsUrl();
 const coreNavItems: NavItem[] = [
   { label: "Opportunities", to: "/opportunities" },
   { label: "Community", to: "/community" },
-  { label: "Mentors", to: "/mentor" },
+  { label: "Impact", to: "/impact" },
   { label: "Blog", to: "/blog" },
 ];
 
@@ -30,6 +30,7 @@ const moreNavItems: NavItem[] = [
   { label: "Docs", to: docsUrl, external: isExternalDocsUrl() },
   { label: "About", to: "/about" },
   { label: "What We Believe", to: "/what-we-believe" },
+  { label: "Mentors", to: "/mentor" },
   { label: "Developers", to: "/developers" },
   { label: "Events", to: "/events" },
 ];

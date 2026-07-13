@@ -9,6 +9,7 @@ import {
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useOpportunities } from '../hooks/useOpportunities';
+import { useCountUp } from '../hooks/useCountUp';
 import { fetchPublishedPosts, formatPostDate, readingTime } from '../services/blog';
 import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
@@ -160,11 +161,37 @@ const testimonials = [
     { quote: 'I went from confused about where to apply to having a focused list of real opportunities.', name: 'Fatima B.', role: 'MSc Candidate', country: 'Nigeria', avatar: 'https://images.pexels.com/photos/762020/pexels-photo-762020.jpeg?auto=compress&cs=tinysrgb&w=160' },
 ];
 
+const homeImpactStats: { value: number; suffix?: string; label: string }[] = [
+    { value: 31, label: 'Countries reached' },
+    { value: 67000, suffix: '+', label: 'Young people reached' },
+    { value: 50000, suffix: '+', label: 'Community members' },
+    { value: 500, suffix: '+', label: 'First-class graduates' },
+];
+
 const SectionEyebrow: React.FC<{ children: React.ReactNode }> = ({ children }) => (
     <span className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">
         {children}
     </span>
 );
+
+const HomeImpactStat: React.FC<{ value: number; suffix?: string; label: string }> = ({
+    value,
+    suffix,
+    label,
+}) => {
+    const { ref, value: current } = useCountUp<HTMLDivElement>(value, { duration: 2000 });
+    return (
+        <div ref={ref}>
+            <div className="font-display text-[32px] font-semibold leading-none tracking-tight text-text-primary sm:text-[40px]">
+                {Math.round(current).toLocaleString()}
+                {suffix}
+            </div>
+            <div className="mt-2 text-[13px] font-medium leading-snug text-text-secondary sm:text-[14px]">
+                {label}
+            </div>
+        </div>
+    );
+};
 
 const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     const { data: opportunities } = useOpportunities();
@@ -430,6 +457,46 @@ const LandingPageV3: React.FC<LandingPageProps> = ({ onGetStarted }) => {
                             .landing-hero { }
                         }
                     `}</style>
+                </section>
+
+                {/* ─── Impact ───────────────────────────────────────────── */}
+                <section className="border-t border-subtle bg-surface-elevated px-4 py-24 sm:px-6">
+                    <div className="mx-auto max-w-[1200px]">
+                        <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-end">
+                            <div className="max-w-2xl">
+                                <SectionEyebrow>Our Impact</SectionEyebrow>
+                                <h2 className="landing-section-title mt-4 font-display text-[34px] font-semibold leading-[1.08] text-text-primary sm:text-[44px]">
+                                    Opportunity, shared across{' '}
+                                    <span className="text-brand">a continent</span>
+                                </h2>
+                                <p className="landing-section-copy mt-4 max-w-[620px] text-[18px] leading-[1.5] text-text-secondary">
+                                    Edutu is closing Africa's opportunity gap with responsible AI. Here's
+                                    the proof — and the stories behind every number.
+                                </p>
+                            </div>
+
+                            <Link
+                                to="/impact"
+                                className="group inline-flex items-center gap-2 self-start rounded-xl border border-subtle px-5 py-3 text-[16px] font-medium text-text-primary no-underline transition-all duration-200 hover:border-brand/40 hover:text-brand"
+                            >
+                                View our full impact
+                                <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-1" />
+                            </Link>
+                        </div>
+
+                        <div className="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-4">
+                            {homeImpactStats.map((stat, index) => (
+                                <motion.div
+                                    key={stat.label}
+                                    {...fadeUp}
+                                    transition={{ duration: 0.4, delay: index * 0.08 }}
+                                    className="rounded-3xl border border-subtle bg-surface-layer p-6 shadow-soft"
+                                >
+                                    <HomeImpactStat value={stat.value} suffix={stat.suffix} label={stat.label} />
+                                </motion.div>
+                            ))}
+                        </div>
+                    </div>
                 </section>
 
                 {/* ─── Institutions ─────────────────────────────────────── */}

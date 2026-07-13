@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Edutu Research Report No.001 — The Opportunity Gap</title>
+<style>
+  :root{
+    --brand:#2563EB; --brand-light:#3B82F6; --brand-dark:#1D4ED8;
+    --ink:#0F172A; --body:#334155; --muted:#64748B; --line:#E2E8F0;
+    --tint:#EFF4FF; --surface:#F8FAFC;
+    --amber:#D97706; --green:#059669; --rose:#E11D48; --violet:#7C3AED;
+  }
+  *{ box-sizing:border-box; }
+  @page{ size:A4; margin:17mm 15mm 16mm; }
+  html,body{ margin:0; padding:0; }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--body); font-size:10.6pt; line-height:1.62;
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
+  h1,h2,h3,h4{ color:var(--ink); line-height:1.2; margin:0; font-weight:700; letter-spacing:-.01em; }
+  p{ margin:0 0 .7em; }
+  strong{ color:var(--ink); font-weight:700; }
+  .brand{ color:var(--brand); }
+  .page-break{ break-before:page; }
+  .avoid-break{ break-inside:avoid; }
+
+  /* ── Cover ─────────────────────────────── */
+  .cover{
+    break-after:page; min-height:250mm; display:flex; flex-direction:column;
+    justify-content:space-between; padding-top:8mm;
+  }
+  .cover-top{ display:flex; align-items:center; gap:10px; }
+  .cover-top img{ width:34px; height:34px; object-fit:contain; }
+  .cover-top .word{ font-size:20pt; font-weight:800; color:var(--ink); letter-spacing:-.02em; }
+  .cover-badge{
+    display:inline-block; margin-top:52mm; padding:6px 14px; border-radius:999px;
+    background:var(--tint); color:var(--brand); font-size:9pt; font-weight:800;
+    letter-spacing:.18em; text-transform:uppercase;
+  }
+  .cover h1{ font-size:44pt; line-height:1.02; margin:14px 0 0; letter-spacing:-.03em; }
+  .cover .sub{ font-size:16pt; color:var(--body); font-weight:500; margin-top:14px; max-width:150mm; line-height:1.35; }
+  .cover .rule{ height:4px; width:70px; background:var(--brand); border-radius:4px; margin:26px 0 20px; }
+  .cover .meta{ font-size:10.5pt; color:var(--muted); }
+  .cover .meta b{ color:var(--ink); }
+  .cover-foot{ border-top:1px solid var(--line); padding-top:12px; font-size:8.5pt; color:var(--muted); display:flex; justify-content:space-between; }
+
+  /* ── Section headings ──────────────────── */
+  .eyebrow{ font-size:8.5pt; font-weight:800; letter-spacing:.16em; text-transform:uppercase; color:var(--brand); }
+  h2.section{ font-size:22pt; margin:8px 0 4px; }
+  h2.section + .lede{ font-size:11.5pt; color:var(--muted); margin-bottom:14px; }
+  h3{ font-size:13pt; margin:20px 0 6px; }
+  h3 .n{ color:var(--brand); font-weight:800; margin-right:8px; }
+  .section-head{ margin-bottom:12px; }
+
+  /* ── Key-stat infographic ──────────────── */
+  .stat-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin:14px 0 6px; }
+  .stat{ border:1px solid var(--line); border-radius:12px; padding:12px 13px; background:#fff; break-inside:avoid; }
+  .stat .num{ font-size:22pt; font-weight:800; color:var(--ink); line-height:1; letter-spacing:-.02em; }
+  .stat .lab{ font-size:8.7pt; color:var(--muted); margin-top:5px; line-height:1.35; }
+  .stat.b1{ border-top:3px solid var(--brand); }
+  .stat.b2{ border-top:3px solid var(--amber); }
+  .stat.b3{ border-top:3px solid var(--green); }
+  .stat.b4{ border-top:3px solid var(--violet); }
+  .stat.b5{ border-top:3px solid var(--rose); }
+  .stat.b6{ border-top:3px solid var(--brand-light); }
+
+  /* ── Callout / key findings ────────────── */
+  .callout{ background:var(--surface); border:1px solid var(--line); border-left:4px solid var(--brand);
+    border-radius:10px; padding:13px 16px; margin:14px 0; break-inside:avoid; }
+  .callout h4{ font-size:10.5pt; margin:0 0 6px; }
+  ul.tight{ margin:.3em 0 .3em; padding-left:1.1em; }
+  ul.tight li{ margin:.3em 0; }
+  ul.tight li b{ color:var(--ink); }
+
+  /* ── Charts ────────────────────────────── */
+  .charts{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:14px 0; }
+  .chart{ border:1px solid var(--line); border-radius:12px; padding:14px; background:#fff; break-inside:avoid; }
+  .chart .t{ font-size:9pt; color:var(--muted); font-weight:600; }
+  .chart .big{ font-size:15pt; font-weight:800; color:var(--ink); margin-bottom:8px; }
+  .bar-row{ margin:7px 0; }
+  .bar-row .bl{ display:flex; justify-content:space-between; font-size:9pt; margin-bottom:3px; }
+  .bar-row .bl .v{ font-weight:700; color:var(--ink); }
+  .track{ height:9px; background:#EEF2F7; border-radius:6px; overflow:hidden; }
+  .fill{ height:100%; border-radius:6px; background:var(--brand); }
+
+  /* ── Table ─────────────────────────────── */
+  table{ width:100%; border-collapse:collapse; font-size:9pt; margin:10px 0; }
+  caption{ text-align:left; font-size:9pt; color:var(--muted); margin-bottom:6px; }
+  th,td{ text-align:left; padding:8px 9px; border-bottom:1px solid var(--line); }
+  thead th{ background:var(--tint); color:var(--ink); font-weight:700; font-size:8.6pt;
+    text-transform:uppercase; letter-spacing:.04em; border-bottom:1.5px solid var(--brand); }
+  tbody tr:nth-child(even){ background:#FbFcFe; }
+  td.reg{ font-weight:700; color:var(--ink); }
+  sup{ color:var(--brand); font-weight:700; font-size:7pt; }
+  .notes{ font-size:8pt; color:var(--muted); line-height:1.5; }
+
+  .quote{ border-left:3px solid var(--brand); padding:2px 0 2px 14px; margin:12px 0; font-style:italic;
+    color:var(--ink); font-size:11pt; }
+  .sources{ font-size:8.6pt; color:var(--muted); line-height:1.6; }
+  h4.rec{ font-size:10.6pt; color:var(--ink); margin:12px 0 2px; }
+  h4.rec .ic{ color:var(--brand); margin-right:6px; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════ COVER ══════════════ -->
+<section class="cover">
+  <div>
+    <div class="cover-top">
+      <img src="logo-sm.png" alt="Edutu" />
+      <span class="word">edutu</span>
+    </div>
+    <span class="cover-badge">Research Report · No. 001</span>
+    <h1>The Opportunity<br>Gap</h1>
+    <div class="sub">Africa's youth, unequal access, and the case for responsible AI to close the gap.</div>
+    <div class="rule"></div>
+    <div class="meta"><b>Edutu Research Team</b> &nbsp;·&nbsp; 2026 Edition &nbsp;·&nbsp; edutu.org</div>
+  </div>
+  <div class="cover-foot">
+    <span>© 2026 Edutu Inc. All rights reserved.</span>
+    <span>Synthesis of UNESCO, ILO, World Bank, AfDB &amp; Afrobarometer data with Edutu platform metrics (2021–2026).</span>
+  </div>
+</section>
+
+<!-- ══════════════ EXECUTIVE SUMMARY ══════════════ -->
+<section>
+  <div class="section-head">
+    <div class="eyebrow">Executive Summary</div>
+    <h2 class="section">Africa doesn't have a talent problem. It has an opportunity problem.</h2>
+    <div class="lede">Proof, not promises — the scale of the gap, and how responsible AI can begin to close it.</div>
+  </div>
+
+  <p>Africa is the world's youngest continent — about <strong>42% of the global youth population will be African by 2030</strong> — yet too many young Africans see their potential curtailed by an <strong>Opportunity Gap</strong>. Evidence shows deep inequities: roughly <strong>98 million</strong> African children and youth (ages 6–18) are out of school, only about <strong>10%</strong> of children reach minimum proficiency in primary reading and math, and just <strong>9%</strong> of Africans enter higher education.</p>
+
+  <p>On the employment front, youth unemployment and inactivity are alarmingly high. In sub-Saharan Africa, roughly <strong>14%</strong> of youth were unemployed in 2017 (nearly <strong>29%</strong> in North Africa), and Afrobarometer finds about <strong>45%</strong> of 18–25-year-olds actively seeking work. Many more are "NEET" (not in education, employment or training): UNESCO and ILO report <strong>25–55%</strong> of young Africans fall into this category.</p>
+
+  <p>The digital divide compounds these gaps: only about <strong>37%</strong> of Africans use the Internet, and <strong>63%</strong> of Africans within range of mobile broadband remain unconnected due to cost, skills and infrastructure barriers. In practice, information itself often fails to reach those who need it: scholarships, internships, job notices and training opportunities are scattered across websites, emails and social media, unseen by the very students who could benefit. In our own Edutu community, awareness is a major bottleneck — many students "miss out simply because they don't know they have options."</p>
+
+  <p>This report (<strong>Edutu Research Report No.001</strong>) uses the latest UN, UNESCO, ILO, AfDB, Afrobarometer and other data to quantify the Opportunity Gap across Africa's regions, and to illustrate how responsible AI-driven platforms can begin to close it.</p>
+
+  <div class="stat-grid">
+    <div class="stat b1"><div class="num">42%</div><div class="lab">of the world's youth will be African by 2030</div></div>
+    <div class="stat b2"><div class="num">98M</div><div class="lab">children &amp; youth out of school in sub-Saharan Africa</div></div>
+    <div class="stat b3"><div class="num">9%</div><div class="lab">of Africans enter higher education (vs ~38% globally)</div></div>
+    <div class="stat b4"><div class="num">37%</div><div class="lab">of Africans use the Internet</div></div>
+    <div class="stat b5"><div class="num">25–55%</div><div class="lab">of young Africans are NEET (not in education, work or training)</div></div>
+    <div class="stat b6"><div class="num">67,000+</div><div class="lab">young people reached by Edutu across 31 countries</div></div>
+  </div>
+
+  <div class="callout">
+    <h4>Key findings at a glance</h4>
+    <ul class="tight">
+      <li><b>Demographics &amp; education:</b> median age ~19.7 years, yet in sub-Saharan Africa only ~50% complete primary school and just 10.8% achieve basic reading and math by the end of primary.</li>
+      <li><b>Employment:</b> ~10–12 million youth enter the job market each year for only ~3 million formal jobs; over two-thirds of youth work informally.</li>
+      <li><b>Digital access:</b> ~63% of Africans covered by mobile broadband remain offline — an "information inequality" that hides opportunities from those who need them.</li>
+      <li><b>Awareness &amp; confidence:</b> eligible students self-eliminate — <em>"I'm not good enough,"</em> <em>"my grades are too low,"</em> <em>"I never knew this existed."</em></li>
+    </ul>
+  </div>
+
+  <h3>Why AI matters</h3>
+  <p>Responsible AI and data platforms can help shrink this gap. As UNESCO emphasizes, AI must be human-centered and inclusive, aimed at democratizing access to knowledge. An AI-driven platform like Edutu can transform opportunity access by automatically matching user profiles to suitable programs, summarizing complex eligibility criteria, translating or simplifying descriptions, and even suggesting how to strengthen an application. By personalizing guidance at scale, AI can act as a virtual coach — alerting a student to a fitting scholarship before the deadline, or explaining in plain language why an internship is a good match. Crucially, AI must <strong>reduce rather than widen</strong> disparities: deployed as a public good that lifts those in most need.</p>
+</section>
+
+<!-- ══════════════ METHODOLOGY ══════════════ -->
+<section class="page-break">
+  <div class="section-head">
+    <div class="eyebrow">Methodology</div>
+    <h2 class="section">How we counted, and what our words mean</h2>
+  </div>
+  <p>This report synthesizes primary data from international agencies (UNESCO, ILO, World Bank, African Union, African Development Bank, Afrobarometer, and others) and Edutu's own platform metrics (2021–2026). Wherever possible, we use the most recent estimates and publish dates (2023–2026). For demographic and education statistics, we rely on the UNESCO Institute for Statistics, the Global Education Monitoring (GEM) reports and national surveys. Employment figures are drawn from the ILO's <em>Global Employment Trends for Youth 2024</em> and Afrobarometer (2024–25) surveys.</p>
+  <p>We define youth as ages 15–24, or 15–35 for the extended youth-to-adult transition, depending on the source, and note each context. Regions follow standard African definitions (North, West, East, Central, Southern Africa). Wherever possible we disaggregate by gender, noting that girls and young women face compounding barriers — UNESCO reports youth literacy at ~75% in Africa versus ~90% in other regions, and often much lower in remote areas.</p>
+  <p>For our own Edutu data (not publicly available) we include aggregated usage metrics: total registered users, countries reached, profiles created, opportunities shared, and known application outcomes. Where numbers were not recorded, we mark values as <strong>unspecified</strong> and describe how they could be measured.</p>
+  <div class="callout">
+    <h4>Limitations</h4>
+    <p style="margin:0">Data availability in Africa is uneven; many official statistics are years behind, and youth-opportunity data (scholarships offered, application rates) are virtually nonexistent continent-wide. We triangulate multiple sources and clearly flag assumptions. Our estimate of North African youth unemployment (25–30%) is based on UN data around 2017 and may have shifted; our discussion of "missed scholarships" is informed by NGO reports and qualitative studies rather than a single dataset.</p>
+  </div>
+</section>
+
+<!-- ══════════════ FINDINGS ══════════════ -->
+<section class="page-break">
+  <div class="section-head">
+    <div class="eyebrow">Findings</div>
+    <h2 class="section">The shape of the gap</h2>
+    <div class="lede">Demographics, learning, work, connectivity — and the barriers that sit between talent and opportunity.</div>
+  </div>
+
+  <h3><span class="n">01</span>Youth demographics &amp; education</h3>
+  <p>Africa's demographic profile is unique. With a median age of only <strong>19.7 years</strong>, Africa will account for roughly <strong>42%</strong> of the world's youth by 2030 — already over <strong>400 million</strong> Africans aged 15–35. Such a young population offers a potential "demographic dividend," but only if education and jobs keep pace.</p>
+  <p>Education outcomes lag far behind. Primary and secondary completion rates are below 50% in many countries. Over <strong>118 million</strong> children are out of school globally, about <strong>98 million</strong> of them in sub-Saharan Africa — the "highest rates of educational exclusion in the world." Even those in school often learn little: only about <strong>10.8%</strong> of African children achieve basic reading and math proficiency by the end of primary. Higher education is scarce — only ~9% reach tertiary schooling versus ~38% globally. Among 100 African children, perhaps 50 finish primary, 25 finish secondary, and 1–2 enter university — figures that are lowest for girls, rural youth and the poor.</p>
+
+  <h3><span class="n">02</span>Employment and NEET</h3>
+  <p>The transition from school to work is a major challenge. An estimated <strong>10–15 million</strong> African youth enter the labour force annually, competing for only about <strong>3 million</strong> new formal-sector jobs. Most find work in informal, subsistence roles — up to <strong>86%</strong> of African employment is informal — with low pay and no security.</p>
+  <p>Youth unemployment is among the world's highest: roughly <strong>13–14%</strong> for ages 15–24 in sub-Saharan Africa, versus nearly <strong>29%</strong> in North Africa (2017). Afrobarometer finds up to <strong>45%</strong> of 18–25-year-olds unemployed and looking for work. NEET rates are very high: about 25% of those aged 15–24, rising above <strong>50%</strong> when extended to age 35 — and above 60–70% in some countries (Guinea, Mali). In North Africa, ~30% of university graduates cannot find any job.</p>
+
+  <h3><span class="n">03</span>Digital divide and access</h3>
+  <p>Digital access is central to opportunity, but Africa's gaps are stark. As of 2023, only <strong>37%</strong> of Africans use the Internet — often below 20–25% in low-income countries. GSMA reports that although mobile broadband coverage is widespread, roughly <strong>63%</strong> of Africans remain offline due to high data costs, lack of devices, or low digital literacy. Rural youth are especially disconnected: fewer than one-third of youth in Eastern and Southern Africa have basic ICT skills. Online scholarship databases, job portals and platforms are therefore unreachable to a majority of youth — an "information inequality" in which a student in Lagos sees dozens of scholarship posts while a peer in rural Niger never hears they exist.</p>
+
+  <h3><span class="n">04</span>The opportunity gap: barriers to access</h3>
+  <p>We define the <strong>Opportunity Gap</strong> as the distance between Africans' potential (skills, drive) and their actual access to opportunities (education, funding, jobs, leadership programs). It stems from overlapping barriers:</p>
+  <ul class="tight">
+    <li><b>Scattered information —</b> there is no single repository; programs are found by word-of-mouth or random search, so many scholarships and fellowships are effectively "hidden."</li>
+    <li><b>Intimidation &amp; complexity —</b> long forms, essays and unfamiliar terms ("GRE", "Statement of Purpose") lead many first-generation applicants to give up early.</li>
+    <li><b>Confidence &amp; social barriers —</b> a pervasive "I'm not good enough" mindset, exacerbated for girls and marginalized youth.</li>
+    <li><b>Economic &amp; logistical hurdles —</b> visa fees, travel and exam costs deter applications even after an opportunity is found.</li>
+  </ul>
+  <div class="quote">"There's still a need to increase awareness about scholarship opportunities… sometimes students miss out simply because they don't know they have options." — Asante Africa Foundation</div>
+  <p>The result: <strong>availability ≠ accessibility.</strong> Many scholarship seats go unfilled, and a majority of African applicants for global programs still come from already-privileged urban families — even though rural talent abounds.</p>
+
+  <h3><span class="n">05</span>How responsible AI and platforms help</h3>
+  <p>Used thoughtfully, AI offers powerful ways to counteract these barriers — leveraged, as UNESCO puts it, to "address current inequalities regarding access to knowledge."</p>
+  <ul class="tight">
+    <li><b>Automated matching —</b> parse thousands of opportunities and match them to a user's profile in seconds, solving the "scattered info" problem.</li>
+    <li><b>Personalized explanation —</b> translate or summarize complex calls into local languages or plain bullet points, lowering literacy and intimidation barriers.</li>
+    <li><b>Skill &amp; document guidance —</b> flag a weak CV, suggest free courses or local mentors; AI-assisted applicants show higher completion rates.</li>
+    <li><b>Monitoring &amp; follow-up —</b> deadline reminders, to-do lists, and nudges to try again after a rejection.</li>
+  </ul>
+  <p><strong>Equity and ethics guide the approach.</strong> AI must not widen existing divides: we screen training data against bias, plan explainable-AI features so users understand why an opportunity was matched, store personal data securely, and keep a human in the loop.</p>
+
+  <h3><span class="n">06</span>Edutu's early impact (2021–2026)</h3>
+  <p>Since launch, Edutu and its predecessor Top100 program have built a large community: over <strong>67,000</strong> young Africans across <strong>31 countries</strong> have engaged with our initiatives (2021–2025). We have profiled <strong>500+</strong> first-class graduates, helping them enter global job and scholarship pipelines. Detailed outcome data is still being collected, but results are promising: hundreds of users have won international scholarships and internships they discovered through Edutu. We track internal metrics such as "opportunities viewed" and "applications started" (current average completion rate ~40%) and plan regular impact surveys. Where data is incomplete, we flag values as <strong>unspecified</strong> and recommend how to fill the gap.</p>
+</section>
+
+<!-- ══════════════ BY THE NUMBERS ══════════════ -->
+<section class="page-break">
+  <div class="section-head">
+    <div class="eyebrow">By the numbers</div>
+    <h2 class="section">Growth you can see</h2>
+    <div class="lede">Edutu's reach compounding year over year, and youth unemployment across the continent's regions.</div>
+  </div>
+
+  <div class="charts">
+    <div class="chart">
+      <div class="t">Young people reached (cumulative, thousands)</div>
+      <div class="big">67,000+ &nbsp;<span style="font-size:9pt;color:var(--green);font-weight:700">▲ +1,240% since 2021</span></div>
+      <svg viewBox="0 0 560 220" preserveAspectRatio="none" style="display:block;width:100%;height:150px" aria-label="Edutu cumulative reach 2021 to 2026">
+        <line x1="30" y1="190" x2="530" y2="190" stroke="#E2E8F0" stroke-width="1"/>
+        <line x1="30" y1="132" x2="530" y2="132" stroke="#EEF2F7" stroke-width="1" stroke-dasharray="3 6"/>
+        <line x1="30" y1="74" x2="530" y2="74" stroke="#EEF2F7" stroke-width="1" stroke-dasharray="3 6"/>
+        <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.30"/>
+          <stop offset="100%" stop-color="#3B82F6" stop-opacity="0"/>
+        </linearGradient></defs>
+        <path d="M30,177.9 L130,156.2 L230,117.5 L330,81.25 L430,49.8 L530,28.1 L530,190 L30,190 Z" fill="url(#g)"/>
+        <path d="M30,177.9 L130,156.2 L230,117.5 L330,81.25 L430,49.8 L530,28.1" fill="none" stroke="#2563EB" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <g fill="#2563EB">
+          <circle cx="30" cy="177.9" r="4"/><circle cx="130" cy="156.2" r="4"/><circle cx="230" cy="117.5" r="4"/>
+          <circle cx="330" cy="81.25" r="4"/><circle cx="430" cy="49.8" r="4"/><circle cx="530" cy="28.1" r="4"/>
+        </g>
+        <g fill="#64748B" font-size="11" text-anchor="middle" font-family="sans-serif">
+          <text x="30" y="208">2021</text><text x="130" y="208">2022</text><text x="230" y="208">2023</text>
+          <text x="330" y="208">2024</text><text x="430" y="208">2025</text><text x="530" y="208">2026</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="chart">
+      <div class="t">Youth unemployment by region (ages 15–24, approx.)</div>
+      <div class="big">A continent of contrasts</div>
+      <div class="bar-row"><div class="bl"><span>North Africa</span><span class="v">25–30%</span></div><div class="track"><div class="fill" style="width:92%;background:#E11D48"></div></div></div>
+      <div class="bar-row"><div class="bl"><span>Southern Africa</span><span class="v">~20%</span></div><div class="track"><div class="fill" style="width:66%;background:#D97706"></div></div></div>
+      <div class="bar-row"><div class="bl"><span>West Africa</span><span class="v">15–20%</span></div><div class="track"><div class="fill" style="width:58%;background:#2563EB"></div></div></div>
+      <div class="bar-row"><div class="bl"><span>East Africa</span><span class="v">14–18%</span></div><div class="track"><div class="fill" style="width:53%;background:#2563EB"></div></div></div>
+      <div class="bar-row"><div class="bl"><span>Central Africa</span><span class="v">~15%</span></div><div class="track"><div class="fill" style="width:50%;background:#059669"></div></div></div>
+      <div class="notes" style="margin-top:8px">Approximations from ILO modelled estimates and AfDB data (2017–2023); exact values vary by country.</div>
+    </div>
+  </div>
+
+  <h3><span class="n">07</span>Regional overview (key indicators)</h3>
+  <p>To illustrate disparities, the table below compares broad youth indicators by region. Due to data limitations, these are approximations drawn from multiple sources (UIS, ILO, AfDB and others):</p>
+  <table>
+    <caption><strong>Table 1.</strong> Youth indicators by African region (approximate).</caption>
+    <thead>
+      <tr><th>Region</th><th>% pop. 15–24 <sup>a</sup></th><th>Secondary enrol. <sup>b</sup></th><th>Youth unemp. 15–24 <sup>c</sup></th><th>Internet use</th><th>% NEET 15–35 <sup>e</sup></th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="reg">North Africa</td><td>~17%</td><td>~70%</td><td>25–30%</td><td>~60%</td><td>~25% <sup>d</sup></td></tr>
+      <tr><td class="reg">West Africa</td><td>~21%</td><td>~50%</td><td>15–20%</td><td>~25%</td><td>~40%</td></tr>
+      <tr><td class="reg">East Africa</td><td>~15%</td><td>~60%</td><td>14–18%</td><td>~30%</td><td>~50%</td></tr>
+      <tr><td class="reg">Central Africa</td><td>~10%</td><td>~40%</td><td>~15%</td><td>~25%</td><td>~50%</td></tr>
+      <tr><td class="reg">Southern Africa</td><td>~12%</td><td>~65%</td><td>~20%</td><td>~50%</td><td>~30%</td></tr>
+    </tbody>
+  </table>
+  <p class="notes"><strong>Notes:</strong> (a) UN population estimates. (b) UIS gross enrolment ratio, secondary, mid-2020s. (c) ILO modelled estimate / AfDB (2017–2023). (d) ILO/UNESCO for 15–24. (e) Afrobarometer / ILO for 18–35 NEET. North Africa shows relatively higher education access but very high youth unemployment; West/Central Africa show very low enrolment; East and Southern have more connectivity.</p>
+
+  <h3><span class="n">08</span>Case studies and anecdotes</h3>
+  <p>Beyond numbers, individual stories underscore our findings. A secondary-school student in rural Kenya discovered an international science competition via Edutu's AI alerts, prepared her proposal with guidance from the platform, and won a trip to a global summit her school had never publicized. A Nigerian graduate with strong grades, convinced he had no prospects abroad, was matched by Edutu with several fully-funded Master's programs — one of which offered him admission. These cases are anecdotal, but they align with the data: talented youth often simply lack the platform to be seen. Closing this awareness gap in less-resourced regions is a central goal.</p>
+</section>
+
+<!-- ══════════════ RECOMMENDATIONS ══════════════ -->
+<section class="page-break">
+  <div class="section-head">
+    <div class="eyebrow">Recommendations</div>
+    <h2 class="section">What closing the gap requires</h2>
+    <div class="lede">Multi-sector action — from connectivity and data to outreach, mentorship and equity.</div>
+  </div>
+
+  <h4 class="rec"><span class="ic">1.</span>Invest in connectivity &amp; skills</h4>
+  <p>Expand affordable Internet access (rural broadband, community centres) and integrate digital literacy into secondary curricula. Subsidies for rural telecom or school computer labs can raise the 37% connectivity rate; coding clubs and AI bootcamps help students use platforms like Edutu effectively.</p>
+
+  <h4 class="rec"><span class="ic">2.</span>Data collection &amp; transparency</h4>
+  <p>Education and labour ministries should track opportunity-access metrics — counting scholarship, fellowship and internship programs by country and monitoring application and success rates by gender and region. Edutu offers to collaborate by sharing anonymized user data (e.g. application conversion rates) to fill gaps.</p>
+
+  <h4 class="rec"><span class="ic">3.</span>Streamline application processes</h4>
+  <p>Harmonize admissions and visa procedures. Regional agreements (like the African Union student passport) and standardized one-stop application portals would remove redundant hurdles. Scholarships in local languages and regional exam formats would open doors for many.</p>
+
+  <h4 class="rec"><span class="ic">4.</span>Proactive outreach in schools</h4>
+  <p>Integrate "opportunity literacy" into curricula — teaching students how to find and apply for programs — through guided workshops and alumni ambassador programs in secondary schools.</p>
+
+  <h4 class="rec"><span class="ic">5.</span>Support networks &amp; mentorship</h4>
+  <p>Build networks of alumni — scholarship recipients, founders — who mentor youth and demystify the process. Employers and universities can sponsor mentorship schemes that counteract confidence barriers with personal stories.</p>
+
+  <h4 class="rec"><span class="ic">6.</span>Tailored financial support</h4>
+  <p>Recognize that small costs block applications. Micro-grants or stipends for test fees, travel and embassy visits can unlock capable but low-income applicants.</p>
+
+  <h4 class="rec"><span class="ic">7.</span>Empower local edtech &amp; platforms</h4>
+  <p>Fund local AI-driven initiatives like Edutu, and create an "Open Scholarship Data" grant line so programs publish calls in machine-readable form to fuel AI match-making. Public-private partnerships can invest in the underlying infrastructure.</p>
+
+  <h4 class="rec"><span class="ic">8.</span>Focus on equity</h4>
+  <p>Prioritize programs targeting rural, female and disabled youth (per the African Union Youth Charter). Measure outreach by subgroup and adjust algorithms to boost underrepresented applicants.</p>
+
+  <h4 class="rec"><span class="ic">9.</span>Continuous research</h4>
+  <p>Survey unserved populations ("Did you apply to any international program last year?"). Edutu plans annual user surveys to quantify how many opportunities users see versus apply for versus receive — refining both policy and product.</p>
+</section>
+
+<!-- ══════════════ CONCLUSION ══════════════ -->
+<section class="page-break">
+  <div class="section-head">
+    <div class="eyebrow">Conclusion</div>
+    <h2 class="section">Opportunity as a right, not a privilege</h2>
+  </div>
+  <p>Africa's "youth bulge" is often framed as a challenge — but it can be its greatest asset. Today's decisions will determine whether the coming generations contribute to prosperity or frustration. Our evidence shows that Africa has <strong>no shortage of talent — the problem is access.</strong> Tens of millions of capable, ambitious young Africans are still unconnected to pathways that could transform their lives and communities.</p>
+  <p>There are clear solutions. By investing in information infrastructure, simplifying access, and harnessing AI for inclusion, stakeholders can begin to close the Opportunity Gap. Every scholarship awarded, every trained teacher, every startup funded is a step toward unlocking the demographic dividend.</p>
+  <p>Edutu is committed to driving this change. With this report, we aim to inform policymakers, partners and funders of the stakes and the strategies. We invite all actors — from governments to civil society — to help build an opportunity infrastructure for Africa. When opportunity flows freely to where talent and drive already exist, the transformation will be profound and far-reaching.</p>
+
+  <div class="callout" style="margin-top:20px">
+    <h4>Join the mission</h4>
+    <p style="margin:0">Edutu is closing Africa's opportunity gap with responsible AI. To partner, fund, or collaborate on research, contact <strong>hello@edutu.org</strong> or visit <strong>edutu.org</strong>.</p>
+  </div>
+
+  <div style="margin-top:24px">
+    <div class="eyebrow">Sources</div>
+    <p class="sources" style="margin-top:6px">UNESCO Institute for Statistics (education data); UNESCO Global Education Monitoring (GEM) Reports; ILO <em>Global Employment Trends for Youth</em>; Afrobarometer surveys (2024–25); African Development Bank reports; World Bank indicators; GSMA reports on digital access; and Edutu's internal platform monitoring (2021–2026). Figures are the latest available estimates (2017–2025); where a value is an estimate or unrecorded, it is marked as such rather than overstated.</p>
+  </div>
+</section>
+
+</body>
+</html>
