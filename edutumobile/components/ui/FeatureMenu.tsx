@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     View,
     Text,
@@ -7,20 +7,18 @@ import {
     TouchableOpacity,
     ScrollView,
     StyleSheet,
+    Animated,
+    Easing,
+    Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import {
     X,
-    Compass,
     Bookmark,
     CheckCircle2,
     Clock,
-    Target,
-    Route,
-    FileText,
-    Sparkles,
     Wallet,
     SearchCheck,
     Newspaper,
@@ -33,12 +31,18 @@ type FeatureItem = {
     label: string;
     description: string;
     route: string;
-    Icon: typeof Compass;
+    Icon: typeof Bookmark;
     tint: string;
 };
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+// Left drawer leaves a sliver of backdrop on the right so it reads as an
+// overlay panel, not a full page swap.
+const DRAWER_WIDTH = Math.min(Math.round(SCREEN_WIDTH * 0.86), 420);
+const ANIM_MS = 240;
+
 /**
- * Slide-down feature menu opened from the header hamburger. One tap per
+ * Left slide-in feature drawer opened from the header hamburger. One tap per
  * feature — a plain navigation directory, deliberately simpler than the tab
  * bar so every corner of the app is reachable from one place.
  */
@@ -61,15 +65,53 @@ export function FeatureMenu({
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
     const cardBg = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)';
 
+    // Keep the modal mounted through the exit animation: `visible` from the
+    // parent drives the slide, `rendered` unmounts only once it finishes.
+    const [rendered, setRendered] = useState(visible);
+    const translateX = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
+    const backdropOpacity = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        if (visible) {
+            setRendered(true);
+            Animated.parallel([
+                Animated.timing(translateX, {
+                    toValue: 0,
+                    duration: ANIM_MS,
+                    easing: Easing.out(Easing.cubic),
+                    useNativeDriver: true,
+                }),
+                Animated.timing(backdropOpacity, {
+                    toValue: 1,
+                    duration: ANIM_MS,
+                    easing: Easing.out(Easing.cubic),
+                    useNativeDriver: true,
+                }),
+            ]).start();
+        } else {
+            Animated.parallel([
+                Animated.timing(translateX, {
+                    toValue: -DRAWER_WIDTH,
+                    duration: ANIM_MS,
+                    easing: Easing.in(Easing.cubic),
+                    useNativeDriver: true,
+                }),
+                Animated.timing(backdropOpacity, {
+                    toValue: 0,
+                    duration: ANIM_MS,
+                    easing: Easing.in(Easing.cubic),
+                    useNativeDriver: true,
+                }),
+            ]).start(({ finished }) => {
+                if (finished) setRendered(false);
+            });
+        }
+    }, [visible, translateX, backdropOpacity]);
+
     const items: FeatureItem[] = [
-        { key: 'opportunities', label: t('menu.opportunities', { defaultValue: 'Opportunities' }), description: t('menu.opportunitiesDesc', { defaultValue: 'Scholarships, internships & more' }), route: '/opportunities', Icon: Compass, tint: '#6366F1' },
         { key: 'saved', label: t('menu.saved', { defaultValue: 'Saved' }), description: t('menu.savedDesc', { defaultValue: 'Your bookmarked opportunities' }), route: '/saved', Icon: Bookmark, tint: '#F59E0B' },
         { key: 'applied', label: t('menu.applied', { defaultValue: 'Applications' }), description: t('menu.appliedDesc', { defaultValue: 'Track what you applied to' }), route: '/applied', Icon: CheckCircle2, tint: '#10B981' },
         { key: 'deadlines', label: t('menu.deadlines', { defaultValue: 'Deadlines' }), description: t('menu.deadlinesDesc', { defaultValue: 'Never miss a closing date' }), route: '/deadlines', Icon: Clock, tint: '#EF4444' },
-        { key: 'goals', label: t('menu.goals', { defaultValue: 'Goals' }), description: t('menu.goalsDesc', { defaultValue: 'Set targets and follow through' }), route: '/goals', Icon: Target, tint: '#8B5CF6' },
-        { key: 'roadmaps', label: t('menu.roadmaps', { defaultValue: 'Roadmaps' }), description: t('menu.roadmapsDesc', { defaultValue: 'Step-by-step plans to win' }), route: '/roadmaps', Icon: Route, tint: '#0EA5E9' },
-        { key: 'cv', label: t('menu.cv', { defaultValue: 'CV Builder' }), description: t('menu.cvDesc', { defaultValue: 'Build and export your CV' }), route: '/cv', Icon: FileText, tint: '#14B8A6' },
-        { key: 'chat', label: t('menu.chat', { defaultValue: 'Ask Edutu AI' }), description: t('menu.chatDesc', { defaultValue: 'Your AI opportunity coach' }), route: '/chat', Icon: Sparkles, tint: '#6366F1' },
         { key: 'savedSearches', label: t('menu.savedSearches', { defaultValue: 'Alerts' }), description: t('menu.savedSearchesDesc', { defaultValue: 'Saved searches & new-match alerts' }), route: '/saved-searches', Icon: SearchCheck, tint: '#F97316' },
         { key: 'news', label: t('menu.news', { defaultValue: 'News' }), description: t('menu.newsDesc', { defaultValue: 'Trending opportunity news' }), route: '/notifications', Icon: Newspaper, tint: '#3B82F6' },
         { key: 'wallet', label: t('menu.wallet', { defaultValue: 'Wallet' }), description: t('menu.walletDesc', { defaultValue: 'Credits and billing' }), route: '/wallet', Icon: Wallet, tint: '#22C55E' },
@@ -78,25 +120,30 @@ export function FeatureMenu({
 
     const openFeature = (route: string) => {
         onClose();
-        // Let the modal dismiss before navigating so the transition is clean.
-        setTimeout(() => router.push(route as never), 120);
+        // Let the drawer slide out before navigating so the transition is clean.
+        setTimeout(() => router.push(route as never), ANIM_MS);
     };
 
     return (
         <Modal
-            visible={visible}
-            animationType="slide"
+            visible={rendered}
+            animationType="none"
             transparent
             onRequestClose={onClose}
         >
-            <Pressable style={styles.backdrop} onPress={onClose} />
-            <View
+            <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+            </Animated.View>
+
+            <Animated.View
                 style={[
-                    styles.sheet,
+                    styles.drawer,
                     {
+                        width: DRAWER_WIDTH,
                         backgroundColor: colors.background,
                         paddingTop: insets.top + 8,
                         borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                        transform: [{ translateX }],
                     },
                 ]}
             >
@@ -140,7 +187,7 @@ export function FeatureMenu({
                         </TouchableOpacity>
                     ))}
                 </ScrollView>
-            </View>
+            </Animated.View>
         </Modal>
     );
 }
@@ -150,10 +197,12 @@ const styles = StyleSheet.create({
         ...StyleSheet.absoluteFillObject,
         backgroundColor: 'rgba(2,6,23,0.5)',
     },
-    sheet: {
-        flex: 1,
-        marginTop: 0,
-        borderBottomWidth: 1,
+    drawer: {
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        bottom: 0,
+        borderRightWidth: 1,
     },
     sheetHeader: {
         flexDirection: 'row',
