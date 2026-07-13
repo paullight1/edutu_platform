@@ -5,12 +5,14 @@ import { StatusBar } from 'expo-status-bar';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../components/context/ThemeContext';
+import { useGuestMode } from '../lib/guestModeStore';
 
 export default function SplashScreen() {
   const router = useRouter();
   const { isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
   const { colors, isDark } = useTheme();
+  const { isGuest, hydrated: guestHydrated } = useGuestMode();
 
   const [text, setText] = useState('');
   const fullText = 'Edutu';
@@ -29,7 +31,7 @@ export default function SplashScreen() {
   }, []);
 
   useEffect(() => {
-    if (!isLoaded || hasNavigated.current) {
+    if (!isLoaded || !guestHydrated || hasNavigated.current) {
       return;
     }
 
@@ -41,7 +43,10 @@ export default function SplashScreen() {
       hasNavigated.current = true;
 
       if (!isSignedIn) {
-        router.replace('/onboarding-welcome');
+        // A returning guest goes straight into the (gated) app; everyone else
+        // sees the welcome screen where they can sign up, sign in, or choose to
+        // browse without an account.
+        router.replace(isGuest ? '/(app)' : '/onboarding-welcome');
         return;
       }
 
@@ -54,7 +59,7 @@ export default function SplashScreen() {
     }, 1650);
 
     return () => clearTimeout(timeoutId);
-  }, [isLoaded, isSignedIn, router, user]);
+  }, [isLoaded, guestHydrated, isGuest, isSignedIn, router, user]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

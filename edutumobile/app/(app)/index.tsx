@@ -42,6 +42,8 @@ import { toSafeUUID } from "@edutu/core/src/utils/auth";
 import { recordOpportunitySignal, type DismissReason } from "@edutu/core/src/services/opportunitySignals";
 import { dismissOpportunity } from "@edutu/core/src/services/dismissedOpportunities";
 import { shareOpportunity } from "../../lib/shareOpportunity";
+import { useGuestMode } from "../../lib/guestModeStore";
+import { useAuthWall } from "../../components/context/AuthWallContext";
 import { DismissReasonSheet } from "../../components/opportunity/DismissReasonSheet";
 import { ImpressionView } from "../../components/opportunity/ImpressionView";
 import { runImpressionChecks } from "../../lib/impressions";
@@ -1458,9 +1460,14 @@ export default function Dashboard() {
     const { t } = useTranslation('home');
     const { isDark, colors } = useTheme();
     const { user } = useUser();
-    const { getToken } = useAuth();
+    const { getToken, isSignedIn } = useAuth();
     const router = useRouter();
     const insets = useSafeAreaInsets();
+
+    // Guests can open and share opportunities, but saving needs an account.
+    const { isGuest } = useGuestMode();
+    const authWall = useAuthWall();
+    const isGuestBrowsing = !isSignedIn && isGuest;
 
     const backgroundColor = colors.background;
     const textPrimary = colors.foreground;
@@ -1552,6 +1559,10 @@ export default function Dashboard() {
     }, [opportunities, bestShotIds]);
 
     const toggleBookmark = async (opportunityId: string) => {
+        if (isGuestBrowsing) {
+            authWall?.promptAuth('save');
+            return;
+        }
         if (!user) return;
         try {
             const lookupIds = getUserLookupIds(user.id);

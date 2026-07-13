@@ -18,6 +18,8 @@ import { useInAppUpdatePrompt } from "../lib/updatePrompt";
 import { MobileCampaignHost } from "../components/mobile-control/MobileCampaignHost";
 import { AppControlGate } from "../components/mobile-control/AppControlGate";
 import { AppControlProvider } from "../components/context/AppControlContext";
+import { AuthWallProvider } from "../components/context/AuthWallContext";
+import { exitGuestMode } from "../lib/guestModeStore";
 import { syncWidgetSuite } from "../lib/widgetSuiteSync";
 import { registerWidgetBackgroundRefresh } from "../lib/widgetBackgroundTask";
 import { getConfig } from "../lib/config";
@@ -94,9 +96,16 @@ function ConfigErrorScreen({ message }: { message: string }) {
 
 function RootLayoutContent() {
     const { colors, isDark } = useTheme();
-    const { getToken, userId } = useAuth();
+    const { getToken, userId, isSignedIn } = useAuth();
     useDeepLink();
     useInAppUpdatePrompt();
+
+    // Once a real Clerk session exists, the visitor is no longer a guest — drop
+    // the "browse without login" flag so the app treats them as a normal user
+    // (and a returning guest who signs out lands back on the welcome screen).
+    useEffect(() => {
+        if (isSignedIn) exitGuestMode();
+    }, [isSignedIn]);
 
     useEffect(() => {
         setSupabaseAccessTokenGetter(async () => {
@@ -158,12 +167,17 @@ function RootLayoutContent() {
                     <AppControlProvider>
                         <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
                             <StatusBar style={isDark ? "light" : "dark"} />
-                            <Slot />
-                            <OfflineBanner />
-                            <MobileCampaignHost />
-                            {/* Last child so the force-update / maintenance gate
-                                covers every screen and overlay above. */}
-                            <AppControlGate />
+                            {/* AuthWallProvider is mounted at the root so guest
+                                gating can be raised from anywhere — the home
+                                screen, opportunity detail, and the tab chrome. */}
+                            <AuthWallProvider>
+                                <Slot />
+                                <OfflineBanner />
+                                <MobileCampaignHost />
+                                {/* Last child so the force-update / maintenance gate
+                                    covers every screen and overlay above. */}
+                                <AppControlGate />
+                            </AuthWallProvider>
                         </GestureHandlerRootView>
                     </AppControlProvider>
                 </OfflineProvider>

@@ -47,6 +47,8 @@ import { supabase } from "../../lib/supabase";
 import { useNotifications } from "@edutu/core/src/hooks/useNotifications";
 import { useProStatus } from "@edutu/core/src/hooks/useProStatus";
 import { useTranslation } from "react-i18next";
+import { useGuestMode, isGuestAllowedPath } from "../../lib/guestModeStore";
+import { useAuthWall } from "../../components/context/AuthWallContext";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -252,7 +254,7 @@ function HeaderLogoTitle({
 }
 
 // ─── Shared App Header ────────────────────────────────────────────────────────
-function AppHeader({ isDark, colors, unreadNotifications }: { isDark: boolean, colors: any, unreadNotifications: number }) {
+function AppHeader({ isDark, colors, unreadNotifications, guestMode, onGuestBlock }: { isDark: boolean, colors: any, unreadNotifications: number, guestMode?: boolean, onGuestBlock?: () => void }) {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const bottomOffset = getBottomNavOffset(insets.bottom);
@@ -261,6 +263,16 @@ function AppHeader({ isDark, colors, unreadNotifications }: { isDark: boolean, c
     const { user } = useUser();
     const { isPro, isLoading: proLoading } = useProStatus(supabase, user?.id || null);
     const [menuOpen, setMenuOpen] = useState(false);
+
+    // For guests every header destination (menu, notifications, upgrade) lives
+    // behind the wall — raise it instead of navigating.
+    const guardGuest = (proceed: () => void) => () => {
+        if (guestMode) {
+            onGuestBlock?.();
+            return;
+        }
+        proceed();
+    };
 
     return (
         <View style={[
@@ -274,7 +286,7 @@ function AppHeader({ isDark, colors, unreadNotifications }: { isDark: boolean, c
             <View style={styles.headerInner}>
                 <View style={styles.brandContainer}>
                     <TouchableOpacity
-                        onPress={() => setMenuOpen(true)}
+                        onPress={guardGuest(() => setMenuOpen(true))}
                         activeOpacity={0.7}
                         accessibilityRole="button"
                         accessibilityLabel={t('header.menu', { defaultValue: 'Open menu' })}
@@ -295,7 +307,7 @@ function AppHeader({ isDark, colors, unreadNotifications }: { isDark: boolean, c
                         />
                     ) : (
                         <TouchableOpacity
-                            onPress={() => router.push('/paywall')}
+                            onPress={guardGuest(() => router.push('/paywall'))}
                             activeOpacity={0.75}
                             accessibilityRole="button"
                             accessibilityLabel={t('header.upgrade')}
@@ -308,7 +320,7 @@ function AppHeader({ isDark, colors, unreadNotifications }: { isDark: boolean, c
                 </View>
 
                 <TouchableOpacity
-                    onPress={() => router.push('/notifications')}
+                    onPress={guardGuest(() => router.push('/notifications'))}
                     activeOpacity={0.7}
                     style={[styles.bellBtn, { backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)" }]}
                 >
@@ -785,6 +797,20 @@ export default function AppLayout() {
     const { unreadCount } = useNotifications(supabase, user?.id ?? null, getToken);
     const registeredPushUserRef = React.useRef<string | null>(null);
 
+    // Guest ("browse without login") gating. A guest has no Clerk session, so
+    // isSignedIn is false; the local flag is what lets them into the app at all.
+    const { isGuest, hydrated: guestHydrated } = useGuestMode();
+    const authWall = useAuthWall();
+    const isGuestBrowsing = !isSignedIn && isGuest;
+    const guestBlocked =
+        isGuestBrowsing && guestHydrated && !isGuestAllowedPath(pathname);
+
+    // Any stray navigation to a locked route (deep link, in-content link) raises
+    // the wall; the render path below then bounces them back home.
+    useEffect(() => {
+        if (guestBlocked) authWall?.promptAuth('browse');
+    }, [guestBlocked, authWall]);
+
     const currentRoute = (segments[segments.length - 1] || "index") as string;
 
     useEffect(() => {
@@ -923,14 +949,22 @@ export default function AppLayout() {
         !pathname.includes("/cv") &&
         !pathname.includes("paywall");
 
-    if (!isLoaded) return null;
+    if (!isLoaded || !guestHydrated) return null;
 
-    if (!isSignedIn) {
+    // Truly unauthenticated (and not a deliberate guest) → sign in.
+    if (!isSignedIn && !isGuest) {
         return <Redirect href="/(auth)/sign-in" />;
     }
 
-    if (user && !user.unsafeMetadata?.onboardingComplete) {
+    // New signed-in users finish onboarding before entering the app.
+    if (isSignedIn && user && !user.unsafeMetadata?.onboardingComplete) {
         return <Redirect href="/onboarding" />;
+    }
+
+    // Guests may only view home + a single opportunity's detail. Everything else
+    // bounces back home (the effect above already raised the auth wall).
+    if (guestBlocked) {
+        return <Redirect href="/(app)" />;
     }
 
     const tabs = [
@@ -946,7 +980,13 @@ export default function AppLayout() {
         <View style={styles.appContainer}>
             <DailyLoginRewards />
             {!hideSharedHeader && (
-                <AppHeader isDark={isDark} colors={colors} unreadNotifications={unreadCount} />
+                <AppHeader
+                    isDark={isDark}
+                    colors={colors}
+                    unreadNotifications={unreadCount}
+                    guestMode={isGuestBrowsing}
+                    onGuestBlock={() => authWall?.promptAuth('browse')}
+                />
             )}
 
             <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -1002,10 +1042,21 @@ export default function AppLayout() {
                     <BottomNav
                         tabs={tabs}
                         activeRoute={activeRoute}
-                        onTabPress={(key, route) => router.push(route as never)}
+                        onTabPress={(key, route) => {
+                            // Home stays open for guests; every other tab is walled.
+                            if (isGuestBrowsing && key !== "home") {
+                                authWall?.promptAuth('browse');
+                                return;
+                            }
+                            router.push(route as never);
+                        }}
                         circleAction={circleAction}
                         circleHidden={circleHidden}
                         onCirclePress={(action) => {
+                            if (isGuestBrowsing) {
+                                authWall?.promptAuth('ai');
+                                return;
+                            }
                             if (action.kind === "create") {
                                 setCreateDialOpen((open) => !open);
                                 return;
@@ -1029,8 +1080,9 @@ export default function AppLayout() {
                 active, including deep links, without per-screen wiring. */}
             <ModuleLockOverlay />
 
-            {/* Login-time promo interstitial — once per day for free users. */}
-            <LoginOfferModal />
+            {/* Login-time promo interstitial — once per day for free users.
+                Skipped for guests: they have no account to upgrade yet. */}
+            {!isGuestBrowsing && <LoginOfferModal />}
 
             {/* AI voice mode — mounted once at the root so the bottom-nav hold
                 gesture and the chat composer toggles share one overlay. */}

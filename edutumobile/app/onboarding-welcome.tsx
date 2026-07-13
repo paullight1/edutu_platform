@@ -22,6 +22,7 @@ import Animated, {
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../components/context/ThemeContext';
 import { EdutuLogo } from '../components/branding/EdutuLogo';
+import { enterGuestMode } from '../lib/guestModeStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DISPLAY_FONT = Platform.select({ ios: 'Avenir Next', android: 'sans-serif', default: undefined });
@@ -142,6 +143,14 @@ export default function OnboardingWelcome() {
   const { t } = useTranslation('auth');
   const [sheetOpen, setSheetOpen] = useState(false);
 
+  const handleContinueWithoutLogin = () => {
+    // Preview mode: mark this visitor a guest and drop them into the app. Only
+    // the home screen and opportunity detail are reachable — the (app) layout
+    // raises the auth wall for anything else.
+    enterGuestMode();
+    router.replace('/(app)');
+  };
+
   const primaryTextColor = isDark ? '#F8FAFC' : '#141217';
   const mutedTextColor = isDark ? 'rgba(248,250,252,0.66)' : '#858189';
   const surfaceColor = isDark ? '#111217' : '#FFFFFF';
@@ -224,6 +233,16 @@ export default function OnboardingWelcome() {
             >
               <Text style={[styles.sheetSecondaryText, { color: primaryTextColor }]}>
                 {t('welcome.signIn')}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.sheetGuestButton}
+              onPress={handleContinueWithoutLogin}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.sheetGuestText, { color: mutedTextColor }]}>
+                {t('welcome.continueWithoutLogin', { defaultValue: 'Continue without login' })}
               </Text>
             </Pressable>
           </View>
@@ -399,5 +418,15 @@ const styles = StyleSheet.create({
   sheetSecondaryText: {
     fontSize: 21,
     fontWeight: '600',
+  },
+  sheetGuestButton: {
+    marginTop: 16,
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  sheetGuestText: {
+    fontSize: 16,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });
