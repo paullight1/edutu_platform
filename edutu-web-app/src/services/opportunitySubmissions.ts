@@ -37,7 +37,7 @@ export interface OpportunitySubmission {
   updated_at: string;
 }
 
-export interface SubmitOpportunityInput {
+export type SubmitOpportunityInput = {
   title: string;
   organization?: string;
   category?: string;
@@ -51,7 +51,7 @@ export interface SubmitOpportunityInput {
   deadline?: string;
   applyUrl?: string;
   sourceUrl?: string;
-}
+};
 
 function cleanBody(input: Record<string, unknown>) {
   const body: Record<string, unknown> = {};

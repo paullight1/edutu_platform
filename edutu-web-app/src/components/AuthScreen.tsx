@@ -1128,6 +1128,18 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                         </div>
                       </FieldShell>
 
+                      {mode === "sign-in" && (
+                        <div className="-mt-1 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => resetMode("reset-password")}
+                            className="text-xs font-semibold text-brand transition hover:text-brand-700"
+                          >
+                            Forgot password?
+                          </button>
+                        </div>
+                      )}
+
                       {mode === "sign-in" && signInFailureCount >= 1 && (
                         <div className="-mt-1 rounded-xl border border-brand/40 bg-brand/10 px-4 py-3">
                           <p className="text-xs font-medium leading-5 text-text-secondary">

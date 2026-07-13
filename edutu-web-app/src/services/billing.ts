@@ -1,4 +1,4 @@
-export type BillingInterval = 'monthly' | 'yearly';
+export type BillingInterval = 'weekly' | 'monthly' | 'yearly';
 
 export interface BillingStatus {
   isPro: boolean;

@@ -21,6 +21,7 @@ import GoogleOneTapGate from "./components/GoogleOneTapGate";
 import ScrollToTop from "./components/ScrollToTop";
 import DeadlineReminders from "./components/DeadlineReminders";
 import InstallAppPrompt from "./components/InstallAppPrompt";
+import CookieConsent from "./components/CookieConsent";
 import PageSuspense from "./components/PageSuspense";
 import { consumePostAuthRedirect } from "./lib/auth";
 import { initializeCapacitor } from "./lib/capacitor";
@@ -786,6 +787,7 @@ function App() {
     </Routes>
       </Suspense>
       <InstallAppPrompt />
+      <CookieConsent />
     </>
   );
 }
