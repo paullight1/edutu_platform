@@ -1,52 +1,35 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React from "react";
 import { Link } from "react-router-dom";
 import {
   motion,
-  AnimatePresence,
   useReducedMotion,
   type Variants,
 } from "framer-motion";
 import {
-  AlertCircle,
   ArrowRight,
   ArrowUpRight,
   BookOpen,
-  Briefcase,
   Building2,
-  ChevronLeft,
-  ChevronRight,
   Coins,
-  Compass,
   Cpu,
   Download,
   FileText,
   Globe2,
-  GraduationCap,
-  HeartHandshake,
   Heart,
   Lightbulb,
   Lock,
-  Newspaper,
   Quote,
-  Rocket,
   Scale,
   Search,
-  Send,
   ShieldCheck,
   Sparkles,
-  Star,
   Target,
   TrendingUp,
-  Trophy,
   Users,
-  Users2,
-  type LucideIcon,
 } from "lucide-react";
 import PublicHeader from "./PublicHeader";
 import SiteFooter from "./SiteFooter";
 import Seo from "./Seo";
-import { useOpportunities } from "../hooks/useOpportunities";
-import { useCountUp } from "../hooks/useCountUp";
 
 /** The downloadable flagship research report (served from /public). */
 const IMPACT_REPORT_PDF = "/reports/edutu-opportunity-gap-report.pdf";
@@ -264,41 +247,6 @@ const SectionHeading: React.FC<{
   </div>
 );
 
-: {
-  stat: ImpactStat;
-  variants?: Variants;
-}) {
-  const { ref, value } = useCountUp<HTMLDivElement>(stat.value, {
-    duration: 2000,
-  });
-  const Icon = stat.icon;
-  const display = stat.decimals
-    ? value.toFixed(stat.decimals)
-    : Math.round(value).toLocaleString();
-
-  return (
-    <motion.div
-      ref={ref}
-      variants={variants}
-      className="group flex flex-col rounded-3xl border border-subtle bg-surface-layer p-6 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:border-brand/40 hover:shadow-elevated"
-    >
-      <div
-        className={`mb-5 flex h-12 w-12 items-center justify-center rounded-2xl ${stat.tint}`}
-      >
-        <Icon size={22} className={stat.accent} />
-      </div>
-      <div className="font-display text-[34px] font-semibold leading-none tracking-tight text-text-primary sm:text-[40px]">
-        {stat.prefix}
-        {display}
-        {stat.suffix}
-      </div>
-      <div className="mt-2 text-[14px] font-medium leading-snug text-text-secondary">
-        {stat.label}
-      </div>
-    </motion.div>
-  );
-}
-
 function StoryCard({
   story,
   variants,
@@ -502,96 +450,6 @@ function CategoryBars({ reveal }: { reveal: Record<string, unknown> }) {
             </div>
           </div>
         ))}
-      </div>
-    </motion.div>
-  );
-}
-
-: { reveal: Record<string, unknown> }) {
-  const reduceMotion = useReducedMotion();
-  const [index, setIndex] = useState(0);
-  const count = TESTIMONIALS.length;
-
-  const go = (dir: number) =>
-    setIndex((current) => (current + dir + count) % count);
-
-  useEffect(() => {
-    if (reduceMotion) return;
-    const timer = window.setInterval(
-      () => setIndex((current) => (current + 1) % count),
-      6000,
-    );
-    return () => window.clearInterval(timer);
-  }, [count, reduceMotion]);
-
-  const active = TESTIMONIALS[index];
-
-  return (
-    <motion.div {...reveal} className="mx-auto max-w-3xl">
-      <div className="relative overflow-hidden rounded-3xl border border-subtle bg-surface-layer p-8 shadow-soft sm:p-12">
-        <Quote size={40} className="mx-auto mb-6 text-brand/30" />
-        <div className="min-h-[168px] sm:min-h-[140px]">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={index}
-              initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
-              animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-              exit={reduceMotion ? undefined : { opacity: 0, y: -16 }}
-              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-              className="text-center"
-            >
-              <p className="mx-auto max-w-2xl text-[20px] font-medium leading-relaxed text-text-primary sm:text-[24px]">
-                “{active.quote}”
-              </p>
-              <div className="mt-8 flex items-center justify-center gap-3">
-                <img
-                  src={active.avatar}
-                  alt=""
-                  className="h-12 w-12 rounded-full object-cover ring-2 ring-surface-layer shadow-soft"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <div className="text-left">
-                  <div className="text-[15px] font-semibold text-text-primary">
-                    {active.name}
-                  </div>
-                  <div className="text-[13px] text-text-muted">{active.role}</div>
-                </div>
-              </div>
-            </motion.div>
-          </AnimatePresence>
-        </div>
-      </div>
-
-      <div className="mt-6 flex items-center justify-center gap-4">
-        <button
-          type="button"
-          onClick={() => go(-1)}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-subtle text-text-secondary transition hover:border-brand/40 hover:text-brand"
-          aria-label="Previous testimonial"
-        >
-          <ChevronLeft size={18} />
-        </button>
-        <div className="flex items-center gap-2">
-          {TESTIMONIALS.map((t, i) => (
-            <button
-              key={t.name}
-              type="button"
-              onClick={() => setIndex(i)}
-              className={`h-2 rounded-full transition-all ${i === index ? "w-6 bg-brand" : "w-2 bg-border-strong hover:bg-brand/50"}`}
-              aria-label={`Go to testimonial ${i + 1}`}
-              aria-current={i === index}
-            />
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={() => go(1)}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-subtle text-text-secondary transition hover:border-brand/40 hover:text-brand"
-          aria-label="Next testimonial"
-        >
-          <ChevronRight size={18} />
-        </button>
       </div>
     </motion.div>
   );
