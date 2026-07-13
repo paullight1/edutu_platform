@@ -3483,7 +3483,8 @@ ${text}`;
   private sanitizeUrl(url: string | null | undefined): string | null {
     if (url === null || url === undefined) return null;
     const cleaned = String(url)
-      .replace(/[\s\u200B\u200C\u200D\uFEFF]+/g, "")
+      .replace(/[\s\u200B\u200C\uFEFF]+/g, "")
+      .replace(/\u200D/g, "")
       .replace(/^["'<`]+|["'>`]+$/g, "")
       .trim();
     return cleaned || null;
@@ -3491,7 +3492,8 @@ ${text}`;
 
   private normalizeUrl(url: string): string {
     return (url || "")
-      .replace(/[\s\u200B\u200C\u200D\uFEFF]+/g, "")
+      .replace(/[\s\u200B\u200C\uFEFF]+/g, "")
+      .replace(/\u200D/g, "")
       .trim()
       .replace(/[?#].*$/, "")
       .replace(/\/+$/, "")
