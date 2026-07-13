@@ -32,7 +32,6 @@ import { useAbsoluteSessionTimeout } from "./hooks/useAbsoluteSessionTimeout";
 const AuthScreen = lazy(() => import("./components/AuthScreen"));
 const AuthCallback = lazy(() => import("./components/AuthCallback"));
 const ApplicationsPage = lazy(() => import("./components/ApplicationsPage"));
-const CoachChatPage = lazy(() => import("./components/CoachChatPage"));
 const Dashboard = lazy(() => import("./components/Dashboard"));
 const PersonalizationScreen = lazy(
   () => import("./components/PersonalizationScreen"),
@@ -439,12 +438,6 @@ function AppWorkspaceRoute({ children }: { children: ReactNode }) {
   );
 }
 
-// Preserves ?prefill=… (coach pulse deep links) across the redirect.
-function ChatRedirect() {
-  const location = useLocation();
-  return <Navigate to={`/app/coach${location.search}`} replace />;
-}
-
 function App() {
   const navigate = useNavigate();
   const { isSignedIn } = useClerkAuth();
@@ -599,25 +592,11 @@ function App() {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/coach"
-        element={
-          <AppWorkspaceRoute>
-            <CoachChatPage />
-          </AppWorkspaceRoute>
-        }
-      />
-      <Route
-        path="/app/coach"
-        element={
-          <AppWorkspaceRoute>
-            <CoachChatPage />
-          </AppWorkspaceRoute>
-        }
-      />
-      {/* Mobile pulse deep links use /chat?prefill=… — same coach surface on web. */}
-      <Route path="/chat" element={<ChatRedirect />} />
-      <Route path="/app/chat" element={<ChatRedirect />} />
+      {/* AI Coach removed — send legacy coach/chat deep links to the dashboard. */}
+      <Route path="/coach" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/app/coach" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/chat" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/app/chat" element={<Navigate to="/dashboard" replace />} />
       <Route path="/cv" element={<Navigate to="/dashboard" replace />} />
       <Route path="/app/cv" element={<Navigate to="/dashboard" replace />} />
       <Route

@@ -323,11 +323,13 @@ export class OpportunityEmbeddingService {
     this.profileEmbeddingCache.delete(userId);
     void (async () => {
       try {
+        // Profiles are keyed by the raw auth subject; dual-key so this warms
+        // from the canonical row whether the caller passed a raw or derived id.
         const profileResult = await db.execute(
-          sql`select * from profiles where user_id = ${userId} limit 1`,
+          sql`select * from profiles where (user_id::text = ${userId} or public.clerk_id_to_uuid(user_id::text) = ${userId}) limit 1`,
         );
         const prefResult = await db.execute(
-          sql`select * from user_opportunity_preferences where user_id = ${userId} limit 1`,
+          sql`select * from user_opportunity_preferences where (user_id::text = ${userId} or public.clerk_id_to_uuid(user_id::text) = ${userId}) limit 1`,
         );
         const profileRow =
           ((profileResult as { rows?: Record<string, unknown>[] }).rows ??

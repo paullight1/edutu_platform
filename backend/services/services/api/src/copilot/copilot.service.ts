@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { desc, eq, and } from "drizzle-orm";
 import { AiService } from "../ai";
-import { toDatabaseUserId } from "../common/user-id";
+import { matchProfileUserId, toDatabaseUserId } from "../common/user-id";
 import { db } from "../db";
 import {
   applicationKits,
@@ -716,7 +716,7 @@ export class CopilotService {
   private async loadProfile(dbUserId: string): Promise<ProfileContext> {
     try {
       const [profileRows, goalRows] = await Promise.all([
-        db.select().from(profiles).where(eq(profiles.userId, dbUserId)).limit(1).execute(),
+        db.select().from(profiles).where(matchProfileUserId(profiles.userId, dbUserId)).limit(1).execute(),
         db.select().from(goalsTable).where(eq(goalsTable.userId, dbUserId)).limit(3).execute(),
       ]);
       const row = profileRows[0];

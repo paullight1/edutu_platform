@@ -12,8 +12,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { IS_PUBLIC_KEY } from "./public.decorator";
 import { db } from "../db";
 import { profiles } from "../db/schema";
-import { eq } from "drizzle-orm";
-import { toDatabaseUserId } from "../common/user-id";
+import { matchProfileUserId, toDatabaseUserId } from "../common/user-id";
 import {
   getExpectedClerkIssuer,
   verifyClerkTokenViaJwks,
@@ -153,6 +152,9 @@ export class ClerkAuthGuard implements CanActivate {
       if (!payload?.sub) return false;
 
       const dbUserId = toDatabaseUserId(payload.sub);
+      // Profiles are keyed by the raw auth subject (canonical). Resolve the row
+      // via the dual-key matcher so a legacy derived-uuid row still hydrates
+      // role/email while the merge migration catches up.
       const profile = await this.findProfile(dbUserId);
       const clerkUser = profile
         ? null
@@ -179,8 +181,9 @@ export class ClerkAuthGuard implements CanActivate {
 
       // Active-user tracking: mark the account active the moment any
       // authenticated request arrives (covers Google/Clerk sign-ins that
-      // previously never wrote last_seen_at). Fire-and-forget.
-      this.touchLastSeen(dbUserId, request.user.email, request.user.firstName);
+      // previously never wrote last_seen_at). Fire-and-forget. Keyed by the
+      // raw Clerk subject so the stamp lands on the canonical profile row.
+      this.touchLastSeen(payload.sub, request.user.email, request.user.firstName);
 
       return true;
     } catch {
@@ -240,23 +243,23 @@ export class ClerkAuthGuard implements CanActivate {
    * users (e.g. first Google login, before any GET /profile) still count
    * toward active-user metrics; on conflict only last_seen_at is touched.
    */
-  private touchLastSeen(dbUserId: string, email?: string, firstName?: string) {
+  private touchLastSeen(profileKey: string, email?: string, firstName?: string) {
     const now = Date.now();
-    const lastStamp = this.lastSeenStamps.get(dbUserId);
+    const lastStamp = this.lastSeenStamps.get(profileKey);
     if (lastStamp && now - lastStamp < LAST_SEEN_THROTTLE_MS) return;
-    this.lastSeenStamps.set(dbUserId, now);
+    this.lastSeenStamps.set(profileKey, now);
 
     // Bound the in-memory throttle map (per-instance; a reset just means
     // one extra write).
     if (this.lastSeenStamps.size > 10_000) {
       this.lastSeenStamps.clear();
-      this.lastSeenStamps.set(dbUserId, now);
+      this.lastSeenStamps.set(profileKey, now);
     }
 
     void db
       .insert(profiles)
       .values({
-        userId: dbUserId,
+        userId: profileKey,
         email: email ?? null,
         fullName: firstName ?? null,
         lastSeenAt: new Date(),
@@ -268,7 +271,7 @@ export class ClerkAuthGuard implements CanActivate {
       .execute()
       .catch(() => {
         // Never block or fail auth over metrics; allow a retry next window.
-        this.lastSeenStamps.delete(dbUserId);
+        this.lastSeenStamps.delete(profileKey);
       });
   }
 
@@ -305,11 +308,11 @@ export class ClerkAuthGuard implements CanActivate {
     return this.supabaseClients;
   }
 
-  private async findProfile(userId: string) {
+  private async findProfile(derivedUserId: string) {
     const [profile] = await db
       .select()
       .from(profiles)
-      .where(eq(profiles.userId, userId))
+      .where(matchProfileUserId(profiles.userId, derivedUserId))
       .execute();
 
     return profile || null;

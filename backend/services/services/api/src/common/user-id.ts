@@ -1,3 +1,5 @@
+import { sql, type SQL, type AnyColumn } from "drizzle-orm";
+
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -26,4 +28,18 @@ export function toDatabaseUserId(userId: string | null | undefined): string {
 
 export function isUuid(value: string | null | undefined): value is string {
   return Boolean(value && UUID_REGEX.test(value));
+}
+
+/**
+ * Dual-key match for the `profiles`-family tables, whose `user_id` is `text`
+ * and may hold EITHER the raw auth subject (Clerk `user_…` / Supabase uuid,
+ * written by the mobile app + web `authService`) OR the derived uuid produced
+ * by {@link toDatabaseUserId} (written by older backend paths). Pass the
+ * derived id (`request.user.id`) and this matches both representations, since
+ * `clerk_id_to_uuid(rawId) === derivedId`. The canonical write key is now the
+ * raw auth subject; this keeps reads resilient across the transition and any
+ * rows a client wrote directly.
+ */
+export function matchProfileUserId(column: AnyColumn, derivedUserId: string): SQL {
+  return sql`(${column}::text = ${derivedUserId} OR public.clerk_id_to_uuid(${column}::text) = ${derivedUserId})`;
 }

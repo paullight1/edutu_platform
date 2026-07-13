@@ -35,10 +35,10 @@ export class ProfileController {
 
   @Patch()
   updateProfile(
-    @CurrentUser("id") userId: string,
+    @CurrentUser() user: AuthenticatedProfileUser,
     @Body(new ZodValidationPipe(UpdateProfileSchema)) body: UpdateProfileDto,
   ) {
-    return this.profileService.updateProfile(userId, body);
+    return this.profileService.updateProfile(user, body);
   }
 
   @Get("completeness")

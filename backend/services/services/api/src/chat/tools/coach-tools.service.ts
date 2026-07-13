@@ -407,7 +407,9 @@ export class CoachToolsService {
         if (!Object.keys(patch).length) {
           return { error: "Nothing to save — pass at least one field" };
         }
-        await this.profileService.updateProfile(ctx.userId, patch as never);
+        // ctx.userId is the derived id; updateProfile resolves the canonical
+        // (raw-keyed) row via the dual-key matcher.
+        await this.profileService.updateProfile({ id: ctx.userId }, patch as never);
         return {
           saved: Object.keys(patch),
           note: "Profile saved — recommendations now reflect it.",

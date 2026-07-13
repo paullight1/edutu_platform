@@ -7,7 +7,7 @@ import {
   notifications,
   profiles,
 } from "../db/schema";
-import { toDatabaseUserId } from "../common/user-id";
+import { matchProfileUserId, toDatabaseUserId } from "../common/user-id";
 import { MeService } from "../me/me.service";
 import { OpportunityEmbeddingService } from "../opportunities/opportunity-embedding.service";
 import type {
@@ -34,28 +34,63 @@ export class ProfileService {
     private readonly embeddingService: OpportunityEmbeddingService,
   ) {}
 
+  /**
+   * Canonical key for the `profiles` table: the raw auth subject (Clerk
+   * `user_…` id or Supabase uuid). The mobile app and web `authService`
+   * already key profiles this way, so aligning the backend means every surface
+   * reads and writes the SAME row. Non-profile, uuid-keyed tables
+   * (notifications, saved_searches, …) and internal caches keep using the
+   * derived uuid via {@link toDatabaseUserId}.
+   */
+  private profileKey(user: AuthenticatedProfileUser): string {
+    return user.authId?.trim() || toDatabaseUserId(user.id);
+  }
+
   async getProfile(user: AuthenticatedProfileUser) {
-    const dbUserId = toDatabaseUserId(user.id);
-    const profile = await this.findOrCreateProfile(dbUserId, user);
+    const profile = await this.findOrCreateProfile(this.profileKey(user), user);
 
     return this.withCompleteness(profile);
   }
 
-  async updateProfile(userId: string, dto: UpdateProfileDto) {
-    const dbUserId = toDatabaseUserId(userId);
+  async updateProfile(user: AuthenticatedProfileUser, dto: UpdateProfileDto) {
     const updateData = this.toProfileUpdate(dto);
+    const rawKey = user.authId?.trim();
+    let updated: typeof profiles.$inferSelect | undefined;
 
-    // Upsert instead of update: a PATCH must not 404 just because the user
-    // never hit GET /profile first (that was a real failure mode — the save
-    // silently died and the profile came back empty).
-    const [updated] = await db
-      .insert(profiles)
-      .values({ userId: dbUserId, ...updateData })
-      .onConflictDoUpdate({
-        target: profiles.userId,
-        set: updateData,
-      })
-      .returning();
+    if (rawKey) {
+      // Canonical path (request carries the raw auth subject): upsert directly
+      // on the raw key. Upsert not update so a PATCH never 404s just because
+      // the user never hit GET /profile first (a real past failure mode — the
+      // save silently died and the profile came back empty).
+      [updated] = await db
+        .insert(profiles)
+        .values({ userId: rawKey, ...updateData })
+        .onConflictDoUpdate({
+          target: profiles.userId,
+          set: updateData,
+        })
+        .returning();
+    } else {
+      // Internal callers (e.g. the AI coach tool) only carry the derived id.
+      // Update the canonical row in place via the dual-key matcher; fall back
+      // to creating one under the derived id if the user has no row yet.
+      const derivedId = toDatabaseUserId(user.id);
+      [updated] = await db
+        .update(profiles)
+        .set(updateData)
+        .where(matchProfileUserId(profiles.userId, derivedId))
+        .returning();
+      if (!updated) {
+        [updated] = await db
+          .insert(profiles)
+          .values({ userId: derivedId, ...updateData })
+          .onConflictDoUpdate({
+            target: profiles.userId,
+            set: updateData,
+          })
+          .returning();
+      }
+    }
 
     if (!updated) {
       throw new NotFoundException("Profile not found");
@@ -63,7 +98,8 @@ export class ProfileService {
 
     // Profile fields feed the recommendation profile embedding — warm the new
     // vector so the next feed request retrieves semantically (fire-and-forget).
-    this.embeddingService.refreshProfileEmbedding(dbUserId);
+    // The embedding cache stays keyed by the stable derived id.
+    this.embeddingService.refreshProfileEmbedding(toDatabaseUserId(user.id));
 
     return this.withCompleteness(updated);
   }
@@ -74,8 +110,7 @@ export class ProfileService {
   }
 
   async getMemberSettings(user: AuthenticatedProfileUser) {
-    const dbUserId = toDatabaseUserId(user.id);
-    const profile = await this.findOrCreateProfile(dbUserId, user);
+    const profile = await this.findOrCreateProfile(this.profileKey(user), user);
     return this.normalizeSettings(profile.settings);
   }
 
@@ -83,8 +118,8 @@ export class ProfileService {
     user: AuthenticatedProfileUser,
     dto: UpdateMemberSettingsDto,
   ) {
-    const dbUserId = toDatabaseUserId(user.id);
-    await this.findOrCreateProfile(dbUserId, user);
+    const profileKey = this.profileKey(user);
+    await this.findOrCreateProfile(profileKey, user);
 
     // Lock the row for the read-modify-write so concurrent settings writers
     // (privacy save, security save, deletion request) can't clobber each
@@ -93,7 +128,7 @@ export class ProfileService {
       const [profile] = await tx
         .select()
         .from(profiles)
-        .where(eq(profiles.userId, dbUserId))
+        .where(eq(profiles.userId, profileKey))
         .for("update");
       if (!profile) throw new NotFoundException("Profile not found");
 
@@ -113,7 +148,7 @@ export class ProfileService {
       const [updated] = await tx
         .update(profiles)
         .set({ settings: next, updatedAt: new Date() })
-        .where(eq(profiles.userId, dbUserId))
+        .where(eq(profiles.userId, profileKey))
         .returning();
 
       return this.normalizeSettings(updated.settings);
@@ -130,8 +165,10 @@ export class ProfileService {
   }
 
   async exportAccountData(user: AuthenticatedProfileUser) {
+    // Profiles are keyed by the raw auth subject; goals/notifications/bookmarks
+    // below stay on the derived uuid (their own keying is unchanged).
     const dbUserId = toDatabaseUserId(user.id);
-    const profile = await this.findOrCreateProfile(dbUserId, user);
+    const profile = await this.findOrCreateProfile(this.profileKey(user), user);
     const now = new Date().toISOString();
 
     const [
@@ -385,8 +422,8 @@ export class ProfileService {
       ReturnType<ProfileService["defaultSettings"]>["security"]
     >,
   ) {
-    const dbUserId = toDatabaseUserId(user.id);
-    await this.findOrCreateProfile(dbUserId, user);
+    const profileKey = this.profileKey(user);
+    await this.findOrCreateProfile(profileKey, user);
 
     // Row-locked read-modify-write (see updateMemberSettings) so security
     // updates and privacy saves don't overwrite each other's settings fields.
@@ -394,7 +431,7 @@ export class ProfileService {
       const [profile] = await tx
         .select()
         .from(profiles)
-        .where(eq(profiles.userId, dbUserId))
+        .where(eq(profiles.userId, profileKey))
         .for("update");
       if (!profile) throw new NotFoundException("Profile not found");
 
@@ -411,7 +448,7 @@ export class ProfileService {
       const [updated] = await tx
         .update(profiles)
         .set({ settings: next, updatedAt: new Date() })
-        .where(eq(profiles.userId, dbUserId))
+        .where(eq(profiles.userId, profileKey))
         .returning();
 
       return this.normalizeSettings(updated.settings);
