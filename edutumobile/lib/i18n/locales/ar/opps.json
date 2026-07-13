@@ -291,7 +291,13 @@
       "howToApply": "كيفية التقديم",
       "applyStep": "{{number}}.  {{step}}",
       "discoverMore": "اكتشف مزيدًا من الفرص",
-      "footerSub": "نتائج مطابقة مخصصة وخرائط طريق وتذكيرات بالمواعيد النهائية"
+      "footerSub": "نتائج مطابقة مخصصة وخرائط طريق وتذكيرات بالمواعيد النهائية",
+      "typeLabel": "النوع",
+      "durationLabel": "المدة",
+      "audienceLabel": "الفئة المستهدفة",
+      "deadlineLabel": "الموعد النهائي",
+      "whatYouGain": "ما ستحصل عليه",
+      "applyHere": "قدّم هنا"
     }
   },
   "saved": {

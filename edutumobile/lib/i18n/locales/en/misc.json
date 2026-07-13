@@ -599,7 +599,13 @@
         "deadline": "Deadline: {{deadline}}",
         "applyCta": "Click the link below to apply📌",
         "shareWithFriends": "Kindly share with your friends who might be interested.",
-        "dialogTitle": "Share opportunity"
+        "dialogTitle": "Share opportunity",
+        "typeLabel": "Type",
+        "durationLabel": "Duration",
+        "audienceLabel": "Target Audience",
+        "deadlineLabel": "Deadline",
+        "whatYouGain": "What You'll Gain",
+        "applyHere": "Apply here"
     },
     "appControl": {
         "adminBypassMaintenance": "Maintenance mode is ON — admins bypass this gate",

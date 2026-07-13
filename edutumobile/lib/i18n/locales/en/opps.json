@@ -309,7 +309,13 @@
       "howToApply": "HOW TO APPLY",
       "applyStep": "{{number}}.  {{step}}",
       "discoverMore": "Discover more opportunities",
-      "footerSub": "Personalized matches, roadmaps & deadline reminders"
+      "footerSub": "Personalized matches, roadmaps & deadline reminders",
+      "typeLabel": "Type",
+      "durationLabel": "Duration",
+      "audienceLabel": "Target Audience",
+      "deadlineLabel": "Deadline",
+      "whatYouGain": "What You'll Gain",
+      "applyHere": "Apply here"
     }
   },
   "saved": {

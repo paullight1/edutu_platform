@@ -283,7 +283,13 @@
       "howToApply": "CÓMO POSTULAR",
       "applyStep": "{{number}}.  {{step}}",
       "discoverMore": "Descubre más oportunidades",
-      "footerSub": "Coincidencias personalizadas, rutas y recordatorios de fechas límite"
+      "footerSub": "Coincidencias personalizadas, rutas y recordatorios de fechas límite",
+      "typeLabel": "Tipo",
+      "durationLabel": "Duración",
+      "audienceLabel": "Público objetivo",
+      "deadlineLabel": "Fecha límite",
+      "whatYouGain": "Lo que obtendrás",
+      "applyHere": "Postula aquí"
     }
   },
   "saved": {

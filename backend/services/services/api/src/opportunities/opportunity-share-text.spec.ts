@@ -5,7 +5,7 @@ import {
 } from "./opportunity-share-text";
 
 describe("opportunity share text", () => {
-  it("builds the compact social caption style for active opportunities", () => {
+  it("builds a WhatsApp-markdown caption for active opportunities", () => {
     const shareUrl = buildOpportunityPublicShareUrl(
       "opp-123",
       "https://www.edutu.org",
@@ -16,7 +16,9 @@ describe("opportunity share text", () => {
         title: "2026 KPMG Global Tech Innovator Competition",
         organization: "KPMG",
         category: "Competitions",
-        close_date: null,
+        aiSummary:
+          "A global stage for early founders solving real problems with technology.",
+        close_date: "2026-07-31",
         target_region: "All Countries",
         metadata: {
           benefits: [
@@ -28,19 +30,22 @@ describe("opportunity share text", () => {
       shareUrl,
     );
 
-    expect(text).toContain("Still Active!");
-    expect(text).toContain("Sponsor: KPMG");
-    expect(text).toContain("⭐Business Mentorship and Global Exposure");
-    expect(text).toContain("✅Networking Opportunities");
-    expect(text).toContain("Category: Competitions");
-    expect(text).toContain("Eligible Country: All Countries");
-    expect(text).toContain("Deadline: Not Specified");
-    expect(text).toContain("Click the link below to apply📌");
+    expect(
+      text.startsWith("*2026 KPMG Global Tech Innovator Competition*"),
+    ).toBe(true);
+    expect(text).toContain(
+      "_A global stage for early founders solving real problems with technology._",
+    );
+    expect(text).toContain("- *Type:* Competitions");
+    expect(text).toContain("- *Deadline:* 31 July 2026");
+    expect(text).toContain("*What You'll Gain:*");
+    expect(text).toContain("- Business Mentorship and Global Exposure");
+    expect(text).toContain("- Networking Opportunities");
+    expect(text).toContain("*Apply here:*");
     expect(text).toContain("https://www.edutu.org/opportunity/opp-123");
-    expect(text).toContain("Kindly share with your friends");
   });
 
-  it("marks expired opportunities without changing the caption structure", () => {
+  it("omits optional rows when the opportunity lacks that data", () => {
     const text = buildOpportunityShareText(
       {
         title: "Past Fellowship",
@@ -51,7 +56,12 @@ describe("opportunity share text", () => {
       "/opportunity/past",
     );
 
-    expect(text.startsWith("Deadline Passed!")).toBe(true);
-    expect(text).toContain("Click the link below to apply📌");
+    expect(text.startsWith("*Past Fellowship*")).toBe(true);
+    expect(text).toContain("- *Type:* Fellowship");
+    expect(text).not.toContain("*Duration:*");
+    expect(text).not.toContain("*Target Audience:*");
+    expect(text).not.toContain("*What You'll Gain:*");
+    expect(text).toContain("*Apply here:*");
+    expect(text).toContain("/opportunity/past");
   });
 });

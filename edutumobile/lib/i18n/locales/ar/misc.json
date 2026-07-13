@@ -599,6 +599,12 @@
         "deadline": "الموعد النهائي: {{deadline}}",
         "applyCta": "اضغط على الرابط أدناه للتقديم📌",
         "shareWithFriends": "يرجى مشاركتها مع أصدقائك المهتمين.",
-        "dialogTitle": "مشاركة الفرصة"
+        "dialogTitle": "مشاركة الفرصة",
+        "typeLabel": "النوع",
+        "durationLabel": "المدة",
+        "audienceLabel": "الفئة المستهدفة",
+        "deadlineLabel": "الموعد النهائي",
+        "whatYouGain": "ما ستحصل عليه",
+        "applyHere": "قدّم هنا"
     }
 }

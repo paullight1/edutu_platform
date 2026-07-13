@@ -599,6 +599,12 @@
         "deadline": "Tarehe ya mwisho: {{deadline}}",
         "applyCta": "Bofya kiungo kilicho hapa chini ili kuomba📌",
         "shareWithFriends": "Tafadhali shiriki na marafiki zako ambao wanaweza kuvutiwa.",
-        "dialogTitle": "Shiriki fursa"
+        "dialogTitle": "Shiriki fursa",
+        "typeLabel": "Aina",
+        "durationLabel": "Muda",
+        "audienceLabel": "Walengwa",
+        "deadlineLabel": "Tarehe ya mwisho",
+        "whatYouGain": "Utakachopata",
+        "applyHere": "Omba hapa"
     }
 }

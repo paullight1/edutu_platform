@@ -599,6 +599,12 @@
         "deadline": "डेडलाइन: {{deadline}}",
         "applyCta": "अप्लाई करने के लिए नीचे दिए लिंक पर क्लिक करें📌",
         "shareWithFriends": "कृपया अपने उन दोस्तों के साथ शेयर करें जिन्हें इसमें रुचि हो सकती है।",
-        "dialogTitle": "अवसर शेयर करें"
+        "dialogTitle": "अवसर शेयर करें",
+        "typeLabel": "प्रकार",
+        "durationLabel": "अवधि",
+        "audienceLabel": "लक्षित दर्शक",
+        "deadlineLabel": "डेडलाइन",
+        "whatYouGain": "आपको क्या मिलेगा",
+        "applyHere": "यहाँ आवेदन करें"
     }
 }

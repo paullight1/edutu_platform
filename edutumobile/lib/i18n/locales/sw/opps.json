@@ -283,7 +283,13 @@
       "howToApply": "JINSI YA KUOMBA",
       "applyStep": "{{number}}.  {{step}}",
       "discoverMore": "Gundua fursa zaidi",
-      "footerSub": "Mapendekezo binafsi, ramani za njia na vikumbusho vya tarehe za mwisho"
+      "footerSub": "Mapendekezo binafsi, ramani za njia na vikumbusho vya tarehe za mwisho",
+      "typeLabel": "Aina",
+      "durationLabel": "Muda",
+      "audienceLabel": "Walengwa",
+      "deadlineLabel": "Tarehe ya mwisho",
+      "whatYouGain": "Utakachopata",
+      "applyHere": "Omba hapa"
     }
   },
   "saved": {

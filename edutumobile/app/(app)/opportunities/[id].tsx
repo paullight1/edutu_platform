@@ -171,9 +171,10 @@ function formatShareDeadline(deadline?: string | null): string {
   if (!deadline) return i18n.t("opps:detail.share.rollingNotSpecified");
   const parsed = new Date(deadline);
   if (Number.isNaN(parsed.getTime())) return deadline;
-  return parsed.toLocaleDateString("en-US", {
-    month: "long",
+  // Day-month-year (e.g. "31 July 2026") to match Edutu's audience.
+  return parsed.toLocaleDateString("en-GB", {
     day: "numeric",
+    month: "long",
     year: "numeric",
   });
 }
@@ -231,48 +232,75 @@ function getShareBullets(
     : [i18n.t("opps:detail.share.detailsInApp")];
 }
 
+/**
+ * WhatsApp-native fallback caption for the detail screen (used only when the
+ * backend share-card call fails — otherwise the backend's canonical shareText
+ * ships). WhatsApp markdown (*bold*, _italic_, "- " bullets); each optional
+ * row is conditional so no empty label is rendered. This is the text caption —
+ * the rendered ViewShot card below builds its own labelled tiles separately.
+ */
 function buildMobileOpportunityShareText(opportunity: Opportunity): string {
-  const expired = opportunity.deadline
-    ? new Date(opportunity.deadline).getTime() < Date.now()
-    : false;
-  const benefits = getShareBullets(
-    opportunity.benefits,
-    getShareFunding(opportunity),
-    2,
+  const title = cleanShareText(
+    opportunity.title,
+    i18n.t("opps:detail.share.fallbackTitle"),
   );
-  const benefitLines = benefits
-    .map((benefit, index) => `${index === 0 ? "⭐" : "✅"}${benefit}`)
-    .join("\n");
+  const summary = clampShareText(
+    cleanShareText(opportunity.aiSummary || opportunity.description || "", ""),
+    SHARE_TEXT_LIMITS.summary,
+  );
+  const type = cleanShareText(opportunity.category, "");
+  const duration = cleanShareText(
+    (opportunity as any).duration ||
+      (opportunity as any).program_duration ||
+      "",
+    "",
+  );
+  const audience = cleanShareText(
+    (opportunity as any).targetAudience ||
+      (opportunity as any).target_audience ||
+      "",
+    "",
+  );
+  const deadline = formatShareDeadline(opportunity.deadline);
+  const gains = (opportunity.benefits || [])
+    .map((benefit) =>
+      clampShareText(cleanShareText(benefit, ""), SHARE_TEXT_LIMITS.section),
+    )
+    .filter(Boolean)
+    .slice(0, 5);
 
-  return [
-    expired
-      ? i18n.t("opps:detail.share.deadlinePassed")
-      : i18n.t("opps:detail.share.stillActive"),
+  const lines: string[] = [`*${title}*`];
+
+  if (summary) lines.push("", `_${summary}_`);
+
+  const facts: string[] = [];
+  if (type) facts.push(`- *${i18n.t("opps:detail.share.typeLabel")}:* ${type}`);
+  if (duration) {
+    facts.push(`- *${i18n.t("opps:detail.share.durationLabel")}:* ${duration}`);
+  }
+  if (audience) {
+    facts.push(`- *${i18n.t("opps:detail.share.audienceLabel")}:* ${audience}`);
+  }
+  facts.push(`- *${i18n.t("opps:detail.share.deadlineLabel")}:* ${deadline}`);
+  lines.push("", ...facts);
+
+  if (gains.length > 0) {
+    lines.push(
+      "",
+      `*${i18n.t("opps:detail.share.whatYouGain")}:*`,
+      "",
+      ...gains.map((gain) => `- ${gain}`),
+    );
+  }
+
+  lines.push(
     "",
-    cleanShareText(opportunity.title, i18n.t("opps:detail.share.fallbackTitle")),
+    `*${i18n.t("opps:detail.share.applyHere")}:*`,
     "",
-    i18n.t("opps:detail.share.sponsorLine", {
-      sponsor: cleanShareText(opportunity.organization, "Edutu"),
-    }),
-    "",
-    i18n.t("opps:detail.share.benefitsHeading"),
-    benefitLines,
-    "",
-    i18n.t("opps:detail.share.categoryLine", {
-      category: cleanShareText(opportunity.category, i18n.t("opps:shared.opportunity")),
-    }),
-    i18n.t("opps:detail.share.eligibleCountryLine", {
-      eligibility: getShareEligibility(opportunity),
-    }),
-    i18n.t("opps:detail.share.deadlineLine", {
-      deadline: formatShareDeadline(opportunity.deadline),
-    }),
-    "",
-    i18n.t("opps:detail.share.applyCta"),
     buildOpportunityShareUrl(opportunity.id),
-    "",
-    i18n.t("opps:detail.share.shareWithFriends"),
-  ].join("\n");
+  );
+
+  return lines.join("\n");
 }
 
 async function getBackendSharePayload(

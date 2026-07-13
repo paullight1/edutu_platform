@@ -283,7 +283,13 @@
       "howToApply": "如何申请",
       "applyStep": "{{number}}.  {{step}}",
       "discoverMore": "发现更多机会",
-      "footerSub": "个性化匹配、路线图与截止日期提醒"
+      "footerSub": "个性化匹配、路线图与截止日期提醒",
+      "typeLabel": "类型",
+      "durationLabel": "时长",
+      "audienceLabel": "目标人群",
+      "deadlineLabel": "截止日期",
+      "whatYouGain": "你将获得",
+      "applyHere": "在此申请"
     }
   },
   "saved": {
