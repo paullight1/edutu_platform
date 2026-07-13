@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Search, ChevronRight, ChevronLeft, TrendingUp, Lightbulb } from 'lucide-react';
 import PublicHeader from './PublicHeader';
+import Seo from './Seo';
 import {
   fetchPublishedPosts,
   formatPostDate,
@@ -131,34 +132,32 @@ const BlogPage: React.FC = () => {
     <div className="min-h-[100dvh] overflow-x-hidden bg-surface-body font-body text-text-primary">
       <PublicHeader fixed />
 
+      <Seo
+        title="Blog — Edutu"
+        description="Founder notes, success stories, and guides to help every young African discover and win life-changing opportunities."
+        path="/blog"
+        type="website"
+      />
+
       <main className="pb-[96px]">
-        {/* Hero banner */}
-        <section className="px-4 pt-[92px] sm:px-6">
-          <div className="mx-auto max-w-[1200px]">
-            <motion.div
-              initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
-              animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="relative overflow-hidden rounded-3xl px-6 py-16 text-center md:py-20"
-              style={{ background: 'linear-gradient(135deg, #131a3d 0%, #1e2a5c 55%, #26356f 100%)' }}
-            >
-              <div
-                className="pointer-events-none absolute inset-0"
-                style={{ background: 'radial-gradient(circle at 80% 15%, rgba(53,99,233,0.38), transparent 55%)' }}
-              />
-              <div className="relative">
-                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-white/70">
-                  From the Blog
-                </span>
-                <h1 className="mt-3 font-display text-4xl font-semibold tracking-tight text-white md:text-5xl">
-                  Blog Insights
-                </h1>
-                <p className="mx-auto mt-4 max-w-2xl text-base text-white/75 md:text-lg">
-                  Founder notes, success stories, and guides to help you unlock global opportunities.
-                </p>
-              </div>
-            </motion.div>
-          </div>
+        {/* Header */}
+        <section className="px-4 pt-[120px] sm:px-6">
+          <motion.div
+            initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
+            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="mx-auto max-w-[1200px] text-center"
+          >
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">
+              From the Blog
+            </span>
+            <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight text-text-primary md:text-4xl">
+              Insights &amp; <span className="text-brand">Resources</span>
+            </h1>
+            <p className="mx-auto mt-4 max-w-2xl text-base text-text-secondary md:text-lg">
+              Founder notes, success stories, and guides to help you unlock global opportunities.
+            </p>
+          </motion.div>
         </section>
 
         <div className="mx-auto max-w-[1200px] px-4 pt-12 sm:px-6">
