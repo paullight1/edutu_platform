@@ -1912,8 +1912,6 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         overflow: 'hidden',
         backgroundColor: '#0F172A',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.14)',
     },
     // Icon-size tile: gradient glyph square with the label underneath.
     iconTileWrap: {
@@ -1945,8 +1943,6 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         overflow: 'hidden',
         backgroundColor: '#0F172A',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.14)',
     },
     longTileBg: {
         flex: 1,
