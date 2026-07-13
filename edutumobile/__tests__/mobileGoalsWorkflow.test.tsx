@@ -36,7 +36,8 @@ const mockAlert = jest.spyOn(Alert, 'alert');
 let mockRouteParams: { id?: string } = {};
 let mockGoals: Goal[] = [];
 
-const mockSupabase = {};
+const { createSupabaseMock } = require('../test-utils/supabaseMock');
+const mockSupabase = createSupabaseMock();
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, setParams: mockSetParams, canGoBack: () => false, back: jest.fn(), replace: jest.fn() }),

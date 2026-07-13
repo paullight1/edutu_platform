@@ -187,6 +187,12 @@ jest.mock('../lib/supabase', () => ({
 
 jest.mock('@edutu/core/src/services/opportunities', () => ({
   getOpportunity: (...args: unknown[]) => mockGetOpportunity(...args),
+  // The detail screen calls getOpportunityWithStatus; delegate to the same mock
+  // so existing mockGetOpportunity.mockResolvedValue(...) setups keep working.
+  getOpportunityWithStatus: async (...args: unknown[]) => {
+    const opportunity = await mockGetOpportunity(...args);
+    return { opportunity, status: opportunity ? 'ok' : 'not_found' };
+  },
 }), { virtual: true });
 
 jest.mock('../packages/core/src/services/bookmarks', () => ({

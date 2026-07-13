@@ -202,6 +202,92 @@ jest.mock('expo-haptics', () => ({
   NotificationFeedbackType: { Success: 'success', Warning: 'warning', Error: 'error' },
 }));
 
+// expo-web-browser + expo-auth-session pull in expo-modules-core's native
+// EventEmitter at import time, which throws under jest. Stub the surface the
+// Google SSO button touches so suites that import it can render.
+jest.mock('expo-web-browser', () => ({
+  maybeCompleteAuthSession: jest.fn(),
+  warmUpAsync: jest.fn(async () => undefined),
+  coolDownAsync: jest.fn(async () => undefined),
+  openBrowserAsync: jest.fn(async () => ({ type: 'cancel' })),
+  openAuthSessionAsync: jest.fn(async () => ({ type: 'cancel' })),
+  dismissBrowser: jest.fn(),
+}));
+
+jest.mock('expo-auth-session', () => ({
+  makeRedirectUri: jest.fn(() => 'https://mock.edutu/redirect'),
+  useAuthRequest: jest.fn(() => [null, null, jest.fn()]),
+  useAutoDiscovery: jest.fn(() => null),
+  exchangeCodeAsync: jest.fn(async () => ({})),
+  ResponseType: { Code: 'code', Token: 'token' },
+  Prompt: { SelectAccount: 'select_account', Login: 'login' },
+}));
+
+// The rest of the native expo modules import expo-modules-core's EventEmitter
+// at load time (throws under jest), so stub the surface the app touches.
+jest.mock('expo-document-picker', () => ({
+  getDocumentAsync: jest.fn(async () => ({ canceled: true, assets: null })),
+}));
+
+jest.mock('expo-print', () => ({
+  printToFileAsync: jest.fn(async () => ({ uri: 'file://mock.pdf' })),
+  printAsync: jest.fn(async () => undefined),
+}));
+
+jest.mock('expo-sharing', () => ({
+  isAvailableAsync: jest.fn(async () => true),
+  shareAsync: jest.fn(async () => undefined),
+}));
+
+jest.mock('expo-image-picker', () => ({
+  launchImageLibraryAsync: jest.fn(async () => ({ canceled: true, assets: null })),
+  launchCameraAsync: jest.fn(async () => ({ canceled: true, assets: null })),
+  requestMediaLibraryPermissionsAsync: jest.fn(async () => ({ granted: true })),
+  requestCameraPermissionsAsync: jest.fn(async () => ({ granted: true })),
+  MediaTypeOptions: { Images: 'Images', All: 'All', Videos: 'Videos' },
+  MediaType: { Images: 'images' },
+}));
+
+jest.mock('expo-secure-store', () => ({
+  getItemAsync: jest.fn(async () => null),
+  setItemAsync: jest.fn(async () => undefined),
+  deleteItemAsync: jest.fn(async () => undefined),
+}));
+
+jest.mock('expo-linking', () => ({
+  createURL: jest.fn((path: string) => `edutu://${path}`),
+  openURL: jest.fn(async () => undefined),
+  parse: jest.fn(() => ({ path: '', queryParams: {} })),
+  useURL: jest.fn(() => null),
+  addEventListener: jest.fn(() => ({ remove: jest.fn() })),
+  getInitialURL: jest.fn(async () => null),
+}));
+
+jest.mock('expo-background-task', () => ({
+  registerTaskAsync: jest.fn(async () => undefined),
+  unregisterTaskAsync: jest.fn(async () => undefined),
+  getStatusAsync: jest.fn(async () => 1),
+  BackgroundTaskStatus: { Available: 1, Restricted: 2 },
+  BackgroundTaskResult: { Success: 1, Failed: 2 },
+}));
+
+jest.mock('expo-task-manager', () => ({
+  defineTask: jest.fn(),
+  isTaskRegisteredAsync: jest.fn(async () => false),
+  isTaskDefined: jest.fn(() => false),
+  unregisterAllTasksAsync: jest.fn(async () => undefined),
+}));
+
+jest.mock('expo-updates', () => ({
+  reloadAsync: jest.fn(async () => undefined),
+  checkForUpdateAsync: jest.fn(async () => ({ isAvailable: false })),
+  fetchUpdateAsync: jest.fn(async () => ({ isNew: false })),
+  useUpdates: jest.fn(() => ({ isUpdateAvailable: false, isUpdatePending: false })),
+  channel: null,
+  runtimeVersion: 'test',
+  isEnabled: false,
+}));
+
 // Ships untranspiled ESM that jest's transformIgnorePatterns excludes; mock
 // it wholesale (tests never exercise real purchases).
 jest.mock('react-native-purchases', () => ({

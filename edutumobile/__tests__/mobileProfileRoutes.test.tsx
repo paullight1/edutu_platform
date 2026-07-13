@@ -50,7 +50,9 @@ let mockProfileRow: Record<string, unknown> = {
   bio: 'Scholarship applicant and community builder.',
 };
 
+const { createSupabaseMock } = require('../test-utils/supabaseMock');
 const mockSupabase = {
+  ...createSupabaseMock(),
   from: jest.fn(),
   functions: {
     invoke: jest.fn(),

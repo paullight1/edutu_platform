@@ -246,6 +246,7 @@ jest.mock('../lib/opportunityWidgetSync', () => ({
 
 jest.mock('../lib/supabase', () => ({
   supabase: {
+    ...require('../test-utils/supabaseMock').createSupabaseMock(),
     from: jest.fn(),
   },
 }));

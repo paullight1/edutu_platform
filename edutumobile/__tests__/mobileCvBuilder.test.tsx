@@ -60,7 +60,8 @@ let mockUserCVs: UserCV[] = [];
 let mockProStatus = { isPro: false, cvTrialUsed: false };
 let mockOpportunities: Opportunity[] = [];
 
-const mockSupabase = {};
+const { createSupabaseMock } = require('../test-utils/supabaseMock');
+const mockSupabase = createSupabaseMock();
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, canGoBack: () => false, back: jest.fn(), replace: jest.fn() }),

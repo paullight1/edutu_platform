@@ -38,6 +38,9 @@ jest.mock('@clerk/clerk-expo', () => ({
   useUser: () => mockUserState,
   useSignIn: () => mockSignInState,
   useSignUp: () => mockSignUpState,
+  useSSO: () => ({
+    startSSOFlow: jest.fn(async () => ({ createdSessionId: null, setActive: jest.fn() })),
+  }),
   useOAuth: ({ strategy }: { strategy: string }) => ({
     startOAuthFlow: strategy === 'oauth_google' ? mockGoogleOAuth : mockAppleOAuth,
   }),
@@ -73,6 +76,9 @@ jest.mock('../components/context/ThemeContext', () => ({
 
 jest.mock('expo-web-browser', () => ({
   maybeCompleteAuthSession: jest.fn(),
+  warmUpAsync: jest.fn(async () => undefined),
+  coolDownAsync: jest.fn(async () => undefined),
+  openAuthSessionAsync: jest.fn(async () => ({ type: 'cancel' })),
 }));
 
 jest.mock('lucide-react-native', () => {
