@@ -58,6 +58,8 @@ import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import { BrandedLoader } from "../../../components/ui/BrandedLoader";
 import { ProgressBar } from "../../../components/ui/ProgressBar";
 import { supabase } from "../../../lib/supabase";
+import { useGuestMode } from "../../../lib/guestModeStore";
+import { useAuthWall } from "../../../components/context/AuthWallContext";
 import {
   getOpportunityWithStatus,
   getCachedOpportunitiesSnapshot,
@@ -462,9 +464,15 @@ export default function OpportunityDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useUser();
-  const { getToken } = useAuth();
+  const { getToken, isSignedIn } = useAuth();
   const { isDark, colors } = useTheme();
   const upgradeSheet = useUpgradeSheet();
+
+  // Guests may read + share this opportunity, but applying, saving, dismissing,
+  // planning, and AI all require an account — raise the wall instead.
+  const { isGuest } = useGuestMode();
+  const authWall = useAuthWall();
+  const isGuestBrowsing = !isSignedIn && isGuest;
   const { createGoal, updateGoal } = useGoals(supabase, user?.id || null);
   const {
     credits,
@@ -669,6 +677,10 @@ export default function OpportunityDetailScreen() {
   }, []);
 
   const toggleBookmark = async () => {
+    if (isGuestBrowsing) {
+      authWall?.promptAuth('save');
+      return;
+    }
     if (!user || !id) return;
     setBookmarkLoading(true);
     try {
@@ -714,9 +726,13 @@ export default function OpportunityDetailScreen() {
   // eligibility vs dedup), so asking why makes every dismissal a better
   // training signal AND protects users from accidentally burying a category.
   const handleNotInterested = useCallback(() => {
+    if (isGuestBrowsing) {
+      authWall?.promptAuth('browse');
+      return;
+    }
     if (!user?.id || !id) return;
     setDismissSheetVisible(true);
-  }, [user?.id, id]);
+  }, [isGuestBrowsing, authWall, user?.id, id]);
 
   const handleDismissReason = useCallback((reason: DismissReason) => {
     setDismissSheetVisible(false);
@@ -726,6 +742,10 @@ export default function OpportunityDetailScreen() {
   }, [user?.id, id, getToken, router]);
 
   const handleApply = useCallback(async () => {
+    if (isGuestBrowsing) {
+      authWall?.promptAuth('apply');
+      return;
+    }
     // Guard against any stray whitespace in a scraped/cached link — a raw space
     // makes the URL unclickable and Linking.openURL reject it.
     const applyUrl = opportunity?.applyUrl
@@ -777,10 +797,14 @@ export default function OpportunityDetailScreen() {
         console.error("Failed to open URL:", error);
       }
     }
-  }, [getToken, id, opportunity, user?.id]);
+  }, [isGuestBrowsing, authWall, getToken, id, opportunity, user?.id]);
 
   const askAI = useCallback(
     (intent: string) => {
+      if (isGuestBrowsing) {
+        authWall?.promptAuth('ai');
+        return;
+      }
       if (!opportunity) return;
 
       const prompt = t("detail.aiPromptTemplate", {
@@ -800,7 +824,7 @@ export default function OpportunityDetailScreen() {
 
       router.push({ pathname: "/chat", params: { voiceMsg: message } } as never);
     },
-    [opportunity, router, t],
+    [isGuestBrowsing, authWall, opportunity, router, t],
   );
 
   const handleShare = useCallback(async () => {
@@ -877,6 +901,10 @@ export default function OpportunityDetailScreen() {
   }, [opportunity, getToken]);
 
   const generateAIPath = useCallback(async () => {
+    if (isGuestBrowsing) {
+      authWall?.promptAuth('ai');
+      return;
+    }
     if (!opportunity) return;
 
     // Pre-flight UX check only — the backend now debits credits itself and
@@ -952,7 +980,7 @@ export default function OpportunityDetailScreen() {
     } finally {
       setGeneratingRoadmap(false);
     }
-  }, [opportunity, isPro, credits, getToken, router, intake, user?.unsafeMetadata, t, upgradeSheet]);
+  }, [isGuestBrowsing, authWall, opportunity, isPro, credits, getToken, router, intake, user?.unsafeMetadata, t, upgradeSheet]);
 
   const handleExportCalendar = useCallback(async () => {
     if (!generatedRoadmap || !opportunity) return;
@@ -975,6 +1003,10 @@ export default function OpportunityDetailScreen() {
   }, [generatedRoadmap, customMilestones, opportunity, t]);
 
   const handleTrackWithRoadmap = useCallback(async () => {
+    if (isGuestBrowsing) {
+      authWall?.promptAuth('browse');
+      return;
+    }
     if (!user || !opportunity || !generatedRoadmap) return;
 
     try {
@@ -1130,6 +1162,8 @@ export default function OpportunityDetailScreen() {
       Alert.alert(t("common:states.error"), error.message || t("detail.alerts.createRoadmapFailed"));
     }
   }, [
+    isGuestBrowsing,
+    authWall,
     user,
     opportunity,
     generatedRoadmap,
@@ -1904,7 +1938,13 @@ export default function OpportunityDetailScreen() {
           {/* Application Co-pilot CTA */}
           {!isClosed && (
             <AnimatedPressable
-              onPress={() => router.push(`/copilot/${opportunity.id}` as never)}
+              onPress={() => {
+                if (isGuestBrowsing) {
+                  authWall?.promptAuth('ai');
+                  return;
+                }
+                router.push(`/copilot/${opportunity.id}` as never);
+              }}
               style={[
                 styles.roadmapCTA,
                 {
@@ -2233,7 +2273,13 @@ export default function OpportunityDetailScreen() {
         <AiCopilotFab
           accent={colors.accent}
           label={t("detail.copilotCta", { defaultValue: "Apply with Edutu AI" })}
-          onPress={() => router.push(`/copilot/${opportunity.id}` as never)}
+          onPress={() => {
+            if (isGuestBrowsing) {
+              authWall?.promptAuth('ai');
+              return;
+            }
+            router.push(`/copilot/${opportunity.id}` as never);
+          }}
         />
       ) : null}
 

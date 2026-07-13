@@ -18,6 +18,7 @@ const defaultNavItems: NavItem[] = [
   { label: 'Docs', to: docsUrl, external: isExternalDocsUrl() },
   { label: 'Mentor', to: '/mentor' },
   { label: 'About', to: '/about' },
+  { label: 'Impact', to: '/impact' },
   { label: 'Blog', to: '/blog' },
   { label: 'Events', to: '/events' },
 ];

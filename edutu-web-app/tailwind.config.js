@@ -62,6 +62,7 @@ export default {
         display: ['"Outfit"', ...defaultTheme.fontFamily.sans],
         body: ['"Outfit"', ...defaultTheme.fontFamily.sans],
         sans: ['"Outfit"', ...defaultTheme.fontFamily.sans],
+        mono: ['"JetBrains Mono"', ...defaultTheme.fontFamily.mono],
       },
       colors: {
         primary: withOpacity('--color-brand-600'),
