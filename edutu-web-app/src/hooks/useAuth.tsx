@@ -7,7 +7,6 @@ interface AuthContextType {
   user: AppUser | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
-  signInWithApple: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string, firstName: string, lastName: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -71,15 +70,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   }, [clerkSignIn]);
 
-  const signInWithApple = useCallback(async () => {
-    if (!clerkSignIn) throw new Error('Clerk not ready');
-    await clerkSignIn.authenticateWithRedirect({
-      strategy: 'oauth_apple',
-      redirectUrl: '/auth/callback',
-      redirectUrlComplete: '/dashboard',
-    });
-  }, [clerkSignIn]);
-
   const signInWithEmail = useCallback(async (email: string, password: string) => {
     if (!clerkSignIn) throw new Error('Clerk not ready');
     const result = await clerkSignIn.create({
@@ -113,7 +103,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     loading,
     signInWithGoogle,
-    signInWithApple,
     signInWithEmail,
     signUpWithEmail,
     signOut,
