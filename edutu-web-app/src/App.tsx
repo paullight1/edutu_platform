@@ -18,6 +18,7 @@ import { ArrowLeft, ShieldAlert } from "lucide-react";
 import AppWorkspaceShell from "./components/AppWorkspaceShell";
 import PublicEditorialShell from "./components/PublicEditorialShell";
 import GoogleOneTapGate from "./components/GoogleOneTapGate";
+import ScrollToTop from "./components/ScrollToTop";
 import DeadlineReminders from "./components/DeadlineReminders";
 import InstallAppPrompt from "./components/InstallAppPrompt";
 import PageSuspense from "./components/PageSuspense";
@@ -500,6 +501,7 @@ function App() {
 
   return (
     <>
+      <ScrollToTop />
       <GoogleOneTapGate />
       {isSignedIn ? <DeadlineReminders /> : null}
       <Suspense fallback={<PageSuspense />}>
