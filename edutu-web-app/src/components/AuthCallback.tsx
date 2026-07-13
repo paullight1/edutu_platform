@@ -35,7 +35,7 @@ const AuthCallback: React.FC = () => {
 
   if (error) {
     return (
-      <PublicEditorialShell mainClassName="max-w-3xl py-8">
+      <PublicEditorialShell mainClassName="max-w-3xl py-8" hideFooter>
         <div className="flex min-h-[calc(100dvh-220px)] items-center justify-center text-center">
           <div className="p-8">
             <p className="text-danger mb-4">{error}</p>

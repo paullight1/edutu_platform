@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowLeft, Calendar, Clock, User } from 'lucide-react';
 import PublicHeader from './PublicHeader';
+import SiteFooter from './SiteFooter';
 import Seo from './Seo';
 import {
   fetchPostBySlug,
@@ -255,6 +256,8 @@ const BlogPostPage: React.FC = () => {
           </section>
         )}
       </main>
+
+      <SiteFooter />
     </div>
   );
 };

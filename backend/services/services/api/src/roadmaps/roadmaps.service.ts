@@ -37,7 +37,7 @@ import {
   RoadmapCommentDto,
 } from "./dto/roadmap.dto";
 import { AiService } from "../ai";
-import { toDatabaseUserId } from "../common/user-id";
+import { matchProfileUserId, toDatabaseUserId } from "../common/user-id";
 import { CacheService } from "../common/cache/cache.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import type { BroadcastNotificationDto } from "../notifications/dto/notification.dto";
@@ -269,7 +269,7 @@ export class RoadmapsService {
     const [profile] = await db
       .select()
       .from(profiles)
-      .where(eq(profiles.userId, dbUserId));
+      .where(matchProfileUserId(profiles.userId, dbUserId));
 
     const isApprovedCreator = profile?.creatorStatus === "approved";
     const isAdmin = profile?.role === "admin" || profile?.role === "moderator";
@@ -361,7 +361,7 @@ export class RoadmapsService {
       const [profile] = await db
         .select()
         .from(profiles)
-        .where(eq(profiles.userId, dbUserId));
+        .where(matchProfileUserId(profiles.userId, dbUserId));
 
       const isApprovedCreator = profile?.creatorStatus === "approved";
       const isAdmin = profile?.role === "admin" || profile?.role === "moderator";
@@ -452,7 +452,7 @@ export class RoadmapsService {
     const [profile] = await db
       .select()
       .from(profiles)
-      .where(eq(profiles.userId, dbUserId));
+      .where(matchProfileUserId(profiles.userId, dbUserId));
 
     const authorName =
       profile?.fullName?.trim() || fallbackName?.trim() || "Edutu learner";

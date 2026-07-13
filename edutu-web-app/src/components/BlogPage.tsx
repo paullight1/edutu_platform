@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Search, ChevronRight, ChevronLeft, TrendingUp, Lightbulb } from 'lucide-react';
+import { Search, ChevronRight, TrendingUp, Lightbulb } from 'lucide-react';
 import PublicHeader from './PublicHeader';
 import SiteFooter from './SiteFooter';
 import Seo from './Seo';
+import Pagination from './ui/Pagination';
 import {
   fetchPublishedPosts,
   formatPostDate,
@@ -292,48 +293,13 @@ const BlogPage: React.FC = () => {
           )}
 
           {/* Pagination */}
-          {!loading && totalPages > 1 && (
-            <nav
-              aria-label="Blog pagination"
-              className="mt-14 flex flex-wrap items-center justify-center gap-2"
-            >
-              <button
-                type="button"
-                onClick={() => goToPage(Math.max(1, page - 1))}
-                disabled={page === 1}
-                aria-label="Previous page"
-                className="inline-flex h-10 items-center gap-1 rounded-full border border-subtle pl-3 pr-4 text-sm font-semibold text-text-secondary transition-colors hover:border-brand/50 hover:text-brand disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <ChevronLeft size={16} />
-                Prev
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => goToPage(n)}
-                  aria-label={`Page ${n}`}
-                  aria-current={n === page ? 'page' : undefined}
-                  className={
-                    n === page
-                      ? 'flex h-10 w-10 items-center justify-center rounded-full bg-brand text-sm font-semibold text-white shadow-soft'
-                      : 'flex h-10 w-10 items-center justify-center rounded-full border border-subtle text-sm font-semibold text-text-secondary transition-colors hover:border-brand/50 hover:text-brand'
-                  }
-                >
-                  {n}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => goToPage(Math.min(totalPages, page + 1))}
-                disabled={page === totalPages}
-                aria-label="Next page"
-                className="inline-flex h-10 items-center gap-1 rounded-full border border-subtle pl-4 pr-3 text-sm font-semibold text-text-secondary transition-colors hover:border-brand/50 hover:text-brand disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Next
-                <ChevronRight size={16} />
-              </button>
-            </nav>
+          {!loading && (
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPageChange={goToPage}
+              className="mt-14"
+            />
           )}
 
           {/* Empty / error state */}

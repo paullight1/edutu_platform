@@ -19,6 +19,7 @@ import {
   userOpportunityPreferences,
   userOpportunitySignals,
 } from "../db/schema";
+import { matchProfileUserId } from "../common/user-id";
 import {
   OpportunityPreferenceDto,
   OpportunitySignalDto,
@@ -936,7 +937,7 @@ export class OpportunityRankingService {
     const [profile] = await db
       .select()
       .from(profiles)
-      .where(eq(profiles.userId, userId))
+      .where(matchProfileUserId(profiles.userId, userId))
       .execute();
 
     return profile || null;
