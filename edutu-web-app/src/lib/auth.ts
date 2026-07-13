@@ -96,6 +96,40 @@ export type UserProfileUpdate = {
   [key: string]: unknown;
 };
 
+// Columns clients may write directly, mirroring the column-level grants on
+// public.profiles. Protected fields (credits, is_pro, role, creator_*, …) are
+// server/RPC-only — including any of them in a statement makes Postgres reject
+// the whole write with 42501, so they must be stripped before sending.
+const SELF_SERVICE_PROFILE_COLUMNS = [
+  "user_id",
+  "email",
+  "full_name",
+  "age",
+  "avatar_url",
+  "bio",
+  "preferences",
+  "last_seen_at",
+  "school",
+  "country",
+  "major",
+  "cgpa",
+  "grad_year",
+  "degree",
+  "date_of_birth",
+  "interested_countries",
+  "interests",
+  "created_at",
+  "updated_at",
+] as const;
+
+function pickSelfServiceProfileColumns(input: Partial<Profile>): Partial<Profile> {
+  const out: Record<string, unknown> = {};
+  for (const key of SELF_SERVICE_PROFILE_COLUMNS) {
+    if (key in input) out[key] = input[key];
+  }
+  return out as Partial<Profile>;
+}
+
 function splitFullName(fullName: string) {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   const firstName = parts.shift();
@@ -254,7 +288,8 @@ export const authService = {
 
   async upsertProfile(profile: Profile) {
     const payload = {
-      ...profile,
+      ...pickSelfServiceProfileColumns(profile),
+      user_id: profile.user_id,
       updated_at: profile.updated_at ?? new Date().toISOString(),
     };
 
@@ -268,7 +303,7 @@ export const authService = {
   },
 
   async updateProfile(userId: string, updates: Partial<Profile>) {
-    const rest: Partial<Profile> = { ...updates };
+    const rest = pickSelfServiceProfileColumns(updates);
     delete rest.user_id;
     delete rest.created_at;
     delete rest.updated_at;

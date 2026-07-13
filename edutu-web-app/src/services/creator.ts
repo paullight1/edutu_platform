@@ -90,10 +90,14 @@ export async function updateCreatorStatus(
   status: 'pending' | 'approved' | 'rejected',
   reviewerNotes?: string,
 ): Promise<void> {
-  await authService.updateProfile(userId, {
-    creator_status: status,
-    ...(reviewerNotes ? { reviewer_notes: reviewerNotes } : {}),
+  // creator_status is grant-protected on profiles — a direct update fails with
+  // 42501. The SECURITY DEFINER RPC enforces who may set which status (only
+  // admins can approve, and only admins can target another user).
+  const { error } = await supabase.rpc('set_creator_status', {
+    p_status: status,
+    p_user_id: userId,
   });
+  if (error) throw error;
 
   await supabase
     .from('creator_applications')
