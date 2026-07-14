@@ -6,7 +6,9 @@ describe("LinkedInImportService", () => {
 
   describe("isProfileUrl", () => {
     it("accepts real profile URLs", () => {
-      expect(service.isProfileUrl("https://www.linkedin.com/in/paul-light-/")).toBe(true);
+      expect(
+        service.isProfileUrl("https://www.linkedin.com/in/paul-light-/"),
+      ).toBe(true);
       expect(service.isProfileUrl("http://linkedin.com/in/jane")).toBe(true);
       expect(service.isProfileUrl("https://ng.linkedin.com/in/ada")).toBe(true);
     });
@@ -14,7 +16,9 @@ describe("LinkedInImportService", () => {
     it("rejects non-profile / empty URLs", () => {
       expect(service.isProfileUrl("")).toBe(false);
       expect(service.isProfileUrl(null)).toBe(false);
-      expect(service.isProfileUrl("https://linkedin.com/company/edutu")).toBe(false);
+      expect(service.isProfileUrl("https://linkedin.com/company/edutu")).toBe(
+        false,
+      );
       expect(service.isProfileUrl("https://example.com/in/paul")).toBe(false);
     });
   });
@@ -69,7 +73,7 @@ describe("LinkedInImportService", () => {
       zip.addFile(
         "Profile.csv",
         Buffer.from(
-          'First Name,Last Name,Headline,Summary,Geo Location\n' +
+          "First Name,Last Name,Headline,Summary,Geo Location\n" +
             'Paul,Light,Founder & CEO,"Building Edutu, an AI coach","Lagos, Nigeria"\n',
         ),
       );
@@ -80,7 +84,10 @@ describe("LinkedInImportService", () => {
             'Edutu,Founder,"Built the product, led fundraising",Remote,Jan 2024,\n',
         ),
       );
-      zip.addFile("Skills.csv", Buffer.from("Name\nReact\nTypeScript\nLeadership\n"));
+      zip.addFile(
+        "Skills.csv",
+        Buffer.from("Name\nReact\nTypeScript\nLeadership\n"),
+      );
 
       const profile = await service.fromExport({
         buffer: zip.toBuffer(),

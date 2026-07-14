@@ -40,6 +40,9 @@ export function isUuid(value: string | null | undefined): value is string {
  * raw auth subject; this keeps reads resilient across the transition and any
  * rows a client wrote directly.
  */
-export function matchProfileUserId(column: AnyColumn, derivedUserId: string): SQL {
+export function matchProfileUserId(
+  column: AnyColumn,
+  derivedUserId: string,
+): SQL {
   return sql`(${column}::text = ${derivedUserId} OR public.clerk_id_to_uuid(${column}::text) = ${derivedUserId})`;
 }

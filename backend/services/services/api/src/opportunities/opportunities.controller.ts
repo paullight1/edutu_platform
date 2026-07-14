@@ -353,9 +353,7 @@ export class OpportunitiesController {
 
   @Post("admin/embeddings/backfill")
   @UseGuards(AdminGuard)
-  adminEmbeddingsBackfill(
-    @Body() body: { limit?: number; reembed?: boolean },
-  ) {
+  adminEmbeddingsBackfill(@Body() body: { limit?: number; reembed?: boolean }) {
     return this.opportunityEmbeddingService.backfillOpportunityEmbeddings(
       body ?? {},
     );

@@ -50,9 +50,12 @@ export async function renderTextDocPdf(
   doc.moveDown(0.8);
   for (const section of sections) {
     if (section.heading) {
-      doc.font("Helvetica-Bold").fontSize(12).text(section.heading.toUpperCase(), {
-        characterSpacing: 0.4,
-      });
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(12)
+        .text(section.heading.toUpperCase(), {
+          characterSpacing: 0.4,
+        });
       doc.moveDown(0.3);
     }
     doc
@@ -68,7 +71,10 @@ export async function renderCvPdf(cv: CVDataDto): Promise<Buffer> {
   const doc = new PDFDocument({ size: "A4", margin: PAGE_MARGIN });
   const header = cv.header || {};
 
-  doc.font("Helvetica-Bold").fontSize(20).text(header.full_name || "Curriculum Vitae");
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(20)
+    .text(header.full_name || "Curriculum Vitae");
   const contact = [
     header.email,
     header.phone,
@@ -100,7 +106,10 @@ export async function renderCvPdf(cv: CVDataDto): Promise<Buffer> {
     doc.moveDown(0.45);
   };
   const body = (text: string, options: PDFKit.Mixins.TextOptions = {}) =>
-    doc.font("Helvetica").fontSize(10).text(text, { lineGap: 2, ...options });
+    doc
+      .font("Helvetica")
+      .fontSize(10)
+      .text(text, { lineGap: 2, ...options });
 
   if (cv.summary) {
     sectionTitle("Summary");
@@ -113,17 +122,17 @@ export async function renderCvPdf(cv: CVDataDto): Promise<Buffer> {
       doc
         .font("Helvetica-Bold")
         .fontSize(10.5)
-        .text(
-          [item.role, item.company].filter(Boolean).join(" — ") || "Role",
-          { continued: false },
-        );
+        .text([item.role, item.company].filter(Boolean).join(" — ") || "Role", {
+          continued: false,
+        });
       const meta = [
         dateRange(item.start_date, item.end_date, item.current),
         item.location,
       ]
         .filter(Boolean)
         .join("  ·  ");
-      if (meta) doc.font("Helvetica").fontSize(9).fillColor("#555555").text(meta);
+      if (meta)
+        doc.font("Helvetica").fontSize(9).fillColor("#555555").text(meta);
       doc.fillColor("#000000");
       if (item.description) body(item.description);
       for (const highlight of item.highlights || []) {
@@ -151,7 +160,8 @@ export async function renderCvPdf(cv: CVDataDto): Promise<Buffer> {
       ]
         .filter(Boolean)
         .join("  ·  ");
-      if (meta) doc.font("Helvetica").fontSize(9).fillColor("#555555").text(meta);
+      if (meta)
+        doc.font("Helvetica").fontSize(9).fillColor("#555555").text(meta);
       doc.fillColor("#000000");
       for (const highlight of item.highlights || []) {
         body(`•  ${highlight}`, { indent: 10 });
@@ -168,7 +178,10 @@ export async function renderCvPdf(cv: CVDataDto): Promise<Buffer> {
   if (cv.projects?.length) {
     sectionTitle("Projects");
     for (const item of cv.projects) {
-      doc.font("Helvetica-Bold").fontSize(10.5).text(item.name || "Project");
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(10.5)
+        .text(item.name || "Project");
       if (item.technologies?.length) {
         doc
           .font("Helvetica")
@@ -239,7 +252,10 @@ export async function renderCvDocx(cv: CVDataDto): Promise<Buffer> {
     new Paragraph({
       heading: HeadingLevel.HEADING_1,
       children: [
-        new TextRun({ text: header.full_name || "Curriculum Vitae", bold: true }),
+        new TextRun({
+          text: header.full_name || "Curriculum Vitae",
+          bold: true,
+        }),
       ],
     }),
   ];
@@ -274,7 +290,8 @@ export async function renderCvDocx(cv: CVDataDto): Promise<Buffer> {
           spacing: { before: 120, after: 40 },
           children: [
             new TextRun({
-              text: [item.role, item.company].filter(Boolean).join(" — ") || "Role",
+              text:
+                [item.role, item.company].filter(Boolean).join(" — ") || "Role",
               bold: true,
             }),
           ],
@@ -382,7 +399,9 @@ export async function renderDocument(
   format: "pdf" | "docx",
 ): Promise<Buffer> {
   if (content.kind === "cv") {
-    return format === "pdf" ? renderCvPdf(content.cv) : renderCvDocx(content.cv);
+    return format === "pdf"
+      ? renderCvPdf(content.cv)
+      : renderCvDocx(content.cv);
   }
   return format === "pdf"
     ? renderTextDocPdf(title, content.sections)

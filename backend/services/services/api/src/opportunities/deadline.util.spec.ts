@@ -64,7 +64,9 @@ describe("extractDeadlineText", () => {
   });
 
   it("returns null when no deadline appears", () => {
-    expect(extractDeadlineText("A great program for young leaders.")).toBeNull();
+    expect(
+      extractDeadlineText("A great program for young leaders."),
+    ).toBeNull();
   });
 });
 

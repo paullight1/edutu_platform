@@ -37,9 +37,7 @@ function toToolOpportunity(row: Record<string, any>) {
     reasons: Array.isArray(row.match_reasons)
       ? row.match_reasons.slice(0, 2)
       : [],
-    summary: (row.summary || row.description || "")
-      .toString()
-      .slice(0, 160),
+    summary: (row.summary || row.description || "").toString().slice(0, 160),
   };
 }
 
@@ -146,7 +144,10 @@ export class CoachToolsService {
       parameters: {
         type: "object",
         properties: {
-          limit: { type: "number", description: "How many to return (1-8, default 5)" },
+          limit: {
+            type: "number",
+            description: "How many to return (1-8, default 5)",
+          },
           query: {
             type: "string",
             description:
@@ -155,7 +156,8 @@ export class CoachToolsService {
           exclude_ids: {
             type: "array",
             items: { type: "string" },
-            description: "Opportunity ids to exclude (e.g. ones the user just rejected)",
+            description:
+              "Opportunity ids to exclude (e.g. ones the user just rejected)",
           },
         },
       },
@@ -293,7 +295,8 @@ export class CoachToolsService {
           sentiment: { type: "string", enum: ["like", "dislike"] },
           reason: {
             type: "string",
-            description: "Why, in the user's words (e.g. 'not into tech roles')",
+            description:
+              "Why, in the user's words (e.g. 'not into tech roles')",
           },
         },
         required: ["opportunity_ids", "sentiment"],
@@ -409,7 +412,10 @@ export class CoachToolsService {
         }
         // ctx.userId is the derived id; updateProfile resolves the canonical
         // (raw-keyed) row via the dual-key matcher.
-        await this.profileService.updateProfile({ id: ctx.userId }, patch as never);
+        await this.profileService.updateProfile(
+          { id: ctx.userId },
+          patch as never,
+        );
         return {
           saved: Object.keys(patch),
           note: "Profile saved — recommendations now reflect it.",
@@ -631,7 +637,8 @@ export class CoachToolsService {
             .eq("id", args.opportunity_id)
             .maybeSingle();
           const title = opportunity?.title || "Opportunity";
-          const deadline = opportunity?.close_date || opportunity?.deadline || null;
+          const deadline =
+            opportunity?.close_date || opportunity?.deadline || null;
           const datedMilestones = this.scheduleMilestones(
             plan.milestones,
             deadline,
@@ -640,9 +647,7 @@ export class CoachToolsService {
           const roadmap = await this.roadmapsService.createPersonal(
             {
               title: `${title} — application plan`,
-              description:
-                plan.summary ||
-                `AI application plan for ${title}`,
+              description: plan.summary || `AI application plan for ${title}`,
               category: "general",
               difficulty: "beginner",
               opportunityId: args.opportunity_id,
@@ -762,7 +767,8 @@ export class CoachToolsService {
           },
           notes: {
             type: "string",
-            description: "Anything the user said should be in it (roles, achievements, tone)",
+            description:
+              "Anything the user said should be in it (roles, achievements, tone)",
           },
         },
       },
@@ -833,7 +839,8 @@ export class CoachToolsService {
           },
           notes: {
             type: "string",
-            description: "The user's own story, motivations, achievements — in their words",
+            description:
+              "The user's own story, motivations, achievements — in their words",
           },
         },
       },

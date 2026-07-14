@@ -101,10 +101,7 @@ export class OpportunityEmbeddingService {
   }
 
   /** Deterministic query text for a user profile + explicit preferences. */
-  buildProfileText(
-    profile: ProfileLike,
-    preferences: PreferencesLike,
-  ): string {
+  buildProfileText(profile: ProfileLike, preferences: PreferencesLike): string {
     const p = profile || {};
     const prefs = preferences || {};
     const parts = [
@@ -294,8 +291,11 @@ export class OpportunityEmbeddingService {
         limit 15
       `);
       const rows =
-        (result as unknown as { rows?: Array<{ kind: string; content: string }> })
-          .rows ?? [];
+        (
+          result as unknown as {
+            rows?: Array<{ kind: string; content: string }>;
+          }
+        ).rows ?? [];
       if (!rows.length) return "";
       const liked = rows
         .filter((row) => row.kind !== "dislike")

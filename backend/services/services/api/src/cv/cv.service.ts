@@ -622,7 +622,9 @@ ${dto.userNotes || ""}`;
       : profile?.education_level
         ? `${profile.education_level} student`
         : "";
-    const who = role ? `A focused ${role}` : "A motivated, results-driven candidate";
+    const who = role
+      ? `A focused ${role}`
+      : "A motivated, results-driven candidate";
     const at = profile?.institution ? ` at ${profile.institution}` : "";
     const target = prompt?.trim();
     const baseSummary = target
@@ -630,7 +632,9 @@ ${dto.userNotes || ""}`;
       : `${who}${at} building a strong academic and professional profile.`;
     const summary = [
       currentCV?.summary || baseSummary,
-      mergedSkills.length ? `Core strengths: ${mergedSkills.slice(0, 4).join(", ")}.` : "",
+      mergedSkills.length
+        ? `Core strengths: ${mergedSkills.slice(0, 4).join(", ")}.`
+        : "",
     ]
       .filter(Boolean)
       .join(" ");

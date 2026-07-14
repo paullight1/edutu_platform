@@ -46,7 +46,7 @@ function toWireMessage(message: AiChatMessage): OpenAiWireMessage {
     };
   }
   return {
-    role: message.role as "system" | "user" | "assistant",
+    role: message.role,
     content: message.content,
   } as OpenAiWireMessage;
 }

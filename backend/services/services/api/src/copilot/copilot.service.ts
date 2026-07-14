@@ -110,7 +110,10 @@ export class CopilotService {
         opportunityCategory: opportunities.category,
       })
       .from(applicationKits)
-      .leftJoin(opportunities, eq(applicationKits.opportunityId, opportunities.id))
+      .leftJoin(
+        opportunities,
+        eq(applicationKits.opportunityId, opportunities.id),
+      )
       .where(eq(applicationKits.userId, dbUserId))
       .orderBy(desc(applicationKits.updatedAt))
       .limit(50);
@@ -242,7 +245,12 @@ export class CopilotService {
     try {
       const parsed = await this.aiService.generateJson({
         feature: "copilot.outline",
-        prompt: this.buildOutlinePrompt(opportunity, profile, promptText, dto.angle),
+        prompt: this.buildOutlinePrompt(
+          opportunity,
+          profile,
+          promptText,
+          dto.angle,
+        ),
         responseMimeType: "application/json",
         temperature: 0.4,
         metadata: { userId: dbUserId, opportunityId },
@@ -259,9 +267,15 @@ export class CopilotService {
       source = "fallback";
     }
 
-    await this.upsertEssayEntry(dbUserId, opportunityId, dto.promptId, promptText, {
-      outline,
-    });
+    await this.upsertEssayEntry(
+      dbUserId,
+      opportunityId,
+      dto.promptId,
+      promptText,
+      {
+        outline,
+      },
+    );
 
     return { outline, source };
   }
@@ -305,10 +319,16 @@ export class CopilotService {
       source = "fallback";
     }
 
-    await this.upsertEssayEntry(dbUserId, opportunityId, dto.promptId, promptText, {
-      draft: dto.draft,
-      feedback,
-    });
+    await this.upsertEssayEntry(
+      dbUserId,
+      opportunityId,
+      dto.promptId,
+      promptText,
+      {
+        draft: dto.draft,
+        feedback,
+      },
+    );
 
     return { feedback, source };
   }
@@ -326,9 +346,15 @@ export class CopilotService {
     const dbUserId = this.requireUserId(userId);
     const kitRow = await this.requireKit(dbUserId, opportunityId);
     const promptText = this.resolvePromptText(kitRow, dto.promptId, dto.prompt);
-    await this.upsertEssayEntry(dbUserId, opportunityId, dto.promptId, promptText, {
-      draft: dto.draft,
-    });
+    await this.upsertEssayEntry(
+      dbUserId,
+      opportunityId,
+      dto.promptId,
+      promptText,
+      {
+        draft: dto.draft,
+      },
+    );
     return { success: true };
   }
 
@@ -441,11 +467,15 @@ export class CopilotService {
       : "not stated";
     const lines = [
       `Title: ${opportunity.title}`,
-      opportunity.organization ? `Organization: ${opportunity.organization}` : "",
+      opportunity.organization
+        ? `Organization: ${opportunity.organization}`
+        : "",
       `Category: ${opportunity.category || "unknown"}`,
       `Deadline: ${deadline}`,
       opportunity.fundingType ? `Funding: ${opportunity.fundingType}` : "",
-      opportunity.targetRegion ? `Target region: ${opportunity.targetRegion}` : "",
+      opportunity.targetRegion
+        ? `Target region: ${opportunity.targetRegion}`
+        : "",
       opportunity.summary ? `Summary: ${opportunity.summary}` : "",
       opportunity.eligibilityCriteria
         ? `Eligibility: ${opportunity.eligibilityCriteria}`
@@ -473,7 +503,9 @@ export class CopilotService {
       profile.school ? `Institution: ${profile.school}` : "",
       profile.major ? `Field of study: ${profile.major}` : "",
       profile.degree ? `Education level: ${profile.degree}` : "",
-      profile.interests?.length ? `Interests: ${profile.interests.join(", ")}` : "",
+      profile.interests?.length
+        ? `Interests: ${profile.interests.join(", ")}`
+        : "",
       profile.skills?.length ? `Skills: ${profile.skills.join(", ")}` : "",
       profile.goals?.length
         ? `Goals: ${profile.goals.map((goal) => goal.title).join("; ")}`
@@ -503,19 +535,28 @@ export class CopilotService {
     for (const requirement of opportunity.requirements.slice(0, 5)) {
       push(requirement, "eligibility");
     }
-    push("Update your CV for this opportunity", "documents",
-      "Use the CV builder's tailor tool to align it with what this program values.");
+    push(
+      "Update your CV for this opportunity",
+      "documents",
+      "Use the CV builder's tailor tool to align it with what this program values.",
+    );
     push("Academic transcripts or proof of study", "documents");
-    push("Request recommendation letters early", "preparation",
-      "Give referees at least two weeks and share the opportunity summary with them.");
+    push(
+      "Request recommendation letters early",
+      "preparation",
+      "Give referees at least two weeks and share the opportunity summary with them.",
+    );
     push("Draft your personal statement / essays", "preparation");
     for (const step of opportunity.applicationProcess.slice(0, 3)) {
       push(step, "submission");
     }
-    push("Review everything, then submit before the deadline", "submission",
+    push(
+      "Review everything, then submit before the deadline",
+      "submission",
       opportunity.deadline
         ? `Deadline: ${new Date(opportunity.deadline).toDateString()}. Aim to submit at least 48 hours early.`
-        : "Aim to submit at least 48 hours before the deadline.");
+        : "Aim to submit at least 48 hours before the deadline.",
+    );
 
     const focus = profile.major || profile.interests?.[0];
     const fitNote = [
@@ -615,7 +656,9 @@ export class CopilotService {
 
   private buildFallbackFeedback(draft: string): EssayFeedback {
     const words = draft.trim().split(/\s+/).filter(Boolean);
-    const paragraphs = draft.split(/\n\s*\n/).filter((p) => p.trim().length > 0);
+    const paragraphs = draft
+      .split(/\n\s*\n/)
+      .filter((p) => p.trim().length > 0);
     const hasNumbers = /\d/.test(draft);
     const firstPerson = /\b(I|my|me)\b/i.test(draft);
     const cliches = [
@@ -644,15 +687,22 @@ export class CopilotService {
         "Write in the first person — reviewers select a person, not an abstract.",
       );
     for (const phrase of cliches)
-      improvements.push(`Replace the cliché "${phrase}" with something only you could write.`);
+      improvements.push(
+        `Replace the cliché "${phrase}" with something only you could write.`,
+      );
     if (!improvements.length)
       improvements.push(
         "Tighten every sentence: cut filler words and make each paragraph earn its place.",
       );
 
-    const clarity = Math.min(10, Math.max(3, Math.round(paragraphs.length * 2 + 2)));
+    const clarity = Math.min(
+      10,
+      Math.max(3, Math.round(paragraphs.length * 2 + 2)),
+    );
     const impact = hasNumbers ? 7 : 4;
-    const authenticity = cliches.length ? Math.max(3, 7 - cliches.length * 2) : 7;
+    const authenticity = cliches.length
+      ? Math.max(3, 7 - cliches.length * 2)
+      : 7;
 
     return {
       overallScore: Math.min(
@@ -678,7 +728,9 @@ export class CopilotService {
   // Helpers
   // -------------------------------------------------------------------------
 
-  private async loadOpportunity(opportunityId: string): Promise<OpportunityContext> {
+  private async loadOpportunity(
+    opportunityId: string,
+  ): Promise<OpportunityContext> {
     const [row] = await db
       .select()
       .from(opportunities)
@@ -688,10 +740,13 @@ export class CopilotService {
 
     if (!row) throw new NotFoundException("Opportunity not found");
 
-    const metadata = (row.metadata ?? {}) as Record<string, unknown>;
+    const metadata = row.metadata ?? {};
     const list = (value: unknown): string[] =>
       Array.isArray(value)
-        ? value.map((item) => String(item)).filter(Boolean).slice(0, 12)
+        ? value
+            .map((item) => String(item))
+            .filter(Boolean)
+            .slice(0, 12)
         : [];
 
     return {
@@ -716,8 +771,18 @@ export class CopilotService {
   private async loadProfile(dbUserId: string): Promise<ProfileContext> {
     try {
       const [profileRows, goalRows] = await Promise.all([
-        db.select().from(profiles).where(matchProfileUserId(profiles.userId, dbUserId)).limit(1).execute(),
-        db.select().from(goalsTable).where(eq(goalsTable.userId, dbUserId)).limit(3).execute(),
+        db
+          .select()
+          .from(profiles)
+          .where(matchProfileUserId(profiles.userId, dbUserId))
+          .limit(1)
+          .execute(),
+        db
+          .select()
+          .from(goalsTable)
+          .where(eq(goalsTable.userId, dbUserId))
+          .limit(3)
+          .execute(),
       ]);
       const row = profileRows[0];
       return {

@@ -30,7 +30,10 @@ export interface AiFetchOptions {
   label?: string;
 }
 
-function backoffDelay(attempt: number, retryAfterHeader?: string | null): number {
+function backoffDelay(
+  attempt: number,
+  retryAfterHeader?: string | null,
+): number {
   const retryAfter = Number(retryAfterHeader);
   if (Number.isFinite(retryAfter) && retryAfter > 0) {
     // Retry-After is in seconds; cap it so a hostile header can't stall us.

@@ -291,33 +291,33 @@ export class ChatService {
       opportunityContext,
       applicationsResult,
     ] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select(
-            "country, major, school, degree, interests, skills, interested_countries, age",
-          )
-          .eq("user_id", userId)
-          .maybeSingle(),
-        supabase
-          .from("goals")
-          .select("title, deadline, progress")
-          .eq("user_id", userId)
-          .limit(5),
-        needsOpportunityContext
-          ? this.loadOpportunityContext(supabase, userId, message)
-          : Promise.resolve({
-              rows: [] as OpportunityRow[],
-              personalized: false,
-            }),
-        // The user's in-flight applications: coaching that knows what they
-        // are already chasing feels like a companion, not a search box.
-        supabase
-          .from("opportunity_applications")
-          .select("status, updated_at, opportunity:opportunities(title)")
-          .eq("user_id", userId)
-          .order("updated_at", { ascending: false })
-          .limit(5),
-      ]);
+      supabase
+        .from("profiles")
+        .select(
+          "country, major, school, degree, interests, skills, interested_countries, age",
+        )
+        .eq("user_id", userId)
+        .maybeSingle(),
+      supabase
+        .from("goals")
+        .select("title, deadline, progress")
+        .eq("user_id", userId)
+        .limit(5),
+      needsOpportunityContext
+        ? this.loadOpportunityContext(supabase, userId, message)
+        : Promise.resolve({
+            rows: [] as OpportunityRow[],
+            personalized: false,
+          }),
+      // The user's in-flight applications: coaching that knows what they
+      // are already chasing feels like a companion, not a search box.
+      supabase
+        .from("opportunity_applications")
+        .select("status, updated_at, opportunity:opportunities(title)")
+        .eq("user_id", userId)
+        .order("updated_at", { ascending: false })
+        .limit(5),
+    ]);
 
     const isRelevantRequest = this.isEdutuRelevant(message);
     // Personalized rows arrive pre-ranked by the real engine (embeddings +
@@ -450,7 +450,10 @@ export class ChatService {
     }
 
     if (wantsRoadmap && this.looksLikeRoadmapDump(finalAnswer)) {
-      finalAnswer = this.buildRoadmapFirstAnswer(topMatches.length > 0, isVoice);
+      finalAnswer = this.buildRoadmapFirstAnswer(
+        topMatches.length > 0,
+        isVoice,
+      );
     }
 
     const { data: savedMessages, error: saveError } = await supabase
@@ -483,9 +486,7 @@ export class ChatService {
             ...(agentTurn?.documents.length
               ? { documents: agentTurn.documents }
               : {}),
-            ...(agentTurn?.images.length
-              ? { images: agentTurn.images }
-              : {}),
+            ...(agentTurn?.images.length ? { images: agentTurn.images } : {}),
           },
         },
       ])
@@ -678,7 +679,10 @@ ${input.message}`;
       .replace(/https?:\/\/\S+/g, "")
       .replace(/^#+\s*/gm, "")
       .replace(/[*_`#>|]/g, "")
-      .replace(/^\s*[-\u{2022}\u{2B50}\u{2605}\u{2705}\u{2714}\u{2192}]+\s*/gmu, "")
+      .replace(
+        /^\s*[-\u{2022}\u{2B50}\u{2605}\u{2705}\u{2714}\u{2192}]+\s*/gmu,
+        "",
+      )
       .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B50}]/gu, "")
       .replace(/\uFE0F/g, "")
       .split("\n")
@@ -829,9 +833,9 @@ ${input.message}`;
     if (!applications.length) return "None tracked yet.";
     return applications
       .map((application) => {
-        const opportunity = application.opportunity as
-          | { title?: string }
-          | null;
+        const opportunity = application.opportunity as {
+          title?: string;
+        } | null;
         const title = opportunity?.title || "An opportunity";
         return `- ${title} (status: ${this.toSafeText(application.status, "draft")})`;
       })
@@ -878,7 +882,9 @@ ${input.message}`;
         ([key, value]) =>
           `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`,
       );
-    return parts.length ? parts.join("; ").slice(0, 300) : "Not stated — do not guess";
+    return parts.length
+      ? parts.join("; ").slice(0, 300)
+      : "Not stated — do not guess";
   }
 
   // ─── Agent turn (tool loop) ───────────────────────────────────────────────
@@ -1106,7 +1112,10 @@ ${input.message}`;
   /** Persona is admin-editable via ai_prompts (feature 'chat.agent'). */
   private async getAgentPersona(): Promise<string> {
     const now = Date.now();
-    if (this.agentPersonaCache && now - this.agentPersonaCache.loadedAt < 60_000) {
+    if (
+      this.agentPersonaCache &&
+      now - this.agentPersonaCache.loadedAt < 60_000
+    ) {
       return this.agentPersonaCache.content;
     }
     let content = DEFAULT_AGENT_PERSONA;
@@ -1115,7 +1124,10 @@ ${input.message}`;
         .select({ content: aiPrompts.content })
         .from(aiPrompts)
         .where(
-          and(eq(aiPrompts.feature, "chat.agent"), eq(aiPrompts.isActive, true)),
+          and(
+            eq(aiPrompts.feature, "chat.agent"),
+            eq(aiPrompts.isActive, true),
+          ),
         )
         .orderBy(desc(aiPrompts.createdAt))
         .limit(1)
