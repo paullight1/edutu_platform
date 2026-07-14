@@ -260,6 +260,32 @@ export class ScraperController {
     }
   }
 
+  // Opportunities grouped by originating site, batches nested. Keyed on the
+  // URL host rather than scraping_sources, so sites whose source row was
+  // deleted (which orphans their opportunities) remain visible and cleanable.
+  @Get("sites")
+  async getOpportunitySites() {
+    try {
+      return await this.scraperService.getOpportunitySites();
+    } catch (error: any) {
+      this.logger.error(`Get opportunity sites failed: ${error.message}`);
+      return [];
+    }
+  }
+
+  @Delete("sites/opportunities")
+  async deleteSiteOpportunities(@Query("host") host?: string) {
+    if (!host) {
+      return { success: false, deleted: 0, error: "host is required" };
+    }
+    try {
+      return await this.scraperService.deleteOpportunitiesByHost(host);
+    } catch (error: any) {
+      this.logger.error(`Delete site opportunities failed: ${error.message}`);
+      return { success: false, deleted: 0, error: error.message };
+    }
+  }
+
   @Get("stats")
   async getStats() {
     try {

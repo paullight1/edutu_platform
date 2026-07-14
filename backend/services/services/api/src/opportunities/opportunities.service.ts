@@ -18,6 +18,7 @@ import * as path from "path";
 import { z } from "zod";
 import { OpportunityRankingService } from "./opportunity-ranking.service";
 import { OpportunityEmbeddingService } from "./opportunity-embedding.service";
+import { parseDeadlineDetailed } from "./deadline.util";
 import {
   OpportunityPreferenceDto,
   OpportunitySignalDto,
@@ -195,6 +196,13 @@ export interface AdminOpportunityListQuery {
   status?: string;
   category?: string;
   sortBy?: string;
+  /**
+   * Exclude opportunities whose deadline has passed. Defaults to true (include
+   * them) so existing callers are unaffected; the admin list opts out.
+   */
+  includeExpired?: boolean;
+  /** Only rows with no deadline at all — the re-scrape/AI recovery cohort. */
+  missingDeadline?: boolean;
 }
 
 export interface SitemapOpportunityEntry {
@@ -979,14 +987,42 @@ export class OpportunitiesService {
         throw new Error("Supabase is not configured");
       }
 
+      // "planned" is a query-planner estimate that only happens to be right for
+      // an unfiltered table: with the hide-expired predicate it reported 171
+      // against 341 real rows, which would strand ~190 opportunities behind a
+      // page count that never reaches them. "exact" measured faster here anyway
+      // (188ms vs 524ms) — the estimate isn't buying anything.
       let request = this.supabase
         .from("opportunities")
-        .select(ADMIN_OPPORTUNITY_COLUMNS, { count: "planned" })
+        .select(ADMIN_OPPORTUNITY_COLUMNS, { count: "exact" })
         .order(sort.column, { ascending: sort.ascending, nullsFirst: false })
         .order("id", { ascending: sort.ascending });
 
-      if (query.status && query.status !== "all") {
+      const hasStatusFilter = Boolean(query.status && query.status !== "all");
+
+      if (hasStatusFilter) {
         request = request.eq("status", query.status);
+      }
+
+      // "Expired" is not a stored status: it's status='closed' OR a close_date
+      // in the past. The hourly verification job flips passed deadlines to
+      // 'closed', but until it runs a row can still say 'active' with a dead
+      // deadline — so both predicates are needed to actually exclude expired.
+      //
+      // Skipped when an explicit status is requested: asking for status=closed
+      // AND not-expired is a contradiction that would always return zero rows.
+      if (query.includeExpired === false && !hasStatusFilter) {
+        request = request
+          .neq("status", "closed")
+          // close_date is nullable, and a null deadline is not an expiry —
+          // a plain gte would silently drop every rolling opportunity.
+          .or(`close_date.is.null,close_date.gte.${new Date().toISOString().slice(0, 10)}`);
+      }
+
+      // Both columns must be empty: the 2026-07-12 migration coalesced
+      // close_date <-> deadline, so a row with either one still has a date.
+      if (query.missingDeadline) {
+        request = request.is("close_date", null).is("deadline", null);
       }
 
       if (query.category && query.category !== "all") {
@@ -1666,8 +1702,17 @@ export class OpportunitiesService {
     const description = this.normalizeDescription(descriptionText);
     const titleText = this.cleanOptionalText(opportunity.title, 220) || "";
     const summary = this.normalizeSummary(summaryText, description, titleText);
+    // The enhancement prompt explicitly permits a readable deadline ("March 5"),
+    // but close_date is a `date` column — writing the raw string makes Postgres
+    // reject the entire update with 22007, which surfaces only as a logged warn
+    // and success:false. So the AI date has to be parsed, not passed through.
+    const titleYear = titleText.match(/\b(20\d{2})\b/)?.[1];
+    const aiDeadline = parseDeadlineDetailed(
+      aiData?.deadline ?? null,
+      titleYear ? Number(titleYear) : null,
+    );
     const closeDate =
-      aiData?.deadline || opportunity.close_date || opportunity.deadline;
+      aiDeadline.date || opportunity.close_date || opportunity.deadline;
     const qualityScore = this.scoreCanonicalOpportunity({
       ...opportunity,
       summary,
@@ -1710,6 +1755,11 @@ export class OpportunitiesService {
         organization: organization || metadata.organization || null,
         funding_type: aiData?.fundingType || metadata.funding_type || null,
         target_region: aiData?.targetRegion || metadata.target_region || null,
+        // Only claim a confidence when the AI actually produced a usable date;
+        // otherwise leave whatever the verification job already established.
+        ...(aiDeadline.date
+          ? { deadline_confidence: aiDeadline.confidence }
+          : {}),
         ai_improved_at: new Date().toISOString(),
         ai_improvement_confidence: Number(aiData?.confidence ?? 0),
         ai_improvement_notes: aiData?.notes || [],
