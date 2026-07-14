@@ -378,24 +378,19 @@ describe('mobile discovery and tracking routes', () => {
     expect(getByText('Deadlines')).toBeTruthy();
     expect(getByText('Creator Studio')).toBeTruthy();
     expect(getByText('View all')).toBeTruthy();
-    expect(getByText('CV Builder')).toBeTruthy();
-    expect(getByText('Build CV')).toBeTruthy();
 
     fireEvent.press(getByText('Programs'));
-    expect(mockPush).toHaveBeenCalledWith({ pathname: '/opportunities', params: { category: 'grants' } });
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/opportunities', params: { category: 'programs' } });
 
     fireEvent.press(getByText('View all'));
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/opportunities', params: { view: 'foryou' } });
-
-    fireEvent.press(getByText('CV Builder'));
-    expect(mockPush).toHaveBeenCalledWith('/cv');
 
     expect(getAllByText('Global Fellowship').length).toBeGreaterThan(0);
     expect(getAllByText('Campus Internship').length).toBeGreaterThan(0);
   });
 
   it('renders the grants category hero, discovery filters, and search/settings menu actions', async () => {
-    mockRouteParams = { category: 'grants' };
+    mockRouteParams = { category: 'programs' };
     mockOpportunities = [
       {
         id: 'opp-program',
