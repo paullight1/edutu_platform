@@ -6,8 +6,8 @@ import {
   Inject,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import type { ClerkClient } from "@clerk/clerk-sdk-node";
-import { verifyToken } from "@clerk/clerk-sdk-node";
+import type { ClerkClient } from "@clerk/backend";
+import { verifyToken } from "@clerk/backend";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { IS_PUBLIC_KEY } from "./public.decorator";
 import { db } from "../db";

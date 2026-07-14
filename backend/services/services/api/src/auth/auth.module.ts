@@ -1,5 +1,5 @@
 import { Module, Global, Provider } from "@nestjs/common";
-import { ClerkClient, createClerkClient } from "@clerk/clerk-sdk-node";
+import { ClerkClient, createClerkClient } from "@clerk/backend";
 import { APP_GUARD } from "@nestjs/core";
 import { AdminGuard } from "./admin.guard";
 import { AuthController } from "./auth.controller";
