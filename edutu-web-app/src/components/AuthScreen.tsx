@@ -727,9 +727,9 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
       <section className="w-full text-text-primary">
         <section className="mx-auto flex items-center justify-center">
           <motion.div
-            initial={{ opacity: 0, y: 18 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, ease: "easeOut" }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
             className="mx-auto w-full max-w-md"
           >
             <aside className="hidden">
