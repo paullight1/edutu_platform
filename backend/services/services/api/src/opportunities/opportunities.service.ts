@@ -1016,7 +1016,9 @@ export class OpportunitiesService {
           .neq("status", "closed")
           // close_date is nullable, and a null deadline is not an expiry —
           // a plain gte would silently drop every rolling opportunity.
-          .or(`close_date.is.null,close_date.gte.${new Date().toISOString().slice(0, 10)}`);
+          .or(
+            `close_date.is.null,close_date.gte.${new Date().toISOString().slice(0, 10)}`,
+          );
       }
 
       // Both columns must be empty: the 2026-07-12 migration coalesced

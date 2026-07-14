@@ -3980,7 +3980,7 @@ ${text}`;
 
     const sites = new Map<string, any>();
 
-    for (const row of result.rows as any[]) {
+    for (const row of result.rows) {
       const host = String(row.host);
       if (!sites.has(host)) sites.set(host, { host, total: 0, batches: [] });
       const site = sites.get(host);
@@ -4008,7 +4008,10 @@ ${text}`;
   async deleteOpportunitiesByHost(
     host: string,
   ): Promise<{ success: boolean; deleted: number; error?: string }> {
-    const clean = host.trim().toLowerCase().replace(/^www\./, "");
+    const clean = host
+      .trim()
+      .toLowerCase()
+      .replace(/^www\./, "");
     // A bare "%" here would match every opportunity in the table.
     if (!clean || !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(clean)) {
       return { success: false, deleted: 0, error: "Invalid host" };
