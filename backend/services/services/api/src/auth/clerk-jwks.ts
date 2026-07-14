@@ -1,4 +1,8 @@
-import { createPublicKey, verify as cryptoVerify, type KeyObject } from "crypto";
+import {
+  createPublicKey,
+  verify as cryptoVerify,
+  type KeyObject,
+} from "crypto";
 
 /**
  * Networkless-ish Clerk token verification against the instance's public JWKS.
@@ -29,7 +33,8 @@ export type ClerkJwksClaims = {
 const JWKS_TTL_MS = 10 * 60 * 1000;
 const CLOCK_SKEW_SEC = 10;
 
-let jwksCache: { url: string; keys: JsonWebKey[]; fetchedAt: number } | null = null;
+let jwksCache: { url: string; keys: JsonWebKey[]; fetchedAt: number } | null =
+  null;
 let cachedIssuer: string | null | undefined;
 
 function b64urlToBuffer(input: string): Buffer {
@@ -89,12 +94,17 @@ export function getExpectedClerkIssuer(): string | null {
 async function getJwks(issuer: string): Promise<JsonWebKey[]> {
   const url = `${issuer}/.well-known/jwks.json`;
   const now = Date.now();
-  if (jwksCache && jwksCache.url === url && now - jwksCache.fetchedAt < JWKS_TTL_MS) {
+  if (
+    jwksCache &&
+    jwksCache.url === url &&
+    now - jwksCache.fetchedAt < JWKS_TTL_MS
+  ) {
     return jwksCache.keys;
   }
 
   const response = await fetch(url);
-  if (!response.ok) throw new Error(`Clerk JWKS fetch failed: ${response.status}`);
+  if (!response.ok)
+    throw new Error(`Clerk JWKS fetch failed: ${response.status}`);
   const data = (await response.json()) as { keys?: JsonWebKey[] };
   jwksCache = { url, keys: data.keys || [], fetchedAt: now };
   return jwksCache.keys;
@@ -178,10 +188,16 @@ export async function verifyClerkTokenViaJwks(
   if (!valid) return null;
 
   const nowSec = Math.floor(Date.now() / 1000);
-  if (typeof payload.exp === "number" && payload.exp < nowSec - CLOCK_SKEW_SEC) {
+  if (
+    typeof payload.exp === "number" &&
+    payload.exp < nowSec - CLOCK_SKEW_SEC
+  ) {
     return null;
   }
-  if (typeof payload.nbf === "number" && payload.nbf > nowSec + CLOCK_SKEW_SEC) {
+  if (
+    typeof payload.nbf === "number" &&
+    payload.nbf > nowSec + CLOCK_SKEW_SEC
+  ) {
     return null;
   }
   if (!payload.sub) return null;

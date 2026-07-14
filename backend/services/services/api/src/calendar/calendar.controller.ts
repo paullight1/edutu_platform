@@ -61,16 +61,21 @@ export class CalendarController {
     } catch {
       ok = false;
     }
-    return res.redirect(`${appUrl}/goals?calendar=${ok ? "connected" : "error"}`);
+    return res.redirect(
+      `${appUrl}/goals?calendar=${ok ? "connected" : "error"}`,
+    );
   }
 
   @Post("caldav/connect")
   async connectCaldav(
     @CurrentUser("id") userId: string,
-    @Body() body: { username?: string; appPassword?: string; calendarUrl?: string },
+    @Body()
+    body: { username?: string; appPassword?: string; calendarUrl?: string },
   ) {
     if (!body?.username || !body?.appPassword) {
-      throw new BadRequestException("Apple ID and app-specific password required");
+      throw new BadRequestException(
+        "Apple ID and app-specific password required",
+      );
     }
     const ok = await this.service.connectCaldav(
       userId,

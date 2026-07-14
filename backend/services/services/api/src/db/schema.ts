@@ -349,7 +349,9 @@ export const userAiMemories = pgTable(
     lastUsedAt: timestamp("last_used_at", { withTimezone: true }).defaultNow(),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
   },
-  (table) => [index("idx_user_ai_memories_user").on(table.userId, table.lastUsedAt)],
+  (table) => [
+    index("idx_user_ai_memories_user").on(table.userId, table.lastUsedAt),
+  ],
 );
 
 // AI-authored documents (CVs, SOPs, cover letters, essays) created/edited via
@@ -375,9 +377,7 @@ export const aiDocuments = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   },
-  (table) => [
-    index("idx_ai_documents_user").on(table.userId, table.updatedAt),
-  ],
+  (table) => [index("idx_ai_documents_user").on(table.userId, table.updatedAt)],
 );
 
 // One row per push alert actually surfaced to a user, so the alert engine
@@ -1331,9 +1331,7 @@ export const calendarConnections = pgTable(
     connectedAt: timestamp("connected_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
-  (table) => [
-    primaryKey({ columns: [table.userId, table.provider] }),
-  ],
+  (table) => [primaryKey({ columns: [table.userId, table.provider] })],
 );
 
 export const calendarEventLinks = pgTable(

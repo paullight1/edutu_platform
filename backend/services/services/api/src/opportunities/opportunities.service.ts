@@ -494,79 +494,79 @@ export class OpportunitiesService {
     const today = new Date().toISOString().slice(0, 10);
 
     const run = async () => {
-    try {
-      if (this.supabase) {
-        let request = this.supabase
-          .from("opportunities")
-          .select("*")
-          .eq("status", statusFilter)
-          .order("created_at", { ascending: false })
-          .range(normalizedOffset, normalizedOffset + cappedLimit - 1);
+      try {
+        if (this.supabase) {
+          let request = this.supabase
+            .from("opportunities")
+            .select("*")
+            .eq("status", statusFilter)
+            .order("created_at", { ascending: false })
+            .range(normalizedOffset, normalizedOffset + cappedLimit - 1);
 
-        if (excludeExpired) {
-          request = request.or(`close_date.gte.${today},close_date.is.null`);
-        }
+          if (excludeExpired) {
+            request = request.or(`close_date.gte.${today},close_date.is.null`);
+          }
 
-        if (category) {
-          request = request.eq("category", category);
-        }
+          if (category) {
+            request = request.eq("category", category);
+          }
 
-        const { data, error } = await request;
-        if (!error) {
-          const rows = data ?? [];
-          if (rows.length > 0) {
-            return rows.map((row) =>
-              withOpportunityUrlAliases(row as Record<string, any>),
+          const { data, error } = await request;
+          if (!error) {
+            const rows = data ?? [];
+            if (rows.length > 0) {
+              return rows.map((row) =>
+                withOpportunityUrlAliases(row as Record<string, any>),
+              );
+            }
+          } else {
+            this.logger.warn(
+              `Canonical opportunity list query failed, falling back to Drizzle schema: ${error.message}`,
             );
           }
-        } else {
-          this.logger.warn(
-            `Canonical opportunity list query failed, falling back to Drizzle schema: ${error.message}`,
+        }
+
+        const conditions = [eq(opportunities.status, statusFilter)];
+        if (category) {
+          conditions.push(eq(opportunities.category, category));
+        }
+        if (excludeExpired) {
+          conditions.push(
+            or(
+              isNull(opportunities.closeDate),
+              gte(opportunities.closeDate, today),
+            )!,
           );
         }
-      }
 
-      const conditions = [eq(opportunities.status, statusFilter)];
-      if (category) {
-        conditions.push(eq(opportunities.category, category));
-      }
-      if (excludeExpired) {
-        conditions.push(
-          or(
-            isNull(opportunities.closeDate),
-            gte(opportunities.closeDate, today),
-          )!,
+        const query = db
+          .select()
+          .from(opportunities)
+          .where(and(...conditions))
+          .limit(cappedLimit)
+          .offset(normalizedOffset)
+          .orderBy(desc(opportunities.createdAt));
+
+        const rows = await query.execute();
+        if (rows.length > 0) {
+          return rows.map((row) =>
+            withOpportunityUrlAliases(row as Record<string, any>),
+          );
+        }
+      } catch (error: any) {
+        this.logger.warn(
+          `Canonical opportunity list unavailable, falling back to static snapshot: ${error?.message ?? String(error)}`,
         );
       }
 
-      const query = db
-        .select()
-        .from(opportunities)
-        .where(and(...conditions))
-        .limit(cappedLimit)
-        .offset(normalizedOffset)
-        .orderBy(desc(opportunities.createdAt));
-
-      const rows = await query.execute();
-      if (rows.length > 0) {
-        return rows.map((row) =>
-          withOpportunityUrlAliases(row as Record<string, any>),
-        );
-      }
-    } catch (error: any) {
-      this.logger.warn(
-        `Canonical opportunity list unavailable, falling back to static snapshot: ${error?.message ?? String(error)}`,
-      );
-    }
-
-    const snapshotRows = await loadStaticOpportunitySnapshot();
-    return filterStaticOpportunityRows(
-      snapshotRows,
-      cappedLimit,
-      normalizedOffset,
-      statusFilter,
-      category,
-    ).map((row) => withOpportunityUrlAliases(row as Record<string, any>));
+      const snapshotRows = await loadStaticOpportunitySnapshot();
+      return filterStaticOpportunityRows(
+        snapshotRows,
+        cappedLimit,
+        normalizedOffset,
+        statusFilter,
+        category,
+      ).map((row) => withOpportunityUrlAliases(row as Record<string, any>));
     };
 
     return this.cache ? this.cache.wrap(cacheKey, 45, run) : run();
@@ -872,42 +872,42 @@ export class OpportunitiesService {
 
   async findOne(id: string) {
     const run = async () => {
-    try {
-      if (this.supabase) {
-        const { data, error } = await this.supabase
-          .from("opportunities")
-          .select("*")
-          .eq("id", id)
-          .maybeSingle();
+      try {
+        if (this.supabase) {
+          const { data, error } = await this.supabase
+            .from("opportunities")
+            .select("*")
+            .eq("id", id)
+            .maybeSingle();
 
-        if (!error) {
-          if (data) {
-            return withOpportunityUrlAliases(data as Record<string, any>);
+          if (!error) {
+            if (data) {
+              return withOpportunityUrlAliases(data as Record<string, any>);
+            }
+          } else {
+            this.logger.warn(
+              `Canonical opportunity detail query failed, falling back to Drizzle schema: ${error.message}`,
+            );
           }
-        } else {
-          this.logger.warn(
-            `Canonical opportunity detail query failed, falling back to Drizzle schema: ${error.message}`,
-          );
         }
+
+        const res = await db
+          .select()
+          .from(opportunities)
+          .where(eq(opportunities.id, id))
+          .execute();
+        if (res[0]) {
+          return withOpportunityUrlAliases(res[0] as Record<string, any>);
+        }
+      } catch (error: any) {
+        this.logger.warn(
+          `Canonical opportunity detail unavailable, falling back to static snapshot: ${error?.message ?? String(error)}`,
+        );
       }
 
-      const res = await db
-        .select()
-        .from(opportunities)
-        .where(eq(opportunities.id, id))
-        .execute();
-      if (res[0]) {
-        return withOpportunityUrlAliases(res[0] as Record<string, any>);
-      }
-    } catch (error: any) {
-      this.logger.warn(
-        `Canonical opportunity detail unavailable, falling back to static snapshot: ${error?.message ?? String(error)}`,
-      );
-    }
-
-    const snapshotRows = await loadStaticOpportunitySnapshot();
-    const row = snapshotRows.find((item) => String(item.id) === String(id));
-    return row ? withOpportunityUrlAliases(row as Record<string, any>) : null;
+      const snapshotRows = await loadStaticOpportunitySnapshot();
+      const row = snapshotRows.find((item) => String(item.id) === String(id));
+      return row ? withOpportunityUrlAliases(row as Record<string, any>) : null;
     };
 
     return this.cache
@@ -1361,8 +1361,7 @@ export class OpportunitiesService {
     if (data.eligibility !== undefined)
       updateData.eligibility = data.eligibility as any;
     if (data.tags !== undefined) updateData.tags = data.tags as any;
-    if (data.isFeatured !== undefined)
-      updateData.isFeatured = data.isFeatured;
+    if (data.isFeatured !== undefined) updateData.isFeatured = data.isFeatured;
     if (data.isRemote !== undefined) updateData.isRemote = data.isRemote;
     if (data.status !== undefined) updateData.status = data.status;
 
@@ -2389,7 +2388,8 @@ ${sourceText || "No source page text was available. Still write a complete summa
       if (!this.isSafeOpportunitySourceUrl(href)) return;
       const host = this.safeHost(href);
       if (!host || host === excludeHost) return;
-      if (blockedHosts.some((b) => host === b || host.endsWith(`.${b}`))) return;
+      if (blockedHosts.some((b) => host === b || host.endsWith(`.${b}`)))
+        return;
       if (seen.has(href)) return;
       seen.add(href);
       urls.push(href);
@@ -2891,8 +2891,9 @@ ${sourceText || "No source page text was available. Still write a complete summa
       skipped += validItems.length - uniqueRecords.length;
       // Fire-and-forget: embed each new row for semantic recommendations.
       for (const record of saved) {
-        const savedId = (record as Record<string, unknown>).id;
-        if (savedId) void this.embeddingService.embedOpportunity(String(savedId));
+        const savedId = record.id;
+        if (savedId)
+          void this.embeddingService.embedOpportunity(String(savedId));
       }
       // Fire-and-forget: alert users whose saved searches match (active rows only).
       void this.savedSearchesService?.notifyNewOpportunities(saved);
@@ -3067,7 +3068,9 @@ ${sourceText || "No source page text was available. Still write a complete summa
       this.logger.log(
         `Saved ${inserted} opportunities, skipped ${skipped} duplicates (sequential fallback)`,
       );
-      void this.savedSearchesService?.notifyNewOpportunities(savedOpportunities);
+      void this.savedSearchesService?.notifyNewOpportunities(
+        savedOpportunities,
+      );
       await this.prewarmShareAssets(savedOpportunities);
       return { inserted, skipped, opportunities: savedOpportunities };
     }

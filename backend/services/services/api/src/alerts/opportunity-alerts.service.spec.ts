@@ -60,9 +60,7 @@ describe("OpportunityAlertsService", () => {
 
     it("falls back to the default window when prefs are missing", () => {
       atUtc("23:00");
-      expect(service.deferForQuietHours(null)).toBe(
-        "2026-07-13T08:00:00.000Z",
-      );
+      expect(service.deferForQuietHours(null)).toBe("2026-07-13T08:00:00.000Z");
     });
 
     it("evaluates quiet hours in the user's timezone", () => {

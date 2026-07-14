@@ -135,7 +135,9 @@ export class OpportunitySubmissionsService {
           ? { deadline: patch.deadline ? new Date(patch.deadline) : null }
           : {}),
         ...(patch.applyUrl !== undefined ? { applyUrl: patch.applyUrl } : {}),
-        ...(patch.sourceUrl !== undefined ? { sourceUrl: patch.sourceUrl } : {}),
+        ...(patch.sourceUrl !== undefined
+          ? { sourceUrl: patch.sourceUrl }
+          : {}),
         ...(patch.imageUrl !== undefined ? { imageUrl: patch.imageUrl } : {}),
         updatedAt: new Date(),
       })
@@ -152,9 +154,7 @@ export class OpportunitySubmissionsService {
     const query = status
       ? base.where(eq(opportunitySubmissions.status, status))
       : base;
-    const rows = await query.orderBy(
-      desc(opportunitySubmissions.submittedAt),
-    );
+    const rows = await query.orderBy(desc(opportunitySubmissions.submittedAt));
     return rows.map((r) => this.serialize(r));
   }
 
@@ -184,7 +184,8 @@ export class OpportunitySubmissionsService {
       );
     }
 
-    let approvedOpportunityId: string | null = row.approvedOpportunityId ?? null;
+    let approvedOpportunityId: string | null =
+      row.approvedOpportunityId ?? null;
 
     if (dto.decision === "approved") {
       approvedOpportunityId = await this.createOpportunityFromSubmission(row);
@@ -192,7 +193,7 @@ export class OpportunitySubmissionsService {
 
     const thread = dto.adminNote?.trim()
       ? this.appendThread(row.thread, "admin", dto.adminNote.trim())
-      : (row.thread as ThreadEntry[] | null) ?? [];
+      : ((row.thread as ThreadEntry[] | null) ?? []);
 
     const [updated] = await db
       .update(opportunitySubmissions)

@@ -5,7 +5,12 @@ import {
 } from "./calendar-sync.service";
 
 jest.mock("../db", () => ({
-  db: { select: jest.fn(), insert: jest.fn(), update: jest.fn(), delete: jest.fn() },
+  db: {
+    select: jest.fn(),
+    insert: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  },
 }));
 
 describe("buildEventFields", () => {
@@ -26,9 +31,10 @@ describe("buildEventFields", () => {
   });
 
   it("falls back to the deadline and returns null without a date", () => {
-    expect(buildEventFields({ id: "g2", title: "Submit", deadline: "2026-09-10" })?.dateOnly).toBe(
-      "2026-09-10",
-    );
+    expect(
+      buildEventFields({ id: "g2", title: "Submit", deadline: "2026-09-10" })
+        ?.dateOnly,
+    ).toBe("2026-09-10");
     expect(buildEventFields({ id: "g3", title: "No date" })).toBeNull();
   });
 });
@@ -37,7 +43,12 @@ describe("buildVevent", () => {
   const stamp = "20260705T000000Z";
   it("emits an all-day VEVENT with exclusive end, alarm and stable UID", () => {
     const vevent = buildVevent(
-      { goalId: "g1", title: "Prep, review; go", description: "line1\nline2", dateOnly: "2026-08-01" },
+      {
+        goalId: "g1",
+        title: "Prep, review; go",
+        description: "line1\nline2",
+        dateOnly: "2026-08-01",
+      },
       stamp,
     );
     expect(vevent).toContain("UID:edutu-g1@edutu");
@@ -72,7 +83,8 @@ describe("CalendarSyncService config gating", () => {
   it("builds provider auth urls when configured, tagging state with the provider", () => {
     process.env.GOOGLE_CLIENT_ID = "gid";
     process.env.GOOGLE_CLIENT_SECRET = "gsec";
-    process.env.GOOGLE_REDIRECT_URI = "https://api.example.com/calendar/callback";
+    process.env.GOOGLE_REDIRECT_URI =
+      "https://api.example.com/calendar/callback";
     process.env.MS_CLIENT_ID = "mid";
     process.env.MS_CLIENT_SECRET = "msec";
     process.env.MS_REDIRECT_URI = "https://api.example.com/calendar/callback";

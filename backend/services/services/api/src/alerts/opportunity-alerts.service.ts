@@ -152,7 +152,12 @@ export class OpportunityAlertsService {
       }
     });
 
-    return { users: users.length, candidates: candidates.length, notified, skipped };
+    return {
+      users: users.length,
+      candidates: candidates.length,
+      notified,
+      skipped,
+    };
   }
 
   private async alertUser(
@@ -168,7 +173,10 @@ export class OpportunityAlertsService {
         and(
           eq(opportunityAlertLedger.userId, userId),
           eq(opportunityAlertLedger.kind, "interest"),
-          gte(opportunityAlertLedger.sentAt, new Date(Date.now() - 24 * 3600_000)),
+          gte(
+            opportunityAlertLedger.sentAt,
+            new Date(Date.now() - 24 * 3600_000),
+          ),
         ),
       )) as [{ count: number }];
     if (sentToday >= DAILY_CAP) return false;
@@ -373,8 +381,12 @@ export class OpportunityAlertsService {
           .join("\n"),
         metadata: { source: "coach-pulse", userId: user.userId },
       });
-      const title = String(generated?.title ?? "").replace(/\s+/g, " ").trim();
-      const body = String(generated?.body ?? "").replace(/\s+/g, " ").trim();
+      const title = String(generated?.title ?? "")
+        .replace(/\s+/g, " ")
+        .trim();
+      const body = String(generated?.body ?? "")
+        .replace(/\s+/g, " ")
+        .trim();
       if (title && body && title.length <= 60 && body.length <= 160) {
         return { title, body };
       }
@@ -444,14 +456,16 @@ export class OpportunityAlertsService {
     `);
 
     const rows =
-      (result as unknown as {
-        rows?: Array<{
-          user_id: string;
-          quiet_hours: QuietHours;
-          timezone: string | null;
-          full_name: string | null;
-        }>;
-      }).rows ?? [];
+      (
+        result as unknown as {
+          rows?: Array<{
+            user_id: string;
+            quiet_hours: QuietHours;
+            timezone: string | null;
+            full_name: string | null;
+          }>;
+        }
+      ).rows ?? [];
     return rows.map((row) => ({
       userId: row.user_id,
       quietHours: row.quiet_hours,
@@ -501,7 +515,9 @@ export class OpportunityAlertsService {
 
     // Too many at once reads as spam — collapse into a single summary push.
     if (pairs.length > MAX_DEADLINE_PUSHES_PER_USER) {
-      const soonest = pairs.reduce((a, b) => (a.daysLeft <= b.daysLeft ? a : b));
+      const soonest = pairs.reduce((a, b) =>
+        a.daysLeft <= b.daysLeft ? a : b,
+      );
       await this.notificationsService.broadcast(userId, {
         title: "⏰ Deadlines approaching",
         body: `${pairs.length} of your saved opportunities close soon — the first is "${soonest.title}" ${this.daysPhrase(soonest.daysLeft)}.`,
@@ -594,16 +610,18 @@ export class OpportunityAlertsService {
     `);
 
     const rows =
-      (result as unknown as {
-        rows?: Array<{
-          user_id: string;
-          opportunity_id: string;
-          title: string;
-          days_left: number;
-          quiet_hours: QuietHours;
-          timezone: string | null;
-        }>;
-      }).rows ?? [];
+      (
+        result as unknown as {
+          rows?: Array<{
+            user_id: string;
+            opportunity_id: string;
+            title: string;
+            days_left: number;
+            quiet_hours: QuietHours;
+            timezone: string | null;
+          }>;
+        }
+      ).rows ?? [];
 
     return rows.map((row) => ({
       userId: row.user_id,
@@ -633,7 +651,8 @@ export class OpportunityAlertsService {
     quietHours: QuietHours,
     timezone?: string | null,
   ): string | undefined {
-    const window = quietHours?.start && quietHours?.end ? quietHours : DEFAULT_QUIET_HOURS;
+    const window =
+      quietHours?.start && quietHours?.end ? quietHours : DEFAULT_QUIET_HOURS;
     const parse = (value: string) => {
       const [h, m] = value.split(":").map((part) => Number(part));
       if (!Number.isFinite(h) || !Number.isFinite(m)) return null;

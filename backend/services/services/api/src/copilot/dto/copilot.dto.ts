@@ -19,7 +19,10 @@ export type GenerateOutlineDto = z.infer<typeof GenerateOutlineDtoSchema>;
 export const EssayFeedbackDtoSchema = z.object({
   promptId: z.string().min(1),
   prompt: z.string().max(2000).optional(),
-  draft: z.string().min(40, "Draft is too short for useful feedback").max(20000),
+  draft: z
+    .string()
+    .min(40, "Draft is too short for useful feedback")
+    .max(20000),
 });
 export type EssayFeedbackDto = z.infer<typeof EssayFeedbackDtoSchema>;
 

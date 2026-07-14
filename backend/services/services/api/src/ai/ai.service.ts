@@ -400,7 +400,13 @@ export class AiService {
       );
       return result;
     } catch (error) {
-      void this.logUsage(logOptions, route, null, Date.now() - startedAt, error);
+      void this.logUsage(
+        logOptions,
+        route,
+        null,
+        Date.now() - startedAt,
+        error,
+      );
 
       const fallbackRoute = await this.resolveFallbackRoute(route);
       const fallbackAdapter = fallbackRoute
@@ -521,7 +527,13 @@ export class AiService {
       );
       return result;
     } catch (error) {
-      void this.logUsage(logOptions, route, null, Date.now() - startedAt, error);
+      void this.logUsage(
+        logOptions,
+        route,
+        null,
+        Date.now() - startedAt,
+        error,
+      );
       this.logger.warn(
         `Embedding request failed for ${options.feature}: ${
           error instanceof Error ? error.message : String(error)

@@ -302,12 +302,9 @@ export class RoadmapsService {
     userId: string,
     creatorName = "You",
   ) {
-    return this.create(
-      { ...dto, isFeatured: false },
-      userId,
-      creatorName,
-      { status: "personal" },
-    );
+    return this.create({ ...dto, isFeatured: false }, userId, creatorName, {
+      status: "personal",
+    });
   }
 
   async findMine(userId: string) {
@@ -364,7 +361,8 @@ export class RoadmapsService {
         .where(matchProfileUserId(profiles.userId, dbUserId));
 
       const isApprovedCreator = profile?.creatorStatus === "approved";
-      const isAdmin = profile?.role === "admin" || profile?.role === "moderator";
+      const isAdmin =
+        profile?.role === "admin" || profile?.role === "moderator";
       if (!isApprovedCreator && !isAdmin) {
         throw new ForbiddenException(
           "Only approved creators can publish roadmaps.",
@@ -630,7 +628,11 @@ export class RoadmapsService {
     // adoption "work".
     let goalsCreated = 0;
     if (inserted) {
-      goalsCreated = await this.createAdoptionGoals(userId, roadmap, adoptedPlan);
+      goalsCreated = await this.createAdoptionGoals(
+        userId,
+        roadmap,
+        adoptedPlan,
+      );
     }
 
     // Per-step reminders arrive via the goals pipeline above, but the
@@ -652,30 +654,32 @@ export class RoadmapsService {
     const schedule = this.buildReminderSchedule(enrollment, roadmap).filter(
       (item) => item.type === "opportunity_deadline",
     );
-    const steps = ((enrollment.adoptedPlan?.steps ||
-      []) as AdoptedPlanStep[]).filter((step) => !step.completed);
+    const steps = (
+      (enrollment.adoptedPlan?.steps || []) as AdoptedPlanStep[]
+    ).filter((step) => !step.completed);
     const nextStep = steps.length ? steps[0].title : null;
 
     const notifications: BroadcastNotificationDto[] = schedule
       .filter((item) => typeof item.scheduledFor === "string")
       .map((item) => ({
-      title: item.title,
-      body: nextStep
-        ? `Next small move: ${nextStep}. Fifteen focused minutes today keeps you ahead.`
-        : item.body,
-      kind: "deadline-reminder" as const,
-      severity: ("daysBefore" in item && Number(item.daysBefore) <= 3
-        ? "warning"
-        : "info") as "warning" | "info",
-      scheduledFor: item.scheduledFor as string,
-      dedupeKey: item.id,
-      metadata: {
-        roadmapId: enrollment.roadmapId,
-        enrollmentId: enrollment.id,
-        targetOpportunityId: enrollment.targetOpportunityId ?? null,
-        nextAction: nextStep,
-      },
-    }));
+        title: item.title,
+        body: nextStep
+          ? `Next small move: ${nextStep}. Fifteen focused minutes today keeps you ahead.`
+          : item.body,
+        kind: "deadline-reminder" as const,
+        severity:
+          "daysBefore" in item && Number(item.daysBefore) <= 3
+            ? "warning"
+            : "info",
+        scheduledFor: item.scheduledFor as string,
+        dedupeKey: item.id,
+        metadata: {
+          roadmapId: enrollment.roadmapId,
+          enrollmentId: enrollment.id,
+          targetOpportunityId: enrollment.targetOpportunityId ?? null,
+          nextAction: nextStep,
+        },
+      }));
 
     try {
       await this.notificationsService.replaceScheduledUserNotifications(
@@ -1174,7 +1178,9 @@ Ground every claim in the details given above. Never invent requirements, eligib
   }
 
   /** Replace client-sent opportunity fields with the verified DB row's. */
-  private async groundPlanDto(dto: OpportunityPlanDto): Promise<OpportunityPlanDto> {
+  private async groundPlanDto(
+    dto: OpportunityPlanDto,
+  ): Promise<OpportunityPlanDto> {
     try {
       const result = await db.execute(sql`
         select

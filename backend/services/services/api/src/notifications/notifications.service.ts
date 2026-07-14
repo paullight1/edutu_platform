@@ -69,7 +69,7 @@ export class NotificationsService {
 
     try {
       // require (not import) so the build stays green without the package.
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+
       const webpush = require("web-push");
       webpush.setVapidDetails(
         process.env.VAPID_SUBJECT || "mailto:support@edutu.org",

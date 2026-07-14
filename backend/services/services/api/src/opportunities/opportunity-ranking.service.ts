@@ -262,10 +262,7 @@ export class OpportunityRankingService {
   }
 
   /** Adds the categories of the given opportunities to excludedCategories. */
-  private async excludeCategoriesFor(
-    userId: string,
-    opportunityIds: string[],
-  ) {
+  private async excludeCategoriesFor(userId: string, opportunityIds: string[]) {
     const rows = await db
       .select({ category: opportunities.category })
       .from(opportunities)
@@ -590,10 +587,9 @@ export class OpportunityRankingService {
         )
       `);
 
-      const rows =
-        ((result as { rows?: Record<string, unknown>[] }).rows ?? []).map(
-          (row) => this.normalizeCanonicalRow(row),
-        );
+      const rows = (
+        (result as { rows?: Record<string, unknown>[] }).rows ?? []
+      ).map((row) => this.normalizeCanonicalRow(row));
       return rows;
     } catch (error) {
       this.logger.warn(
@@ -619,9 +615,9 @@ export class OpportunityRankingService {
         from opportunities o
         where o.id = any(${ids}::uuid[])
       `);
-      return (
-        (result as { rows?: Record<string, unknown>[] }).rows ?? []
-      ).map((row) => this.normalizeCanonicalRow(row));
+      return ((result as { rows?: Record<string, unknown>[] }).rows ?? []).map(
+        (row) => this.normalizeCanonicalRow(row),
+      );
     } catch (error) {
       this.logger.warn(
         `fetchOpportunitiesByIds failed: ${
@@ -682,9 +678,11 @@ export class OpportunityRankingService {
       `);
 
       const rows =
-        (result as unknown as {
-          rows?: Array<{ category: string; raw_score: unknown }>;
-        }).rows ?? [];
+        (
+          result as unknown as {
+            rows?: Array<{ category: string; raw_score: unknown }>;
+          }
+        ).rows ?? [];
       const positives = rows
         .map((row) => Number(row.raw_score) || 0)
         .filter((score) => score > 0);
@@ -1061,10 +1059,7 @@ export class OpportunityRankingService {
       });
     } else {
       // Legacy path: additive rule score + clamped signal delta.
-      match = Math.max(
-        0,
-        Math.min(100, fit.rawScore + (signal?.score ?? 0)),
-      );
+      match = Math.max(0, Math.min(100, fit.rawScore + (signal?.score ?? 0)));
       matchComponents = undefined;
       finalReasons = reasons.slice(0, 4);
     }

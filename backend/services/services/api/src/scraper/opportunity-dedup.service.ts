@@ -55,18 +55,40 @@ export function deadlinesCompatible(
 
 /** Multi-part public suffixes we care about for African/edu domains. */
 const MULTI_PART_TLDS = new Set([
-  "co.uk", "org.uk", "ac.uk", "gov.uk",
-  "com.ng", "org.ng", "edu.ng", "gov.ng",
-  "co.za", "org.za", "ac.za", "gov.za",
-  "co.ke", "or.ke", "ac.ke", "go.ke",
-  "com.gh", "org.gh", "edu.gh", "gov.gh",
-  "com.au", "org.au", "edu.au",
-  "co.in", "org.in", "ac.in",
-  "com.br", "org.br",
+  "co.uk",
+  "org.uk",
+  "ac.uk",
+  "gov.uk",
+  "com.ng",
+  "org.ng",
+  "edu.ng",
+  "gov.ng",
+  "co.za",
+  "org.za",
+  "ac.za",
+  "gov.za",
+  "co.ke",
+  "or.ke",
+  "ac.ke",
+  "go.ke",
+  "com.gh",
+  "org.gh",
+  "edu.gh",
+  "gov.gh",
+  "com.au",
+  "org.au",
+  "edu.au",
+  "co.in",
+  "org.in",
+  "ac.in",
+  "com.br",
+  "org.br",
 ]);
 
 /** Extract the registrable domain (eTLD+1) from a URL. Null when unparsable. */
-export function registrableDomain(url: string | null | undefined): string | null {
+export function registrableDomain(
+  url: string | null | undefined,
+): string | null {
   if (!url) return null;
   let host: string;
   try {
@@ -198,7 +220,10 @@ export class OpportunityDedupService {
           .in("content_fingerprint", fingerprints);
         if (error) throw error;
         for (const row of (data as ExistingRow[]) ?? []) {
-          if (row.content_fingerprint && !byFingerprint.has(row.content_fingerprint)) {
+          if (
+            row.content_fingerprint &&
+            !byFingerprint.has(row.content_fingerprint)
+          ) {
             byFingerprint.set(row.content_fingerprint, row);
           }
         }
@@ -237,9 +262,7 @@ export class OpportunityDedupService {
         // wrap the pattern) so orgs differing only by internal whitespace
         // still match; normalizeOrganization below stays the real filter.
         const orFilter = orgs
-          .map(
-            (o) => `organization.ilike."*${o.split(/\s+/).join("*")}*"`,
-          )
+          .map((o) => `organization.ilike."*${o.split(/\s+/).join("*")}*"`)
           .join(",");
         const { data, error } = await this.supabase
           .from("opportunities")
@@ -352,7 +375,8 @@ export class OpportunityDedupService {
           .or(orFilter)
           .limit(5000);
         if (error) throw error;
-        for (const row of (data as Array<Record<string, string | null>>) ?? []) {
+        for (const row of (data as Array<Record<string, string | null>>) ??
+          []) {
           const d =
             registrableDomain(row.application_url) ??
             registrableDomain(row.apply_url);
