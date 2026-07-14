@@ -44,6 +44,7 @@
     "class-validator": "^0.15.1",
     "docx": "^9.7.1",
     "drizzle-orm": "^0.45.1",
+    "expo-server-sdk": "^3.15.0",
     "helmet": "^8.2.0",
     "https-proxy-agent": "^7.0.5",
     "ioredis": "^5.4.1",
