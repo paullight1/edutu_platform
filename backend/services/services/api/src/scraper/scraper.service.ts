@@ -3925,6 +3925,119 @@ ${text}`;
 
   // ─── Deletion ─────────────────────────────────────────────────────────────
 
+  /**
+   * Opportunities grouped by the site they came from, with their scrape batches
+   * nested underneath.
+   *
+   * Grouped by URL host rather than scraping_sources.id on purpose: deleting a
+   * source sets scraped_urls.source_id to NULL, so source-keyed grouping makes
+   * every orphaned site invisible — which is exactly how ~95 rows sat unreachable
+   * after their source row was removed. The host is derived from the row itself,
+   * so it survives.
+   */
+  async getOpportunitySites(): Promise<
+    Array<{
+      host: string;
+      total: number;
+      batches: Array<{
+        jobId: string | null;
+        count: number;
+        firstSeen: string | null;
+        lastSeen: string | null;
+        runType: string | null;
+        startedAt: string | null;
+      }>;
+    }>
+  > {
+    const result = await pool.query(`
+      select
+        coalesce(
+          nullif(
+            split_part(
+              regexp_replace(
+                coalesce(opportunity.apply_url, opportunity.application_url, opportunity.source_url),
+                '^https?://(www\\.)?', ''
+              ),
+              '/', 1
+            ),
+            ''
+          ),
+          'unknown'
+        ) as host,
+        opportunity.metadata->>'scrape_job_id' as job_id,
+        count(*)::int as count,
+        min(opportunity.created_at) as first_seen,
+        max(opportunity.created_at) as last_seen,
+        max(log.run_type) as run_type,
+        max(log.started_at) as started_at
+      from public.opportunities opportunity
+      -- scrape_job_id is a JSONB string; scrape_logs.id is uuid.
+      left join public.scrape_logs log
+        on log.id::text = opportunity.metadata->>'scrape_job_id'
+      group by 1, 2
+      order by 1 asc, count desc
+    `);
+
+    const sites = new Map<string, any>();
+
+    for (const row of result.rows as any[]) {
+      const host = String(row.host);
+      if (!sites.has(host)) sites.set(host, { host, total: 0, batches: [] });
+      const site = sites.get(host);
+      const count = Number(row.count) || 0;
+      site.total += count;
+      site.batches.push({
+        jobId: row.job_id ?? null,
+        count,
+        firstSeen: row.first_seen ?? null,
+        lastSeen: row.last_seen ?? null,
+        runType: row.run_type ?? null,
+        startedAt: row.started_at ?? null,
+      });
+    }
+
+    return Array.from(sites.values()).sort((a, b) => b.total - a.total);
+  }
+
+  /**
+   * Deletes every opportunity harvested from a host, including rows whose batch
+   * is unknown (scraped before scrape_job_id existed) — those are unreachable
+   * from a batch-only delete. Also clears the scraped_urls ledger, whose
+   * opportunity_id has no FK and would otherwise dangle.
+   */
+  async deleteOpportunitiesByHost(
+    host: string,
+  ): Promise<{ success: boolean; deleted: number; error?: string }> {
+    const clean = host.trim().toLowerCase().replace(/^www\./, "");
+    // A bare "%" here would match every opportunity in the table.
+    if (!clean || !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(clean)) {
+      return { success: false, deleted: 0, error: "Invalid host" };
+    }
+
+    const like = `%${clean}%`;
+    try {
+      const deleted = await pool.query(
+        `delete from public.opportunities
+         where coalesce(apply_url, application_url, source_url) ilike $1
+            or coalesce(metadata->>'aggregator_url', '') ilike $1
+            or coalesce(metadata->>'detail_url', '') ilike $1
+         returning id`,
+        [like],
+      );
+      const count = deleted.rowCount ?? 0;
+
+      await pool.query(`delete from public.scraped_urls where url ilike $1`, [
+        like,
+      ]);
+
+      this.logger.log(`Deleted ${count} opportunity(ies) from host ${clean}`);
+      return { success: true, deleted: count };
+    } catch (e: any) {
+      this.logger.error(`Delete by host ${clean} failed: ${e.message}`);
+      return { success: false, deleted: 0, error: e.message };
+    }
+  }
+
   async deleteJobWithOpportunities(
     jobId: string,
   ): Promise<{ success: boolean; error?: string }> {
