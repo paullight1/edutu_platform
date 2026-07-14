@@ -13,11 +13,11 @@ const REFRESH_LOTTIE = require('../../assets/lottie/pull-refresh.json');
 
 // Keep the native pull gesture + rubber-band bounce, but hide the stock spinner
 // on both platforms so our branded Lottie is the only visible indicator.
-const HIDDEN_NATIVE = {
+const HIDDEN_NATIVE: Partial<RefreshControlProps> = {
   tintColor: 'transparent',
   colors: ['transparent'],
   progressBackgroundColor: 'transparent',
-} as const;
+};
 
 type LottieRefreshOptions = {
   refreshing: boolean;
@@ -48,7 +48,7 @@ type LottieRefreshOptions = {
  */
 export function useLottieRefresh({ refreshing, onRefresh, top = 6 }: LottieRefreshOptions) {
   const refreshControl = (
-    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} {...(HIDDEN_NATIVE as Partial<RefreshControlProps>)} />
+    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} {...HIDDEN_NATIVE} />
   );
   const overlay = <LottieRefreshOverlay refreshing={refreshing} top={top} />;
   return { refreshControl, overlay };

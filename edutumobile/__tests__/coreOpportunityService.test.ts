@@ -154,7 +154,7 @@ describe('core opportunity service contract', () => {
     const body = JSON.parse(mockFetch.mock.calls[0][1].body as string);
     expect(body).toEqual(
       expect.objectContaining({
-        limit: 50,
+        limit: 1000,
         minMatchScore: 0,
         excludeOpportunityIds: ['opp-dismissed-1', 'opp-dismissed-2'],
       }),

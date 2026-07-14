@@ -70,11 +70,7 @@ export function BrandedLoader({
   });
   const logoScale = pulse.interpolate({
     inputRange: [0, 1],
-    outputRange: [0.92, 1.05],
-  });
-  const haloOpacity = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.18, 0.42],
+    outputRange: [0.94, 1.04],
   });
 
   const ring = size * 1.42;
@@ -113,31 +109,26 @@ export function BrandedLoader({
           ]}
         />
 
-        {/* Soft glowing halo behind the logo */}
+        {/* Logo on a clean light disc so the colored mark stays legible in
+            every theme — the accent lives in the spinning arc, not a blob. */}
         <Animated.View
           style={[
-            styles.halo,
+            styles.logoDisc,
             {
-              width: size * 0.92,
-              height: size * 0.92,
+              width: size * 0.74,
+              height: size * 0.74,
               borderRadius: size,
-              backgroundColor: colors.accent,
-              opacity: haloOpacity,
+              borderColor: colors.border,
               transform: [{ scale: logoScale }],
             },
           ]}
-        />
-
-        {/* Logo with a gentle breathing pulse */}
-        <Animated.Image
-          source={require('../../assets/logo1.png')}
-          resizeMode="contain"
-          style={{
-            width: size * 0.58,
-            height: size * 0.58,
-            transform: [{ scale: logoScale }],
-          }}
-        />
+        >
+          <Image
+            source={require('../../assets/logo1.png')}
+            resizeMode="contain"
+            style={{ width: size * 0.52, height: size * 0.52 }}
+          />
+        </Animated.View>
       </View>
 
       {displayLabel ? (
@@ -168,8 +159,17 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
     borderLeftColor: 'transparent',
   },
-  halo: {
+  logoDisc: {
     position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 4,
   },
   label: {
     marginTop: 22,

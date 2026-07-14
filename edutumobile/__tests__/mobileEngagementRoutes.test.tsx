@@ -235,6 +235,7 @@ jest.mock('../packages/core/src/services/bookmarks', () => ({
 
 jest.mock('../lib/supabase', () => ({
   supabase: {
+    ...require('../test-utils/supabaseMock').createSupabaseMock(),
     from: jest.fn((table: string) => {
       if (table === 'bookmarks') {
         return {
@@ -300,6 +301,7 @@ jest.mock('@edutu/core/src/hooks/useGoals', () => ({
 
 jest.mock('@edutu/core/src/services/opportunities', () => ({
   fetchOpportunities: jest.fn(),
+  getCachedOpportunitiesSnapshot: jest.fn(async () => []),
 }), { virtual: true });
 
 jest.mock('@edutu/core/src/services/payments', () => ({
@@ -307,6 +309,21 @@ jest.mock('@edutu/core/src/services/payments', () => ({
   getOfferings: (...args: unknown[]) => mockGetOfferings(...args),
   purchasePackage: (...args: unknown[]) => mockPurchasePackage(...args),
   restorePurchases: (...args: unknown[]) => mockRestorePurchases(...args),
+  purchaseCredits: jest.fn(async () => ({ success: true })),
+  PRODUCTS: {
+    PRO_MONTHLY: 'pro_monthly',
+    PRO_YEARLY: 'pro_yearly',
+    CREDITS_SMALL: 'credits_small',
+    CREDITS_MEDIUM: 'credits_medium',
+    CREDITS_LARGE: 'credits_large',
+    CREDITS_XLARGE: 'credits_xlarge',
+  },
+  CREDIT_AMOUNTS: {
+    credits_small: 50,
+    credits_medium: 200,
+    credits_large: 500,
+    credits_xlarge: 1000,
+  },
 }), { virtual: true });
 
 jest.mock('@edutu/core/src/utils/auth', () => ({
@@ -557,20 +574,21 @@ describe('mobile engagement routes', () => {
   });
 
   it('renders the paywall, shows premium messaging, and surfaces subscribe handling', async () => {
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined as never);
     mockInitRevenueCat.mockResolvedValue(false);
     mockGetOfferings.mockResolvedValue(null);
+    mockRestorePurchases.mockResolvedValue({ success: false });
+    // No user → useProStatus resolves loading=false immediately (skips the
+    // Supabase pro-status lookup) so the paywall renders past its loader.
+    mockUserState = { user: null };
 
     const { getByText } = render(<PaywallScreen />);
 
-    await waitFor(() => expect(getByText('Premium')).toBeTruthy());
-    expect(getByText('Unlock premium')).toBeTruthy();
+    await waitFor(() => expect(getByText('Unlock every opportunity')).toBeTruthy());
     expect(getByText('Subscribe to premium')).toBeTruthy();
-    expect(getByText('Subscription renews automatically and can be managed in your device settings.')).toBeTruthy();
+    expect(getByText('Restore purchases')).toBeTruthy();
 
-    fireEvent.press(getByText('Subscribe to premium'));
-    expect(alertSpy).toHaveBeenCalledWith('Coming Soon', expect.any(String));
-
-    alertSpy.mockRestore();
+    // Restore is wired to the RevenueCat restore flow.
+    fireEvent.press(getByText('Restore purchases'));
+    await waitFor(() => expect(mockRestorePurchases).toHaveBeenCalled());
   });
 });

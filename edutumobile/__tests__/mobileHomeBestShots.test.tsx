@@ -248,17 +248,17 @@ describe('home Best Shots — empty states and dedupe', () => {
       makeOpp({ id: 'b', title: 'Graduate Trainee', match: 48 }),
     ];
 
-    const { getByText, queryByText } = render(<Dashboard />);
+    const { getByText, queryByText, getByLabelText } = render(<Dashboard />);
 
     await waitFor(() => expect(getByText('Your best shots')).toBeTruthy());
+    expect(getByText('Your strongest match lands here')).toBeTruthy();
     expect(getByText(/Complete your profile and we'll surface the few you can actually win/)).toBeTruthy();
-    expect(getByText('Complete profile')).toBeTruthy();
     // The "profile already complete" copy must NOT appear here.
     expect(queryByText(/Nothing's cleared the bar yet/)).toBeNull();
-    expect(queryByText('Browse opportunities')).toBeNull();
+    expect(queryByText('Still finding your best shot')).toBeNull();
 
-    // The prompt routes to the profile screen.
-    fireEvent.press(getByText('Complete profile'));
+    // The whole card is tappable and routes to the profile screen.
+    fireEvent.press(getByLabelText('Complete your profile to unlock your best shots'));
     expect(mockPush).toHaveBeenCalledWith('/profile');
   });
 
@@ -270,16 +270,16 @@ describe('home Best Shots — empty states and dedupe', () => {
       makeOpp({ id: 'b', title: 'Graduate Trainee', match: 48 }),
     ];
 
-    const { getByText, queryByText } = render(<Dashboard />);
+    const { getByText, queryByText, getByLabelText } = render(<Dashboard />);
 
     await waitFor(() => expect(getByText('Your best shots')).toBeTruthy());
+    expect(getByText('Still finding your best shot')).toBeTruthy();
     expect(getByText(/Nothing's cleared the bar yet/)).toBeTruthy();
-    expect(getByText('Browse opportunities')).toBeTruthy();
     // Must NOT tell a completed-profile user to complete their profile.
-    expect(queryByText('Complete profile')).toBeNull();
+    expect(queryByText('Your strongest match lands here')).toBeNull();
     expect(queryByText(/Complete your profile and we'll surface/)).toBeNull();
 
-    fireEvent.press(getByText('Browse opportunities'));
+    fireEvent.press(getByLabelText('Browse opportunities while we find your best shot'));
     expect(mockPush).toHaveBeenCalledWith('/opportunities');
   });
 

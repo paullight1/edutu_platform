@@ -16,10 +16,16 @@ describe('AppController (e2e)', () => {
     await app.init();
   });
 
+  afterEach(async () => {
+    // Without this the booted app keeps handles open and jest never exits, so
+    // the Backend Tests CI job hung instead of finishing.
+    await app?.close();
+  });
+
   it('/ (GET)', () => {
     return request(app.getHttpServer())
       .get('/')
       .expect(200)
-      .expect('Hello World!');
+      .expect('Edutu API');
   });
 });

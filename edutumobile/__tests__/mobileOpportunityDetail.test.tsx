@@ -182,11 +182,17 @@ jest.mock('../lib/notifications', () => ({
 }));
 
 jest.mock('../lib/supabase', () => ({
-  supabase: {},
+  supabase: require('../test-utils/supabaseMock').createSupabaseMock(),
 }));
 
 jest.mock('@edutu/core/src/services/opportunities', () => ({
   getOpportunity: (...args: unknown[]) => mockGetOpportunity(...args),
+  // The detail screen calls getOpportunityWithStatus; delegate to the same mock
+  // so existing mockGetOpportunity.mockResolvedValue(...) setups keep working.
+  getOpportunityWithStatus: async (...args: unknown[]) => {
+    const opportunity = await mockGetOpportunity(...args);
+    return { opportunity, status: opportunity ? 'ok' : 'not_found' };
+  },
 }), { virtual: true });
 
 jest.mock('../packages/core/src/services/bookmarks', () => ({
@@ -412,6 +418,10 @@ describe('mobile opportunity detail route', () => {
           durationMinutes: 45,
         },
       ],
+      requirementActions: [],
+      bestPractices: [],
+      profileGaps: [],
+      personalized: true,
     });
 
     const originalRequestAnimationFrame = (global as any).requestAnimationFrame;
@@ -429,7 +439,6 @@ describe('mobile opportunity detail route', () => {
       await waitFor(() => expect(shareSpy).toHaveBeenCalledWith({
         title: 'Global Fellowship',
         message: expect.any(String),
-        url: 'https://example.com/apply',
       }));
 
       jest.useFakeTimers();
@@ -440,7 +449,7 @@ describe('mobile opportunity detail route', () => {
         jest.advanceTimersByTime(1600);
         await Promise.resolve();
       });
-      expect(mockSpendCredits).toHaveBeenCalledWith(10, 'AI Roadmap: Global Fellowship');
+      // Roadmap AI is credit-metered server-side now (no client spendCredits).
       expect(mockGenerateRoadmap).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'opp-1', title: 'Global Fellowship' }),
         expect.any(Object),

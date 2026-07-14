@@ -242,6 +242,7 @@ export default function SignUpScreen() {
           </Pressable>
           <TextInput
             ref={codeInputRef}
+            testID="signup-verification-code"
             value={code}
             onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))}
             onFocus={() => setCodeFocused(true)}

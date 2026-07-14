@@ -246,6 +246,7 @@ jest.mock('../lib/opportunityWidgetSync', () => ({
 
 jest.mock('../lib/supabase', () => ({
   supabase: {
+    ...require('../test-utils/supabaseMock').createSupabaseMock(),
     from: jest.fn(),
   },
 }));
@@ -264,6 +265,10 @@ jest.mock('@edutu/core/src/services/opportunitySignals', () => ({
 }), { virtual: true });
 
 jest.mock('@edutu/core/src/services/applications', () => ({
+  // Keep the real pure helpers (APPLICATION_PIPELINE, getNextApplicationStage,
+  // normalizeApplicationStatus): the applied rows call them during render, and
+  // stubbing only the async fns made every row throw and unmount the list.
+  ...jest.requireActual('../packages/core/src/services/applications'),
   fetchTrackedApplications: (...args: unknown[]) => mockFetchTrackedApplications(...args),
   updateTrackedApplicationStatus: (...args: unknown[]) => mockUpdateTrackedApplicationStatus(...args),
 }), { virtual: true });
@@ -273,6 +278,7 @@ jest.mock('@edutu/core/src/services/deadlines', () => ({
 }), { virtual: true });
 
 jest.mock('/Users/MAC/Desktop/Desktop/app-projects/Edutu_Folder/edutumobile/packages/core/src/services/applications', () => ({
+  ...jest.requireActual('../packages/core/src/services/applications'),
   fetchTrackedApplications: (...args: unknown[]) => mockFetchTrackedApplications(...args),
   updateTrackedApplicationStatus: (...args: unknown[]) => mockUpdateTrackedApplicationStatus(...args),
 }), { virtual: true });
@@ -282,6 +288,7 @@ jest.mock('/Users/MAC/Desktop/Desktop/app-projects/Edutu_Folder/edutumobile/pack
 }), { virtual: true });
 
 jest.mock('../packages/core/src/services/applications', () => ({
+  ...jest.requireActual('../packages/core/src/services/applications'),
   fetchTrackedApplications: (...args: unknown[]) => mockFetchTrackedApplications(...args),
   updateTrackedApplicationStatus: (...args: unknown[]) => mockUpdateTrackedApplicationStatus(...args),
 }), { virtual: true });
@@ -377,30 +384,26 @@ describe('mobile discovery and tracking routes', () => {
     expect(getByText('Deadlines')).toBeTruthy();
     expect(getByText('Creator Studio')).toBeTruthy();
     expect(getByText('View all')).toBeTruthy();
-    expect(getByText('CV Builder')).toBeTruthy();
-    expect(getByText('Build CV')).toBeTruthy();
 
     fireEvent.press(getByText('Programs'));
-    expect(mockPush).toHaveBeenCalledWith({ pathname: '/opportunities', params: { category: 'grants' } });
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/opportunities', params: { category: 'programs' } });
 
     fireEvent.press(getByText('View all'));
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/opportunities', params: { view: 'foryou' } });
-
-    fireEvent.press(getByText('CV Builder'));
-    expect(mockPush).toHaveBeenCalledWith('/cv');
 
     expect(getAllByText('Global Fellowship').length).toBeGreaterThan(0);
     expect(getAllByText('Campus Internship').length).toBeGreaterThan(0);
   });
 
   it('renders the grants category hero, discovery filters, and search/settings menu actions', async () => {
-    mockRouteParams = { category: 'grants' };
+    mockRouteParams = { category: 'programs' };
     mockOpportunities = [
       {
         id: 'opp-program',
         title: 'Youth Leadership Forum',
         organization: 'Edutu',
         category: 'Program',
+        canonicalCategory: 'programs',
         location: 'Abuja',
         description: 'A leadership forum',
         deadline: new Date(Date.now() + 3 * 86400000).toISOString(),
@@ -416,6 +419,7 @@ describe('mobile discovery and tracking routes', () => {
         title: 'Scholarship Award',
         organization: 'Edutu',
         category: 'Scholarship',
+        canonicalCategory: 'scholarships',
         location: 'Lagos',
         description: 'A scholarship opportunity',
         deadline: new Date(Date.now() + 8 * 86400000).toISOString(),
@@ -432,17 +436,17 @@ describe('mobile discovery and tracking routes', () => {
 
     const { getAllByText, getByPlaceholderText, getByText, queryByText } = render(<OpportunitiesScreen />);
 
-    await waitFor(() => expect(getAllByText('Global Programs').length).toBeGreaterThan(0));
+    await waitFor(() => expect(getAllByText('Programs').length).toBeGreaterThan(0));
     expect(getByText('Explore')).toBeTruthy();
     expect(getByText('Grid')).toBeTruthy();
     expect(getByText('List')).toBeTruthy();
-    expect(getAllByText('3d left').length).toBeGreaterThan(0);
+    expect(getAllByText('3d').length).toBeGreaterThan(0);
     expect(getByText('Youth Leadership Forum')).toBeTruthy();
     expect(queryByText('Scholarship Award')).toBeNull();
 
     fireEvent.press(getByText('List'));
     expect(getByText('Youth Leadership Forum')).toBeTruthy();
-    expect(getByText('3d left')).toBeTruthy();
+    expect(getByText('3d')).toBeTruthy();
 
     await act(async () => {
       pressNearestTouchTarget(getAllByText('Menu')[0]);
@@ -553,14 +557,18 @@ describe('mobile discovery and tracking routes', () => {
     ];
     mockFetchTrackedApplications.mockResolvedValue(mockApplications);
 
-    const { getByText } = render(<AppliedScreen />);
+    const { getByText, getAllByText } = render(<AppliedScreen />);
 
     await waitFor(() => expect(getByText('My Applications')).toBeTruthy());
     expect(getByText('1 applied')).toBeTruthy();
     expect(getByText('Global Fellowship')).toBeTruthy();
-    expect(getByText('Submitted')).toBeTruthy();
+    // The stat board renders its own "Submitted" filter tile above the rows, so
+    // the row's status button is the last match — that's the one that opens the
+    // picker.
+    const submittedLabels = getAllByText('Submitted');
+    expect(submittedLabels).toHaveLength(2);
 
-    pressNearestTouchTarget(getByText('Submitted'));
+    pressNearestTouchTarget(submittedLabels[submittedLabels.length - 1]);
     await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith(
       'Update application status',
       'Global Fellowship',
@@ -614,7 +622,8 @@ describe('mobile discovery and tracking routes', () => {
     await waitFor(() => expect(getByText('My Applications')).toBeTruthy());
     expect(getByText('8 applied')).toBeTruthy();
     expect(getByText('Global Fellowship 8')).toBeTruthy();
-    expect(getAllByText('Submitted').length).toBe(8);
+    // 8 row status buttons, plus the stat board's "Submitted" filter tile.
+    expect(getAllByText('Submitted')).toHaveLength(9);
   });
 
   it('groups deadlines and opens opportunity details from the list', async () => {

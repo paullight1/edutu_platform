@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { Download } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
-import { UserCV } from '@edutu/core/src/types/cv';
+import { UserCV, CVData, CVHeader } from '@edutu/core/src/types/cv';
 import { useTheme } from '../../components/context/ThemeContext';
 
 interface Props {
@@ -22,8 +22,8 @@ export function CVPreview({ currentCV, onBack, onExport, isExporting }: Props) {
     const { t } = useTranslation('cv');
     const { colors } = useTheme();
 
-    const data = currentCV.data_json || {};
-    const header = data.header || {};
+    const data: CVData = currentCV.data_json || {};
+    const header: Partial<CVHeader> = data.header || {};
     const dateRange = (start?: string, end?: string, current?: boolean) => {
         const from = (start || '').trim();
         const to = current ? t('preview.present') : (end || '').trim();
