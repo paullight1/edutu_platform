@@ -294,7 +294,9 @@ function AppHeader({ isDark, colors, unreadNotifications, guestMode, onGuestBloc
                     >
                         <Menu size={20} color={accentColor} strokeWidth={2} />
                     </TouchableOpacity>
-                    <EdutuLogo size={36} frameless />
+                    <View style={styles.brandLogoChip}>
+                        <EdutuLogo size={28} frameless />
+                    </View>
                     <HeaderLogoTitle
                         color={isDark ? "#FFFFFF" : "#0F172A"}
                     />
@@ -1299,6 +1301,16 @@ const styles = StyleSheet.create({
         width: 38,
         height: 38,
         borderRadius: 19,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    // Light chip behind the colored logo so its dark-navy details stay legible
+    // on any theme's dark header background.
+    brandLogoChip: {
+        width: 36,
+        height: 36,
+        borderRadius: 11,
+        backgroundColor: '#FFFFFF',
         alignItems: 'center',
         justifyContent: 'center',
     },
