@@ -460,6 +460,17 @@ export default function SignInPage() {
               </Text>
             </Pressable>
 
+            {shouldShowPasswordRecovery ? (
+              <Text
+                style={[
+                  styles.footerText,
+                  { color: colors.textSecondary, textAlign: 'center', marginTop: 8 },
+                ]}
+              >
+                {t('signIn.errors.socialSignInHint')}
+              </Text>
+            ) : null}
+
             <View style={styles.footerRow}>
               <Text style={[styles.footerText, { color: colors.textSecondary }]}>{t('signIn.newToEdutu')}</Text>
               <Link href="/(auth)/sign-up">

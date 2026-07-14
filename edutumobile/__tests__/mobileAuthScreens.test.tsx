@@ -166,18 +166,20 @@ describe('mobile auth screens', () => {
       createdSessionId: 'session-1',
     });
 
-    const { getByPlaceholderText, getByText } = render(<SignUpScreen />);
+    const { getByPlaceholderText, getByText, getByTestId } = render(<SignUpScreen />);
 
     fireEvent.changeText(getByPlaceholderText('John Doe'), 'Ada Lovelace');
     fireEvent.changeText(getByPlaceholderText('you@example.com'), 'ada@example.com');
     fireEvent.changeText(getByPlaceholderText('Minimum 8 characters'), 'strong-pass');
-    fireEvent.press(getByText('Create account'));
+    await act(async () => {
+      fireEvent.press(getByText('Create account'));
+    });
 
     await waitFor(() => expect(mockSignUpState.signUp.prepareEmailAddressVerification).toHaveBeenCalledTimes(1));
-    expect(getByText('Verify and continue')).toBeTruthy();
+    await waitFor(() => expect(getByText('Verify and continue')).toBeTruthy());
 
-    fireEvent.changeText(getByPlaceholderText('000000'), '123456');
-    fireEvent.press(getByText('Verify and continue'));
+    // Entering the sixth digit auto-submits verification — no manual tap needed.
+    fireEvent.changeText(getByTestId('signup-verification-code'), '123456');
 
     await waitFor(() => expect(mockSignUpState.setActive).toHaveBeenCalledWith({ session: 'session-1' }));
     expect(mockReplace).toHaveBeenCalledWith('/onboarding');

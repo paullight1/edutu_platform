@@ -1,20 +1,9 @@
-const mockStorage = new Map<string, string>();
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const mockAsyncStorage = {
-  getItem: jest.fn(async (key: string) => mockStorage.get(key) ?? null),
-  setItem: jest.fn(async (key: string, value: string) => {
-    mockStorage.set(key, value);
-  }),
-  removeItem: jest.fn(async (key: string) => {
-    mockStorage.delete(key);
-  }),
-};
-
-jest.mock('@react-native-async-storage/async-storage', () => ({
-  __esModule: true,
-  default: mockAsyncStorage,
-}));
-
+// Use the global AsyncStorage mock (from jest.setup.ts) — the same instance the
+// service imports — so the test and the code under test share one store. (A
+// separate local jest.mock here gets shadowed by the global one, leaving the
+// service writing to a store the test can't see.)
 const {
   addDismissedOpportunityId,
   clearDismissedOpportunityIds,
@@ -22,19 +11,18 @@ const {
 } = require('../packages/core/src/services/dismissedOpportunities') as typeof import('../packages/core/src/services/dismissedOpportunities');
 const { toSafeUUID } = require('../packages/core/src/utils/auth') as typeof import('../packages/core/src/utils/auth');
 
+const keyFor = (userId: string) =>
+  `edutu_dismissed_opportunities:${toSafeUUID(userId)}`;
+
 describe('dismissedOpportunities service', () => {
-  beforeEach(() => {
-    mockStorage.clear();
-    mockAsyncStorage.getItem.mockClear();
-    mockAsyncStorage.setItem.mockClear();
-    mockAsyncStorage.removeItem.mockClear();
+  beforeEach(async () => {
+    await AsyncStorage.clear();
   });
 
   it('stores dismissed ids under a per-user safe-UUID key', async () => {
     await addDismissedOpportunityId('user_clerk-123', 'opp-1');
 
-    const expectedKey = `edutu_dismissed_opportunities:${toSafeUUID('user_clerk-123')}`;
-    expect(mockStorage.has(expectedKey)).toBe(true);
+    expect(await AsyncStorage.getItem(keyFor('user_clerk-123'))).not.toBeNull();
     await expect(getDismissedOpportunityIds('user_clerk-123')).resolves.toEqual(['opp-1']);
   });
 
@@ -55,10 +43,7 @@ describe('dismissedOpportunities service', () => {
 
   it('caps the set at 200 ids with FIFO eviction', async () => {
     const seeded = Array.from({ length: 200 }, (_, index) => `opp-${index}`);
-    mockStorage.set(
-      `edutu_dismissed_opportunities:${toSafeUUID('user-1')}`,
-      JSON.stringify(seeded),
-    );
+    await AsyncStorage.setItem(keyFor('user-1'), JSON.stringify(seeded));
 
     await addDismissedOpportunityId('user-1', 'opp-newest');
 
@@ -74,7 +59,7 @@ describe('dismissedOpportunities service', () => {
     await clearDismissedOpportunityIds('user-1');
     await expect(getDismissedOpportunityIds('user-1')).resolves.toEqual([]);
 
-    mockStorage.set(`edutu_dismissed_opportunities:${toSafeUUID('user-1')}`, 'not-json');
+    await AsyncStorage.setItem(keyFor('user-1'), 'not-json');
     await expect(getDismissedOpportunityIds('user-1')).resolves.toEqual([]);
   });
 });
