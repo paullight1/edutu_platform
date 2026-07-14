@@ -75,15 +75,25 @@ export async function grantPro(input: GrantInput): Promise<void> {
 export async function revokePro(userId: string): Promise<void> {
   const db = supabaseAdmin();
   const now = new Date().toISOString();
-  await db
+  // 'revoked' is the value the billing_entitlements CHECK constraint allows
+  // (active|revoked|expired) — 'canceled' is rejected (23514) and would make
+  // this a silent no-op. Also lapse expires_at now so isPro()'s expiry clause
+  // independently denies even if a reader ignores status.
+  const { error } = await db
     .from('billing_entitlements')
-    .update({ status: 'canceled', updated_at: now })
+    .update({ status: 'revoked', expires_at: now, updated_at: now })
     .eq('user_id', userId)
     .eq('feature_key', 'pro');
+  if (error) {
+    throw new Error(`Failed to revoke entitlement: ${error.message}`);
+  }
   try {
-    await db.from('profiles').update({ is_pro: false }).eq('user_id', userId);
+    await db
+      .from('profiles')
+      .update({ is_pro: false, pro_expires_at: now })
+      .eq('user_id', userId);
   } catch {
-    // ignore
+    // ignore — billing_entitlements is authoritative
   }
 }
 

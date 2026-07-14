@@ -149,6 +149,20 @@ export const RoadmapCommentDtoSchema = z.object({
   rating: z.number().int().min(1).max(5).optional(),
 });
 
+// UGC moderation (Apple Guideline 1.2): report an abusive comment.
+export const ReportCommentDtoSchema = z.object({
+  reason: z
+    .enum(["offensive", "spam", "harassment", "other"])
+    .optional()
+    .default("other"),
+});
+
+// UGC moderation (Apple Guideline 1.2): block another user so their comments
+// are hidden. `blockedUserId` is the comment's `author_id` (derived uuid).
+export const BlockUserDtoSchema = z.object({
+  blockedUserId: z.string().uuid(),
+});
+
 export type RoadmapStepDto = z.infer<typeof RoadmapStepDtoSchema>;
 export type CreateRoadmapDto = z.infer<typeof CreateRoadmapDtoSchema>;
 export type UpdateRoadmapDto = z.infer<typeof UpdateRoadmapDtoSchema>;
@@ -161,3 +175,5 @@ export type UpdateRoadmapProgressDto = z.infer<
   typeof UpdateRoadmapProgressSchema
 >;
 export type RoadmapCommentDto = z.infer<typeof RoadmapCommentDtoSchema>;
+export type ReportCommentDto = z.infer<typeof ReportCommentDtoSchema>;
+export type BlockUserDto = z.infer<typeof BlockUserDtoSchema>;

@@ -21,6 +21,8 @@ import type {
   AdoptRoadmapDto,
   UpdateRoadmapProgressDto,
   RoadmapCommentDto,
+  ReportCommentDto,
+  BlockUserDto,
 } from "./dto/roadmap.dto";
 import {
   AIAssistDtoSchema,
@@ -32,6 +34,8 @@ import {
   UpdateRoadmapDtoSchema,
   UpdateRoadmapProgressSchema,
   RoadmapCommentDtoSchema,
+  ReportCommentDtoSchema,
+  BlockUserDtoSchema,
 } from "./dto/roadmap.dto";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { Public } from "../auth/public.decorator";
@@ -334,6 +338,33 @@ export class RoadmapsController {
       .filter(Boolean)
       .join(" ");
     return this.roadmapsService.addComment(userId, id, dto, fallbackName);
+  }
+
+  // ─── UGC moderation (Apple Guideline 1.2) ───────────────────────────────
+  // Same auth as addComment (global Clerk guard — no @Public()).
+  @Post(":id/comments/:commentId/report")
+  reportComment(
+    @Param("id") id: string,
+    @Param("commentId") commentId: string,
+    @CurrentUser("id") userId: string,
+    @Body(new ZodValidationPipe(ReportCommentDtoSchema))
+    dto: ReportCommentDto,
+  ) {
+    return this.roadmapsService.reportComment(userId, id, commentId, dto);
+  }
+
+  @Post("block")
+  blockUser(
+    @CurrentUser("id") userId: string,
+    @Body(new ZodValidationPipe(BlockUserDtoSchema))
+    dto: BlockUserDto,
+  ) {
+    return this.roadmapsService.blockUser(userId, dto);
+  }
+
+  @Get("blocked")
+  getBlockedUsers(@CurrentUser("id") userId: string) {
+    return this.roadmapsService.getBlockedUserIds(userId);
   }
 
   @Public()

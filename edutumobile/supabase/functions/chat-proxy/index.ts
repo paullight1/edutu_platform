@@ -34,6 +34,58 @@ const SECURITY_HEADERS = {
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
 };
 
+/**
+ * Charge one metered AI action against the backend BEFORE doing paid work, so
+ * this edge function (voice STT/TTS + the client's chat fallback) can't hand out
+ * free unlimited AI. Delegates to the Nest /monetization/meter endpoint — the
+ * single source of truth for Pro fair-use caps, the free-tier daily allowance,
+ * and credit debiting — forwarding the caller's Clerk token so it charges the
+ * right user. Returns null when the action is allowed; otherwise returns a
+ * Response (402 insufficient_credits / 429 limit / 503 billing_unavailable)
+ * that the handler must return as-is. Fails CLOSED: any metering error denies
+ * the action rather than serving it free.
+ */
+async function enforceMeter(req: Request, action: string): Promise<Response | null> {
+  const apiUrl = Deno.env.get("EDUTU_API_URL");
+  const authHeader = req.headers.get("authorization") || "";
+  const deny = (status: number, body: Record<string, unknown>) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, ...SECURITY_HEADERS },
+    });
+
+  if (!apiUrl) {
+    console.error("EDUTU_API_URL not configured — cannot meter AI, denying");
+    return deny(503, { code: "billing_unavailable", error: "AI is temporarily unavailable." });
+  }
+
+  try {
+    const res = await fetch(`${apiUrl.replace(/\/$/, "")}/monetization/meter`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: authHeader },
+      body: JSON.stringify({ action }),
+    });
+    if (res.ok) return null;
+
+    // Forward the backend's status + typed body so the client sees the same
+    // 402/429 upgrade signals it would get from the primary /chat path.
+    const text = await res.text();
+    let payload: unknown;
+    try {
+      payload = text ? JSON.parse(text) : { error: "Metering failed" };
+    } catch {
+      payload = { error: text || "Metering failed" };
+    }
+    return new Response(JSON.stringify(payload), {
+      status: res.status,
+      headers: { ...corsHeaders, ...SECURITY_HEADERS },
+    });
+  } catch (error) {
+    console.error("Meter enforcement failed:", error);
+    return deny(503, { code: "billing_unavailable", error: "AI is temporarily unavailable." });
+  }
+}
+
 type OpportunityRow = {
   id: string;
   title: string;
@@ -815,6 +867,10 @@ serve(async (req: Request) => {
         });
       }
 
+      // Meter after cheap validation, before the paid OpenAI call.
+      const sttMeterBlock = await enforceMeter(req, "voicePerMinute");
+      if (sttMeterBlock) return sttMeterBlock;
+
       try {
         const transcript = await transcribeAudio(openaiKey, audio as AudioPayload, language);
         // Usage ledger for the admin cost dashboard. Client-reported duration
@@ -868,6 +924,10 @@ serve(async (req: Request) => {
         });
       }
 
+      // Meter after cheap validation, before the paid OpenAI call.
+      const ttsMeterBlock = await enforceMeter(req, "voicePerMinute");
+      if (ttsMeterBlock) return ttsMeterBlock;
+
       try {
         const speech = await synthesizeSpeech(openaiKey, speakText, typeof voice === "string" ? voice : undefined);
         // ~12.5 chars/sec at a natural 150wpm speaking rate.
@@ -893,6 +953,12 @@ serve(async (req: Request) => {
         );
       }
     }
+
+    // Chat completion is the default (non-mode) path. Meter it as a chatMessage
+    // before any LLM/ranking work so the fallback here can't bypass the backend
+    // meter that the primary /chat/messages route enforces.
+    const chatMeterBlock = await enforceMeter(req, "chatMessage");
+    if (chatMeterBlock) return chatMeterBlock;
 
     const { data: existingProfile } = await supabase
       .from("profiles")

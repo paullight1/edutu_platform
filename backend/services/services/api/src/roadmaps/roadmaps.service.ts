@@ -12,6 +12,8 @@ import {
   roadmaps,
   roadmapEnrollments,
   roadmapComments,
+  roadmapCommentReports,
+  userBlocks,
   userRoadmapIntents,
   roadmapFeedback,
   profiles,
@@ -35,8 +37,11 @@ import {
   OpportunityPlanDto,
   AdoptRoadmapDto,
   RoadmapCommentDto,
+  ReportCommentDto,
+  BlockUserDto,
 } from "./dto/roadmap.dto";
 import { AiService } from "../ai";
+import { isObjectionable } from "../common/moderation";
 import { matchProfileUserId, toDatabaseUserId } from "../common/user-id";
 import { CacheService } from "../common/cache/cache.service";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -448,6 +453,15 @@ export class RoadmapsService {
   ) {
     await this.findPublishedById(roadmapId);
 
+    // Guideline 1.2: keep objectionable content out of public comments. Reject
+    // on write rather than storing hidden — the comment table has no status
+    // column and rejecting keeps the read path simple.
+    if (isObjectionable(dto.body)) {
+      throw new BadRequestException(
+        "Your comment contains language that isn't allowed. Please rephrase and try again.",
+      );
+    }
+
     const dbUserId = toDatabaseUserId(userId);
     const [profile] = await db
       .select()
@@ -476,11 +490,72 @@ export class RoadmapsService {
     return {
       id: comment.id,
       roadmap_id: comment.roadmapId,
+      // Opaque derived id, exposed so the client can report/block the author
+      // and hide blocked authors locally. Not the raw auth subject.
+      author_id: comment.userId,
       author_name: comment.authorName,
       body: comment.body,
       rating: comment.rating,
       created_at: comment.createdAt,
     };
+  }
+
+  // ─── UGC moderation (Apple Guideline 1.2) ───────────────────────────────
+  // Report an abusive comment. Reports are persisted "open" for admin review.
+  async reportComment(
+    userId: string,
+    roadmapId: string,
+    commentId: string,
+    dto: ReportCommentDto,
+  ) {
+    const [comment] = await db
+      .select()
+      .from(roadmapComments)
+      .where(
+        and(
+          eq(roadmapComments.id, commentId),
+          eq(roadmapComments.roadmapId, roadmapId),
+        ),
+      );
+
+    if (!comment) throw new NotFoundException("Comment not found");
+
+    await db.insert(roadmapCommentReports).values({
+      commentId,
+      roadmapId,
+      reporterUserId: toDatabaseUserId(userId),
+      reason: dto.reason ?? "other",
+    });
+
+    return { success: true };
+  }
+
+  // Block another user so the blocker no longer sees their comments. The block
+  // is persisted server-side (source of truth); the client also filters
+  // locally for instant effect.
+  async blockUser(userId: string, dto: BlockUserDto) {
+    const blockerUserId = toDatabaseUserId(userId);
+    if (blockerUserId === dto.blockedUserId) {
+      throw new BadRequestException("You cannot block yourself.");
+    }
+
+    await db
+      .insert(userBlocks)
+      .values({ blockerUserId, blockedUserId: dto.blockedUserId })
+      .onConflictDoNothing({
+        target: [userBlocks.blockerUserId, userBlocks.blockedUserId],
+      });
+
+    return { success: true, blockedUserId: dto.blockedUserId };
+  }
+
+  async getBlockedUserIds(userId: string): Promise<string[]> {
+    const rows = await db
+      .select({ blockedUserId: userBlocks.blockedUserId })
+      .from(userBlocks)
+      .where(eq(userBlocks.blockerUserId, toDatabaseUserId(userId)));
+
+    return rows.map((row) => row.blockedUserId);
   }
 
   async remove(id: string) {
