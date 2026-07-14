@@ -1,5 +1,9 @@
 name: CI
 
+# Node 20 here is deliberate: it matches the backend's .node-version and
+# Dockerfile, which is what production actually runs. Don't "modernise" it
+# without moving production too, or CI stops testing the real runtime.
+
 on:
   push:
     branches: [main, develop]
