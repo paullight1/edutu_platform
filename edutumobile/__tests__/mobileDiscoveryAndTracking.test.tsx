@@ -397,6 +397,7 @@ describe('mobile discovery and tracking routes', () => {
         title: 'Youth Leadership Forum',
         organization: 'Edutu',
         category: 'Program',
+        canonicalCategory: 'programs',
         location: 'Abuja',
         description: 'A leadership forum',
         deadline: new Date(Date.now() + 3 * 86400000).toISOString(),
@@ -412,6 +413,7 @@ describe('mobile discovery and tracking routes', () => {
         title: 'Scholarship Award',
         organization: 'Edutu',
         category: 'Scholarship',
+        canonicalCategory: 'scholarships',
         location: 'Lagos',
         description: 'A scholarship opportunity',
         deadline: new Date(Date.now() + 8 * 86400000).toISOString(),
@@ -428,17 +430,17 @@ describe('mobile discovery and tracking routes', () => {
 
     const { getAllByText, getByPlaceholderText, getByText, queryByText } = render(<OpportunitiesScreen />);
 
-    await waitFor(() => expect(getAllByText('Global Programs').length).toBeGreaterThan(0));
+    await waitFor(() => expect(getAllByText('Programs').length).toBeGreaterThan(0));
     expect(getByText('Explore')).toBeTruthy();
     expect(getByText('Grid')).toBeTruthy();
     expect(getByText('List')).toBeTruthy();
-    expect(getAllByText('3d left').length).toBeGreaterThan(0);
+    expect(getAllByText('3d').length).toBeGreaterThan(0);
     expect(getByText('Youth Leadership Forum')).toBeTruthy();
     expect(queryByText('Scholarship Award')).toBeNull();
 
     fireEvent.press(getByText('List'));
     expect(getByText('Youth Leadership Forum')).toBeTruthy();
-    expect(getByText('3d left')).toBeTruthy();
+    expect(getByText('3d')).toBeTruthy();
 
     await act(async () => {
       pressNearestTouchTarget(getAllByText('Menu')[0]);
