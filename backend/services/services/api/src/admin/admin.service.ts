@@ -5,7 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
-import type { ClerkClient } from "@clerk/clerk-sdk-node";
+import type { ClerkClient } from "@clerk/backend";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { eq, desc, count, gte, sql } from "drizzle-orm";
 import { AuditService } from "../common/audit";
