@@ -133,7 +133,9 @@ jest.mock('@edutu/core/src/services/cv', () => ({
   updateUserCV: (...args: unknown[]) => mockUpdateUserCV(...args),
   deleteUserCV: (...args: unknown[]) => mockDeleteUserCV(...args),
   shareCV: (...args: unknown[]) => mockShareCV(...args),
-  generateAICVDraft: (...args: unknown[]) => mockGenerateAICVDraft(...args),
+  generateCVDraftWithAI: (...args: unknown[]) => mockGenerateAICVDraft(...args),
+  importLinkedInFromFile: jest.fn(async () => ({ ok: true })),
+  improveCVSummaryWithAI: jest.fn(async () => ({ summary: 'Improved summary.' })),
   tailorCVForOpportunity: (...args: unknown[]) => mockTailorCVForOpportunity(...args),
   useCVTrial: (...args: unknown[]) => mockUseCVTrial(...args),
 }), { virtual: true });
