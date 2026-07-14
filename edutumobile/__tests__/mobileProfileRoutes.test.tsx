@@ -78,6 +78,7 @@ function makeBuilder(table: string) {
     },
     catch: (reject: any) => Promise.resolve(resolveQuery(table, state)).catch(reject),
     single: async () => resolveQuery(table, state, true),
+    maybeSingle: async () => resolveQuery(table, state, true),
     upsert: mockUpsert,
   };
   return builder;
@@ -126,22 +127,37 @@ jest.mock('@clerk/clerk-expo', () => ({
   useAuth: () => ({ signOut: mockSignOut, getToken: mockGetToken }),
 }));
 
-jest.mock('../components/context/ThemeContext', () => ({
-  useTheme: () => ({
-    isDark: false,
-    packageId: 'default',
-    colors: {
-      background: '#FFFFFF',
-      foreground: '#111827',
-      card: '#FFFFFF',
-      border: '#E5E7EB',
-      accent: '#2563EB',
-      primary: '#2563EB',
-      textSecondary: '#64748B',
+jest.mock('../components/context/ThemeContext', () => {
+  const THEME_ORDER = [
+    'default', 'ocean', 'sunset', 'forest', 'royal', 'amethyst', 'rose', 'crimson', 'graphite',
+  ];
+  const swatch = { bg: '#0B1220', card: '#111827', accent: '#2563EB', accentLight: '#93C5FD' };
+  const THEME_SWATCHES = THEME_ORDER.reduce(
+    (acc: Record<string, typeof swatch>, id: string) => {
+      acc[id] = swatch;
+      return acc;
     },
-    setPackage: mockSetPackage,
-  }),
-}));
+    {},
+  );
+  return {
+    useTheme: () => ({
+      isDark: false,
+      packageId: 'default',
+      colors: {
+        background: '#FFFFFF',
+        foreground: '#111827',
+        card: '#FFFFFF',
+        border: '#E5E7EB',
+        accent: '#2563EB',
+        primary: '#2563EB',
+        textSecondary: '#64748B',
+      },
+      setPackage: mockSetPackage,
+    }),
+    THEME_ORDER,
+    THEME_SWATCHES,
+  };
+});
 
 jest.mock('../components/ui/ScreenHeader', () => ({
   ScreenHeader: ({ title, subtitle, right, showBack }: { title: string; subtitle?: string; right?: React.ReactNode; showBack?: boolean }) => {
@@ -336,14 +352,8 @@ describe('mobile profile routes', () => {
     const { getByText } = render(<ProfileScreen />);
 
     await waitFor(() => expect(getByText('Profile')).toBeTruthy());
-    await waitFor(() => expect(getByText('Tomorrow')).toBeTruthy());
-    expect(getByText('Active goals')).toBeTruthy();
-    expect(getByText('Matches')).toBeTruthy();
-    expect(getByText('Applied')).toBeTruthy();
-    expect(getByText('Deadline')).toBeTruthy();
-
-    pressNearestTouchTarget(getByText('Edit Profile'));
-    expect(mockPush).toHaveBeenCalledWith('/profile/edit');
+    // The stat cards and Edit Profile action moved to /profile/view; the
+    // overview keeps the header + primary navigation menu.
 
     pressNearestTouchTarget(getByText('Theme & app preferences'));
     expect(mockPush).toHaveBeenCalledWith('/profile/settings');
