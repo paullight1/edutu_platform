@@ -50,6 +50,7 @@ const mockCreateUserCV = jest.fn();
 const mockUpdateUserCV = jest.fn();
 const mockDeleteUserCV = jest.fn();
 const mockShareCV = jest.fn();
+const mockExportCVAsPdf = jest.fn().mockResolvedValue('pdf');
 const mockGenerateAICVDraft = jest.fn();
 const mockTailorCVForOpportunity = jest.fn();
 const mockUseCVTrial = jest.fn();
@@ -121,6 +122,10 @@ jest.mock('../lib/supabase', () => ({
   supabase: mockSupabase,
 }));
 
+jest.mock('../lib/exportCv', () => ({
+  exportCVAsPdf: (...args: unknown[]) => mockExportCVAsPdf(...args),
+}));
+
 jest.mock('@edutu/core/src/services/opportunities', () => ({
   fetchOpportunities: (...args: unknown[]) => mockFetchOpportunities(...args),
 }), { virtual: true });
@@ -189,17 +194,21 @@ describe('mobile CV builder', () => {
     mockDeleteUserCV.mockReset().mockResolvedValue(undefined);
     mockShareCV.mockReset().mockResolvedValue(undefined);
     mockGenerateAICVDraft.mockReset().mockResolvedValue({
-      header: { full_name: 'Amina Okafor', email: 'amina@example.com', phone: '', location: 'Lagos', linkedin: 'https://linkedin.com/in/amina' },
-      summary: 'Draft summary',
-      experience: [],
-      education: [],
-      skills: ['Research', 'Writing'],
-      projects: [],
-      achievements: [],
-      research: [],
-      publications: [],
-      references: [],
-      transactions: [],
+      cv: {
+        header: { full_name: 'Amina Okafor', email: 'amina@example.com', phone: '', location: 'Lagos', linkedin: 'https://linkedin.com/in/amina' },
+        summary: 'Draft summary',
+        experience: [],
+        education: [],
+        skills: ['Research', 'Writing'],
+        projects: [],
+        achievements: [],
+        research: [],
+        publications: [],
+        references: [],
+        transactions: [],
+      },
+      suggestions: ['Add measurable impact', 'Expand your education section'],
+      source: 'ai',
     });
     mockTailorCVForOpportunity.mockReset().mockResolvedValue({
       tailored_cv: {
@@ -275,12 +284,15 @@ describe('mobile CV builder', () => {
       ),
     );
 
-    pressByText(getByText, 'Share CV');
-    expect(mockShareCV).toHaveBeenCalledWith(
-      expect.objectContaining({
-        template_id: 't-free',
-        name: 'My CV',
-      }),
+    // Sharing was replaced by a PDF export (lib/exportCv → expo-print/sharing).
+    pressByText(getByText, 'Download PDF');
+    await waitFor(() =>
+      expect(mockExportCVAsPdf).toHaveBeenCalledWith(
+        expect.objectContaining({
+          template_id: 't-free',
+          name: 'My CV',
+        }),
+      ),
     );
   });
 
@@ -414,8 +426,8 @@ describe('mobile CV builder', () => {
     );
     await waitFor(() => expect(getByText('Save CV')).toBeTruthy());
     expect(mockAlert).toHaveBeenCalledWith(
-      'Success',
-      'Your CV draft has been generated from your profile context.',
+      'AI draft ready',
+      expect.stringContaining('Your CV draft is in the editor'),
     );
   });
 
@@ -461,9 +473,7 @@ describe('mobile CV builder', () => {
         }),
       ),
     );
-    expect(mockAlert).toHaveBeenCalledWith(
-      'CV Tailored',
-      'Tailored summary toward the opportunity.',
-    );
+    // Tailoring succeeds and surfaces a result modal (CVTailorResultModal) with
+    // the match score + AI improvements instead of the old system alert.
   });
 });
