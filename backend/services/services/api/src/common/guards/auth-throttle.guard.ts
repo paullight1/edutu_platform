@@ -1,4 +1,9 @@
-import { Injectable, CanActivate, ExecutionContext } from "@nestjs/common";
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  OnModuleDestroy,
+} from "@nestjs/common";
 import { Request } from "express";
 import { AppException } from "../errors";
 
@@ -8,15 +13,24 @@ interface ThrottleEntry {
 }
 
 @Injectable()
-export class AuthThrottleGuard implements CanActivate {
+export class AuthThrottleGuard implements CanActivate, OnModuleDestroy {
   private readonly store = new Map<string, ThrottleEntry>();
   private readonly MAX_REQUESTS = 5;
   private readonly WINDOW_MS = 60_000; // 1 minute
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
-    // Clean up stale entries every 60 seconds
+    // Clean up stale entries every 60 seconds. `unref()` so this background
+    // timer never keeps the process (or the Jest runner) alive on its own.
     this.cleanupInterval = setInterval(() => this.cleanup(), 60_000);
+    this.cleanupInterval.unref();
+  }
+
+  onModuleDestroy() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
   }
 
   canActivate(context: ExecutionContext): boolean {
