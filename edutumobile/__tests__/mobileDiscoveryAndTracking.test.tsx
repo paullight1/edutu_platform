@@ -265,6 +265,10 @@ jest.mock('@edutu/core/src/services/opportunitySignals', () => ({
 }), { virtual: true });
 
 jest.mock('@edutu/core/src/services/applications', () => ({
+  // Keep the real pure helpers (APPLICATION_PIPELINE, getNextApplicationStage,
+  // normalizeApplicationStatus): the applied rows call them during render, and
+  // stubbing only the async fns made every row throw and unmount the list.
+  ...jest.requireActual('../packages/core/src/services/applications'),
   fetchTrackedApplications: (...args: unknown[]) => mockFetchTrackedApplications(...args),
   updateTrackedApplicationStatus: (...args: unknown[]) => mockUpdateTrackedApplicationStatus(...args),
 }), { virtual: true });
@@ -274,6 +278,7 @@ jest.mock('@edutu/core/src/services/deadlines', () => ({
 }), { virtual: true });
 
 jest.mock('/Users/MAC/Desktop/Desktop/app-projects/Edutu_Folder/edutumobile/packages/core/src/services/applications', () => ({
+  ...jest.requireActual('../packages/core/src/services/applications'),
   fetchTrackedApplications: (...args: unknown[]) => mockFetchTrackedApplications(...args),
   updateTrackedApplicationStatus: (...args: unknown[]) => mockUpdateTrackedApplicationStatus(...args),
 }), { virtual: true });
@@ -283,6 +288,7 @@ jest.mock('/Users/MAC/Desktop/Desktop/app-projects/Edutu_Folder/edutumobile/pack
 }), { virtual: true });
 
 jest.mock('../packages/core/src/services/applications', () => ({
+  ...jest.requireActual('../packages/core/src/services/applications'),
   fetchTrackedApplications: (...args: unknown[]) => mockFetchTrackedApplications(...args),
   updateTrackedApplicationStatus: (...args: unknown[]) => mockUpdateTrackedApplicationStatus(...args),
 }), { virtual: true });
@@ -551,14 +557,18 @@ describe('mobile discovery and tracking routes', () => {
     ];
     mockFetchTrackedApplications.mockResolvedValue(mockApplications);
 
-    const { getByText } = render(<AppliedScreen />);
+    const { getByText, getAllByText } = render(<AppliedScreen />);
 
     await waitFor(() => expect(getByText('My Applications')).toBeTruthy());
     expect(getByText('1 applied')).toBeTruthy();
     expect(getByText('Global Fellowship')).toBeTruthy();
-    expect(getByText('Submitted')).toBeTruthy();
+    // The stat board renders its own "Submitted" filter tile above the rows, so
+    // the row's status button is the last match — that's the one that opens the
+    // picker.
+    const submittedLabels = getAllByText('Submitted');
+    expect(submittedLabels).toHaveLength(2);
 
-    pressNearestTouchTarget(getByText('Submitted'));
+    pressNearestTouchTarget(submittedLabels[submittedLabels.length - 1]);
     await waitFor(() => expect(Alert.alert).toHaveBeenCalledWith(
       'Update application status',
       'Global Fellowship',
@@ -612,7 +622,8 @@ describe('mobile discovery and tracking routes', () => {
     await waitFor(() => expect(getByText('My Applications')).toBeTruthy());
     expect(getByText('8 applied')).toBeTruthy();
     expect(getByText('Global Fellowship 8')).toBeTruthy();
-    expect(getAllByText('Submitted').length).toBe(8);
+    // 8 row status buttons, plus the stat board's "Submitted" filter tile.
+    expect(getAllByText('Submitted')).toHaveLength(9);
   });
 
   it('groups deadlines and opens opportunity details from the list', async () => {
