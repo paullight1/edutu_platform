@@ -9,13 +9,13 @@ function isAuthed(req: NextRequest): boolean {
   if (verifyAdminSession(req.cookies.get(ADMIN_COOKIE)?.value)) return true;
   const header = req.headers.get('authorization') || '';
   const bearer = header.startsWith('Bearer ') ? header.slice(7) : '';
-  // ?token= is kept for the Edutu admin app's server-to-server calls; prefer
-  // the Bearer header in new integrations (query strings end up in logs).
-  const query = new URL(req.url).searchParams.get('token') || '';
-  return isValidAdminToken(bearer) || isValidAdminToken(query);
+  // Only the Authorization: Bearer header (or the signed admin cookie) is
+  // accepted. The old ?token= query path was dropped — query strings leak the
+  // high-privilege admin token into access logs and Referer headers.
+  return isValidAdminToken(bearer);
 }
 
-// GET /api/admin/stats  (Bearer ADMIN_DASHBOARD_TOKEN, or ?token=)
+// GET /api/admin/stats  (Authorization: Bearer ADMIN_DASHBOARD_TOKEN)
 // Machine-readable revenue + subscriber snapshot for the Edutu admin app.
 export async function GET(req: NextRequest) {
   if (!isAuthed(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });

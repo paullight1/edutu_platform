@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { grantPro, recordPayment } from '@/lib/entitlements';
 import { addDays, isBillingPlan, planDurationDays } from '@/lib/money';
 import { ADMIN_COOKIE, isValidAdminToken, verifyAdminSession } from '@/lib/auth';
+import { clientIp, rateLimited } from '@/lib/rateLimit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,6 +22,9 @@ function isAuthed(req: NextRequest): boolean {
 
 // POST /api/admin/grant { uid, plan?, days?, reason? } — award free Pro / bonanza.
 export async function POST(req: NextRequest) {
+  if (rateLimited(`admin-grant:${clientIp(req)}`, 20, 60_000)) {
+    return NextResponse.json({ error: 'rate limited' }, { status: 429 });
+  }
   if (!isAuthed(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   let body: any;

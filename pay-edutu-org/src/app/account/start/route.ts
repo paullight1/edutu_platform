@@ -14,11 +14,14 @@ export async function GET(req: NextRequest) {
   const token = url.searchParams.get('t');
 
   const verifiedSub = await verifyClerkToken(token);
-  // Owner if the token verifies (and matches any provided uid). When Clerk isn't
-  // configured yet we fall back to trusting the uid so the page still works.
+  // Owner ONLY when a real Clerk token verifies (and matches any provided uid).
+  // No fail-open uid trust: minting a session for an unverified, caller-supplied
+  // uid would let anyone forge an owner cookie for a victim and cancel their sub.
   let owner = '';
   if (verifiedSub && (!uid || verifiedSub === uid)) owner = verifiedSub;
-  else if (!clerkConfigured()) owner = uid;
+  if (!owner && !clerkConfigured()) {
+    console.error('[SECURITY] /account/start could not mint a session — CLERK_JWKS_URL not configured');
+  }
 
   const dest = `${config.baseUrl()}/account?uid=${encodeURIComponent(owner || uid)}`;
   const res = NextResponse.redirect(dest, 303);

@@ -11,8 +11,9 @@ export const dynamic = 'force-dynamic';
 // itself lapses naturally at expires_at (handled by the app's expiry check).
 //
 // Ownership is enforced by the signed session cookie set in /account/start
-// (after a Clerk token check). If session verification isn't configured, we
-// fall back to trusting the body uid so the flow still works pre-setup.
+// (after a Clerk token check). Fails CLOSED: if session verification isn't
+// configured we refuse rather than trusting the body uid, so a stranger who
+// knows a uid can never turn off that user's auto-renew (IDOR).
 export async function POST(req: NextRequest) {
   let uid: string | undefined;
   try {
@@ -22,16 +23,13 @@ export async function POST(req: NextRequest) {
   }
   if (!uid) return NextResponse.json({ error: 'missing uid' }, { status: 400 });
 
-  if (sessionConfigured()) {
-    const sessionUid = verifySession(req.cookies.get(SESSION_COOKIE)?.value);
-    if (!sessionUid || sessionUid !== uid) {
-      return NextResponse.json({ error: 'not authorized for this account' }, { status: 403 });
-    }
-  } else {
-    // Fail-open fallback so the flow works before ACCOUNT_SESSION_SECRET /
-    // CLERK_JWKS_URL are configured — but shout about it, because in this
-    // mode anyone who knows a uid can turn off that user's auto-renew.
-    console.warn('[SECURITY] /api/account/cancel running WITHOUT session verification — set ACCOUNT_SESSION_SECRET and CLERK_JWKS_URL');
+  if (!sessionConfigured()) {
+    console.error('[SECURITY] /api/account/cancel refused — ACCOUNT_SESSION_SECRET / CLERK_JWKS_URL not configured');
+    return NextResponse.json({ error: 'account management is not available' }, { status: 503 });
+  }
+  const sessionUid = verifySession(req.cookies.get(SESSION_COOKIE)?.value);
+  if (!sessionUid || sessionUid !== uid) {
+    return NextResponse.json({ error: 'not authorized for this account' }, { status: 403 });
   }
 
   const db = supabaseAdmin();

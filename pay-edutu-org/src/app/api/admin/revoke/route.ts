@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revokePro } from '@/lib/entitlements';
 import { ADMIN_COOKIE, isValidAdminToken, verifyAdminSession } from '@/lib/auth';
+import { clientIp, rateLimited } from '@/lib/rateLimit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,6 +17,9 @@ function isAuthed(req: NextRequest): boolean {
 
 // POST /api/admin/revoke { uid }
 export async function POST(req: NextRequest) {
+  if (rateLimited(`admin-revoke:${clientIp(req)}`, 20, 60_000)) {
+    return NextResponse.json({ error: 'rate limited' }, { status: 429 });
+  }
   if (!isAuthed(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   let body: any;
