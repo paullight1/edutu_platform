@@ -1045,6 +1045,50 @@ a:hover {
   font-size: 15px;
 }
 
+/* Own row: opportunities-filter-grid has five fixed columns, so a sixth child
+   would collapse the search field. */
+.opportunities-expired-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-light);
+}
+
+.opportunities-expired-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.opportunities-expired-toggle input {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.opportunities-expired-toggle:has(input:disabled) {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.opportunities-expired-toggle:has(input:disabled) input {
+  cursor: default;
+}
+
+.opportunities-expired-hint {
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
 .opportunities-search-field {
   position: relative;
   min-width: 0;
