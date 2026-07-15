@@ -19,7 +19,16 @@
       "sunset": "Pôr do Sol Africano",
       "forest": "Floresta Esmeralda",
       "royal": "Veludo Real"
-    }
+    },
+    "navBar": "Barra de navegação",
+    "navBarGlass": "Cápsula de vidro",
+    "navBarGlassDesc": "Uma cápsula translúcida flutuante que desfoca o conteúdo atrás, com um botão de ação separado.",
+    "navBarFab": "Barra + botão",
+    "navBarTabs": "Barra clássica",
+    "navBarCenter": "Botão central",
+    "navBarFabDesc": "Uma barra de largura total embaixo, com o botão de ação flutuando sobre o canto direito.",
+    "navBarTabsDesc": "Uma barra de largura total embaixo. Nada flutua — a ação fica dentro da barra como uma aba.",
+    "navBarCenterDesc": "Uma barra de largura total embaixo, com a ação elevada no centro e as abas divididas ao redor."
   },
   "language": {
     "label": "Idioma do app",

@@ -6,7 +6,10 @@
     "me": "حسابي",
     "openEdutuAi": "فتح Edutu AI",
     "badgeOverflow": "+99",
-    "holdForVoice": "اضغط مطولًا للوضع الصوتي"
+    "holdForVoice": "اضغط مطولًا للوضع الصوتي",
+    "aiShort": "إدوتو AI",
+    "createShort": "إنشاء",
+    "editShort": "تعديل"
   },
   "rewards": {
     "creditsEarned_one": "+{{count}} نقطة · {{label}}",

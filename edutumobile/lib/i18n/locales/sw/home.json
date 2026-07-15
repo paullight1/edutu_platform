@@ -6,7 +6,10 @@
     "me": "Mimi",
     "openEdutuAi": "Fungua Edutu AI",
     "badgeOverflow": "99+",
-    "holdForVoice": "Shikilia kwa hali ya sauti"
+    "holdForVoice": "Shikilia kwa hali ya sauti",
+    "aiShort": "Edutu AI",
+    "createShort": "Unda",
+    "editShort": "Hariri"
   },
   "rewards": {
     "creditsEarned_one": "+krediti {{count}} · {{label}}",

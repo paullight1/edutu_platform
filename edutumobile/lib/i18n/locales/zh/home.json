@@ -6,7 +6,10 @@
     "me": "我的",
     "openEdutuAi": "打开 Edutu AI",
     "badgeOverflow": "99+",
-    "holdForVoice": "长按进入语音模式"
+    "holdForVoice": "长按进入语音模式",
+    "aiShort": "Edutu AI",
+    "createShort": "创建",
+    "editShort": "编辑"
   },
   "rewards": {
     "creditsEarned_one": "+{{count}} 积分 · {{label}}",

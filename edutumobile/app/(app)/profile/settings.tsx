@@ -27,7 +27,6 @@ import {
     Vibrate,
     ExternalLink,
     MonitorSmartphone,
-    Globe,
     Check,
     MoonStar,
     LogOut,
@@ -54,12 +53,61 @@ import * as WebBrowser from 'expo-web-browser';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
+import { useNavStyleSettings, setNavBarStyle, type NavBarStyle } from '../../../lib/navStyleStore';
 
 const APPEARANCE_MODES: { id: ThemeMode; labelKey: string; icon: React.ComponentType<{ size: number; color: string }> }[] = [
     { id: 'light', labelKey: 'display.modeLight', icon: Sun },
     { id: 'dark', labelKey: 'display.modeDark', icon: Moon },
     { id: 'system', labelKey: 'display.modeSystem', icon: MonitorSmartphone },
 ];
+
+const NAV_BAR_STYLE_OPTIONS: { id: NavBarStyle; labelKey: string; descKey: string }[] = [
+    { id: 'glass', labelKey: 'display.navBarGlass', descKey: 'display.navBarGlassDesc' },
+    { id: 'fab', labelKey: 'display.navBarFab', descKey: 'display.navBarFabDesc' },
+    { id: 'tabs', labelKey: 'display.navBarTabs', descKey: 'display.navBarTabsDesc' },
+    { id: 'center', labelKey: 'display.navBarCenter', descKey: 'display.navBarCenterDesc' },
+];
+
+// A small true-to-life sketch of each nav style, so the choice is visible
+// rather than a word. Mirrors the geometry in app/(app)/_layout.tsx.
+function NavStylePreview({ id, accent, dim }: { id: NavBarStyle; accent: string; dim: string }) {
+    const dot = (key: number) => <View key={key} style={[navPreviewStyles.dot, { backgroundColor: dim }]} />;
+    const button = (style?: object) => <View style={[navPreviewStyles.button, { backgroundColor: accent }, style]} />;
+
+    if (id === 'glass') {
+        return (
+            <View style={navPreviewStyles.frame}>
+                <View style={navPreviewStyles.pillRow}>
+                    <View style={[navPreviewStyles.pill, { borderColor: dim }]}>
+                        {[0, 1, 2, 3].map(dot)}
+                    </View>
+                    {button(navPreviewStyles.pillButton)}
+                </View>
+            </View>
+        );
+    }
+
+    return (
+        <View style={navPreviewStyles.frame}>
+            {id === 'fab' && button(navPreviewStyles.fabButton)}
+            {id === 'center' && button(navPreviewStyles.centerButton)}
+            <View style={[navPreviewStyles.bar, { borderTopColor: dim }]}>
+                {id === 'center' ? (
+                    <>
+                        {[0, 1].map(dot)}
+                        <View style={navPreviewStyles.centerGap} />
+                        {[2, 3].map(dot)}
+                    </>
+                ) : (
+                    <>
+                        {[0, 1, 2, 3].map(dot)}
+                        {id === 'tabs' && <View style={[navPreviewStyles.dot, { backgroundColor: accent }]} />}
+                    </>
+                )}
+            </View>
+        </View>
+    );
+}
 
 // 30-minute increments across the day for the quiet-hours picker.
 const TIME_OPTIONS: string[] = Array.from({ length: 48 }, (_, i) => {
@@ -80,6 +128,7 @@ export default function SettingsScreen() {
     const { t } = useTranslation('settings');
     const { isDark, packageId, setPackage, colors, mode, setMode, reducedMotion, setReducedMotion } = useTheme();
     const { signOut, getToken } = useAuth();
+    const { style: navBarStyle } = useNavStyleSettings();
     const { user } = useUser();
     const router = useRouter();
     const [newPassword, setNewPassword] = useState('');
@@ -311,22 +360,55 @@ export default function SettingsScreen() {
                             );
                         })}
                     </ScrollView>
+
+                    {/* Bottom nav bar style */}
+                    <Text style={[styles.subTitle, { color: textSecondary, marginTop: 20 }]}>{t('display.navBar')}</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.themeScrollContent}>
+                        {NAV_BAR_STYLE_OPTIONS.map((opt) => {
+                            const active = navBarStyle === opt.id;
+                            return (
+                                <TouchableOpacity
+                                    key={opt.id}
+                                    onPress={() => { haptic(); setNavBarStyle(opt.id); }}
+                                    activeOpacity={0.85}
+                                    accessibilityRole="radio"
+                                    accessibilityState={{ selected: active }}
+                                    accessibilityLabel={`${t(opt.labelKey)}. ${t(opt.descKey)}`}
+                                    style={[
+                                        styles.themeCard,
+                                        { backgroundColor: cardBg, borderColor: active ? colors.accent : borderColor },
+                                        active && styles.themeCardActive,
+                                    ]}
+                                >
+                                    <View style={[styles.themePreview, { backgroundColor: colors.background }]}>
+                                        <NavStylePreview
+                                            id={opt.id}
+                                            accent={colors.accent || '#6366F1'}
+                                            dim={isDark ? '#475569' : '#CBD5E1'}
+                                        />
+                                        {active && (
+                                            <View style={[styles.themeCheck, { backgroundColor: colors.accent }]}>
+                                                <Check size={12} color="#fff" strokeWidth={3} />
+                                            </View>
+                                        )}
+                                    </View>
+                                    <Text style={[styles.themeName, { color: active ? textPrimary : textSecondary }]} numberOfLines={1}>
+                                        {t(opt.labelKey)}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </ScrollView>
+                    <Text style={[styles.settingDesc, { color: textSecondary, marginTop: 8 }]}>
+                        {t(NAV_BAR_STYLE_OPTIONS.find((o) => o.id === navBarStyle)?.descKey ?? 'display.navBarGlassDesc')}
+                    </Text>
                 </View>
 
                 {/* Language */}
                 <View style={styles.section}>
                     <SectionLabel color={sectionText}>{t('sections.language')}</SectionLabel>
                     <Card variant="solid" style={[styles.card, { backgroundColor: cardBg, borderColor }]}>
-                        <View style={styles.settingRow}>
-                            <RowIcon bg="rgba(99,102,241,0.12)"><Globe size={20} color="#818cf8" /></RowIcon>
-                            <View style={styles.rowTextWrap}>
-                                <Text style={[styles.settingLabel, { color: textPrimary }]}>{t('language.label')}</Text>
-                                <Text style={[styles.settingDesc, { color: textSecondary }]}>{t('language.desc')}</Text>
-                            </View>
-                        </View>
-                        <View style={styles.languageWrap}>
-                            <LanguageSelector />
-                        </View>
+                        <LanguageSelector />
                     </Card>
                 </View>
 
@@ -646,7 +728,6 @@ const styles = StyleSheet.create({
     },
     settingLabel: { fontSize: 15, fontWeight: '600' },
     settingDesc: { fontSize: 12, marginTop: 2 },
-    languageWrap: { paddingHorizontal: 12, paddingBottom: 12 },
 
     /* Quiet hours */
     quietRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingBottom: 14, paddingTop: 2 },
@@ -695,4 +776,31 @@ const styles = StyleSheet.create({
         paddingVertical: 14, paddingHorizontal: 14, borderRadius: 12,
     },
     timeOptionText: { fontSize: 15 },
+});
+
+// Sketch geometry for the nav-style cards. Sits inside styles.themePreview,
+// whose 9px padding the bar deliberately bleeds through to read as full-width.
+const navPreviewStyles = StyleSheet.create({
+    frame: { flex: 1, justifyContent: 'flex-end' },
+    dot: { width: 4, height: 4, borderRadius: 2 },
+    button: { width: 15, height: 15, borderRadius: 8 },
+
+    // glass
+    pillRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 2 },
+    pill: {
+        flex: 1, height: 15, borderRadius: 8, borderWidth: 1,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
+        paddingHorizontal: 4,
+    },
+    pillButton: {},
+
+    // fab / tabs / center
+    bar: {
+        height: 16, borderTopWidth: 1,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
+        marginHorizontal: -9, marginBottom: -9, paddingHorizontal: 5,
+    },
+    fabButton: { position: 'absolute', right: 2, bottom: 11 },
+    centerButton: { position: 'absolute', bottom: 0, alignSelf: 'center' },
+    centerGap: { width: 16 },
 });

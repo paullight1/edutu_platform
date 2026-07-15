@@ -19,7 +19,16 @@
       "sunset": "Machweo ya Afrika",
       "forest": "Msitu wa Zumaridi",
       "royal": "Mahameli ya Kifalme"
-    }
+    },
+    "navBar": "Upau wa Urambazaji",
+    "navBarGlass": "Kidonge cha kioo",
+    "navBarGlassDesc": "Kidonge kinachoelea chenye uwazi, kinachotia ukungu maudhui yaliyo nyuma, chenye kitufe cha kitendo tofauti.",
+    "navBarFab": "Upau na kitufe",
+    "navBarTabs": "Upau wa kawaida",
+    "navBarCenter": "Kitufe cha katikati",
+    "navBarFabDesc": "Upau wa upana kamili chini, chenye kitufe cha kitendo kinachoelea juu ya kona ya kulia.",
+    "navBarTabsDesc": "Upau wa upana kamili chini. Hakuna kinachoelea — kitendo kipo ndani ya upau kama kichupo.",
+    "navBarCenterDesc": "Upau wa upana kamili chini, chenye kitendo kilichoinuliwa katikati na vichupo pembeni."
   },
   "language": {
     "label": "Lugha ya Programu",

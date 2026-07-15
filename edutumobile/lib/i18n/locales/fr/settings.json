@@ -19,7 +19,16 @@
       "sunset": "Soleil d'Afrique",
       "forest": "Forêt d'Émeraude",
       "royal": "Velours Royal"
-    }
+    },
+    "navBar": "Barre de navigation",
+    "navBarGlass": "Pilule en verre",
+    "navBarGlassDesc": "Une pilule translucide flottante qui floute le contenu derrière elle, avec un bouton d’action séparé.",
+    "navBarFab": "Barre + bouton",
+    "navBarTabs": "Barre classique",
+    "navBarCenter": "Bouton central",
+    "navBarFabDesc": "Une barre pleine largeur en bas, avec le bouton d’action flottant au-dessus de son coin droit.",
+    "navBarTabsDesc": "Une barre pleine largeur en bas. Rien ne flotte : l’action devient un onglet dans la barre.",
+    "navBarCenterDesc": "Une barre pleine largeur en bas, avec l’action surélevée au centre et les onglets répartis autour."
   },
   "language": {
     "label": "Langue de l'application",

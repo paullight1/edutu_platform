@@ -6,7 +6,10 @@
     "me": "Ni",
     "openEdutuAi": "Buɗe Edutu AI",
     "badgeOverflow": "99+",
-    "holdForVoice": "Riƙe don yanayin murya"
+    "holdForVoice": "Riƙe don yanayin murya",
+    "aiShort": "Edutu AI",
+    "createShort": "Ƙirƙira",
+    "editShort": "Gyara"
   },
   "rewards": {
     "creditsEarned_one": "+kirediti {{count}} · {{label}}",

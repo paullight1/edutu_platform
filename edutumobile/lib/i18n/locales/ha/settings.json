@@ -19,7 +19,16 @@
       "sunset": "Faɗuwar Ranar Afirka",
       "forest": "Dajin Emerald",
       "royal": "Alfarmar Sarauta"
-    }
+    },
+    "navBar": "Sandar Kewayawa",
+    "navBarGlass": "Kwaya ta gilashi",
+    "navBarGlassDesc": "Kwaya mai iyo mai haske wadda take ɓoye abin da ke bayanta, tare da maɓallin aiki daban.",
+    "navBarFab": "Sanda da maɓalli",
+    "navBarTabs": "Sanda ta gargajiya",
+    "navBarCenter": "Maɓallin tsakiya",
+    "navBarFabDesc": "Sanda mai cikakken faɗi a ƙasa, tare da maɓallin aiki yana iyo sama da kusurwar dama.",
+    "navBarTabsDesc": "Sanda mai cikakken faɗi a ƙasa. Babu abin da ke iyo — aikin yana cikin sandar a matsayin shafi.",
+    "navBarCenterDesc": "Sanda mai cikakken faɗi a ƙasa, tare da aikin a ɗaga shi a tsakiya, shafuka kuma a rarraba kewaye."
   },
   "language": {
     "label": "Harshen Manhaja",

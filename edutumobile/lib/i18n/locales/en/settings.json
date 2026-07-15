@@ -40,7 +40,16 @@
       "amethyst": "Amethyst",
       "graphite": "Graphite",
       "crimson": "Crimson"
-    }
+    },
+    "navBar": "Navigation Bar",
+    "navBarGlass": "Glass pill",
+    "navBarGlassDesc": "A floating translucent pill that blurs the content behind it, with a separate action button.",
+    "navBarFab": "Bar + button",
+    "navBarTabs": "Classic bar",
+    "navBarCenter": "Center button",
+    "navBarFabDesc": "A full-width bar across the bottom, with the action button floating above its right corner.",
+    "navBarTabsDesc": "A full-width bar across the bottom. Nothing floats — the action sits inside the bar as its own tab.",
+    "navBarCenterDesc": "A full-width bar across the bottom, with the action raised over its centre and tabs split around it."
   },
   "language": {
     "label": "App Language",

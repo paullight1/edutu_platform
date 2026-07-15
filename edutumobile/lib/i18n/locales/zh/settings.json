@@ -19,7 +19,16 @@
       "sunset": "非洲落日",
       "forest": "翡翠森林",
       "royal": "皇家丝绒"
-    }
+    },
+    "navBar": "导航栏",
+    "navBarGlass": "玻璃胶囊",
+    "navBarGlassDesc": "悬浮的半透明胶囊，会虚化其后方内容，并配有独立的操作按钮。",
+    "navBarFab": "导航栏 + 按钮",
+    "navBarTabs": "经典导航栏",
+    "navBarCenter": "居中按钮",
+    "navBarFabDesc": "底部通栏导航栏，操作按钮悬浮在右下角上方。",
+    "navBarTabsDesc": "底部通栏导航栏。没有悬浮元素——操作作为一个标签位于栏内。",
+    "navBarCenterDesc": "底部通栏导航栏，操作按钮在中间凸起，标签分列两侧。"
   },
   "language": {
     "label": "应用语言",

@@ -19,7 +19,16 @@
       "sunset": "Atardecer Africano",
       "forest": "Bosque Esmeralda",
       "royal": "Terciopelo Real"
-    }
+    },
+    "navBar": "Barra de navegación",
+    "navBarGlass": "Píldora de cristal",
+    "navBarGlassDesc": "Una píldora translúcida flotante que difumina el contenido detrás, con un botón de acción aparte.",
+    "navBarFab": "Barra + botón",
+    "navBarTabs": "Barra clásica",
+    "navBarCenter": "Botón central",
+    "navBarFabDesc": "Una barra de ancho completo abajo, con el botón de acción flotando sobre su esquina derecha.",
+    "navBarTabsDesc": "Una barra de ancho completo abajo. Nada flota: la acción es una pestaña más dentro de la barra.",
+    "navBarCenterDesc": "Una barra de ancho completo abajo, con la acción elevada en el centro y las pestañas repartidas alrededor."
   },
   "language": {
     "label": "Idioma de la app",

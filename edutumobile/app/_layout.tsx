@@ -15,6 +15,7 @@ import { AppState, type AppStateStatus, View, Text } from "react-native";
 import { setSupabaseAccessTokenGetter } from "../packages/core/src/services/supabase";
 import { flushSignalQueue } from "../packages/core/src/services/signalQueue";
 import { useInAppUpdatePrompt } from "../lib/updatePrompt";
+import { hydrateNavBarStyle } from "../lib/navStyleStore";
 import { MobileCampaignHost } from "../components/mobile-control/MobileCampaignHost";
 import { AppControlGate } from "../components/mobile-control/AppControlGate";
 import { AppControlProvider } from "../components/context/AppControlContext";
@@ -194,6 +195,12 @@ export default function RootLayout() {
     // so this only swaps the active language — safe to fire and forget.
     useEffect(() => {
         void initStoredLanguage();
+    }, []);
+
+    // Restore the bottom-nav style before the nav's first paint, so a user who
+    // chose "solid" doesn't see a frame of glass on every cold start.
+    useEffect(() => {
+        void hydrateNavBarStyle();
     }, []);
 
     // ErrorBoundary is now the OUTERMOST wrapper. Previously it lived inside

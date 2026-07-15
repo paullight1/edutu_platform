@@ -6,7 +6,10 @@
     "me": "मैं",
     "openEdutuAi": "Edutu AI खोलें",
     "badgeOverflow": "99+",
-    "holdForVoice": "वॉइस मोड के लिए दबाकर रखें"
+    "holdForVoice": "वॉइस मोड के लिए दबाकर रखें",
+    "aiShort": "Edutu AI",
+    "createShort": "बनाएँ",
+    "editShort": "संपादित"
   },
   "rewards": {
     "creditsEarned_one": "+{{count}} क्रेडिट · {{label}}",
