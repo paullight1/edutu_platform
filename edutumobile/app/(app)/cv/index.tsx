@@ -478,8 +478,14 @@ export default function CVBuilderScreen() {
                     text: t('common:actions.delete'),
                     style: 'destructive',
                     onPress: async () => {
-                        await cvService.deleteUserCV(supabase, cvId);
-                        await loadData();
+                        try {
+                            await cvService.deleteUserCV(supabase, cvId);
+                        } catch (error) {
+                            console.error('Error deleting CV:', error);
+                            Alert.alert(t('common:states.error'), t('alerts.deleteFailed'));
+                        } finally {
+                            await loadData();
+                        }
                     },
                 },
             ]
