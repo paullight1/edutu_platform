@@ -1785,7 +1785,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                 <button
                   type="button"
                   onClick={() => routerNavigate("/app/personalization")}
-                  className="group flex w-full items-center gap-4 rounded-[24px] border border-brand-200 bg-gradient-to-r from-brand-50 to-white p-4 text-left shadow-sm transition hover:border-brand-300 hover:shadow-md"
+                  className="group flex w-full items-center gap-4 rounded-[24px] border border-subtle bg-gradient-to-r from-surface-brand to-surface p-4 text-left shadow-sm transition hover:border-brand-500/40 hover:shadow-md"
                 >
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">
                     <Sparkles size={19} />

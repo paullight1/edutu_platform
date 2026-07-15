@@ -2,21 +2,25 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
 } from "react";
-import { useAuth as useClerkAuth } from "@clerk/clerk-react";
+import { useAuth as useClerkAuth, useUser } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
 import {
   Bookmark,
   Briefcase,
+  CheckCircle2,
   ChevronRight,
   Loader2,
   LogOut,
   PencilLine,
+  RefreshCw,
   Save,
   Send,
   Settings,
+  ShieldAlert,
   Sparkles,
   UserCheck,
 } from "lucide-react";
@@ -25,6 +29,7 @@ import {
   getProductApiToken,
   isInvalidOrExpiredTokenError,
 } from "../lib/clerkToken";
+import { isProductApiUnavailableError } from "../services/productApi";
 import PullToRefresh from "./ui/PullToRefresh";
 import ProfileQuickStats from "./ProfileQuickStats";
 import Button from "./ui/Button";
@@ -102,6 +107,21 @@ function calculateAge(dateOfBirth: string) {
   return age >= 0 ? age : null;
 }
 
+/**
+ * Map raw transport errors to copy a member can act on. The raw messages
+ * ("Invalid or expired token", "Product API route unavailable: /profile")
+ * read like internals and users reported them as bugs in themselves.
+ */
+function friendlyProfileError(error: unknown, fallback: string): string {
+  if (isInvalidOrExpiredTokenError(error)) {
+    return "We couldn't verify your session with the server. Signing out and back in usually fixes this.";
+  }
+  if (isProductApiUnavailableError(error)) {
+    return "Edutu's servers are unreachable right now. Your edits stay on this page — try saving again in a moment.";
+  }
+  return error instanceof Error ? error.message : fallback;
+}
+
 const FIELD_LABEL_CLASS_NAME = "font-semibold text-text-primary";
 const FIELD_INPUT_CLASS_NAME =
   "h-11 rounded-xl border border-subtle bg-surface-layer px-3 pr-10 font-semibold text-text-secondary";
@@ -113,6 +133,7 @@ const SKILLS_TEXTAREA_CLASS_NAME =
 export default function ProfilePage() {
   const navigate = useNavigate();
   const { getToken } = useClerkAuth();
+  const { user: clerkUser } = useUser();
   const { user, signOut } = useAppAuth();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [profile, setProfile] = useState<BackendProfile | null>(null);
@@ -131,14 +152,79 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessionBroken, setSessionBroken] = useState(false);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const statusRef = useRef<HTMLDivElement | null>(null);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [baseline, setBaseline] = useState<string | null>(null);
+  const baselinePendingRef = useRef(false);
+
+  const formSnapshot = useMemo(
+    () =>
+      JSON.stringify([
+        fullName,
+        email,
+        country,
+        school,
+        courseOfStudy,
+        degree,
+        cgpa,
+        gradYear,
+        dateOfBirth,
+        interestedCountriesText,
+        interestsText,
+        skillsText,
+      ]),
+    [
+      fullName,
+      email,
+      country,
+      school,
+      courseOfStudy,
+      degree,
+      cgpa,
+      gradYear,
+      dateOfBirth,
+      interestedCountriesText,
+      interestsText,
+      skillsText,
+    ],
+  );
+  const isDirty = baseline !== null && formSnapshot !== baseline;
+
+  // hydrateForm/prefill mark the next rendered snapshot as the clean baseline;
+  // reading it from an effect keeps the comparison in sync with what the
+  // member actually sees in the inputs.
+  useEffect(() => {
+    if (!baselinePendingRef.current) return;
+    baselinePendingRef.current = false;
+    setBaseline(formSnapshot);
+  }, [formSnapshot]);
+
+  useEffect(
+    () => () => {
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    },
+    [],
+  );
+
+  const showSaved = useCallback((message: string) => {
+    setSavedMessage(message);
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    savedTimerRef.current = setTimeout(() => setSavedMessage(null), 4000);
+  }, []);
+
+  const scrollToStatus = useCallback(() => {
+    requestAnimationFrame(() => {
+      statusRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }, []);
 
   const resolveToken = useCallback(async () => {
     const token = await getProductApiToken(getToken, { forceRefresh: true });
-    if (!token)
-      throw new Error(
-        "Your session has expired. Sign in again to manage your profile.",
-      );
+    // Message is a sentinel: isInvalidOrExpiredTokenError routes it to the
+    // session banner instead of the generic error banner.
+    if (!token) throw new Error("Invalid or expired token");
     return token;
   }, [getToken]);
 
@@ -202,25 +288,44 @@ export default function ProfilePage() {
       setSkillsText(
         Array.isArray(nextProfile.skills) ? nextProfile.skills.join(", ") : "",
       );
+      baselinePendingRef.current = true;
     },
     [user?.email, user?.name],
   );
 
+  /**
+   * When the backend can't be reached the form still opens editable with
+   * whatever Clerk knows client-side, instead of a wall of empty fields.
+   */
+  const prefillFromClerk = useCallback(() => {
+    setFullName((current) => current || clerkUser?.fullName || user?.name || "");
+    setEmail(
+      (current) =>
+        current ||
+        clerkUser?.primaryEmailAddress?.emailAddress ||
+        user?.email ||
+        "",
+    );
+    baselinePendingRef.current = true;
+  }, [clerkUser, user?.email, user?.name]);
+
   const loadProfile = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setSessionBroken(false);
     try {
       hydrateForm(await withFreshTokenRetry(fetchBackendProfile));
     } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Unable to load profile.",
-      );
+      if (isInvalidOrExpiredTokenError(loadError)) {
+        setSessionBroken(true);
+      } else {
+        setError(friendlyProfileError(loadError, "Unable to load profile."));
+      }
+      prefillFromClerk();
     } finally {
       setLoading(false);
     }
-  }, [hydrateForm, withFreshTokenRetry]);
+  }, [hydrateForm, prefillFromClerk, withFreshTokenRetry]);
 
   useEffect(() => {
     void loadProfile();
@@ -236,12 +341,12 @@ export default function ProfilePage() {
   const completeness = profile?.completeness;
   const completenessPercent = completeness?.percent ?? 0;
 
-  const handleSignOut = async () => {
+  const handleSignOut = async (destination: string = "/") => {
     if (isSigningOut) return;
     setIsSigningOut(true);
     try {
       await signOut();
-      navigate("/");
+      navigate(destination);
     } finally {
       setIsSigningOut(false);
     }
@@ -275,15 +380,17 @@ export default function ProfilePage() {
           updateBackendProfile(token, payload),
         ),
       );
-      setSavedMessage("Profile saved");
+      setSessionBroken(false);
+      showSaved("Profile saved — your matches will use the new details.");
     } catch (saveError) {
-      setError(
-        saveError instanceof Error
-          ? saveError.message
-          : "Unable to save profile.",
-      );
+      if (isInvalidOrExpiredTokenError(saveError)) {
+        setSessionBroken(true);
+      } else {
+        setError(friendlyProfileError(saveError, "Unable to save profile."));
+      }
     } finally {
       setSaving(false);
+      scrollToStatus();
     }
   };
 
@@ -313,9 +420,17 @@ export default function ProfilePage() {
               </div>
               <div className="rounded-2xl border border-subtle bg-surface-elevated p-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand text-base font-semibold text-white">
-                    {displayName(profile, user?.name).charAt(0).toUpperCase()}
-                  </div>
+                  {clerkUser?.imageUrl ? (
+                    <img
+                      src={clerkUser.imageUrl}
+                      alt=""
+                      className="h-12 w-12 shrink-0 rounded-2xl object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand text-base font-semibold text-white">
+                      {displayName(profile, user?.name).charAt(0).toUpperCase()}
+                    </div>
+                  )}
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold">
                       {displayName(profile, user?.name)}
@@ -332,7 +447,7 @@ export default function ProfilePage() {
                       {completenessPercent}%
                     </span>
                   </div>
-                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-elevated">
+                  <div className="mt-3 h-2 overflow-hidden rounded-full border border-subtle bg-surface-body">
                     <div
                       className="h-full rounded-full bg-brand transition-all"
                       style={{ width: `${completenessPercent}%` }}
@@ -362,17 +477,64 @@ export default function ProfilePage() {
 
           <ProfileQuickStats />
 
-          {error ? (
-            <div className="mt-5 rounded-2xl border border-danger/20 bg-danger/10 p-4 text-sm font-semibold text-danger">
-              {error}
-            </div>
-          ) : null}
+          <div ref={statusRef} aria-live="polite">
+            {sessionBroken ? (
+              <div className="mt-5 rounded-2xl border border-warning/30 bg-warning/10 p-4">
+                <div className="flex items-start gap-3">
+                  <ShieldAlert size={18} className="mt-0.5 shrink-0 text-warning" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-text-primary">
+                      We couldn't verify your session with the server
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-text-secondary">
+                      Your details are safe on this page, but saving needs a
+                      fresh sign-in. This usually takes under a minute.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleSignOut("/auth")}
+                        disabled={isSigningOut}
+                        className="inline-flex h-9 items-center gap-2 rounded-xl bg-brand px-3 text-xs font-semibold text-white transition hover:bg-brand-600 disabled:cursor-wait disabled:opacity-60"
+                      >
+                        {isSigningOut ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <LogOut size={14} />
+                        )}
+                        Sign out & back in
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void loadProfile()}
+                        disabled={loading}
+                        className="inline-flex h-9 items-center gap-2 rounded-xl border border-subtle bg-surface-layer px-3 text-xs font-semibold text-text-secondary transition hover:bg-surface-elevated disabled:cursor-wait disabled:opacity-60"
+                      >
+                        <RefreshCw
+                          size={14}
+                          className={loading ? "animate-spin" : undefined}
+                        />
+                        Try again
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
-          {savedMessage ? (
-            <div className="mt-5 rounded-2xl border border-success/20 bg-success/10 p-4 text-sm font-semibold text-success">
-              {savedMessage}
-            </div>
-          ) : null}
+            {error ? (
+              <div className="mt-5 rounded-2xl border border-danger/20 bg-danger/10 p-4 text-sm font-semibold text-danger">
+                {error}
+              </div>
+            ) : null}
+
+            {savedMessage ? (
+              <div className="mt-5 flex items-center gap-2 rounded-2xl border border-success/20 bg-success/10 p-4 text-sm font-semibold text-success">
+                <CheckCircle2 size={17} className="shrink-0" />
+                {savedMessage}
+              </div>
+            ) : null}
+          </div>
 
           <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
             <form
@@ -651,23 +813,32 @@ export default function ProfilePage() {
                 <Button
                   type="submit"
                   variant="primary"
-                  disabled={saving || loading}
+                  disabled={saving || loading || !isDirty}
                 >
                   {saving ? (
                     <Loader2 size={17} className="animate-spin" />
                   ) : (
                     <Save size={17} />
                   )}
-                  Save profile
+                  {saving
+                    ? "Saving…"
+                    : isDirty
+                      ? "Save changes"
+                      : "Saved"}
                 </Button>
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => navigate("/opportunities")}
+                  onClick={() => navigate("/app/opportunities")}
                 >
                   <Briefcase size={17} />
                   View matches
                 </Button>
+                {isDirty ? (
+                  <span className="text-xs font-semibold text-text-muted">
+                    Unsaved changes
+                  </span>
+                ) : null}
               </div>
             </form>
 
