@@ -36,6 +36,14 @@ const EXTRA_ENV_MAP: Record<string, string> = {
 };
 
 function getRuntimeEnv(variable: string): string | undefined {
+  // Dynamic on purpose, and the lint rule is right that it cannot be inlined:
+  // Expo's babel plugin only substitutes *static* process.env.EXPO_PUBLIC_*
+  // access, so this lookup is undefined in a real build. That is what
+  // EXTRA_ENV_MAP below is for — the app.config extra is the path that
+  // actually carries these values into EAS builds (.env is gitignored). Every
+  // caller of this function passes one of the four keys in that map, so the
+  // fallback covers all of them; this line only ever helps in a dev shell.
+  // eslint-disable-next-line expo/no-dynamic-env-var
   const processValue = process.env[variable];
   if (processValue) return processValue;
 

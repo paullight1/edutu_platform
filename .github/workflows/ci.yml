@@ -83,6 +83,23 @@ jobs:
       - run: npm ci
       - run: npm run test -- --passWithNoTests
 
+  mobile-lint:
+    name: Mobile Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: edutumobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: edutumobile/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+
   admin-typecheck:
     name: Admin TypeCheck
     runs-on: ubuntu-latest
