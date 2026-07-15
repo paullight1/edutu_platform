@@ -34,7 +34,9 @@ export function useSupportTickets() {
     loading: true,
     error: null
   });
-  const [actionLoading, setActionLoading] = useState(false);
+  // Nothing sets this yet — the ticket actions below are still mocked — but it
+  // is part of the hook's returned shape, so keep it rather than drop it.
+  const [actionLoading] = useState(false);
 
   useEffect(() => {
     // Simulate loading data

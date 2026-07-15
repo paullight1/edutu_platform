@@ -217,7 +217,10 @@ serve(async (req) => {
     }
 });
 
-async function validateApiKey(supabase: any, apiKey: string): Promise<boolean> {
+async function validateApiKey(
+    supabase: ReturnType<typeof createClient>,
+    apiKey: string,
+): Promise<boolean> {
     // Hash the API key and check against stored keys
     const encoder = new TextEncoder();
     const data = encoder.encode(apiKey);

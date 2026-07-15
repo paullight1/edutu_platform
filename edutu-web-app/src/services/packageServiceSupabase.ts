@@ -1,21 +1,17 @@
 import { supabase } from '../lib/supabaseClient';
-import type { 
-  CommunityPackage, 
-  PackageStep, 
-  PackageTask, 
-  PackageTemplate, 
-  PackageResource, 
-  PersonalStory, 
-  PackageTips, 
-  PackageReview, 
-  PackageProgress 
-} from './packageService';
+import type { CommunityPackage } from './packageService';
 import { buildPackageTemplateZip } from './packageDownloads';
 import logger from '../lib/logger';
 
 /**
- * Maps a marketplace listing database row to a CommunityPackage
+ * Maps a marketplace listing database row to a CommunityPackage.
+ *
+ * `any` on purpose — same reason as mapListingToStory in
+ * communityMarketplaceSupabase.ts: `metadata` is free-form jsonb fanned out
+ * into nested roadmap/templates/reviews shapes, so this boundary wants runtime
+ * validation rather than a structural type asserting a shape nobody enforces.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapListingToPackage(listing: any): CommunityPackage {
   const metadata = listing.metadata || {};
   return {

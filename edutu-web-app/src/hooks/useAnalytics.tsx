@@ -69,11 +69,14 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setIsLoading(true);
 
     try {
-      let { data, error } = await supabase
+      // `data` is reassigned below when we have to insert a fresh row, so it
+      // stays `let`; `error` never is.
+      const { data: initialData, error } = await supabase
         .from('analytics')
         .select('*')
         .eq('user_id', uid)
         .single();
+      let data = initialData;
 
       if (error) {
         if (error.code === 'PGRST116') {

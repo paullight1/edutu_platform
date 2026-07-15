@@ -128,7 +128,7 @@ export async function saveSecuritySettings(
 export async function changePassword(
   userId: string,
   _currentPassword: string,
-  newPassword: string,
+  _newPassword: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
     if (!userId) {

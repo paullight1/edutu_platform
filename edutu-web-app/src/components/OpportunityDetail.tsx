@@ -34,8 +34,6 @@ import {
   parseOpportunityDeadline,
 } from "../services/opportunities";
 import {
-  buildOpportunityShareText,
-  buildOpportunityShareUrl,
   shareOpportunity,
   shareOutcomeMessage,
 } from "../services/opportunityShare";
@@ -312,8 +310,6 @@ const OpportunityDetail: React.FC<OpportunityDetailProps> = ({
   const benefits = normaliseVisibleList(opportunity.benefits);
   const applicationSteps = normaliseVisibleList(opportunity.applicationProcess);
   const expired = isOpportunityExpired(opportunity);
-  const shareUrl = buildOpportunityShareUrl(opportunity.id);
-  const shareText = buildOpportunityShareText(opportunity, shareUrl);
   const canonicalPath = `/opportunity/${encodeURIComponent(opportunity.id)}`;
   const canonicalUrl = toAbsoluteUrl(canonicalPath);
   const seoDescription = truncateSeoText(

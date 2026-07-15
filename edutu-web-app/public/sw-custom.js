@@ -1,4 +1,3 @@
-/* eslint-disable no-undef */
 /**
  * Custom service-worker logic imported by the workbox-generated SW
  * (see vite.config.ts workbox.importScripts). Handles:

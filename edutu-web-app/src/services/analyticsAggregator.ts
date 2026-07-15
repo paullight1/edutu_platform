@@ -30,21 +30,21 @@ export async function recordUserActivity(activity: UserActivity) {
   return { success: true };
 }
 
-export async function syncUserGoalSummary(userId: string, goalData: any) {
+export async function syncUserGoalSummary(userId: string, goalData: unknown) {
   if (import.meta.env.DEV) {
     logger.debug('Analytics goal summary skipped in development', { userId, goalData });
   }
   return { success: true, timestamp: new Date() };
 }
 
-export async function recordChatSessionAggregate(userId: string, sessionData: any) {
+export async function recordChatSessionAggregate(userId: string, sessionData: unknown) {
   if (import.meta.env.DEV) {
     logger.debug('Analytics chat aggregate skipped in development', { userId, sessionData });
   }
   return { success: true };
 }
 
-export async function recordUserActivityAggregate(activityData: any) {
+export async function recordUserActivityAggregate(activityData: unknown) {
   if (import.meta.env.DEV) {
     logger.debug('Analytics activity aggregate skipped in development', activityData);
   }

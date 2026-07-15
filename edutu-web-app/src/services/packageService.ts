@@ -1,12 +1,6 @@
 // This file extends the existing community marketplace service
 // to include package-specific functionality
 
-import type {
-  CommunityStory,
-  CommunityStoryStats,
-  CommunityResource,
-  CommunityRoadmapStage
-} from '../types/community';
 import {
   buildPackageTemplateZip,
   createDataUrl
