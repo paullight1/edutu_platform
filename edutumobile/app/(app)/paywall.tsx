@@ -99,7 +99,9 @@ export default function PaywallScreen() {
   // we must NOT fall back to an external checkout on device (store policy).
   useEffect(() => {
     if (!USE_NATIVE_IAP) { setIapLoading(false); return; }
-    if (!user?.id) return;
+    // No signed-in user: settle the loading state or the CTA spins forever.
+    // Purchases need an identity anyway, so mark IAP unavailable for guests.
+    if (!user?.id) { setIapUnavailable(true); setIapLoading(false); return; }
     let cancelled = false;
     setIapLoading(true);
     setIapUnavailable(false);
