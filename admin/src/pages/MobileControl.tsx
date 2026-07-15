@@ -95,15 +95,24 @@ function JsonField({
   const [text, setText] = useState(() => JSON.stringify(value, null, 2));
   const [invalid, setInvalid] = useState(false);
 
-  useEffect(() => {
-    // Only re-sync from the outside when the parsed value actually changed
-    // (e.g. an item was loaded for editing), so typing isn't interrupted.
+  // Only re-sync from the outside when the parsed value actually changed
+  // (e.g. an item was loaded for editing), so typing isn't interrupted.
+  // Adjusting state during render is React's documented alternative to an
+  // effect here (https://react.dev/learn/you-might-not-need-an-effect); it
+  // also avoids committing the stale text for a frame before correcting it.
+  const canonical = JSON.stringify(value);
+  const [syncedCanonical, setSyncedCanonical] = useState(canonical);
+  if (canonical !== syncedCanonical) {
+    setSyncedCanonical(canonical);
+    let alreadyShowing = false;
     try {
-      if (JSON.stringify(JSON.parse(text)) === JSON.stringify(value)) return;
-    } catch { /* fall through and resync */ }
-    setText(JSON.stringify(value, null, 2));
-    setInvalid(false);
-  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+      alreadyShowing = JSON.stringify(JSON.parse(text)) === canonical;
+    } catch { /* unparseable draft — resync */ }
+    if (!alreadyShowing) {
+      setText(JSON.stringify(value, null, 2));
+      setInvalid(false);
+    }
+  }
 
   return (
     <label className="mc-field mc-field-wide">

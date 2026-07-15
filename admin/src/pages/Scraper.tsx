@@ -272,7 +272,6 @@ export default function ScraperDashboard() {
     const [scrapingStartedAt, setScrapingStartedAt] = useState<number | null>(null);
     const [scrapingElapsedSeconds, setScrapingElapsedSeconds] = useState(0);
     const [selectedOpportunities, setSelectedOpportunities] = useState<Set<number>>(new Set());
-    const [activeScrapeJobId, setActiveScrapeJobId] = useState<string | null>(null);
     // Background-run UX: when the modal is minimized the scrape keeps running.
     const [isBackground, setIsBackground] = useState(false);
     const [liveFoundCount, setLiveFoundCount] = useState(0);
@@ -939,7 +938,6 @@ export default function ScraperDashboard() {
         setScraping(true);
         setScrapeResult(null);
         setModalError(null);
-        setActiveScrapeJobId(null);
         setAiBefore({});
         setExpandedResults(new Set());
         setSelectedOpportunities(new Set());
@@ -1079,7 +1077,6 @@ export default function ScraperDashboard() {
             };
 
             setScrapeResult(mapped);
-            setActiveScrapeJobId(mapped.jobId ?? null);
             setLiveFoundCount(mapped.opportunities?.length ?? mapped.totalResults ?? 0);
             setScrapingProgress(prev => prev.map(p =>
                 p.status === 'scraping' || p.status === 'pending' ? { ...p, status: 'completed' as const, progress: 100 } : p));
