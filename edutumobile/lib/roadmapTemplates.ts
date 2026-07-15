@@ -9,6 +9,7 @@ import {
     Users,
     Wrench,
 } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import i18n from './i18n';
 
 // ---------------------------------------------------------------------------
@@ -59,6 +60,9 @@ export interface RoadmapTemplate {
 
 export interface TemplateComment {
     id: string;
+    // Opaque derived id of the author — used to report/block and to hide
+    // blocked authors. Not the raw auth subject.
+    authorId: string;
     authorName: string;
     body: string;
     rating?: number | null;
@@ -310,6 +314,7 @@ export async function fetchTemplateComments(id: string): Promise<TemplateComment
     const data = await response.json();
     return (Array.isArray(data) ? data : []).map((item: any) => ({
         id: String(item.id),
+        authorId: String(item.author_id || ''),
         authorName: item.author_name || 'Edutu learner',
         body: item.body || '',
         rating: item.rating,
@@ -331,11 +336,120 @@ export async function postTemplateComment(
     const item = await response.json();
     return {
         id: String(item.id),
+        authorId: String(item.author_id || ''),
         authorName: item.author_name || 'You',
         body: item.body || payload.body,
         rating: item.rating ?? payload.rating,
         createdAt: item.created_at || new Date().toISOString(),
     };
+}
+
+// ---------------------------------------------------------------------------
+// UGC moderation — report / block (Apple App Store Guideline 1.2)
+// ---------------------------------------------------------------------------
+
+export type CommentReportReason = 'offensive' | 'spam' | 'harassment' | 'other';
+
+// Mirrors the backend `toDatabaseUserId` (FNV-1a variant) so the viewer's raw
+// Clerk id can be matched against a comment's derived `author_id` — used to
+// hide the report/block menu on the viewer's own comments.
+const DERIVED_UUID_REGEX =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function hashHex(input: string, seed: number): string {
+    let hash = seed;
+    for (let index = 0; index < input.length; index += 1) {
+        hash ^= input.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+export function deriveUserId(userId: string | null | undefined): string {
+    if (!userId) return '';
+    if (DERIVED_UUID_REGEX.test(userId)) return userId.toLowerCase();
+    const hash = [
+        hashHex(userId, 0x811c9dc5),
+        hashHex(userId, 0x9e3779b9),
+        hashHex(userId, 0x85ebca6b),
+        hashHex(userId, 0xc2b2ae35),
+    ].join('');
+    return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
+}
+
+export async function reportTemplateComment(
+    roadmapId: string,
+    commentId: string,
+    token: string,
+    reason: CommentReportReason,
+): Promise<boolean> {
+    const response = await fetch(
+        `${API_URL}/roadmaps/${encodeURIComponent(roadmapId)}/comments/${encodeURIComponent(commentId)}/report`,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ reason }),
+        },
+    );
+    return response.ok;
+}
+
+export async function blockCommentAuthor(
+    blockedUserId: string,
+    token: string,
+): Promise<boolean> {
+    const response = await fetch(`${API_URL}/roadmaps/block`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ blockedUserId }),
+    });
+    return response.ok;
+}
+
+// Locally-cached block list so filtering is instant and works offline; the
+// server (see /roadmaps/blocked) remains the source of truth.
+const BLOCKED_AUTHORS_KEY = 'roadmap.blockedAuthors.v1';
+
+export async function getBlockedAuthorIds(): Promise<string[]> {
+    try {
+        const raw = await AsyncStorage.getItem(BLOCKED_AUTHORS_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
+    } catch {
+        return [];
+    }
+}
+
+export async function addBlockedAuthorId(blockedUserId: string): Promise<void> {
+    if (!blockedUserId) return;
+    try {
+        const existing = await getBlockedAuthorIds();
+        if (existing.includes(blockedUserId)) return;
+        await AsyncStorage.setItem(
+            BLOCKED_AUTHORS_KEY,
+            JSON.stringify([...existing, blockedUserId]),
+        );
+    } catch {
+        // Best-effort local cache; server block already persisted.
+    }
+}
+
+// Hydrate the local block list from the server (cross-device source of truth).
+export async function syncBlockedAuthorIds(token: string): Promise<string[]> {
+    try {
+        const response = await fetch(`${API_URL}/roadmaps/blocked`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) return getBlockedAuthorIds();
+        const data = await response.json();
+        const ids = (Array.isArray(data) ? data : []).filter(
+            (id: unknown): id is string => typeof id === 'string',
+        );
+        await AsyncStorage.setItem(BLOCKED_AUTHORS_KEY, JSON.stringify(ids));
+        return ids;
+    } catch {
+        return getBlockedAuthorIds();
+    }
 }
 
 export async function adoptTemplate(id: string, token: string): Promise<boolean> {

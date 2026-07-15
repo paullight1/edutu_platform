@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { config } from '@/lib/env';
 import { ADMIN_COOKIE, isValidAdminToken, signAdminSession } from '@/lib/auth';
+import { clientIp, rateLimited } from '@/lib/rateLimit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -9,6 +10,13 @@ export const dynamic = 'force-dynamic';
 // Exchanges the admin token for a short-lived httpOnly session cookie, so the
 // token never appears in a URL. Redirects back to /admin either way.
 export async function POST(req: NextRequest) {
+  const base = config.baseUrl();
+
+  // Throttle token guesses per IP before doing any comparison.
+  if (rateLimited(`admin-login:${clientIp(req)}`, 10, 60_000)) {
+    return NextResponse.redirect(`${base}/admin?error=rate_limited`, 303);
+  }
+
   let token = '';
   try {
     const form = await req.formData();
@@ -16,8 +24,6 @@ export async function POST(req: NextRequest) {
   } catch {
     // fall through — treated as a bad token
   }
-
-  const base = config.baseUrl();
 
   if (!isValidAdminToken(token)) {
     return NextResponse.redirect(`${base}/admin?error=bad_token`, 303);

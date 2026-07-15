@@ -6,6 +6,7 @@ import { ArrowRight, Eye, EyeOff, Lock, LogIn, Mail, ShieldCheck } from 'lucide-
 import { useTranslation } from 'react-i18next';
 import { AuthShell } from '../../components/auth/AuthShell';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
+import { AppleSignInButton } from '../../components/auth/AppleSignInButton';
 import { useTheme } from '../../components/context/ThemeContext';
 import i18n from '../../lib/i18n';
 
@@ -453,6 +454,7 @@ export default function SignInPage() {
             </Pressable>
 
             <GoogleSignInButton onError={setError} />
+            <AppleSignInButton onError={setError} />
 
             <Pressable onPress={handleForgotPassword} style={styles.forgotLink}>
               <Text style={[styles.footerLink, { color: '#2563EB' }]}>

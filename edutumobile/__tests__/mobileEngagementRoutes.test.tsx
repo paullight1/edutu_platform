@@ -584,7 +584,13 @@ describe('mobile engagement routes', () => {
     const { getByText } = render(<PaywallScreen />);
 
     await waitFor(() => expect(getByText('Unlock every opportunity')).toBeTruthy());
-    expect(getByText('Subscribe to premium')).toBeTruthy();
+    // Offerings fail to load in this environment: once IAP loading settles the
+    // CTA renders (disabled) and the unavailable note appears — never an
+    // external checkout fallback.
+    await waitFor(() => expect(getByText('Subscribe to premium')).toBeTruthy());
+    expect(
+      getByText('Subscriptions are temporarily unavailable. Please try again in a moment.'),
+    ).toBeTruthy();
     expect(getByText('Restore purchases')).toBeTruthy();
 
     // Restore is wired to the RevenueCat restore flow.

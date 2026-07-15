@@ -25,6 +25,7 @@ import {
     ExternalLink,
     Layers,
     MessageCircle,
+    MoreHorizontal,
     Rocket,
     Send,
     Star,
@@ -42,20 +43,27 @@ import { useAuth } from '@clerk/clerk-expo';
 import { useTheme } from '../../../components/context/ThemeContext';
 import { notificationService } from '../../../lib/notifications';
 import {
+    CommentReportReason,
     RoadmapTemplate,
     TemplateComment,
     TemplateResource,
     TemplateStep,
+    addBlockedAuthorId,
     adoptTemplate,
     avatarColor,
+    blockCommentAuthor,
     categoryMeta,
+    deriveUserId,
     fetchTemplateById,
     fetchTemplateComments,
+    getBlockedAuthorIds,
     getCachedTemplate,
     initialsOf,
     postTemplateComment,
+    reportTemplateComment,
     resourceHost,
     resourceMeta,
+    syncBlockedAuthorIds,
     timeAgo,
 } from '../../../lib/roadmapTemplates';
 
@@ -75,12 +83,17 @@ export default function RoadmapTemplateDetailScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { colors, isDark } = useTheme();
-    const { getToken } = useAuth();
+    const { getToken, userId } = useAuth();
     const params = useLocalSearchParams<{ id?: string }>();
     const templateId = typeof params.id === 'string' ? params.id : '';
 
+    // Derived id of the viewer, matched against a comment's author_id so the
+    // report/block menu never appears on the viewer's own comments.
+    const myAuthorId = useMemo(() => deriveUserId(userId), [userId]);
+
     const [template, setTemplate] = useState<RoadmapTemplate | null>(() => getCachedTemplate(templateId) || null);
     const [comments, setComments] = useState<TemplateComment[]>([]);
+    const [blockedAuthors, setBlockedAuthors] = useState<string[]>([]);
     const [commentsLoading, setCommentsLoading] = useState(true);
     const [expandedSteps, setExpandedSteps] = useState<Record<string, boolean>>({});
     const [commentDraft, setCommentDraft] = useState('');
@@ -110,6 +123,26 @@ export default function RoadmapTemplateDetailScreen() {
         };
     }, [templateId]);
 
+    // Hydrate the blocked-authors list: local cache first (instant), then the
+    // server source of truth (cross-device).
+    useEffect(() => {
+        let cancelled = false;
+        getBlockedAuthorIds().then((ids) => {
+            if (!cancelled) setBlockedAuthors(ids);
+        });
+        getToken()
+            .then((token) => {
+                if (!token) return;
+                return syncBlockedAuthorIds(token).then((ids) => {
+                    if (!cancelled) setBlockedAuthors(ids);
+                });
+            })
+            .catch(() => { /* keep local cache */ });
+        return () => {
+            cancelled = true;
+        };
+    }, [getToken]);
+
     // First step starts expanded so the journey never looks empty.
     useEffect(() => {
         if (template && Object.keys(expandedSteps).length === 0 && template.steps[0]) {
@@ -131,6 +164,13 @@ export default function RoadmapTemplateDetailScreen() {
         if (rated.length === 0) return 0;
         return rated.reduce((sum, comment) => sum + (comment.rating || 0), 0) / rated.length;
     }, [template, comments]);
+
+    // Hide comments authored by users the viewer has blocked (Guideline 1.2).
+    const visibleComments = useMemo(() => {
+        if (blockedAuthors.length === 0) return comments;
+        const blocked = new Set(blockedAuthors);
+        return comments.filter((comment) => !blocked.has(comment.authorId));
+    }, [comments, blockedAuthors]);
 
     const openResource = async (resource: TemplateResource) => {
         try {
@@ -257,6 +297,102 @@ export default function RoadmapTemplateDetailScreen() {
         } finally {
             setPostingComment(false);
         }
+    };
+
+    // ── UGC moderation: report / block (Apple Guideline 1.2) ──────────────
+    const reportComment = async (comment: TemplateComment, reason: CommentReportReason) => {
+        try {
+            const token = (await getToken()) || '';
+            if (!token) {
+                Alert.alert(t('templates.signInTitle'), t('templates.signInMessage'));
+                return;
+            }
+            const ok = await reportTemplateComment(template!.id, comment.id, token, reason);
+            if (ok) {
+                Alert.alert(
+                    t('templates.comments.reportSubmittedTitle', { defaultValue: 'Report received' }),
+                    t('templates.comments.reportSubmittedMessage', {
+                        defaultValue: 'Thanks for flagging this. Our team will review it.',
+                    }),
+                );
+            } else {
+                Alert.alert(t('templates.comments.failedTitle'), t('templates.comments.failedMessage'));
+            }
+        } catch {
+            Alert.alert(t('templates.comments.failedTitle'), t('templates.comments.failedMessage'));
+        }
+    };
+
+    const blockAuthor = async (comment: TemplateComment) => {
+        Alert.alert(
+            t('templates.comments.blockConfirmTitle', {
+                defaultValue: 'Block {{name}}?',
+                name: comment.authorName,
+            }),
+            t('templates.comments.blockConfirmMessage', {
+                defaultValue: "You won't see comments from this person anymore.",
+            }),
+            [
+                { text: t('templates.comments.cancel', { defaultValue: 'Cancel' }), style: 'cancel' },
+                {
+                    text: t('templates.comments.blockAction', { defaultValue: 'Block' }),
+                    style: 'destructive',
+                    onPress: async () => {
+                        // Filter locally first so the effect is instant.
+                        setBlockedAuthors((existing) =>
+                            existing.includes(comment.authorId) ? existing : [...existing, comment.authorId],
+                        );
+                        await addBlockedAuthorId(comment.authorId);
+                        try {
+                            const token = (await getToken()) || '';
+                            if (token) await blockCommentAuthor(comment.authorId, token);
+                        } catch {
+                            // Local filtering already applied; server retry on next sync.
+                        }
+                    },
+                },
+            ],
+        );
+    };
+
+    const openCommentActions = (comment: TemplateComment) => {
+        Alert.alert(
+            t('templates.comments.actionsTitle', { defaultValue: 'Comment options' }),
+            undefined,
+            [
+                {
+                    text: t('templates.comments.reportAction', { defaultValue: 'Report comment' }),
+                    onPress: () =>
+                        Alert.alert(
+                            t('templates.comments.reportReasonTitle', { defaultValue: 'Report this comment' }),
+                            t('templates.comments.reportReasonMessage', {
+                                defaultValue: 'Why are you reporting this?',
+                            }),
+                            [
+                                {
+                                    text: t('templates.comments.reasonOffensive', { defaultValue: 'Offensive or abusive' }),
+                                    onPress: () => reportComment(comment, 'offensive'),
+                                },
+                                {
+                                    text: t('templates.comments.reasonSpam', { defaultValue: 'Spam or misleading' }),
+                                    onPress: () => reportComment(comment, 'spam'),
+                                },
+                                {
+                                    text: t('templates.comments.reasonHarassment', { defaultValue: 'Harassment' }),
+                                    onPress: () => reportComment(comment, 'harassment'),
+                                },
+                                { text: t('templates.comments.cancel', { defaultValue: 'Cancel' }), style: 'cancel' },
+                            ],
+                        ),
+                },
+                {
+                    text: t('templates.comments.blockAction', { defaultValue: 'Block user' }),
+                    style: 'destructive',
+                    onPress: () => blockAuthor(comment),
+                },
+                { text: t('templates.comments.cancel', { defaultValue: 'Cancel' }), style: 'cancel' },
+            ],
+        );
     };
 
     const renderStars = (value: number, size = 12) => (
@@ -525,7 +661,7 @@ export default function RoadmapTemplateDetailScreen() {
                         <View style={styles.commentsHeader}>
                             <MessageCircle size={16} color={accent} />
                             <Text style={[styles.sectionTitle, styles.commentsTitle, { color: colors.foreground }]}>
-                                {t('templates.comments.title', { count: comments.length })}
+                                {t('templates.comments.title', { count: visibleComments.length })}
                             </Text>
                         </View>
 
@@ -575,11 +711,13 @@ export default function RoadmapTemplateDetailScreen() {
 
                         {commentsLoading ? (
                             <ActivityIndicator style={styles.commentsLoader} color={colors.primary} />
-                        ) : comments.length === 0 ? (
+                        ) : visibleComments.length === 0 ? (
                             <Text style={[styles.emptyComments, { color: textSecondary }]}>{t('templates.comments.empty')}</Text>
                         ) : (
                             <View style={styles.commentsList}>
-                                {comments.map((comment) => (
+                                {visibleComments.map((comment) => {
+                                    const canModerate = Boolean(comment.authorId) && comment.authorId !== myAuthorId;
+                                    return (
                                     <View key={comment.id} style={[styles.commentCard, { backgroundColor: colors.card, borderColor }]}>
                                         <View style={styles.commentHeader}>
                                             <View style={[styles.avatar, styles.commentAvatar, { backgroundColor: avatarColor(comment.authorName) }]}>
@@ -592,10 +730,21 @@ export default function RoadmapTemplateDetailScreen() {
                                                 <Text style={[styles.commentTime, { color: textSecondary }]}>{timeAgo(comment.createdAt)}</Text>
                                             </View>
                                             {comment.rating ? renderStars(comment.rating) : null}
+                                            {canModerate ? (
+                                                <TouchableOpacity
+                                                    style={styles.commentMenuButton}
+                                                    onPress={() => openCommentActions(comment)}
+                                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                                    accessibilityLabel={t('templates.comments.actionsTitle', { defaultValue: 'Comment options' })}
+                                                >
+                                                    <MoreHorizontal size={16} color={textSecondary} />
+                                                </TouchableOpacity>
+                                            ) : null}
                                         </View>
                                         <Text style={[styles.commentBody, { color: textSecondary }]}>{comment.body}</Text>
                                     </View>
-                                ))}
+                                    );
+                                })}
                             </View>
                         )}
                     </View>
@@ -814,6 +963,7 @@ const styles = StyleSheet.create({
     commentHeaderCopy: { flex: 1 },
     commentAuthor: { fontSize: 12.5, fontWeight: '800' },
     commentTime: { fontSize: 10.5, fontWeight: '600', marginTop: 1 },
+    commentMenuButton: { paddingLeft: 6, paddingVertical: 2 },
     commentBody: { fontSize: 12.5, lineHeight: 19, marginTop: 8 },
     actionBar: {
         position: 'absolute',

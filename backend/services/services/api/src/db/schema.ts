@@ -1121,6 +1121,50 @@ export const roadmapComments = pgTable(
   ],
 );
 
+// UGC abuse reports (Apple Guideline 1.2). A user flags an objectionable
+// comment; reports are persisted open for admin review/action.
+export const roadmapCommentReports = pgTable(
+  "roadmap_comment_reports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    commentId: uuid("comment_id")
+      .notNull()
+      .references(() => roadmapComments.id, { onDelete: "cascade" }),
+    roadmapId: uuid("roadmap_id").notNull(),
+    reporterUserId: uuid("reporter_user_id").notNull(),
+    reason: text("reason").notNull().default("other"),
+    status: text("status").notNull().default("open"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    index("idx_roadmap_comment_reports_status").on(
+      table.status,
+      table.createdAt,
+    ),
+    index("idx_roadmap_comment_reports_comment").on(table.commentId),
+  ],
+);
+
+// User-to-user blocks (Apple Guideline 1.2). A blocker no longer sees content
+// authored by the blocked user. Keyed by the derived uuid user id used across
+// the roadmap tables.
+export const userBlocks = pgTable(
+  "user_blocks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    blockerUserId: uuid("blocker_user_id").notNull(),
+    blockedUserId: uuid("blocked_user_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("uq_user_blocks_pair").on(
+      table.blockerUserId,
+      table.blockedUserId,
+    ),
+    index("idx_user_blocks_blocker").on(table.blockerUserId),
+  ],
+);
+
 export const roadmapEnrollments = pgTable(
   "roadmap_enrollments",
   {

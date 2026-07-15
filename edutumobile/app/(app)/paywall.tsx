@@ -29,14 +29,17 @@ import { getCachedOpportunitiesSnapshot } from '@edutu/core/src/services/opportu
 import {
   getOfferings,
   initRevenueCat,
+  manageSubscriptions,
   purchasePackage,
   restorePurchases,
 } from '@edutu/core/src/services/payments';
 
-// Apple requires digital-goods purchases to use in-app purchase. So iOS goes
-// through RevenueCat/StoreKit; Android + web redirect to pay.edutu.org (admin
-// pricing + promos). This is the store-compliant hybrid.
-const USE_NATIVE_IAP = Platform.OS === 'ios';
+// Both stores REQUIRE their own billing for in-app digital goods (Apple 3.1.1,
+// Google Play Payments). So every on-device purchase goes through RevenueCat
+// (StoreKit on iOS, Play Billing on Android). Only the web build (Platform.OS
+// === 'web', which the stores don't police) uses the pay.edutu.org checkout.
+// The app NEVER routes an iOS/Android user to external payment for Pro.
+const USE_NATIVE_IAP = Platform.OS === 'ios' || Platform.OS === 'android';
 import {
   DEFAULT_PRICING,
   DEFAULT_PAYWALL_CONTENT,
@@ -78,25 +81,46 @@ export default function PaywallScreen() {
   const [heroImages, setHeroImages] = useState<string[]>([]);
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const [redirecting, setRedirecting] = useState(false);
-  // iOS-only in-app purchase state.
+  // Native in-app purchase state (iOS StoreKit / Android Play Billing).
   const [iapPackages, setIapPackages] = useState<PurchasesPackage[]>([]);
   const [purchasing, setPurchasing] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  // On device we only ever sell via IAP. Track whether offerings are still
+  // loading vs unavailable so the CTA can show a spinner / disabled state
+  // instead of silently routing to an (store-forbidden) external checkout.
+  const [iapLoading, setIapLoading] = useState(USE_NATIVE_IAP);
+  const [iapUnavailable, setIapUnavailable] = useState(false);
   // Set true once we hand off to the browser, so the next foreground re-checks
   // Pro (the pay.edutu.org webhook grants it while we're away).
   const awaitingReturnRef = useRef(false);
 
-  // iOS: load StoreKit offerings via RevenueCat.
+  // Device: load StoreKit (iOS) / Play Billing (Android) offerings via
+  // RevenueCat. If they can't load we mark IAP unavailable and disable the CTA —
+  // we must NOT fall back to an external checkout on device (store policy).
   useEffect(() => {
-    if (!USE_NATIVE_IAP || !user?.id) return;
+    if (!USE_NATIVE_IAP) { setIapLoading(false); return; }
+    // No signed-in user: settle the loading state or the CTA spins forever.
+    // Purchases need an identity anyway, so mark IAP unavailable for guests.
+    if (!user?.id) { setIapUnavailable(true); setIapLoading(false); return; }
     let cancelled = false;
+    setIapLoading(true);
+    setIapUnavailable(false);
     (async () => {
       try {
         const configured = await initRevenueCat(user.id);
-        if (!configured) return;
+        if (!configured) {
+          if (!cancelled) { setIapUnavailable(true); setIapLoading(false); }
+          return;
+        }
         const offering = await getOfferings();
-        if (offering && !cancelled) setIapPackages(offering.availablePackages || []);
-      } catch { /* fall back to redirect */ }
+        if (cancelled) return;
+        const packages = offering?.availablePackages || [];
+        setIapPackages(packages);
+        setIapUnavailable(packages.length === 0);
+        setIapLoading(false);
+      } catch {
+        if (!cancelled) { setIapUnavailable(true); setIapLoading(false); }
+      }
     })();
     return () => { cancelled = true; };
   }, [user?.id]);
@@ -186,7 +210,16 @@ export default function PaywallScreen() {
   }, [user?.id, user?.primaryEmailAddress?.emailAddress, pricing, selectedPlan, openExternal]);
 
   const purchaseWithIap = useCallback(async () => {
-    if (!selectedPackage) return redirectToWebCheckout();
+    if (!selectedPackage) {
+      // No external fallback on device (store policy) — surface a retry instead.
+      Alert.alert(
+        t('common:states.error'),
+        t('paywall.iapUnavailable', {
+          defaultValue: 'Subscriptions are temporarily unavailable. Please try again in a moment.',
+        }),
+      );
+      return;
+    }
     setPurchasing(true);
     try {
       const result = await purchasePackage(selectedPackage);
@@ -202,10 +235,13 @@ export default function PaywallScreen() {
     } finally {
       setPurchasing(false);
     }
-  }, [selectedPackage, redirectToWebCheckout, refreshStatus, router, t]);
+  }, [selectedPackage, refreshStatus, router, t]);
 
-  // iOS → native purchase; Android/web → hosted checkout.
-  const handleCheckout = iapActive ? purchaseWithIap : redirectToWebCheckout;
+  // On device ALWAYS go through native IAP (never the external web checkout —
+  // store policy). Only the web build uses the hosted pay.edutu.org checkout.
+  const handleCheckout = USE_NATIVE_IAP ? purchaseWithIap : redirectToWebCheckout;
+  // Native purchase is only actionable once a matching store product loaded.
+  const canPurchase = USE_NATIVE_IAP ? Boolean(selectedPackage) : true;
 
   const handleRestore = useCallback(async () => {
     setRestoring(true);
@@ -226,6 +262,13 @@ export default function PaywallScreen() {
 
   const handleManage = useCallback(async () => {
     if (!user?.id) return;
+    // A store-billed subscription must be managed/cancelled through the store's
+    // own UI (Apple/Google) — steering IAP subscribers to an external page is a
+    // 3.1.1 violation. Only the web build uses the pay.edutu.org account page.
+    if (USE_NATIVE_IAP) {
+      await manageSubscriptions();
+      return;
+    }
     // Pass a Clerk token so pay.edutu.org can prove the caller owns the account
     // before allowing a cancel (it mints a short-lived session cookie).
     let token: string | null | undefined = null;
@@ -476,16 +519,29 @@ export default function PaywallScreen() {
             {/* Big white CTA (reference style) */}
             <TouchableOpacity
               activeOpacity={0.9}
-              disabled={redirecting || purchasing}
+              disabled={redirecting || purchasing || (USE_NATIVE_IAP && (iapLoading || !canPurchase))}
               onPress={handleCheckout}
-              style={styles.ctaButton}
+              style={[
+                styles.ctaButton,
+                USE_NATIVE_IAP && !iapLoading && !canPurchase && styles.ctaButtonDisabled,
+              ]}
             >
-              {(redirecting || purchasing) ? (
+              {(redirecting || purchasing || (USE_NATIVE_IAP && iapLoading)) ? (
                 <ActivityIndicator color={CANVAS} />
               ) : (
                 <Text style={styles.ctaText}>{copy(paywall.ctaLabel, t('paywall.subscribe'))}</Text>
               )}
             </TouchableOpacity>
+
+            {/* On device we only sell via the store. If products can't load we
+                say so rather than dead-ending — never an external checkout. */}
+            {USE_NATIVE_IAP && !iapLoading && iapUnavailable && (
+              <Text style={styles.secureNote} numberOfLines={2}>
+                {t('paywall.iapUnavailable', {
+                  defaultValue: 'Subscriptions are temporarily unavailable. Please try again in a moment.',
+                })}
+              </Text>
+            )}
 
             {/* iOS IAP keeps the fixed renewal disclosure (App Store rules);
                 only the web-checkout note is admin-overridable. */}
@@ -680,6 +736,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 18,
   },
+  ctaButtonDisabled: { opacity: 0.5 },
   ctaText: { color: CANVAS, fontSize: 16, fontWeight: '800', letterSpacing: 0.3 },
   secureNote: {
     color: TEXT_DIM,

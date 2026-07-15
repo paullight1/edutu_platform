@@ -22,6 +22,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { AuthShell } from '../../components/auth/AuthShell';
 import { GoogleSignInButton } from '../../components/auth/GoogleSignInButton';
+import { AppleSignInButton } from '../../components/auth/AppleSignInButton';
 import { useTheme } from '../../components/context/ThemeContext';
 
 function ErrorBox({ message }: { message: string }) {
@@ -372,6 +373,7 @@ export default function SignUpScreen() {
       </Pressable>
 
       <GoogleSignInButton onError={setError} />
+      <AppleSignInButton onError={setError} />
 
       <Text style={[styles.consentText, { color: colors.textSecondary }]}>
         {t('signUp.consent.prefix')}{' '}
