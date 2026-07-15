@@ -145,7 +145,7 @@ function RejectionSupportCard({
       <View style={styles.rejectionHeader}>
         <Heart size={16} color="#F472B6" />
         <Text style={[styles.rejectionTitle, { color: textPrimary }]}>
-          This one said no. That's data, not a verdict.
+          This one said no. That&apos;s data, not a verdict.
         </Text>
       </View>
       <Text style={[styles.rejectionBody, { color: textSecondary }]}>

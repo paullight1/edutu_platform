@@ -68,8 +68,6 @@ export function parseDeepLink(url: string): DeepLinkRoute | null {
   } catch {
     return null;
   }
-
-  return null;
 }
 
 function parsePath(path: string): DeepLinkRoute | null {
