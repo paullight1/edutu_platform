@@ -4,7 +4,6 @@
  */
 
 import { supabase } from '../../lib/supabaseClient';
-import type { AppNotification, NotificationDraft } from '../../types/notification';
 import logger from '../../lib/logger';
 
 // ================================

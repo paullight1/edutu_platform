@@ -77,6 +77,6 @@ export function useAdminCheck(): AdminCheckState {
   return state;
 }
 
-export function setAdminOverride(value: boolean) {
+export function setAdminOverride(_value: boolean) {
   console.warn('setAdminOverride is disabled. Admin access must come from Clerk metadata or server-side role checks.');
 }

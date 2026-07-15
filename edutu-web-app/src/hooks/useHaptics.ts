@@ -1,10 +1,14 @@
 import { useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
 
-// Conditionally import haptics only on native platforms
-let Haptics: any = null;
-let ImpactStyle: any = null;
-let NotificationType: any = null;
+// Conditionally import haptics only on native platforms. The plugin ships its
+// own types, so borrow them from the dynamic import rather than reaching for
+// `any` — ImpactStyle/NotificationType are enums, hence the typeof.
+type HapticsModule = typeof import('@capacitor/haptics');
+
+let Haptics: HapticsModule['Haptics'] | null = null;
+let ImpactStyle: HapticsModule['ImpactStyle'] | null = null;
+let NotificationType: HapticsModule['NotificationType'] | null = null;
 
 // Dynamic import for haptics
 if (Capacitor.isNativePlatform()) {
@@ -34,13 +38,19 @@ export function useHaptics() {
      * @param style - 'light' | 'medium' | 'heavy'
      */
     const impact = useCallback(async (style: HapticImpactStyle = 'medium') => {
-        if (!isNative || !Haptics) return;
+        // ImpactStyle lands in the same dynamic import as Haptics, so checking
+        // it too both satisfies the types and rules out calling impact() with
+        // an undefined style if that import has not resolved yet.
+        if (!isNative || !Haptics || !ImpactStyle) return;
 
         try {
-            const impactStyleMap: Record<HapticImpactStyle, any> = {
-                light: ImpactStyle?.Light,
-                medium: ImpactStyle?.Medium,
-                heavy: ImpactStyle?.Heavy
+            const impactStyleMap: Record<
+                HapticImpactStyle,
+                HapticsModule['ImpactStyle'][keyof HapticsModule['ImpactStyle']]
+            > = {
+                light: ImpactStyle.Light,
+                medium: ImpactStyle.Medium,
+                heavy: ImpactStyle.Heavy
             };
 
             await Haptics.impact({ style: impactStyleMap[style] });
@@ -54,13 +64,17 @@ export function useHaptics() {
      * @param type - 'success' | 'warning' | 'error'
      */
     const notification = useCallback(async (type: HapticNotificationType = 'success') => {
-        if (!isNative || !Haptics) return;
+        // Same reasoning as impact(): NotificationType arrives with Haptics.
+        if (!isNative || !Haptics || !NotificationType) return;
 
         try {
-            const notificationTypeMap: Record<HapticNotificationType, any> = {
-                success: NotificationType?.Success,
-                warning: NotificationType?.Warning,
-                error: NotificationType?.Error
+            const notificationTypeMap: Record<
+                HapticNotificationType,
+                HapticsModule['NotificationType'][keyof HapticsModule['NotificationType']]
+            > = {
+                success: NotificationType.Success,
+                warning: NotificationType.Warning,
+                error: NotificationType.Error
             };
 
             await Haptics.notification({ type: notificationTypeMap[type] });

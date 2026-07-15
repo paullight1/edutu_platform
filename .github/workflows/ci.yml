@@ -121,6 +121,63 @@ jobs:
       - run: npm ci
       - run: npm run lint
 
+  web-typecheck:
+    name: Web TypeCheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: edutu-web-app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: edutu-web-app/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+
+  web-lint:
+    name: Web Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: edutu-web-app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: edutu-web-app/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+
+  web-test:
+    name: Web Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: edutu-web-app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: edutu-web-app/package-lock.json
+      - run: npm ci
+      - run: npm run test
+
   security-audit:
     name: Security Audit
     runs-on: ubuntu-latest

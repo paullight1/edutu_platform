@@ -19,8 +19,16 @@ import { useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { rememberPostAuthRedirect } from "../lib/auth";
 
+/** What the sign-in/sign-up flows hand back. Every field is optional: the
+ *  email-only paths fire before Clerk has created the user. */
+export interface AuthSuccessPayload {
+  id?: string | null;
+  email?: string;
+  name?: string;
+}
+
 interface AuthScreenProps {
-  onAuthSuccess: (userData: any) => void;
+  onAuthSuccess: (userData: AuthSuccessPayload) => void;
 }
 
 type AuthMode =

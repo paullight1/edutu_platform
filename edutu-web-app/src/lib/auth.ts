@@ -318,7 +318,18 @@ export const authService = {
   },
 };
 
-export function getProfileFromUser(user: any): AppUser | null {
+/**
+ * The subset of an auth user this module actually reads. Structural on purpose
+ * so both a Supabase user and a mapped Clerk one satisfy it.
+ */
+export interface AuthUserLike {
+  id: string;
+  email?: string | null;
+  created_at?: string | null;
+  user_metadata?: Record<string, unknown> | null;
+}
+
+export function getProfileFromUser(user: AuthUserLike | null): AppUser | null {
   if (!user) return null;
   const metadata = user.user_metadata ?? {};
   const resolvedName =
@@ -349,9 +360,16 @@ export function getProfileFromUser(user: any): AppUser | null {
   };
 }
 
-export function isNewUser(profile: Profile | null, user: any): boolean {
+export function isNewUser(profile: Profile | null, user: AuthUserLike | null): boolean {
   if (!user || !profile) return true;
-  const userCreatedAt = new Date(user.created_at).getTime();
+  // Without a usable created_at we cannot claim this is an existing user, so
+  // fail the same way as the guards around it. (Previously created_at was
+  // typed `any`: a missing one produced NaN, and `NaN < 10000` is false, so
+  // the user was silently reported as NOT new.)
+  const userCreatedAt = user.created_at
+    ? new Date(user.created_at).getTime()
+    : Number.NaN;
+  if (!Number.isFinite(userCreatedAt)) return true;
   const profileCreatedAt = profile.created_at
     ? new Date(profile.created_at).getTime()
     : null;

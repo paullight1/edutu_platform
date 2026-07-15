@@ -15,15 +15,25 @@ const serviceMocks = vi.hoisted(() => ({
 // VITE_DOCS_URL is unset locally, so docs links resolve to the in-app page.
 const docsUrl = "/developers/docs";
 
-vi.mock("@clerk/clerk-react", () => ({
-  useAuth: () => ({
+// Hoisted so useAuth()/useUser() hand back the SAME object every render.
+// DeveloperDashboardPage builds loadDashboard with useCallback([getToken, …])
+// and fires it from an effect keyed on that callback, so a fresh getToken per
+// render means: render -> new getToken -> new loadDashboard -> effect -> fetch
+// -> setLoading(true) -> render -> … i.e. an endless refetch loop that leaves
+// the project list flickering. Real Clerk keeps these stable; the old inline
+// mock did not, which is what made this test pass locally and fail on CI.
+const clerkMock = vi.hoisted(() => ({
+  auth: {
     isLoaded: true,
     isSignedIn: true,
     getToken: vi.fn().mockResolvedValue("token-123"),
-  }),
-  useUser: () => ({
-    user: null,
-  }),
+  },
+  user: { user: null },
+}));
+
+vi.mock("@clerk/clerk-react", () => ({
+  useAuth: () => clerkMock.auth,
+  useUser: () => clerkMock.user,
 }));
 
 vi.mock("../../hooks/useDarkMode", () => ({
@@ -205,19 +215,23 @@ describe("Scholarship Engine pages", () => {
   it("renders the Scholarship Engine marketing page with docs and dashboard links", async () => {
     renderScholarshipApiPage();
 
+    // Queried by role rather than text: the hero splits across a nested
+    // <span>, so the accessible name is the only stable handle on it.
     expect(
-      await screen.findByText("One feed for scholarships and global opportunities."),
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Every scholarship and global opportunity, through one clean API.",
+      }),
     ).toBeInTheDocument();
 
     expect(screen.getByRole("link", { name: /open developer docs/i })).toHaveAttribute(
       "href",
       docsUrl,
     );
-    expect(screen.getByRole("link", { name: /open dashboard/i })).toHaveAttribute(
-      "href",
-      "/developers",
-    );
-    expect(screen.getByRole("link", { name: /browse opportunities/i })).toHaveAttribute(
+    expect(
+      screen.getByRole("link", { name: /open the developer dashboard/i }),
+    ).toHaveAttribute("href", "/developers");
+    expect(screen.getByRole("link", { name: /browse the feed/i })).toHaveAttribute(
       "href",
       "/opportunities",
     );
@@ -231,6 +245,13 @@ describe("Scholarship Engine pages", () => {
         "Create projects, issue keys, and ship against the live scholarship graph.",
       ),
     ).toBeInTheDocument();
+
+    // That heading is static — it paints while the dashboard is still in its
+    // `loading` skeleton. Everything below needs the project fetch to have
+    // landed, so wait for something that only exists in the loaded branch
+    // before asserting synchronously. Without this the test races the fetch:
+    // it wins on a fast local machine and loses on CI.
+    await screen.findByRole("button", { name: /rotate/i });
 
     expect(screen.getByText("API credits")).toBeInTheDocument();
     expect(screen.getByText("Projects")).toBeInTheDocument();

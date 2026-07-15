@@ -71,7 +71,7 @@ export const useSwipe = (options: SwipeOptions = {}) => {
     }
   }, [isSwiping, startX, startY, threshold, onSwipeLeft, onSwipeRight, preventDefault]);
 
-  const onTouchEnd = useCallback((e: TouchEvent | React.TouchEvent) => {
+  const onTouchEnd = useCallback((_e: TouchEvent | React.TouchEvent) => {
     if (isSwiping) {
       setIsSwiping(false);
     }

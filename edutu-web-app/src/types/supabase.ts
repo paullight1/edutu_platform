@@ -9,9 +9,9 @@ export type Json =
   | Json[];
 
 export type GenericTable = {
-  Row: Record<string, any>;
-  Insert: Record<string, any>;
-  Update: Record<string, any>;
+  Row: Record<string, unknown>;
+  Insert: Record<string, unknown>;
+  Update: Record<string, unknown>;
 };
 
 export interface Database {
@@ -485,11 +485,14 @@ export interface CvRecord {
   mime_type: string;
   uploaded_at: string;
   text_content: string;
-  stats: any; // This would be more specifically typed based on your CvStats interface
+  // jsonb columns. Json rather than the CvStats/AtsReport/OptimizationResult
+  // shapes, because those live in the services layer and this file is the DB
+  // contract — narrow at the point of use.
+  stats: Json;
   job_target?: string;
   job_description?: string;
-  analysis?: any; // This would be more specifically typed based on your AtsReport interface
-  optimization?: any; // This would be more specifically typed based on your OptimizationResult interface
+  analysis?: Json;
+  optimization?: Json;
   generated: boolean;
 }
 

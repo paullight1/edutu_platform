@@ -106,7 +106,7 @@ describe("getProfileFromUser", () => {
       },
     };
 
-    expect(getProfileFromUser(mockUser as any)).toEqual({
+    expect(getProfileFromUser(mockUser)).toEqual({
       id: "user-123",
       name: "Test User",
       email: "test@example.com",
@@ -119,7 +119,7 @@ describe("getProfileFromUser", () => {
       id: "user-123",
       email: "john.doe@example.com",
       user_metadata: {},
-    } as any);
+    });
 
     expect(profile?.name).toBe("john.doe");
   });

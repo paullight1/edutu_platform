@@ -236,13 +236,6 @@ const SECTION_MARKERS: Array<{ label: string; aliases: RegExp; weight: number }>
   { label: 'Certifications', aliases: /certifications|licenses|accreditations/i, weight: 0.1 }
 ];
 
-const createId = () => {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `cv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-};
-
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
 
 const readFileAsText = (file: File): Promise<string> =>

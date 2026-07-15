@@ -1,7 +1,7 @@
 import { getApiBaseUrl } from "../lib/apiBaseUrl";
 import type { EdutuEvent } from "../types/event";
 
-type BackendEventRow = Record<string, any>;
+type BackendEventRow = Record<string, unknown>;
 
 interface FetchEventsOptions {
   signal?: AbortSignal;
@@ -67,7 +67,12 @@ function normaliseEvent(row: BackendEventRow): EdutuEvent {
     endsAt: pickOptionalString(row.ends_at, row.endsAt),
     timezone: pickOptionalString(row.timezone),
     location: pickOptionalString(row.location),
-    isOnline: row.is_online ?? row.isOnline ?? true,
+    isOnline:
+      typeof row.is_online === "boolean"
+        ? row.is_online
+        : typeof row.isOnline === "boolean"
+          ? row.isOnline
+          : true,
     ctaLabel: pickOptionalString(row.cta_label, row.ctaLabel) || "Join event",
     ctaUrl: pickOptionalString(row.cta_url, row.ctaUrl),
     imageUrl: pickOptionalString(row.image_url, row.imageUrl),

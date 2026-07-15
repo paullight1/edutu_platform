@@ -4,10 +4,8 @@ import logger from '../lib/logger';
 import type {
   CommunityStory,
   CommunityStoryQueryOptions,
-  CommunityStoryStats,
   CommunityStoryStatus,
   CommunityStorySubmissionInput,
-  CommunityStoryType,
   CommunityStoryUpdateInput
 } from '../types/community';
 import {
@@ -20,11 +18,18 @@ import {
   toBackendDifficulty,
 } from './roadmapApi';
 
-const supabaseDb = supabase as any;
+const supabaseDb = supabase;
 
 /**
- * Mapping helper for marketplace listings
+ * Mapping helper for marketplace listings.
+ *
+ * `any` on purpose: this reads a marketplace_listings row whose `metadata` is
+ * free-form jsonb, and fans it out into CommunityStory's nested creator/stats
+ * shapes. Typing it as unknown would mean hand-narrowing ~30 fields with no
+ * schema to narrow against — if this needs to be safe, it needs runtime
+ * validation (zod), not a structural type that only pretends to know.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapListingToStory(listing: any): CommunityStory {
   const metadata = listing.metadata || {};
   return {
@@ -76,10 +81,6 @@ export function listenToCommunityStories(
     onError?: (error: Error) => void;
   }
 ) {
-  // Use a combination of individual fetches or simplified real-time depending on the type
-  const typeFilter = options.type || ['roadmap', 'marketplace'];
-  const types = Array.isArray(typeFilter) ? typeFilter : [typeFilter];
-
   // For real-time, we'd ideally use supabase.channel().on('postgres_changes', ...).subscribe()
   // For now, we'll perform an initial fetch and provide the handler
   fetchCommunityStories(options)
