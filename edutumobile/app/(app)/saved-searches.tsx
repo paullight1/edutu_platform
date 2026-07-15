@@ -205,7 +205,20 @@ export default function SavedSearchesScreen() {
   );
 
   if (loading) {
-    return <BrandedLoader label="Loading your alerts..." />;
+    // BrandedLoader is only minHeight:160 with no flex, so returning it bare
+    // pinned it under the notch with the previous screen showing through.
+    // Same shell as the loaded state, so the header doesn't pop in after.
+    return (
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: colors.background }}
+        edges={["top", "left", "right"]}
+      >
+        <ScreenHeader title="Saved Searches & Alerts" showBack />
+        <View style={styles.loadingContainer}>
+          <BrandedLoader label="Loading your alerts..." />
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -259,6 +272,11 @@ export default function SavedSearchesScreen() {
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   list: { padding: 16, paddingBottom: 48, flexGrow: 1 },
   card: { borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 12 },
   cardTop: { flexDirection: "row", alignItems: "center", gap: 12 },

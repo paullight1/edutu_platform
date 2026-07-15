@@ -1,29 +1,31 @@
-import {
-  BookOpen,
-  Briefcase,
-  CalendarDays,
-  GraduationCap,
-  HandCoins,
-  Layers,
-  Medal,
-  Rocket,
-} from 'lucide-react-native';
+import type Ionicons from '@expo/vector-icons/Ionicons';
+import type { ComponentProps } from 'react';
 import type { DiscoveryCategoryId } from './discoveryCategories';
 
+export type DiscoveryGlyphName = ComponentProps<typeof Ionicons>['name'];
+
 /**
- * Distinct lucide glyph per discovery category, shared by the discovery
- * chooser tiles and the home widget tiles. The catalog `icon` field only has
- * 5 coarse illustration types, so the 1:1 glyph mapping lives here.
+ * Distinct SOLID glyph per discovery category, shared by the discovery chooser
+ * tiles and the home widget tiles. The catalog `icon` field only has 5 coarse
+ * illustration types, so the 1:1 glyph mapping lives here.
+ *
+ * Ionicons rather than lucide (which the rest of the app uses) because these
+ * tiles need FILLED glyphs and lucide ships outline-only. lucide glyphs cannot
+ * be filled after the fact: several are open polylines that implicitly close
+ * into blobs under `fill` (Briefcase's handle merges with its body), and
+ * dropping the stroke instead deletes zero-area details outright
+ * (GraduationCap's tassel is a bare line). Ionicons' filled set is the shape we
+ * actually want, so we don't fight the wrong tool.
  */
-export const DISCOVERY_TILE_GLYPHS: Record<DiscoveryCategoryId, typeof GraduationCap> = {
-  scholarships: GraduationCap,
-  internships: Briefcase,
-  programs: Layers,
-  fellowships: Medal,
-  grants: HandCoins,
-  graduate_programs: BookOpen,
-  bootcamps: Rocket,
-  events: CalendarDays,
+export const DISCOVERY_TILE_GLYPHS: Record<DiscoveryCategoryId, DiscoveryGlyphName> = {
+  scholarships: 'school',
+  internships: 'briefcase',
+  programs: 'layers',
+  fellowships: 'ribbon',
+  grants: 'cash',
+  graduate_programs: 'book',
+  bootcamps: 'rocket',
+  events: 'calendar',
 };
 
 /**

@@ -20,6 +20,7 @@ import {
 } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
+import { BottomScrimView } from "../../components/ui/BottomScrim";
 import ReAnimated, {
     useSharedValue,
     useAnimatedStyle,
@@ -59,6 +60,8 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 // the detached circle (66) and the row gap (10). The pill's width is animated
 // between this and 0 when it compresses into the circle.
 const NAV_PILL_WIDTH = SCREEN_WIDTH - 14 * 2 - 66 - 10;
+// Height of the pill and the detached circle; also sizes the scrim behind them.
+const NAV_PILL_HEIGHT = 66;
 
 // Content height of the full-width bar styles, above the safe-area padding.
 const NAV_BAR_HEIGHT = 58;
@@ -797,6 +800,16 @@ export function BottomNav({
         opacity: interpolate(collapse.value, [0.55, 0.92], [1, 0], Extrapolation.CLAMP),
     }));
 
+    // The scrim exists to keep content from colliding with the tabs, so it
+    // scales back with them: once the pill has collapsed to just the circle
+    // there is far less chrome to separate, and a full-strength wash reads as
+    // a bug. Rides the same spring so it never pops.
+    const scrimStyle = useAnimatedStyle(() => ({
+        opacity: interpolate(collapse.value, [0, 1], [1, 0.42], Extrapolation.CLAMP),
+    }));
+
+    const scrimHeight = Math.max(insets.bottom, 10) + NAV_PILL_HEIGHT + 20;
+
     // Tabs fade ahead of the clip so nothing gets sliced mid-glyph.
     const pillContentStyle = useAnimatedStyle(() => ({
         opacity: interpolate(collapse.value, [0, 0.6], [1, 0], Extrapolation.CLAMP),
@@ -896,11 +909,27 @@ export function BottomNav({
     }
 
     return (
-        <View
-            testID="nav-pill-surface"
-            style={[styles.navRow, { bottom: Math.max(insets.bottom, 10) }]}
-            pointerEvents="box-none"
-        >
+        <>
+            {/* The pill floats over live content, so without this the list runs
+                sharp and legible straight off the bottom edge and competes with
+                the tabs. Fades the page out behind and below the pill.
+                Stops are rgba(bg) — NOT 'transparent', which interpolates
+                through black on iOS and leaves a grey haze. */}
+            <ReAnimated.View
+                pointerEvents="none"
+                style={[styles.navScrim, { height: scrimHeight }, scrimStyle]}
+            >
+                <BottomScrimView
+                    height={scrimHeight}
+                    base={colors.background}
+                    isDark={isDark}
+                />
+            </ReAnimated.View>
+            <View
+                testID="nav-pill-surface"
+                style={[styles.navRow, { bottom: Math.max(insets.bottom, 10) }]}
+                pointerEvents="box-none"
+            >
             {/* Main floating glass pill with the tabs; compresses into the circle */}
             <ReAnimated.View
                 style={[styles.navPill, pillStyle]}
@@ -944,7 +973,8 @@ export function BottomNav({
                     dialOpen={createDialOpen}
                 />
             </ReAnimated.View>
-        </View>
+            </View>
+        </>
     );
 }
 
@@ -1320,6 +1350,15 @@ export default function AppLayout() {
 const styles = StyleSheet.create({
     appContainer: {
         flex: 1,
+    },
+    // Sits under navRow (zIndex 998 vs 999) and spans the full width, ignoring
+    // navRow's 14pt insets — the fade has to reach the screen edges.
+    navScrim: {
+        position: "absolute",
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 998,
     },
     navRow: {
         position: "absolute",

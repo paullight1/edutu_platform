@@ -55,6 +55,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useTheme } from "../../../components/context/ThemeContext";
 import { ScreenHeader } from "../../../components/ui/ScreenHeader";
+import { withAlpha } from "../../../components/ui/BottomScrim";
 import { BrandedLoader } from "../../../components/ui/BrandedLoader";
 import { ProgressBar } from "../../../components/ui/ProgressBar";
 import { supabase } from "../../../lib/supabase";
@@ -1442,22 +1443,43 @@ export default function OpportunityDetailScreen() {
         title={t("detail.headerTitle")}
         showBack
         right={
-          <View style={{ flexDirection: "row" }}>
+          <View style={styles.headerActions}>
+            {/* Saved state was carried only by Bookmark vs BookmarkCheck —
+                two glyphs that differ by a check mark a few px across. The
+                filled glyph on a tinted chip is legible at a glance. */}
             <TouchableOpacity
               onPress={toggleBookmark}
-              style={{ padding: 8 }}
+              style={[
+                styles.headerAction,
+                bookmarked && { backgroundColor: withAlpha(colors.accent, 0.14) },
+              ]}
               disabled={bookmarkLoading}
+              accessibilityRole="button"
+              accessibilityState={{ selected: bookmarked, busy: bookmarkLoading }}
+              accessibilityLabel={
+                bookmarked
+                  ? t("detail.savedLabel")
+                  : t("detail.saveAction", { defaultValue: "Save" })
+              }
             >
               {bookmarkLoading ? (
                 <ActivityIndicator size="small" color={colors.accent} />
-              ) : bookmarked ? (
-                <BookmarkCheck size={22} color={colors.accent} />
               ) : (
-                <Bookmark size={22} color={textSecondary} />
+                <Bookmark
+                  size={21}
+                  color={bookmarked ? colors.accent : textSecondary}
+                  fill={bookmarked ? colors.accent : "transparent"}
+                  strokeWidth={bookmarked ? 1.6 : 2}
+                />
               )}
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleShare} style={{ padding: 8 }}>
-              <Share2 size={22} color={textSecondary} />
+            <TouchableOpacity
+              onPress={handleShare}
+              style={styles.headerAction}
+              accessibilityRole="button"
+              accessibilityLabel={t("detail.share.dialogTitle")}
+            >
+              <Share2 size={21} color={textSecondary} />
             </TouchableOpacity>
           </View>
         }
@@ -3497,6 +3519,18 @@ export default function OpportunityDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  headerAction: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   heroImage: {
     height: 240,
     position: "relative",

@@ -182,6 +182,18 @@ jest.mock('expo-linear-gradient', () => {
   return { LinearGradient: (props: Record<string, unknown>) => React.createElement(View, props) };
 });
 
+// The icon sets pull in expo-font -> expo-modules-core, whose native
+// EventEmitter throws under jest. The discovery tiles use Ionicons for their
+// filled glyphs, so every screen importing them needs this.
+jest.mock('@expo/vector-icons/Ionicons', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    __esModule: true,
+    default: (props: Record<string, unknown>) => React.createElement(View, props),
+  };
+});
+
 jest.mock('expo-file-system', () => ({
   File: class MockFile {
     uri = 'file://mock';

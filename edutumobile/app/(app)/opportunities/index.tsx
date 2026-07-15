@@ -61,6 +61,7 @@ import { syncAndUpdateOpportunityWidgetSnapshot } from '../../../lib/opportunity
 import { AdBanner, BANNER_PRESETS } from '../../../components/ui/AdBanner';
 import { DiscoveryCategoryIcon, getDiscoveryCategoryIconSource, getDiscoveryCategoryIconXml } from '../../../lib/discoveryCategoryIcons';
 import { DISCOVERY_CATEGORY_CATALOG, normalizeDiscoveryCategoryId, type DiscoveryCategoryId } from '../../../lib/discoveryCategories';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { DISCOVERY_TILE_GLYPHS, DISCOVERY_TILE_GRADIENTS } from '../../../lib/discoveryTileGlyphs';
 import { shareOpportunity } from '../../../lib/shareOpportunity';
 
@@ -342,7 +343,7 @@ function DiscoveryCard({
   const { t } = useTranslation('opps');
   const { colors } = useTheme();
   const title = t(item.label, { defaultValue: item.fallbackTitle });
-  const Icon = DISCOVERY_TILE_ICONS[item.id];
+  const glyph = DISCOVERY_TILE_ICONS[item.id];
   // No `entering` animation here: staggered entering on wrap-grid children
   // inside the FlatList header (which remounts via key={viewMode}) lands tiles
   // at wrong offsets, overlapping the sections below.
@@ -360,7 +361,7 @@ function DiscoveryCard({
           end={{ x: 1, y: 1 }}
           style={[styles.discoveryIconTile, active && styles.discoveryCardActive]}
         >
-          <Icon color="#FFFFFF" size={28} strokeWidth={1.5} />
+          <Ionicons name={glyph} color="#FFFFFF" size={28} />
         </LinearGradient>
         <Text
           style={[styles.discoveryTitle, { color: active ? colors.foreground : colors.textSecondary }]}
