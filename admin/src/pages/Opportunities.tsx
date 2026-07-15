@@ -23,6 +23,7 @@ import {
   X,
   ChevronDown,
   Calendar,
+  CalendarClock,
   Star,
   Edit3,
   ExternalLink,
@@ -254,6 +255,52 @@ function isPastDate(value?: string | null) {
   if (!value) return false;
   const date = new Date(value);
   return !Number.isNaN(date.getTime()) && date.getTime() < Date.now();
+}
+
+/**
+ * Turns a verification outcome into something an admin can act on. A bare
+ * "Verified" would be misleading: the check can succeed and still find no date,
+ * which is the likeliest result on the missing-deadline cohort.
+ */
+function describeVerification(
+  result?: {
+    status?: string;
+    newCloseDate?: string | null;
+    newDeadlineConfidence?: string;
+  } | null,
+) {
+  if (!result) return "Deadline check finished.";
+
+  if (result.newCloseDate) {
+    const date = new Date(result.newCloseDate);
+    const readable = Number.isNaN(date.getTime())
+      ? result.newCloseDate
+      : date.toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        });
+    return `Deadline found: ${readable}${
+      result.newDeadlineConfidence === "inferred" ? " (inferred)" : ""
+    }.`;
+  }
+
+  if (result.newDeadlineConfidence === "rolling") {
+    return "Source says applications are rolling — no fixed deadline.";
+  }
+
+  switch (result.status) {
+    case "expired":
+      return "Source confirms this has closed.";
+    case "broken_link":
+      return "Source link is broken — no deadline could be read.";
+    case "stale":
+      return "Source could not be reached; it will retry automatically.";
+    case "needs_review":
+      return "Needs review — the source was ambiguous.";
+    default:
+      return "Checked, but the source states no deadline.";
+  }
 }
 
 function isExpiredOpportunity(
@@ -993,6 +1040,13 @@ export default function Opportunities() {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  // Expired = status 'closed' or a past close_date. Hidden by default; the
+  // toggle below the filters brings them back.
+  const [showExpired, setShowExpired] = useState(false);
+  // Narrows to rows with no deadline on either column — the cohort the
+  // re-scrape/AI recovery action exists for.
+  const [missingDeadlineOnly, setMissingDeadlineOnly] = useState(false);
+  const [verifyingIds, setVerifyingIds] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState("newest");
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [currentPage, setCurrentPage] = useState(1);
@@ -1068,6 +1122,11 @@ export default function Opportunities() {
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
       if (categoryFilter !== "all") params.set("category", categoryFilter);
       if (statusFilter !== "all") params.set("status", statusFilter);
+      // Expired rows are noise in the default view — an admin manages what's
+      // still live. Suppressed unless explicitly asked for, and never when a
+      // status is picked (status=closed + hide-expired returns nothing).
+      if (!showExpired && statusFilter === "all") params.set("includeExpired", "false");
+      if (missingDeadlineOnly) params.set("missingDeadline", "true");
 
       const headers = await getAdminHeaders();
       const [listResponse, statsResponse] = await Promise.all([
@@ -1110,7 +1169,9 @@ export default function Opportunities() {
     getAdminHeaders,
     NEST_API_URL,
     pageSize,
+    missingDeadlineOnly,
     searchQuery,
+    showExpired,
     sortBy,
     statusFilter,
   ]);
@@ -1125,7 +1186,15 @@ export default function Opportunities() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, categoryFilter, statusFilter, sortBy, pageSize]);
+  }, [
+    searchQuery,
+    categoryFilter,
+    statusFilter,
+    showExpired,
+    missingDeadlineOnly,
+    sortBy,
+    pageSize,
+  ]);
 
   // Prune selection whenever the visible set changes (filters, search, page,
   // refetch) so bulk actions only ever target rows the admin can still see.
@@ -1405,6 +1474,98 @@ export default function Opportunities() {
         next.delete(id);
         return next;
       });
+    }
+  }
+
+  // Re-fetches the live source page and re-reads the deadline (regex first,
+  // LLM fallback), then persists it. Distinct from "Improve details with AI",
+  // which rewrites the whole record.
+  async function handleFindDeadline(id: string) {
+    setVerifyingIds((prev) => new Set(prev).add(id));
+    try {
+      const response = await fetch(
+        `${NEST_API_URL}/opportunities/admin/verification/${id}`,
+        {
+          method: "POST",
+          headers: {
+            ...(await getAdminHeaders()),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ dryRun: false }),
+        },
+      );
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Deadline check failed");
+      }
+
+      await fetchOpportunities();
+      showPageNotice("success", describeVerification(result.result));
+    } catch (error: unknown) {
+      showPageNotice("error", getErrorMessage(error, "Deadline check failed"));
+    } finally {
+      setVerifyingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+  }
+
+  async function handleBulkFindDeadlines() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0 || bulkActionBusy) return;
+    setBulkActionBusy(true);
+    setVerifyingIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      return next;
+    });
+    let found = 0;
+    let checked = 0;
+    let failed = 0;
+    try {
+      // Sequential: each row is a live page fetch plus a possible LLM call, and
+      // the single-row endpoint is the same one the row icon uses.
+      for (const id of ids) {
+        try {
+          const response = await fetch(
+            `${NEST_API_URL}/opportunities/admin/verification/${id}`,
+            {
+              method: "POST",
+              headers: {
+                ...(await getAdminHeaders()),
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ dryRun: false }),
+            },
+          );
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok || !result.success) {
+            throw new Error(result.error || "Deadline check failed");
+          }
+          checked += 1;
+          if (result.result?.newCloseDate) found += 1;
+        } catch {
+          failed += 1;
+        } finally {
+          setVerifyingIds((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+        }
+      }
+
+      // Report found separately from checked: "20 checked" reads like success
+      // when it may well have recovered zero dates.
+      showPageNotice(
+        failed ? "error" : "success",
+        `Checked ${checked} ${checked === 1 ? "opportunity" : "opportunities"}, found ${found} deadline${found === 1 ? "" : "s"}${failed ? `, ${failed} failed` : ""}.`,
+      );
+      await fetchOpportunities();
+    } finally {
+      setBulkActionBusy(false);
     }
   }
 
@@ -2268,6 +2429,21 @@ export default function Opportunities() {
           type="button"
           className="btn btn-secondary"
           disabled={bulkActionBusy}
+          onClick={() => void handleBulkFindDeadlines()}
+          style={{ color: "#f59e0b" }}
+          title="Re-scrape each selected source and read its deadline (AI fallback)"
+        >
+          {bulkActionBusy ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <CalendarClock size={14} />
+          )}
+          Find Deadlines
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={bulkActionBusy}
           onClick={() => void handleBulkEnhance()}
           style={{ color: "#60a5fa" }}
           title="Use AI to complete the profile for each selected opportunity"
@@ -2370,6 +2546,12 @@ export default function Opportunities() {
                 const needsReview = opp.status === "pending_review";
                 const isEnhancing = enhancingIds.has(opp.id);
                 const isSharing = sharingIds.has(opp.id);
+                const isVerifying = verifyingIds.has(opp.id);
+                // "Rolling" is a real answer, not a gap — only offer the
+                // deadline hunt where the date is genuinely unknown.
+                const deadlineUnknown =
+                  !opp.close_date &&
+                  opp.metadata?.deadline_confidence !== "rolling";
                 return (
                   <tr key={opp.id}>
                     <td>
@@ -2453,6 +2635,23 @@ export default function Opportunities() {
                             onClick={() => handleStatusUpdate(opp.id, "active")}
                           >
                             <CheckCircle2 size={15} />
+                          </button>
+                        )}
+                        {deadlineUnknown && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary opportunity-icon-button"
+                            title="Find deadline: re-scrape the source and read the date with AI"
+                            aria-label={`Find deadline for ${opp.title || "opportunity"}`}
+                            disabled={isVerifying}
+                            onClick={() => void handleFindDeadline(opp.id)}
+                            style={{ color: "#f59e0b" }}
+                          >
+                            {isVerifying ? (
+                              <Loader2 size={15} className="animate-spin" />
+                            ) : (
+                              <CalendarClock size={15} />
+                            )}
                           </button>
                         )}
                         <button
@@ -2789,6 +2988,37 @@ export default function Opportunities() {
               <LayoutGrid size={18} />
             </button>
           </div>
+        </div>
+
+        <div className="opportunities-expired-row">
+          <label className="opportunities-expired-toggle">
+            <input
+              type="checkbox"
+              // Forced on when a status is picked: that path can't hide expired
+              // rows, so an unchecked box would be lying about what's listed.
+              checked={showExpired || statusFilter !== "all"}
+              disabled={statusFilter !== "all"}
+              onChange={(e) => setShowExpired(e.target.checked)}
+            />
+            <span>Show expired</span>
+          </label>
+
+          <label className="opportunities-expired-toggle">
+            <input
+              type="checkbox"
+              checked={missingDeadlineOnly}
+              onChange={(e) => setMissingDeadlineOnly(e.target.checked)}
+            />
+            <span>Missing deadline only</span>
+          </label>
+
+          <span className="opportunities-expired-hint">
+            {missingDeadlineOnly
+              ? "Showing only opportunities with no deadline — use Find Deadlines to recover them."
+              : statusFilter !== "all"
+                ? "A status filter lists every match, expired or not."
+                : "Closed opportunities and passed deadlines are hidden."}
+          </span>
         </div>
       </div>
 

@@ -16,8 +16,6 @@ import {
     MessageCircle,
     TrendingUp,
     PlayCircle,
-    Menu,
-    X,
     DollarSign,
     Upload,
     FileCheck,
@@ -114,7 +112,6 @@ const MentorPage: React.FC = () => {
     const { user } = useUser();
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [showApplication, setShowApplication] = useState(searchParams.get('apply') === '1' && Boolean(userId));
     const [currentStep, setCurrentStep] = useState<MentorStep>('intro');
     const [proofFile, setProofFile] = useState<File | null>(null);
@@ -158,13 +155,6 @@ const MentorPage: React.FC = () => {
 
         setSearchParams({ apply: '1' });
         setShowApplication(true);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
-
-    const showLandingPage = () => {
-        setSearchParams({});
-        setShowApplication(false);
-        setCurrentStep('intro');
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 

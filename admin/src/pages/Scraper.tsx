@@ -47,6 +47,22 @@ interface ScrapeSource {
 }
 
 
+interface OpportunityBatch {
+    /** null for rows scraped before metadata.scrape_job_id existed. */
+    jobId: string | null;
+    count: number;
+    firstSeen: string | null;
+    lastSeen: string | null;
+    runType: string | null;
+    startedAt: string | null;
+}
+
+interface OpportunitySite {
+    host: string;
+    total: number;
+    batches: OpportunityBatch[];
+}
+
 interface ScrapeJob {
     id: string;
     source_id: number;
@@ -208,6 +224,12 @@ const getCategoryColor = (category?: string) =>
 
 export default function ScraperDashboard() {
     const [sources, setSources] = useState<ScrapeSource[]>([]);
+    // Harvested opportunities grouped by originating site. Keyed on URL host,
+    // not scraping_sources.id — deleting a source orphans its opportunities, so
+    // source-keyed grouping would hide them entirely.
+    const [sites, setSites] = useState<OpportunitySite[]>([]);
+    const [expandedSite, setExpandedSite] = useState<string | null>(null);
+    const [siteBusy, setSiteBusy] = useState<string | null>(null);
     const [jobs, setJobs] = useState<ScrapeJob[]>([]);
     const [showAllJobs, setShowAllJobs] = useState(false);
     const [stats, setStats] = useState<ScrapeStats | null>(null);
@@ -250,7 +272,6 @@ export default function ScraperDashboard() {
     const [scrapingStartedAt, setScrapingStartedAt] = useState<number | null>(null);
     const [scrapingElapsedSeconds, setScrapingElapsedSeconds] = useState(0);
     const [selectedOpportunities, setSelectedOpportunities] = useState<Set<number>>(new Set());
-    const [activeScrapeJobId, setActiveScrapeJobId] = useState<string | null>(null);
     // Background-run UX: when the modal is minimized the scrape keeps running.
     const [isBackground, setIsBackground] = useState(false);
     const [liveFoundCount, setLiveFoundCount] = useState(0);
@@ -554,7 +575,7 @@ export default function ScraperDashboard() {
         setLoading(true);
         try {
             const authHeaders = await getAuthHeaders();
-            const [engineStatusData, sourcesData, jobsData, statsData] = await Promise.allSettled([
+            const [engineStatusData, sourcesData, jobsData, statsData, sitesData] = await Promise.allSettled([
                 backendFetchJson<EngineStatus>(`/api/scraper/engine-status`, { headers: authHeaders }),
                 backendFetchJson<ScrapeSource[]>(`/api/scraper/sources`, { headers: authHeaders }),
                 backendFetchJson<ScrapeJob[]>(`/api/scraper/jobs?limit=100`, { headers: authHeaders }),
@@ -562,7 +583,14 @@ export default function ScraperDashboard() {
                     `/api/scraper/stats`,
                     { headers: authHeaders },
                 ),
+                backendFetchJson<OpportunitySite[]>(`/api/scraper/sites`, { headers: authHeaders }),
             ]);
+
+            setSites(
+                sitesData.status === 'fulfilled' && Array.isArray(sitesData.value)
+                    ? sitesData.value
+                    : [],
+            );
 
             setEngineStatus(
                 engineStatusData.status === 'fulfilled'
@@ -910,7 +938,6 @@ export default function ScraperDashboard() {
         setScraping(true);
         setScrapeResult(null);
         setModalError(null);
-        setActiveScrapeJobId(null);
         setAiBefore({});
         setExpandedResults(new Set());
         setSelectedOpportunities(new Set());
@@ -1050,7 +1077,6 @@ export default function ScraperDashboard() {
             };
 
             setScrapeResult(mapped);
-            setActiveScrapeJobId(mapped.jobId ?? null);
             setLiveFoundCount(mapped.opportunities?.length ?? mapped.totalResults ?? 0);
             setScrapingProgress(prev => prev.map(p =>
                 p.status === 'scraping' || p.status === 'pending' ? { ...p, status: 'completed' as const, progress: 100 } : p));
@@ -1117,6 +1143,59 @@ export default function ScraperDashboard() {
         } catch (error) {
             console.error('Failed to toggle source:', error);
             showNotification(`Failed to update source: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+        }
+    }
+
+    // Deletes one scrape batch and every opportunity it produced
+    // (metadata.scrape_job_id = jobId), via the existing job-delete endpoint.
+    async function deleteBatch(site: OpportunitySite, batch: OpportunityBatch) {
+        if (!batch.jobId) return;
+        if (!confirm(
+            `Delete this batch from ${site.host}?\n\n` +
+            `${batch.count} opportunit${batch.count === 1 ? 'y' : 'ies'} scraped ` +
+            `${batch.startedAt ? `on ${new Date(batch.startedAt).toLocaleDateString()}` : 'in this run'} ` +
+            `will be permanently deleted. This cannot be undone.`,
+        )) return;
+
+        setSiteBusy(`${site.host}:${batch.jobId}`);
+        try {
+            const result = await backendFetchJson<{ success: boolean; error?: string }>(
+                `/api/scraper/jobs/${batch.jobId}`,
+                { method: 'DELETE', headers: await getAuthHeaders() },
+            );
+            if (!result?.success) throw new Error(result?.error || 'Batch delete failed');
+            await loadData();
+        } catch (e) {
+            alert(`Could not delete batch: ${e instanceof Error ? e.message : 'unknown error'}`);
+        } finally {
+            setSiteBusy(null);
+        }
+    }
+
+    // Deletes every opportunity from a site, including unattributed rows a
+    // batch-by-batch delete can never reach.
+    async function deleteSiteOpportunities(site: OpportunitySite) {
+        const orphaned = site.batches.find((b) => !b.jobId)?.count ?? 0;
+        if (!confirm(
+            `Delete ALL ${site.total} opportunit${site.total === 1 ? 'y' : 'ies'} from ${site.host}?\n\n` +
+            `This spans ${site.batches.filter((b) => b.jobId).length} batch(es)` +
+            (orphaned ? ` plus ${orphaned} unattributed row(s)` : '') +
+            `.\n\nPermanent — there is no soft delete. Anything still open will disappear from the app.`,
+        )) return;
+
+        setSiteBusy(site.host);
+        try {
+            const result = await backendFetchJson<{ success: boolean; deleted: number; error?: string }>(
+                `/api/scraper/sites/opportunities?host=${encodeURIComponent(site.host)}`,
+                { method: 'DELETE', headers: await getAuthHeaders() },
+            );
+            if (!result?.success) throw new Error(result?.error || 'Site delete failed');
+            alert(`Deleted ${result.deleted} opportunit${result.deleted === 1 ? 'y' : 'ies'} from ${site.host}.`);
+            await loadData();
+        } catch (e) {
+            alert(`Could not delete site: ${e instanceof Error ? e.message : 'unknown error'}`);
+        } finally {
+            setSiteBusy(null);
         }
     }
 
@@ -2161,6 +2240,146 @@ export default function ScraperDashboard() {
                             </div>
                         )}
                         {plainRoots.map(source => renderSourceCard(source))}
+                    </div>
+                )}
+            </div>
+
+            {/* Harvested opportunities, grouped by site → batch */}
+            <div style={{
+                background: 'var(--bg-secondary)',
+                borderRadius: 14,
+                border: '1px solid var(--border-light)',
+                overflow: 'hidden',
+                marginBottom: '24px',
+                padding: '20px 24px'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <h2 style={{ fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Database size={18} style={{ color: '#0071e3' }} />
+                        Opportunities by site
+                    </h2>
+                    <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+                        {sites.length} site{sites.length === 1 ? '' : 's'} · {sites.reduce((n, s) => n + s.total, 0)} opportunities
+                    </span>
+                </div>
+                <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: '0 0 14px' }}>
+                    Grouped by the site each opportunity actually came from, so sites whose
+                    source row was deleted still show up here. Expand one to delete individual
+                    scrape batches.
+                </p>
+
+                {sites.length === 0 ? (
+                    <div style={{ fontSize: 13, color: 'var(--text-tertiary)', padding: '12px 0' }}>
+                        No harvested opportunities.
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {sites.map((site) => {
+                            const isOpen = expandedSite === site.host;
+                            const busy = siteBusy === site.host;
+                            return (
+                                <div key={site.host} style={{
+                                    border: '1px solid var(--border-light)',
+                                    borderRadius: 10,
+                                    overflow: 'hidden',
+                                }}>
+                                    <div
+                                        onClick={() => setExpandedSite(isOpen ? null : site.host)}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: '10px',
+                                            padding: '10px 12px', cursor: 'pointer',
+                                            background: isOpen ? 'var(--hover-bg)' : 'transparent',
+                                        }}
+                                    >
+                                        <ChevronRight
+                                            size={15}
+                                            style={{
+                                                color: 'var(--text-tertiary)', flexShrink: 0,
+                                                transform: isOpen ? 'rotate(90deg)' : 'none',
+                                                transition: 'transform 0.15s',
+                                            }}
+                                        />
+                                        <span style={{
+                                            fontSize: 13, fontWeight: 600, flex: 1,
+                                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                        }}>
+                                            {site.host}
+                                        </span>
+                                        <span style={{ fontSize: 12, color: 'var(--text-tertiary)', flexShrink: 0 }}>
+                                            {site.total} · {site.batches.length} batch{site.batches.length === 1 ? '' : 'es'}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            className="btn btn-secondary"
+                                            disabled={busy}
+                                            onClick={(e) => { e.stopPropagation(); void deleteSiteOpportunities(site); }}
+                                            title={`Delete all ${site.total} opportunities from ${site.host}`}
+                                            style={{ color: '#ef4444', padding: '4px 10px', fontSize: 12, flexShrink: 0 }}
+                                        >
+                                            {busy ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                                            Delete all
+                                        </button>
+                                    </div>
+
+                                    {isOpen && (
+                                        <div style={{ borderTop: '1px solid var(--border-light)', padding: '6px 12px 10px 34px' }}>
+                                            {site.batches.map((batch, i) => {
+                                                const key = `${site.host}:${batch.jobId ?? 'none'}`;
+                                                const batchBusy = siteBusy === key;
+                                                return (
+                                                    <div key={key + i} style={{
+                                                        display: 'flex', alignItems: 'center', gap: '10px',
+                                                        padding: '7px 0',
+                                                        borderBottom: i < site.batches.length - 1 ? '1px solid var(--border-light)' : 'none',
+                                                    }}>
+                                                        <span style={{ fontSize: 12, flex: 1, color: 'var(--text-secondary)' }}>
+                                                            {batch.jobId ? (
+                                                                <>
+                                                                    {batch.startedAt
+                                                                        ? new Date(batch.startedAt).toLocaleString(undefined, {
+                                                                            month: 'short', day: 'numeric', year: 'numeric',
+                                                                            hour: '2-digit', minute: '2-digit',
+                                                                        })
+                                                                        : batch.firstSeen
+                                                                            ? new Date(batch.firstSeen).toLocaleDateString()
+                                                                            : 'Unknown date'}
+                                                                    {batch.runType && (
+                                                                        <span style={{ color: 'var(--text-tertiary)' }}> · {batch.runType}</span>
+                                                                    )}
+                                                                </>
+                                                            ) : (
+                                                                // Predates metadata.scrape_job_id — no batch to delete.
+                                                                <span style={{ color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
+                                                                    Not attributed to a run · only "Delete all" can remove these
+                                                                </span>
+                                                            )}
+                                                        </span>
+                                                        <span style={{ fontSize: 12, color: 'var(--text-tertiary)', flexShrink: 0 }}>
+                                                            {batch.count}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-secondary"
+                                                            disabled={!batch.jobId || batchBusy}
+                                                            onClick={() => void deleteBatch(site, batch)}
+                                                            title={batch.jobId
+                                                                ? `Delete this batch of ${batch.count}`
+                                                                : 'These rows have no batch id'}
+                                                            style={{
+                                                                color: batch.jobId ? '#ef4444' : 'var(--text-tertiary)',
+                                                                padding: '3px 9px', fontSize: 12, flexShrink: 0,
+                                                            }}
+                                                        >
+                                                            {batchBusy ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </div>

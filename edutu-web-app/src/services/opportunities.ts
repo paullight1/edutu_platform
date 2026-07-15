@@ -1,4 +1,8 @@
-import type { Opportunity, OpportunityDifficulty } from "../types/opportunity";
+import type {
+  Opportunity,
+  OpportunityDifficulty,
+  OpportunitySource,
+} from "../types/opportunity";
 import {
   differenceInCalendarDays,
   endOfDay,
@@ -195,7 +199,51 @@ export interface PersonalizedOpportunity {
   aiTags: string[];
 }
 
-type BackendOpportunityRow = Record<string, any>;
+type BackendOpportunityRow = Record<string, unknown>;
+
+// The backend row is untrusted JSON, so these narrow a field to the type the
+// Opportunity contract promises instead of trusting whatever arrived. JSON
+// only carries strings/numbers/booleans/null, so a value of the wrong type
+// here means the field was absent or malformed — treat it as missing.
+function pickOptionalString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return undefined;
+}
+
+function pickNullableString(...values: unknown[]): string | null {
+  return pickOptionalString(...values) ?? null;
+}
+
+function pickOptionalBoolean(...values: unknown[]): boolean | undefined {
+  for (const value of values) {
+    if (typeof value === "boolean") return value;
+  }
+  return undefined;
+}
+
+function pickOptionalNumber(...values: unknown[]): number | undefined {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+  return undefined;
+}
+
+function pickRecord(...values: unknown[]): Record<string, unknown> | undefined {
+  for (const value of values) {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      return value as Record<string, unknown>;
+    }
+  }
+  return undefined;
+}
+
+function isOpportunitySource(value: unknown): value is OpportunitySource {
+  return (
+    value === "admin" || value === "n8n" || value === "manual" || value === "import"
+  );
+}
 
 function normaliseStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
@@ -340,7 +388,7 @@ function formatCategoryLabel(value: string): string {
 
 function pickCategory(
   row: BackendOpportunityRow,
-  metadata: Record<string, any>,
+  metadata: Record<string, unknown>,
 ): string {
   // Returns "" when no real category exists so the UI can omit the chip
   // instead of rendering a generic "General" label. Generic values like
@@ -401,7 +449,7 @@ function extractOpportunityRows(payload: unknown): BackendOpportunityRow[] {
 function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
   const metadata = (
     row.metadata && typeof row.metadata === "object" ? row.metadata : {}
-  ) as Record<string, any>;
+  ) as Record<string, unknown>;
   const rawDifficulty =
     row.difficulty ??
     metadata.difficulty ??
@@ -451,8 +499,11 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
     title,
     organization,
     category,
-    deadline:
-      row.close_date ?? row.deadline ?? row.application_deadline ?? null,
+    deadline: pickNullableString(
+      row.close_date,
+      row.deadline,
+      row.application_deadline,
+    ),
     location: pickStringValue("", row.location, row.target_region),
     summary,
     description,
@@ -467,23 +518,23 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
       metadata.application_process,
       metadata.applicationProcess,
     ),
-    image:
-      row.image ??
-      row.image_url ??
-      row.cover_image ??
-      row.imageUrl ??
-      metadata.image ??
-      metadata.image_url ??
+    image: pickNullableString(
+      row.image,
+      row.image_url,
+      row.cover_image,
+      row.imageUrl,
+      metadata.image,
+      metadata.image_url,
       // Last resort before nothing: the scraped opportunity's own page image
       // (its source OG image), so shares/SEO still carry a relevant picture
       // even when Edutu has no branded image for it.
-      metadata.source_image_url ??
-      row.source_image_url ??
-      null,
+      metadata.source_image_url,
+      row.source_image_url,
+    ),
     match: Number.isFinite(Number(rawMatch)) ? Number(rawMatch) : 0,
     difficulty: normaliseDifficulty(rawDifficulty),
-    applicants: row.applicants ?? metadata.applicants,
-    successRate: row.success_rate ?? metadata.success_rate,
+    applicants: pickOptionalString(row.applicants, metadata.applicants),
+    successRate: pickOptionalString(row.success_rate, metadata.success_rate),
     applyUrl: pickOpportunityUrl(
       row.application_url,
       row.applicationUrl,
@@ -503,29 +554,27 @@ function normaliseOpportunity(row: BackendOpportunityRow): Opportunity {
       metadata.url,
     ),
     lastUpdated:
-      row.updated_at ??
-      row.updatedAt ??
-      row.updated ??
+      pickOptionalString(row.updated_at, row.updatedAt, row.updated) ??
       new Date().toISOString(),
-    source: row.source,
-    externalId: row.external_id,
+    source: isOpportunitySource(row.source) ? row.source : undefined,
+    externalId: pickOptionalString(row.external_id),
     tags: cleanPublicTags(
       row.tags,
       metadata.public_tags,
       metadata.tags,
       metadata.aiTags,
     ),
-    isRemote: row.is_remote ?? row.isRemote,
-    featured: row.is_featured ?? row.featured,
-    stipend: row.stipend,
-    currency: row.currency,
-    eligibility: row.eligibility ?? metadata.eligibility,
-    openDate: row.open_date ?? row.openDate ?? null,
-    createdAt: row.created_at ?? row.createdAt,
-    createdBy: row.created_by ?? row.createdBy,
-    viewCount: row.view_count ?? row.viewCount,
-    applyCount: row.apply_count ?? row.applyCount,
-    bookmarkCount: row.bookmark_count ?? row.bookmarkCount,
+    isRemote: pickOptionalBoolean(row.is_remote, row.isRemote),
+    featured: pickOptionalBoolean(row.is_featured, row.featured),
+    stipend: pickOptionalNumber(row.stipend),
+    currency: pickOptionalString(row.currency),
+    eligibility: pickRecord(row.eligibility, metadata.eligibility),
+    openDate: pickNullableString(row.open_date, row.openDate),
+    createdAt: pickOptionalString(row.created_at, row.createdAt),
+    createdBy: pickOptionalString(row.created_by, row.createdBy),
+    viewCount: pickOptionalNumber(row.view_count, row.viewCount),
+    applyCount: pickOptionalNumber(row.apply_count, row.applyCount),
+    bookmarkCount: pickOptionalNumber(row.bookmark_count, row.bookmarkCount),
   };
 }
 
@@ -806,12 +855,13 @@ export async function fetchOpportunityRecommendations(
   const rows = extractOpportunityRows(payload);
 
   return rows.map((row) => {
+    const rowMetadata = pickRecord(row.metadata) ?? {};
     const rawMatch =
       row.match ??
       row.match_score ??
       row.matchScore ??
-      row.metadata?.match_score ??
-      row.metadata?.matchScore ??
+      rowMetadata.match_score ??
+      rowMetadata.matchScore ??
       0;
     const matchScore = Number.isFinite(Number(rawMatch)) ? Number(rawMatch) : 0;
     const opportunity = normaliseOpportunity({

@@ -32,26 +32,6 @@ export interface ApplicationRecord {
   notes: string | null;
 }
 
-interface ApplicationRow {
-  id: string;
-  user_id: string;
-  opportunity_id: string;
-  status: DatabaseApplicationStatus;
-  submitted_at: string | null;
-  created_at: string;
-  notes: string | null;
-  metadata?: {
-    opportunity_title?: string;
-    opportunity_category?: string;
-  } | null;
-}
-
-interface OpportunitySummary {
-  id: string;
-  title: string | null;
-  category: string | null;
-}
-
 type ProductApplicationStatus = DatabaseApplicationStatus;
 
 type ApiApplicationRecord = Partial<ApplicationRecord> & {

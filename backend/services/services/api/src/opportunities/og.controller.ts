@@ -122,7 +122,10 @@ export class OgController {
     return `${this.base}/icons/icon-512x512.png`;
   }
 
-  private categoryMeta(): Record<string, { title: string; description: string }> {
+  private categoryMeta(): Record<
+    string,
+    { title: string; description: string }
+  > {
     return {
       scholarships: {
         title: "Scholarships for Students | Edutu",
@@ -219,7 +222,9 @@ export class OgController {
     const deadlineRaw = clean(
       opp.deadline || opp.close_date || opp.deadline_date,
     );
-    const deadlineIso = /^\d{4}-\d{2}-\d{2}/.test(deadlineRaw) ? deadlineRaw : "";
+    const deadlineIso = /^\d{4}-\d{2}-\d{2}/.test(deadlineRaw)
+      ? deadlineRaw
+      : "";
     const organization =
       clean(opp.organization || opp.provider || opp.company) || "Edutu";
     const category = clean(opp.category) || "Opportunity";

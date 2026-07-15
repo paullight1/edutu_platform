@@ -191,7 +191,9 @@ export default function Monetization() {
     updatePricing({ creditPacks });
   }
 
-  const subs = overview?.activeSubscriptions || [];
+  // Memoised so the empty-array fallback keeps a stable identity — otherwise
+  // it is a fresh [] on every render and the hooks below never memoise.
+  const subs = useMemo(() => overview?.activeSubscriptions || [], [overview]);
   const subsTotal = useMemo(() => subs.reduce((sum, item) => sum + Number(item.count || 0), 0), [subs]);
 
   const subCount = useCallback(

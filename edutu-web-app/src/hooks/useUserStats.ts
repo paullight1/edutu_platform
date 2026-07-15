@@ -24,7 +24,7 @@ interface UserStats {
     isLoading: boolean;
 }
 
-export function useUserStats(userId?: string): UserStats {
+export function useUserStats(_userId?: string): UserStats {
     const { goals, isLoading: goalsLoading } = useGoals();
     const [consistencyData, setConsistencyData] = useState<{ rate: number; isLoading: boolean }>({
         rate: 0,

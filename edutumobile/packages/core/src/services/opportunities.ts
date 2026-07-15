@@ -175,7 +175,15 @@ function normaliseOpportunity(row: any): Opportunity {
     location: row.location || row.targetRegion || (row.is_remote || row.isRemote ? 'Remote' : 'Worldwide'),
     description: row.description || 'No description provided.',
     deadline: row.close_date || row.deadline || null,
-    image: row.image_url || row.imageUrl || null,
+    // No scraped image → fall back to the generated branded share card so
+    // feed cards never render imageless.
+    image:
+      row.image_url ||
+      row.imageUrl ||
+      row.share_image_url ||
+      row.shareImageUrl ||
+      shareCard.url ||
+      null,
     requirements: row.requirements?.length
       ? row.requirements
       : (meta.requirements ?? (row.eligibilityCriteria ? [row.eligibilityCriteria] : [])),
@@ -509,10 +517,15 @@ export async function fetchOpportunities(options: FetchOptions): Promise<Opportu
         if (response.ok) {
           const payload = await response.json();
           const apiOpportunities = (payload.opportunities || []).map((row: any) => normaliseOpportunity(row));
-          cachedOpportunities = apiOpportunities;
-          await persistOpportunitiesSnapshot(apiOpportunities, userId);
-          syncExternalSnapshot(onSyncSnapshot, apiOpportunities);
-          return apiOpportunities;
+          // An empty result from a healthy server is treated as a miss, not
+          // an answer — fall through to the catalog instead of caching a
+          // blank feed over whatever the user had.
+          if (apiOpportunities.length > 0) {
+            cachedOpportunities = apiOpportunities;
+            await persistOpportunitiesSnapshot(apiOpportunities, userId);
+            syncExternalSnapshot(onSyncSnapshot, apiOpportunities);
+            return apiOpportunities;
+          }
         }
       }
     } catch (networkError) {
@@ -532,7 +545,9 @@ export async function fetchOpportunities(options: FetchOptions): Promise<Opportu
         body: JSON.stringify({
           profile,
           limit: 1000,
-          minMatchScore: userId ? 0 : 30,
+          // Never floor by score here: the prod heuristic engine's base score
+          // is 20, so any positive threshold can blank the whole guest feed.
+          minMatchScore: 0,
           ...(hasExclusions ? { excludeOpportunityIds } : {}),
         }),
         signal,
@@ -541,10 +556,12 @@ export async function fetchOpportunities(options: FetchOptions): Promise<Opportu
       if (response.ok) {
         const payload = await response.json();
         let apiOpportunities = (payload.opportunities || []).map((row: any) => normaliseOpportunity(row));
-        cachedOpportunities = apiOpportunities;
-        await persistOpportunitiesSnapshot(apiOpportunities, userId);
-        syncExternalSnapshot(onSyncSnapshot, apiOpportunities);
-        return apiOpportunities;
+        if (apiOpportunities.length > 0) {
+          cachedOpportunities = apiOpportunities;
+          await persistOpportunitiesSnapshot(apiOpportunities, userId);
+          syncExternalSnapshot(onSyncSnapshot, apiOpportunities);
+          return apiOpportunities;
+        }
       }
     } catch (networkError) {
       // Fallback silently to Supabase if API is down

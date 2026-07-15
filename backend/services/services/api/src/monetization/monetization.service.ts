@@ -8,6 +8,7 @@ import {
 import { randomUUID } from "crypto";
 import { sql } from "drizzle-orm";
 import { db } from "../db";
+import { matchUserIdRef } from "../common/user-id";
 import { SettingsService } from "../settings/settings.service";
 import {
   DEFAULT_ADMIN_SETTINGS,
@@ -46,16 +47,18 @@ export class MonetizationService {
   /** Active Pro = profiles.is_pro (unexpired) OR an active pro entitlement. */
   async isPro(userId: string): Promise<boolean> {
     try {
+      // profiles/billing_entitlements user_id may hold the raw auth subject
+      // or the derived uuid — match both (see matchUserIdRef).
       const result = await db.execute(sql`
         select 1
         from profiles p
-        where p.user_id = ${userId}
+        where ${matchUserIdRef("p.user_id", userId)}
           and p.is_pro = true
           and (p.pro_expires_at is null or p.pro_expires_at > now())
         union all
         select 1
         from billing_entitlements e
-        where e.user_id = ${userId}
+        where ${matchUserIdRef("e.user_id", userId)}
           and e.feature_key = 'pro'
           and e.status = 'active'
           and (e.expires_at is null or e.expires_at > now())
@@ -147,7 +150,12 @@ export class MonetizationService {
         await tx.execute(sql`
           update profiles
           set credits = credits + ${charge.charged}, updated_at = now()
-          where user_id = ${charge.userId}
+          where ctid = (
+            select ctid from profiles
+            where ${matchUserIdRef("user_id", charge.userId)}
+            order by coalesce(credits, 0) desc
+            limit 1
+          )
         `);
       });
     } catch (error) {
@@ -170,10 +178,19 @@ export class MonetizationService {
       await db.transaction(async (tx) => {
         await tx.execute(sql`select set_config('app.credit_op', 'on', true)`);
 
+        // Dual-key the lookup, but debit exactly one row: a user can have a
+        // raw-keyed and a derived-keyed profile row (split-profile legacy),
+        // and an unbounded UPDATE would drain both pools.
         const updated = await tx.execute(sql`
           update profiles
           set credits = credits - ${cost}, updated_at = now()
-          where user_id = ${userId} and coalesce(credits, 0) >= ${cost}
+          where ctid = (
+            select ctid from profiles
+            where ${matchUserIdRef("user_id", userId)}
+              and coalesce(credits, 0) >= ${cost}
+            order by coalesce(credits, 0) desc
+            limit 1
+          )
           returning credits
         `);
         const rows = (updated as { rows?: unknown[] }).rows ?? [];

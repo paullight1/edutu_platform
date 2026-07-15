@@ -20,7 +20,6 @@ const PRO_EXPIRES_ISO = new Date(
   Date.now() + 30 * 24 * 3600 * 1000,
 ).toISOString();
 
-
 describe("BillingService", () => {
   const originalEnv = {
     PAYSTACK_SECRET_KEY: process.env.PAYSTACK_SECRET_KEY,

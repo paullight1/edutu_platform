@@ -39,25 +39,26 @@ export class OpenRouterAdapter implements AiProviderAdapter {
     const response = await aiFetch(
       OPENROUTER_URL,
       {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${config.apiKey}`,
-        "HTTP-Referer": process.env.OPENROUTER_REFERRER || "https://edutu.app",
-        "X-Title": process.env.OPENROUTER_TITLE || "Edutu AI",
-      },
-      body: JSON.stringify({
-        model: config.model,
-        messages,
-        stream: false,
-        ...(typeof config.temperature === "number" ||
-        typeof options.temperature === "number"
-          ? { temperature: config.temperature ?? options.temperature }
-          : {}),
-        ...(config.maxOutputTokens || options.maxOutputTokens
-          ? { max_tokens: config.maxOutputTokens || options.maxOutputTokens }
-          : {}),
-      }),
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${config.apiKey}`,
+          "HTTP-Referer":
+            process.env.OPENROUTER_REFERRER || "https://edutu.app",
+          "X-Title": process.env.OPENROUTER_TITLE || "Edutu AI",
+        },
+        body: JSON.stringify({
+          model: config.model,
+          messages,
+          stream: false,
+          ...(typeof config.temperature === "number" ||
+          typeof options.temperature === "number"
+            ? { temperature: config.temperature ?? options.temperature }
+            : {}),
+          ...(config.maxOutputTokens || options.maxOutputTokens
+            ? { max_tokens: config.maxOutputTokens || options.maxOutputTokens }
+            : {}),
+        }),
       },
       { label: "OpenRouter" },
     );

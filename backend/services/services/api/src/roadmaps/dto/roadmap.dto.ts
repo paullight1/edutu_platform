@@ -97,40 +97,42 @@ export const AIAssistDtoSchema = z.object({
   additionalContext: z.string().optional(),
 });
 
-export const OpportunityPlanDtoSchema = z.object({
-  // When set, the server loads the verified opportunity row and uses ITS
-  // title/deadline/requirements — client-sent fields become a fallback only.
-  // Plans must never be built on unverified client-supplied opportunity data.
-  opportunityId: z.string().uuid().optional(),
-  title: z.string().min(3).optional(),
-  organization: z.string().optional(),
-  category: z.string().optional(),
-  deadline: z.string().optional(),
-  description: z.string().max(4000).optional(),
-  hoursPerWeek: z.number().int().positive().max(168).optional(),
-  currentLevel: z.enum(["beginner", "intermediate", "advanced"]).optional(),
-  milestones: z
-    .array(z.object({ id: z.string(), title: z.string().min(1) }))
-    .max(12)
-    .optional(),
-  // Verbatim requirement lines from the listing — the plan maps each one to a
-  // concrete action so the applicant can prove they satisfy it.
-  requirements: z.array(z.string().max(500)).max(30).optional(),
-  // Applicant snapshot used to personalize the plan and surface profile gaps.
-  profile: z
-    .object({
-      country: z.string().max(120).optional(),
-      pursuit: z.string().max(200).optional(),
-      gradeLevel: z.string().max(120).optional(),
-      schoolName: z.string().max(200).optional(),
-      isGraduate: z.boolean().optional(),
-      interests: z.array(z.string().max(120)).max(20).optional(),
-      ambitions: z.array(z.string().max(200)).max(20).optional(),
-    })
-    .optional(),
-}).refine((dto) => Boolean(dto.opportunityId || dto.title), {
-  message: "Provide opportunityId or title",
-});
+export const OpportunityPlanDtoSchema = z
+  .object({
+    // When set, the server loads the verified opportunity row and uses ITS
+    // title/deadline/requirements — client-sent fields become a fallback only.
+    // Plans must never be built on unverified client-supplied opportunity data.
+    opportunityId: z.string().uuid().optional(),
+    title: z.string().min(3).optional(),
+    organization: z.string().optional(),
+    category: z.string().optional(),
+    deadline: z.string().optional(),
+    description: z.string().max(4000).optional(),
+    hoursPerWeek: z.number().int().positive().max(168).optional(),
+    currentLevel: z.enum(["beginner", "intermediate", "advanced"]).optional(),
+    milestones: z
+      .array(z.object({ id: z.string(), title: z.string().min(1) }))
+      .max(12)
+      .optional(),
+    // Verbatim requirement lines from the listing — the plan maps each one to a
+    // concrete action so the applicant can prove they satisfy it.
+    requirements: z.array(z.string().max(500)).max(30).optional(),
+    // Applicant snapshot used to personalize the plan and surface profile gaps.
+    profile: z
+      .object({
+        country: z.string().max(120).optional(),
+        pursuit: z.string().max(200).optional(),
+        gradeLevel: z.string().max(120).optional(),
+        schoolName: z.string().max(200).optional(),
+        isGraduate: z.boolean().optional(),
+        interests: z.array(z.string().max(120)).max(20).optional(),
+        ambitions: z.array(z.string().max(200)).max(20).optional(),
+      })
+      .optional(),
+  })
+  .refine((dto) => Boolean(dto.opportunityId || dto.title), {
+    message: "Provide opportunityId or title",
+  });
 
 export const AdoptRoadmapDtoSchema = z.object({
   opportunityId: z.string().optional(),

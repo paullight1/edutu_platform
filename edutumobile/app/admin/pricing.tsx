@@ -386,7 +386,7 @@ function AdminPricingContent() {
                     <View style={[styles.card, { backgroundColor: cardBg, borderColor: inputBorder }]}>
                         <Text style={[styles.switchHint, { color: textSecondary }]}>
                             Restyle the paywall over the air — no app update needed. Blank fields keep the
-                            app's built-in copy (translated per language); filled fields show exactly as
+                            app&apos;s built-in copy (translated per language); filled fields show exactly as
                             written for everyone.
                         </Text>
                         {field('Headline line 1 (accent color)', paywallForm.heroLine1, (v) => setPaywall('heroLine1', v), { placeholder: 'Unlock every opportunity' })}

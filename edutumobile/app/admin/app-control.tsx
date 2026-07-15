@@ -255,7 +255,7 @@ function AppControlAdminContent() {
                         <Text style={[styles.sectionTitle, { color: textPrimary }]}>Module locks</Text>
                         <Text style={[styles.sectionDesc, { color: textSecondary }]}>
                             Free = everyone. Pro = paywalled (non-Pro users see an upgrade prompt). Off = module
-                            hidden behind an "unavailable" notice for everyone.
+                            hidden behind an &quot;unavailable&quot; notice for everyone.
                         </Text>
                     </View>
                 </View>

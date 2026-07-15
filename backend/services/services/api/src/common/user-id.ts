@@ -40,6 +40,19 @@ export function isUuid(value: string | null | undefined): value is string {
  * raw auth subject; this keeps reads resilient across the transition and any
  * rows a client wrote directly.
  */
-export function matchProfileUserId(column: AnyColumn, derivedUserId: string): SQL {
+export function matchProfileUserId(
+  column: AnyColumn,
+  derivedUserId: string,
+): SQL {
   return sql`(${column}::text = ${derivedUserId} OR public.clerk_id_to_uuid(${column}::text) = ${derivedUserId})`;
+}
+
+/**
+ * Same dual-key match as {@link matchProfileUserId} for hand-written SQL,
+ * where the column is referenced through a table alias (e.g. `p.user_id`)
+ * and no Drizzle column object exists. `columnRef` must be a compile-time
+ * constant — it is spliced in raw, never parameterised.
+ */
+export function matchUserIdRef(columnRef: string, derivedUserId: string): SQL {
+  return sql`(${sql.raw(columnRef)} = ${derivedUserId} OR public.clerk_id_to_uuid(${sql.raw(columnRef)}) = ${derivedUserId})`;
 }

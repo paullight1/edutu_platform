@@ -9,6 +9,7 @@ import {
   pageSaysClosed,
   DeadlineConfidence,
 } from "./deadline.util";
+import { AiService } from "../ai";
 
 export interface VerificationRunOptions {
   limit?: number;
@@ -54,6 +55,8 @@ type VerificationOutcome = {
 @Injectable()
 export class OpportunityVerificationService {
   private readonly logger = new Logger(OpportunityVerificationService.name);
+
+  constructor(private readonly aiService: AiService) {}
 
   @Cron(CronExpression.EVERY_HOUR)
   async runScheduledVerification() {
@@ -193,7 +196,10 @@ export class OpportunityVerificationService {
         opportunity.verification_attempts,
         opportunity.broken_link_count,
         opportunity.metadata
-      from public.opportunities
+      -- The alias is required: every column above is qualified with it, and
+      -- without it Postgres raises "missing FROM-clause entry for table
+      -- opportunity" — this endpoint 500'd on every call until now.
+      from public.opportunities opportunity
       where id = ${id}::uuid
       limit 1
     `);
@@ -382,7 +388,12 @@ export class OpportunityVerificationService {
     const page = await this.fetchPageText(url);
     if (!page.text) return null;
     const refreshed = this.parsePageDeadline(candidate, page.text);
-    return refreshed?.date ? refreshed : null;
+    if (refreshed?.date) return refreshed;
+
+    // Regex found nothing usable. That's precisely the cohort stuck on
+    // deadline_confidence='unknown', so it's worth an LLM call to read the page
+    // the way a human would ("applications close six weeks from publication").
+    return await this.extractDeadlineWithAi(candidate, page.text);
   }
 
   private parsePageDeadline(candidate: CandidateRow, pageText: string) {
@@ -393,6 +404,88 @@ export class OpportunityVerificationService {
       fragment,
       titleYear ? Number(titleYear) : null,
     );
+  }
+
+  /**
+   * LLM fallback for pages the regex can't read. Deliberately narrow: it only
+   * runs after extractDeadlineText/parseDeadlineDetailed have failed, so the
+   * common case stays free and deterministic.
+   */
+  private async extractDeadlineWithAi(
+    candidate: CandidateRow,
+    pageText: string,
+  ): Promise<{ date: string | null; confidence: DeadlineConfidence } | null> {
+    if (process.env.OPPORTUNITY_DEADLINE_AI === "false") return null;
+
+    // Deadlines live near the top or in an "how to apply" block; sending the
+    // whole page burns tokens for no accuracy.
+    const excerpt = pageText.slice(0, 12000);
+    if (excerpt.trim().length < 80) return null;
+
+    // This path costs money and is otherwise invisible — without a log there's
+    // no way to tell "AI said no deadline" from "AI never ran".
+    this.logger.log(
+      `Regex found no deadline for ${candidate.id}; asking AI (${excerpt.length} chars)`,
+    );
+
+    try {
+      const result = await this.aiService.generateJson<{
+        deadline?: string | null;
+        rolling?: boolean | null;
+      }>({
+        feature: "opportunities.extract",
+        prompt: [
+          "Extract the application deadline for this opportunity.",
+          "",
+          "Rules:",
+          '- Return {"deadline": "YYYY-MM-DD"} only if the page states or clearly implies a specific closing date.',
+          '- Return {"rolling": true, "deadline": null} if applications are explicitly rolling/ongoing/open until filled.',
+          '- Return {"deadline": null} if the page does not state a deadline.',
+          "- NEVER guess or invent a date. A wrong date is worse than none.",
+          "- If only a day and month appear, use the year that makes the date fall after the page's publication.",
+          "",
+          `Opportunity title: ${candidate.title ?? "(unknown)"}`,
+          "",
+          "Page text:",
+          excerpt,
+        ].join("\n"),
+        responseMimeType: "application/json",
+        responseJsonSchema: {
+          type: "object",
+          properties: {
+            deadline: { type: ["string", "null"] },
+            rolling: { type: ["boolean", "null"] },
+          },
+        },
+        temperature: 0,
+        maxOutputTokens: 200,
+        metadata: { opportunityId: candidate.id },
+      });
+
+      if (result?.rolling) return { date: null, confidence: "rolling" };
+
+      // Run the model's answer back through the same parser as everything else:
+      // it keeps the date-column contract in one place, and rejects the model
+      // handing back prose instead of a date.
+      const parsed = parseDeadlineDetailed(result?.deadline ?? null, null);
+      if (!parsed.date) {
+        this.logger.log(
+          `AI found no deadline for ${candidate.id} (raw: ${JSON.stringify(result)})`,
+        );
+        return null;
+      }
+
+      // The model inferred this from page context rather than reading an
+      // explicit label — never claim "explicit" for an LLM-derived date.
+      return { date: parsed.date, confidence: "inferred" };
+    } catch (error) {
+      this.logger.warn(
+        `AI deadline extraction failed for ${candidate.id}: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+      return null;
+    }
   }
 
   private deadlineConfidence(candidate: CandidateRow): DeadlineConfidence {

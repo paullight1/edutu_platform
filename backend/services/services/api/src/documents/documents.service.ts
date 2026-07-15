@@ -120,8 +120,7 @@ export class DocumentsService {
     return this.create(userId, {
       type: "cv",
       title:
-        options.title ||
-        `${cv.header?.full_name || "My"} CV`.slice(0, 120),
+        options.title || `${cv.header?.full_name || "My"} CV`.slice(0, 120),
       content: { kind: "cv", cv },
       opportunityId: options.opportunityId,
     });
@@ -148,7 +147,9 @@ export class DocumentsService {
       input.opportunityId
         ? supabase
             .from("opportunities")
-            .select("id, title, organization, category, description, requirements, summary")
+            .select(
+              "id, title, organization, category, description, requirements, summary",
+            )
             .eq("id", input.opportunityId)
             .maybeSingle()
             .then((result) => result.data)
@@ -171,7 +172,9 @@ export class DocumentsService {
           "Rules: first person, specific over generic, no clichés ('ever since I was a child'), no fabricated facts — only use what's provided; 500-750 words total.",
           `APPLICANT PROFILE: ${JSON.stringify(profile ?? {})}`,
           `TARGET OPPORTUNITY: ${JSON.stringify(opportunity ?? { note: "generic program" })}`,
-          input.notes ? `APPLICANT'S OWN NOTES (their voice — weave these in): ${input.notes}` : "",
+          input.notes
+            ? `APPLICANT'S OWN NOTES (their voice — weave these in): ${input.notes}`
+            : "",
           'Return JSON: {"sections": [{"heading": "...", "body": "..."}]} with 5-6 sections.',
         ]
           .filter(Boolean)
@@ -244,7 +247,7 @@ export class DocumentsService {
       feature: "docs.edit",
       userId,
       prompt: [
-        `Edit this ${TYPE_LABELS[existing.type as AiDocumentType] || "document"} according to the instruction. Apply ONLY the requested change; keep everything else verbatim.`,
+        `Edit this ${TYPE_LABELS[existing.type] || "document"} according to the instruction. Apply ONLY the requested change; keep everything else verbatim.`,
         `INSTRUCTION: ${instruction}`,
         `CURRENT CONTENT (JSON): ${JSON.stringify(content)}`,
         "Return the FULL updated content as JSON with exactly the same schema as CURRENT CONTENT (same top-level keys).",
@@ -260,7 +263,7 @@ export class DocumentsService {
     }
 
     const history = [
-      ...(existing.history as Array<Record<string, unknown>>),
+      ...existing.history,
       {
         version: existing.version,
         content: existing.content,

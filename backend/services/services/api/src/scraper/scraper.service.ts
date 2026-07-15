@@ -183,6 +183,13 @@ export interface ScrapeResult {
 // unique across advisory-lock users in this database; chosen from the private
 // range to avoid collisions with other subsystems.
 const SCRAPE_ADVISORY_LOCK_KEY = 918273645;
+const SCHEDULED_SCRAPE_JOB_NAME = "scheduled-scrape";
+// Cron times are interpreted in this zone. Without it the schedule silently
+// meant server-local time (UTC on Render), which is not what an admin typing
+// "0 0 * * *" expects.
+const SCRAPER_CRON_TIMEZONE = process.env.SCRAPER_CRON_TIMEZONE || "UTC";
+// A crawl that has not finalized in this long lost its process.
+const STALE_RUN_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 
 const BROWSER_HEADERS = {
   "User-Agent":
@@ -217,6 +224,33 @@ const PROXY_AXIOS_CONFIG = scraperProxyAgent
       proxy: false as const,
     }
   : {};
+
+// Reader-relay fallback for IP-reputation blocks. Cloudflare answers Render's
+// datacenter IPs with 403 on sources whose robots.txt allows us — the same URLs
+// return 200 from a residential IP — so the deployed engine harvested nothing
+// while local runs worked. When a fetch is blocked and no SCRAPER_PROXY_URL is
+// configured, it retries through a relay that returns the raw upstream body.
+// `{url}` in the template is replaced with the URL-encoded target; set
+// SCRAPER_FETCH_RELAY_URL="" to turn the fallback off, or point it at your own
+// relay. robots.txt is still honored before any of this runs.
+const SCRAPER_FETCH_RELAY_URL =
+  process.env.SCRAPER_FETCH_RELAY_URL ?? "https://r.jina.ai/{url}";
+const SCRAPER_FETCH_RELAY_TOKEN = process.env.SCRAPER_FETCH_RELAY_TOKEN;
+// Keyless r.jina.ai allows ~20 requests/min, so relay calls are serialized this
+// far apart. Lower it once a token (higher quota) is configured.
+const RELAY_MIN_INTERVAL_MS =
+  Number(process.env.SCRAPER_FETCH_RELAY_MIN_INTERVAL_MS) || 3_200;
+const RELAY_TIMEOUT_MS = 45_000;
+const RELAY_HEADERS: Record<string, string> = {
+  // Ask for the upstream HTML instead of the relay's markdown rendering.
+  "X-Return-Format": "html",
+  ...(SCRAPER_FETCH_RELAY_TOKEN
+    ? { Authorization: `Bearer ${SCRAPER_FETCH_RELAY_TOKEN}` }
+    : {}),
+};
+
+/** How a fetch reaches the target: straight out, via egress proxy, or relayed. */
+type FetchRoute = "direct" | "proxy" | "relay";
 
 const DEFAULT_CONTENT_SELECTORS =
   'article, .entry-content, .post-content, main, [class*="content"], [class*="article"]';
@@ -319,7 +353,9 @@ const CATEGORY_PATTERNS: Array<[string, RegExp]> = Object.entries(
   category,
   new RegExp(
     `\\b(?:${keywords
-      .map((kw) => kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+"))
+      .map((kw) =>
+        kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+"),
+      )
       .join("|")})\\b`,
     "i",
   ),
@@ -335,6 +371,10 @@ export class ScraperService implements OnModuleInit {
    *  Detects aggregator site-default og:images (same banner on every post)
    *  so each opportunity ends up with its own image or none. */
   private readonly imageClaimsThisRun = new Map<string, string>();
+  /** Hosts that blocked us this run — later fetches skip the wasted direct hit. */
+  private readonly blockedHostsThisRun = new Set<string>();
+  /** Tail of the relay queue; relay calls chain off it to stay under its quota. */
+  private relayGate: Promise<void> = Promise.resolve();
 
   constructor(
     private schedulerRegistry: SchedulerRegistry,
@@ -358,19 +398,33 @@ export class ScraperService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    if (process.env.SCRAPER_SCHEDULER_ENABLED === "false") {
-      this.logger.log(
-        "Scraper scheduler disabled by SCRAPER_SCHEDULER_ENABLED=false.",
-      );
-      return;
-    }
+    // A deploy (or crash) mid-crawl leaves its scrape_logs row stuck at
+    // "running" forever — nothing else ever finalizes it, and the admin's
+    // reconnect polling can't tell an orphan from a live run.
+    await this.failOrphanedRuns();
 
     this.logger.log("Initializing dynamic scraper schedule...");
     await this.initializeSchedule();
   }
 
+  /** Scheduling is disabled entirely when SCRAPER_SCHEDULER_ENABLED=false. */
+  private schedulerEnabled(): boolean {
+    return process.env.SCRAPER_SCHEDULER_ENABLED !== "false";
+  }
+
   private async initializeSchedule() {
     if (!this.supabase) return;
+
+    if (!this.schedulerEnabled()) {
+      // Honored here as well as at boot: without this an admin toggling
+      // auto-run re-armed cron at runtime and the env kill-switch silently
+      // stopped meaning anything until the next restart.
+      this.logger.log(
+        "Scraper scheduler disabled by SCRAPER_SCHEDULER_ENABLED=false.",
+      );
+      this.unscheduleJob();
+      return;
+    }
 
     try {
       const { data: configs } = await this.supabase
@@ -385,39 +439,115 @@ export class ScraperService implements OnModuleInit {
       if (enabled) {
         this.scheduleJob(schedule);
       } else {
+        // Must actually tear the job down: leaving it registered meant the
+        // admin's off switch did nothing until the process restarted.
         this.logger.log("Auto-run is disabled in config.");
+        this.unscheduleJob();
       }
     } catch (error) {
       this.logger.error(`Failed to initialize schedule: ${error.message}`);
     }
   }
 
+  private isJobScheduled(): boolean {
+    try {
+      return Boolean(
+        this.schedulerRegistry.getCronJob(SCHEDULED_SCRAPE_JOB_NAME),
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  /** ISO timestamp of the next scheduled fire, or null when nothing is armed. */
+  private nextScheduledRunAt(): string | null {
+    try {
+      const next = this.schedulerRegistry
+        .getCronJob(SCHEDULED_SCRAPE_JOB_NAME)
+        .nextDate();
+      return next ? new Date(next.toString()).toISOString() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private unscheduleJob() {
+    try {
+      this.schedulerRegistry.deleteCronJob(SCHEDULED_SCRAPE_JOB_NAME);
+      this.logger.log("Scheduled scrape unregistered.");
+    } catch {
+      // Not registered — nothing to tear down.
+    }
+  }
+
+  /**
+   * Mark runs that outlived their process as failed. Anything still "running"
+   * after STALE_RUN_TIMEOUT_MS has no live crawl behind it — the advisory lock
+   * died with the connection, so only the row is left over.
+   */
+  private async failOrphanedRuns(): Promise<void> {
+    if (!this.supabase) return;
+    const cutoff = new Date(Date.now() - STALE_RUN_TIMEOUT_MS).toISOString();
+    // count:"exact" rather than .select() — the update applies either way, but
+    // select() came back empty here and made a real reap look like a no-op.
+    const { count, error } = await this.supabase
+      .from("scrape_logs")
+      .update(
+        {
+          status: "failed",
+          completed_at: new Date().toISOString(),
+          errors: [{ message: "Run abandoned — process restarted mid-crawl" }],
+        },
+        { count: "exact" },
+      )
+      .eq("status", "running")
+      .lt("started_at", cutoff);
+
+    if (error) {
+      this.logger.warn(`Could not reap orphaned runs: ${error.message}`);
+      return;
+    }
+    if (count) {
+      this.logger.log(`Reaped ${count} orphaned scrape run(s).`);
+    }
+  }
+
   private scheduleJob(cronTime: string) {
-    const jobName = "scheduled-scrape";
+    const jobName = SCHEDULED_SCRAPE_JOB_NAME;
 
     // Remove existing job if any
-    try {
-      this.schedulerRegistry.deleteCronJob(jobName);
-    } catch (e) {
-      // Job might not exist, that's fine
-    }
+    this.unscheduleJob();
 
-    const job = new CronJob(cronTime, () => {
-      this.logger.log(`Executing dynamic scheduled scrape (${cronTime})`);
-      // Incremental: known-and-fresh URLs are skipped and pagination stops on
-      // the first fully-known page, so frequent schedules stay cheap while
-      // still picking up anything new since the last run.
-      this.runScraper({
-        allSources: true,
-        maxPages: 3,
-        incremental: true,
-        runType: "scheduled",
-      });
-    });
+    const job = new CronJob(
+      cronTime,
+      () => {
+        this.logger.log(`Executing dynamic scheduled scrape (${cronTime})`);
+        // Incremental: known-and-fresh URLs are skipped and pagination stops on
+        // the first fully-known page, so frequent schedules stay cheap while
+        // still picking up anything new since the last run.
+        void this.runScraper({
+          allSources: true,
+          maxPages: 3,
+          incremental: true,
+          runType: "scheduled",
+        }).catch((error) =>
+          this.logger.error(
+            `Scheduled scrape failed: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          ),
+        );
+      },
+      null,
+      false,
+      SCRAPER_CRON_TIMEZONE,
+    );
 
     this.schedulerRegistry.addCronJob(jobName, job);
     job.start();
-    this.logger.log(`Scraper scheduled: ${cronTime}`);
+    this.logger.log(
+      `Scraper scheduled: ${cronTime} (${SCRAPER_CRON_TIMEZONE})`,
+    );
   }
 
   // ─── Public: Settings ─────────────────────────────────────────────────────
@@ -499,9 +629,19 @@ export class ScraperService implements OnModuleInit {
         enabled: scraperRoute?.isEnabled ?? true,
       },
       scraper: {
-        schedulerEnabled: process.env.SCRAPER_SCHEDULER_ENABLED !== "false",
+        schedulerEnabled: this.schedulerEnabled(),
         autoRunEnabled: settings?.auto_run_enabled ?? false,
         cronSchedule: settings?.cron_schedule ?? "0 0 * * *",
+        cronTimezone: SCRAPER_CRON_TIMEZONE,
+        // Whether a schedule is actually armed right now — autoRunEnabled is
+        // only the stored intent, and the two drifted apart in production.
+        cronArmed: this.isJobScheduled(),
+        nextRunAt: this.nextScheduledRunAt(),
+        egressRoute: scraperProxyAgent
+          ? "proxy"
+          : this.relayConfigured()
+            ? "relay-fallback"
+            : "direct",
         dataRetentionDays: settings?.data_retention_days ?? null,
         recheckAfterDays:
           settings?.recheck_after_days ?? DEFAULT_RECHECK_AFTER_DAYS,
@@ -629,8 +769,12 @@ export class ScraperService implements OnModuleInit {
         description: enriched.description,
         deadline: enriched.deadline,
         location: enriched.location,
-        applyUrl: this.sanitizeUrl(enriched.direct_apply_url || enriched.apply_url),
-        apply_url: this.sanitizeUrl(enriched.direct_apply_url || enriched.apply_url),
+        applyUrl: this.sanitizeUrl(
+          enriched.direct_apply_url || enriched.apply_url,
+        ),
+        apply_url: this.sanitizeUrl(
+          enriched.direct_apply_url || enriched.apply_url,
+        ),
         sourceUrl: this.sanitizeUrl(enriched.apply_url),
         source_url: this.sanitizeUrl(enriched.source_url),
         imageUrl: enriched.image_url,
@@ -674,7 +818,10 @@ export class ScraperService implements OnModuleInit {
    * so a long crawl never ties up an HTTP worker past the gateway timeout.
    * Clients poll GET /api/scraper/jobs for progress.
    */
-  startScraperRun(options: ScrapeOptions): { started: boolean; error?: string } {
+  startScraperRun(options: ScrapeOptions): {
+    started: boolean;
+    error?: string;
+  } {
     if (!this.supabase) {
       return { started: false, error: "Scraper is not configured" };
     }
@@ -825,6 +972,7 @@ export class ScraperService implements OnModuleInit {
     // Fresh image-uniqueness ledger per run; cross-run duplicates are caught
     // by the metadata.source_image_url check against the database.
     this.imageClaimsThisRun.clear();
+    this.blockedHostsThisRun.clear();
 
     const jobLogId = await this.startJobLog(options);
 
@@ -1621,17 +1769,23 @@ export class ScraperService implements OnModuleInit {
           );
         }
 
+        // Discovering nothing is a failure, not a success: recording it as one
+        // stamped last_success, reset consecutive_failures, and left the admin
+        // showing green while every page 403'd. Marking it failed also feeds
+        // the >= 3 consecutive-failures alert in runPostScrapeAlerts.
+        const sourceFailed = urlsDiscovered === 0;
         await this.updateSourceStatus(
           source.id,
-          true,
+          !sourceFailed,
           itemsFound,
           urlsDiscovered,
+          sourceFailed ? sourceWarnings[0] : undefined,
         );
         const duration = Math.round((Date.now() - sourceStartTime) / 1000);
         sourceResults.push({
           name: source.name,
           url: source.url,
-          status: "success",
+          status: sourceFailed ? "failed" : "success",
           itemsFound,
           itemsSaved: 0,
           itemsSkipped,
@@ -1647,7 +1801,12 @@ export class ScraperService implements OnModuleInit {
         });
       } catch (error: any) {
         this.logger.error(`Error crawling "${source.name}": ${error.message}`);
-        onEvent?.({ type: "source-done", name: source.name, itemsFound: 0, error: error.message });
+        onEvent?.({
+          type: "source-done",
+          name: source.name,
+          itemsFound: 0,
+          error: error.message,
+        });
         await this.updateSourceStatus(
           source.id,
           false,
@@ -1782,9 +1941,7 @@ export class ScraperService implements OnModuleInit {
       const candidateApplyUrls = [
         ...new Set(
           items
-            .filter((item) =>
-              recentlyProcessed.has(urlByItem.get(item) ?? ""),
-            )
+            .filter((item) => recentlyProcessed.has(urlByItem.get(item) ?? ""))
             .map((item) => item.apply_url),
         ),
       ];
@@ -2357,19 +2514,71 @@ export class ScraperService implements OnModuleInit {
 
   // ─── HTML Fetching ────────────────────────────────────────────────────────
 
+  private relayConfigured(): boolean {
+    return Boolean(SCRAPER_FETCH_RELAY_URL);
+  }
+
+  private hostOf(url: string): string {
+    try {
+      return new URL(url).hostname.replace(/^www\./, "");
+    } catch {
+      return url;
+    }
+  }
+
+  private buildRelayUrl(url: string): string {
+    const encoded = encodeURIComponent(url);
+    return SCRAPER_FETCH_RELAY_URL.includes("{url}")
+      ? SCRAPER_FETCH_RELAY_URL.replace("{url}", encoded)
+      : `${SCRAPER_FETCH_RELAY_URL}${encoded}`;
+  }
+
+  /** Where to start: a host that already blocked us this run skips `direct`. */
+  private initialFetchRoute(url: string): FetchRoute {
+    if (!this.blockedHostsThisRun.has(this.hostOf(url))) return "direct";
+    if (scraperProxyAgent) return "proxy";
+    return this.relayConfigured() ? "relay" : "direct";
+  }
+
+  /** Next route to try after a block, or null once the options run out. */
+  private nextFetchRoute(current: FetchRoute): FetchRoute | null {
+    if (current === "direct" && scraperProxyAgent) return "proxy";
+    if (current !== "relay" && this.relayConfigured()) return "relay";
+    return null;
+  }
+
+  /** Space relay calls RELAY_MIN_INTERVAL_MS apart so a run stays in quota. */
+  private async throttleRelay(): Promise<void> {
+    const previous = this.relayGate;
+    let release!: () => void;
+    this.relayGate = new Promise<void>((resolve) => (release = resolve));
+    await previous;
+    setTimeout(release, RELAY_MIN_INTERVAL_MS);
+  }
+
+  private async fetchViaRoute(
+    url: string,
+    timeoutMs: number,
+    route: FetchRoute,
+  ) {
+    if (route === "relay") await this.throttleRelay();
+    return axios.get(route === "relay" ? this.buildRelayUrl(url) : url, {
+      timeout:
+        route === "relay" ? Math.max(timeoutMs, RELAY_TIMEOUT_MS) : timeoutMs,
+      headers: route === "relay" ? RELAY_HEADERS : BROWSER_HEADERS,
+      validateStatus: (s) => s < 500,
+      ...(route === "proxy" ? PROXY_AXIOS_CONFIG : {}),
+    });
+  }
+
   private async fetchWithBackoff(
     url: string,
     timeoutMs: number,
     attempt = 1,
-    viaProxy = false,
+    route: FetchRoute = this.initialFetchRoute(url),
   ): Promise<string> {
     try {
-      const res = await axios.get(url, {
-        timeout: timeoutMs,
-        headers: BROWSER_HEADERS,
-        validateStatus: (s) => s < 500,
-        ...(viaProxy ? PROXY_AXIOS_CONFIG : {}),
-      });
+      const res = await this.fetchViaRoute(url, timeoutMs, route);
 
       if (res.status === 429) {
         if (attempt >= MAX_BACKOFF_ATTEMPTS)
@@ -2382,7 +2591,7 @@ export class ScraperService implements OnModuleInit {
           `  ⏳ 429 on ${url} — backing off ${backoff / 1000}s (attempt ${attempt}/${MAX_BACKOFF_ATTEMPTS})`,
         );
         await this.delay(backoff);
-        return this.fetchWithBackoff(url, timeoutMs, attempt + 1, viaProxy);
+        return this.fetchWithBackoff(url, timeoutMs, attempt + 1, route);
       }
 
       if (res.status >= 400) throw new Error(`HTTP ${res.status} for ${url}`);
@@ -2396,13 +2605,15 @@ export class ScraperService implements OnModuleInit {
       }
       return res.data;
     } catch (err: any) {
-      // Blocked (403 or challenge page) and an egress proxy is configured →
-      // retry once through it before giving up.
-      if (!viaProxy && scraperProxyAgent && this.isBlockedFetchError(err)) {
-        this.logger.warn(
-          `  ↳ Blocked on ${url} — retrying via SCRAPER_PROXY_URL`,
-        );
-        return this.fetchWithBackoff(url, timeoutMs, attempt, true);
+      // Blocked (403 or challenge page) → escalate direct → proxy → relay,
+      // and remember the host so the rest of the run skips the doomed hop.
+      if (this.isBlockedFetchError(err)) {
+        const next = this.nextFetchRoute(route);
+        if (next) {
+          this.blockedHostsThisRun.add(this.hostOf(url));
+          this.logger.warn(`  ↳ Blocked on ${url} — retrying via ${next}`);
+          return this.fetchWithBackoff(url, timeoutMs, attempt, next);
+        }
       }
       // Retry transient failures: 429, 5xx, and common network errors.
       // Non-429 4xx responses are never retried.
@@ -2417,7 +2628,7 @@ export class ScraperService implements OnModuleInit {
           `  ⏳ ${reason} on ${url} — backing off ${backoff / 1000}s (attempt ${attempt}/${MAX_BACKOFF_ATTEMPTS})`,
         );
         await this.delay(backoff);
-        return this.fetchWithBackoff(url, timeoutMs, attempt + 1, viaProxy);
+        return this.fetchWithBackoff(url, timeoutMs, attempt + 1, route);
       }
       throw err;
     }
@@ -2460,7 +2671,8 @@ export class ScraperService implements OnModuleInit {
     if (Number.isFinite(secs) && secs >= 0)
       return Math.min(secs * 1_000, 60_000);
     const at = Date.parse(String(raw));
-    if (!Number.isNaN(at)) return Math.min(Math.max(at - Date.now(), 0), 60_000);
+    if (!Number.isNaN(at))
+      return Math.min(Math.max(at - Date.now(), 0), 60_000);
     return null;
   }
 
@@ -2652,33 +2864,49 @@ ${text}`;
   // ─── List Extraction ─────────────────────────────────────────────────────
 
   /**
+   * The relay serves a JSON endpoint as an HTML page with the body inside a
+   * <pre> block, so unwrap it and hand callers real JSON. A challenge page has
+   * no <pre> and falls through unchanged, keeping block detection working.
+   */
+  private unwrapRelayJson(data: unknown): unknown {
+    if (typeof data !== "string") return data;
+    const text = data.trim().startsWith("<")
+      ? cheerio.load(data)("pre").first().text()
+      : data;
+    if (!text) return data;
+    try {
+      return JSON.parse(text);
+    } catch {
+      return data;
+    }
+  }
+
+  /**
    * REST fetch with the same block handling as fetchWithBackoff: a JSON
    * endpoint answering with a bot-challenge page (HTTP 200 HTML) or 403 is a
-   * block — retry once through the egress proxy when one is configured,
-   * otherwise fail loudly instead of parsing the challenge as "no posts".
+   * block — escalate direct → proxy → relay, and only fail once every route is
+   * exhausted, instead of parsing the challenge as "no posts".
    */
   private async fetchRestResponse(
     url: string,
     timeoutMs: number,
-    viaProxy = false,
+    route: FetchRoute = this.initialFetchRoute(url),
   ): Promise<{ status: number; data: any }> {
-    const res = await axios.get(url, {
-      timeout: timeoutMs,
-      headers: BROWSER_HEADERS,
-      validateStatus: (status) => status < 500,
-      ...(viaProxy ? PROXY_AXIOS_CONFIG : {}),
-    });
+    const res = await this.fetchViaRoute(url, timeoutMs, route);
+    const data = route === "relay" ? this.unwrapRelayJson(res.data) : res.data;
     const blocked =
       res.status === 403 ||
-      (typeof res.data === "string" && this.looksLikeBotChallenge(res.data));
-    if (blocked && !viaProxy && scraperProxyAgent) {
-      this.logger.warn(`  ↳ Blocked on ${url} — retrying via SCRAPER_PROXY_URL`);
-      return this.fetchRestResponse(url, timeoutMs, true);
-    }
+      (typeof data === "string" && this.looksLikeBotChallenge(data));
     if (blocked) {
+      const next = this.nextFetchRoute(route);
+      if (next) {
+        this.blockedHostsThisRun.add(this.hostOf(url));
+        this.logger.warn(`  ↳ Blocked on ${url} — retrying via ${next}`);
+        return this.fetchRestResponse(url, timeoutMs, next);
+      }
       throw new Error(`Bot challenge (Cloudflare) or 403 for ${url}`);
     }
-    return res;
+    return { status: res.status, data };
   }
 
   private isDixcoverHubSource(source: ScrapeSource): boolean {
@@ -3186,7 +3414,10 @@ ${text}`;
         continue;
       }
 
-      if (!claimedBy && (await this.isImageUsedByOtherOpportunity(key, applyUrl))) {
+      if (
+        !claimedBy &&
+        (await this.isImageUsedByOtherOpportunity(key, applyUrl))
+      ) {
         // Remember the verdict so sibling items skip the DB round-trip.
         this.imageClaimsThisRun.set(key, "__existing_opportunity__");
         this.logger.log(
@@ -3324,9 +3555,7 @@ ${text}`;
       Boolean(organization);
     // A deadline that already passed at scrape time means a stale post or a
     // misparsed date — either way it would confuse users if published.
-    const deadlinePassed = Boolean(
-      closeDate && closeDate < now.split("T")[0],
-    );
+    const deadlinePassed = Boolean(closeDate && closeDate < now.split("T")[0]);
     // Low LLM extraction confidence means the fields themselves are suspect —
     // cap at pending_review. Only applies to AI-enriched items (confidence 0
     // simply means "no AI enrichment ran", which is not a trust signal).
@@ -3695,6 +3924,122 @@ ${text}`;
   }
 
   // ─── Deletion ─────────────────────────────────────────────────────────────
+
+  /**
+   * Opportunities grouped by the site they came from, with their scrape batches
+   * nested underneath.
+   *
+   * Grouped by URL host rather than scraping_sources.id on purpose: deleting a
+   * source sets scraped_urls.source_id to NULL, so source-keyed grouping makes
+   * every orphaned site invisible — which is exactly how ~95 rows sat unreachable
+   * after their source row was removed. The host is derived from the row itself,
+   * so it survives.
+   */
+  async getOpportunitySites(): Promise<
+    Array<{
+      host: string;
+      total: number;
+      batches: Array<{
+        jobId: string | null;
+        count: number;
+        firstSeen: string | null;
+        lastSeen: string | null;
+        runType: string | null;
+        startedAt: string | null;
+      }>;
+    }>
+  > {
+    const result = await pool.query(`
+      select
+        coalesce(
+          nullif(
+            split_part(
+              regexp_replace(
+                coalesce(opportunity.apply_url, opportunity.application_url, opportunity.source_url),
+                '^https?://(www\\.)?', ''
+              ),
+              '/', 1
+            ),
+            ''
+          ),
+          'unknown'
+        ) as host,
+        opportunity.metadata->>'scrape_job_id' as job_id,
+        count(*)::int as count,
+        min(opportunity.created_at) as first_seen,
+        max(opportunity.created_at) as last_seen,
+        max(log.run_type) as run_type,
+        max(log.started_at) as started_at
+      from public.opportunities opportunity
+      -- scrape_job_id is a JSONB string; scrape_logs.id is uuid.
+      left join public.scrape_logs log
+        on log.id::text = opportunity.metadata->>'scrape_job_id'
+      group by 1, 2
+      order by 1 asc, count desc
+    `);
+
+    const sites = new Map<string, any>();
+
+    for (const row of result.rows) {
+      const host = String(row.host);
+      if (!sites.has(host)) sites.set(host, { host, total: 0, batches: [] });
+      const site = sites.get(host);
+      const count = Number(row.count) || 0;
+      site.total += count;
+      site.batches.push({
+        jobId: row.job_id ?? null,
+        count,
+        firstSeen: row.first_seen ?? null,
+        lastSeen: row.last_seen ?? null,
+        runType: row.run_type ?? null,
+        startedAt: row.started_at ?? null,
+      });
+    }
+
+    return Array.from(sites.values()).sort((a, b) => b.total - a.total);
+  }
+
+  /**
+   * Deletes every opportunity harvested from a host, including rows whose batch
+   * is unknown (scraped before scrape_job_id existed) — those are unreachable
+   * from a batch-only delete. Also clears the scraped_urls ledger, whose
+   * opportunity_id has no FK and would otherwise dangle.
+   */
+  async deleteOpportunitiesByHost(
+    host: string,
+  ): Promise<{ success: boolean; deleted: number; error?: string }> {
+    const clean = host
+      .trim()
+      .toLowerCase()
+      .replace(/^www\./, "");
+    // A bare "%" here would match every opportunity in the table.
+    if (!clean || !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(clean)) {
+      return { success: false, deleted: 0, error: "Invalid host" };
+    }
+
+    const like = `%${clean}%`;
+    try {
+      const deleted = await pool.query(
+        `delete from public.opportunities
+         where coalesce(apply_url, application_url, source_url) ilike $1
+            or coalesce(metadata->>'aggregator_url', '') ilike $1
+            or coalesce(metadata->>'detail_url', '') ilike $1
+         returning id`,
+        [like],
+      );
+      const count = deleted.rowCount ?? 0;
+
+      await pool.query(`delete from public.scraped_urls where url ilike $1`, [
+        like,
+      ]);
+
+      this.logger.log(`Deleted ${count} opportunity(ies) from host ${clean}`);
+      return { success: true, deleted: count };
+    } catch (e: any) {
+      this.logger.error(`Delete by host ${clean} failed: ${e.message}`);
+      return { success: false, deleted: 0, error: e.message };
+    }
+  }
 
   async deleteJobWithOpportunities(
     jobId: string,
@@ -4111,17 +4456,19 @@ ${text}`;
       // Memory-safe fallback: exact total via a head-only count, and a capped
       // sample for the per-source breakdown instead of loading every row.
       const FALLBACK_SAMPLE_LIMIT = 5_000;
-      const [{ count: totalCount }, { data: fallbackData, error: fallbackError }] =
-        await Promise.all([
-          this.supabase
-            .from("opportunities")
-            .select("id", { count: "exact", head: true }),
-          this.supabase
-            .from("opportunities")
-            .select("source")
-            .order("created_at", { ascending: false })
-            .limit(FALLBACK_SAMPLE_LIMIT),
-        ]);
+      const [
+        { count: totalCount },
+        { data: fallbackData, error: fallbackError },
+      ] = await Promise.all([
+        this.supabase
+          .from("opportunities")
+          .select("id", { count: "exact", head: true }),
+        this.supabase
+          .from("opportunities")
+          .select("source")
+          .order("created_at", { ascending: false })
+          .limit(FALLBACK_SAMPLE_LIMIT),
+      ]);
       if (fallbackError) return { total: totalCount ?? 0, bySource: {} };
 
       const bySource: Record<string, number> = {};

@@ -30,7 +30,8 @@ export class DocumentsController {
     @Param("id") id: string,
     @Body() body: { format?: string },
   ) {
-    const format = body?.format === "docx" ? "docx" : body?.format === "pdf" ? "pdf" : null;
+    const format =
+      body?.format === "docx" ? "docx" : body?.format === "pdf" ? "pdf" : null;
     if (!format) {
       throw new BadRequestException("format must be 'pdf' or 'docx'");
     }

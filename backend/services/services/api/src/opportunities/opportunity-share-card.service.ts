@@ -512,9 +512,7 @@ export class OpportunityShareCardService {
       tracking: number;
     },
   ): string {
-    const w = Math.round(
-      text.length * (opts.size * 0.66 + opts.tracking) + 40,
-    );
+    const w = Math.round(text.length * (opts.size * 0.66 + opts.tracking) + 40);
     return `<g>
     <rect x="${x}" y="${y}" width="${w}" height="42" rx="21" fill="${opts.bg}" fill-opacity="${opts.bgOpacity ?? 1}"/>
     <text x="${x + 22}" y="${y + 28}" font-family="${FONT}" font-size="${opts.size}" font-weight="800" letter-spacing="${opts.tracking}" fill="${opts.fg}">${this.escape(text)}</text>

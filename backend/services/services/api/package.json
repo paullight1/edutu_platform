@@ -17,15 +17,16 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
-    "lint": "eslint \"src/**/*.ts\" --fix",
+    "lint": "eslint \"src/**/*.ts\"",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "lint:fix": "eslint \"src/**/*.ts\" --fix"
   },
   "dependencies": {
-    "@clerk/clerk-sdk-node": "^5.1.6",
+    "@clerk/backend": "^1.34.0",
     "@google/genai": "^1.44.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.3",
@@ -43,6 +44,7 @@
     "class-validator": "^0.15.1",
     "docx": "^9.7.1",
     "drizzle-orm": "^0.45.1",
+    "expo-server-sdk": "^3.15.0",
     "helmet": "^8.2.0",
     "https-proxy-agent": "^7.0.5",
     "ioredis": "^5.4.1",

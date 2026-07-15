@@ -240,7 +240,7 @@ export default function SavedSearchesScreen() {
               No alerts yet
             </Text>
             <Text style={[styles.emptyBody, { color: textSecondary }]}>
-              Search or filter on Discover, then tap “Save this search” — we'll
+              Search or filter on Discover, then tap “Save this search” — we&apos;ll
               notify you the moment a new opportunity matches.
             </Text>
             <TouchableOpacity

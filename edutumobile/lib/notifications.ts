@@ -3,6 +3,8 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getConfig } from './config';
+import { registerNotificationCategoriesAsync } from './notificationCategories';
+import { registerNotificationActionTask } from './notificationActionTask';
 import i18n from './i18n';
 
 const PUSH_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
@@ -91,6 +93,11 @@ export async function registerForPushNotificationsAsync(userId?: string, getAuth
     if (finalStatus !== 'granted') {
         return null;
     }
+
+    // Must precede the token fetch: a notification whose categoryId isn't
+    // registered on the device arrives with no action buttons at all.
+    await registerNotificationCategoriesAsync();
+    await registerNotificationActionTask();
 
     const token = (await Notifications.getExpoPushTokenAsync({
         projectId: '97c7d577-7e08-4f3c-a199-d1ca149ebee9',

@@ -624,8 +624,7 @@ export class BillingService {
               returning id
             `);
 
-      const insertedRows =
-        (inserted as { rows?: unknown[] }).rows ?? [];
+      const insertedRows = (inserted as { rows?: unknown[] }).rows ?? [];
       if (insertedRows.length === 0) {
         // Webhook redelivery — credits were already granted for this reference.
         return;

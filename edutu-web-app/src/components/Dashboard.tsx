@@ -5,7 +5,6 @@ import {
   Briefcase,
   Calendar,
   ChevronRight,
-  ChevronLeft,
   Clock,
   Download,
   GraduationCap,
@@ -38,9 +37,14 @@ import { usePWA } from "../hooks/usePWA";
 import { useToast } from "./ui/ToastProvider";
 import type { AppUser } from "../types/user";
 import type { OnboardingProfileData } from "../types/onboarding";
-import { addBookmark, getBookmarks, removeBookmark } from "../services/bookmarks";
+import {
+  addBookmark,
+  getBookmarks,
+  removeBookmark,
+  type BookmarkRecord,
+} from "../services/bookmarks";
 import { ImpressionTracker } from "./opportunity/ImpressionTracker";
-import { getApplications } from "../services/applications";
+import { getApplications, type ApplicationRecord } from "../services/applications";
 import { getDeadlines, type Deadline } from "../services/deadlines";
 import { fetchBackendProfile, type BackendProfile } from "../services/profile";
 import type { UserProfileForRecommendations } from "../services/personalizedRecommendations";
@@ -60,7 +64,6 @@ import UrgencyPill from "./opportunity/UrgencyPill";
 import ImageWithFallback from "./ImageWithFallback";
 
 const HOME_FEED_BATCH_SIZE = 8;
-const HOME_FEED_PROMO_INTERVAL = 6;
 const HOME_SCREEN_PROMPT_DISMISSED_KEY = "edutu_home_screen_prompt_dismissed";
 
 
@@ -126,7 +129,7 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function opportunitySearchText(opportunity: any) {
+function opportunitySearchText(opportunity: Opportunity) {
   const values = [
     opportunity?.category,
     opportunity?.title,
@@ -141,7 +144,7 @@ function opportunitySearchText(opportunity: any) {
 }
 
 function opportunityMatchesDiscoveryCategory(
-  opportunity: any,
+  opportunity: Opportunity,
   category: DiscoveryCategory,
 ) {
   const text = opportunitySearchText(opportunity);
@@ -195,16 +198,16 @@ type DashboardOpportunityCardVariant =
   | "list";
 
 interface DashboardOpportunityCardProps {
-  opportunity: any;
+  opportunity: Opportunity;
   variant: DashboardOpportunityCardVariant;
   isBookmarked: boolean;
   isDarkMode: boolean;
-  onOpen: (opportunity: any) => void;
-  onToggleBookmark: (opportunity: any, event: React.MouseEvent) => void;
-  onShare: (opportunity: any, event: React.MouseEvent) => void;
+  onOpen: (opportunity: Opportunity) => void;
+  onToggleBookmark: (opportunity: Opportunity, event: React.MouseEvent) => void;
+  onShare: (opportunity: Opportunity, event: React.MouseEvent) => void;
 }
 
-function formatOpportunityDeadline(deadline?: string) {
+function formatOpportunityDeadline(deadline?: string | null) {
   // No fabricated "Ongoing" label — when there is no deadline, show nothing.
   return deadline
     ? new Date(deadline).toLocaleDateString("en-US", {
@@ -214,17 +217,16 @@ function formatOpportunityDeadline(deadline?: string) {
     : "";
 }
 
+// NOTE: isBookmarked/isDarkMode/onToggleBookmark/onShare are still part of the
+// props contract and still passed by every call site, but no variant renders a
+// bookmark or share button any more, so nothing consumes them here. Left in
+// place rather than ripped out, so re-adding the buttons is just wiring.
 const DashboardOpportunityCard = React.memo(function DashboardOpportunityCard({
   opportunity,
   variant,
-  isBookmarked,
-  isDarkMode,
   onOpen,
-  onToggleBookmark,
-  onShare,
 }: DashboardOpportunityCardProps) {
   const openLabel = `Open ${opportunity?.title ?? "opportunity"}`;
-  const bookmarkLabel = isBookmarked ? "Remove bookmark" : "Save opportunity";
 
   const { explainOpportunity, isPersonalized } = usePersonalization();
   const match = isPersonalized ? explainOpportunity(opportunity) : null;
@@ -570,7 +572,10 @@ const BannerCarousel = React.memo(function BannerCarousel({
 
 interface DashboardProps {
   user: AppUser | null;
-  onOpportunityClick: (opportunity: any) => void;
+  // Partial: callers navigating from a bookmark/application/deadline row only
+  // have an id (+ maybe title/category), not a full feed row. The consumer
+  // in App.tsx only reads `id` and forwards the rest as route state.
+  onOpportunityClick: (opportunity: Partial<Opportunity>) => void;
   onViewAllOpportunities: () => void;
   onNavigate?: (screen: string) => void;
   onboardingProfile?: OnboardingProfileData | null;
@@ -609,6 +614,12 @@ const PANEL_COPY: Record<DashboardPanel, { title: string; subtitle: string }> =
     },
   };
 
+/**
+ * NOTE: not implemented. Dashboard forwards a ref but never calls
+ * useImperativeHandle, so a caller passing a ref would get null here and
+ * `ref.current.refreshOpportunities()` would throw. No caller passes one
+ * today. Either implement it or drop the forwardRef.
+ */
 export interface DashboardRef {
   refreshOpportunities: () => void;
 }
@@ -623,7 +634,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       onboardingProfile,
       embeddedDesktopShell = false,
     },
-    ref,
+    // Unused: there is no useImperativeHandle here, so the DashboardRef
+    // contract below is not actually implemented. No caller passes a ref
+    // today, so nothing is broken — but see the note on DashboardRef.
+    _ref,
   ) {
     const [activePanel, setActivePanel] = useState<DashboardPanel | null>(null);
     const [dismissBanner, setDismissBanner] = usePersistentState<boolean>(
@@ -664,18 +678,18 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     } = usePersonalization();
     const opportunitiesRefreshRef = useRef<() => void>();
     const homeFeedSentinelRef = useRef<HTMLDivElement | null>(null);
-    const [bookmarks, setBookmarks] = useState<any[]>([]);
+    const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>([]);
 
     const isOppBookmarked = useCallback(
       (opportunityId: string) =>
         bookmarks.some(
-          (b: any) => b.opportunity_id === opportunityId,
+          (b) => b.opportunity_id === opportunityId,
         ),
       [bookmarks],
     );
 
     const handleToggleBookmark = useCallback(
-      async (opportunity: any, e: React.MouseEvent) => {
+      async (opportunity: Opportunity, e: React.MouseEvent) => {
         e.stopPropagation();
         e.preventDefault();
         if (!user?.id) {
@@ -688,13 +702,13 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           return;
         }
         const saved = bookmarks.find(
-          (b: any) => b.opportunity_id === opportunity.id,
+          (b) => b.opportunity_id === opportunity.id,
         );
         try {
           if (saved) {
             await removeBookmark(user.id, opportunity.id, token);
-            setBookmarks((prev: any[]) =>
-              prev.filter((b: any) => b.id !== saved.id),
+            setBookmarks((prev) =>
+              prev.filter((b) => b.id !== saved.id),
             );
             trackInteraction(opportunity, "bookmark", {
               value: -1,
@@ -727,7 +741,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     );
 
     const handleShareOpportunity = useCallback(
-      async (opportunity: any, e: React.MouseEvent) => {
+      async (opportunity: Opportunity, e: React.MouseEvent) => {
         e.stopPropagation();
         e.preventDefault();
         trackInteraction(opportunity, "share");
@@ -751,7 +765,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       },
       [onOpportunityClick, trackInteraction],
     );
-    const [applications, setApplications] = useState<any[]>([]);
+    const [applications, setApplications] = useState<ApplicationRecord[]>([]);
     const [dashboardDeadlines, setDashboardDeadlines] = useState<Deadline[]>(
       [],
     );
@@ -970,7 +984,9 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     const normalizedOpportunityFeed = useMemo(() => {
       if (!Array.isArray(opportunityFeed)) return [];
       return opportunityFeed
-        .map((item: any) =>
+        // The feed yields either a bare row or a scored { opportunity } wrapper
+        // depending on whether recommendations are on — unwrap to the row.
+        .map((item: Opportunity | { opportunity: Opportunity }) =>
           item && typeof item === "object" && "opportunity" in item
             ? item.opportunity
             : item,
@@ -986,7 +1002,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     const filteredOpportunityFeed = useMemo(() => {
       if (!selectedDiscoveryCategory) return normalizedOpportunityFeed;
 
-      return normalizedOpportunityFeed.filter((opportunity: any) =>
+      return normalizedOpportunityFeed.filter((opportunity: Opportunity) =>
         opportunityMatchesDiscoveryCategory(
           opportunity,
           selectedDiscoveryCategory,
@@ -1009,8 +1025,8 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     const bestShots = useMemo(() => {
       if (!user?.id || !isPersonalized) return [];
       return normalizedOpportunityFeed
-        .filter((opportunity: any) => !isOpportunityExpired(opportunity))
-        .map((opportunity: any) => ({
+        .filter((opportunity: Opportunity) => !isOpportunityExpired(opportunity))
+        .map((opportunity: Opportunity) => ({
           opportunity,
           match: explainOpportunity(opportunity),
         }))
@@ -1051,9 +1067,9 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     );
 
     const mobileMoreOpportunityItems = useMemo(() => {
-      const items: Array<{ key: string; opportunity: any }> = [];
+      const items: Array<{ key: string; opportunity: Opportunity }> = [];
 
-      mobileExploreOpportunities.slice(0, 10).forEach((opportunity: any, index: number) => {
+      mobileExploreOpportunities.slice(0, 10).forEach((opportunity: Opportunity, index: number) => {
         items.push({
           key: opportunity?.id
             ? `mobile-feed-${opportunity.id}`
@@ -1066,7 +1082,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
     }, [mobileExploreOpportunities]);
 
     const homeFeedItems = useMemo(() => {
-      return visibleHomeOpportunities.map((opportunity: any, index) => ({
+      return visibleHomeOpportunities.map((opportunity: Opportunity, index) => ({
         type: "opportunity" as const,
         key: opportunity?.id
           ? `opportunity-${opportunity.id}`
@@ -2054,7 +2070,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                             aria-label="Personalized opportunities carousel"
                           >
                             {mobilePersonalizedOpportunities.map(
-                              (opportunity: any, index: number) => (
+                              (opportunity: Opportunity, index: number) => (
                                 <DashboardOpportunityCard
                                   key={
                                     opportunity?.id

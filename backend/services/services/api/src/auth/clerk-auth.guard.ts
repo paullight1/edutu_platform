@@ -6,8 +6,8 @@ import {
   Inject,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import type { ClerkClient } from "@clerk/clerk-sdk-node";
-import { verifyToken } from "@clerk/clerk-sdk-node";
+import type { ClerkClient } from "@clerk/backend";
+import { verifyToken } from "@clerk/backend";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { IS_PUBLIC_KEY } from "./public.decorator";
 import { db } from "../db";
@@ -114,7 +114,7 @@ export class ClerkAuthGuard implements CanActivate {
 
   private async verifyClerkToken(
     token: string,
-  ): Promise<{ sub: string } & Record<string, unknown> | null> {
+  ): Promise<({ sub: string } & Record<string, unknown>) | null> {
     // Primary: Clerk SDK (secret key, or CLERK_JWT_KEY for networkless verify).
     const secretKey = process.env.CLERK_SECRET_KEY;
     const jwtKey = process.env.CLERK_JWT_KEY;
@@ -134,7 +134,12 @@ export class ClerkAuthGuard implements CanActivate {
     ).catch(() => null);
     if (viaJwks) return viaJwks;
 
-    if (!secretKey && !jwtKey && !getExpectedClerkIssuer() && !this.warnedNoClerkConfig) {
+    if (
+      !secretKey &&
+      !jwtKey &&
+      !getExpectedClerkIssuer() &&
+      !this.warnedNoClerkConfig
+    ) {
       this.warnedNoClerkConfig = true;
       console.error(
         "[ClerkAuthGuard] Clerk verification unavailable: set CLERK_SECRET_KEY (or CLERK_JWT_KEY / CLERK_ISSUER_URL / a CLERK_PUBLISHABLE_KEY). All Clerk-authenticated requests will 401 until then.",
@@ -183,7 +188,11 @@ export class ClerkAuthGuard implements CanActivate {
       // authenticated request arrives (covers Google/Clerk sign-ins that
       // previously never wrote last_seen_at). Fire-and-forget. Keyed by the
       // raw Clerk subject so the stamp lands on the canonical profile row.
-      this.touchLastSeen(payload.sub, request.user.email, request.user.firstName);
+      this.touchLastSeen(
+        payload.sub,
+        request.user.email,
+        request.user.firstName,
+      );
 
       return true;
     } catch {
@@ -243,7 +252,11 @@ export class ClerkAuthGuard implements CanActivate {
    * users (e.g. first Google login, before any GET /profile) still count
    * toward active-user metrics; on conflict only last_seen_at is touched.
    */
-  private touchLastSeen(profileKey: string, email?: string, firstName?: string) {
+  private touchLastSeen(
+    profileKey: string,
+    email?: string,
+    firstName?: string,
+  ) {
     const now = Date.now();
     const lastStamp = this.lastSeenStamps.get(profileKey);
     if (lastStamp && now - lastStamp < LAST_SEEN_THROTTLE_MS) return;

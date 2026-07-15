@@ -1,5 +1,9 @@
 name: CI
 
+# Node 20 here is deliberate: it matches the backend's .node-version and
+# Dockerfile, which is what production actually runs. Don't "modernise" it
+# without moving production too, or CI stops testing the real runtime.
+
 on:
   push:
     branches: [main, develop]
@@ -11,6 +15,7 @@ jobs:
   backend-test:
     name: Backend Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: backend/services/services/api
@@ -30,6 +35,7 @@ jobs:
   backend-lint:
     name: Backend Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: backend/services/services/api
@@ -46,6 +52,7 @@ jobs:
   mobile-typecheck:
     name: Mobile TypeCheck
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: edutumobile
@@ -62,6 +69,7 @@ jobs:
   mobile-test:
     name: Mobile Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: edutumobile
@@ -75,9 +83,27 @@ jobs:
       - run: npm ci
       - run: npm run test -- --passWithNoTests
 
+  mobile-lint:
+    name: Mobile Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: edutumobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: edutumobile/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+
   admin-typecheck:
     name: Admin TypeCheck
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: admin
@@ -93,9 +119,86 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
 
+  admin-lint:
+    name: Admin Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: admin
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: admin/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+
+  web-typecheck:
+    name: Web TypeCheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: edutu-web-app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: edutu-web-app/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+
+  web-lint:
+    name: Web Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: edutu-web-app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: edutu-web-app/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+
+  web-test:
+    name: Web Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: edutu-web-app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: edutu-web-app/package-lock.json
+      - run: npm ci
+      - run: npm run test
+
   security-audit:
     name: Security Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:

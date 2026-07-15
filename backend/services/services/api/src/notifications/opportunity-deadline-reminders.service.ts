@@ -33,7 +33,9 @@ const REMINDER_OFFSETS = [14, 7, 3, 1, 0];
  */
 @Injectable()
 export class OpportunityDeadlineRemindersService {
-  private readonly logger = new Logger(OpportunityDeadlineRemindersService.name);
+  private readonly logger = new Logger(
+    OpportunityDeadlineRemindersService.name,
+  );
 
   constructor(private readonly notificationsService: NotificationsService) {}
 
@@ -193,9 +195,7 @@ export class OpportunityDeadlineRemindersService {
             : `${daysBefore} day${daysBefore === 1 ? "" : "s"} left: ${title}`,
         body: this.reminderBody(daysBefore, nextAction),
         kind: "deadline-reminder" as const,
-        severity: (daysBefore <= 1 ? "warning" : "info") as
-          | "warning"
-          | "info",
+        severity: daysBefore <= 1 ? "warning" : "info",
         scheduledFor: scheduledFor.toISOString(),
         dedupeKey: `opp-deadline:${candidate.opportunity_id}:${daysBefore}`,
         metadata: {

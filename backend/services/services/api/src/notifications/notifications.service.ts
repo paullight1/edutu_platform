@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import axios from "axios";
+import { Expo, type ExpoPushMessage } from "expo-server-sdk";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import {
   and,
@@ -40,7 +41,6 @@ const DEFAULT_CHANNELS = {
 };
 
 const BROADCAST_BATCH_SIZE = 500;
-const PUSH_BATCH_SIZE = 100;
 
 type BroadcastRecipient = {
   userId: string;
@@ -51,6 +51,7 @@ type BroadcastRecipient = {
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
+  private readonly expo = new Expo();
   // Lazily-loaded web-push module (optional dependency); null when VAPID keys
   // are unset or the package isn't installed, in which case web push no-ops.
   private webpush: any = null;
@@ -69,7 +70,7 @@ export class NotificationsService {
 
     try {
       // require (not import) so the build stays green without the package.
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+
       const webpush = require("web-push");
       webpush.setVapidDetails(
         process.env.VAPID_SUBJECT || "mailto:support@edutu.org",
@@ -602,7 +603,11 @@ export class NotificationsService {
     if (!userIds.length) return { sent: 0 };
 
     let sent = 0;
+    let rejected = 0;
     const failures: string[] = [];
+    // Tokens Expo tells us are dead (uninstalled app, or malformed). Pruned
+    // after the send loop so a broadcast never leaves rot behind.
+    const staleTokens: string[] = [];
 
     for (const userBatch of this.chunk(userIds, BROADCAST_BATCH_SIZE)) {
       const tokens = await db
@@ -621,30 +626,65 @@ export class NotificationsService {
         typeof dto.metadata?.androidChannelId === "string"
           ? dto.metadata.androidChannelId
           : "default";
+      // Drives the interactive action buttons registered on the client via
+      // setNotificationCategoryAsync; absent means a plain notification.
+      const categoryId =
+        typeof dto.metadata?.categoryId === "string"
+          ? dto.metadata.categoryId
+          : undefined;
 
-      for (const tokenBatch of this.chunk(tokens, PUSH_BATCH_SIZE)) {
-        const messages = tokenBatch.map((item) => ({
+      const messages: ExpoPushMessage[] = [];
+      for (const item of tokens) {
+        // A token that isn't even shaped like an Expo token can never work —
+        // Expo would reject the whole chunk, so drop it here instead.
+        if (!Expo.isExpoPushToken(item.token)) {
+          staleTokens.push(item.token);
+          rejected += 1;
+          continue;
+        }
+        messages.push({
           to: item.token,
           title: dto.title,
           body: dto.body,
           sound: "default",
           priority: "high",
           channelId,
+          ...(categoryId ? { categoryId } : {}),
           data: {
             kind: dto.kind || "admin-broadcast",
             severity: dto.severity || "info",
             ...(dto.metadata || {}),
           },
-        }));
+        });
+      }
 
+      // The SDK chunks to Expo's own per-request limit; don't second-guess it.
+      for (const chunk of this.expo.chunkPushNotifications(messages)) {
         try {
-          await axios.post("https://exp.host/--/api/v2/push/send", messages, {
-            headers: { "Content-Type": "application/json" },
-            timeout: 10_000,
-          });
+          const tickets = await this.expo.sendPushNotificationsAsync(chunk);
 
-          sent += messages.length;
+          // Expo returns HTTP 200 with per-message tickets, so a rejected
+          // message looks identical to a delivered one at the transport layer.
+          // Counting messages instead of "ok" tickets is what made `sent`
+          // meaningless before.
+          tickets.forEach((ticket, index) => {
+            if (ticket.status === "ok") {
+              sent += 1;
+              return;
+            }
+
+            rejected += 1;
+            const reason = ticket.details?.error;
+            // The app was uninstalled (or the token rotated). This is the only
+            // trustworthy signal for pruning, so act on it.
+            if (reason === "DeviceNotRegistered") {
+              const to = chunk[index]?.to;
+              if (typeof to === "string") staleTokens.push(to);
+            }
+            failures.push(reason || ticket.message || "Expo rejected message");
+          });
         } catch (error) {
+          rejected += chunk.length;
           failures.push(
             error instanceof Error ? error.message : "Expo push failed",
           );
@@ -652,11 +692,55 @@ export class NotificationsService {
       }
     }
 
-    if (!sent && !failures.length) {
+    const pruned = await this.pruneExpoTokens(staleTokens);
+
+    if (!sent && !rejected) {
       return { sent: 0, skipped: "no expo tokens" };
     }
 
-    return failures.length ? { sent, failed: failures.join("; ") } : { sent };
+    return {
+      sent,
+      ...(rejected ? { rejected } : {}),
+      ...(pruned ? { pruned } : {}),
+      // Distinct reasons only — a broadcast to 10k dead tokens shouldn't
+      // return a 10k-entry string.
+      ...(failures.length
+        ? { failed: Array.from(new Set(failures)).join("; ") }
+        : {}),
+    };
+  }
+
+  // Deletes tokens Expo has told us are dead. Best-effort: a broadcast that
+  // delivered fine shouldn't fail because cleanup did.
+  private async pruneExpoTokens(tokens: string[]): Promise<number> {
+    const unique = Array.from(new Set(tokens));
+    if (!unique.length) return 0;
+
+    let pruned = 0;
+    for (const batch of this.chunk(unique, BROADCAST_BATCH_SIZE)) {
+      try {
+        await db
+          .delete(notificationPushTokens)
+          .where(
+            and(
+              eq(notificationPushTokens.provider, "expo"),
+              inArray(notificationPushTokens.token, batch),
+            ),
+          );
+        pruned += batch.length;
+      } catch (error) {
+        this.logger.warn(
+          `Failed to prune ${batch.length} stale expo token(s): ${
+            error instanceof Error ? error.message : "unknown error"
+          }`,
+        );
+      }
+    }
+
+    if (pruned) {
+      this.logger.log(`Pruned ${pruned} stale expo push token(s)`);
+    }
+    return pruned;
   }
 
   // Dispatches a notification across every push transport (Expo for mobile,

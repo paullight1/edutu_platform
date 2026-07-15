@@ -18,6 +18,7 @@ import * as path from "path";
 import { z } from "zod";
 import { OpportunityRankingService } from "./opportunity-ranking.service";
 import { OpportunityEmbeddingService } from "./opportunity-embedding.service";
+import { parseDeadlineDetailed } from "./deadline.util";
 import {
   OpportunityPreferenceDto,
   OpportunitySignalDto,
@@ -195,6 +196,13 @@ export interface AdminOpportunityListQuery {
   status?: string;
   category?: string;
   sortBy?: string;
+  /**
+   * Exclude opportunities whose deadline has passed. Defaults to true (include
+   * them) so existing callers are unaffected; the admin list opts out.
+   */
+  includeExpired?: boolean;
+  /** Only rows with no deadline at all — the re-scrape/AI recovery cohort. */
+  missingDeadline?: boolean;
 }
 
 export interface SitemapOpportunityEntry {
@@ -494,79 +502,79 @@ export class OpportunitiesService {
     const today = new Date().toISOString().slice(0, 10);
 
     const run = async () => {
-    try {
-      if (this.supabase) {
-        let request = this.supabase
-          .from("opportunities")
-          .select("*")
-          .eq("status", statusFilter)
-          .order("created_at", { ascending: false })
-          .range(normalizedOffset, normalizedOffset + cappedLimit - 1);
+      try {
+        if (this.supabase) {
+          let request = this.supabase
+            .from("opportunities")
+            .select("*")
+            .eq("status", statusFilter)
+            .order("created_at", { ascending: false })
+            .range(normalizedOffset, normalizedOffset + cappedLimit - 1);
 
-        if (excludeExpired) {
-          request = request.or(`close_date.gte.${today},close_date.is.null`);
-        }
+          if (excludeExpired) {
+            request = request.or(`close_date.gte.${today},close_date.is.null`);
+          }
 
-        if (category) {
-          request = request.eq("category", category);
-        }
+          if (category) {
+            request = request.eq("category", category);
+          }
 
-        const { data, error } = await request;
-        if (!error) {
-          const rows = data ?? [];
-          if (rows.length > 0) {
-            return rows.map((row) =>
-              withOpportunityUrlAliases(row as Record<string, any>),
+          const { data, error } = await request;
+          if (!error) {
+            const rows = data ?? [];
+            if (rows.length > 0) {
+              return rows.map((row) =>
+                withOpportunityUrlAliases(row as Record<string, any>),
+              );
+            }
+          } else {
+            this.logger.warn(
+              `Canonical opportunity list query failed, falling back to Drizzle schema: ${error.message}`,
             );
           }
-        } else {
-          this.logger.warn(
-            `Canonical opportunity list query failed, falling back to Drizzle schema: ${error.message}`,
+        }
+
+        const conditions = [eq(opportunities.status, statusFilter)];
+        if (category) {
+          conditions.push(eq(opportunities.category, category));
+        }
+        if (excludeExpired) {
+          conditions.push(
+            or(
+              isNull(opportunities.closeDate),
+              gte(opportunities.closeDate, today),
+            )!,
           );
         }
-      }
 
-      const conditions = [eq(opportunities.status, statusFilter)];
-      if (category) {
-        conditions.push(eq(opportunities.category, category));
-      }
-      if (excludeExpired) {
-        conditions.push(
-          or(
-            isNull(opportunities.closeDate),
-            gte(opportunities.closeDate, today),
-          )!,
+        const query = db
+          .select()
+          .from(opportunities)
+          .where(and(...conditions))
+          .limit(cappedLimit)
+          .offset(normalizedOffset)
+          .orderBy(desc(opportunities.createdAt));
+
+        const rows = await query.execute();
+        if (rows.length > 0) {
+          return rows.map((row) =>
+            withOpportunityUrlAliases(row as Record<string, any>),
+          );
+        }
+      } catch (error: any) {
+        this.logger.warn(
+          `Canonical opportunity list unavailable, falling back to static snapshot: ${error?.message ?? String(error)}`,
         );
       }
 
-      const query = db
-        .select()
-        .from(opportunities)
-        .where(and(...conditions))
-        .limit(cappedLimit)
-        .offset(normalizedOffset)
-        .orderBy(desc(opportunities.createdAt));
-
-      const rows = await query.execute();
-      if (rows.length > 0) {
-        return rows.map((row) =>
-          withOpportunityUrlAliases(row as Record<string, any>),
-        );
-      }
-    } catch (error: any) {
-      this.logger.warn(
-        `Canonical opportunity list unavailable, falling back to static snapshot: ${error?.message ?? String(error)}`,
-      );
-    }
-
-    const snapshotRows = await loadStaticOpportunitySnapshot();
-    return filterStaticOpportunityRows(
-      snapshotRows,
-      cappedLimit,
-      normalizedOffset,
-      statusFilter,
-      category,
-    ).map((row) => withOpportunityUrlAliases(row as Record<string, any>));
+      const snapshotRows = await loadStaticOpportunitySnapshot();
+      return filterStaticOpportunityRows(
+        snapshotRows,
+        cappedLimit,
+        normalizedOffset,
+        statusFilter,
+        category,
+      ).map((row) => withOpportunityUrlAliases(row as Record<string, any>));
     };
 
     return this.cache ? this.cache.wrap(cacheKey, 45, run) : run();
@@ -872,42 +880,42 @@ export class OpportunitiesService {
 
   async findOne(id: string) {
     const run = async () => {
-    try {
-      if (this.supabase) {
-        const { data, error } = await this.supabase
-          .from("opportunities")
-          .select("*")
-          .eq("id", id)
-          .maybeSingle();
+      try {
+        if (this.supabase) {
+          const { data, error } = await this.supabase
+            .from("opportunities")
+            .select("*")
+            .eq("id", id)
+            .maybeSingle();
 
-        if (!error) {
-          if (data) {
-            return withOpportunityUrlAliases(data as Record<string, any>);
+          if (!error) {
+            if (data) {
+              return withOpportunityUrlAliases(data as Record<string, any>);
+            }
+          } else {
+            this.logger.warn(
+              `Canonical opportunity detail query failed, falling back to Drizzle schema: ${error.message}`,
+            );
           }
-        } else {
-          this.logger.warn(
-            `Canonical opportunity detail query failed, falling back to Drizzle schema: ${error.message}`,
-          );
         }
+
+        const res = await db
+          .select()
+          .from(opportunities)
+          .where(eq(opportunities.id, id))
+          .execute();
+        if (res[0]) {
+          return withOpportunityUrlAliases(res[0] as Record<string, any>);
+        }
+      } catch (error: any) {
+        this.logger.warn(
+          `Canonical opportunity detail unavailable, falling back to static snapshot: ${error?.message ?? String(error)}`,
+        );
       }
 
-      const res = await db
-        .select()
-        .from(opportunities)
-        .where(eq(opportunities.id, id))
-        .execute();
-      if (res[0]) {
-        return withOpportunityUrlAliases(res[0] as Record<string, any>);
-      }
-    } catch (error: any) {
-      this.logger.warn(
-        `Canonical opportunity detail unavailable, falling back to static snapshot: ${error?.message ?? String(error)}`,
-      );
-    }
-
-    const snapshotRows = await loadStaticOpportunitySnapshot();
-    const row = snapshotRows.find((item) => String(item.id) === String(id));
-    return row ? withOpportunityUrlAliases(row as Record<string, any>) : null;
+      const snapshotRows = await loadStaticOpportunitySnapshot();
+      const row = snapshotRows.find((item) => String(item.id) === String(id));
+      return row ? withOpportunityUrlAliases(row as Record<string, any>) : null;
     };
 
     return this.cache
@@ -979,14 +987,44 @@ export class OpportunitiesService {
         throw new Error("Supabase is not configured");
       }
 
+      // "planned" is a query-planner estimate that only happens to be right for
+      // an unfiltered table: with the hide-expired predicate it reported 171
+      // against 341 real rows, which would strand ~190 opportunities behind a
+      // page count that never reaches them. "exact" measured faster here anyway
+      // (188ms vs 524ms) — the estimate isn't buying anything.
       let request = this.supabase
         .from("opportunities")
-        .select(ADMIN_OPPORTUNITY_COLUMNS, { count: "planned" })
+        .select(ADMIN_OPPORTUNITY_COLUMNS, { count: "exact" })
         .order(sort.column, { ascending: sort.ascending, nullsFirst: false })
         .order("id", { ascending: sort.ascending });
 
-      if (query.status && query.status !== "all") {
+      const hasStatusFilter = Boolean(query.status && query.status !== "all");
+
+      if (hasStatusFilter) {
         request = request.eq("status", query.status);
+      }
+
+      // "Expired" is not a stored status: it's status='closed' OR a close_date
+      // in the past. The hourly verification job flips passed deadlines to
+      // 'closed', but until it runs a row can still say 'active' with a dead
+      // deadline — so both predicates are needed to actually exclude expired.
+      //
+      // Skipped when an explicit status is requested: asking for status=closed
+      // AND not-expired is a contradiction that would always return zero rows.
+      if (query.includeExpired === false && !hasStatusFilter) {
+        request = request
+          .neq("status", "closed")
+          // close_date is nullable, and a null deadline is not an expiry —
+          // a plain gte would silently drop every rolling opportunity.
+          .or(
+            `close_date.is.null,close_date.gte.${new Date().toISOString().slice(0, 10)}`,
+          );
+      }
+
+      // Both columns must be empty: the 2026-07-12 migration coalesced
+      // close_date <-> deadline, so a row with either one still has a date.
+      if (query.missingDeadline) {
+        request = request.is("close_date", null).is("deadline", null);
       }
 
       if (query.category && query.category !== "all") {
@@ -1361,8 +1399,7 @@ export class OpportunitiesService {
     if (data.eligibility !== undefined)
       updateData.eligibility = data.eligibility as any;
     if (data.tags !== undefined) updateData.tags = data.tags as any;
-    if (data.isFeatured !== undefined)
-      updateData.isFeatured = data.isFeatured;
+    if (data.isFeatured !== undefined) updateData.isFeatured = data.isFeatured;
     if (data.isRemote !== undefined) updateData.isRemote = data.isRemote;
     if (data.status !== undefined) updateData.status = data.status;
 
@@ -1667,8 +1704,17 @@ export class OpportunitiesService {
     const description = this.normalizeDescription(descriptionText);
     const titleText = this.cleanOptionalText(opportunity.title, 220) || "";
     const summary = this.normalizeSummary(summaryText, description, titleText);
+    // The enhancement prompt explicitly permits a readable deadline ("March 5"),
+    // but close_date is a `date` column — writing the raw string makes Postgres
+    // reject the entire update with 22007, which surfaces only as a logged warn
+    // and success:false. So the AI date has to be parsed, not passed through.
+    const titleYear = titleText.match(/\b(20\d{2})\b/)?.[1];
+    const aiDeadline = parseDeadlineDetailed(
+      aiData?.deadline ?? null,
+      titleYear ? Number(titleYear) : null,
+    );
     const closeDate =
-      aiData?.deadline || opportunity.close_date || opportunity.deadline;
+      aiDeadline.date || opportunity.close_date || opportunity.deadline;
     const qualityScore = this.scoreCanonicalOpportunity({
       ...opportunity,
       summary,
@@ -1711,6 +1757,11 @@ export class OpportunitiesService {
         organization: organization || metadata.organization || null,
         funding_type: aiData?.fundingType || metadata.funding_type || null,
         target_region: aiData?.targetRegion || metadata.target_region || null,
+        // Only claim a confidence when the AI actually produced a usable date;
+        // otherwise leave whatever the verification job already established.
+        ...(aiDeadline.date
+          ? { deadline_confidence: aiDeadline.confidence }
+          : {}),
         ai_improved_at: new Date().toISOString(),
         ai_improvement_confidence: Number(aiData?.confidence ?? 0),
         ai_improvement_notes: aiData?.notes || [],
@@ -2389,7 +2440,8 @@ ${sourceText || "No source page text was available. Still write a complete summa
       if (!this.isSafeOpportunitySourceUrl(href)) return;
       const host = this.safeHost(href);
       if (!host || host === excludeHost) return;
-      if (blockedHosts.some((b) => host === b || host.endsWith(`.${b}`))) return;
+      if (blockedHosts.some((b) => host === b || host.endsWith(`.${b}`)))
+        return;
       if (seen.has(href)) return;
       seen.add(href);
       urls.push(href);
@@ -2891,8 +2943,9 @@ ${sourceText || "No source page text was available. Still write a complete summa
       skipped += validItems.length - uniqueRecords.length;
       // Fire-and-forget: embed each new row for semantic recommendations.
       for (const record of saved) {
-        const savedId = (record as Record<string, unknown>).id;
-        if (savedId) void this.embeddingService.embedOpportunity(String(savedId));
+        const savedId = record.id;
+        if (savedId)
+          void this.embeddingService.embedOpportunity(String(savedId));
       }
       // Fire-and-forget: alert users whose saved searches match (active rows only).
       void this.savedSearchesService?.notifyNewOpportunities(saved);
@@ -3067,7 +3120,9 @@ ${sourceText || "No source page text was available. Still write a complete summa
       this.logger.log(
         `Saved ${inserted} opportunities, skipped ${skipped} duplicates (sequential fallback)`,
       );
-      void this.savedSearchesService?.notifyNewOpportunities(savedOpportunities);
+      void this.savedSearchesService?.notifyNewOpportunities(
+        savedOpportunities,
+      );
       await this.prewarmShareAssets(savedOpportunities);
       return { inserted, skipped, opportunities: savedOpportunities };
     }

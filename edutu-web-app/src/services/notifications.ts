@@ -163,7 +163,10 @@ export async function getNotificationPreferences(
   if (!token)
     throw new Error("Sign in again to load notification preferences.");
 
-  const data = await apiRequest<any>("/notifications/preferences", token);
+  const data = await apiRequest<Record<string, unknown>>(
+    "/notifications/preferences",
+    token,
+  );
   return {
     pushNotifications: Boolean(
       data.pushNotifications ?? data.push_notifications,
@@ -183,10 +186,35 @@ export async function getNotificationPreferences(
     ),
     weeklyDigest: Boolean(data.weeklyDigest ?? data.weekly_digest),
     marketingEmails: Boolean(data.marketingEmails ?? data.marketing_emails),
-    quietHours: data.quietHours ??
-      data.quiet_hours ?? { start: "22:00", end: "08:00" },
-    updatedAt: data.updatedAt ?? data.updated_at ?? new Date().toISOString(),
+    quietHours: pickQuietHours(data.quietHours, data.quiet_hours),
+    updatedAt:
+      pickPreferenceString(data.updatedAt, data.updated_at) ??
+      new Date().toISOString(),
   };
+}
+
+// The preferences payload is untrusted JSON (and the backend answers in both
+// camel and snake case), so narrow rather than trusting the shape.
+function pickPreferenceString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return undefined;
+}
+
+function pickQuietHours(...values: unknown[]): { start: string; end: string } {
+  for (const value of values) {
+    if (value && typeof value === "object") {
+      const candidate = value as Record<string, unknown>;
+      if (
+        typeof candidate.start === "string" &&
+        typeof candidate.end === "string"
+      ) {
+        return { start: candidate.start, end: candidate.end };
+      }
+    }
+  }
+  return { start: "22:00", end: "08:00" };
 }
 
 export async function saveNotificationPreferences(
