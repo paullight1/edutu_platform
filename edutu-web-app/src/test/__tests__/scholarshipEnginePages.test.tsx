@@ -205,19 +205,23 @@ describe("Scholarship Engine pages", () => {
   it("renders the Scholarship Engine marketing page with docs and dashboard links", async () => {
     renderScholarshipApiPage();
 
+    // Queried by role rather than text: the hero splits across a nested
+    // <span>, so the accessible name is the only stable handle on it.
     expect(
-      await screen.findByText("One feed for scholarships and global opportunities."),
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Every scholarship and global opportunity, through one clean API.",
+      }),
     ).toBeInTheDocument();
 
     expect(screen.getByRole("link", { name: /open developer docs/i })).toHaveAttribute(
       "href",
       docsUrl,
     );
-    expect(screen.getByRole("link", { name: /open dashboard/i })).toHaveAttribute(
-      "href",
-      "/developers",
-    );
-    expect(screen.getByRole("link", { name: /browse opportunities/i })).toHaveAttribute(
+    expect(
+      screen.getByRole("link", { name: /open the developer dashboard/i }),
+    ).toHaveAttribute("href", "/developers");
+    expect(screen.getByRole("link", { name: /browse the feed/i })).toHaveAttribute(
       "href",
       "/opportunities",
     );
