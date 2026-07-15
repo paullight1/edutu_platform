@@ -12,6 +12,7 @@ import {
     Modal,
     Share,
     Platform,
+    Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
@@ -48,11 +49,27 @@ import {
     THEME_ORDER,
     THEME_SWATCHES,
 } from "../../../components/context/ThemeContext";
-import { notificationService, NotificationSettings } from "../../../lib/notifications";
+import {
+    notificationService,
+    NotificationSettings,
+    registerForPushNotificationsAsync,
+    getStoredPushToken,
+    resetPushTokenSync,
+} from "../../../lib/notifications";
+import {
+    getNotificationPreferences,
+    saveNotificationPreferences,
+    unregisterPushToken,
+    isQuietHoursEnabled,
+    QUIET_HOURS_OFF,
+    type NotificationPreferencesInput,
+} from "@edutu/core/src/services/notificationPreferences";
 import * as WebBrowser from 'expo-web-browser';
+import * as Notifications from 'expo-notifications';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
+import { useToast } from '../../../components/context/ToastContext';
 import { useNavStyleSettings, setNavBarStyle, type NavBarStyle } from '../../../lib/navStyleStore';
 
 const APPEARANCE_MODES: { id: ThemeMode; labelKey: string; icon: React.ComponentType<{ size: number; color: string }> }[] = [
@@ -131,24 +148,67 @@ export default function SettingsScreen() {
     const { style: navBarStyle } = useNavStyleSettings();
     const { user } = useUser();
     const router = useRouter();
+    const { show: showToast } = useToast();
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [passwordLoading, setPasswordLoading] = useState(false);
     const [timePicker, setTimePicker] = useState<null | 'quietHoursStart' | 'quietHoursEnd'>(null);
-    const [notifSettings, setNotifSettings] = useState<NotificationSettings>({
-        pushEnabled: true,
-        emailEnabled: false,
-        hapticsEnabled: true,
-        quietHoursEnabled: false,
-        quietHoursStart: "22:00",
-        quietHoursEnd: "08:00",
-    });
+    const [notifBusy, setNotifBusy] = useState(false);
+    const [notifSettings, setNotifSettings] = useState<NotificationSettings>(
+        notificationService.getSettings(),
+    );
 
+    // The server owns push/email/quiet-hours (it enforces them when deciding
+    // what to send), so it wins over the local cache on load. Haptics stay
+    // local — they describe this device, not the account.
     useEffect(() => {
-        notificationService.loadSettings().then(settings => {
-            setNotifSettings(settings);
-        });
-    }, []);
+        let cancelled = false;
+
+        (async () => {
+            const local = await notificationService.loadSettings();
+            if (!cancelled) setNotifSettings(local);
+
+            // A granted preference means nothing if the OS is blocking us, so
+            // the switch reflects the AND of both.
+            const { status } = await Notifications.getPermissionsAsync().catch(
+                () => ({ status: 'undetermined' as Notifications.PermissionStatus }),
+            );
+
+            let remote;
+            try {
+                remote = await getNotificationPreferences(getToken);
+            } catch {
+                // Offline or signed out: keep showing the last known settings
+                // rather than snapping the switches to defaults.
+                if (!cancelled && status !== 'granted' && local.pushEnabled) {
+                    await notificationService.saveSettings({ pushEnabled: false });
+                    setNotifSettings((prev) => ({ ...prev, pushEnabled: false }));
+                }
+                return;
+            }
+            if (cancelled) return;
+
+            const quietOn = isQuietHoursEnabled(remote.quietHours);
+            const merged: NotificationSettings = {
+                ...local,
+                pushEnabled: remote.pushNotifications && status === 'granted',
+                emailEnabled: remote.emailNotifications,
+                quietHoursEnabled: quietOn,
+                // While quiet hours are off the stored window is 00:00–00:00,
+                // which would be meaningless in the chips — keep the last real
+                // window the user picked so re-enabling restores it.
+                quietHoursStart: quietOn ? remote.quietHours.start : local.quietHoursStart,
+                quietHoursEnd: quietOn ? remote.quietHours.end : local.quietHoursEnd,
+            };
+
+            setNotifSettings(merged);
+            await notificationService.saveSettings(merged);
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [getToken]);
 
     const haptic = useCallback(() => {
         if (notifSettings.hapticsEnabled) {
@@ -156,18 +216,111 @@ export default function SettingsScreen() {
         }
     }, [notifSettings.hapticsEnabled]);
 
-    const updateNotifSetting = async <K extends keyof NotificationSettings>(
-        key: K,
-        value: NotificationSettings[K]
-    ) => {
-        const newSettings = { ...notifSettings, [key]: value };
-        setNotifSettings(newSettings);
-        await notificationService.saveSettings({ [key]: value });
+    /**
+     * Applies a settings change optimistically, then persists it. `remote` is
+     * the matching server patch; if it fails the switch snaps back and says so,
+     * because a toggle that looks saved but isn't is the whole problem here.
+     */
+    const commitNotifSettings = useCallback(
+        async (
+            patch: Partial<NotificationSettings>,
+            remote?: NotificationPreferencesInput,
+            beforeRemote?: () => Promise<void>,
+        ): Promise<boolean> => {
+            const previous = notificationService.getSettings();
+            setNotifSettings({ ...previous, ...patch });
+            setNotifBusy(true);
+            try {
+                await notificationService.saveSettings(patch);
+                if (beforeRemote) await beforeRemote();
+                if (remote) await saveNotificationPreferences(getToken, remote);
+                return true;
+            } catch {
+                setNotifSettings(previous);
+                await notificationService.saveSettings(previous).catch(() => undefined);
+                showToast({
+                    emoji: '⚠️',
+                    variant: 'error',
+                    message: t('notifications.saveFailed'),
+                });
+                return false;
+            } finally {
+                setNotifBusy(false);
+            }
+        },
+        [getToken, showToast, t],
+    );
 
-        if (key === 'hapticsEnabled' && value === true) {
-            await notificationService.triggerHaptic('light');
-        }
-    };
+    /**
+     * Push needs three things to agree: OS permission, a registered device
+     * token, and the server-side preference. Flipping only the last one (what
+     * this screen used to do) leaves the other two contradicting it.
+     */
+    const handlePushToggle = useCallback(
+        async (value: boolean) => {
+            haptic();
+            if (!value) {
+                const token = await getStoredPushToken();
+                await commitNotifSettings({ pushEnabled: false }, { pushNotifications: false }, async () => {
+                    // Drop this device's token so it stops receiving pushes even
+                    // if another device keeps the account preference on.
+                    if (token) await unregisterPushToken(getToken, token).catch(() => undefined);
+                    await resetPushTokenSync();
+                });
+                return;
+            }
+
+            const granted = await notificationService.requestPermissions();
+            if (!granted) {
+                // The OS only prompts once — after a denial the only way back
+                // is system settings, so send them there instead of silently
+                // leaving a switch that can never turn on.
+                Alert.alert(
+                    t('notifications.permissionTitle'),
+                    t('notifications.permissionMessage'),
+                    [
+                        { text: t('common:actions.cancel'), style: 'cancel' },
+                        { text: t('notifications.openSettings'), onPress: () => Linking.openSettings() },
+                    ],
+                );
+                return;
+            }
+
+            await commitNotifSettings({ pushEnabled: true }, { pushNotifications: true }, async () => {
+                await registerForPushNotificationsAsync(user?.id, getToken);
+            });
+        },
+        [commitNotifSettings, getToken, haptic, t, user?.id],
+    );
+
+    const handleQuietHoursToggle = useCallback(
+        async (value: boolean) => {
+            haptic();
+            await commitNotifSettings(
+                { quietHoursEnabled: value },
+                {
+                    quietHours: value
+                        ? {
+                            start: notifSettings.quietHoursStart,
+                            end: notifSettings.quietHoursEnd,
+                        }
+                        : QUIET_HOURS_OFF,
+                },
+            );
+        },
+        [commitNotifSettings, haptic, notifSettings.quietHoursStart, notifSettings.quietHoursEnd],
+    );
+
+    const handleQuietHoursTimeChange = useCallback(
+        async (key: 'quietHoursStart' | 'quietHoursEnd', value: string) => {
+            const next = { ...notifSettings, [key]: value };
+            await commitNotifSettings(
+                { [key]: value },
+                { quietHours: { start: next.quietHoursStart, end: next.quietHoursEnd } },
+            );
+        },
+        [commitNotifSettings, notifSettings],
+    );
 
     const textPrimary = colors.foreground;
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
@@ -264,6 +417,30 @@ export default function SettingsScreen() {
 
     const openUrl = async (url: string) => {
         await WebBrowser.openBrowserAsync(url);
+    };
+
+    /**
+     * Opens the native store review sheet. The store URLs only exist once the
+     * app is published, so this falls back to the website when the listing
+     * isn't configured yet — better than a dead link that errors out.
+     */
+    const handleRate = async () => {
+        haptic();
+        const iosAppStoreId = Constants.expoConfig?.extra?.iosAppStoreId;
+        const androidPackage = Constants.expoConfig?.android?.package;
+
+        const storeUrl = Platform.OS === 'ios'
+            ? (iosAppStoreId ? `itms-apps://apps.apple.com/app/id${iosAppStoreId}?action=write-review` : null)
+            : (androidPackage ? `market://details?id=${androidPackage}` : null);
+
+        if (storeUrl) {
+            const canOpen = await Linking.canOpenURL(storeUrl).catch(() => false);
+            if (canOpen) {
+                await Linking.openURL(storeUrl).catch(() => openUrl('https://edutu.org'));
+                return;
+            }
+        }
+        await openUrl('https://edutu.org');
     };
 
     return (
@@ -420,26 +597,26 @@ export default function SettingsScreen() {
                             icon={<Smartphone size={20} color="#3b82f6" />} iconBg="rgba(59,130,246,0.12)"
                             label={t('notifications.push')} desc={t('notifications.pushDesc')}
                             textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor}
-                            right={<Switch value={notifSettings.pushEnabled} onValueChange={(v) => updateNotifSetting('pushEnabled', v)} trackColor={{ false: isDark ? '#334155' : '#e2e8f0', true: colors.accent }} thumbColor="white" />}
+                            right={<Switch value={notifSettings.pushEnabled} disabled={notifBusy} onValueChange={handlePushToggle} trackColor={{ false: isDark ? '#334155' : '#e2e8f0', true: colors.accent }} thumbColor="white" />}
                         />
                         <SettingRow
                             icon={<Mail size={20} color="#10b981" />} iconBg="rgba(16,185,129,0.12)"
                             label={t('notifications.email')} desc={t('notifications.emailDesc')}
                             textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor}
-                            right={<Switch value={notifSettings.emailEnabled} onValueChange={(v) => updateNotifSetting('emailEnabled', v)} trackColor={{ false: isDark ? '#334155' : '#e2e8f0', true: colors.accent }} thumbColor="white" />}
+                            right={<Switch value={notifSettings.emailEnabled} disabled={notifBusy} onValueChange={(v) => { haptic(); commitNotifSettings({ emailEnabled: v }, { emailNotifications: v }); }} trackColor={{ false: isDark ? '#334155' : '#e2e8f0', true: colors.accent }} thumbColor="white" />}
                         />
                         <SettingRow
                             icon={<Vibrate size={20} color="#f59e0b" />} iconBg="rgba(245,158,11,0.12)"
                             label={t('notifications.haptics')} desc={t('notifications.hapticsDesc')}
                             textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor}
-                            right={<Switch value={notifSettings.hapticsEnabled} onValueChange={(v) => updateNotifSetting('hapticsEnabled', v)} trackColor={{ false: isDark ? '#334155' : '#e2e8f0', true: colors.accent }} thumbColor="white" />}
+                            right={<Switch value={notifSettings.hapticsEnabled} onValueChange={async (v) => { await commitNotifSettings({ hapticsEnabled: v }); if (v) await notificationService.triggerHaptic('light'); }} trackColor={{ false: isDark ? '#334155' : '#e2e8f0', true: colors.accent }} thumbColor="white" />}
                         />
                         <SettingRow
                             icon={<MoonStar size={20} color="#8b5cf6" />} iconBg="rgba(139,92,246,0.12)"
                             label={t('notifications.quietHours')} desc={t('notifications.quietHoursDesc')}
                             textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor}
                             isLast={!notifSettings.quietHoursEnabled}
-                            right={<Switch value={notifSettings.quietHoursEnabled} onValueChange={(v) => updateNotifSetting('quietHoursEnabled', v)} trackColor={{ false: isDark ? '#334155' : '#e2e8f0', true: colors.accent }} thumbColor="white" />}
+                            right={<Switch value={notifSettings.quietHoursEnabled} disabled={notifBusy} onValueChange={handleQuietHoursToggle} trackColor={{ false: isDark ? '#334155' : '#e2e8f0', true: colors.accent }} thumbColor="white" />}
                         />
                         {notifSettings.quietHoursEnabled && (
                             <View style={styles.quietRow}>
@@ -485,6 +662,7 @@ export default function SettingsScreen() {
                             icon={<Lock size={20} color="#ef4444" />} iconBg="rgba(239,68,68,0.12)"
                             label={t('security.passwordKeys')} desc={t('security.passwordKeysDesc')}
                             textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor}
+                            onPress={() => { haptic(); router.push('/profile/security'); }}
                             right={<ChevronRight size={16} color={textSecondary} />}
                         />
                         {shouldShowPasswordSetup ? (
@@ -502,7 +680,7 @@ export default function SettingsScreen() {
                             icon={<Shield size={20} color="#3b82f6" />} iconBg="rgba(59,130,246,0.12)"
                             label={t('security.privacy')} desc={t('security.privacyDesc')}
                             textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor} isLast
-                            onPress={() => openUrl('https://edutu.org/privacy')}
+                            onPress={() => { haptic(); router.push('/privacy'); }}
                             right={<ChevronRight size={16} color={textSecondary} />}
                         />
                     </Card>
@@ -523,7 +701,7 @@ export default function SettingsScreen() {
                             icon={<Star size={20} color="#eab308" />} iconBg="rgba(234,179,8,0.12)"
                             label={t('support.rate')} desc={t('support.rateDesc')}
                             textPrimary={textPrimary} textSecondary={textSecondary} borderColor={borderColor}
-                            onPress={() => openUrl('https://edutu.org')}
+                            onPress={handleRate}
                             right={<ExternalLink size={16} color={textSecondary} />}
                         />
                         <SettingRow
@@ -604,7 +782,7 @@ export default function SettingsScreen() {
                                         onPress={() => {
                                             if (timePicker) {
                                                 haptic();
-                                                updateNotifSetting(timePicker, opt);
+                                                handleQuietHoursTimeChange(timePicker, opt);
                                             }
                                             setTimePicker(null);
                                         }}

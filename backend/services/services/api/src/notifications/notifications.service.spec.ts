@@ -49,3 +49,63 @@ describe("NotificationsService web push", () => {
     expect(result.sent).toBe(0);
   });
 });
+
+describe("NotificationsService push preference gate", () => {
+  const service = new NotificationsService();
+  const allowsPush = (prefs: unknown, kind?: string) =>
+    (service as any).allowsPush(prefs, kind);
+
+  const enabled = {
+    pushNotifications: true,
+    emailNotifications: false,
+    opportunityAlerts: true,
+    deadlineReminders: true,
+    goalReminders: true,
+    achievementCelebrations: true,
+    quietHours: null,
+    timezone: null,
+  };
+
+  it("allows push when the user has no preferences row", () => {
+    // The column defaults are permissive; absence must not mute a user.
+    expect(allowsPush(undefined, "opportunity-alert")).toBe(true);
+  });
+
+  it("mutes every kind when the master switch is off", () => {
+    const prefs = { ...enabled, pushNotifications: false };
+    for (const kind of [
+      "opportunity-alert",
+      "deadline-reminder",
+      "goal-reminder",
+      "admin-broadcast",
+      undefined,
+    ]) {
+      expect(allowsPush(prefs, kind)).toBe(false);
+    }
+  });
+
+  it("mutes only the matching topic", () => {
+    const prefs = { ...enabled, opportunityAlerts: false };
+    expect(allowsPush(prefs, "opportunity-alert")).toBe(false);
+    expect(allowsPush(prefs, "deadline-reminder")).toBe(true);
+    expect(allowsPush(prefs, "goal-reminder")).toBe(true);
+  });
+
+  it.each([
+    ["deadline-reminder", "deadlineReminders"],
+    ["goal-reminder", "goalReminders"],
+    ["achievement", "achievementCelebrations"],
+  ])("maps kind %s to preference %s", (kind, column) => {
+    expect(allowsPush({ ...enabled, [column]: false }, kind)).toBe(false);
+    expect(allowsPush({ ...enabled, [column]: true }, kind)).toBe(true);
+  });
+
+  it("allows kinds with no topic switch through the master switch alone", () => {
+    // Transactional/admin notices have no per-topic opt-out of their own.
+    expect(
+      allowsPush({ ...enabled, opportunityAlerts: false }, "admin-broadcast"),
+    ).toBe(true);
+    expect(allowsPush(enabled, "some-future-kind")).toBe(true);
+    expect(allowsPush(enabled, undefined)).toBe(true);
+  });
+});

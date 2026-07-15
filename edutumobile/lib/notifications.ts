@@ -3,14 +3,46 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getConfig } from './config';
+import { registerNotificationCategoriesAsync } from './notificationCategories';
+import { registerNotificationActionTask } from './notificationActionTask';
 import i18n from './i18n';
 
 const PUSH_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
+const PUSH_TOKEN_KEY = '@edutu_expo_push_token';
 
 let lastPushSyncKey: string | null = null;
 let pushSyncInFlight: Promise<void> | null = null;
 let pushSyncDisabledUntil = 0;
 let hasLoggedPushSyncError = false;
+
+/**
+ * The Expo token last registered from this device, kept so the settings screen
+ * can unregister it server-side when push is turned off. Survives restarts:
+ * the token is stable per install, but re-deriving it requires the permission
+ * prompt, which we must not trigger just to delete it.
+ */
+export async function getStoredPushToken(): Promise<string | null> {
+    try {
+        return await AsyncStorage.getItem(PUSH_TOKEN_KEY);
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Clears the in-memory sync dedupe so the next register re-POSTs the token.
+ * Without this, toggling push off (which deletes the token server-side) and
+ * back on would be a no-op — the key still matches the last successful sync.
+ */
+export async function resetPushTokenSync(): Promise<void> {
+    lastPushSyncKey = null;
+    pushSyncDisabledUntil = 0;
+    try {
+        await AsyncStorage.removeItem(PUSH_TOKEN_KEY);
+    } catch {
+        // Best-effort: a stale key only costs one redundant POST.
+    }
+}
 
 function isNetworkError(error: unknown): boolean {
     return error instanceof TypeError && error.message === 'Network request failed';
@@ -92,9 +124,18 @@ export async function registerForPushNotificationsAsync(userId?: string, getAuth
         return null;
     }
 
+    // Must precede the token fetch: a notification whose categoryId isn't
+    // registered on the device arrives with no action buttons at all.
+    await registerNotificationCategoriesAsync();
+    await registerNotificationActionTask();
+
     const token = (await Notifications.getExpoPushTokenAsync({
         projectId: '97c7d577-7e08-4f3c-a199-d1ca149ebee9',
     }));
+
+    if (token?.data) {
+        await AsyncStorage.setItem(PUSH_TOKEN_KEY, token.data).catch(() => undefined);
+    }
 
     if (userId && token) {
         if (__DEV__) {
@@ -144,11 +185,15 @@ export interface NotificationSettings {
     quietHoursEnd: string;
 }
 
+// Mirrors the server's `notification_preferences` column defaults, including
+// quiet hours being ON at 22:00–08:00: the backend defers pushes in that window
+// for users who have never saved a preference, so showing the switch as off
+// would misreport what actually happens.
 const DEFAULT_SETTINGS: NotificationSettings = {
     pushEnabled: true,
     emailEnabled: false,
     hapticsEnabled: true,
-    quietHoursEnabled: false,
+    quietHoursEnabled: true,
     quietHoursStart: "22:00",
     quietHoursEnd: "08:00",
 };
@@ -212,29 +257,55 @@ class NotificationService {
         return finalStatus === 'granted';
     }
 
-    // Check if in quiet hours
-    private isInQuietHours(): boolean {
+    /** Minutes past midnight for a local Date. */
+    private minutesOf(date: Date): number {
+        return date.getHours() * 60 + date.getMinutes();
+    }
+
+    /** Whether a local time falls inside the configured quiet-hours window. */
+    private isInQuietHours(at: Date = new Date()): boolean {
         if (!this.settings.quietHoursEnabled) return false;
 
-        const now = new Date();
-        const currentTime = now.getHours() * 60 + now.getMinutes();
+        const currentTime = this.minutesOf(at);
 
         const [startHour, startMin] = this.settings.quietHoursStart.split(':').map(Number);
         const [endHour, endMin] = this.settings.quietHoursEnd.split(':').map(Number);
 
         const startTime = startHour * 60 + startMin;
         const endTime = endHour * 60 + endMin;
+        // A zero-length window means quiet hours are off (see QUIET_HOURS_OFF).
+        if (startTime === endTime) return false;
 
-        if (startTime <= endTime) {
-            return currentTime >= startTime && currentTime <= endTime;
-        } else {
-            return currentTime >= startTime || currentTime <= endTime;
+        if (startTime < endTime) {
+            return currentTime >= startTime && currentTime < endTime;
         }
+        return currentTime >= startTime || currentTime < endTime; // wraps midnight
     }
 
-    // Trigger haptic feedback
+    /**
+     * Moves a scheduled local notification to the end of the quiet-hours window
+     * when it would otherwise fire inside it, mirroring what the backend does
+     * for server pushes. Times outside the window are returned untouched.
+     */
+    private shiftOutOfQuietHours(target: Date): Date {
+        if (!this.isInQuietHours(target)) return target;
+
+        const [endHour, endMin] = this.settings.quietHoursEnd.split(':').map(Number);
+        const shifted = new Date(target);
+        shifted.setHours(endHour, endMin, 0, 0);
+        // A window that wraps midnight ends on the following day.
+        if (shifted.getTime() <= target.getTime()) {
+            shifted.setDate(shifted.getDate() + 1);
+        }
+        return shifted;
+    }
+
+    // Trigger haptic feedback.
+    //
+    // Deliberately NOT gated on quiet hours: this fires for taps the user just
+    // made, and quiet hours mute alerts, not the interface responding to touch.
     async triggerHaptic(type: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' = 'light'): Promise<void> {
-        if (!this.settings.hapticsEnabled || this.isInQuietHours()) {
+        if (!this.settings.hapticsEnabled) {
             return;
         }
 
@@ -276,49 +347,45 @@ class NotificationService {
 
         const ids: string[] = [];
 
+        // Every fire time is pushed past the user's quiet-hours window, so a
+        // reminder never buzzes while they've asked for silence.
+        const schedule = async (
+            at: Date,
+            content: Notifications.NotificationContentInput,
+        ) => {
+            const fireAt = this.shiftOutOfQuietHours(at);
+            if (fireAt.getTime() <= Date.now()) return;
+            ids.push(
+                await Notifications.scheduleNotificationAsync({
+                    content,
+                    trigger: { date: fireAt } as Notifications.NotificationTriggerInput,
+                }),
+            );
+        };
+
         try {
             // Schedule Day Of
-            const idDayOf = await Notifications.scheduleNotificationAsync({
-                content: {
-                    title: i18n.t('misc:notifications.goalDeadlineToday.title'),
-                    body: i18n.t('misc:notifications.goalDeadlineToday.body', { title }),
-                    data: { goalId, type: 'goal_deadline' },
-                },
-                trigger: {
-                    date: targetDate,
-                } as Notifications.NotificationTriggerInput,
+            await schedule(targetDate, {
+                title: i18n.t('misc:notifications.goalDeadlineToday.title'),
+                body: i18n.t('misc:notifications.goalDeadlineToday.body', { title }),
+                data: { goalId, type: 'goal_deadline' },
             });
-            ids.push(idDayOf);
 
             // Schedule 1 Day Before
-            const oneDayBefore = new Date(targetDate.getTime() - (24 * 60 * 60 * 1000));
-            if (oneDayBefore.getTime() > Date.now()) {
-                const id1 = await Notifications.scheduleNotificationAsync({
-                    content: {
-                        title: i18n.t('misc:notifications.deadlineTomorrow.title'),
-                        body: i18n.t('misc:notifications.deadlineTomorrow.body', { title }),
-                        data: { goalId, type: 'goal_deadline_reminder' },
-                    },
-                    trigger: { date: oneDayBefore } as Notifications.NotificationTriggerInput,
-                });
-                ids.push(id1);
-            }
+            await schedule(new Date(targetDate.getTime() - (24 * 60 * 60 * 1000)), {
+                title: i18n.t('misc:notifications.deadlineTomorrow.title'),
+                body: i18n.t('misc:notifications.deadlineTomorrow.body', { title }),
+                data: { goalId, type: 'goal_deadline_reminder' },
+            });
 
             // Schedule 3 Days Before
-            const threeDaysBefore = new Date(targetDate.getTime() - (3 * 24 * 60 * 60 * 1000));
-            if (threeDaysBefore.getTime() > Date.now()) {
-                const id3 = await Notifications.scheduleNotificationAsync({
-                    content: {
-                        title: i18n.t('misc:notifications.deadlineApproaching.title'),
-                        body: i18n.t('misc:notifications.deadlineApproaching.body', { title }),
-                        data: { goalId, type: 'goal_deadline_reminder' },
-                    },
-                    trigger: { date: threeDaysBefore } as Notifications.NotificationTriggerInput,
-                });
-                ids.push(id3);
-            }
+            await schedule(new Date(targetDate.getTime() - (3 * 24 * 60 * 60 * 1000)), {
+                title: i18n.t('misc:notifications.deadlineApproaching.title'),
+                body: i18n.t('misc:notifications.deadlineApproaching.body', { title }),
+                data: { goalId, type: 'goal_deadline_reminder' },
+            });
 
-            return ids.join(',');
+            return ids.length > 0 ? ids.join(',') : null;
         } catch (error) {
             console.error('Error scheduling notification:', error);
             // Return whatever ids we managed to schedule

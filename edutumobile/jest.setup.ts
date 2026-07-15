@@ -113,8 +113,9 @@ jest.mock('expo-glass-effect', () => {
 
 jest.mock('expo-notifications', () => ({
   setNotificationHandler: jest.fn(),
-  requestPermissionsAsync: jest.fn(async () => ({ granted: true })),
-  getPermissionsAsync: jest.fn(async () => ({ granted: true })),
+  // The real API returns both `granted` and `status`; callers use either.
+  requestPermissionsAsync: jest.fn(async () => ({ granted: true, status: 'granted' })),
+  getPermissionsAsync: jest.fn(async () => ({ granted: true, status: 'granted' })),
   getExpoPushTokenAsync: jest.fn(async () => ({ data: 'ExponentPushToken[test]' })),
   setNotificationChannelAsync: jest.fn(),
   scheduleNotificationAsync: jest.fn(async () => 'notification-id'),

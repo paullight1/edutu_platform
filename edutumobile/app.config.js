@@ -246,6 +246,11 @@ export default {
       supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
       supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
       apiBaseUrl: process.env.EXPO_PUBLIC_API_URL,
+      // Numeric App Store ID (e.g. "1234567890"), issued when the iOS app is
+      // first created in App Store Connect. Until it is set, "Rate Edutu"
+      // falls back to the website rather than opening a dead store link.
+      // Android needs no equivalent — its store URL is the package name.
+      iosAppStoreId: process.env.EXPO_PUBLIC_IOS_APP_STORE_ID,
       eas: {
         projectId: "97c7d577-7e08-4f3c-a199-d1ca149ebee9"
       }

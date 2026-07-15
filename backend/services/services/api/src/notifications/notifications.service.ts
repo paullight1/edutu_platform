@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import axios from "axios";
+import { Expo, type ExpoPushMessage } from "expo-server-sdk";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import {
   and,
@@ -27,6 +28,7 @@ import {
   profiles,
 } from "../db/schema";
 import { toDatabaseUserId } from "../common/user-id";
+import { deferForQuietHours, type QuietHours } from "../common/quiet-hours";
 import type {
   BroadcastNotificationDto,
   NotificationPreferencesDto,
@@ -40,7 +42,26 @@ const DEFAULT_CHANNELS = {
 };
 
 const BROADCAST_BATCH_SIZE = 500;
-const PUSH_BATCH_SIZE = 100;
+
+/**
+ * Maps a notification `kind` to the per-topic preference that mutes it. Kinds
+ * absent from this map (e.g. "admin-broadcast" and transactional notices like
+ * a creator application result) have no topic switch of their own and are
+ * governed by the `pushNotifications` master switch alone.
+ */
+const TOPIC_PREFERENCE_BY_KIND: Record<string, keyof typeof TOPIC_COLUMNS> = {
+  "opportunity-alert": "opportunityAlerts",
+  "deadline-reminder": "deadlineReminders",
+  "goal-reminder": "goalReminders",
+  achievement: "achievementCelebrations",
+};
+
+const TOPIC_COLUMNS = {
+  opportunityAlerts: true,
+  deadlineReminders: true,
+  goalReminders: true,
+  achievementCelebrations: true,
+};
 
 type BroadcastRecipient = {
   userId: string;
@@ -48,9 +69,22 @@ type BroadcastRecipient = {
   fullName: string | null;
 };
 
+/** A user's delivery-relevant preferences, resolved once per broadcast. */
+type DeliveryPreferences = {
+  pushNotifications: boolean;
+  emailNotifications: boolean;
+  opportunityAlerts: boolean;
+  deadlineReminders: boolean;
+  goalReminders: boolean;
+  achievementCelebrations: boolean;
+  quietHours: QuietHours;
+  timezone: string | null;
+};
+
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
+  private readonly expo = new Expo();
   // Lazily-loaded web-push module (optional dependency); null when VAPID keys
   // are unset or the package isn't installed, in which case web push no-ops.
   private webpush: any = null;
@@ -69,7 +103,7 @@ export class NotificationsService {
 
     try {
       // require (not import) so the build stays green without the package.
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+
       const webpush = require("web-push");
       webpush.setVapidDetails(
         process.env.VAPID_SUBJECT || "mailto:support@edutu.org",
@@ -480,6 +514,90 @@ export class NotificationsService {
     }
   }
 
+  /**
+   * Resolves delivery preferences + timezone for a batch of users.
+   *
+   * Users with no `notification_preferences` row fall back to the column
+   * defaults (push on, topics on, quiet hours 22:00–08:00) so behaviour matches
+   * what the settings screen shows before it has ever been saved.
+   *
+   * The `profiles` join is dual-keyed because `profiles.user_id` is text that
+   * may hold either the raw auth subject (the canonical write key, which is
+   * what the mobile app stamps the timezone onto) or the derived uuid written
+   * by older backend paths. Matching only one representation reads a stale row
+   * and evaluates quiet hours in the wrong timezone. Preferring the most
+   * recently updated non-null timezone keeps travellers correct.
+   */
+  private async loadDeliveryPreferences(
+    userIds: string[],
+  ): Promise<Map<string, DeliveryPreferences>> {
+    const prefs = new Map<string, DeliveryPreferences>();
+    if (!userIds.length) return prefs;
+
+    for (const batch of this.chunk(userIds, BROADCAST_BATCH_SIZE)) {
+      const result = await db.execute(sql`
+        select u.user_id                                  as user_id,
+               coalesce(p.push_notifications, true)       as push_notifications,
+               coalesce(p.email_notifications, false)     as email_notifications,
+               coalesce(p.opportunity_alerts, true)       as opportunity_alerts,
+               coalesce(p.deadline_reminders, true)       as deadline_reminders,
+               coalesce(p.goal_reminders, true)           as goal_reminders,
+               coalesce(p.achievement_celebrations, true) as achievement_celebrations,
+               p.quiet_hours                              as quiet_hours,
+               (
+                 select pr.timezone
+                 from profiles pr
+                 where (pr.user_id = u.user_id::text
+                        or public.clerk_id_to_uuid(pr.user_id)::text = u.user_id::text)
+                   and pr.timezone is not null
+                 order by pr.updated_at desc nulls last
+                 limit 1
+               )                                          as timezone
+        from unnest(array[${sql.join(
+          batch.map((id) => sql`${id}`),
+          sql`, `,
+        )}]::uuid[]) as u(user_id)
+        left join notification_preferences p on p.user_id = u.user_id
+      `);
+
+      for (const row of result as unknown as Array<{
+        user_id: string;
+        push_notifications: boolean;
+        email_notifications: boolean;
+        opportunity_alerts: boolean;
+        deadline_reminders: boolean;
+        goal_reminders: boolean;
+        achievement_celebrations: boolean;
+        quiet_hours: QuietHours;
+        timezone: string | null;
+      }>) {
+        prefs.set(row.user_id, {
+          pushNotifications: row.push_notifications,
+          emailNotifications: row.email_notifications,
+          opportunityAlerts: row.opportunity_alerts,
+          deadlineReminders: row.deadline_reminders,
+          goalReminders: row.goal_reminders,
+          achievementCelebrations: row.achievement_celebrations,
+          quietHours: row.quiet_hours ?? null,
+          timezone: row.timezone,
+        });
+      }
+    }
+
+    return prefs;
+  }
+
+  /** Whether `kind` may be pushed to this user (master switch + topic switch). */
+  private allowsPush(
+    prefs: DeliveryPreferences | undefined,
+    kind: string | undefined,
+  ): boolean {
+    if (!prefs) return true; // No row: column defaults allow push.
+    if (!prefs.pushNotifications) return false;
+    const topic = TOPIC_PREFERENCE_BY_KIND[kind || ""];
+    return topic ? prefs[topic] : true;
+  }
+
   private async deliverBroadcast(dto: BroadcastNotificationDto) {
     const channels = { ...DEFAULT_CHANNELS, ...(dto.channels || {}) };
     const recipients = await this.resolveRecipients(dto);
@@ -524,12 +642,62 @@ export class NotificationsService {
       }
     }
 
-    const push = channels.push
-      ? await this.sendPush(recipients, dto)
-      : { sent: 0, skipped: "disabled" };
-    const email = channels.email
-      ? await this.sendEmailWebhook(recipients, dto)
-      : { sent: 0, skipped: "disabled" };
+    // Preferences are enforced HERE rather than in each caller: every push in
+    // the app funnels through this method, so honouring the user's settings
+    // once means new senders inherit it instead of having to remember. In-app
+    // rows above are deliberately unfiltered — the inbox is not an interruption.
+    const prefs =
+      channels.push || channels.email
+        ? await this.loadDeliveryPreferences(recipients.map((r) => r.userId))
+        : new Map<string, DeliveryPreferences>();
+
+    let push: Record<string, unknown> = { sent: 0, skipped: "disabled" };
+    if (channels.push) {
+      const allowed = recipients.filter((recipient) =>
+        this.allowsPush(prefs.get(recipient.userId), dto.kind),
+      );
+      const mutedCount = recipients.length - allowed.length;
+
+      // Callers that precompute `scheduledFor` (the alerts engine) already
+      // cleared quiet hours, and a redelivery of an already-deferred item must
+      // never defer again — either would loop.
+      const alreadyDeferred = Boolean(dto.metadata?.quietHoursDeferred);
+
+      const deliverNow: BroadcastRecipient[] = [];
+      const deferred: Array<{ recipient: BroadcastRecipient; at: string }> = [];
+
+      for (const recipient of allowed) {
+        const pref = prefs.get(recipient.userId);
+        const at = alreadyDeferred
+          ? undefined
+          : deferForQuietHours(pref?.quietHours ?? null, pref?.timezone);
+        if (at) deferred.push({ recipient, at });
+        else deliverNow.push(recipient);
+      }
+
+      if (deferred.length) await this.deferPush(deferred, dto);
+
+      const sent = deliverNow.length
+        ? await this.sendPush(deliverNow, dto)
+        : { sent: 0, skipped: "all recipients muted or deferred" };
+
+      push = {
+        ...sent,
+        ...(mutedCount ? { muted: mutedCount } : {}),
+        ...(deferred.length ? { deferredForQuietHours: deferred.length } : {}),
+      };
+    }
+
+    let email: Record<string, unknown> = { sent: 0, skipped: "disabled" };
+    if (channels.email) {
+      const allowed = recipients.filter(
+        (recipient) =>
+          prefs.get(recipient.userId)?.emailNotifications !== false,
+      );
+      email = allowed.length
+        ? await this.sendEmailWebhook(allowed, dto)
+        : { sent: 0, skipped: "all recipients opted out of email" };
+    }
 
     for (const ids of this.chunk(notificationIds, BROADCAST_BATCH_SIZE)) {
       await db
@@ -551,6 +719,39 @@ export class NotificationsService {
       push,
       email,
     };
+  }
+
+  /**
+   * Re-queues a push for delivery at the end of each user's quiet-hours window.
+   *
+   * The requeued payload is push-only: the in-app row was already written by
+   * this broadcast, and re-running the full delivery would duplicate it. The
+   * `quietHoursDeferred` marker stops the redelivery from deferring a second
+   * time if the drainer happens to run while the window is still closing.
+   */
+  private async deferPush(
+    deferred: Array<{ recipient: BroadcastRecipient; at: string }>,
+    dto: BroadcastNotificationDto,
+  ) {
+    for (const batch of this.chunk(deferred, BROADCAST_BATCH_SIZE)) {
+      await db.insert(notificationQueue).values(
+        batch.map(({ recipient, at }) => ({
+          payload: {
+            ...dto,
+            audience: "specific",
+            targetUserIds: [recipient.userId],
+            channels: { inApp: false, push: true, email: false },
+            scheduledFor: undefined,
+            metadata: {
+              ...(dto.metadata || {}),
+              quietHoursDeferred: true,
+            },
+          } as unknown as Record<string, unknown>,
+          scheduledFor: new Date(at),
+          createdBy: recipient.userId,
+        })),
+      );
+    }
   }
 
   private async resolveRecipients(
@@ -602,7 +803,11 @@ export class NotificationsService {
     if (!userIds.length) return { sent: 0 };
 
     let sent = 0;
+    let rejected = 0;
     const failures: string[] = [];
+    // Tokens Expo tells us are dead (uninstalled app, or malformed). Pruned
+    // after the send loop so a broadcast never leaves rot behind.
+    const staleTokens: string[] = [];
 
     for (const userBatch of this.chunk(userIds, BROADCAST_BATCH_SIZE)) {
       const tokens = await db
@@ -621,30 +826,65 @@ export class NotificationsService {
         typeof dto.metadata?.androidChannelId === "string"
           ? dto.metadata.androidChannelId
           : "default";
+      // Drives the interactive action buttons registered on the client via
+      // setNotificationCategoryAsync; absent means a plain notification.
+      const categoryId =
+        typeof dto.metadata?.categoryId === "string"
+          ? dto.metadata.categoryId
+          : undefined;
 
-      for (const tokenBatch of this.chunk(tokens, PUSH_BATCH_SIZE)) {
-        const messages = tokenBatch.map((item) => ({
+      const messages: ExpoPushMessage[] = [];
+      for (const item of tokens) {
+        // A token that isn't even shaped like an Expo token can never work —
+        // Expo would reject the whole chunk, so drop it here instead.
+        if (!Expo.isExpoPushToken(item.token)) {
+          staleTokens.push(item.token);
+          rejected += 1;
+          continue;
+        }
+        messages.push({
           to: item.token,
           title: dto.title,
           body: dto.body,
           sound: "default",
           priority: "high",
           channelId,
+          ...(categoryId ? { categoryId } : {}),
           data: {
             kind: dto.kind || "admin-broadcast",
             severity: dto.severity || "info",
             ...(dto.metadata || {}),
           },
-        }));
+        });
+      }
 
+      // The SDK chunks to Expo's own per-request limit; don't second-guess it.
+      for (const chunk of this.expo.chunkPushNotifications(messages)) {
         try {
-          await axios.post("https://exp.host/--/api/v2/push/send", messages, {
-            headers: { "Content-Type": "application/json" },
-            timeout: 10_000,
-          });
+          const tickets = await this.expo.sendPushNotificationsAsync(chunk);
 
-          sent += messages.length;
+          // Expo returns HTTP 200 with per-message tickets, so a rejected
+          // message looks identical to a delivered one at the transport layer.
+          // Counting messages instead of "ok" tickets is what made `sent`
+          // meaningless before.
+          tickets.forEach((ticket, index) => {
+            if (ticket.status === "ok") {
+              sent += 1;
+              return;
+            }
+
+            rejected += 1;
+            const reason = ticket.details?.error;
+            // The app was uninstalled (or the token rotated). This is the only
+            // trustworthy signal for pruning, so act on it.
+            if (reason === "DeviceNotRegistered") {
+              const to = chunk[index]?.to;
+              if (typeof to === "string") staleTokens.push(to);
+            }
+            failures.push(reason || ticket.message || "Expo rejected message");
+          });
         } catch (error) {
+          rejected += chunk.length;
           failures.push(
             error instanceof Error ? error.message : "Expo push failed",
           );
@@ -652,11 +892,55 @@ export class NotificationsService {
       }
     }
 
-    if (!sent && !failures.length) {
+    const pruned = await this.pruneExpoTokens(staleTokens);
+
+    if (!sent && !rejected) {
       return { sent: 0, skipped: "no expo tokens" };
     }
 
-    return failures.length ? { sent, failed: failures.join("; ") } : { sent };
+    return {
+      sent,
+      ...(rejected ? { rejected } : {}),
+      ...(pruned ? { pruned } : {}),
+      // Distinct reasons only — a broadcast to 10k dead tokens shouldn't
+      // return a 10k-entry string.
+      ...(failures.length
+        ? { failed: Array.from(new Set(failures)).join("; ") }
+        : {}),
+    };
+  }
+
+  // Deletes tokens Expo has told us are dead. Best-effort: a broadcast that
+  // delivered fine shouldn't fail because cleanup did.
+  private async pruneExpoTokens(tokens: string[]): Promise<number> {
+    const unique = Array.from(new Set(tokens));
+    if (!unique.length) return 0;
+
+    let pruned = 0;
+    for (const batch of this.chunk(unique, BROADCAST_BATCH_SIZE)) {
+      try {
+        await db
+          .delete(notificationPushTokens)
+          .where(
+            and(
+              eq(notificationPushTokens.provider, "expo"),
+              inArray(notificationPushTokens.token, batch),
+            ),
+          );
+        pruned += batch.length;
+      } catch (error) {
+        this.logger.warn(
+          `Failed to prune ${batch.length} stale expo token(s): ${
+            error instanceof Error ? error.message : "unknown error"
+          }`,
+        );
+      }
+    }
+
+    if (pruned) {
+      this.logger.log(`Pruned ${pruned} stale expo push token(s)`);
+    }
+    return pruned;
   }
 
   // Dispatches a notification across every push transport (Expo for mobile,

@@ -10,8 +10,7 @@ import {
 import { NotificationsService } from "../notifications/notifications.service";
 import { OpportunityRankingService } from "../opportunities/opportunity-ranking.service";
 import { AiService } from "../ai";
-
-type QuietHours = { start: string; end: string } | null;
+import { deferForQuietHours, type QuietHours } from "../common/quiet-hours";
 
 interface AlertCandidate {
   id: string;
@@ -48,8 +47,6 @@ interface DeadlinePair {
   quietHours: QuietHours;
   timezone: string | null;
 }
-
-const DEFAULT_QUIET_HOURS = { start: "22:00", end: "08:00" };
 
 // Tunables (env-overridable). Conservative by default: the fastest way to get
 // push notifications disabled is to send too many of them.
@@ -152,7 +149,12 @@ export class OpportunityAlertsService {
       }
     });
 
-    return { users: users.length, candidates: candidates.length, notified, skipped };
+    return {
+      users: users.length,
+      candidates: candidates.length,
+      notified,
+      skipped,
+    };
   }
 
   private async alertUser(
@@ -168,7 +170,10 @@ export class OpportunityAlertsService {
         and(
           eq(opportunityAlertLedger.userId, userId),
           eq(opportunityAlertLedger.kind, "interest"),
-          gte(opportunityAlertLedger.sentAt, new Date(Date.now() - 24 * 3600_000)),
+          gte(
+            opportunityAlertLedger.sentAt,
+            new Date(Date.now() - 24 * 3600_000),
+          ),
         ),
       )) as [{ count: number }];
     if (sentToday >= DAILY_CAP) return false;
@@ -193,7 +198,7 @@ export class OpportunityAlertsService {
       targetUserIds: [userId],
       channels: { inApp: true, push: true, email: false },
       dedupeKey: `interest:${userId}:${pick.id}`,
-      scheduledFor: this.deferForQuietHours(user.quietHours, user.timezone),
+      scheduledFor: deferForQuietHours(user.quietHours, user.timezone),
       metadata: {
         opportunityId: pick.id,
         // The pulse lands in chat with a ready-to-send question — the coach
@@ -373,8 +378,12 @@ export class OpportunityAlertsService {
           .join("\n"),
         metadata: { source: "coach-pulse", userId: user.userId },
       });
-      const title = String(generated?.title ?? "").replace(/\s+/g, " ").trim();
-      const body = String(generated?.body ?? "").replace(/\s+/g, " ").trim();
+      const title = String(generated?.title ?? "")
+        .replace(/\s+/g, " ")
+        .trim();
+      const body = String(generated?.body ?? "")
+        .replace(/\s+/g, " ")
+        .trim();
       if (title && body && title.length <= 60 && body.length <= 160) {
         return { title, body };
       }
@@ -444,14 +453,16 @@ export class OpportunityAlertsService {
     `);
 
     const rows =
-      (result as unknown as {
-        rows?: Array<{
-          user_id: string;
-          quiet_hours: QuietHours;
-          timezone: string | null;
-          full_name: string | null;
-        }>;
-      }).rows ?? [];
+      (
+        result as unknown as {
+          rows?: Array<{
+            user_id: string;
+            quiet_hours: QuietHours;
+            timezone: string | null;
+            full_name: string | null;
+          }>;
+        }
+      ).rows ?? [];
     return rows.map((row) => ({
       userId: row.user_id,
       quietHours: row.quiet_hours,
@@ -496,12 +507,14 @@ export class OpportunityAlertsService {
 
   private async remindUser(userId: string, pairs: DeadlinePair[]) {
     const quietHours = pairs[0].quietHours;
-    const scheduledFor = this.deferForQuietHours(quietHours, pairs[0].timezone);
+    const scheduledFor = deferForQuietHours(quietHours, pairs[0].timezone);
     let sent = 0;
 
     // Too many at once reads as spam — collapse into a single summary push.
     if (pairs.length > MAX_DEADLINE_PUSHES_PER_USER) {
-      const soonest = pairs.reduce((a, b) => (a.daysLeft <= b.daysLeft ? a : b));
+      const soonest = pairs.reduce((a, b) =>
+        a.daysLeft <= b.daysLeft ? a : b,
+      );
       await this.notificationsService.broadcast(userId, {
         title: "⏰ Deadlines approaching",
         body: `${pairs.length} of your saved opportunities close soon — the first is "${soonest.title}" ${this.daysPhrase(soonest.daysLeft)}.`,
@@ -594,16 +607,18 @@ export class OpportunityAlertsService {
     `);
 
     const rows =
-      (result as unknown as {
-        rows?: Array<{
-          user_id: string;
-          opportunity_id: string;
-          title: string;
-          days_left: number;
-          quiet_hours: QuietHours;
-          timezone: string | null;
-        }>;
-      }).rows ?? [];
+      (
+        result as unknown as {
+          rows?: Array<{
+            user_id: string;
+            opportunity_id: string;
+            title: string;
+            days_left: number;
+            quiet_hours: QuietHours;
+            timezone: string | null;
+          }>;
+        }
+      ).rows ?? [];
 
     return rows.map((row) => ({
       userId: row.user_id,
@@ -621,67 +636,6 @@ export class OpportunityAlertsService {
     if (days <= 0) return "today";
     if (days === 1) return "tomorrow";
     return `in ${days} days`;
-  }
-
-  /**
-   * If "now" falls inside the user's quiet hours — evaluated in THEIR local
-   * timezone (profiles.timezone, synced from the device; UTC fallback) —
-   * returns an ISO timestamp at the end of the window so the queue drainer
-   * delivers it then; otherwise undefined (deliver immediately).
-   */
-  private deferForQuietHours(
-    quietHours: QuietHours,
-    timezone?: string | null,
-  ): string | undefined {
-    const window = quietHours?.start && quietHours?.end ? quietHours : DEFAULT_QUIET_HOURS;
-    const parse = (value: string) => {
-      const [h, m] = value.split(":").map((part) => Number(part));
-      if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-      return h * 60 + m;
-    };
-
-    const start = parse(window.start);
-    const end = parse(window.end);
-    if (start === null || end === null || start === end) return undefined;
-
-    const now = new Date();
-    const nowMins = this.localMinutes(now, timezone);
-
-    const inWindow =
-      start < end
-        ? nowMins >= start && nowMins < end
-        : nowMins >= start || nowMins < end; // window wraps midnight
-
-    if (!inWindow) return undefined;
-
-    // Deliver when the local clock reaches the window end: advancing the UTC
-    // instant by the local minutes-until-end sidesteps offset math entirely.
-    const minutesUntilEnd = (end - nowMins + 24 * 60) % (24 * 60) || 24 * 60;
-    return new Date(now.getTime() + minutesUntilEnd * 60_000).toISOString();
-  }
-
-  /** Minutes past local midnight in the given IANA timezone (UTC on failure). */
-  private localMinutes(now: Date, timezone?: string | null): number {
-    if (timezone) {
-      try {
-        const parts = new Intl.DateTimeFormat("en-GB", {
-          timeZone: timezone,
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        }).formatToParts(now);
-        const hour = Number(parts.find((part) => part.type === "hour")?.value);
-        const minute = Number(
-          parts.find((part) => part.type === "minute")?.value,
-        );
-        if (Number.isFinite(hour) && Number.isFinite(minute)) {
-          return (hour % 24) * 60 + minute;
-        }
-      } catch {
-        // Invalid tz string — fall through to UTC.
-      }
-    }
-    return now.getUTCHours() * 60 + now.getUTCMinutes();
   }
 
   private async forEachWithConcurrency<T>(

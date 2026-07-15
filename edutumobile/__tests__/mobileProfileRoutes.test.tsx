@@ -9,9 +9,26 @@ const mockSignOut = jest.fn().mockResolvedValue(undefined);
 const mockGetToken = jest.fn().mockResolvedValue('token');
 const mockSetPackage = jest.fn();
 const mockOpenBrowserAsync = jest.fn().mockResolvedValue(undefined);
+const DEFAULT_NOTIF_SETTINGS = {
+  pushEnabled: true,
+  emailEnabled: false,
+  hapticsEnabled: true,
+  quietHoursEnabled: false,
+  quietHoursStart: '22:00',
+  quietHoursEnd: '08:00',
+};
+
 const mockLoadSettings = jest.fn();
 const mockSaveSettings = jest.fn().mockResolvedValue(undefined);
+const mockGetSettings = jest.fn(() => DEFAULT_NOTIF_SETTINGS);
 const mockTriggerHaptic = jest.fn().mockResolvedValue(undefined);
+const mockRequestPermissions = jest.fn().mockResolvedValue(true);
+const mockRegisterPush = jest.fn().mockResolvedValue('ExponentPushToken[test]');
+const mockGetStoredPushToken = jest.fn().mockResolvedValue('ExponentPushToken[test]');
+const mockResetPushTokenSync = jest.fn().mockResolvedValue(undefined);
+const mockGetPreferences = jest.fn();
+const mockSavePreferences = jest.fn().mockResolvedValue(undefined);
+const mockUnregisterPushToken = jest.fn().mockResolvedValue(undefined);
 const mockUpdatePassword = jest.fn().mockResolvedValue(undefined);
 const mockDeleteUser = jest.fn().mockResolvedValue(undefined);
 const mockUpsert = jest.fn().mockResolvedValue({ data: null, error: null });
@@ -218,9 +235,20 @@ jest.mock('../lib/notifications', () => ({
   notificationService: {
     loadSettings: (...args: unknown[]) => mockLoadSettings(...args),
     saveSettings: (...args: unknown[]) => mockSaveSettings(...args),
+    getSettings: (...args: unknown[]) => mockGetSettings(...args),
     triggerHaptic: (...args: unknown[]) => mockTriggerHaptic(...args),
-    requestPermissions: jest.fn(),
+    requestPermissions: (...args: unknown[]) => mockRequestPermissions(...args),
   },
+  registerForPushNotificationsAsync: (...args: unknown[]) => mockRegisterPush(...args),
+  getStoredPushToken: (...args: unknown[]) => mockGetStoredPushToken(...args),
+  resetPushTokenSync: (...args: unknown[]) => mockResetPushTokenSync(...args),
+}));
+
+jest.mock('@edutu/core/src/services/notificationPreferences', () => ({
+  ...jest.requireActual('@edutu/core/src/services/notificationPreferences'),
+  getNotificationPreferences: (...args: unknown[]) => mockGetPreferences(...args),
+  saveNotificationPreferences: (...args: unknown[]) => mockSavePreferences(...args),
+  unregisterPushToken: (...args: unknown[]) => mockUnregisterPushToken(...args),
 }));
 
 jest.mock('@edutu/core/src/utils/auth', () => ({
@@ -284,7 +312,25 @@ describe('mobile profile routes', () => {
     mockOpenBrowserAsync.mockClear();
     mockLoadSettings.mockReset();
     mockSaveSettings.mockClear();
+    mockGetSettings.mockClear();
     mockTriggerHaptic.mockClear();
+    mockRequestPermissions.mockClear().mockResolvedValue(true);
+    mockRegisterPush.mockClear();
+    mockGetStoredPushToken.mockClear();
+    mockResetPushTokenSync.mockClear();
+    mockSavePreferences.mockClear().mockResolvedValue(undefined);
+    mockUnregisterPushToken.mockClear();
+    // The settings screen reconciles against the server on mount; default to
+    // the same values the local cache reports so tests assert their own change.
+    mockGetPreferences.mockReset().mockResolvedValue({
+      pushNotifications: true,
+      emailNotifications: false,
+      opportunityAlerts: true,
+      deadlineReminders: true,
+      goalReminders: true,
+      achievementCelebrations: true,
+      quietHours: { start: '00:00', end: '00:00' },
+    });
     mockUpdatePassword.mockClear();
     mockDeleteUser.mockClear();
     mockUpsert.mockClear();
@@ -409,6 +455,133 @@ describe('mobile profile routes', () => {
         country: 'Nigeria',
       }),
       { onConflict: 'user_id' },
+    );
+  });
+
+  it('turning push off unregisters this device and saves the preference server-side', async () => {
+    const { getByText, getAllByRole } = render(<SettingsScreen />);
+    await waitFor(() => expect(getByText('Settings')).toBeTruthy());
+
+    await act(async () => {
+      fireEvent(getAllByRole('switch')[0], 'valueChange', false);
+    });
+
+    // The switch is only honest if all three agree: local cache, this device's
+    // token, and the server preference the backend actually enforces.
+    await waitFor(() =>
+      expect(mockSavePreferences).toHaveBeenCalledWith(expect.anything(), {
+        pushNotifications: false,
+      }),
+    );
+    expect(mockUnregisterPushToken).toHaveBeenCalledWith(
+      expect.anything(),
+      'ExponentPushToken[test]',
+    );
+    expect(mockResetPushTokenSync).toHaveBeenCalled();
+    expect(mockSaveSettings).toHaveBeenCalledWith({ pushEnabled: false });
+  });
+
+  it('turning push on asks the OS first and registers the device', async () => {
+    mockGetPreferences.mockResolvedValue({
+      pushNotifications: false,
+      emailNotifications: false,
+      opportunityAlerts: true,
+      deadlineReminders: true,
+      goalReminders: true,
+      achievementCelebrations: true,
+      quietHours: { start: '00:00', end: '00:00' },
+    });
+
+    const { getByText, getAllByRole } = render(<SettingsScreen />);
+    await waitFor(() => expect(getByText('Settings')).toBeTruthy());
+
+    await act(async () => {
+      fireEvent(getAllByRole('switch')[0], 'valueChange', true);
+    });
+
+    await waitFor(() => expect(mockRequestPermissions).toHaveBeenCalled());
+    expect(mockRegisterPush).toHaveBeenCalled();
+    await waitFor(() =>
+      expect(mockSavePreferences).toHaveBeenCalledWith(expect.anything(), {
+        pushNotifications: true,
+      }),
+    );
+  });
+
+  it('does not enable push when the OS denies permission', async () => {
+    mockRequestPermissions.mockResolvedValue(false);
+    mockGetPreferences.mockResolvedValue({
+      pushNotifications: false,
+      emailNotifications: false,
+      opportunityAlerts: true,
+      deadlineReminders: true,
+      goalReminders: true,
+      achievementCelebrations: true,
+      quietHours: { start: '00:00', end: '00:00' },
+    });
+
+    const { getByText, getAllByRole } = render(<SettingsScreen />);
+    await waitFor(() => expect(getByText('Settings')).toBeTruthy());
+
+    await act(async () => {
+      fireEvent(getAllByRole('switch')[0], 'valueChange', true);
+    });
+
+    // Claiming push is on while the OS blocks it would be the exact lie this
+    // screen is meant to stop telling — offer the system settings instead.
+    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith(
+      'Notifications are turned off',
+      expect.stringContaining('permission'),
+      expect.any(Array),
+    ));
+    expect(mockRegisterPush).not.toHaveBeenCalled();
+    expect(mockSavePreferences).not.toHaveBeenCalled();
+  });
+
+  it('reverts the switch and warns when the server rejects the save', async () => {
+    mockSavePreferences.mockRejectedValue(new Error('offline'));
+
+    const { getByText, getAllByRole } = render(<SettingsScreen />);
+    await waitFor(() => expect(getByText('Settings')).toBeTruthy());
+
+    const emailSwitch = getAllByRole('switch')[1];
+    expect(emailSwitch.props.value).toBe(false);
+
+    await act(async () => {
+      fireEvent(emailSwitch, 'valueChange', true);
+    });
+
+    // A failed save must not leave the UI claiming the setting stuck.
+    await waitFor(() =>
+      expect(getAllByRole('switch')[1].props.value).toBe(false),
+    );
+  });
+
+  it('encodes quiet hours off as a zero-length window the backend understands', async () => {
+    mockGetPreferences.mockResolvedValue({
+      pushNotifications: true,
+      emailNotifications: false,
+      opportunityAlerts: true,
+      deadlineReminders: true,
+      goalReminders: true,
+      achievementCelebrations: true,
+      quietHours: { start: '22:00', end: '08:00' },
+    });
+
+    const { getByText, getAllByRole } = render(<SettingsScreen />);
+    await waitFor(() => expect(getByText('Settings')).toBeTruthy());
+
+    // Reconciled from the server: the window is real, so the switch reads on.
+    await waitFor(() => expect(getAllByRole('switch')[3].props.value).toBe(true));
+
+    await act(async () => {
+      fireEvent(getAllByRole('switch')[3], 'valueChange', false);
+    });
+
+    await waitFor(() =>
+      expect(mockSavePreferences).toHaveBeenCalledWith(expect.anything(), {
+        quietHours: { start: '00:00', end: '00:00' },
+      }),
     );
   });
 

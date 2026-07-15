@@ -62,7 +62,7 @@ export async function throwIfBillingResponse(response: Response): Promise<void> 
   }
 }
 
-function getApiBaseUrl() {
+export function getApiBaseUrl() {
   return (process.env.EXPO_PUBLIC_API_URL || 'https://edutu-platform.onrender.com').replace(/\/$/, '');
 }
 
