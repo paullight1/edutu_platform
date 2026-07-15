@@ -175,7 +175,15 @@ function normaliseOpportunity(row: any): Opportunity {
     location: row.location || row.targetRegion || (row.is_remote || row.isRemote ? 'Remote' : 'Worldwide'),
     description: row.description || 'No description provided.',
     deadline: row.close_date || row.deadline || null,
-    image: row.image_url || row.imageUrl || null,
+    // No scraped image → fall back to the generated branded share card so
+    // feed cards never render imageless.
+    image:
+      row.image_url ||
+      row.imageUrl ||
+      row.share_image_url ||
+      row.shareImageUrl ||
+      shareCard.url ||
+      null,
     requirements: row.requirements?.length
       ? row.requirements
       : (meta.requirements ?? (row.eligibilityCriteria ? [row.eligibilityCriteria] : [])),
