@@ -1232,11 +1232,11 @@ function BestShotEmptySlot({ isDark, textSecondary, variant, onCompleteProfile, 
 }) {
     const isSearching = variant === 'searching';
     const emptyTitle = isSearching
-        ? "Still finding your best shot"
-        : "Your strongest match lands here";
+        ? "Finding your best match"
+        : "Complete your profile";
     const emptyDesc = isSearching
-        ? "Nothing's cleared the bar yet. Browse your recommendations below while we track down a stronger fit."
-        : "Complete your profile and we'll surface the few you can actually win.";
+        ? "Nothing's cleared the bar yet — see recommendations below."
+        : "Unlock the matches you can actually win.";
     const onPress = isSearching ? onBrowse : onCompleteProfile;
     const a11yLabel = isSearching
         ? "Browse opportunities while we find your best shot"
@@ -1304,9 +1304,6 @@ function BestShotsSection({ bestShots, loading, profileComplete, isDark, textPri
                     <View style={{ flex: 1 }}>
                         <Text style={[styles.sectionTitle, { color: textPrimary }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>
                             Your best shots
-                        </Text>
-                        <Text style={[styles.bestShotSubtitle, { color: textSecondary }]} numberOfLines={1} maxFontSizeMultiplier={1.3}>
-                            Fewer, winnable — these are yours.
                         </Text>
                     </View>
                 </View>
@@ -2798,10 +2795,6 @@ const styles = StyleSheet.create({
     notificationDesc: {
         fontSize: 13,
         lineHeight: 18,
-    },
-    bestShotSubtitle: {
-        fontSize: 12,
-        marginTop: 1,
     },
     bestShotRail: {
         paddingRight: 20,

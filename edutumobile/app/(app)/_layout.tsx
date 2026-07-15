@@ -43,6 +43,8 @@ import { useNavFabState } from "../../lib/navFabStore";
 import { useNavStyleSettings, isBarStyle, type NavBarStyle } from "../../lib/navStyleStore";
 import * as Notifications from "expo-notifications";
 import { notificationService, registerForPushNotificationsAsync } from "../../lib/notifications";
+import { ACTION_ASK, ACTION_SAVE } from "../../lib/notificationCategories";
+import { saveOpportunity } from "@edutu/core/src/services/bookmarks";
 import { updateProfile } from "@edutu/core/src/services/profile";
 import { supabase } from "../../lib/supabase";
 import { useNotifications } from "@edutu/core/src/hooks/useNotifications";
@@ -319,9 +321,7 @@ function AppHeader({ isDark, colors, unreadNotifications, guestMode, onGuestBloc
                     >
                         <Menu size={20} color={accentColor} strokeWidth={2} />
                     </TouchableOpacity>
-                    <View style={styles.brandLogoChip}>
-                        <EdutuLogo size={28} frameless />
-                    </View>
+                    <EdutuLogo size={36} frameless />
                     <HeaderLogoTitle
                         color={isDark ? "#FFFFFF" : "#0F172A"}
                     />
@@ -1047,6 +1047,33 @@ export default function AppLayout() {
             const data = response.notification.request.content.data as Record<string, unknown> | undefined;
             if (!data) return;
 
+            // Action buttons. Android handles these headlessly in
+            // notificationActionTask; this path is iOS (and the foreground case
+            // on both), where the actions are configured to open the app because
+            // iOS can't run our JS for a background action tap.
+            const opportunityId = typeof data.opportunityId === "string" ? data.opportunityId : null;
+            if (response.actionIdentifier === ACTION_ASK) {
+                const question = response.userText?.trim();
+                if (question) {
+                    // voiceMsg (not prefill) because the user already typed the
+                    // question and submitted it — that's an explicit send, so it
+                    // clears the bar prefill exists to protect.
+                    router.push(`/chat?voiceMsg=${encodeURIComponent(question)}` as never);
+                } else {
+                    router.push("/chat" as never);
+                }
+                return;
+            }
+            if (response.actionIdentifier === ACTION_SAVE && opportunityId) {
+                // Actually save. Routing with a param would be a no-op — the
+                // detail screen reads no action param.
+                if (userId) {
+                    void saveOpportunity(supabase, userId, opportunityId, getToken);
+                }
+                router.push(`/opportunities/${opportunityId}` as never);
+                return;
+            }
+
             if (typeof data.url === "string" && data.url.startsWith("/")) {
                 router.push(data.url as never);
                 return;
@@ -1066,7 +1093,7 @@ export default function AppLayout() {
         void Notifications.getLastNotificationResponseAsync().then(handleResponse);
 
         return () => subscription.remove();
-    }, [isSignedIn, router]);
+    }, [isSignedIn, router, userId, getToken]);
 
     const getActiveRoute = (): string => {
         const path = pathname.toLowerCase();
@@ -1532,16 +1559,6 @@ const styles = StyleSheet.create({
         width: 38,
         height: 38,
         borderRadius: 19,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    // Light chip behind the colored logo so its dark-navy details stay legible
-    // on any theme's dark header background.
-    brandLogoChip: {
-        width: 36,
-        height: 36,
-        borderRadius: 11,
-        backgroundColor: '#FFFFFF',
         alignItems: 'center',
         justifyContent: 'center',
     },

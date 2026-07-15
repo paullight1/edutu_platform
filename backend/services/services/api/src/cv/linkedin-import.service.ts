@@ -53,7 +53,10 @@ const BROWSER_HEADERS = {
     "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
 };
 
-type PCDate = { day?: number; month?: number; year?: number } | null | undefined;
+type PCDate =
+  | { day?: number; month?: number; year?: number }
+  | null
+  | undefined;
 
 @Injectable()
 export class LinkedInImportService {
@@ -113,11 +116,11 @@ export class LinkedInImportService {
   private hasContent(p: LinkedInProfile): boolean {
     return Boolean(
       p.full_name ||
-        p.headline ||
-        p.summary ||
-        p.experiences.length ||
-        p.education.length ||
-        p.skills.length,
+      p.headline ||
+      p.summary ||
+      p.experiences.length ||
+      p.education.length ||
+      p.skills.length,
     );
   }
 
@@ -295,7 +298,12 @@ export class LinkedInImportService {
       }),
     );
     profile.education = this.pdfBlocksToEntries(buckets.education || []).map(
-      (b) => ({ school: b[0], degree: b[1], start_date: b.date, end_date: b.endDate }),
+      (b) => ({
+        school: b[0],
+        degree: b[1],
+        start_date: b.date,
+        end_date: b.endDate,
+      }),
     );
 
     return this.hasContent(profile) ? profile : null;
@@ -305,9 +313,13 @@ export class LinkedInImportService {
    * Group a section's lines into entries by treating a date-range line as the
    * boundary marker. Returns {0:firstLine,1:secondLine,date,endDate,rest}.
    */
-  private pdfBlocksToEntries(
-    section: string[],
-  ): Array<{ 0?: string; 1?: string; date?: string; endDate?: string; rest?: string }> {
+  private pdfBlocksToEntries(section: string[]): Array<{
+    0?: string;
+    1?: string;
+    date?: string;
+    endDate?: string;
+    rest?: string;
+  }> {
     const dateRange =
       /((jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*)?((19|20)\d{2})\s*[-–—to]+\s*(present|((jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*)?((19|20)\d{2}))/i;
     const entries: Array<{
@@ -436,20 +448,17 @@ export class LinkedInImportService {
     const key = process.env.PROXYCURL_API_KEY;
     if (!key) return null;
 
-    const res = await axios.get(
-      "https://nubela.co/proxycurl/api/v2/linkedin",
-      {
-        params: {
-          url,
-          skills: "include",
-          use_cache: "if-present",
-          fallback_to_cache: "on-error",
-        },
-        headers: { Authorization: `Bearer ${key}` },
-        timeout: 30_000,
-        validateStatus: (s) => s < 500,
+    const res = await axios.get("https://nubela.co/proxycurl/api/v2/linkedin", {
+      params: {
+        url,
+        skills: "include",
+        use_cache: "if-present",
+        fallback_to_cache: "on-error",
       },
-    );
+      headers: { Authorization: `Bearer ${key}` },
+      timeout: 30_000,
+      validateStatus: (s) => s < 500,
+    });
 
     if (res.status >= 400 || !res.data || typeof res.data !== "object") {
       this.logger.warn(`Proxycurl returned ${res.status} for ${url}`);
@@ -576,7 +585,10 @@ export class LinkedInImportService {
     if (ogTitle) {
       const [name, ...rest] = ogTitle.split(/\s[-–|]\s/);
       if (name) profile.full_name = name.trim();
-      const headline = rest.join(" - ").replace(/\|?\s*LinkedIn\s*$/i, "").trim();
+      const headline = rest
+        .join(" - ")
+        .replace(/\|?\s*LinkedIn\s*$/i, "")
+        .trim();
       if (headline) profile.headline = headline;
     }
     const ogDesc = $('meta[property="og:description"]').attr("content");

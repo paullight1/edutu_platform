@@ -126,9 +126,12 @@ export function freshnessScore(
   let deadlineComponent = 0.25; // no deadline — evergreen, mildly positive
   if (deadline instanceof Date && !Number.isNaN(deadline.getTime())) {
     const daysLeft = (deadline.getTime() - now.getTime()) / DAY_MS;
-    if (daysLeft < 0) deadlineComponent = 0; // passed
-    else if (daysLeft < 3) deadlineComponent = 0.1; // too tight to apply well
-    else if (daysLeft <= 45) deadlineComponent = 0.5; // sweet spot
+    if (daysLeft < 0)
+      deadlineComponent = 0; // passed
+    else if (daysLeft < 3)
+      deadlineComponent = 0.1; // too tight to apply well
+    else if (daysLeft <= 45)
+      deadlineComponent = 0.5; // sweet spot
     else if (daysLeft <= 90) deadlineComponent = 0.3;
     else deadlineComponent = 0.2; // far out
   }

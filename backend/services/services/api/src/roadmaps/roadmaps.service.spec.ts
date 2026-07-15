@@ -172,7 +172,12 @@ describe("RoadmapsService", () => {
         { id: "rm-1", category: "scholarship" },
         {
           steps: [
-            { id: "s1", title: "Draft SOP", description: "Write it", dueAt: "2026-08-01T09:00:00.000Z" },
+            {
+              id: "s1",
+              title: "Draft SOP",
+              description: "Write it",
+              dueAt: "2026-08-01T09:00:00.000Z",
+            },
             { id: "s2", title: "Submit application", dueAt: null },
             { id: "s3", title: "", dueAt: "2026-08-05T09:00:00.000Z" },
           ],
@@ -193,15 +198,22 @@ describe("RoadmapsService", () => {
       // A step with no due date still becomes a goal (no reminder date).
       expect(create).toHaveBeenCalledWith(
         "user-1",
-        expect.objectContaining({ title: "Submit application", targetDate: undefined }),
+        expect.objectContaining({
+          title: "Submit application",
+          targetDate: undefined,
+        }),
       );
     });
 
     it("is a no-op when the goals service is unavailable", async () => {
       const svc = new RoadmapsService(aiService as any);
-      const count = await (svc as any).createAdoptionGoals("user-1", { id: "rm-1" }, {
-        steps: [{ id: "s1", title: "Draft SOP" }],
-      });
+      const count = await (svc as any).createAdoptionGoals(
+        "user-1",
+        { id: "rm-1" },
+        {
+          steps: [{ id: "s1", title: "Draft SOP" }],
+        },
+      );
       expect(count).toBe(0);
     });
 
@@ -215,7 +227,12 @@ describe("RoadmapsService", () => {
       const count = await (svc as any).createAdoptionGoals(
         "user-1",
         { id: "rm-1" },
-        { steps: [{ id: "s1", title: "First" }, { id: "s2", title: "Second" }] },
+        {
+          steps: [
+            { id: "s1", title: "First" },
+            { id: "s2", title: "Second" },
+          ],
+        },
       );
 
       expect(count).toBe(1);
@@ -228,8 +245,16 @@ describe("RoadmapsService", () => {
         summary: "Win the Chevening scholarship with a focused plan.",
         winningStrategy: "Lead with measurable impact and a clear study plan.",
         milestones: [
-          { id: "m2", title: "Gather your evidence", description: "Collect transcripts and references early." },
-          { id: "m1", title: "Understand the criteria", description: "Map exactly what the panel rewards." },
+          {
+            id: "m2",
+            title: "Gather your evidence",
+            description: "Collect transcripts and references early.",
+          },
+          {
+            id: "m1",
+            title: "Understand the criteria",
+            description: "Map exactly what the panel rewards.",
+          },
         ],
         checklist: ["Transcripts", "Two references", "", 42],
         supportActions: ["Find an alumnus to review your essays"],

@@ -24,7 +24,11 @@ const MONTHS = [
   "december",
 ];
 
-export type DeadlineConfidence = "explicit" | "inferred" | "rolling" | "unknown";
+export type DeadlineConfidence =
+  | "explicit"
+  | "inferred"
+  | "rolling"
+  | "unknown";
 
 export interface ParsedDeadline {
   /** ISO YYYY-MM-DD, or null when nothing trustworthy was found. */

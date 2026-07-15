@@ -49,42 +49,42 @@ export class DeepSeekAdapter implements AiProviderAdapter {
     const response = await aiFetch(
       DEEPSEEK_API_URL,
       {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${config.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: config.model || "deepseek-chat",
-        messages: [
-          ...(config.systemPrompt || options.systemInstruction
-            ? [
-                {
-                  role: "system",
-                  content: config.systemPrompt || options.systemInstruction,
-                },
-              ]
-            : []),
-          { role: "user", content: promptText },
-        ],
-        stream: false,
-        ...(typeof config.temperature === "number" ||
-        typeof options.temperature === "number"
-          ? {
-              temperature:
-                config.temperature ?? options.temperature ?? undefined,
-            }
-          : {}),
-        ...(config.maxOutputTokens || options.maxOutputTokens
-          ? {
-              max_tokens: config.maxOutputTokens || options.maxOutputTokens,
-            }
-          : {}),
-        ...(config.responseMimeType === "application/json" ||
-        options.responseMimeType === "application/json"
-          ? { response_format: { type: "json_object" } }
-          : {}),
-      }),
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${config.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: config.model || "deepseek-chat",
+          messages: [
+            ...(config.systemPrompt || options.systemInstruction
+              ? [
+                  {
+                    role: "system",
+                    content: config.systemPrompt || options.systemInstruction,
+                  },
+                ]
+              : []),
+            { role: "user", content: promptText },
+          ],
+          stream: false,
+          ...(typeof config.temperature === "number" ||
+          typeof options.temperature === "number"
+            ? {
+                temperature:
+                  config.temperature ?? options.temperature ?? undefined,
+              }
+            : {}),
+          ...(config.maxOutputTokens || options.maxOutputTokens
+            ? {
+                max_tokens: config.maxOutputTokens || options.maxOutputTokens,
+              }
+            : {}),
+          ...(config.responseMimeType === "application/json" ||
+          options.responseMimeType === "application/json"
+            ? { response_format: { type: "json_object" } }
+            : {}),
+        }),
       },
       { label: "DeepSeek" },
     );
@@ -163,44 +163,44 @@ export class GeminiAdapter implements AiProviderAdapter {
     const response = await aiFetch(
       endpoint,
       {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        ...(systemPrompt
-          ? {
-              systemInstruction: {
-                parts: [{ text: systemPrompt }],
-              },
-            }
-          : {}),
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: options.prompt }],
-          },
-        ],
-        generationConfig: {
-          ...(typeof config.temperature === "number" ||
-          typeof options.temperature === "number"
-            ? {
-                temperature:
-                  config.temperature ?? options.temperature ?? undefined,
-              }
-            : {}),
-          ...(config.maxOutputTokens || options.maxOutputTokens
-            ? {
-                maxOutputTokens:
-                  config.maxOutputTokens || options.maxOutputTokens,
-              }
-            : {}),
-          ...(config.responseMimeType === "application/json" ||
-          options.responseMimeType === "application/json"
-            ? { responseMimeType: "application/json" }
-            : {}),
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      }),
+        body: JSON.stringify({
+          ...(systemPrompt
+            ? {
+                systemInstruction: {
+                  parts: [{ text: systemPrompt }],
+                },
+              }
+            : {}),
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: options.prompt }],
+            },
+          ],
+          generationConfig: {
+            ...(typeof config.temperature === "number" ||
+            typeof options.temperature === "number"
+              ? {
+                  temperature:
+                    config.temperature ?? options.temperature ?? undefined,
+                }
+              : {}),
+            ...(config.maxOutputTokens || options.maxOutputTokens
+              ? {
+                  maxOutputTokens:
+                    config.maxOutputTokens || options.maxOutputTokens,
+                }
+              : {}),
+            ...(config.responseMimeType === "application/json" ||
+            options.responseMimeType === "application/json"
+              ? { responseMimeType: "application/json" }
+              : {}),
+          },
+        }),
       },
       { label: "Gemini" },
     );

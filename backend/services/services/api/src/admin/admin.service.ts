@@ -1010,9 +1010,7 @@ export class AdminService {
     profileUsers: AdminUserRecord[],
     directoryUsers: AdminUserRecord[],
   ): AdminUserRecord[] {
-    const ids = new Set(
-      profileUsers.map((user) => user.userId.toLowerCase()),
-    );
+    const ids = new Set(profileUsers.map((user) => user.userId.toLowerCase()));
     const emails = new Set(
       profileUsers
         .map((user) => user.email.toLowerCase())
@@ -1289,10 +1287,14 @@ export class AdminService {
     return error instanceof Error ? error.message : String(error);
   }
 
-  async getAiUsageSummary(daysInput?: string): Promise<AdminAiUsageSummaryResponse> {
+  async getAiUsageSummary(
+    daysInput?: string,
+  ): Promise<AdminAiUsageSummaryResponse> {
     const parsed = Number(daysInput);
     const days =
-      Number.isFinite(parsed) && parsed > 0 ? Math.min(Math.floor(parsed), 365) : 30;
+      Number.isFinite(parsed) && parsed > 0
+        ? Math.min(Math.floor(parsed), 365)
+        : 30;
 
     const empty: AdminAiUsageSummaryResponse = {
       success: true,

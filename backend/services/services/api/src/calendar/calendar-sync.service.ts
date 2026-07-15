@@ -102,15 +102,15 @@ export class CalendarSyncService {
     if (provider === "google") {
       return Boolean(
         process.env.GOOGLE_CLIENT_ID &&
-          process.env.GOOGLE_CLIENT_SECRET &&
-          process.env.GOOGLE_REDIRECT_URI,
+        process.env.GOOGLE_CLIENT_SECRET &&
+        process.env.GOOGLE_REDIRECT_URI,
       );
     }
     if (provider === "outlook") {
       return Boolean(
         process.env.MS_CLIENT_ID &&
-          process.env.MS_CLIENT_SECRET &&
-          process.env.MS_REDIRECT_URI,
+        process.env.MS_CLIENT_SECRET &&
+        process.env.MS_REDIRECT_URI,
       );
     }
     return true; // caldav is always available (user-supplied credentials)
@@ -162,7 +162,9 @@ export class CalendarSyncService {
       code,
       grant_type: "authorization_code",
       client_id:
-        provider === "google" ? process.env.GOOGLE_CLIENT_ID! : process.env.MS_CLIENT_ID!,
+        provider === "google"
+          ? process.env.GOOGLE_CLIENT_ID!
+          : process.env.MS_CLIENT_ID!,
       client_secret:
         provider === "google"
           ? process.env.GOOGLE_CLIENT_SECRET!
@@ -345,7 +347,10 @@ export class CalendarSyncService {
       .from(goals)
       .where(eq(goals.userId, feed.userId));
 
-    const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+    const stamp = now
+      .toISOString()
+      .replace(/[-:]/g, "")
+      .replace(/\.\d{3}Z$/, "Z");
     const vevents = rows
       .map((goal) =>
         buildEventFields({
@@ -556,7 +561,10 @@ export class CalendarSyncService {
       body: { contentType: "text", content: fields.description || "" },
       isAllDay: true,
       start: { dateTime: `${fields.dateOnly}T00:00:00`, timeZone: "UTC" },
-      end: { dateTime: `${addDaysIso(fields.dateOnly, 1)}T00:00:00`, timeZone: "UTC" },
+      end: {
+        dateTime: `${addDaysIso(fields.dateOnly, 1)}T00:00:00`,
+        timeZone: "UTC",
+      },
       isReminderOn: true,
       reminderMinutesBeforeStart: 24 * 60,
     };
@@ -564,12 +572,21 @@ export class CalendarSyncService {
 
   // --- CalDAV (apple) event write/delete ---
   private caldavHref(conn: any, goalId: string): string {
-    const base = String(conn.calendarId || conn.caldavUrl || "").replace(/\/$/, "");
+    const base = String(conn.calendarId || conn.caldavUrl || "").replace(
+      /\/$/,
+      "",
+    );
     return `${base}/edutu-${goalId}.ics`;
   }
 
-  private async caldavPut(conn: any, fields: EventFields): Promise<string | null> {
-    const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  private async caldavPut(
+    conn: any,
+    fields: EventFields,
+  ): Promise<string | null> {
+    const stamp = new Date()
+      .toISOString()
+      .replace(/[-:]/g, "")
+      .replace(/\.\d{3}Z$/, "Z");
     const ics = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
@@ -749,18 +766,25 @@ export class CalendarSyncService {
       maxResults: "250",
     };
     if (conn.syncState) params.syncToken = conn.syncState;
-    else params.timeMin = new Date(conn.connectedAt || Date.now()).toISOString();
+    else
+      params.timeMin = new Date(conn.connectedAt || Date.now()).toISOString();
 
     try {
       const res = await axios.get(
         `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(conn.calendarId || "primary")}/events`,
-        { headers: { Authorization: `Bearer ${token}` }, params, timeout: 10_000 },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          params,
+          timeout: 10_000,
+        },
       );
-      const changes: InboundChange[] = (res.data?.items ?? []).map((event: any) => ({
-        externalEventId: event.id,
-        cancelled: event.status === "cancelled",
-        dateOnly: event.start?.date || event.start?.dateTime?.slice(0, 10),
-      }));
+      const changes: InboundChange[] = (res.data?.items ?? []).map(
+        (event: any) => ({
+          externalEventId: event.id,
+          cancelled: event.status === "cancelled",
+          dateOnly: event.start?.date || event.start?.dateTime?.slice(0, 10),
+        }),
+      );
       return { changes, nextSyncState: res.data?.nextSyncToken };
     } catch (error: any) {
       if (error?.response?.status === 410) {
@@ -789,11 +813,13 @@ export class CalendarSyncService {
       headers: { Authorization: `Bearer ${token}` },
       timeout: 10_000,
     });
-    const changes: InboundChange[] = (res.data?.value ?? []).map((event: any) => ({
-      externalEventId: event.id,
-      cancelled: Boolean(event["@removed"]) || event.isCancelled === true,
-      dateOnly: event.start?.dateTime?.slice(0, 10),
-    }));
+    const changes: InboundChange[] = (res.data?.value ?? []).map(
+      (event: any) => ({
+        externalEventId: event.id,
+        cancelled: Boolean(event["@removed"]) || event.isCancelled === true,
+        dateOnly: event.start?.dateTime?.slice(0, 10),
+      }),
+    );
     return {
       changes,
       nextSyncState: res.data?.["@odata.deltaLink"] || conn.syncState,
@@ -822,7 +848,8 @@ export class CalendarSyncService {
     if (!goal) return;
 
     const currentDate = goal.targetDate ? new Date(goal.targetDate) : null;
-    if (currentDate && toDateOnly(currentDate) === toDateOnly(targetDate)) return;
+    if (currentDate && toDateOnly(currentDate) === toDateOnly(targetDate))
+      return;
 
     await db
       .update(goals)
@@ -833,7 +860,12 @@ export class CalendarSyncService {
       })
       .where(eq(goals.id, link.goalId));
 
-    await this.rescheduleReminders(dbUserId, link.goalId, goal.title, targetDate);
+    await this.rescheduleReminders(
+      dbUserId,
+      link.goalId,
+      goal.title,
+      targetDate,
+    );
   }
 
   private async rescheduleReminders(
@@ -858,7 +890,11 @@ export class CalendarSyncService {
           severity: daysBefore <= 1 ? "warning" : "info",
           scheduledFor: scheduledFor.toISOString(),
           dedupeKey: `goal:${goalId}:${daysBefore}`,
-          metadata: { goalId, targetDate: targetDate.toISOString(), daysBefore },
+          metadata: {
+            goalId,
+            targetDate: targetDate.toISOString(),
+            daysBefore,
+          },
         } as BroadcastNotificationDto;
       },
     );

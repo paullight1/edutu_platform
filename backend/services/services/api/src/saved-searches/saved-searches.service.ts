@@ -374,7 +374,11 @@ export class SavedSearchesService {
     }
 
     if (search.fundingType?.trim()) {
-      const funding = textField(row, "funding_type", "fundingType").toLowerCase();
+      const funding = textField(
+        row,
+        "funding_type",
+        "fundingType",
+      ).toLowerCase();
       if (!funding.includes(search.fundingType.trim().toLowerCase())) {
         return false;
       }

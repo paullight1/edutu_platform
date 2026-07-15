@@ -319,7 +319,9 @@ const CATEGORY_PATTERNS: Array<[string, RegExp]> = Object.entries(
   category,
   new RegExp(
     `\\b(?:${keywords
-      .map((kw) => kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+"))
+      .map((kw) =>
+        kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+"),
+      )
       .join("|")})\\b`,
     "i",
   ),
@@ -629,8 +631,12 @@ export class ScraperService implements OnModuleInit {
         description: enriched.description,
         deadline: enriched.deadline,
         location: enriched.location,
-        applyUrl: this.sanitizeUrl(enriched.direct_apply_url || enriched.apply_url),
-        apply_url: this.sanitizeUrl(enriched.direct_apply_url || enriched.apply_url),
+        applyUrl: this.sanitizeUrl(
+          enriched.direct_apply_url || enriched.apply_url,
+        ),
+        apply_url: this.sanitizeUrl(
+          enriched.direct_apply_url || enriched.apply_url,
+        ),
         sourceUrl: this.sanitizeUrl(enriched.apply_url),
         source_url: this.sanitizeUrl(enriched.source_url),
         imageUrl: enriched.image_url,
@@ -674,7 +680,10 @@ export class ScraperService implements OnModuleInit {
    * so a long crawl never ties up an HTTP worker past the gateway timeout.
    * Clients poll GET /api/scraper/jobs for progress.
    */
-  startScraperRun(options: ScrapeOptions): { started: boolean; error?: string } {
+  startScraperRun(options: ScrapeOptions): {
+    started: boolean;
+    error?: string;
+  } {
     if (!this.supabase) {
       return { started: false, error: "Scraper is not configured" };
     }
@@ -1647,7 +1656,12 @@ export class ScraperService implements OnModuleInit {
         });
       } catch (error: any) {
         this.logger.error(`Error crawling "${source.name}": ${error.message}`);
-        onEvent?.({ type: "source-done", name: source.name, itemsFound: 0, error: error.message });
+        onEvent?.({
+          type: "source-done",
+          name: source.name,
+          itemsFound: 0,
+          error: error.message,
+        });
         await this.updateSourceStatus(
           source.id,
           false,
@@ -1782,9 +1796,7 @@ export class ScraperService implements OnModuleInit {
       const candidateApplyUrls = [
         ...new Set(
           items
-            .filter((item) =>
-              recentlyProcessed.has(urlByItem.get(item) ?? ""),
-            )
+            .filter((item) => recentlyProcessed.has(urlByItem.get(item) ?? ""))
             .map((item) => item.apply_url),
         ),
       ];
@@ -2460,7 +2472,8 @@ export class ScraperService implements OnModuleInit {
     if (Number.isFinite(secs) && secs >= 0)
       return Math.min(secs * 1_000, 60_000);
     const at = Date.parse(String(raw));
-    if (!Number.isNaN(at)) return Math.min(Math.max(at - Date.now(), 0), 60_000);
+    if (!Number.isNaN(at))
+      return Math.min(Math.max(at - Date.now(), 0), 60_000);
     return null;
   }
 
@@ -2672,7 +2685,9 @@ ${text}`;
       res.status === 403 ||
       (typeof res.data === "string" && this.looksLikeBotChallenge(res.data));
     if (blocked && !viaProxy && scraperProxyAgent) {
-      this.logger.warn(`  ↳ Blocked on ${url} — retrying via SCRAPER_PROXY_URL`);
+      this.logger.warn(
+        `  ↳ Blocked on ${url} — retrying via SCRAPER_PROXY_URL`,
+      );
       return this.fetchRestResponse(url, timeoutMs, true);
     }
     if (blocked) {
@@ -3186,7 +3201,10 @@ ${text}`;
         continue;
       }
 
-      if (!claimedBy && (await this.isImageUsedByOtherOpportunity(key, applyUrl))) {
+      if (
+        !claimedBy &&
+        (await this.isImageUsedByOtherOpportunity(key, applyUrl))
+      ) {
         // Remember the verdict so sibling items skip the DB round-trip.
         this.imageClaimsThisRun.set(key, "__existing_opportunity__");
         this.logger.log(
@@ -3324,9 +3342,7 @@ ${text}`;
       Boolean(organization);
     // A deadline that already passed at scrape time means a stale post or a
     // misparsed date — either way it would confuse users if published.
-    const deadlinePassed = Boolean(
-      closeDate && closeDate < now.split("T")[0],
-    );
+    const deadlinePassed = Boolean(closeDate && closeDate < now.split("T")[0]);
     // Low LLM extraction confidence means the fields themselves are suspect —
     // cap at pending_review. Only applies to AI-enriched items (confidence 0
     // simply means "no AI enrichment ran", which is not a trust signal).
@@ -3695,6 +3711,122 @@ ${text}`;
   }
 
   // ─── Deletion ─────────────────────────────────────────────────────────────
+
+  /**
+   * Opportunities grouped by the site they came from, with their scrape batches
+   * nested underneath.
+   *
+   * Grouped by URL host rather than scraping_sources.id on purpose: deleting a
+   * source sets scraped_urls.source_id to NULL, so source-keyed grouping makes
+   * every orphaned site invisible — which is exactly how ~95 rows sat unreachable
+   * after their source row was removed. The host is derived from the row itself,
+   * so it survives.
+   */
+  async getOpportunitySites(): Promise<
+    Array<{
+      host: string;
+      total: number;
+      batches: Array<{
+        jobId: string | null;
+        count: number;
+        firstSeen: string | null;
+        lastSeen: string | null;
+        runType: string | null;
+        startedAt: string | null;
+      }>;
+    }>
+  > {
+    const result = await pool.query(`
+      select
+        coalesce(
+          nullif(
+            split_part(
+              regexp_replace(
+                coalesce(opportunity.apply_url, opportunity.application_url, opportunity.source_url),
+                '^https?://(www\\.)?', ''
+              ),
+              '/', 1
+            ),
+            ''
+          ),
+          'unknown'
+        ) as host,
+        opportunity.metadata->>'scrape_job_id' as job_id,
+        count(*)::int as count,
+        min(opportunity.created_at) as first_seen,
+        max(opportunity.created_at) as last_seen,
+        max(log.run_type) as run_type,
+        max(log.started_at) as started_at
+      from public.opportunities opportunity
+      -- scrape_job_id is a JSONB string; scrape_logs.id is uuid.
+      left join public.scrape_logs log
+        on log.id::text = opportunity.metadata->>'scrape_job_id'
+      group by 1, 2
+      order by 1 asc, count desc
+    `);
+
+    const sites = new Map<string, any>();
+
+    for (const row of result.rows) {
+      const host = String(row.host);
+      if (!sites.has(host)) sites.set(host, { host, total: 0, batches: [] });
+      const site = sites.get(host);
+      const count = Number(row.count) || 0;
+      site.total += count;
+      site.batches.push({
+        jobId: row.job_id ?? null,
+        count,
+        firstSeen: row.first_seen ?? null,
+        lastSeen: row.last_seen ?? null,
+        runType: row.run_type ?? null,
+        startedAt: row.started_at ?? null,
+      });
+    }
+
+    return Array.from(sites.values()).sort((a, b) => b.total - a.total);
+  }
+
+  /**
+   * Deletes every opportunity harvested from a host, including rows whose batch
+   * is unknown (scraped before scrape_job_id existed) — those are unreachable
+   * from a batch-only delete. Also clears the scraped_urls ledger, whose
+   * opportunity_id has no FK and would otherwise dangle.
+   */
+  async deleteOpportunitiesByHost(
+    host: string,
+  ): Promise<{ success: boolean; deleted: number; error?: string }> {
+    const clean = host
+      .trim()
+      .toLowerCase()
+      .replace(/^www\./, "");
+    // A bare "%" here would match every opportunity in the table.
+    if (!clean || !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(clean)) {
+      return { success: false, deleted: 0, error: "Invalid host" };
+    }
+
+    const like = `%${clean}%`;
+    try {
+      const deleted = await pool.query(
+        `delete from public.opportunities
+         where coalesce(apply_url, application_url, source_url) ilike $1
+            or coalesce(metadata->>'aggregator_url', '') ilike $1
+            or coalesce(metadata->>'detail_url', '') ilike $1
+         returning id`,
+        [like],
+      );
+      const count = deleted.rowCount ?? 0;
+
+      await pool.query(`delete from public.scraped_urls where url ilike $1`, [
+        like,
+      ]);
+
+      this.logger.log(`Deleted ${count} opportunity(ies) from host ${clean}`);
+      return { success: true, deleted: count };
+    } catch (e: any) {
+      this.logger.error(`Delete by host ${clean} failed: ${e.message}`);
+      return { success: false, deleted: 0, error: e.message };
+    }
+  }
 
   async deleteJobWithOpportunities(
     jobId: string,
@@ -4111,17 +4243,19 @@ ${text}`;
       // Memory-safe fallback: exact total via a head-only count, and a capped
       // sample for the per-source breakdown instead of loading every row.
       const FALLBACK_SAMPLE_LIMIT = 5_000;
-      const [{ count: totalCount }, { data: fallbackData, error: fallbackError }] =
-        await Promise.all([
-          this.supabase
-            .from("opportunities")
-            .select("id", { count: "exact", head: true }),
-          this.supabase
-            .from("opportunities")
-            .select("source")
-            .order("created_at", { ascending: false })
-            .limit(FALLBACK_SAMPLE_LIMIT),
-        ]);
+      const [
+        { count: totalCount },
+        { data: fallbackData, error: fallbackError },
+      ] = await Promise.all([
+        this.supabase
+          .from("opportunities")
+          .select("id", { count: "exact", head: true }),
+        this.supabase
+          .from("opportunities")
+          .select("source")
+          .order("created_at", { ascending: false })
+          .limit(FALLBACK_SAMPLE_LIMIT),
+      ]);
       if (fallbackError) return { total: totalCount ?? 0, bySource: {} };
 
       const bySource: Record<string, number> = {};

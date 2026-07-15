@@ -224,6 +224,8 @@ export class OpportunitiesController {
     @Query("status") status?: string,
     @Query("category") category?: string,
     @Query("sortBy") sortBy?: string,
+    @Query("includeExpired") includeExpired?: string,
+    @Query("missingDeadline") missingDeadline?: string,
   ) {
     return this.opportunitiesService.findAdminList({
       limit,
@@ -233,6 +235,10 @@ export class OpportunitiesController {
       status,
       category,
       sortBy,
+      missingDeadline: missingDeadline === "true",
+      // Opt-in exclusion: only an explicit "false" hides expired rows, so any
+      // caller that doesn't pass the param keeps the old behavior.
+      includeExpired: includeExpired === "false" ? false : undefined,
     });
   }
 
@@ -353,9 +359,7 @@ export class OpportunitiesController {
 
   @Post("admin/embeddings/backfill")
   @UseGuards(AdminGuard)
-  adminEmbeddingsBackfill(
-    @Body() body: { limit?: number; reembed?: boolean },
-  ) {
+  adminEmbeddingsBackfill(@Body() body: { limit?: number; reembed?: boolean }) {
     return this.opportunityEmbeddingService.backfillOpportunityEmbeddings(
       body ?? {},
     );

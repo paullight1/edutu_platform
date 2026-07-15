@@ -11,7 +11,10 @@ export class CacheService implements OnModuleDestroy {
   private readonly logger = new Logger(CacheService.name);
   private redis: any = null;
   private redisChecked = false;
-  private readonly mem = new Map<string, { value: string; expiresAt: number }>();
+  private readonly mem = new Map<
+    string,
+    { value: string; expiresAt: number }
+  >();
   private readonly MAX_MEM_ENTRIES = 5000;
 
   private getRedis(): any | null {
@@ -22,7 +25,6 @@ export class CacheService implements OnModuleDestroy {
     if (!url) return null;
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const Redis = require("ioredis");
       this.redis = new Redis(url, {
         maxRetriesPerRequest: 2,
@@ -77,7 +79,10 @@ export class CacheService implements OnModuleDestroy {
       const oldest = this.mem.keys().next().value;
       if (oldest) this.mem.delete(oldest);
     }
-    this.mem.set(key, { value: raw, expiresAt: Date.now() + ttlSeconds * 1000 });
+    this.mem.set(key, {
+      value: raw,
+      expiresAt: Date.now() + ttlSeconds * 1000,
+    });
   }
 
   /** Cache-aside: return cached value or compute, store, and return it. */

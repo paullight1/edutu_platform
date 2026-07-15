@@ -40,9 +40,57 @@ export default defineConfig({
         importScripts: ['sw-custom.js'],
         runtimeCaching: [
           {
-            // Product API (opportunities, recommendations, profile, deadlines…).
-            // Network-first so signed-in users get fresh data online, but fall
-            // back to the last successful response when the network is gone.
+            // Public catalog reads — identical for every visitor, so the cached
+            // copy paints instantly and revalidates behind the scenes instead of
+            // blocking on the network every time.
+            //
+            // The allowlist is deliberate. Everything user-scoped stays on
+            // NetworkFirst below, because stale-while-revalidate serves the
+            // cache *first*: on a shared browser, or after signing in as someone
+            // else, it would paint the previous user's data before revalidating.
+            // Note match-scores/preferences/signals/admin sit under the
+            // /opportunities prefix, so a prefix match would wrongly catch them.
+            //
+            // This runs in the generated service worker, so it must stay
+            // self-contained — it is serialised via toString() and any
+            // reference to an outer binding would throw there.
+            urlPattern: ({ url, request }) => {
+              if (request.method !== 'GET') return false;
+              if (url.origin !== 'https://edutu-platform.onrender.com') return false;
+              const p = url.pathname;
+              if (p === '/blog' || p.startsWith('/blog/')) return true;
+              if (p === '/roadmaps/templates') return true;
+              if (p === '/opportunities' || p === '/opportunities/search') return true;
+              // /opportunities/:id and /opportunities/:id/share-pdf only.
+              const m = p.match(/^\/opportunities\/([^/]+)(?:\/share-pdf)?$/);
+              return (
+                !!m &&
+                ![
+                  'search',
+                  'preferences',
+                  'match-scores',
+                  'signals',
+                  'sync',
+                  'admin',
+                  'apify-sync',
+                ].includes(m[1])
+              );
+            },
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'edutu-catalog',
+              expiration: {
+                maxEntries: 120,
+                maxAgeSeconds: 60 * 60 * 24, // 1 day
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            // Everything else on the product API (profile, match-scores,
+            // applications, deadlines…). Network-first so signed-in users get
+            // fresh data online, but fall back to the last successful response
+            // when the network is gone.
             urlPattern: /^https:\/\/edutu-platform\.onrender\.com\/.*/i,
             handler: 'NetworkFirst',
             options: {

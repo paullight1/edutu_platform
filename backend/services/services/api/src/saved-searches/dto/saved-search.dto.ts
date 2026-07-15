@@ -17,10 +17,10 @@ const hasAnyCriterion = (dto: {
 }) =>
   Boolean(
     dto.query?.trim() ||
-      dto.category?.trim() ||
-      dto.fundingType?.trim() ||
-      dto.targetRegion?.trim() ||
-      dto.remoteOnly,
+    dto.category?.trim() ||
+    dto.fundingType?.trim() ||
+    dto.targetRegion?.trim() ||
+    dto.remoteOnly,
   );
 
 export const CreateSavedSearchDtoSchema = z

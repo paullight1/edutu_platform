@@ -1,4 +1,12 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+} from "@nestjs/common";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { AiMetered } from "../monetization/ai-metered.decorator";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
@@ -52,7 +60,8 @@ export class CopilotController {
   generateOutline(
     @CurrentUser("id") userId: string,
     @Param("opportunityId") opportunityId: string,
-    @Body(new ZodValidationPipe(GenerateOutlineDtoSchema)) dto: GenerateOutlineDto,
+    @Body(new ZodValidationPipe(GenerateOutlineDtoSchema))
+    dto: GenerateOutlineDto,
   ) {
     return this.copilotService.generateOutline(userId, opportunityId, dto);
   }
@@ -71,7 +80,8 @@ export class CopilotController {
   saveEssayDraft(
     @CurrentUser("id") userId: string,
     @Param("opportunityId") opportunityId: string,
-    @Body(new ZodValidationPipe(SaveEssayDraftDtoSchema)) dto: SaveEssayDraftDto,
+    @Body(new ZodValidationPipe(SaveEssayDraftDtoSchema))
+    dto: SaveEssayDraftDto,
   ) {
     return this.copilotService.saveEssayDraft(userId, opportunityId, dto);
   }
@@ -80,7 +90,8 @@ export class CopilotController {
   updateChecklist(
     @CurrentUser("id") userId: string,
     @Param("opportunityId") opportunityId: string,
-    @Body(new ZodValidationPipe(UpdateChecklistDtoSchema)) dto: UpdateChecklistDto,
+    @Body(new ZodValidationPipe(UpdateChecklistDtoSchema))
+    dto: UpdateChecklistDto,
   ) {
     return this.copilotService.updateChecklist(userId, opportunityId, dto);
   }
