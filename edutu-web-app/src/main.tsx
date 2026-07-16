@@ -20,7 +20,20 @@ import { GoalsProvider } from './hooks/useGoals';
 import { NotificationsProvider } from './hooks/useNotifications';
 import { AnalyticsProvider } from './hooks/useAnalytics';
 
-const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+// The production Clerk instance (clerk.edutu.org). Publishable keys are
+// public by design — this ships in every browser bundle either way.
+const PROD_CLERK_PUBLISHABLE_KEY = 'pk_live_Y2xlcmsuZWR1dHUub3JnJA';
+
+// Production guard: the Netlify dashboard once injected a dev-instance
+// pk_test key into prod builds (dashboard env vars beat netlify.toml), which
+// made the backend reject every session token ("Invalid or expired token").
+// A dev key must never reach a production build, so prefer the pinned live
+// key whenever the injected one isn't a pk_live. Dev builds keep using .env.
+const envClerkKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+const clerkPubKey =
+  import.meta.env.PROD && !envClerkKey?.startsWith('pk_live_')
+    ? PROD_CLERK_PUBLISHABLE_KEY
+    : envClerkKey;
 if (!clerkPubKey) {
   throw new Error('Missing Clerk Publishable Key. Set VITE_CLERK_PUBLISHABLE_KEY in your .env');
 }

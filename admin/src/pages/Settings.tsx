@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { 
-    Globe, 
-    Mail, 
-    Shield, 
+import {
+    Globe,
+    Mail,
+    Shield,
     Save,
     Check,
     AlertTriangle,
@@ -10,9 +10,78 @@ import {
     Users,
     FileText,
     Download,
-    Trash2
+    Trash2,
+    Image as ImageIcon,
+    Plus,
+    ArrowUp,
+    ArrowDown,
+    Upload,
+    Loader2
 } from 'lucide-react';
 import { backendFetchJson } from '../lib/backend';
+import { uploadAdminImage, readImageDimensions } from '../lib/uploads';
+
+// One slide of the web app's dashboard hero carousel. Served publicly on
+// GET /public/web-config (enabled banners only); edited here, stored in the
+// backend admin_settings `webContent` group.
+interface WebHeroBanner {
+    id: string;
+    title: string;
+    subtitle: string;
+    imageUrl: string;
+    linkUrl: string;
+    enabled: boolean;
+}
+
+const MAX_HERO_BANNERS = 8;
+
+// What the carousel actually renders: ~1200px wide at a 4:1 ratio on desktop,
+// cropped to ~150px tall on phones. Surfaced everywhere an admin picks an
+// image so future uploads are sized right.
+const BANNER_SIZE_HINT = 'Recommended image size: 1200×300 px (4:1). Phones crop to ~150 px tall — keep the key content centered.';
+
+// Mirror of the web app's built-in DEFAULT_BANNERS (Dashboard.tsx). Shown when
+// no banners are configured so admins can see what is currently live, and
+// importable as a starting point for customization.
+const BUILT_IN_WEB_BANNERS: Array<Omit<WebHeroBanner, 'id' | 'enabled'>> = [
+    {
+        title: 'Scholarships that fit you',
+        subtitle: 'Funded opportunities matched to your profile and goals.',
+        imageUrl:
+            'https://images.pexels.com/photos/267885/pexels-photo-267885.jpeg?auto=compress&cs=tinysrgb&w=1200',
+        linkUrl: 'https://edutu.org',
+    },
+    {
+        title: 'Study abroad programs',
+        subtitle: 'Explore global universities and exchange programs.',
+        imageUrl:
+            'https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg?auto=compress&cs=tinysrgb&w=1200',
+        linkUrl: 'https://edutu.org',
+    },
+    {
+        title: 'Grow your career',
+        subtitle: 'Internships, fellowships, and skills to level up.',
+        imageUrl:
+            'https://images.pexels.com/photos/1595391/pexels-photo-1595391.jpeg?auto=compress&cs=tinysrgb&w=1200',
+        linkUrl: 'https://edutu.org',
+    },
+];
+
+function newHeroBanner(): WebHeroBanner {
+    const id =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `banner-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+
+    return {
+        id,
+        title: '',
+        subtitle: '',
+        imageUrl: '',
+        linkUrl: '',
+        enabled: true,
+    };
+}
 
 interface AdminSettings {
     platform: {
@@ -45,6 +114,14 @@ interface AdminSettings {
         apiKey: string;
         webhookUrl: string;
         rateLimitPerMinute: number;
+    };
+    webContent: {
+        heroBanners: WebHeroBanner[];
+    };
+    userContent: {
+        requireApproval: boolean;
+        paidSubmissions: boolean;
+        submissionCostCredits: number;
     };
 }
 
@@ -87,6 +164,14 @@ const defaultSettings: AdminSettings = {
         webhookUrl: import.meta.env.VITE_WEBHOOK_URL || 'https://api.edutu.org/webhooks',
         rateLimitPerMinute: 100,
     },
+    webContent: {
+        heroBanners: [],
+    },
+    userContent: {
+        requireApproval: true,
+        paidSubmissions: false,
+        submissionCostCredits: 0,
+    },
 };
 
 function mergeSettings(value: Partial<AdminSettings> | null | undefined): AdminSettings {
@@ -113,16 +198,28 @@ function mergeSettings(value: Partial<AdminSettings> | null | undefined): AdminS
             ...defaultSettings.api,
             ...(value?.api ?? {}),
         },
+        webContent: {
+            heroBanners: (value?.webContent?.heroBanners ?? []).map((banner) => ({
+                ...newHeroBanner(),
+                ...banner,
+            })),
+        },
+        userContent: {
+            ...defaultSettings.userContent,
+            ...(value?.userContent ?? {}),
+        },
     };
 }
 
 const Settings = () => {
-    const [activeSection, setActiveSection] = useState<'platform' | 'content' | 'notifications' | 'security' | 'api'>('platform');
+    const [activeSection, setActiveSection] = useState<'platform' | 'content' | 'notifications' | 'security' | 'api' | 'webContent'>('platform');
     const [savedMessage, setSavedMessage] = useState('');
     const [hasChanges, setHasChanges] = useState(false);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [uploadingBannerId, setUploadingBannerId] = useState<string | null>(null);
+    const [bannerSizeNotes, setBannerSizeNotes] = useState<Record<string, string>>({});
     
     const [settings, setSettings] = useState<AdminSettings>(defaultSettings);
 
@@ -154,13 +251,41 @@ const Settings = () => {
         setSaving(true);
         setError(null);
 
+        // Drop hero banners that would fail backend validation (blank title or
+        // image) instead of failing the whole settings save — a half-filled
+        // draft row must never block saving unrelated settings.
+        const payload: AdminSettings = {
+            ...settings,
+            userContent: {
+                ...settings.userContent,
+                // Guard the backend Zod range (int, 0..100000): an empty number
+                // input must never fail the whole settings save.
+                submissionCostCredits: Math.min(
+                    100000,
+                    Math.max(0, Math.round(Number(settings.userContent.submissionCostCredits) || 0)),
+                ),
+            },
+            webContent: {
+                heroBanners: settings.webContent.heroBanners
+                    .map((banner) => ({
+                        ...banner,
+                        title: banner.title.trim(),
+                        subtitle: banner.subtitle.trim(),
+                        imageUrl: banner.imageUrl.trim(),
+                        linkUrl: banner.linkUrl.trim(),
+                    }))
+                    .filter((banner) => banner.title && banner.imageUrl)
+                    .slice(0, MAX_HERO_BANNERS),
+            },
+        };
+
         try {
             const saved = await backendFetchJson<AdminSettingsResponse>('/admin/settings', {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(settings),
+                body: JSON.stringify(payload),
             });
 
             setSettings(mergeSettings(saved.settings));
@@ -231,7 +356,312 @@ const Settings = () => {
         { id: 'notifications', label: 'Notifications', icon: Mail, description: 'Admin alerts & emails' },
         { id: 'security', label: 'Security', icon: Shield, description: 'Login & password policy' },
         { id: 'api', label: 'API & Integrations', icon: Webhook, description: 'Keys & webhooks' },
+        { id: 'webContent', label: 'Web Content', icon: ImageIcon, description: 'Homepage hero banners' },
     ] as const;
+
+    const updateHeroBanners = (heroBanners: WebHeroBanner[]) => {
+        setSettings((prev) => ({
+            ...prev,
+            webContent: { ...prev.webContent, heroBanners },
+        }));
+        setHasChanges(true);
+    };
+
+    const updateHeroBanner = (id: string, patch: Partial<WebHeroBanner>) => {
+        updateHeroBanners(
+            settings.webContent.heroBanners.map((banner) =>
+                banner.id === id ? { ...banner, ...patch } : banner,
+            ),
+        );
+    };
+
+    const moveHeroBanner = (index: number, direction: -1 | 1) => {
+        const banners = [...settings.webContent.heroBanners];
+        const target = index + direction;
+        if (target < 0 || target >= banners.length) return;
+        [banners[index], banners[target]] = [banners[target], banners[index]];
+        updateHeroBanners(banners);
+    };
+
+    const importBuiltInBanners = () => {
+        updateHeroBanners(
+            BUILT_IN_WEB_BANNERS.map((banner) => ({
+                ...newHeroBanner(),
+                ...banner,
+            })),
+        );
+    };
+
+    const handleBannerImageUpload = async (bannerId: string, file: File | null) => {
+        if (!file) return;
+        setUploadingBannerId(bannerId);
+        try {
+            const dimensions = await readImageDimensions(file).catch(() => null);
+            const uploaded = await uploadAdminImage(file);
+            updateHeroBanner(bannerId, { imageUrl: uploaded.url });
+
+            if (dimensions) {
+                const { width, height } = dimensions;
+                const ratio = width / height;
+                const note =
+                    width < 800
+                        ? `Uploaded ${width}×${height} px — smaller than the recommended 1200×300 px, it may look blurry on desktop.`
+                        : ratio < 3 || ratio > 5
+                          ? `Uploaded ${width}×${height} px — the carousel crops to ~4:1 (1200×300 px), so the edges may be cut off.`
+                          : `Uploaded ${width}×${height} px — a good fit for the 1200×300 px slot.`;
+                setBannerSizeNotes((prev) => ({ ...prev, [bannerId]: note }));
+            } else {
+                setBannerSizeNotes((prev) => {
+                    const next = { ...prev };
+                    delete next[bannerId];
+                    return next;
+                });
+            }
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Image upload failed');
+        } finally {
+            setUploadingBannerId(null);
+        }
+    };
+
+    const renderWebContentSection = () => {
+        const banners = settings.webContent.heroBanners;
+
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <div className="card" style={{ padding: '24px' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                        <div>
+                            <h3 style={{ margin: 0, fontSize: '19px', fontWeight: 600 }}>Web hero banners</h3>
+                            <p style={{ color: 'var(--text-tertiary)', margin: '6px 0 0 0', fontSize: '14px', lineHeight: 1.6 }}>
+                                Slides for the web app dashboard hero carousel, in display order.
+                                Only enabled banners are served publicly; with no banners the web
+                                app keeps its built-in defaults. Banners missing a title or image
+                                are skipped when saving.
+                            </p>
+                            <p style={{ color: 'var(--accent)', margin: '8px 0 0 0', fontSize: '13px', fontWeight: 600 }}>
+                                {BANNER_SIZE_HINT}
+                            </p>
+                        </div>
+                        <button
+                            className="btn btn-primary"
+                            disabled={banners.length >= MAX_HERO_BANNERS}
+                            title={banners.length >= MAX_HERO_BANNERS ? `Maximum of ${MAX_HERO_BANNERS} banners` : 'Add a banner'}
+                            onClick={() => updateHeroBanners([...banners, newHeroBanner()])}
+                        >
+                            <Plus size={16} />
+                            Add banner
+                        </button>
+                    </div>
+
+                    {banners.length === 0 ? (
+                        <div style={{ marginTop: '16px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                                <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                                    Currently live — the web app's built-in defaults:
+                                </p>
+                                <button className="btn btn-secondary" onClick={importBuiltInBanners}>
+                                    <Plus size={15} />
+                                    Customize these
+                                </button>
+                            </div>
+                            <div style={{ display: 'grid', gap: '10px', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+                                {BUILT_IN_WEB_BANNERS.map((banner) => (
+                                    <div key={banner.title} style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
+                                        <img
+                                            src={banner.imageUrl}
+                                            alt={banner.title}
+                                            style={{ width: '100%', height: '80px', objectFit: 'cover', display: 'block' }}
+                                        />
+                                        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,.72), rgba(0,0,0,.25))', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: '10px' }}>
+                                            <span style={{ color: '#fff', fontSize: '13px', fontWeight: 700 }}>{banner.title}</span>
+                                            <span style={{ color: 'rgba(255,255,255,.75)', fontSize: '11px' }}>{banner.subtitle}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <p style={{ margin: '12px 0 0 0', fontSize: '13px', color: 'var(--text-tertiary)' }}>
+                                These ship inside the web app. Press “Customize these” to copy them
+                                here and edit, or “Add banner” to start from scratch — your list
+                                replaces the defaults once saved.
+                            </p>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
+                            {banners.map((banner, index) => (
+                                <div
+                                    key={banner.id}
+                                    className="card"
+                                    style={{
+                                        padding: '16px',
+                                        background: 'var(--bg-tertiary)',
+                                        opacity: banner.enabled ? 1 : 0.6,
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                                        <div style={{ width: '160px', flexShrink: 0 }}>
+                                            {banner.imageUrl.trim() ? (
+                                                <img
+                                                    src={banner.imageUrl}
+                                                    alt={banner.title || 'Banner preview'}
+                                                    style={{
+                                                        width: '160px',
+                                                        height: '90px',
+                                                        objectFit: 'cover',
+                                                        borderRadius: '8px',
+                                                        border: '1px solid var(--border-light)',
+                                                        background: 'var(--bg-secondary)',
+                                                    }}
+                                                    onError={(event) => {
+                                                        event.currentTarget.style.opacity = '0.3';
+                                                    }}
+                                                    onLoad={(event) => {
+                                                        event.currentTarget.style.opacity = '1';
+                                                    }}
+                                                />
+                                            ) : (
+                                                <div
+                                                    style={{
+                                                        width: '160px',
+                                                        height: '90px',
+                                                        borderRadius: '8px',
+                                                        border: '1px dashed var(--border-light)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        color: 'var(--text-tertiary)',
+                                                    }}
+                                                >
+                                                    <ImageIcon size={24} strokeWidth={1.5} />
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div style={{ flex: 1, minWidth: '260px', display: 'grid', gap: '10px' }}>
+                                            <input
+                                                type="text"
+                                                className="input-field"
+                                                value={banner.title}
+                                                maxLength={160}
+                                                placeholder="Banner title *"
+                                                onChange={(e) => updateHeroBanner(banner.id, { title: e.target.value })}
+                                            />
+                                            <input
+                                                type="text"
+                                                className="input-field"
+                                                value={banner.subtitle}
+                                                maxLength={300}
+                                                placeholder="Subtitle (optional)"
+                                                onChange={(e) => updateHeroBanner(banner.id, { subtitle: e.target.value })}
+                                            />
+                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                <input
+                                                    type="url"
+                                                    className="input-field"
+                                                    style={{ flex: 1 }}
+                                                    value={banner.imageUrl}
+                                                    maxLength={1000}
+                                                    placeholder="Image URL * (https://... or upload →)"
+                                                    onChange={(e) => updateHeroBanner(banner.id, { imageUrl: e.target.value })}
+                                                />
+                                                <label
+                                                    className="btn btn-secondary"
+                                                    style={{ cursor: uploadingBannerId ? 'wait' : 'pointer', whiteSpace: 'nowrap' }}
+                                                    title={BANNER_SIZE_HINT}
+                                                >
+                                                    {uploadingBannerId === banner.id ? (
+                                                        <Loader2 size={15} className="spin" style={{ animation: 'spin 1s linear infinite' }} />
+                                                    ) : (
+                                                        <Upload size={15} />
+                                                    )}
+                                                    {uploadingBannerId === banner.id ? 'Uploading…' : 'Upload'}
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        style={{ display: 'none' }}
+                                                        disabled={uploadingBannerId !== null}
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0] ?? null;
+                                                            e.target.value = '';
+                                                            void handleBannerImageUpload(banner.id, file);
+                                                        }}
+                                                    />
+                                                </label>
+                                            </div>
+                                            <span style={{ fontSize: '12px', color: bannerSizeNotes[banner.id]?.includes('good fit') ? 'var(--success)' : 'var(--text-tertiary)' }}>
+                                                {bannerSizeNotes[banner.id] ?? BANNER_SIZE_HINT}
+                                            </span>
+                                            <input
+                                                type="url"
+                                                className="input-field"
+                                                value={banner.linkUrl}
+                                                maxLength={1000}
+                                                placeholder="Link URL (optional — where the banner navigates)"
+                                                onChange={(e) => updateHeroBanner(banner.id, { linkUrl: e.target.value })}
+                                            />
+                                        </div>
+
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <span style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>
+                                                    {banner.enabled ? 'Enabled' : 'Disabled'}
+                                                </span>
+                                                <div
+                                                    className={`toggle ${banner.enabled ? 'active' : ''}`}
+                                                    onClick={() => updateHeroBanner(banner.id, { enabled: !banner.enabled })}
+                                                >
+                                                    <div className="toggle-knob" />
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '6px' }}>
+                                                <button
+                                                    className="btn btn-secondary"
+                                                    style={{ padding: '6px 10px' }}
+                                                    title="Move up"
+                                                    disabled={index === 0}
+                                                    onClick={() => moveHeroBanner(index, -1)}
+                                                >
+                                                    <ArrowUp size={14} />
+                                                </button>
+                                                <button
+                                                    className="btn btn-secondary"
+                                                    style={{ padding: '6px 10px' }}
+                                                    title="Move down"
+                                                    disabled={index === banners.length - 1}
+                                                    onClick={() => moveHeroBanner(index, 1)}
+                                                >
+                                                    <ArrowDown size={14} />
+                                                </button>
+                                                <button
+                                                    className="btn btn-danger"
+                                                    style={{ padding: '6px 10px' }}
+                                                    title="Remove banner"
+                                                    onClick={() => updateHeroBanners(banners.filter((item) => item.id !== banner.id))}
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                            <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>
+                                                Slide {index + 1} of {banners.length}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                <div className="card" style={{ padding: '16px 20px' }}>
+                    <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-tertiary)', lineHeight: 1.6 }}>
+                        Banners use hosted image URLs (paste a link to an image on Supabase
+                        storage, your CDN, or any public host). Enabled banners are served to
+                        the web app on the public <code>GET /public/web-config</code> endpoint.
+                    </p>
+                </div>
+            </div>
+        );
+    };
 
     const renderPlatformSection = () => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -367,6 +797,76 @@ const Settings = () => {
                             </div>
                         </div>
                     ))}
+                </div>
+            </div>
+
+            <div className="card" style={{ padding: '24px' }}>
+                <h3 style={{ margin: '0 0 8px 0', fontSize: '19px', fontWeight: 600 }}>User submissions</h3>
+                <p style={{ color: 'var(--text-tertiary)', margin: '0 0 20px 0', fontSize: '14px', lineHeight: 1.6 }}>
+                    Community-submitted opportunities (web app → Submit an opportunity).
+                    These rules are enforced server-side on every submission.
+                </p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {[
+                        {
+                            key: 'requireApproval',
+                            label: 'Require admin approval before content goes live',
+                            description: 'Submissions wait in the review queue; switching this off publishes them to the catalog immediately',
+                        },
+                        {
+                            key: 'paidSubmissions',
+                            label: 'Charge credits to submit',
+                            description: 'Deduct the fee below from the user’s credit balance on each submission',
+                        },
+                    ].map((item) => (
+                        <div
+                            key={item.key}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '16px',
+                                background: 'var(--bg-tertiary)',
+                                borderRadius: '8px'
+                            }}
+                        >
+                            <div>
+                                <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{item.label}</div>
+                                <div style={{ fontSize: '14px', color: 'var(--text-tertiary)' }}>{item.description}</div>
+                            </div>
+                            <div
+                                className={`toggle ${settings.userContent[item.key as 'requireApproval' | 'paidSubmissions'] ? 'active' : ''}`}
+                                onClick={() => updateSetting('userContent', item.key, !settings.userContent[item.key as 'requireApproval' | 'paidSubmissions'])}
+                            >
+                                <div className="toggle-knob" />
+                            </div>
+                        </div>
+                    ))}
+
+                    <div className="form-group" style={{ margin: 0, opacity: settings.userContent.paidSubmissions ? 1 : 0.5 }}>
+                        <label className="form-label">Submission cost (credits)</label>
+                        <input
+                            type="number"
+                            className="input-field"
+                            min={0}
+                            max={100000}
+                            step={1}
+                            disabled={!settings.userContent.paidSubmissions}
+                            value={settings.userContent.submissionCostCredits}
+                            onChange={(e) => {
+                                const parsed = parseInt(e.target.value, 10);
+                                updateSetting(
+                                    'userContent',
+                                    'submissionCostCredits',
+                                    Number.isNaN(parsed) ? 0 : Math.min(100000, Math.max(0, parsed)),
+                                );
+                            }}
+                        />
+                        <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '8px' }}>
+                            Charged when the user submits. 0 = free even while charging is on.
+                        </p>
+                    </div>
                 </div>
             </div>
 
@@ -755,6 +1255,7 @@ const Settings = () => {
                     {activeSection === 'notifications' && renderNotificationsSection()}
                     {activeSection === 'security' && renderSecuritySection()}
                     {activeSection === 'api' && renderApiSection()}
+                    {activeSection === 'webContent' && renderWebContentSection()}
                 </div>
             </div>
         </div>

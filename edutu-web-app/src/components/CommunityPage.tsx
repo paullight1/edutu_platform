@@ -320,14 +320,16 @@ const CommunityPage: React.FC = () => {
                 <PhotoCard card={heroCards[0]} />
               </div>
 
-              {/* left stacked pair */}
-              <div className="flex flex-col gap-3 sm:gap-4">
+              {/* left stacked pair. Mobile order puts both stacked pairs on
+                  the first row and the tall center card full-width beneath —
+                  DOM order would leave half-empty rows on a 2-col grid. */}
+              <div className="order-1 flex flex-col gap-3 sm:order-none sm:gap-4">
                 <PhotoCard card={heroCards[1]} />
                 <PhotoCard card={heroCards[2]} />
               </div>
 
               {/* center tall card */}
-              <div className="relative col-span-2 sm:col-span-1">
+              <div className="relative order-3 col-span-2 sm:order-none sm:col-span-1">
                 <motion.span
                   aria-hidden
                   animate={reduceMotion ? undefined : { rotate: 360 }}
@@ -344,7 +346,7 @@ const CommunityPage: React.FC = () => {
               </div>
 
               {/* right stacked pair */}
-              <div className="flex flex-col gap-3 sm:gap-4">
+              <div className="order-2 flex flex-col gap-3 sm:order-none sm:gap-4">
                 <PhotoCard card={rightCards[0]} />
                 <PhotoCard card={rightCards[1]} />
               </div>
@@ -375,8 +377,9 @@ const CommunityPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* join CTA */}
-              <div className="flex justify-center lg:-mt-8">
+              {/* join CTA — first thing under the photos on mobile, where
+                  the three-column row collapses into a stack. */}
+              <div className="order-first flex justify-center lg:order-none lg:-mt-8">
                 <Link
                   to="/auth?mode=sign-up"
                   className="inline-flex items-center gap-2 rounded-full bg-brand px-8 py-4 text-base font-bold text-white shadow-elevated transition hover:-translate-y-0.5 hover:bg-brand-700"
@@ -388,11 +391,11 @@ const CommunityPage: React.FC = () => {
 
               {/* featured callout */}
               <div className="flex items-center justify-between gap-4 lg:justify-end">
-                <div className="text-right">
+                <div className="text-left lg:text-right">
                   <div className="text-xs font-semibold uppercase tracking-wider text-text-muted">
                     Since 2022 · Community
                   </div>
-                  <div className="mt-1 flex items-center justify-end gap-3">
+                  <div className="mt-1 flex items-center justify-start gap-3 lg:justify-end">
                     <span className="font-display text-3xl font-semibold text-text-primary">
                       01
                     </span>

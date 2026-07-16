@@ -22,6 +22,7 @@ import {
   Rocket,
   Search,
   Share2,
+  SlidersHorizontal,
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -211,7 +212,7 @@ function CollectionCard({
   return (
     <Link
       to={to}
-      className={`group relative flex items-center gap-3 overflow-hidden rounded-2xl border p-3 shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 sm:gap-3.5 sm:p-4 ${card}`}
+      className={`group relative flex flex-col gap-2.5 overflow-hidden rounded-2xl border p-3.5 shadow-soft transition duration-200 hover:-translate-y-0.5 hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 sm:flex-row sm:items-center sm:gap-3.5 sm:p-4 ${card}`}
     >
       {/* Soft corner glow that intensifies on hover */}
       <div
@@ -226,13 +227,13 @@ function CollectionCard({
         <h3 className="font-display text-sm font-semibold leading-tight tracking-tight text-text-primary sm:text-[15px]">
           {label}
         </h3>
-        <p className="mt-0.5 truncate text-[11px] leading-snug text-text-secondary sm:text-xs">
+        <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-text-secondary sm:mt-0.5 sm:truncate sm:text-xs">
           {desc}
         </p>
       </div>
       <ArrowUpRight
         size={16}
-        className={`relative shrink-0 transition duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 ${accentText}`}
+        className={`absolute right-3 top-3 transition duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 sm:static sm:shrink-0 ${accentText}`}
       />
     </Link>
   );
@@ -714,8 +715,8 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
   const [bookmarkingId, setBookmarkingId] = useState<string | null>(null);
   const [showClosed, setShowClosed] = useState(false);
-  // Recommended ordering is the only mode now that the sort control is gone.
-  const [sortOption] = useState<SortOption>("recommended");
+  const [sortOption, setSortOption] = useState<SortOption>("recommended");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
   const resultsRef = useRef<HTMLElement | null>(null);
   // "Not interested": locally-hidden ids + the card awaiting a typed reason.
@@ -1073,8 +1074,19 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
     }
   };
 
-  // Single, prominent search bar shown just below the page title. Replaces the
-  // old sticky filter/sort/show-closed toolbar.
+  // Non-default filter/sort state lights up a dot on the filter button so the
+  // control's effect stays visible even when the popover is closed.
+  const hasCustomFilters = showClosed || sortOption !== "recommended";
+
+  const sortChoices: Array<{ value: SortOption; label: string }> = [
+    { value: "recommended", label: "Recommended" },
+    { value: "deadline", label: "Deadline soonest" },
+    { value: "newest", label: "Newest first" },
+    { value: "funding", label: "Highest funding" },
+  ];
+
+  // Single, prominent search bar shown just below the page title, with the
+  // filter/sort controls tucked into a popover behind the trailing icon.
   const searchBar = (
     <div className="relative">
       <Search
@@ -1087,17 +1099,102 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
         value={searchTerm}
         onChange={(event) => setSearchTerm(event.target.value)}
         placeholder={t("opportunities.searchPlaceholder")}
-        className="h-12 w-full rounded-xl border border-subtle bg-surface-layer pl-11 pr-11 text-sm text-text-primary shadow-soft placeholder:text-text-muted transition focus:border-brand focus-visible:ring-2 focus-visible:ring-brand/40"
+        className="h-12 w-full rounded-xl border border-subtle bg-surface-layer pl-11 pr-[5.25rem] text-sm text-text-primary shadow-soft placeholder:text-text-muted transition focus:border-brand focus-visible:ring-2 focus-visible:ring-brand/40"
       />
       {searchTerm ? (
         <button
           type="button"
           onClick={clearSearch}
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-text-muted transition hover:text-text-primary"
+          className="absolute right-11 top-1/2 -translate-y-1/2 rounded-md p-2 text-text-muted transition hover:text-text-primary"
           aria-label="Clear search"
         >
           <X size={16} />
         </button>
+      ) : null}
+      <button
+        type="button"
+        onClick={() => setFiltersOpen((open) => !open)}
+        className={`absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 transition ${
+          filtersOpen || hasCustomFilters
+            ? "bg-brand/10 text-brand"
+            : "text-text-muted hover:text-text-primary"
+        }`}
+        aria-label="Filters and sorting"
+        aria-expanded={filtersOpen}
+      >
+        <SlidersHorizontal size={17} />
+        {hasCustomFilters ? (
+          <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-brand" />
+        ) : null}
+      </button>
+      {filtersOpen ? (
+        <>
+          <button
+            type="button"
+            aria-label="Close filters"
+            className="fixed inset-0 z-30 cursor-default"
+            onClick={() => setFiltersOpen(false)}
+          />
+          <div className="absolute right-0 top-[calc(100%+8px)] z-40 w-64 rounded-2xl border border-subtle bg-surface-elevated p-3 shadow-elevated">
+            <p className="px-1 pb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+              Sort by
+            </p>
+            <div className="space-y-0.5">
+              {sortChoices.map((choice) => (
+                <button
+                  key={choice.value}
+                  type="button"
+                  onClick={() => setSortOption(choice.value)}
+                  className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-sm transition ${
+                    sortOption === choice.value
+                      ? "bg-brand/10 font-semibold text-brand"
+                      : "text-text-primary hover:bg-surface-layer"
+                  }`}
+                >
+                  {choice.label}
+                  {sortOption === choice.value ? (
+                    <span className="h-2 w-2 rounded-full bg-brand" />
+                  ) : null}
+                </button>
+              ))}
+            </div>
+            <div className="my-2 border-t border-subtle" />
+            <button
+              type="button"
+              role="switch"
+              aria-checked={showClosed}
+              onClick={() => setShowClosed((value) => !value)}
+              className="flex w-full cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-sm text-text-primary transition hover:bg-surface-layer"
+            >
+              Show closed
+              <span
+                className={`relative h-6 w-10 shrink-0 rounded-full transition ${
+                  showClosed
+                    ? "bg-brand"
+                    : "border border-subtle bg-surface-layer"
+                }`}
+              >
+                <span
+                  className={`absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-white shadow-soft transition-all ${
+                    showClosed ? "left-[calc(100%-20px)]" : "left-1"
+                  }`}
+                />
+              </span>
+            </button>
+            {hasCustomFilters ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSortOption("recommended");
+                  setShowClosed(false);
+                }}
+                className="mt-1 w-full rounded-lg px-2.5 py-2 text-left text-sm font-medium text-text-secondary transition hover:bg-surface-layer hover:text-text-primary"
+              >
+                Reset to defaults
+              </button>
+            ) : null}
+          </div>
+        </>
       ) : null}
     </div>
   );
@@ -1155,7 +1252,7 @@ export default function OpportunitiesPage({ embedded = false }: OpportunitiesPag
               )}
             </div>
             <div className="mb-5">{searchBar}</div>
-            <div className="grid grid-cols-1 gap-2.5 sm:gap-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
               {COLLECTIONS.map((collection) => (
                 <CollectionCard
                   key={collection.key}

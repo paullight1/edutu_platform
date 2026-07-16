@@ -21,9 +21,31 @@ interface PWAState {
     isOffline: boolean;
 }
 
+// Chrome fires `beforeinstallprompt` once, early in the page load — usually
+// before a lazily-routed consumer of this hook has mounted. Capture it at
+// module scope so late mounts (e.g. navigating to /download) still get it.
+let capturedInstallPrompt: BeforeInstallPromptEvent | null = null;
+const installPromptListeners = new Set<
+    (event: BeforeInstallPromptEvent | null) => void
+>();
+
+if (typeof window !== 'undefined') {
+    window.addEventListener('beforeinstallprompt', (event) => {
+        event.preventDefault();
+        capturedInstallPrompt = event as BeforeInstallPromptEvent;
+        installPromptListeners.forEach((listener) =>
+            listener(capturedInstallPrompt),
+        );
+    });
+    window.addEventListener('appinstalled', () => {
+        capturedInstallPrompt = null;
+        installPromptListeners.forEach((listener) => listener(null));
+    });
+}
+
 export function usePWA() {
     const [state, setState] = useState<PWAState>({
-        isInstallable: false,
+        isInstallable: Boolean(capturedInstallPrompt),
         isManualInstallAvailable: false,
         isInstalled: false,
         isUpdateAvailable: false,
@@ -31,7 +53,7 @@ export function usePWA() {
     });
 
     const [deferredPrompt, setDeferredPrompt] =
-        useState<BeforeInstallPromptEvent | null>(null);
+        useState<BeforeInstallPromptEvent | null>(() => capturedInstallPrompt);
 
     useEffect(() => {
         // Check if already installed
@@ -54,12 +76,15 @@ export function usePWA() {
 
         checkInstalled();
 
-        // Listen for install prompt
-        const handleBeforeInstallPrompt = (e: Event) => {
-            e.preventDefault();
-            setDeferredPrompt(e as BeforeInstallPromptEvent);
-            setState((prev) => ({ ...prev, isInstallable: true }));
+        // Subscribe to the module-level capture (see top of file) instead of
+        // racing it with a second listener that can miss the one-shot event.
+        const handlePromptChange = (
+            event: BeforeInstallPromptEvent | null,
+        ) => {
+            setDeferredPrompt(event);
+            setState((prev) => ({ ...prev, isInstallable: Boolean(event) }));
         };
+        installPromptListeners.add(handlePromptChange);
 
         // Listen for app installed
         const handleAppInstalled = () => {
@@ -75,7 +100,6 @@ export function usePWA() {
         const handleOnline = () => setState((prev) => ({ ...prev, isOffline: false }));
         const handleOffline = () => setState((prev) => ({ ...prev, isOffline: true }));
 
-        window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
         window.addEventListener('appinstalled', handleAppInstalled);
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
@@ -100,7 +124,7 @@ export function usePWA() {
         }
 
         return () => {
-            window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+            installPromptListeners.delete(handlePromptChange);
             window.removeEventListener('appinstalled', handleAppInstalled);
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
@@ -115,6 +139,7 @@ export function usePWA() {
         const { outcome } = await deferredPrompt.userChoice;
 
         if (outcome === 'accepted') {
+            capturedInstallPrompt = null;
             setDeferredPrompt(null);
             setState((prev) => ({ ...prev, isInstallable: false }));
             return true;

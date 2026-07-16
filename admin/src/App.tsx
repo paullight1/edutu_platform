@@ -25,6 +25,7 @@ const Settings = lazy(() => import("./pages/Settings"));
 const Scraper = lazy(() => import("./pages/Scraper"));
 const MobileControl = lazy(() => import("./pages/MobileControl"));
 const Monetization = lazy(() => import("./pages/Monetization"));
+const Notifications = lazy(() => import("./pages/Notifications"));
 const Login = lazy(() => import("./pages/Login"));
 const Signup = lazy(() => import("./pages/Signup"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
@@ -387,6 +388,7 @@ const AppRoutes: FC = () => {
           <Route path="edutu-engine" element={<Scraper />} />
           <Route path="mobile-control" element={<MobileControl />} />
           <Route path="monetization" element={<Monetization />} />
+          <Route path="notifications" element={<Notifications />} />
           <Route path="profile" element={<Profile />} />
         </Route>
       </Routes>

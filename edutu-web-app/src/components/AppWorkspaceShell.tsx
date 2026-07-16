@@ -21,6 +21,7 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { useNotifications } from "../hooks/useNotifications";
 import { cn } from "../lib/cn";
+import AppFooter from "./AppFooter";
 import OfflineBanner from "./OfflineBanner";
 
 interface AppWorkspaceShellProps {
@@ -471,6 +472,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
         <OfflineBanner />
 
         <div className="min-w-0">{children}</div>
+        <AppFooter />
       </div>
 
       {isMobileMoreOpen ? (
@@ -626,10 +628,9 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
       ) : null}
 
       {!isOpportunityDetailRoute ? (
-        <div
-          aria-hidden={isMobileMoreOpen}
-          className="pointer-events-none fixed inset-x-0 bottom-0 z-50 lg:hidden"
-        >
+        // No aria-hidden here: the More toggle inside stays focused/interactive
+        // while the sheet is open (hiding a focused subtree is an a11y violation).
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 lg:hidden">
           {/* Scrim: fade scrolling content (incl. dark cover images) into the
               bar so the labels stay legible no matter what's behind them. */}
           <div
@@ -642,7 +643,7 @@ export default function AppWorkspaceShell({ children }: AppWorkspaceShellProps) 
             )}
             aria-label="Mobile app navigation"
           >
-          <div className="grid grid-cols-5">
+          <div className="grid grid-cols-4">
             {mobileNavItems.map((item) => {
               const Icon = item.icon;
               const active = isRouteActive(pathname, item.to, item.exact);

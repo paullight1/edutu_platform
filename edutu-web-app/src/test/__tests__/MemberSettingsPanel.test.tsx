@@ -2,12 +2,15 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import MemberSettingsPanel from "../../components/MemberSettingsPanel";
+import { ToastProvider } from "../../components/ui/ToastProvider";
 import type { UserSettings } from "../../services/userSettings";
 
 function renderPanel() {
   return render(
     <MemoryRouter>
-      <MemberSettingsPanel />
+      <ToastProvider>
+        <MemberSettingsPanel />
+      </ToastProvider>
     </MemoryRouter>,
   );
 }
@@ -38,11 +41,22 @@ const serviceMocks = vi.hoisted(() => ({
 
 const clerkMocks = vi.hoisted(() => ({
   getToken: vi.fn().mockResolvedValue("token-123"),
+  getSessions: vi.fn().mockResolvedValue([]),
+  updatePassword: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock("@clerk/clerk-react", () => ({
   useAuth: () => ({
     getToken: clerkMocks.getToken,
+    sessionId: "sess_current",
+  }),
+  useUser: () => ({
+    user: {
+      id: "user_1",
+      passwordEnabled: true,
+      getSessions: clerkMocks.getSessions,
+      updatePassword: clerkMocks.updatePassword,
+    },
   }),
 }));
 
@@ -69,19 +83,20 @@ describe("MemberSettingsPanel", () => {
     serviceMocks.savePrivacySettings.mockReset();
     clerkMocks.getToken.mockClear();
     clerkMocks.getToken.mockResolvedValue("token-123");
-    window.Clerk = undefined;
+    clerkMocks.getSessions.mockClear();
+    clerkMocks.getSessions.mockResolvedValue([]);
+    clerkMocks.updatePassword.mockClear();
     serviceMocks.getUserSettings.mockResolvedValue(settingsFixture);
     serviceMocks.savePrivacySettings.mockResolvedValue({ success: true });
   });
 
-  it("loads privacy settings and saves profile visibility changes", async () => {
+  it("saves profile visibility as soon as an option is picked", async () => {
     renderPanel();
 
-    fireEvent.click(await screen.findByRole("button", { name: /profile visibility/i }));
-    fireEvent.click(await screen.findByRole("radio", { name: /private/i }));
     fireEvent.click(
-      await screen.findByRole("button", { name: /save privacy changes/i }),
+      await screen.findByRole("button", { name: /profile visibility/i }),
     );
+    fireEvent.click(await screen.findByRole("radio", { name: /private/i }));
 
     await waitFor(() => {
       expect(serviceMocks.savePrivacySettings).toHaveBeenCalledWith(
@@ -90,6 +105,35 @@ describe("MemberSettingsPanel", () => {
         }),
         "token-123",
       );
+    });
+  });
+
+  it("saves a privacy toggle on change and reverts it when the save fails", async () => {
+    serviceMocks.savePrivacySettings.mockResolvedValue({
+      success: false,
+      error: "offline",
+    });
+
+    renderPanel();
+
+    const toggle = await screen.findByRole("button", {
+      name: /data sharing/i,
+    });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(toggle);
+    // Optimistic flip first…
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+
+    await waitFor(() => {
+      expect(serviceMocks.savePrivacySettings).toHaveBeenCalledWith(
+        expect.objectContaining({ dataSharing: true }),
+        "token-123",
+      );
+    });
+    // …then revert on failure.
+    await waitFor(() => {
+      expect(toggle).toHaveAttribute("aria-pressed", "false");
     });
   });
 
@@ -103,17 +147,49 @@ describe("MemberSettingsPanel", () => {
     ).toHaveAttribute("href", "/app/notifications");
   });
 
-  it("opens sign-in security from settings", async () => {
-    const openUserProfile = vi.fn();
-    window.Clerk = { openUserProfile };
-
+  it("opens the in-app sign-in security sheet with password form and sessions", async () => {
     renderPanel();
 
     await screen.findByText("Inbox and reminders");
+    fireEvent.click(screen.getByRole("button", { name: /sign-in security/i }));
+
+    expect(
+      await screen.findByRole("dialog", { name: /sign-in security/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/current password/i)).toBeInTheDocument();
+    expect(screen.getByText("Active sessions")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(clerkMocks.getSessions).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("requires typing DELETE before an account deletion request is sent", async () => {
+    serviceMocks.requestAccountDeletion.mockResolvedValue({ success: true });
+
+    renderPanel();
+
     fireEvent.click(
-      screen.getByRole("button", { name: /sign-in security/i }),
+      await screen.findByRole("button", {
+        name: /request account deletion/i,
+      }),
     );
 
-    expect(openUserProfile).toHaveBeenCalledTimes(1);
+    const confirmButton = await screen.findByRole("button", {
+      name: /request deletion/i,
+    });
+    expect(confirmButton).toBeDisabled();
+
+    fireEvent.change(
+      screen.getByLabelText(/type delete to confirm/i),
+      { target: { value: "DELETE" } },
+    );
+    expect(confirmButton).toBeEnabled();
+
+    fireEvent.click(confirmButton);
+    await waitFor(() => {
+      expect(serviceMocks.requestAccountDeletion).toHaveBeenCalledWith(
+        "token-123",
+      );
+    });
   });
 });

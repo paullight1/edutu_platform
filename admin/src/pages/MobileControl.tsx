@@ -1,28 +1,34 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  Archive,
   Bell,
   CheckCircle2,
   ChevronDown,
   Flag,
   Loader2,
   Megaphone,
-  Pause,
   Pencil,
-  Play,
+  Pin,
   RefreshCw,
   Save,
+  ShieldAlert,
   Trash2,
   X,
 } from 'lucide-react';
 import {
+  appControlApi,
+  DEFAULT_MOBILE_APP_SETTINGS,
+  LOCKABLE_MODULES,
   mobileControlApi,
+  type MobileAppSettings,
   type MobileCampaign,
   type MobileFeatureFlag,
+  type ModuleAccess,
   type WidgetFeed,
 } from '../lib/mobileControlApi';
 
-type Tab = 'campaigns' | 'flags' | 'widgets';
+type Tab = 'campaigns' | 'flags' | 'widgets' | 'appControl';
 
 const campaignTemplate: MobileCampaign = {
   key: '',
@@ -62,20 +68,35 @@ const widgetTemplate: WidgetFeed = {
 const TAB_META: Record<Tab, { label: string; hint: string }> = {
   campaigns: {
     label: 'Messages',
-    hint: 'Popups, banners, and announcements shown inside the app.',
+    hint: 'Popups, banners, and announcements shown inside the app — banners support an advert image.',
   },
   flags: {
     label: 'Feature Switches',
-    hint: 'Turn app features on or off remotely, with optional gradual rollout.',
+    hint: 'Turn app features on or off remotely — no app-store release needed.',
   },
   widgets: {
     label: 'Widget Feeds',
-    hint: 'Content for home-screen and lock-screen widgets.',
+    hint: 'Content for the home-screen and lock-screen widgets on users’ phones.',
+  },
+  appControl: {
+    label: 'App Control',
+    hint: 'The emergency levers: force an update, put the app in maintenance, or lock features to Pro / off.',
   },
 };
 
 function slugify(value: string) {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+/* While an item is new, its ID keeps following the title until the admin edits it by hand. */
+function keyFollowsTitle(item: { id?: string; key: string }, currentTitle: string) {
+  return !item.id && (!item.key || item.key === slugify(currentTitle));
+}
+
+function friendlyError(message: string) {
+  return /failed to fetch|networkerror|load failed|fetch failed/i.test(message)
+    ? 'Couldn’t reach the backend — check that the API is running, then press Refresh.'
+    : message;
 }
 
 /* JSON editor that surfaces invalid input instead of silently reverting */
@@ -95,15 +116,24 @@ function JsonField({
   const [text, setText] = useState(() => JSON.stringify(value, null, 2));
   const [invalid, setInvalid] = useState(false);
 
-  useEffect(() => {
-    // Only re-sync from the outside when the parsed value actually changed
-    // (e.g. an item was loaded for editing), so typing isn't interrupted.
+  // Only re-sync from the outside when the parsed value actually changed
+  // (e.g. an item was loaded for editing), so typing isn't interrupted.
+  // Adjusting state during render is React's documented alternative to an
+  // effect here (https://react.dev/learn/you-might-not-need-an-effect); it
+  // also avoids committing the stale text for a frame before correcting it.
+  const canonical = JSON.stringify(value);
+  const [syncedCanonical, setSyncedCanonical] = useState(canonical);
+  if (canonical !== syncedCanonical) {
+    setSyncedCanonical(canonical);
+    let alreadyShowing = false;
     try {
-      if (JSON.stringify(JSON.parse(text)) === JSON.stringify(value)) return;
-    } catch { /* fall through and resync */ }
-    setText(JSON.stringify(value, null, 2));
-    setInvalid(false);
-  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+      alreadyShowing = JSON.stringify(JSON.parse(text)) === canonical;
+    } catch { /* unparseable draft — resync */ }
+    if (!alreadyShowing) {
+      setText(JSON.stringify(value, null, 2));
+      setInvalid(false);
+    }
+  }
 
   return (
     <label className="mc-field mc-field-wide">
@@ -143,6 +173,7 @@ export default function MobileControl() {
   const [campaignDraft, setCampaignDraft] = useState<MobileCampaign>(campaignTemplate);
   const [flagDraft, setFlagDraft] = useState<MobileFeatureFlag>(flagTemplate);
   const [widgetDraft, setWidgetDraft] = useState<WidgetFeed>(widgetTemplate);
+  const [appControl, setAppControl] = useState<MobileAppSettings>(DEFAULT_MOBILE_APP_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [jsonValid, setJsonValid] = useState(true);
@@ -153,7 +184,12 @@ export default function MobileControl() {
     activeCampaigns: campaigns.filter((item) => item.status === 'active').length,
     enabledFlags: flags.filter((item) => item.enabled).length,
     activeWidgets: widgets.filter((item) => item.status === 'active').length,
-  }), [campaigns, flags, widgets]);
+    activeGates:
+      (appControl.forceUpdate.enabled ? 1 : 0) +
+      (appControl.maintenance.enabled ? 1 : 0) +
+      LOCKABLE_MODULES.filter(({ key }) => (appControl.moduleLocks[key] ?? 'free') !== 'free').length,
+    totalGates: 2 + LOCKABLE_MODULES.length,
+  }), [campaigns, flags, widgets, appControl]);
 
   useEffect(() => {
     if (!notice) return;
@@ -165,14 +201,16 @@ export default function MobileControl() {
     setLoading(true);
     setError(null);
     try {
-      const [nextCampaigns, nextFlags, nextWidgets] = await Promise.all([
+      const [nextCampaigns, nextFlags, nextWidgets, nextAppControl] = await Promise.all([
         mobileControlApi.list<MobileCampaign>('campaigns'),
         mobileControlApi.list<MobileFeatureFlag>('feature-flags'),
         mobileControlApi.list<WidgetFeed>('widget-feeds'),
+        appControlApi.getMobileApp().catch(() => DEFAULT_MOBILE_APP_SETTINGS),
       ]);
       setCampaigns(nextCampaigns);
       setFlags(nextFlags);
       setWidgets(nextWidgets);
+      setAppControl(nextAppControl);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load app content');
     } finally {
@@ -184,7 +222,7 @@ export default function MobileControl() {
     void load();
   }, []);
 
-  async function persist<T extends { id?: string }>(
+  async function persist<T extends { id?: string; status?: string }>(
     resource: 'campaigns' | 'feature-flags' | 'widget-feeds',
     draft: T,
     apply: (saved: T) => void,
@@ -199,7 +237,8 @@ export default function MobileControl() {
         : await mobileControlApi.create<T>(resource, draft);
       apply(saved);
       reset();
-      setNotice(`${what} ${draft.id ? 'updated' : 'created'}.`);
+      const asDraft = !draft.id && typeof saved.status === 'string' && saved.status !== 'active';
+      setNotice(`${what} ${draft.id ? 'updated' : 'created'}${asDraft ? ' as a draft — flip it Live when ready' : ''}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : `Could not save ${what.toLowerCase()}`);
     } finally {
@@ -236,23 +275,29 @@ export default function MobileControl() {
     }
   }
 
-  async function toggleCampaignStatus(item: MobileCampaign) {
-    const next: MobileCampaign = { ...item, status: item.status === 'active' ? 'paused' : 'active' };
+  async function setCampaignStatus(item: MobileCampaign, status: MobileCampaign['status']) {
     try {
-      const saved = await mobileControlApi.update<MobileCampaign>('campaigns', next);
+      const saved = await mobileControlApi.update<MobileCampaign>('campaigns', { ...item, status });
       setCampaigns((items) => upsert(items, saved));
-      setNotice(saved.status === 'active' ? 'Message is now live.' : 'Message paused.');
+      setNotice(
+        status === 'active' ? 'Message is now live.'
+          : status === 'archived' ? 'Message archived — users no longer see it.'
+            : 'Message taken off — saved as a draft.',
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not change status');
     }
   }
 
-  async function toggleWidgetStatus(item: WidgetFeed) {
-    const next: WidgetFeed = { ...item, status: item.status === 'active' ? 'paused' : 'active' };
+  async function setWidgetStatus(item: WidgetFeed, status: WidgetFeed['status']) {
     try {
-      const saved = await mobileControlApi.update<WidgetFeed>('widget-feeds', next);
+      const saved = await mobileControlApi.update<WidgetFeed>('widget-feeds', { ...item, status });
       setWidgets((items) => upsert(items, saved));
-      setNotice(saved.status === 'active' ? 'Widget feed is now live.' : 'Widget feed paused.');
+      setNotice(
+        status === 'active' ? 'Widget feed is now live.'
+          : status === 'archived' ? 'Widget feed archived — widgets no longer show it.'
+            : 'Widget feed taken off — saved as a draft.',
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not change status');
     }
@@ -263,9 +308,9 @@ export default function MobileControl() {
     try {
       const saved = await mobileControlApi.update<MobileFeatureFlag>('feature-flags', next);
       setFlags((items) => upsert(items, saved));
-      setNotice(saved.enabled ? `"${saved.label}" enabled.` : `"${saved.label}" disabled.`);
+      setNotice(saved.enabled ? `"${saved.label}" is now on.` : `"${saved.label}" is now off.`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not change flag');
+      setError(err instanceof Error ? err.message : 'Could not change switch');
     }
   }
 
@@ -275,8 +320,9 @@ export default function MobileControl() {
         <div>
           <h1>App Content</h1>
           <p>
-            Publish in-app messages, switch features on or off, and update widget feeds —
-            changes reach the mobile app instantly, no app-store release needed.
+            Publish in-app messages and banner adverts, switch features on or off, and pull the
+            emergency levers (force update, maintenance, feature locks) — changes reach the mobile
+            app instantly, no app-store release needed.
           </p>
         </div>
         <button className="mc-button mc-button-secondary" onClick={() => void load()} disabled={loading}>
@@ -288,10 +334,19 @@ export default function MobileControl() {
         <TabButton icon={<Megaphone size={16} />} active={activeTab === 'campaigns'} onClick={() => setActiveTab('campaigns')} label={TAB_META.campaigns.label} count={stats.activeCampaigns} total={campaigns.length} />
         <TabButton icon={<Flag size={16} />} active={activeTab === 'flags'} onClick={() => setActiveTab('flags')} label={TAB_META.flags.label} count={stats.enabledFlags} total={flags.length} />
         <TabButton icon={<Bell size={16} />} active={activeTab === 'widgets'} onClick={() => setActiveTab('widgets')} label={TAB_META.widgets.label} count={stats.activeWidgets} total={widgets.length} />
+        <TabButton icon={<ShieldAlert size={16} />} active={activeTab === 'appControl'} onClick={() => setActiveTab('appControl')} label={TAB_META.appControl.label} count={stats.activeGates} total={stats.totalGates} alert={stats.activeGates > 0} />
       </nav>
       <p className="mc-tab-hint">{TAB_META[activeTab].hint}</p>
 
-      {error && <div className="mc-alert" role="alert"><AlertTriangle size={16} /> {error}</div>}
+      {error && (
+        <div className="mc-alert" role="alert">
+          <AlertTriangle size={16} />
+          <span className="mc-alert-body">{friendlyError(error)}</span>
+          <button className="mc-alert-dismiss" onClick={() => setError(null)} aria-label="Dismiss error">
+            <X size={14} />
+          </button>
+        </div>
+      )}
       {notice && <div className="mc-notice" role="status"><CheckCircle2 size={16} /> {notice}</div>}
 
       {loading ? (
@@ -305,13 +360,15 @@ export default function MobileControl() {
             <>
               <CampaignForm value={campaignDraft} onChange={setCampaignDraft} onSave={saveCampaign} onCancel={() => setCampaignDraft(campaignTemplate)} saving={saving} onValidity={setJsonValid} jsonValid={jsonValid} />
               <ItemList
-                title="Published & draft messages"
+                title="Your messages"
                 items={campaigns}
-                emptyText="No messages yet. Create one on the left — start it as a draft, then set it to “active” when it should appear in the app."
+                emptyTitle="No messages yet"
+                emptyText="Messages are the popups and banners users see inside the app. Create your first message with the form on the left — it stays a draft until you flip it Live."
                 editingId={campaignDraft.id}
                 onEdit={(item) => setCampaignDraft(item)}
                 onRemove={(item) => void remove('campaigns', item)}
-                onToggle={(item) => void toggleCampaignStatus(item)}
+                onSetLive={(item, live) => void setCampaignStatus(item, live ? 'active' : 'draft')}
+                onArchive={(item) => void setCampaignStatus(item, 'archived')}
                 renderMeta={(item) => `${item.campaign_type} · shows on ${item.placement === 'global' ? 'every screen' : item.placement}`}
               />
             </>
@@ -326,16 +383,21 @@ export default function MobileControl() {
             <>
               <WidgetForm value={widgetDraft} onChange={setWidgetDraft} onSave={saveWidget} onCancel={() => setWidgetDraft(widgetTemplate)} saving={saving} onValidity={setJsonValid} jsonValid={jsonValid} />
               <ItemList
-                title="Widget feeds"
+                title="Your widget feeds"
                 items={widgets}
-                emptyText="No widget feeds yet. Feeds power the home-screen and lock-screen widgets on users’ phones."
+                emptyTitle="No widget feeds yet"
+                emptyText="Feeds decide what appears on the home-screen and lock-screen widgets on users’ phones. Create your first feed with the form on the left — it stays a draft until you flip it Live."
                 editingId={widgetDraft.id}
                 onEdit={(item) => setWidgetDraft(item)}
                 onRemove={(item) => void remove('widgets', item)}
-                onToggle={(item) => void toggleWidgetStatus(item)}
+                onSetLive={(item, live) => void setWidgetStatus(item, live ? 'active' : 'draft')}
+                onArchive={(item) => void setWidgetStatus(item, 'archived')}
                 renderMeta={(item) => `${item.feed_type.replace('_', ' ')} · ${item.placement.replace('_', ' ')}`}
               />
             </>
+          )}
+          {activeTab === 'appControl' && (
+            <AppControlPanel value={appControl} onChange={setAppControl} onNotice={setNotice} onError={setError} />
           )}
         </div>
       )}
@@ -351,13 +413,15 @@ function upsert<T extends { id?: string }>(items: T[], item: T): T[] {
     : [item, ...items];
 }
 
-function TabButton({ icon, label, count, total, active, onClick }: {
-  icon: React.ReactNode; label: string; count: number; total: number; active: boolean; onClick: () => void;
+function TabButton({ icon, label, count, total, active, alert, onClick }: {
+  icon: React.ReactNode; label: string; count?: number; total?: number; active: boolean; alert?: boolean; onClick: () => void;
 }) {
   return (
-    <button className={active ? 'active' : ''} onClick={onClick} aria-pressed={active}>
+    <button className={`${active ? 'active' : ''} ${alert ? 'mc-tab-alert' : ''}`} onClick={onClick} aria-pressed={active}>
       {icon} {label}
-      <span className="mc-tab-count" title={`${count} live of ${total}`}>{count}/{total}</span>
+      {typeof count === 'number' && typeof total === 'number' && (
+        <span className="mc-tab-count" title={`${count} live of ${total}`}>{count}/{total}</span>
+      )}
     </button>
   );
 }
@@ -384,14 +448,67 @@ function FormShell({ title, editing, children, onSave, onCancel, saving, canSave
   );
 }
 
+/* Single per-form disclosure that hides everything JSON-shaped from everyday admins. */
 function Advanced({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="mc-advanced mc-field-wide">
       <button type="button" className="mc-advanced-toggle" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <ChevronDown size={14} className={open ? 'open' : ''} /> Advanced settings
+        <ChevronDown size={14} className={open ? 'open' : ''} /> Advanced (JSON) <em>for developers</em>
       </button>
       {open && <div className="mc-form mc-advanced-body">{children}</div>}
+    </div>
+  );
+}
+
+/* The raw key, tucked behind a muted "ID: … (edit)" line instead of a co-equal input. */
+function KeyField({ value, onChange, example }: { value: string; onChange: (value: string) => void; example: string }) {
+  const [editing, setEditing] = useState(false);
+  if (!editing) {
+    return (
+      <div className="mc-key-line mc-field-wide">
+        <span>ID: <code>{value || `auto-filled from the title, e.g. ${example}`}</code></span>
+        <button type="button" onClick={() => setEditing(true)}>edit</button>
+      </div>
+    );
+  }
+  return (
+    <label className="mc-field mc-field-wide">
+      <span>ID</span>
+      <input
+        value={value}
+        autoFocus
+        placeholder={example}
+        onChange={(event) => onChange(slugify(event.target.value))}
+        onBlur={() => setEditing(false)}
+      />
+      <small>Unique ID the app reads — lowercase letters, numbers, and underscores. You rarely need to change it.</small>
+    </label>
+  );
+}
+
+/* Labeled toggle switch — the friendly replacement for status dropdowns and number inputs. */
+function SwitchRow({ label, hint, on, onToggle }: {
+  label: string; hint?: string; on: boolean; onToggle: () => void;
+}) {
+  return (
+    <div className="mc-field">
+      <div className="mc-switch-row">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          aria-label={label}
+          className={`mc-switch ${on ? 'on' : ''}`}
+          onClick={onToggle}
+        >
+          <span className="mc-switch-thumb" />
+        </button>
+        <div className="mc-switch-text">
+          <span>{label}</span>
+          {hint && <small>{hint}</small>}
+        </div>
+      </div>
     </div>
   );
 }
@@ -403,6 +520,8 @@ function CampaignForm({ value, onChange, onSave, onCancel, saving, onValidity, j
 }) {
   const creative = value.creative || {};
   const setCreative = (patch: Record<string, unknown>) => onChange({ ...value, creative: { ...creative, ...patch } });
+  const live = value.status === 'active';
+  const pinned = value.priority > 0;
   return (
     <FormShell
       title={value.id ? 'Edit message' : 'New message'}
@@ -414,18 +533,41 @@ function CampaignForm({ value, onChange, onSave, onCancel, saving, onValidity, j
       saveLabel={value.id ? 'Save changes' : 'Create message'}
     >
       <TextField
-        label="Title" placeholder="e.g. New scholarships this week"
+        label="Title" wide placeholder="e.g. New scholarships this week"
         value={value.title}
-        onChange={(title) => onChange({ ...value, title, key: value.id || value.key ? value.key : slugify(title) })}
+        onChange={(title) => onChange({ ...value, title, key: keyFollowsTitle(value, value.title) ? slugify(title) : value.key })}
       />
-      <TextField label="Key" hint="Unique ID, auto-filled from the title." placeholder="new_scholarships_week" value={value.key} onChange={(key) => onChange({ ...value, key: slugify(key) })} />
-      <TextField label="Body" placeholder="Short message users will read" value={value.body || ''} onChange={(body) => onChange({ ...value, body })} wide />
-      <SelectField label="Format" value={value.campaign_type} options={['popup', 'banner', 'notification', 'interstitial', 'announcement']} onChange={(campaign_type) => onChange({ ...value, campaign_type: campaign_type as MobileCampaign['campaign_type'] })} />
-      <SelectField label="Shows on" value={value.placement} options={['global', 'home', 'opportunities', 'goals', 'notifications']} onChange={(placement) => onChange({ ...value, placement: placement as MobileCampaign['placement'] })} />
-      <SelectField label="Status" hint="Only “active” is visible to users." value={value.status} options={['draft', 'scheduled', 'active', 'paused', 'archived']} onChange={(status) => onChange({ ...value, status: status as MobileCampaign['status'] })} />
-      <NumberField label="Priority" hint="Higher shows first." value={value.priority} onChange={(priority) => onChange({ ...value, priority })} />
-      <TextField label="Button label" placeholder="Open" value={String(creative.ctaLabel ?? '')} onChange={(ctaLabel) => setCreative({ ctaLabel })} />
-      <TextField label="Button opens" placeholder="/opportunities" value={String(creative.ctaRoute ?? '')} onChange={(ctaRoute) => setCreative({ ctaRoute })} />
+      <TextField label="Message" wide placeholder="e.g. 12 new scholarships match your profile — take a look." hint="One or two short sentences users will read." value={value.body || ''} onChange={(body) => onChange({ ...value, body })} />
+      <SelectField label="Format" hint="Popup = card over the screen · banner = strip with an image." value={value.campaign_type} options={['popup', 'banner', 'notification', 'interstitial', 'announcement']} onChange={(campaign_type) => onChange({ ...value, campaign_type: campaign_type as MobileCampaign['campaign_type'] })} />
+      <SelectField label="Shows on" hint="Which screen of the app displays it." value={value.placement} options={['global', 'home', 'opportunities', 'goals', 'notifications']} onChange={(placement) => onChange({ ...value, placement: placement as MobileCampaign['placement'] })} />
+      <TextField label="Button label" placeholder="e.g. See them" hint="Text on the message’s button." value={String(creative.ctaLabel ?? '')} onChange={(ctaLabel) => setCreative({ ctaLabel })} />
+      <TextField label="Button opens" placeholder="e.g. /opportunities" hint="App screen or link the button opens." value={String(creative.ctaRoute ?? '')} onChange={(ctaRoute) => setCreative({ ctaRoute })} />
+      <TextField
+        label="Advert image URL" wide
+        hint="Optional. Shown as a thumbnail on banners and a header image on popups — use a hosted https:// image."
+        placeholder="https://example.com/advert.png"
+        value={String(creative.imageUrl ?? '')}
+        onChange={(imageUrl) => setCreative({ imageUrl: imageUrl.trim() || undefined })}
+      />
+      {typeof creative.imageUrl === 'string' && /^https?:\/\//.test(creative.imageUrl) && (
+        <div className="mc-field mc-field-wide">
+          <span>Image preview</span>
+          <img className="mc-img-preview" src={creative.imageUrl} alt="Campaign advert preview" />
+        </div>
+      )}
+      <SwitchRow
+        label="Live"
+        hint={live ? 'Users can see this message.' : 'Off = saved as a draft, hidden from users.'}
+        on={live}
+        onToggle={() => onChange({ ...value, status: live ? 'draft' : 'active' })}
+      />
+      <SwitchRow
+        label="Pin to top"
+        hint="Show this before other messages."
+        on={pinned}
+        onToggle={() => onChange({ ...value, priority: pinned ? 0 : 100 })}
+      />
+      <KeyField value={value.key} onChange={(key) => onChange({ ...value, key })} example="new_scholarships_week" />
       <Advanced>
         <JsonField label="Creative JSON" hint="Full creative payload — the button fields above edit ctaLabel/ctaRoute here." value={value.creative} onChange={(creative) => onChange({ ...value, creative: creative as Record<string, unknown> })} onValidity={onValidity} />
         <JsonField label="Audience JSON" hint="Targeting rules; leave {} to show to everyone." value={value.audience} onChange={(audience) => onChange({ ...value, audience: audience as Record<string, unknown> })} onValidity={onValidity} />
@@ -451,21 +593,28 @@ function FlagForm({ value, onChange, onSave, onCancel, saving, onValidity, jsonV
       saveLabel={value.id ? 'Save changes' : 'Create switch'}
     >
       <TextField
-        label="Name" placeholder="e.g. Voice mode"
+        label="Name" wide placeholder="e.g. Voice mode"
         value={value.label}
-        onChange={(label) => onChange({ ...value, label, key: value.id || value.key ? value.key : slugify(label) })}
+        onChange={(label) => onChange({ ...value, label, key: keyFollowsTitle(value, value.label) ? slugify(label) : value.key })}
       />
-      <TextField label="Key" hint="Unique ID the app reads." placeholder="voice_mode" value={value.key} onChange={(key) => onChange({ ...value, key: slugify(key) })} />
-      <TextField label="Description" placeholder="What does this switch control?" value={value.description || ''} onChange={(description) => onChange({ ...value, description })} wide />
-      <NumberField label="Sort order" value={value.sort_order} onChange={(sort_order) => onChange({ ...value, sort_order })} />
-      <div className="mc-field">
-        <span>Options</span>
-        <label className="mc-check"><input type="checkbox" checked={value.enabled} onChange={(event) => onChange({ ...value, enabled: event.target.checked })} /> Enabled (live in the app)</label>
-        <label className="mc-check"><input type="checkbox" checked={value.requires_pro} onChange={(event) => onChange({ ...value, requires_pro: event.target.checked })} /> Pro users only</label>
-      </div>
+      <TextField label="Description" wide placeholder="e.g. Lets users talk to Edutu out loud." hint="A plain-language note about what this switch controls." value={value.description || ''} onChange={(description) => onChange({ ...value, description })} />
+      <SwitchRow
+        label="On"
+        hint={value.enabled ? 'The feature is live in the app.' : 'Off = the feature is hidden in the app.'}
+        on={value.enabled}
+        onToggle={() => onChange({ ...value, enabled: !value.enabled })}
+      />
+      <SwitchRow
+        label="Pro users only"
+        hint="Only paying subscribers get this feature."
+        on={value.requires_pro}
+        onToggle={() => onChange({ ...value, requires_pro: !value.requires_pro })}
+      />
+      <KeyField value={value.key} onChange={(key) => onChange({ ...value, key })} example="voice_mode" />
       <Advanced>
         <JsonField label="Default value JSON" hint="Value the app uses when the switch is off." value={value.default_value} onChange={(default_value) => onChange({ ...value, default_value })} onValidity={onValidity} />
         <JsonField label="Rollout JSON" hint='Gradual rollout, e.g. {"percent":25} for 25% of users.' value={value.rollout} onChange={(rollout) => onChange({ ...value, rollout: rollout as Record<string, unknown> })} onValidity={onValidity} />
+        <NumberField label="Sort order" hint="Where this switch sorts in the app’s internal list." value={value.sort_order} onChange={(sort_order) => onChange({ ...value, sort_order })} />
       </Advanced>
     </FormShell>
   );
@@ -476,6 +625,8 @@ function WidgetForm({ value, onChange, onSave, onCancel, saving, onValidity, jso
   onSave: () => void; onCancel: () => void; saving: boolean;
   onValidity: (valid: boolean) => void; jsonValid: boolean;
 }) {
+  const live = value.status === 'active';
+  const pinned = value.priority > 0;
   return (
     <FormShell
       title={value.id ? 'Edit widget feed' : 'New widget feed'}
@@ -487,15 +638,25 @@ function WidgetForm({ value, onChange, onSave, onCancel, saving, onValidity, jso
       saveLabel={value.id ? 'Save changes' : 'Create feed'}
     >
       <TextField
-        label="Title" placeholder="e.g. Top matches"
+        label="Title" wide placeholder="e.g. Top matches"
         value={value.title}
-        onChange={(title) => onChange({ ...value, title, key: value.id || value.key ? value.key : slugify(title) })}
+        onChange={(title) => onChange({ ...value, title, key: keyFollowsTitle(value, value.title) ? slugify(title) : value.key })}
       />
-      <TextField label="Key" hint="Unique ID the widget reads." placeholder="top_matches" value={value.key} onChange={(key) => onChange({ ...value, key: slugify(key) })} />
-      <SelectField label="Feed type" value={value.feed_type} options={['opportunities', 'saved', 'sponsored', 'quick_actions']} onChange={(feed_type) => onChange({ ...value, feed_type: feed_type as WidgetFeed['feed_type'] })} />
-      <SelectField label="Widget location" value={value.placement} options={['home', 'lock_screen', 'android_home']} onChange={(placement) => onChange({ ...value, placement: placement as WidgetFeed['placement'] })} />
-      <SelectField label="Status" hint="Only “active” feeds reach widgets." value={value.status} options={['draft', 'active', 'paused', 'archived']} onChange={(status) => onChange({ ...value, status: status as WidgetFeed['status'] })} />
-      <NumberField label="Priority" hint="Higher shows first." value={value.priority} onChange={(priority) => onChange({ ...value, priority })} />
+      <SelectField label="Feed type" hint="What the widget shows — “opportunities” fills itself automatically." value={value.feed_type} options={['opportunities', 'saved', 'sponsored', 'quick_actions']} onChange={(feed_type) => onChange({ ...value, feed_type: feed_type as WidgetFeed['feed_type'] })} />
+      <SelectField label="Widget location" hint="Which phone widget uses this feed." value={value.placement} options={['home', 'lock_screen', 'android_home']} onChange={(placement) => onChange({ ...value, placement: placement as WidgetFeed['placement'] })} />
+      <SwitchRow
+        label="Live"
+        hint={live ? 'Widgets are showing this feed.' : 'Off = saved as a draft, widgets don’t show it.'}
+        on={live}
+        onToggle={() => onChange({ ...value, status: live ? 'draft' : 'active' })}
+      />
+      <SwitchRow
+        label="Pin to top"
+        hint="Show this feed before other feeds."
+        on={pinned}
+        onToggle={() => onChange({ ...value, priority: pinned ? 0 : 100 })}
+      />
+      <KeyField value={value.key} onChange={(key) => onChange({ ...value, key })} example="top_matches" />
       <Advanced>
         <JsonField label="Items JSON" hint="Array of feed items the widget renders." value={value.items} onChange={(items) => onChange({ ...value, items: Array.isArray(items) ? items as Array<Record<string, unknown>> : [] })} onValidity={onValidity} />
         <JsonField label="Audience JSON" hint="Targeting rules; leave {} for everyone." value={value.audience} onChange={(audience) => onChange({ ...value, audience: audience as Record<string, unknown> })} onValidity={onValidity} />
@@ -504,7 +665,153 @@ function WidgetForm({ value, onChange, onSave, onCancel, saving, onValidity, jso
   );
 }
 
-function TextField({ label, hint, placeholder, value, onChange, wide }: { label: string; hint?: string; placeholder?: string; value: string; onChange: (value: string) => void; wide?: boolean }) {
+const MIN_VERSION_PATTERN = /^\d+(\.\d+){0,3}$/;
+
+/* Force update / maintenance / module locks — admin_settings.mobileApp. */
+function AppControlPanel({ value, onChange, onNotice, onError }: {
+  value: MobileAppSettings;
+  onChange: (value: MobileAppSettings) => void;
+  onNotice: (notice: string) => void;
+  onError: (error: string | null) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify(value));
+  const dirty = JSON.stringify(value) !== savedSnapshot;
+
+  const versionInvalid = !MIN_VERSION_PATTERN.test(value.forceUpdate.minVersion.trim());
+  const forceUpdateIncomplete =
+    !value.forceUpdate.title.trim() || !value.forceUpdate.message.trim() || versionInvalid;
+  const maintenanceIncomplete = !value.maintenance.title.trim() || !value.maintenance.message.trim();
+  const canSave = !forceUpdateIncomplete && !maintenanceIncomplete;
+
+  const setForceUpdate = (patch: Partial<MobileAppSettings['forceUpdate']>) =>
+    onChange({ ...value, forceUpdate: { ...value.forceUpdate, ...patch } });
+  const setMaintenance = (patch: Partial<MobileAppSettings['maintenance']>) =>
+    onChange({ ...value, maintenance: { ...value.maintenance, ...patch } });
+  const setLock = (key: string, access: ModuleAccess) =>
+    onChange({ ...value, moduleLocks: { ...value.moduleLocks, [key]: access } });
+
+  async function save() {
+    if (value.forceUpdate.enabled || value.maintenance.enabled) {
+      const gates = [
+        value.forceUpdate.enabled && `force update (below v${value.forceUpdate.minVersion})`,
+        value.maintenance.enabled && 'maintenance mode (blocks the whole app)',
+      ].filter(Boolean).join(' and ');
+      if (!window.confirm(`This will enable ${gates} for every user on next app launch. Continue?`)) return;
+    }
+    setSaving(true);
+    onError(null);
+    try {
+      const saved = await appControlApi.saveMobileApp(value);
+      onChange(saved);
+      setSavedSnapshot(JSON.stringify(saved));
+      onNotice('App control settings are live — the app picks them up on next launch.');
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Could not save app control settings');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <section className="mc-panel">
+        <div className="mc-panel-head"><h2>Force update</h2>
+          <GateSwitch on={value.forceUpdate.enabled} onToggle={() => setForceUpdate({ enabled: !value.forceUpdate.enabled })} label="force update" />
+        </div>
+        <p className="mc-panel-sub">
+          Users on a version older than the minimum get a blocking screen that sends them to the
+          store{value.forceUpdate.otaFirst ? ' (after trying an instant over-the-air update first)' : ''}.
+        </p>
+        <div className="mc-form">
+          <label className="mc-field">
+            <span className="mc-label-row">Minimum version {versionInvalid && <em className="mc-invalid"><AlertTriangle size={12} /> use e.g. 1.2.3</em>}</span>
+            <input value={value.forceUpdate.minVersion} placeholder="1.2.3" onChange={(e) => setForceUpdate({ minVersion: e.target.value })} />
+            <small>Anything older than this is blocked.</small>
+          </label>
+          <TextField label="Screen title" value={value.forceUpdate.title} onChange={(title) => setForceUpdate({ title })} />
+          <TextField label="Screen message" wide value={value.forceUpdate.message} onChange={(message) => setForceUpdate({ message })} />
+          <TextField label="App Store URL (iOS)" placeholder="https://apps.apple.com/…" value={value.forceUpdate.iosStoreUrl} onChange={(iosStoreUrl) => setForceUpdate({ iosStoreUrl })} />
+          <TextField label="Play Store URL (Android)" placeholder="https://play.google.com/…" value={value.forceUpdate.androidStoreUrl} onChange={(androidStoreUrl) => setForceUpdate({ androidStoreUrl })} />
+          <div className="mc-field mc-field-wide">
+            <label className="mc-check">
+              <input type="checkbox" checked={value.forceUpdate.otaFirst} onChange={(e) => setForceUpdate({ otaFirst: e.target.checked })} />
+              Try an over-the-air update before sending users to the store
+            </label>
+          </div>
+        </div>
+
+        <div className="mc-panel-head" style={{ marginTop: 8 }}><h2>Maintenance mode</h2>
+          <GateSwitch on={value.maintenance.enabled} onToggle={() => setMaintenance({ enabled: !value.maintenance.enabled })} label="maintenance mode" />
+        </div>
+        <p className="mc-panel-sub">Blocks the whole app with a notice — use during backend migrations or incidents.</p>
+        <div className="mc-form">
+          <TextField label="Notice title" value={value.maintenance.title} onChange={(title) => setMaintenance({ title })} />
+          <TextField label="Notice message" wide value={value.maintenance.message} onChange={(message) => setMaintenance({ message })} />
+        </div>
+
+        <button className="mc-button" onClick={() => void save()} disabled={saving || !canSave || !dirty}>
+          {saving ? <Loader2 size={16} className="spin" /> : <Save size={16} />} {dirty ? 'Publish app control' : 'Published'}
+        </button>
+      </section>
+
+      <section className="mc-panel">
+        <div className="mc-panel-head"><h2>Feature locks</h2></div>
+        <p className="mc-panel-sub">
+          Lock a whole feature to Pro subscribers or switch it off for everyone — the app covers
+          locked screens automatically, including deep links and widgets. Admins bypass locks.
+        </p>
+        <div className="mc-list">
+          {LOCKABLE_MODULES.map(({ key, label, hint }) => {
+            const access = value.moduleLocks[key] ?? 'free';
+            return (
+              <article key={key} className="mc-row">
+                <div className="mc-row-main">
+                  <strong>{label}</strong>
+                  <span>{hint}</span>
+                </div>
+                <div className="mc-lock-options" role="radiogroup" aria-label={`${label} access`}>
+                  {(['free', 'pro', 'disabled'] as ModuleAccess[]).map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      role="radio"
+                      aria-checked={access === option}
+                      className={`mc-lock-option ${access === option ? `on lock-${option}` : ''}`}
+                      onClick={() => setLock(key, option)}
+                    >
+                      {option === 'free' ? 'Everyone' : option === 'pro' ? 'Pro only' : 'Off'}
+                    </button>
+                  ))}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+        <p className="mc-panel-sub" style={{ marginTop: 12 }}>
+          Changes take effect when you press <strong>Publish app control</strong> on the left.
+        </p>
+      </section>
+    </>
+  );
+}
+
+function GateSwitch({ on, onToggle, label }: { on: boolean; onToggle: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={`${on ? 'Disable' : 'Enable'} ${label}`}
+      className={`mc-switch ${on ? 'on danger' : ''}`}
+      onClick={onToggle}
+    >
+      <span className="mc-switch-thumb" />
+    </button>
+  );
+}
+
+export function TextField({ label, hint, placeholder, value, onChange, wide }: { label: string; hint?: string; placeholder?: string; value: string; onChange: (value: string) => void; wide?: boolean }) {
   return (
     <label className={`mc-field ${wide ? 'mc-field-wide' : ''}`}>
       <span>{label}</span>
@@ -524,7 +831,7 @@ function NumberField({ label, hint, value, onChange }: { label: string; hint?: s
   );
 }
 
-function SelectField({ label, hint, value, options, onChange }: { label: string; hint?: string; value: string; options: string[]; onChange: (value: string) => void }) {
+export function SelectField({ label, hint, value, options, onChange }: { label: string; hint?: string; value: string; options: string[]; onChange: (value: string) => void }) {
   return (
     <label className="mc-field">
       <span>{label}</span>
@@ -544,12 +851,15 @@ function FlagList({ items, editingId, onEdit, onToggle, onRemove }: {
 }) {
   return (
     <section className="mc-panel">
-      <div className="mc-panel-head"><h2>Feature switches</h2></div>
+      <div className="mc-panel-head"><h2>Your feature switches</h2></div>
       <div className="mc-list">
         {items.length === 0 && (
           <div className="mc-empty">
-            No feature switches yet. Create one on the left — the app reads them on launch,
-            so you can enable or disable features without a new release.
+            <strong>No feature switches yet</strong>
+            <p>
+              A switch turns a whole app feature on or off remotely — no new release needed.
+              Create your first switch with the form on the left.
+            </p>
           </div>
         )}
         {items.map((item) => (
@@ -558,20 +868,20 @@ function FlagList({ items, editingId, onEdit, onToggle, onRemove }: {
               type="button"
               role="switch"
               aria-checked={item.enabled}
-              aria-label={`${item.enabled ? 'Disable' : 'Enable'} ${item.label}`}
+              aria-label={`${item.enabled ? 'Turn off' : 'Turn on'} ${item.label}`}
               className={`mc-switch ${item.enabled ? 'on' : ''}`}
               onClick={() => onToggle(item)}
             >
               <span className="mc-switch-thumb" />
             </button>
             <div className="mc-row-main">
-              <strong>{item.label}</strong>
-              <span>
-                {item.key}
-                {item.requires_pro ? ' · Pro only' : ''}
-                {item.description ? ` — ${item.description}` : ''}
-              </span>
+              <strong>
+                {item.label}
+                {item.requires_pro && <span className="mc-chip">Pro only</span>}
+              </strong>
+              <span>{item.description || 'No description'}<code className="mc-key-muted">{item.key}</code></span>
             </div>
+            <span className={`mc-status ${item.enabled ? 'status-active' : ''}`}>{item.enabled ? 'On' : 'Off'}</span>
             <button className="mc-icon" onClick={() => onEdit(item)} title="Edit" aria-label={`Edit ${item.label}`}><Pencil size={15} /></button>
             <button className="mc-icon mc-icon-danger" onClick={() => onRemove(item)} title="Delete" aria-label={`Delete ${item.label}`}><Trash2 size={15} /></button>
           </article>
@@ -581,52 +891,77 @@ function FlagList({ items, editingId, onEdit, onToggle, onRemove }: {
   );
 }
 
-function ItemList<T extends { id?: string; title?: string; key: string; status?: string }>({
+const STATUS_LABEL: Record<string, string> = {
+  active: 'Live',
+  draft: 'Draft',
+  paused: 'Paused',
+  scheduled: 'Scheduled',
+  archived: 'Archived',
+};
+
+function ItemList<T extends { id?: string; title?: string; key: string; status?: string; priority?: number }>({
   title,
   items,
+  emptyTitle,
   emptyText,
   editingId,
   onEdit,
   onRemove,
-  onToggle,
+  onSetLive,
+  onArchive,
   renderMeta,
 }: {
   title: string;
   items: T[];
+  emptyTitle: string;
   emptyText: string;
   editingId?: string;
   onEdit: (item: T) => void;
   onRemove: (item: T) => void;
-  onToggle: (item: T) => void;
+  onSetLive: (item: T, live: boolean) => void;
+  onArchive: (item: T) => void;
   renderMeta: (item: T) => string;
 }) {
   return (
     <section className="mc-panel">
       <div className="mc-panel-head"><h2>{title}</h2></div>
       <div className="mc-list">
-        {items.length === 0 && <div className="mc-empty">{emptyText}</div>}
+        {items.length === 0 && (
+          <div className="mc-empty">
+            <strong>{emptyTitle}</strong>
+            <p>{emptyText}</p>
+          </div>
+        )}
         {items.map((item) => {
           const status = item.status || 'draft';
-          const canToggle = status === 'active' || status === 'paused' || status === 'draft';
+          const live = status === 'active';
+          const name = item.title || item.key;
           return (
-            <article key={item.id || item.key} className={`mc-row ${editingId && editingId === item.id ? 'editing' : ''}`}>
+            <article key={item.id || item.key} className={`mc-row ${editingId && editingId === item.id ? 'editing' : ''} ${status === 'archived' ? 'archived' : ''}`}>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={live}
+                aria-label={`${live ? 'Take off' : 'Set live'}: ${name}`}
+                title={live ? 'Live — click to take off' : 'Click to set live'}
+                className={`mc-switch ${live ? 'on' : ''}`}
+                onClick={() => onSetLive(item, !live)}
+              >
+                <span className="mc-switch-thumb" />
+              </button>
               <div className="mc-row-main">
-                <strong>{item.title || item.key}</strong>
-                <span>{item.key} · {renderMeta(item)}</span>
+                <strong>
+                  {name}
+                  {(item.priority ?? 0) > 0 && <span className="mc-chip"><Pin size={10} /> Pinned</span>}
+                </strong>
+                <span>{renderMeta(item)}<code className="mc-key-muted">{item.key}</code></span>
               </div>
-              <span className={`mc-status status-${status}`}>{status === 'active' ? 'live' : status}</span>
-              {canToggle && (
-                <button
-                  className="mc-icon"
-                  onClick={() => onToggle(item)}
-                  title={status === 'active' ? 'Pause' : 'Set live'}
-                  aria-label={`${status === 'active' ? 'Pause' : 'Set live'}: ${item.title || item.key}`}
-                >
-                  {status === 'active' ? <Pause size={15} /> : <Play size={15} />}
-                </button>
+              <span className={`mc-status status-${status}`}>{STATUS_LABEL[status] || status}</span>
+              {status !== 'archived' && (
+                <button className="mc-icon" onClick={() => onArchive(item)} title="Archive — hide it without deleting" aria-label={`Archive ${name}`}><Archive size={15} /></button>
               )}
-              <button className="mc-icon" onClick={() => onEdit(item)} title="Edit" aria-label={`Edit ${item.title || item.key}`}><Pencil size={15} /></button>
-              <button className="mc-icon mc-icon-danger" onClick={() => onRemove(item)} title="Delete" aria-label={`Delete ${item.title || item.key}`}><Trash2 size={15} /></button>
+              <button className="mc-icon" onClick={() => onEdit(item)} title="Edit" aria-label={`Edit ${name}`}><Pencil size={15} /></button>
+              <button className="mc-icon mc-icon-danger" onClick={() => onRemove(item)} title="Delete" aria-label={`Delete ${name}`}><Trash2 size={15} /></button>
             </article>
           );
         })}
@@ -635,7 +970,8 @@ function ItemList<T extends { id?: string; title?: string; key: string; status?:
   );
 }
 
-const styles = `
+// Exported for reuse by other admin pages built on the mc-* primitives.
+export const styles = `
 .mc-page{padding:28px;color:var(--text-primary);max-width:1280px;margin:0 auto}
 .mc-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px}
 .mc-header h1{margin:0;font-size:28px;font-weight:700;letter-spacing:-0.01em}
@@ -672,7 +1008,18 @@ const styles = `
 .mc-invalid{display:inline-flex;align-items:center;gap:4px;color:var(--danger);font-style:normal;font-size:12px;font-weight:500}
 .mc-check{display:flex;align-items:center;gap:8px;color:var(--text-primary);font-size:14px;cursor:pointer}
 .mc-check input{accent-color:var(--accent)}
+.mc-switch-row{display:flex;align-items:flex-start;gap:10px}
+.mc-switch-row .mc-switch{margin-top:1px}
+.mc-switch-text{display:flex;flex-direction:column;gap:3px;min-width:0}
+.mc-switch-text>span{color:var(--text-secondary);font-size:13px;font-weight:600}
+.mc-key-line{display:flex;align-items:center;gap:8px;color:var(--text-tertiary);font-size:12.5px}
+.mc-key-line code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;background:var(--bg-primary);border:1px solid var(--border-medium);border-radius:6px;padding:2px 7px}
+.mc-key-line button{border:0;background:transparent;color:var(--accent);font-size:12.5px;font-weight:600;cursor:pointer;padding:0}
+.mc-key-line button:hover{text-decoration:underline}
+.mc-key-muted{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px;color:var(--text-tertiary);opacity:.8;margin-left:8px}
+.mc-chip{display:inline-flex;align-items:center;gap:3px;margin-left:8px;font-size:11px;font-weight:600;color:var(--accent);background:rgba(127,127,127,.12);border-radius:999px;padding:2px 7px;vertical-align:1px}
 .mc-advanced-toggle{display:inline-flex;align-items:center;gap:6px;background:transparent;border:0;color:var(--text-tertiary);font-size:13px;font-weight:600;cursor:pointer;padding:4px 0}
+.mc-advanced-toggle em{font-style:normal;font-weight:500;font-size:12px;opacity:.75}
 .mc-advanced-toggle:hover{color:var(--text-primary)}
 .mc-advanced-toggle svg{transition:transform var(--transition-fast)}
 .mc-advanced-toggle svg.open{transform:rotate(180deg)}
@@ -681,6 +1028,7 @@ const styles = `
 .mc-row{display:flex;align-items:center;gap:12px;border:1px solid var(--border-medium);border-radius:10px;padding:12px 14px;transition:border-color var(--transition-fast)}
 .mc-row:hover{border-color:var(--accent)}
 .mc-row.editing{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.mc-row.archived{opacity:.65}
 .mc-row-main{flex:1;min-width:0}
 .mc-row-main strong{display:block;font-size:14.5px;font-weight:600}
 .mc-row-main span{display:block;color:var(--text-tertiary);font-size:13px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -691,12 +1039,30 @@ const styles = `
 .mc-switch.on{background:var(--success)}
 .mc-switch-thumb{position:absolute;top:2.5px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform var(--transition-base)}
 .mc-switch.on .mc-switch-thumb{transform:translateX(16px)}
-.mc-status{border-radius:999px;padding:4px 10px;background:var(--hover-bg);color:var(--text-secondary);font-size:12px;font-weight:600;flex-shrink:0;text-transform:capitalize}
+.mc-status{border-radius:999px;padding:4px 10px;background:var(--hover-bg);color:var(--text-secondary);font-size:12px;font-weight:600;flex-shrink:0}
 .status-active{background:rgba(52,199,89,.14);color:var(--success)}
 .status-paused,.status-draft,.status-scheduled{background:rgba(255,149,0,.14);color:var(--warning)}
+.status-archived{background:var(--hover-bg);color:var(--text-tertiary)}
 .mc-empty{color:var(--text-tertiary);padding:22px 6px;font-size:14px;line-height:1.55;max-width:52ch}
+.mc-empty strong{display:block;color:var(--text-secondary);font-size:14.5px;margin-bottom:6px}
+.mc-empty p{margin:0}
+.mc-panel-sub{margin:0 0 14px;color:var(--text-tertiary);font-size:13px;line-height:1.5}
+.mc-switch.on.danger{background:var(--danger)}
+.mc-tab-alert{border-color:var(--danger)!important}
+.mc-tab-alert:not(.active){color:var(--danger)}
+.mc-img-preview{max-width:100%;max-height:140px;border-radius:10px;border:1px solid var(--border-medium);object-fit:cover}
+.mc-lock-options{display:flex;gap:4px;flex-shrink:0;background:var(--bg-primary);border:1px solid var(--border-medium);border-radius:999px;padding:3px}
+.mc-lock-option{border:0;background:transparent;color:var(--text-tertiary);font-size:12.5px;font-weight:600;border-radius:999px;padding:5px 11px;cursor:pointer;transition:background var(--transition-fast),color var(--transition-fast)}
+.mc-lock-option:hover{color:var(--text-primary)}
+.mc-lock-option.on{color:#fff}
+.mc-lock-option.on.lock-free{background:var(--success)}
+.mc-lock-option.on.lock-pro{background:var(--accent)}
+.mc-lock-option.on.lock-disabled{background:var(--danger)}
 .mc-alert,.mc-notice{display:flex;align-items:center;gap:8px;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:14px}
 .mc-alert{background:rgba(255,59,48,.1);border:1px solid rgba(255,59,48,.3);color:var(--danger)}
+.mc-alert-body{flex:1;min-width:0}
+.mc-alert-dismiss{display:inline-flex;align-items:center;justify-content:center;border:0;background:transparent;color:var(--danger);cursor:pointer;padding:4px;border-radius:6px;flex-shrink:0}
+.mc-alert-dismiss:hover{background:rgba(255,59,48,.12)}
 .mc-notice{background:rgba(52,199,89,.1);border:1px solid rgba(52,199,89,.3);color:var(--success)}
 .mc-skeleton{height:44px;border-radius:8px;background:var(--hover-bg);margin-bottom:12px;animation:mc-pulse 1.4s ease-in-out infinite}
 .mc-skeleton.short{width:55%}

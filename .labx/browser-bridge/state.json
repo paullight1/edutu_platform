@@ -1,10 +1,18 @@
 {
   "version": 1,
   "projectPath": "/Users/MAC/Desktop/Desktop/app-projects/Edutu_Folder",
-  "updatedAt": "2026-07-12T10:46:01.105815+00:00",
+  "updatedAt": "2026-07-15T11:47:03.248386+00:00",
   "state": {
     "activeTabId": "tab_mq790wlz_d904z1ht",
     "agentContext": [
+      {
+        "body": "http://localhost:5173/",
+        "createdAt": "2026-07-14T08:51:37.700Z",
+        "id": "ctx_mrkewpr8_5c71hbam",
+        "sourceId": null,
+        "title": "Current browser URL",
+        "type": "url"
+      },
       {
         "body": "https://www.google.com/search?igu=1&q=nairaland",
         "createdAt": "2026-07-07T21:07:42.957Z",
@@ -316,14 +324,6 @@
         "sourceId": null,
         "title": "Current browser URL",
         "type": "url"
-      },
-      {
-        "body": "http://127.0.0.1:3001/",
-        "createdAt": "2026-06-07T09:43:11.190Z",
-        "id": "ctx_mq3lgi1i_h5uaz5z1",
-        "sourceId": null,
-        "title": "Current browser URL",
-        "type": "url"
       }
     ],
     "annotations": [
@@ -362,28 +362,30 @@
       }
     ],
     "currentInspection": null,
-    "currentUrl": null,
+    "currentUrl": "http://localhost:5173/",
     "isRecording": false,
     "mode": "browse",
     "previewMessage": null,
-    "previewRevision": 66,
-    "previewStatus": "empty",
+    "previewRevision": 67,
+    "previewStatus": "ready",
     "recordedActions": [],
     "selectedAnnotationId": null,
     "tabs": [
       {
         "createdAt": "2026-06-09T23:06:12.885Z",
-        "history": [],
-        "historyIndex": -1,
+        "history": [
+          "http://localhost:5173/"
+        ],
+        "historyIndex": 0,
         "id": "tab_mq790wlz_d904z1ht",
         "previewMessage": null,
-        "previewStatus": "empty",
-        "title": "LabX Home",
-        "updatedAt": "2026-07-07T22:17:56.858Z",
-        "url": null
+        "previewStatus": "ready",
+        "title": "localhost",
+        "updatedAt": "2026-07-14T08:51:37.695Z",
+        "url": "http://localhost:5173/"
       }
     ],
-    "urlInput": "",
+    "urlInput": "http://localhost:5173/",
     "viewportId": "responsive"
   }
 }

@@ -137,7 +137,7 @@ describe('core opportunity service contract', () => {
 
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ opportunities: [] }),
+      json: async () => ({ opportunities: [{ id: 'opp-any', title: 'Any' }] }),
     } as Response);
 
     await fetchOpportunities({
@@ -167,7 +167,7 @@ describe('core opportunity service contract', () => {
 
     mockFetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ opportunities: [] }),
+      json: async () => ({ opportunities: [{ id: 'opp-any', title: 'Any' }] }),
     } as Response);
 
     await fetchOpportunities({
@@ -191,6 +191,39 @@ describe('core opportunity service contract', () => {
 
     const emptyBody = JSON.parse(mockFetch.mock.calls[1][1].body as string);
     expect(emptyBody).not.toHaveProperty('excludeOpportunityIds');
+  });
+
+  it('guest query sends minMatchScore 0 and falls back to the catalog on an empty result', async () => {
+    // Regression: the prod heuristic engine scores everything 20, so the old
+    // guest floor of 30 returned an empty feed that was accepted and cached.
+    const { fetchOpportunities } = loadService();
+
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ opportunities: [] }),
+    } as Response);
+
+    const supabase = {
+      from: jest.fn(() => ({
+        select: () => ({
+          eq: () => ({
+            order: async () => ({
+              data: [{ id: 'opp-catalog', title: 'Catalog Row' }],
+              error: null,
+            }),
+          }),
+        }),
+      })),
+    };
+
+    const result = await fetchOpportunities({
+      supabase: supabase as never,
+      force: true,
+    });
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body as string);
+    expect(body.minMatchScore).toBe(0);
+    expect(result.map((opportunity) => opportunity.id)).toEqual(['opp-catalog']);
   });
 
   it('coerces object-shaped match_reasons into labels and preserves details', async () => {

@@ -694,12 +694,14 @@ function App() {
           </AppWorkspaceRoute>
         }
       />
+      {/* Fullscreen onboarding — deliberately outside AppWorkspaceShell so it
+          covers the header and bottom nav. */}
       <Route
         path="/app/personalization"
         element={
-          <AppWorkspaceRoute>
+          <ProtectedRoute>
             <PersonalizationScreen />
-          </AppWorkspaceRoute>
+          </ProtectedRoute>
         }
       />
       <Route

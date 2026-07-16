@@ -3,6 +3,13 @@
   publish = "dist"
 
 [build.environment]
+  # Production Clerk publishable key (public by design — it ships in every
+  # browser bundle). Instance: clerk.edutu.org. NOTE: verified 2026-07-16 that
+  # the Netlify DASHBOARD env var takes precedence over this value, so the
+  # real enforcement lives in src/main.tsx (production guard rejects pk_test).
+  # This stays as documentation and as the fallback once the stale pk_test
+  # dashboard variable (dev instance calm-gecko-44) is deleted.
+  VITE_CLERK_PUBLISHABLE_KEY = "pk_live_Y2xlcmsuZWR1dHUub3JnJA"
   SECRETS_SCAN_OMIT_KEYS = '["VITE_FIREBASE_API_KEY","VITE_FIREBASE_APP_ID","VITE_FIREBASE_AUTH_DOMAIN","VITE_FIREBASE_MEASUREMENT_ID","VITE_FIREBASE_MESSAGING_SENDER_ID","VITE_FIREBASE_PROJECT_ID","VITE_FIREBASE_STORAGE_BUCKET","VITE_OPENROUTER_API_KEY"]'
   SECRETS_SCAN_OMIT_PATHS = '["dist/**"]'
 

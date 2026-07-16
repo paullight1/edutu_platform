@@ -82,6 +82,8 @@ export const BroadcastNotificationSchema = z.object({
       "goal-weekly-digest",
       "goal-progress",
       "opportunity-highlight",
+      "opportunity-alert",
+      "deadline-reminder",
       "admin-broadcast",
       "system",
     ])

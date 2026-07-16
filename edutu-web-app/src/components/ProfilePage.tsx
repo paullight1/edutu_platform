@@ -2,21 +2,25 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
 } from "react";
-import { useAuth as useClerkAuth } from "@clerk/clerk-react";
+import { useAuth as useClerkAuth, useUser } from "@clerk/clerk-react";
 import { useNavigate } from "react-router-dom";
 import {
   Bookmark,
   Briefcase,
+  CheckCircle2,
   ChevronRight,
   Loader2,
   LogOut,
   PencilLine,
+  RefreshCw,
   Save,
   Send,
   Settings,
+  ShieldAlert,
   Sparkles,
   UserCheck,
 } from "lucide-react";
@@ -25,6 +29,10 @@ import {
   getProductApiToken,
   isInvalidOrExpiredTokenError,
 } from "../lib/clerkToken";
+import { isProductApiUnavailableError } from "../services/productApi";
+import { syncOpportunityPreferences } from "../services/opportunityPreferences";
+import { COUNTRIES } from "../data/countries";
+import MultiSelectDropdown from "./ui/MultiSelectDropdown";
 import PullToRefresh from "./ui/PullToRefresh";
 import ProfileQuickStats from "./ProfileQuickStats";
 import { useProfileStats } from "../hooks/useProfileStats";
@@ -113,6 +121,81 @@ function calculateAge(dateOfBirth: string) {
   return age >= 0 ? age : null;
 }
 
+/**
+ * Map raw transport errors to copy a member can act on. The raw messages
+ * ("Invalid or expired token", "Product API route unavailable: /profile")
+ * read like internals and users reported them as bugs in themselves.
+ */
+function friendlyProfileError(error: unknown, fallback: string): string {
+  if (isInvalidOrExpiredTokenError(error)) {
+    return "We couldn't verify your session with the server. Signing out and back in usually fixes this.";
+  }
+  if (isProductApiUnavailableError(error)) {
+    return "Edutu's servers are unreachable right now. Your edits stay on this page — try saving again in a moment.";
+  }
+  return error instanceof Error ? error.message : fallback;
+}
+
+const INTEREST_OPTIONS = [
+  "Scholarships",
+  "Fellowships",
+  "Internships",
+  "Grants",
+  "Research",
+  "Exchange programs",
+  "Competitions",
+  "Conferences",
+  "Volunteering",
+  "Bootcamps",
+  "Online courses",
+  "Jobs",
+];
+
+const DESTINATION_OPTIONS = [
+  "United States",
+  "United Kingdom",
+  "Canada",
+  "Germany",
+  "Australia",
+  "France",
+  "Netherlands",
+  "Sweden",
+  "Norway",
+  "Switzerland",
+  "Italy",
+  "Spain",
+  "Ireland",
+  "Japan",
+  "South Korea",
+  "China",
+  "Singapore",
+  "United Arab Emirates",
+  "South Africa",
+  "New Zealand",
+];
+
+function toggleTag(list: string[], value: string): string[] {
+  const exists = list.some((v) => v.toLowerCase() === value.toLowerCase());
+  return exists
+    ? list.filter((v) => v.toLowerCase() !== value.toLowerCase())
+    : [...list, value];
+}
+
+const COUNTRY_FLAGS = new Map(
+  COUNTRIES.map((entry) => [entry.name.toLowerCase(), entry.flag]),
+);
+
+const countryFlag = (name: string) => COUNTRY_FLAGS.get(name.toLowerCase());
+
+// Popular destinations first, then the rest of the catalog — the dropdown's
+// search makes the full list navigable.
+const ALL_COUNTRY_NAMES = [
+  ...DESTINATION_OPTIONS,
+  ...COUNTRIES.map((entry) => entry.name).filter(
+    (name) => !DESTINATION_OPTIONS.includes(name),
+  ),
+];
+
 const FIELD_LABEL_CLASS_NAME = "font-semibold text-text-primary";
 const FIELD_INPUT_CLASS_NAME =
   "h-11 rounded-xl border border-subtle bg-surface-layer px-3 pr-10 font-semibold text-text-secondary";
@@ -124,6 +207,7 @@ const SKILLS_TEXTAREA_CLASS_NAME =
 export default function ProfilePage() {
   const navigate = useNavigate();
   const { getToken } = useClerkAuth();
+  const { user: clerkUser } = useUser();
   const { user, signOut } = useAppAuth();
   // One fetch feeds both the quick-stats tiles and the Recent Activity card.
   const profileStats = useProfileStats();
@@ -138,20 +222,83 @@ export default function ProfilePage() {
   const [cgpa, setCgpa] = useState("");
   const [gradYear, setGradYear] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
-  const [interestedCountriesText, setInterestedCountriesText] = useState("");
-  const [interestsText, setInterestsText] = useState("");
+  const [interestedCountries, setInterestedCountries] = useState<string[]>([]);
+  const [interests, setInterests] = useState<string[]>([]);
   const [skillsText, setSkillsText] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessionBroken, setSessionBroken] = useState(false);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const statusRef = useRef<HTMLDivElement | null>(null);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [baseline, setBaseline] = useState<string | null>(null);
+  const baselinePendingRef = useRef(false);
+
+  const formSnapshot = useMemo(
+    () =>
+      JSON.stringify([
+        fullName,
+        country,
+        school,
+        courseOfStudy,
+        degree,
+        cgpa,
+        gradYear,
+        dateOfBirth,
+        interestedCountries,
+        interests,
+        skillsText,
+      ]),
+    [
+      fullName,
+      country,
+      school,
+      courseOfStudy,
+      degree,
+      cgpa,
+      gradYear,
+      dateOfBirth,
+      interestedCountries,
+      interests,
+      skillsText,
+    ],
+  );
+  const isDirty = baseline !== null && formSnapshot !== baseline;
+
+  // hydrateForm/prefill mark the next rendered snapshot as the clean baseline;
+  // reading it from an effect keeps the comparison in sync with what the
+  // member actually sees in the inputs.
+  useEffect(() => {
+    if (!baselinePendingRef.current) return;
+    baselinePendingRef.current = false;
+    setBaseline(formSnapshot);
+  }, [formSnapshot]);
+
+  useEffect(
+    () => () => {
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    },
+    [],
+  );
+
+  const showSaved = useCallback((message: string) => {
+    setSavedMessage(message);
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    savedTimerRef.current = setTimeout(() => setSavedMessage(null), 4000);
+  }, []);
+
+  const scrollToStatus = useCallback(() => {
+    requestAnimationFrame(() => {
+      statusRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }, []);
 
   const resolveToken = useCallback(async () => {
     const token = await getProductApiToken(getToken, { forceRefresh: true });
-    if (!token)
-      throw new Error(
-        "Your session has expired. Sign in again to manage your profile.",
-      );
+    // Message is a sentinel: isInvalidOrExpiredTokenError routes it to the
+    // session banner instead of the generic error banner.
+    if (!token) throw new Error("Invalid or expired token");
     return token;
   }, [getToken]);
 
@@ -202,52 +349,128 @@ export default function ProfilePage() {
         nextProfile.gradYear == null ? "" : String(nextProfile.gradYear),
       );
       setDateOfBirth(formatDateInput(nextProfile.dateOfBirth));
-      setInterestedCountriesText(
+      setInterestedCountries(
         Array.isArray(nextProfile.interestedCountries)
-          ? nextProfile.interestedCountries.join(", ")
-          : "",
+          ? nextProfile.interestedCountries.filter(Boolean)
+          : [],
       );
-      setInterestsText(
+      setInterests(
         Array.isArray(nextProfile.interests)
-          ? nextProfile.interests.join(", ")
-          : "",
+          ? nextProfile.interests.filter(Boolean)
+          : [],
       );
       setSkillsText(
         Array.isArray(nextProfile.skills) ? nextProfile.skills.join(", ") : "",
       );
+      baselinePendingRef.current = true;
     },
     [user?.email, user?.name],
   );
 
+  /**
+   * When the backend can't be reached the form still opens editable with
+   * whatever Clerk knows client-side, instead of a wall of empty fields.
+   */
+  const prefillFromClerk = useCallback(() => {
+    setFullName((current) => current || clerkUser?.fullName || user?.name || "");
+    setEmail(
+      (current) =>
+        current ||
+        clerkUser?.primaryEmailAddress?.emailAddress ||
+        user?.email ||
+        "",
+    );
+    baselinePendingRef.current = true;
+  }, [clerkUser, user?.email, user?.name]);
+
   const loadProfile = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setSessionBroken(false);
     try {
       hydrateForm(await withFreshTokenRetry(fetchBackendProfile));
     } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Unable to load profile.",
-      );
+      if (isInvalidOrExpiredTokenError(loadError)) {
+        setSessionBroken(true);
+      } else {
+        setError(friendlyProfileError(loadError, "Unable to load profile."));
+      }
+      prefillFromClerk();
     } finally {
       setLoading(false);
     }
-  }, [hydrateForm, withFreshTokenRetry]);
+  }, [hydrateForm, prefillFromClerk, withFreshTokenRetry]);
 
   useEffect(() => {
     void loadProfile();
   }, [loadProfile]);
 
   const skills = useMemo(() => parseSkills(skillsText), [skillsText]);
-  const interestedCountries = useMemo(
-    () => parseSkills(interestedCountriesText),
-    [interestedCountriesText],
-  );
-  const interests = useMemo(() => parseSkills(interestsText), [interestsText]);
   const calculatedAge = useMemo(() => calculateAge(dateOfBirth), [dateOfBirth]);
   const completeness = profile?.completeness;
   const completenessPercent = completeness?.percent ?? 0;
+
+  const handleSignOut = async (destination: string = "/") => {
+    if (isSigningOut) return;
+    setIsSigningOut(true);
+    try {
+      await signOut();
+      navigate(destination);
+    } finally {
+      setIsSigningOut(false);
+    }
+  };
+
+  const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    setSavedMessage(null);
+
+    // Email is deliberately absent: it's the sign-in identity. Changing it
+    // must go through Clerk's verified email flow, not a profile PATCH.
+    const payload: ProfileUpdateInput = {
+      fullName: fullName.trim() || null,
+      country: country.trim() || null,
+      school: school.trim() || null,
+      courseOfStudy: courseOfStudy.trim() || null,
+      degree: degree.trim() || null,
+      cgpa: parseOptionalNumber(cgpa),
+      gradYear: parseOptionalNumber(gradYear),
+      dateOfBirth: dateOfBirth || null,
+      interestedCountries:
+        interestedCountries.length > 0 ? interestedCountries : null,
+      interests: interests.length > 0 ? interests : null,
+      skills: skills.length > 0 ? skills : null,
+    };
+
+    try {
+      hydrateForm(
+        await withFreshTokenRetry((token) =>
+          updateBackendProfile(token, payload),
+        ),
+      );
+      // Ride-along sync of the engine's preferred categories/regions —
+      // best-effort, never blocks or fails the profile save itself.
+      void withFreshTokenRetry((token) =>
+        syncOpportunityPreferences(token, {
+          interests,
+          interestedCountries,
+        }),
+      ).catch(() => {});
+      setSessionBroken(false);
+      showSaved("Profile saved — your matches will use the new details.");
+    } catch (saveError) {
+      if (isInvalidOrExpiredTokenError(saveError)) {
+        setSessionBroken(true);
+      } else {
+        setError(friendlyProfileError(saveError, "Unable to save profile."));
+      }
+    } finally {
+      setSaving(false);
+      scrollToStatus();
+    }
+  };
 
   // Moved here from the dashboard: latest saves and tracked applications,
   // newest first. Same shape the home sidebar used to render.
@@ -276,57 +499,6 @@ export default function ProfilePage() {
       .slice(0, 5);
   }, [profileStats.savedRecords, profileStats.applicationRecords]);
 
-  const handleSignOut = async () => {
-    if (isSigningOut) return;
-    setIsSigningOut(true);
-    try {
-      await signOut();
-      navigate("/");
-    } finally {
-      setIsSigningOut(false);
-    }
-  };
-
-  const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setSaving(true);
-    setError(null);
-    setSavedMessage(null);
-
-    const payload: ProfileUpdateInput = {
-      fullName: fullName.trim() || null,
-      email: email.trim() || null,
-      country: country.trim() || null,
-      school: school.trim() || null,
-      courseOfStudy: courseOfStudy.trim() || null,
-      degree: degree.trim() || null,
-      cgpa: parseOptionalNumber(cgpa),
-      gradYear: parseOptionalNumber(gradYear),
-      dateOfBirth: dateOfBirth || null,
-      interestedCountries:
-        interestedCountries.length > 0 ? interestedCountries : null,
-      interests: interests.length > 0 ? interests : null,
-      skills: skills.length > 0 ? skills : null,
-    };
-
-    try {
-      hydrateForm(
-        await withFreshTokenRetry((token) =>
-          updateBackendProfile(token, payload),
-        ),
-      );
-      setSavedMessage("Profile saved");
-    } catch (saveError) {
-      setError(
-        saveError instanceof Error
-          ? saveError.message
-          : "Unable to save profile.",
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return (
     <div className="min-h-[100dvh] bg-surface-body text-text-primary">
       <PullToRefresh
@@ -347,15 +519,22 @@ export default function ProfilePage() {
                   Your profile
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-text-secondary">
-                  Keep your details current so Edutu can tune recommendations,
-                  deadlines, and application support around you.
+                  Your details power your matches and deadlines.
                 </p>
               </div>
               <div className="rounded-2xl border border-subtle bg-surface-elevated p-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand text-base font-semibold text-white">
-                    {displayName(profile, user?.name).charAt(0).toUpperCase()}
-                  </div>
+                  {clerkUser?.imageUrl ? (
+                    <img
+                      src={clerkUser.imageUrl}
+                      alt=""
+                      className="h-12 w-12 shrink-0 rounded-2xl object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand text-base font-semibold text-white">
+                      {displayName(profile, user?.name).charAt(0).toUpperCase()}
+                    </div>
+                  )}
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold">
                       {displayName(profile, user?.name)}
@@ -366,36 +545,31 @@ export default function ProfilePage() {
                   </div>
                 </div>
                 <div className="mt-5">
-                  <div className="flex items-center justify-between text-sm font-semibold">
-                    <span>Profile completeness</span>
-                    <span className="text-brand">
-                      {completenessPercent}%
-                    </span>
-                  </div>
-                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-elevated">
-                    <div
-                      className="h-full rounded-full bg-brand transition-all"
-                      style={{ width: `${completenessPercent}%` }}
-                    />
-                  </div>
-                  <p className="mt-3 text-xs font-semibold text-text-muted">
+                  {completenessPercent < 100 ? (
+                    <>
+                      <div className="flex items-center justify-between text-sm font-semibold">
+                        <span>Profile completeness</span>
+                        <span className="text-brand">
+                          {completenessPercent}%
+                        </span>
+                      </div>
+                      <div className="mt-3 h-2 overflow-hidden rounded-full border border-subtle bg-surface-body">
+                        <div
+                          className="h-full rounded-full bg-brand transition-all"
+                          style={{ width: `${completenessPercent}%` }}
+                        />
+                      </div>
+                    </>
+                  ) : null}
+                  <p
+                    className={`text-xs font-semibold text-text-muted ${
+                      completenessPercent < 100 ? "mt-3" : "mt-0"
+                    }`}
+                  >
                     Last updated{" "}
                     {formatDate(profile?.updatedAt || profile?.updated_at)}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => void handleSignOut()}
-                  disabled={isSigningOut}
-                  className="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-danger/30 bg-danger/5 px-4 text-sm font-semibold text-danger transition hover:bg-danger/10 disabled:cursor-wait disabled:opacity-60"
-                >
-                  {isSigningOut ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <LogOut size={16} />
-                  )}
-                  {isSigningOut ? "Signing out…" : "Log out"}
-                </button>
               </div>
             </div>
           </section>
@@ -466,17 +640,66 @@ export default function ProfilePage() {
             </section>
           )}
 
-          {error ? (
-            <div className="mt-5 rounded-2xl border border-danger/20 bg-danger/10 p-4 text-sm font-semibold text-danger">
-              {error}
-            </div>
-          ) : null}
+          <div ref={statusRef} aria-live="polite">
+            {sessionBroken ? (
+              <div className="mt-5 rounded-2xl border border-warning/30 bg-warning/10 p-4">
+                <div className="flex items-start gap-3">
+                  <ShieldAlert size={18} className="mt-0.5 shrink-0 text-warning" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-text-primary">
+                      We couldn't verify your session with the server
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-text-secondary">
+                      Your details are safe on this page, but saving needs a
+                      fresh sign-in. If this message comes back right after
+                      you sign in again, the problem is on our side — no need
+                      to keep retrying, we're already on it.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleSignOut("/auth")}
+                        disabled={isSigningOut}
+                        className="inline-flex h-9 items-center gap-2 rounded-xl bg-brand px-3 text-xs font-semibold text-white transition hover:bg-brand-600 disabled:cursor-wait disabled:opacity-60"
+                      >
+                        {isSigningOut ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <LogOut size={14} />
+                        )}
+                        Sign out & back in
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void loadProfile()}
+                        disabled={loading}
+                        className="inline-flex h-9 items-center gap-2 rounded-xl border border-subtle bg-surface-layer px-3 text-xs font-semibold text-text-secondary transition hover:bg-surface-elevated disabled:cursor-wait disabled:opacity-60"
+                      >
+                        <RefreshCw
+                          size={14}
+                          className={loading ? "animate-spin" : undefined}
+                        />
+                        Try again
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
-          {savedMessage ? (
-            <div className="mt-5 rounded-2xl border border-success/20 bg-success/10 p-4 text-sm font-semibold text-success">
-              {savedMessage}
-            </div>
-          ) : null}
+            {error ? (
+              <div className="mt-5 rounded-2xl border border-danger/20 bg-danger/10 p-4 text-sm font-semibold text-danger">
+                {error}
+              </div>
+            ) : null}
+
+            {savedMessage ? (
+              <div className="mt-5 flex items-center gap-2 rounded-2xl border border-success/20 bg-success/10 p-4 text-sm font-semibold text-success">
+                <CheckCircle2 size={17} className="shrink-0" />
+                {savedMessage}
+              </div>
+            ) : null}
+          </div>
 
           <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
             <form
@@ -528,15 +751,15 @@ export default function ProfilePage() {
                       id="profile-email"
                       type="email"
                       value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      className={FIELD_INPUT_CLASS_NAME}
+                      readOnly
+                      disabled
+                      className={`${FIELD_INPUT_CLASS_NAME} cursor-not-allowed opacity-70`}
                       placeholder="you@example.com"
                     />
-                    <PencilLine
-                      size={16}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
-                    />
                   </div>
+                  <span className="mt-1 block text-xs font-medium text-text-muted">
+                    Linked to your sign-in — it can't be edited here.
+                  </span>
                 </div>
 
                 <div className="block">
@@ -544,17 +767,24 @@ export default function ProfilePage() {
                     Country
                   </Label>
                   <div className="relative mt-2">
-                    <Input
+                    <select
                       id="profile-country"
                       value={country}
                       onChange={(event) => setCountry(event.target.value)}
-                      className={FIELD_INPUT_CLASS_NAME}
-                      placeholder="Country or primary market"
-                    />
-                    <PencilLine
-                      size={16}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
-                    />
+                      className="h-11 w-full rounded-xl border border-subtle bg-surface-layer px-3 font-semibold text-text-secondary outline-none focus:border-brand-500/50"
+                    >
+                      <option value="">Select your country…</option>
+                      {/* Keep an unlisted saved value selectable instead of silently clearing it. */}
+                      {country &&
+                      !COUNTRIES.some((entry) => entry.name === country) ? (
+                        <option value={country}>{country}</option>
+                      ) : null}
+                      {COUNTRIES.map((entry) => (
+                        <option key={entry.name} value={entry.name}>
+                          {entry.flag} {entry.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
@@ -685,49 +915,45 @@ export default function ProfilePage() {
                 </div>
 
                 <div className="block sm:col-span-2">
-                  <Label
-                    htmlFor="profile-interested-countries"
-                    className={FIELD_LABEL_CLASS_NAME}
-                  >
+                  <span className={`block text-sm ${FIELD_LABEL_CLASS_NAME}`}>
                     Interested countries
-                  </Label>
-                  <div className="relative mt-2">
-                    <Input
-                      id="profile-interested-countries"
-                      value={interestedCountriesText}
-                      onChange={(event) =>
-                        setInterestedCountriesText(event.target.value)
-                      }
-                      className={FIELD_INPUT_CLASS_NAME}
-                      placeholder="Canada, Germany, United Kingdom"
-                    />
-                    <PencilLine
-                      size={16}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
-                    />
-                  </div>
+                  </span>
+                  <p className="mb-2 mt-1 text-xs font-medium text-text-muted">
+                    Pick the countries you'd study or work in.
+                  </p>
+                  <MultiSelectDropdown
+                    label="Interested countries"
+                    options={ALL_COUNTRY_NAMES}
+                    selected={interestedCountries}
+                    onToggle={(value) =>
+                      setInterestedCountries((current) =>
+                        toggleTag(current, value),
+                      )
+                    }
+                    placeholder="Select countries…"
+                    searchPlaceholder="Search countries…"
+                    optionPrefix={countryFlag}
+                  />
                 </div>
 
                 <div className="block sm:col-span-2">
-                  <Label
-                    htmlFor="profile-interests"
-                    className={FIELD_LABEL_CLASS_NAME}
-                  >
-                    Opportunity interest tags
-                  </Label>
-                  <div className="relative mt-2">
-                    <Input
-                      id="profile-interests"
-                      value={interestsText}
-                      onChange={(event) => setInterestsText(event.target.value)}
-                      className={FIELD_INPUT_CLASS_NAME}
-                      placeholder="Scholarships, fellowships, internships, research"
-                    />
-                    <PencilLine
-                      size={16}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
-                    />
-                  </div>
+                  <span className={`block text-sm ${FIELD_LABEL_CLASS_NAME}`}>
+                    Opportunity interests
+                  </span>
+                  <p className="mb-2 mt-1 text-xs font-medium text-text-muted">
+                    Pick everything you want Edutu to hunt for.
+                  </p>
+                  <MultiSelectDropdown
+                    label="Opportunity interests"
+                    options={INTEREST_OPTIONS}
+                    selected={interests}
+                    onToggle={(value) =>
+                      setInterests((current) => toggleTag(current, value))
+                    }
+                    placeholder="Select interests…"
+                    searchPlaceholder="Search or add your own…"
+                    allowCustom
+                  />
                 </div>
 
                 <div className="block sm:col-span-2">
@@ -755,23 +981,32 @@ export default function ProfilePage() {
                 <Button
                   type="submit"
                   variant="primary"
-                  disabled={saving || loading}
+                  disabled={saving || loading || !isDirty}
                 >
                   {saving ? (
                     <Loader2 size={17} className="animate-spin" />
                   ) : (
                     <Save size={17} />
                   )}
-                  Save profile
+                  {saving
+                    ? "Saving…"
+                    : isDirty
+                      ? "Save changes"
+                      : "Saved"}
                 </Button>
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => navigate("/opportunities")}
+                  onClick={() => navigate("/app/opportunities")}
                 >
                   <Briefcase size={17} />
                   View matches
                 </Button>
+                {isDirty ? (
+                  <span className="text-xs font-semibold text-text-muted">
+                    Unsaved changes
+                  </span>
+                ) : null}
               </div>
             </form>
 
@@ -856,42 +1091,6 @@ export default function ProfilePage() {
                   </p>
                 )}
               </div>
-
-              {interestedCountries.length > 0 ? (
-                <div
-                  className="rounded-[20px] border border-subtle bg-surface-layer p-5 shadow-soft"
-                >
-                  <p className="text-sm font-semibold">Interested countries</p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {interestedCountries.map((countryName) => (
-                      <span
-                        key={countryName}
-                        className="rounded-xl bg-success/10 px-2.5 py-1 text-xs font-semibold text-success"
-                      >
-                        {countryName}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {interests.length > 0 ? (
-                <div
-                  className="rounded-[20px] border border-subtle bg-surface-layer p-5 shadow-soft"
-                >
-                  <p className="text-sm font-semibold">Interest tags</p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {interests.map((interest) => (
-                      <span
-                        key={interest}
-                        className="rounded-xl bg-accent/10 px-2.5 py-1 text-xs font-semibold text-accent"
-                      >
-                        {interest}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
 
               {skills.length > 0 ? (
                 <div

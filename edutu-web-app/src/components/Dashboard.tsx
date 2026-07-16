@@ -41,6 +41,7 @@ import { ImpressionTracker } from "./opportunity/ImpressionTracker";
 import { getApplications } from "../services/applications";
 import { getDeadlines, type Deadline } from "../services/deadlines";
 import { fetchBackendProfile, type BackendProfile } from "../services/profile";
+import { fetchHeroBanners } from "../services/webConfig";
 import type { UserProfileForRecommendations } from "../services/personalizedRecommendations";
 import type { Opportunity } from "../types/opportunity";
 import {
@@ -540,8 +541,18 @@ const BannerCarousel = React.memo(function BannerCarousel({
           : {}
       }
     >
-      <div
-        className="relative block w-full overflow-hidden"
+      <a
+        href={banners[current].url || undefined}
+        target={banners[current].url?.startsWith("http") ? "_blank" : undefined}
+        rel={
+          banners[current].url?.startsWith("http")
+            ? "noopener noreferrer"
+            : undefined
+        }
+        aria-label={banners[current].title}
+        className={`relative block w-full overflow-hidden ${
+          banners[current].url ? "cursor-pointer" : "pointer-events-none"
+        }`}
         style={mobileHeight ? { height: mobileHeight } : { aspectRatio: "1200 / 300" }}
       >
         <img
@@ -561,7 +572,7 @@ const BannerCarousel = React.memo(function BannerCarousel({
             {banners[current].subtitle}
           </span>
         </div>
-      </div>
+      </a>
     </div>
   );
 });
@@ -759,6 +770,29 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       isMatchEnabled: boolean;
     } | null>(null);
     const [backendProfile, setBackendProfile] = useState<BackendProfile | null>(null);
+    // Hero banners are admin-managed (Settings → Web hero banners); the
+    // hardcoded defaults only show until the public config loads or when the
+    // admin list is empty/unreachable.
+    const [heroBanners, setHeroBanners] = useState<BannerAd[]>(DEFAULT_BANNERS);
+
+    useEffect(() => {
+      let cancelled = false;
+      fetchHeroBanners().then((remote) => {
+        if (cancelled || remote.length === 0) return;
+        setHeroBanners(
+          remote.map((banner) => ({
+            image: banner.imageUrl,
+            url: banner.linkUrl || "",
+            alt: banner.title,
+            title: banner.title,
+            subtitle: banner.subtitle || "",
+          })),
+        );
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, []);
 
     const {
       isInstallable,
@@ -1633,80 +1667,59 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: 100 }}
                   transition={{ duration: 0.3 }}
-                  className={`profile-completion-card rounded-[20px] border border-warning/30 bg-warning/10 p-5`}
+                  className="profile-completion-card relative overflow-hidden rounded-[20px] border border-subtle bg-surface-layer shadow-soft"
                 >
-                  <div className="flex items-start gap-4">
-                    <div
-                      className={`shrink-0 rounded-xl bg-warning/20 p-2.5 text-warning`}
-                    >
-                      <UserCheck size={20} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h3 className="text-sm font-semibold tracking-wider text-text-primary mb-1">
-                            {t("dashboard.completeProfile")}
-                          </h3>
-                          <p className="text-xs font-medium text-text-muted">
-                            {t("dashboard.profileBanner.unlock", { score: profileScore.score })}
-                          </p>
-                          {profileScore.missingFields.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              {profileScore.missingFields
-                                .slice(0, 3)
-                                .map((field) => (
-                                  <span
-                                    key={field}
-                                    className={`rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-text-secondary`}
-                                  >
-                                    {field}
-                                  </span>
-                                ))}
-                              {profileScore.missingFields.length > 3 && (
-                                <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-warning">
-                                  {t("dashboard.moreCount", { count: profileScore.missingFields.length - 3 })}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => setDismissBanner(true)}
-                          aria-label="Dismiss profile banner"
-                          className={`rounded-lg p-1 text-text-muted transition-colors hover:bg-surface-elevated`}
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
-                      <div className="mt-3 space-y-3">
-                        <div className="h-2 bg-surface-elevated rounded-full overflow-hidden">
-                          <motion.div
-                            initial={prefersReducedMotion ? false : { width: 0 }}
-                            animate={{ width: `${profileScore.score}%` }}
-                            transition={{ duration: 0.8, ease: "easeOut" }}
-                            className={`h-full rounded-full ${
-                              profileScore.score >= 60
-                                ? "bg-gradient-to-r from-emerald-500 to-emerald-400"
-                                : "bg-gradient-to-r from-amber-500 to-amber-400"
-                            }`}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <button
-                            onClick={() => setActivePanel("profile")}
-                            className="text-xs font-semibold tracking-widest text-brand-500 hover:text-brand-600 transition-colors"
-                          >
-                            {t("dashboard.reviewProfile")}
-                          </button>
-                          {!profileScore.isMatchEnabled && (
-                            <span className="text-[10px] font-bold text-warning tracking-wider">
-                              {t("dashboard.needForMatches")}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActivePanel("profile")}
+                    className="group flex w-full items-center gap-3.5 p-4 pr-11 text-left transition hover:bg-surface-elevated/60"
+                  >
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">
+                      <UserCheck size={19} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-baseline justify-between gap-2">
+                        <span className="truncate text-sm font-semibold text-text-primary">
+                          {t("dashboard.completeProfile")}
+                        </span>
+                        <span className="shrink-0 text-xs font-bold text-brand-600">
+                          {profileScore.score}%
+                        </span>
+                      </span>
+                      <span className="mt-0.5 block truncate text-xs font-medium text-text-muted">
+                        {!profileScore.isMatchEnabled
+                          ? t("dashboard.needForMatches")
+                          : profileScore.missingFields.length > 0
+                            ? `Next: ${profileScore.missingFields[0]}`
+                            : t("dashboard.profileBanner.unlock", {
+                                score: profileScore.score,
+                              })}
+                      </span>
+                      <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-surface-elevated">
+                        <motion.span
+                          initial={prefersReducedMotion ? false : { width: 0 }}
+                          animate={{ width: `${profileScore.score}%` }}
+                          transition={{ duration: 0.8, ease: "easeOut" }}
+                          className={`block h-full rounded-full ${
+                            profileScore.score >= 60
+                              ? "bg-gradient-to-r from-emerald-500 to-emerald-400"
+                              : "bg-gradient-to-r from-amber-500 to-amber-400"
+                          }`}
+                        />
+                      </span>
+                    </span>
+                    <ChevronRight
+                      size={17}
+                      className="shrink-0 text-text-muted transition group-hover:translate-x-0.5 group-hover:text-brand-500"
+                    />
+                  </button>
+                  <button
+                    onClick={() => setDismissBanner(true)}
+                    aria-label="Dismiss profile banner"
+                    className="absolute right-2 top-2 rounded-lg p-1 text-text-muted transition-colors hover:bg-surface-elevated"
+                  >
+                    <X size={14} />
+                  </button>
                 </motion.section>
               )}
             </AnimatePresence>
@@ -1735,7 +1748,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                 <button
                   type="button"
                   onClick={() => routerNavigate("/app/personalization")}
-                  className="group flex w-full items-center gap-4 rounded-[24px] border border-brand-200 bg-gradient-to-r from-brand-50 to-white p-4 text-left shadow-sm transition hover:border-brand-300 hover:shadow-md"
+                  className="group flex w-full items-center gap-4 rounded-[24px] border border-subtle bg-gradient-to-r from-surface-brand to-surface p-4 text-left shadow-sm transition hover:border-brand-500/40 hover:shadow-md"
                 >
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-600">
                     <Sparkles size={19} />
@@ -1812,7 +1825,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
             ) : null}
 
             <section className="sm:hidden mb-6">
-              <BannerCarousel banners={DEFAULT_BANNERS} mobileHeight="150px" />
+              <BannerCarousel banners={heroBanners} mobileHeight="150px" />
             </section>
 
             {/* Your Best Shots — the winnable shortlist, always above the feed */}
@@ -2094,7 +2107,7 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                   </div>
 
                   <div className="hidden sm:block mb-6">
-                    <BannerCarousel banners={DEFAULT_BANNERS} />
+                    <BannerCarousel banners={heroBanners} />
                   </div>
 
                   {viewMode === "grid" ? (
@@ -2254,18 +2267,8 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
           </main>
         </div>
 
-        {/* Footer with Dark Mode Toggle */}
-        <footer
-          className={`mx-auto hidden max-w-[1500px] border-t border-subtle px-4 py-6 sm:px-6 lg:block lg:px-8`}
-        >
-          <div className="flex items-center justify-between">
-            <p
-              className="text-xs text-text-muted"
-            >
-              © {new Date().getFullYear()} Edutu. All rights reserved.
-            </p>
-          </div>
-        </footer>
+        {/* Footer now comes from AppWorkspaceShell (AppFooter) so every
+            screen gets it, not just the dashboard. */}
       </div>
     );
   },

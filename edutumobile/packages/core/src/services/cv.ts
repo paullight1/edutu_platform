@@ -292,9 +292,16 @@ export async function fetchUserCVs(
 
     if (error) throw error;
     const remote = (data || []).map(mapUserCV);
-    // Keep offline-saved CVs visible until they exist in the cloud.
-    if (!remote.length) return readLocalCVs(userId);
-    return remote;
+    // Keep offline-saved CVs visible until they exist in the cloud — merged,
+    // not either/or, so a CV whose cloud write failed doesn't vanish from the
+    // list the moment the user also has cloud CVs.
+    const local = await readLocalCVs(userId);
+    const remoteIds = new Set(remote.map((cv) => cv.id));
+    const pending = local.filter((cv) => !remoteIds.has(cv.id));
+    if (!pending.length) return remote;
+    return [...pending, ...remote].sort((a, b) =>
+      (b.updated_at || '').localeCompare(a.updated_at || ''),
+    );
   } catch {
     return readLocalCVs(userId);
   }
@@ -383,9 +390,11 @@ export async function updateUserCV(
 
     if (error) throw error;
     return mapUserCV(data);
-  } catch {
+  } catch (error) {
     const current = await readLocalCVById(cvId);
-    if (!current) throw new Error('CV not found');
+    // A cloud CV isn't in local storage: surface the real failure instead of
+    // a misleading "not found".
+    if (!current) throw error;
     const updated: UserCV = {
       ...current,
       ...updates,
@@ -403,17 +412,40 @@ export async function deleteUserCV(
   supabase: SupabaseClient,
   cvId: string,
 ): Promise<void> {
+  let cloudDeleted = false;
+  let cloudError: unknown = null;
   try {
-    const { error } = await supabase.from('user_cvs').delete().eq('id', cvId);
+    // .select('id') so an RLS-blocked delete (0 rows, no error) is
+    // distinguishable from a real one.
+    const { data, error } = await supabase
+      .from('user_cvs')
+      .delete()
+      .eq('id', cvId)
+      .select('id');
     if (error) throw error;
-  } catch {
-    const current = await readLocalCVById(cvId);
-    if (!current) return;
+    cloudDeleted = (data || []).length > 0;
+  } catch (error) {
+    cloudError = error;
+  }
+
+  // Always drop any offline copy too: deleting a local-only id in the cloud
+  // affects zero rows without an error, and the CV would resurrect on reload.
+  const current = await readLocalCVById(cvId);
+  if (current) {
     const userCvs = await readLocalCVs(current.user_id);
     await writeLocalCVs(
       current.user_id,
       userCvs.filter((item) => item.id !== cvId),
     );
+    return;
+  }
+
+  if (!cloudDeleted) {
+    // Nothing was deleted anywhere — surface it so the UI doesn't confirm a
+    // delete that reappears on reload.
+    throw cloudError instanceof Error
+      ? cloudError
+      : new Error('CV could not be deleted');
   }
 }
 

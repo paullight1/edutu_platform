@@ -10,6 +10,15 @@ import { opportunitySubmissions } from "../db/schema";
 import { toDatabaseUserId } from "../common/user-id";
 import { NotificationsService } from "../notifications/notifications.service";
 import { OpportunitiesService } from "../opportunities/opportunities.service";
+import {
+  MonetizationService,
+  type CreditCharge,
+} from "../monetization/monetization.service";
+import { SettingsService } from "../settings/settings.service";
+import {
+  DEFAULT_ADMIN_SETTINGS,
+  type UserContentSettings,
+} from "../settings/settings.dto";
 import type {
   SubmitOpportunityDto,
   RespondSubmissionDto,
@@ -25,38 +34,107 @@ export class OpportunitySubmissionsService {
   constructor(
     private readonly notificationsService: NotificationsService,
     private readonly opportunitiesService: OpportunitiesService,
+    private readonly settingsService: SettingsService,
+    private readonly monetizationService: MonetizationService,
   ) {}
 
   // ─── User side ──────────────────────────────────────────────────────────
 
   async submit(userId: string, dto: SubmitOpportunityDto) {
     const dbUserId = toDatabaseUserId(userId);
+    const policy = await this.getUserContentPolicy();
 
-    const [row] = await db
-      .insert(opportunitySubmissions)
-      .values({
-        userId: dbUserId,
-        title: dto.title,
-        organization: dto.organization,
-        category: dto.category,
-        type: dto.type,
-        summary: dto.summary,
-        description: dto.description,
-        location: dto.location,
-        isRemote: dto.isRemote ?? false,
-        eligibility: dto.eligibility,
-        benefits: dto.benefits,
-        deadline: dto.deadline ? new Date(dto.deadline) : null,
-        applyUrl: dto.applyUrl,
-        sourceUrl: dto.sourceUrl,
-        imageUrl: dto.imageUrl,
-        extra: dto.extra ?? {},
-        status: "pending",
-        thread: [],
-      })
-      .returning();
+    // Admin-controlled posting fee: check-and-debit atomically BEFORE the
+    // insert (throws 402 { error: "insufficient_credits", required, balance }
+    // when the balance can't cover it), refund if the insert then fails.
+    let charge: CreditCharge | null = null;
+    if (policy.paidSubmissions && policy.submissionCostCredits > 0) {
+      charge = await this.monetizationService.chargeCredits(
+        userId,
+        policy.submissionCostCredits,
+        "opportunity_submission_fee",
+        `Opportunity submission fee (${policy.submissionCostCredits} credits)`,
+      );
+    }
+
+    let row: typeof opportunitySubmissions.$inferSelect;
+    try {
+      // Status is always forced to `pending` server-side — the client cannot
+      // submit straight to `approved` regardless of the approval knob.
+      [row] = await db
+        .insert(opportunitySubmissions)
+        .values({
+          userId: dbUserId,
+          title: dto.title,
+          organization: dto.organization,
+          category: dto.category,
+          type: dto.type,
+          summary: dto.summary,
+          description: dto.description,
+          location: dto.location,
+          isRemote: dto.isRemote ?? false,
+          eligibility: dto.eligibility,
+          benefits: dto.benefits,
+          deadline: dto.deadline ? new Date(dto.deadline) : null,
+          applyUrl: dto.applyUrl,
+          sourceUrl: dto.sourceUrl,
+          imageUrl: dto.imageUrl,
+          extra: dto.extra ?? {},
+          status: "pending",
+          thread: [],
+        })
+        .returning();
+    } catch (error) {
+      if (charge) await this.monetizationService.refundCredits(charge);
+      throw error;
+    }
+
+    // Admin approval switched off → publish immediately. Best-effort: if the
+    // catalog insert fails the submission simply stays in the review queue
+    // (never refunded — the submission itself succeeded).
+    if (!policy.requireApproval) {
+      row = (await this.autoPublish(row)) ?? row;
+    }
 
     return this.serialize(row);
+  }
+
+  private async getUserContentPolicy(): Promise<UserContentSettings> {
+    try {
+      const { settings } = await this.settingsService.getSettings();
+      return settings.userContent ?? DEFAULT_ADMIN_SETTINGS.userContent;
+    } catch {
+      // Fail SAFE: default policy reviews everything and charges nothing.
+      return DEFAULT_ADMIN_SETTINGS.userContent;
+    }
+  }
+
+  // Publish a submission straight to the live catalog (requireApproval off).
+  private async autoPublish(
+    row: typeof opportunitySubmissions.$inferSelect,
+  ): Promise<typeof opportunitySubmissions.$inferSelect | null> {
+    try {
+      const opportunityId = await this.createOpportunityFromSubmission(
+        row,
+        "active",
+      );
+      const [updated] = await db
+        .update(opportunitySubmissions)
+        .set({
+          status: "approved",
+          approvedOpportunityId: opportunityId,
+          updatedAt: new Date(),
+        })
+        .where(eq(opportunitySubmissions.id, row.id))
+        .returning();
+      return updated ?? null;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(
+        `Auto-publish failed for submission ${row.id}; left in review queue: ${message}`,
+      );
+      return null;
+    }
   }
 
   async listMine(userId: string) {
@@ -218,21 +296,26 @@ export class OpportunitySubmissionsService {
     return this.serialize(updated);
   }
 
-  private async createOpportunityFromSubmission(row: {
-    title: string;
-    summary: string | null;
-    description: string | null;
-    category: string | null;
-    organization: string | null;
-    location: string | null;
-    type: string | null;
-    eligibility: string | null;
-    isRemote: boolean | null;
-    deadline: Date | null;
-    applyUrl: string | null;
-    sourceUrl: string | null;
-    imageUrl: string | null;
-  }): Promise<string | null> {
+  private async createOpportunityFromSubmission(
+    row: {
+      title: string;
+      summary: string | null;
+      description: string | null;
+      category: string | null;
+      organization: string | null;
+      location: string | null;
+      type: string | null;
+      eligibility: string | null;
+      isRemote: boolean | null;
+      deadline: Date | null;
+      applyUrl: string | null;
+      sourceUrl: string | null;
+      imageUrl: string | null;
+    },
+    // Admin approvals keep the normal verification pipeline (pending_review);
+    // auto-publish (requireApproval off) goes straight to `active`.
+    status: "pending_review" | "active" = "pending_review",
+  ): Promise<string | null> {
     try {
       const created = await this.opportunitiesService.create({
         title: row.title,
@@ -248,9 +331,9 @@ export class OpportunitySubmissionsService {
         applyUrl: row.applyUrl ?? undefined,
         sourceUrl: row.sourceUrl ?? undefined,
         imageUrl: row.imageUrl ?? undefined,
-        // Approved submissions still go through the normal review/verification
-        // pipeline rather than publishing straight to `active`.
-        status: "pending_review",
+        // Admin approvals go through the normal review/verification pipeline
+        // (pending_review); auto-publish passes `active`.
+        status,
       } as any);
       return (created as { id?: string })?.id ?? null;
     } catch (e) {

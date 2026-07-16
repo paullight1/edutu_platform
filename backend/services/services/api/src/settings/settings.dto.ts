@@ -148,6 +148,41 @@ const PaywallSettingsSchema = z.object({
   defaultPlan: z.enum(["weekly", "monthly", "yearly"]).default("weekly"),
 });
 
+// Admin-managed content for the public web app (served unauthenticated on
+// GET /public/web-config), starting with the dashboard hero carousel. Keep
+// every field defaulted/lenient: admin_settings writes must stay within this
+// schema or mergeAdminSettings parse throws and ALL settings fall back to
+// defaults. No secrets here — this group is public.
+const WebHeroBannerSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+  title: z.string().trim().min(1).max(160),
+  subtitle: z.string().trim().max(300).default(""),
+  // Deliberately not z.url(): a malformed stored URL must degrade to a broken
+  // image on the web client, not blow up the entire settings merge.
+  imageUrl: z.string().trim().min(1).max(1000),
+  linkUrl: z.string().trim().max(1000).default(""),
+  enabled: z.boolean().default(true),
+});
+
+const WebContentSettingsSchema = z.object({
+  heroBanners: z.array(WebHeroBannerSchema).max(8).default([]),
+});
+
+// Admin knobs for user-submitted content (community opportunity submissions).
+// The policy is public (mirrored on GET /public/web-config as `submissions`)
+// — no secrets here. Own top-level group (not inside `content`) because older
+// admin clients rebuild known groups from known keys on save and would
+// silently strip unknown nested fields. Every field is defaulted so a write
+// that omits the group can never break the mergeAdminSettings parse.
+const UserContentSettingsSchema = z.object({
+  // Submissions stay in the admin review queue until approved; off = a user
+  // submission publishes to the catalog immediately.
+  requireApproval: z.boolean().default(true),
+  // Charge credits for each user submission (cost below).
+  paidSubmissions: z.boolean().default(false),
+  submissionCostCredits: z.number().int().min(0).max(100_000).default(0),
+});
+
 const PricingSettingsSchema = z.object({
   currency: z.string().trim().min(3).max(4),
   weeklyPrice: z.number().min(0).max(10_000_000).default(2000),
@@ -187,12 +222,17 @@ export const AdminSettingsSchema = z.object({
   mobileApp: MobileAppSettingsSchema.optional(),
   pricing: PricingSettingsSchema.optional(),
   paywall: PaywallSettingsSchema.optional(),
+  webContent: WebContentSettingsSchema.optional(),
+  userContent: UserContentSettingsSchema.optional(),
 });
 
 export type ModuleAccess = z.infer<typeof ModuleAccessSchema>;
 export type MobileAppSettings = z.infer<typeof MobileAppSettingsSchema>;
 export type PricingSettings = z.infer<typeof PricingSettingsSchema>;
 export type PaywallSettings = z.infer<typeof PaywallSettingsSchema>;
+export type WebHeroBanner = z.infer<typeof WebHeroBannerSchema>;
+export type WebContentSettings = z.infer<typeof WebContentSettingsSchema>;
+export type UserContentSettings = z.infer<typeof UserContentSettingsSchema>;
 
 export type AdminSettingsDto = z.infer<typeof AdminSettingsSchema>;
 
@@ -202,6 +242,8 @@ type ResolvedAdminSettings = AdminSettingsDto & {
   mobileApp: MobileAppSettings;
   pricing: PricingSettings;
   paywall: PaywallSettings;
+  webContent: WebContentSettings;
+  userContent: UserContentSettings;
 };
 
 export interface AdminSettingsResponse {
@@ -310,6 +352,16 @@ export const DEFAULT_ADMIN_SETTINGS: ResolvedAdminSettings = {
     heroStyle: "collage",
     defaultPlan: "weekly",
   },
+  // No banners = the web app keeps its built-in hardcoded hero carousel.
+  webContent: {
+    heroBanners: [],
+  },
+  // User submissions: reviewed before publishing, free to submit.
+  userContent: {
+    requireApproval: true,
+    paidSubmissions: false,
+    submissionCostCredits: 0,
+  },
 };
 
 export function mergeAdminSettings(value: unknown): ResolvedAdminSettings {
@@ -381,7 +433,16 @@ export function mergeAdminSettings(value: unknown): ResolvedAdminSettings {
       features:
         partial.paywall?.features ?? DEFAULT_ADMIN_SETTINGS.paywall.features,
     },
-    // mobileApp, pricing + paywall are always constructed above; the schema
-    // marks them optional only for inbound payload compatibility.
+    webContent: {
+      heroBanners:
+        partial.webContent?.heroBanners ??
+        DEFAULT_ADMIN_SETTINGS.webContent.heroBanners,
+    },
+    userContent: {
+      ...DEFAULT_ADMIN_SETTINGS.userContent,
+      ...(partial.userContent ?? {}),
+    },
+    // mobileApp, pricing, paywall, webContent + userContent are always constructed above;
+    // the schema marks them optional only for inbound payload compatibility.
   }) as ResolvedAdminSettings;
 }

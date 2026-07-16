@@ -18,6 +18,7 @@ import {
     X,
 } from 'lucide-react';
 import { backendFetchJson } from '../lib/backend';
+import { exportToCSV } from '../utils/export-csv';
 
 interface AdminUserRecord {
     userId: string;
@@ -386,6 +387,41 @@ const Users = () => {
         });
     }, [filteredUsers, selectedUsers, users]);
 
+    // Brevo contact-import CSV: header must be exactly EMAIL,FIRSTNAME,LASTNAME.
+    // Uses the full loaded user list (GET /admin/users returns every profile),
+    // skips rows without a real email and dedupes by lowercased email.
+    const handleBrevoExport = useCallback(() => {
+        const seen = new Set<string>();
+        const rows: Array<{ EMAIL: string; FIRSTNAME: string; LASTNAME: string }> = [];
+
+        for (const user of users) {
+            const email = user.email?.trim() || '';
+            if (!email.includes('@')) continue;
+
+            const key = email.toLowerCase();
+            if (seen.has(key)) continue;
+            seen.add(key);
+
+            const fullName = user.fullName?.trim() || '';
+            const spaceIndex = fullName.indexOf(' ');
+            const firstName = spaceIndex === -1 ? fullName : fullName.slice(0, spaceIndex);
+            const lastName = spaceIndex === -1 ? '' : fullName.slice(spaceIndex + 1).trim();
+
+            rows.push({ EMAIL: email, FIRSTNAME: firstName, LASTNAME: lastName });
+        }
+
+        if (rows.length === 0) {
+            setBanner({ type: 'warning', message: 'No users with an email address to export.' });
+            return;
+        }
+
+        exportToCSV(rows, `edutu-brevo-contacts-${new Date().toISOString().slice(0, 10)}`);
+        setBanner({
+            type: 'success',
+            message: `Exported ${rows.length} contact${rows.length === 1 ? '' : 's'} in Brevo import format.`,
+        });
+    }, [users]);
+
     const handleResetFilters = useCallback(() => {
         setSearchQuery('');
         setRoleFilter('all');
@@ -589,6 +625,14 @@ const Users = () => {
                     <button className="btn btn-secondary" onClick={handleExport}>
                         <Download size={18} />
                         Export
+                    </button>
+                    <button
+                        className="btn btn-secondary"
+                        onClick={handleBrevoExport}
+                        title="Download all user emails as a Brevo contact-import CSV (EMAIL,FIRSTNAME,LASTNAME)"
+                    >
+                        <Mail size={18} />
+                        Export emails (Brevo)
                     </button>
                     <button
                         className="btn btn-primary"

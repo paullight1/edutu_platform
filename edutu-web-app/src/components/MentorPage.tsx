@@ -507,40 +507,21 @@ const MentorPage: React.FC = () => {
                         transition={{ duration: 0.5 }}
                         className="max-w-[1200px] mx-auto px-4 sm:px-6 py-16 text-center"
                     >
-                        <div
-                            className="relative overflow-hidden rounded-3xl p-8 md:p-12 text-white shadow-elevated"
-                            style={{
-                                backgroundImage: "linear-gradient(135deg, rgba(8,8,8,0.78), rgba(20,110,245,0.64)), url('https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg')",
-                                backgroundSize: 'cover',
-                                backgroundPosition: 'center',
-                            }}
-                        >
-                            <div className="relative z-10">
-                                <MessageCircle size={30} className="mx-auto mb-5" />
-                                <h2 className="font-display text-2xl md:text-3xl font-semibold tracking-tight mb-4">Guide learners into funded opportunities</h2>
-                                <p className="max-w-2xl mx-auto text-white/80 mb-8">
-                                    Share your journey, then guide learners with a clearer path, better tools, and more confidence.
-                                </p>
-                                <div className="mb-8 flex flex-wrap items-center justify-center gap-3">
-                                    {[
-                                        { label: 'Scholarships', icon: BookOpen },
-                                        { label: 'Applications', icon: FileCheck },
-                                        { label: 'Global Reach', icon: Globe },
-                                    ].map((item) => (
-                                        <div key={item.label} className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold bg-white/20 border border-white/30">
-                                            <item.icon size={14} />
-                                            {item.label}
-                                        </div>
-                                    ))}
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={startApplication}
-                                    className="inline-flex items-center gap-2 rounded-full px-8 py-4 text-sm font-bold bg-white text-brand transition-all duration-300 hover:scale-[0.98] active:scale-[0.97]"
-                                >
-                                    Become a Mentor <ArrowRight size={16} />
-                                </button>
-                            </div>
+                        {/* Simple brand background (no photo) so the card stays
+                            light to load and legible on small screens. */}
+                        <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-brand to-brand-600 p-8 text-white shadow-elevated md:p-12">
+                            <MessageCircle size={30} className="mx-auto mb-5" />
+                            <h2 className="font-display text-2xl md:text-3xl font-semibold tracking-tight mb-4">Guide learners into funded opportunities</h2>
+                            <p className="max-w-2xl mx-auto text-white/80 mb-8">
+                                Share your journey, then guide learners with a clearer path, better tools, and more confidence.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={startApplication}
+                                className="inline-flex items-center gap-2 rounded-full px-8 py-4 text-sm font-bold bg-white text-brand transition-all duration-300 hover:scale-[0.98] active:scale-[0.97]"
+                            >
+                                Become a Mentor <ArrowRight size={16} />
+                            </button>
                         </div>
                     </motion.section>
                 </main>
