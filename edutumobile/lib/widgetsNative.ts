@@ -17,7 +17,7 @@ export function hasWidgetsNativeModule(): boolean {
   if (Platform.OS !== 'ios') return false;
   if (cached !== undefined) return cached;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+     
     const { requireOptionalNativeModule } = require('expo') as typeof import('expo');
     cached = requireOptionalNativeModule('ExpoWidgets') != null;
   } catch {

@@ -1,3 +1,15 @@
+import { updateDeadlineWidgetTimeline } from '../widgets/DeadlineWidget';
+import { updateChatWidget } from '../widgets/ChatWidget';
+import {
+  getDeadlineWidgetProps,
+  getDeadlineWidgetTimeline,
+  getTrendingWidgetProps,
+  getChatPrompt,
+  syncDeadlineWidget,
+  syncChatWidget,
+} from '../lib/widgetSuiteSync';
+import type { DeadlineItem } from '../packages/core/src/services/deadlines';
+
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(),
   setItem: jest.fn(),
@@ -51,18 +63,6 @@ jest.mock('../widgets/ChatWidget', () => ({
 jest.mock('../lib/widgetLogo', () => ({
   getWidgetLogoUri: jest.fn().mockResolvedValue(undefined),
 }));
-
-import { updateDeadlineWidgetTimeline } from '../widgets/DeadlineWidget';
-import { updateChatWidget } from '../widgets/ChatWidget';
-import {
-  getDeadlineWidgetProps,
-  getDeadlineWidgetTimeline,
-  getTrendingWidgetProps,
-  getChatPrompt,
-  syncDeadlineWidget,
-  syncChatWidget,
-} from '../lib/widgetSuiteSync';
-import type { DeadlineItem } from '../packages/core/src/services/deadlines';
 
 // Noon local time so "today" is unambiguous regardless of the test TZ.
 const now = new Date(2026, 4, 19, 12, 0, 0);

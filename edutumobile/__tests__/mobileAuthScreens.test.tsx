@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Text, View } from 'react-native';
+import { Alert } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 
 const mockReplace = jest.fn();
@@ -26,7 +26,6 @@ let mockSignUpState: {
 
 jest.mock('expo-router', () => {
   const React = require('react');
-  const { Text } = require('react-native');
   return {
     useRouter: () => ({ replace: mockReplace, push: mockPush }),
     Link: ({ children }: { children: React.ReactNode }) => <>{children}</>,

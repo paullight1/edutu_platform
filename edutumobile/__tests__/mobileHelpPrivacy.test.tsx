@@ -1,6 +1,6 @@
 import React from 'react';
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
-import { Linking, Text, View } from 'react-native';
+import { act, render, waitFor } from '@testing-library/react-native';
+import { Linking } from 'react-native';
 
 jest.mock('../components/context/ThemeContext', () => ({
   useTheme: () => ({

@@ -38,7 +38,9 @@ export default function AnimatedBadge({ count, variant = 'default', color, style
                 true
             );
         }
-    }, [variant]);
+        // SharedValues have stable identity — deps satisfy the contract
+        // without re-firing the effect.
+    }, [variant, ringOpacity, ringScale]);
 
     const ringStyle = useAnimatedStyle(() => ({
         transform: [{ scale: ringScale.value }],

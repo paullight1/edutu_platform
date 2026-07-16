@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useReducer } from 'react';
+import { useCallback, useEffect, useReducer } from 'react';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { toSafeUUID } from '../utils/auth';
 
@@ -157,7 +157,7 @@ export function useGoals(supabase: SupabaseClient, userId: string | null, option
     dispatch({ type: 'ADD_GOAL', payload: createdGoal });
     options?.onGoalCreated?.(createdGoal);
     return createdGoal;
-  }, [supabase, userId]);
+  }, [supabase, userId, options]);
 
   const updateGoal = useCallback(async (id: string, updates: GoalUpdate): Promise<void> => {
     if (!userId) throw new Error('User not authenticated');
@@ -176,7 +176,7 @@ export function useGoals(supabase: SupabaseClient, userId: string | null, option
       dispatch({ type: 'UPDATE_GOAL', payload: { id, updates } });
       options?.onGoalUpdated?.(g);
     }
-  }, [supabase, userId]);
+  }, [supabase, userId, options, state.goals]);
 
   const deleteGoal = useCallback(async (id: string): Promise<void> => {
     if (!userId) throw new Error('User not authenticated');
@@ -191,7 +191,7 @@ export function useGoals(supabase: SupabaseClient, userId: string | null, option
 
     dispatch({ type: 'DELETE_GOAL', payload: { id } });
     options?.onGoalDeleted?.(id);
-  }, [supabase, userId]);
+  }, [supabase, userId, options]);
 
   // Import goals from a roadmap
   const importFromRoadmap = useCallback(async (

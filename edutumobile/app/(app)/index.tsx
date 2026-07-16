@@ -27,10 +27,7 @@ import Animated, {
     runOnJS,
     useAnimatedStyle,
     useSharedValue,
-    useReducedMotion,
-    withRepeat,
     withSpring,
-    withTiming,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import * as Haptics from "expo-haptics";
@@ -337,6 +334,7 @@ function EditorTile({
         }
     }, [rect.x, rect.y, rect.w, tile.size, held, px, py, pw, faceH, committedW, resizeActive]);
 
+    /* eslint-disable react-hooks/immutability -- Reanimated SharedValue writes inside gesture worklets (the library's documented imperative API) */
     const pan = Gesture.Pan()
         .enabled(gestureEnabled)
         .activateAfterLongPress(200)
@@ -391,6 +389,7 @@ function EditorTile({
             pw.value = withSpring(committedW.value, TILE_SPRING);
             runOnJS(onResizeEnd)(tile.id);
         });
+    /* eslint-enable react-hooks/immutability */
 
     // Resize wins on the edge strip; the reorder pan only activates once the
     // resize gesture is out of the running (touch outside the strip, or
@@ -488,9 +487,13 @@ function HomeCategoriesEditor({
     // Every tile position derives from the draft order — single source of truth.
     const layout = useMemo(() => computeEditorLayout(draft), [draft]);
     const layoutRef = useRef(layout);
-    layoutRef.current = layout;
     const draftRef = useRef(draft);
-    draftRef.current = draft;
+    // Render-time ref writes are unsafe under concurrent rendering; sync
+    // post-commit — all readers are gesture callbacks, so this is equivalent.
+    useEffect(() => {
+        layoutRef.current = layout;
+        draftRef.current = draft;
+    });
     // Rect of the held tile at pickup — finger math stays anchored to it even
     // as live reorders move the tile's slot underneath.
     const anchorRef = useRef<TileRect | null>(null);
@@ -502,9 +505,13 @@ function HomeCategoriesEditor({
     }, [layout.height, canvasHeight]);
     const canvasStyle = useAnimatedStyle(() => ({ height: canvasHeight.value }));
 
-    useEffect(() => {
+    // Adjust-during-render (React's documented reset-on-prop-change pattern):
+    // re-seed the draft whenever the editor opens or the saved tiles change.
+    const [prevSeed, setPrevSeed] = useState({ visible, tiles });
+    if (prevSeed.visible !== visible || prevSeed.tiles !== tiles) {
+        setPrevSeed({ visible, tiles });
         if (visible) setDraft(tiles);
-    }, [visible, tiles]);
+    }
 
     const handleDragStart = useCallback((id: DiscoveryCategoryId) => {
         anchorRef.current = layoutRef.current.rects.get(id) ?? null;
@@ -1351,86 +1358,6 @@ function BestShotsSection({ bestShots, loading, profileComplete, isDark, textPri
     );
 }
 
-// ─── Compact Recommended Row ─────────────────────────────────────────────────
-// A slim horizontal card (thumbnail + content) used for the home "Recommended"
-// preview so it stays small and multiple rows fit without a giant rail.
-function RecommendedRow({ item, isDark, textPrimary, textSecondary, onPress, onBookmark, onShare, bookmarked = false, index = 0 }: {
-    item: Opportunity;
-    isDark: boolean;
-    textPrimary: string;
-    textSecondary: string;
-    onPress?: () => void;
-    onBookmark?: () => void;
-    onShare?: () => void;
-    bookmarked?: boolean;
-    index?: number;
-}) {
-    const { t } = useTranslation('home');
-    const deadlineBadge = useMemo(() => getDeadlineBadge(item.deadline), [item.deadline]);
-    const deadlineColor = deadlineBadge.level === 'none'
-        ? (isDark ? '#94A3B8' : '#64748B')
-        : urgencyColor(deadlineBadge.level);
-    const matchPct = Math.round(item.match ?? 0);
-    const showMatch = matchPct >= 40;
-    const category = (item.category ?? '').trim();
-    const locationLabel = item.isRemote ? t('opportunityCard.remote') : (item.location ?? '').trim();
-
-    return (
-        <AnimatedPressable
-            onPress={onPress}
-            style={[styles.recRow, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#FFFFFF' }]}
-            entering={FadeInDown.delay(index * 60).duration(300).springify()}
-            hapticFeedback="light"
-            scaleTo={0.98}
-        >
-            {item.image ? (
-                <Image source={{ uri: item.image }} style={styles.recThumb} resizeMode="cover" />
-            ) : (
-                <View style={[styles.recThumb, styles.recThumbFallback]}>
-                    <Sparkles size={20} color="#6366F1" />
-                </View>
-            )}
-            <View style={styles.recBody}>
-                <View style={styles.recTopRow}>
-                    {showMatch ? (
-                        <View style={styles.recMatchBadge}>
-                            <Sparkles size={9} color="#6366F1" />
-                            <Text style={styles.recMatchText}>{t('opportunityCard.percentMatch', { percent: matchPct })}</Text>
-                        </View>
-                    ) : category ? (
-                        <Text style={styles.recCategory} numberOfLines={1}>{category}</Text>
-                    ) : (
-                        <View style={{ flex: 1 }} />
-                    )}
-                    {onBookmark && (
-                        <TouchableOpacity
-                            onPress={(e) => { e.stopPropagation(); onBookmark(); }}
-                            hitSlop={6}
-                            style={styles.bookmarkBtn}
-                        >
-                            <BookmarkPlus size={15} color={bookmarked ? '#6366F1' : textSecondary} fill={bookmarked ? '#6366F1' : 'transparent'} />
-                        </TouchableOpacity>
-                    )}
-                </View>
-                <Text style={[styles.recTitle, { color: textPrimary }]} numberOfLines={2}>{item.title}</Text>
-                <View style={styles.recMetaRow}>
-                    {locationLabel ? (
-                        <View style={styles.recMetaItem}>
-                            <MapPin size={10} color={textSecondary} />
-                            <Text style={[styles.recMetaText, { color: textSecondary }]} numberOfLines={1}>{locationLabel}</Text>
-                        </View>
-                    ) : null}
-                    <View style={styles.recMetaItem}>
-                        <View style={[styles.deadlineDot, { backgroundColor: deadlineColor }]} />
-                        <Text style={[styles.recMetaText, { color: deadlineColor }]}>{deadlineBadge.shortLabel}</Text>
-                    </View>
-                </View>
-            </View>
-            <ChevronRight size={18} color={textSecondary} style={{ alignSelf: 'center' }} />
-        </AnimatedPressable>
-    );
-}
-
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 export default function Dashboard() {
     const { t } = useTranslation('home');
@@ -1503,13 +1430,14 @@ export default function Dashboard() {
     // sheet; the chosen reason routes differently in the ranking engine.
     const [dismissTarget, setDismissTarget] = useState<Opportunity | null>(null);
 
+    const dismissUserId = user?.id;
     const handleDismissReason = useCallback((reason: DismissReason) => {
         const target = dismissTarget;
         setDismissTarget(null);
-        if (!target || !user?.id) return;
-        void dismissOpportunity(user.id, target.id, getToken, 'home_card', reason);
+        if (!target || !dismissUserId) return;
+        void dismissOpportunity(dismissUserId, target.id, getToken, 'home_card', reason);
         noteDismissed(target.id);
-    }, [dismissTarget, user?.id, getToken, noteDismissed]);
+    }, [dismissTarget, dismissUserId, getToken, noteDismissed]);
 
     // Your Best Shots — the winnable few (match >= 60). Computed here rather
     // than inside BestShotsSection so the Recommended grid below can exclude
@@ -2645,78 +2573,6 @@ const styles = StyleSheet.create({
         lineHeight: 15,
         flexShrink: 0,
         includeFontPadding: false,
-    },
-    // Compact recommended row
-    recRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        padding: 10,
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: 'rgba(99,102,241,0.1)',
-        marginBottom: 10,
-    },
-    recThumb: {
-        width: 72,
-        height: 72,
-        borderRadius: 10,
-    },
-    recThumbFallback: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(99,102,241,0.1)',
-    },
-    recBody: {
-        flex: 1,
-        gap: 4,
-    },
-    recTopRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    recMatchBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 3,
-        backgroundColor: 'rgba(99,102,241,0.12)',
-        paddingHorizontal: 7,
-        paddingVertical: 2,
-        borderRadius: 6,
-    },
-    recMatchText: {
-        fontSize: 10,
-        fontWeight: '700',
-        color: '#6366F1',
-    },
-    recCategory: {
-        flex: 1,
-        fontSize: 10,
-        fontWeight: '700',
-        color: '#6366F1',
-        textTransform: 'uppercase',
-        letterSpacing: 0.3,
-    },
-    recTitle: {
-        fontSize: 14,
-        fontWeight: '700',
-        lineHeight: 19,
-    },
-    recMetaRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        flexWrap: 'wrap',
-    },
-    recMetaItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    recMetaText: {
-        fontSize: 11,
-        fontWeight: '600',
     },
     // Empty State Styles
     emptyStateCard: {

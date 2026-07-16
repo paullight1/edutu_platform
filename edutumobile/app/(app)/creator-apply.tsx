@@ -1,8 +1,8 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View, Text, ScrollView, TextInput, TouchableOpacity,
     StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
-    Image, Modal, Animated, Dimensions
+    Image, Animated, useAnimatedValue, Dimensions
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useUser } from '@clerk/clerk-expo';
@@ -10,10 +10,9 @@ import { useRouter } from 'expo-router';
 import { useTranslation, Trans } from 'react-i18next';
 import {
     ChevronLeft, CheckCircle2 as CheckCircle, Star,
-    Send, Info, Sparkles, Briefcase, ChevronDown, ChevronRight,
+    Send, Info, Sparkles, Briefcase, ChevronRight,
     Camera, ExternalLink, Heart, Target, Globe,
-    BookOpen, GraduationCap, Trophy, User, FileText,
-    ArrowRight, Check, Award, Zap
+    BookOpen, GraduationCap, Trophy, User, FileText, Check, Award, Zap
 } from 'lucide-react-native';
 import { useTheme } from '../../components/context/ThemeContext';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';
@@ -66,9 +65,8 @@ export default function CreatorApply() {
     const [loading, setLoading] = useState(false);
     const [uploadingImage, setUploadingImage] = useState(false);
     const [submitted, setSubmitted] = useState(false);
-    const [showTypeModal, setShowTypeModal] = useState(false);
 
-    const slideAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useAnimatedValue(0);
 
     const textPrimary = colors.foreground;
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
@@ -127,7 +125,7 @@ export default function CreatorApply() {
                 setKycPath(data?.path ?? fileName);
                 setKycImage(file.uri);
             }
-        } catch (error: any) {
+        } catch {
             Alert.alert(t('common:states.error'), t('creatorApply.alerts.uploadImageFailed'));
         } finally {
             setUploadingImage(false);

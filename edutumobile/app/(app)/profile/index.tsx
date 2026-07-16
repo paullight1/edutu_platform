@@ -89,11 +89,12 @@ export default function ProfileScreen() {
 
     // Refetch on every focus so returning from the edit screen shows the
     // values that were just saved (the screen stays mounted behind the stack).
+    const userId = user?.id;
     useFocusEffect(
         useCallback(() => {
             let cancelled = false;
             const loadSavedProfile = async () => {
-                if (!user) return;
+                if (!userId) return;
                 const data = await fetchProfile(getToken);
                 if (data && !cancelled) setSavedProfile(data);
             };
@@ -101,7 +102,7 @@ export default function ProfileScreen() {
             return () => {
                 cancelled = true;
             };
-        }, [user?.id, getToken])
+        }, [userId, getToken])
     );
 
     // The contextual nav circle shows Edit only while the profile header is in

@@ -37,16 +37,21 @@ export function AppControlProvider({ children }: { children: React.ReactNode }) 
     const [appControl, setAppControl] = useState<AppControlConfig | null>(null);
     const mountedRef = useRef(true);
 
-    const refresh = useCallback(async () => {
-        try {
-            const config = await fetchMobileControlConfig();
-            if (!mountedRef.current) return;
-            setAppControl(config.appControl);
-            void writeCachedAppControl(config.appControl);
-        } catch {
-            // Fail open: keep whatever state we already have (cache or null).
-        }
-    }, []);
+    // Explicit promise chain (not async/await) so the state update visibly
+    // happens in an async callback, never synchronously during an effect.
+    const refresh = useCallback(
+        () =>
+            fetchMobileControlConfig()
+                .then((config) => {
+                    if (!mountedRef.current) return;
+                    setAppControl(config.appControl);
+                    void writeCachedAppControl(config.appControl);
+                })
+                .catch(() => {
+                    // Fail open: keep whatever state we already have (cache or null).
+                }),
+        [],
+    );
 
     useEffect(() => {
         mountedRef.current = true;

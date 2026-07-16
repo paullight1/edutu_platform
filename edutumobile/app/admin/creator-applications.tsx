@@ -1,8 +1,6 @@
 import { View, Text, FlatList, Image, StyleSheet, ActivityIndicator, Alert, Linking, ScrollView, TouchableOpacity, Modal, TextInput } from "react-native";
 import React, { useState, useCallback, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
-import { useUser } from "@clerk/clerk-expo";
 import { useTranslation } from "react-i18next";
 import {
     Check,
@@ -10,8 +8,6 @@ import {
     ExternalLink,
     User,
     Award,
-    MessageSquare,
-    Eye,
     ChevronRight,
     ShieldCheck,
     Clock,
@@ -22,7 +18,7 @@ import { supabase } from "../../lib/supabase";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import { AnimatedPressable } from "../../components/ui/AnimatedPressable";
 import { AdminGuard } from "../../components/auth/AdminGuard";
-import { FadeInDown, FadeInUp } from "react-native-reanimated";
+import { FadeInDown } from "react-native-reanimated";
 
 // Canonical creator_applications row (see migration 031). Which narrative
 // fields are set depends on the writer: the mobile creator wizard fills the
@@ -62,8 +58,6 @@ const titleCase = (value?: string | null) =>
 function AdminCreatorApplicationsContent() {
     const { t } = useTranslation('misc');
     const { isDark, colors } = useTheme();
-    const router = useRouter();
-    const { user } = useUser();
 
     const [applications, setApplications] = useState<CreatorApplication[]>([]);
     const [loading, setLoading] = useState(true);
@@ -72,31 +66,45 @@ function AdminCreatorApplicationsContent() {
     const [reviewNote, setReviewNote] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [profileCache, setProfileCache] = useState<Record<string, { name: string; email: string; avatar: string }>>({});
-    const [kycUrl, setKycUrl] = useState<string | null>(null);
+    const [signedKycUrl, setSignedKycUrl] = useState<string | null>(null);
 
     // KYC docs live in a PRIVATE bucket. Resolve a short-lived signed URL when
     // an application is opened. Legacy rows may hold a full public URL — use
-    // those as-is for backward compatibility.
+    // those as-is for backward compatibility (derived at render, no effect).
+    const rawKyc = selectedApp?.kyc_image_url ?? null;
+    const directKycUrl = rawKyc && /^https?:\/\//i.test(rawKyc) ? rawKyc : null;
+
+    // Adjust-during-render (React's documented alternative to a state-syncing
+    // effect): clear the stale signed URL when the opened application changes.
+    const [prevRawKyc, setPrevRawKyc] = useState(rawKyc);
+    if (prevRawKyc !== rawKyc) {
+        setPrevRawKyc(rawKyc);
+        setSignedKycUrl(null);
+    }
+
     useEffect(() => {
+        if (!rawKyc || directKycUrl) return;
         let cancelled = false;
-        const raw = selectedApp?.kyc_image_url;
-        if (!raw) { setKycUrl(null); return; }
-        if (/^https?:\/\//i.test(raw)) { setKycUrl(raw); return; }
-        setKycUrl(null);
         supabase.storage
             .from('creator-applications')
-            .createSignedUrl(raw, 3600)
-            .then(({ data }) => { if (!cancelled) setKycUrl(data?.signedUrl ?? null); });
+            .createSignedUrl(rawKyc, 3600)
+            .then(({ data }) => { if (!cancelled) setSignedKycUrl(data?.signedUrl ?? null); });
         return () => { cancelled = true; };
-    }, [selectedApp?.id, selectedApp?.kyc_image_url]);
+    }, [rawKyc, directKycUrl]);
+
+    const kycUrl = directKycUrl ?? signedKycUrl;
 
     const textPrimary = colors.foreground;
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
     const cardBg = colors.card;
     const borderColor = colors.border;
 
-    const fetchApplications = useCallback(async () => {
-        setLoading(true);
+    // Bumped by event handlers to refetch after a review. Loading starts true;
+    // the effect never sets state synchronously (all sets follow an await),
+    // and filter-driven refetches keep showing the previous list (SWR-style).
+    const [reloadNonce, setReloadNonce] = useState(0);
+    useEffect(() => {
+        const fetchApplications = async () => {
         try {
             const query = supabase
                 .from('creator_applications')
@@ -134,9 +142,17 @@ function AdminCreatorApplicationsContent() {
         } finally {
             setLoading(false);
         }
-    }, [filter]);
+        };
+        fetchApplications();
+    }, [filter, t, reloadNonce]);
 
-    useEffect(() => { fetchApplications(); }, [fetchApplications]);
+    // Post-review refetch. Deliberately does NOT flip `loading`: the nonce
+    // defers the fetch to the next effect pass, so a spinner would blank the
+    // list for a full render cycle after every review. Fresh rows swap in
+    // place instead.
+    const refreshApplications = useCallback(() => {
+        setReloadNonce((nonce) => nonce + 1);
+    }, []);
 
     const handleReview = async (applicationId: string, newStatus: 'approved' | 'rejected') => {
         setSubmitting(true);
@@ -170,7 +186,7 @@ function AdminCreatorApplicationsContent() {
 
             setSelectedApp(null);
             setReviewNote('');
-            fetchApplications();
+            refreshApplications();
 
             Alert.alert(
                 t('common:states.success'),
@@ -221,7 +237,7 @@ function AdminCreatorApplicationsContent() {
 
             setSelectedApp(null);
             setReviewNote('');
-            fetchApplications();
+            refreshApplications();
             Alert.alert(t('common:states.success'), newStatus === 'approved' ? t('admin.creatorApplications.alerts.approvedSuccess') : t('admin.creatorApplications.alerts.rejectedSuccess'));
         } finally {
             setSubmitting(false);

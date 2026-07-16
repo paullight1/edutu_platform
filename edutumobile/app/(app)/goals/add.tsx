@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
@@ -18,7 +18,6 @@ import { useTranslation } from 'react-i18next';
 import {
     Target,
     Calendar,
-    Sparkles,
     Flag,
     Clock,
     Layout,
@@ -39,6 +38,9 @@ export default function AddGoalScreen() {
     const { user } = useUser();
     const { createGoal } = useGoals(supabase, user?.id || null);
 
+    // Clock snapshot from mount — render must stay pure; a form session is
+    // minutes long, so day-granularity math off the mount time is fine.
+    const [mountedAt] = useState(() => Date.now());
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [priority, setPriority] = useState<'high' | 'medium' | 'low'>('medium');
@@ -54,7 +56,7 @@ export default function AddGoalScreen() {
     const isTitleValid = title.trim().length >= 3;
     const isTitleTooLong = title.length > 100;
     const deadlineDate = deadline ? new Date(deadline) : null;
-    const isDeadlineValid = deadlineDate && deadlineDate > new Date();
+    const isDeadlineValid = deadlineDate && deadlineDate.getTime() > mountedAt;
     const isDeadlinePast = deadline && deadlineDate && deadlineDate <= new Date();
 
     const canSubmit = isTitleValid && !isTitleTooLong && !isDeadlinePast;
@@ -245,7 +247,7 @@ export default function AddGoalScreen() {
                                 <View style={styles.validationRow}>
                                     <Info size={12} color={colors.accent} />
                                     <Text style={[styles.validationText, { color: colors.accent }]}>
-                                        {t('time.daysFromNow', { count: Math.ceil((deadlineDate!.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) })}
+                                        {t('time.daysFromNow', { count: Math.ceil((deadlineDate!.getTime() - mountedAt) / (1000 * 60 * 60 * 24)) })}
                                     </Text>
                                 </View>
                             )}

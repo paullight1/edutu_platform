@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
-import { Alert, Linking, Share, Text, View, TouchableOpacity } from 'react-native';
+import { Alert, Linking, Share } from 'react-native';
 
 const mockPush = jest.fn();
 const mockBack = jest.fn();

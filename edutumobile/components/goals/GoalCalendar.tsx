@@ -9,7 +9,7 @@ import {
     StyleSheet,
     Dimensions,
 } from 'react-native';
-import { CalendarDays, X, Map, Target, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { CalendarDays, X, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../context/ThemeContext';
 import type { Goal } from '@edutu/core/src/hooks/useGoals';
@@ -88,12 +88,17 @@ export function GoalCalendar({ goals, opportunities = [] }: Props) {
             }));
 
         return [...goalEvents, ...oppEvents].sort((a, b) => a.date.getTime() - b.date.getTime());
-    }, [goals, opportunities, colors.accent]);
+    }, [goals, opportunities, colors.accent, t]);
 
     const eventsOnDay = (d: Date) => events.filter(e => isSameDay(e.date, d));
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Snapshot "today" once per mount (midnight-normalized) so memoized
+    // derivations depending on it stay stable across renders.
+    const today = useMemo(() => {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        return d;
+    }, []);
 
     const stripDays: Date[] = useMemo(() => {
         return Array.from({ length: 30 }, (_, i) => {
@@ -101,7 +106,7 @@ export function GoalCalendar({ goals, opportunities = [] }: Props) {
             d.setDate(today.getDate() + i);
             return d;
         });
-    }, []);
+    }, [today]);
 
     const textSecondary = isDark ? '#94a3b8' : '#64748b';
     const cardBg = isDark ? 'rgba(255,255,255,0.04)' : '#ffffff';
@@ -145,7 +150,11 @@ export function GoalCalendar({ goals, opportunities = [] }: Props) {
         );
     };
 
-    const FullCalendar = () => {
+    // A render helper, not a nested component: declaring a component inside
+    // render creates a new type each pass and remounts the whole subtree. A
+    // plain function call keeps these elements part of this component's tree.
+    // (No hooks inside, so the conversion is safe.)
+    const renderFullCalendar = () => {
         const { year, month } = calMonth;
         const firstDay = startOfMonth(year, month).getDay();
         const totalDays = daysInMonth(year, month);
@@ -305,7 +314,7 @@ export function GoalCalendar({ goals, opportunities = [] }: Props) {
                         </View>
                     </View>
                     <ScrollView showsVerticalScrollIndicator={false}>
-                        <FullCalendar />
+                        {renderFullCalendar()}
                         <View style={{ height: 40 }} />
                     </ScrollView>
                 </View>

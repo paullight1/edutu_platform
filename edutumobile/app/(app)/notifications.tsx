@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
     View,
     Text,
@@ -52,8 +52,10 @@ export default function NotificationsScreen() {
         deleteNotification
     } = useNotifications(supabase, user?.id || null, getToken);
 
-    // Track previous unread count for haptic feedback
-    const [prevUnreadCount, setPrevUnreadCount] = useState(0);
+    // Track previous unread count for haptic feedback. A ref (not state):
+    // it is only read/written inside the effect below, so re-rendering for it
+    // was wasted work and tripped set-state-in-effect.
+    const prevUnreadCountRef = useRef(0);
 
     // Trending news — published Edutu blog posts (global opportunities,
     // deadlines round-ups, tips). Best-effort: the section hides on failure.
@@ -73,10 +75,11 @@ export default function NotificationsScreen() {
 
     // Trigger haptic when new notifications arrive
     useEffect(() => {
+        const prevUnreadCount = prevUnreadCountRef.current;
         if (unreadCount > prevUnreadCount && prevUnreadCount > 0) {
             notificationService.notify({ haptic: 'medium' });
         }
-        setPrevUnreadCount(unreadCount);
+        prevUnreadCountRef.current = unreadCount;
     }, [unreadCount]);
 
     const backgroundColor = colors.background;

@@ -51,7 +51,10 @@ export function useProfileCompleteness(supabase: SupabaseClient, userId: string 
         hasEducation: false,
         hasFieldOfStudy: false,
     });
-    const [isLoading, setIsLoading] = useState(false);
+    // Starts true: the mount effect immediately fetches when a user is present,
+    // so rendering "loading" from the first frame avoids a synchronous setState
+    // in the effect. The returned value derives to false while signed out.
+    const [isLoading, setIsLoading] = useState(true);
     const [rawProfile, setRawProfile] = useState<Record<string, any> | null>(null);
 
     const calculateCompleteness = useCallback((profile: Record<string, any>): ProfileCompleteness => {
@@ -101,24 +104,25 @@ export function useProfileCompleteness(supabase: SupabaseClient, userId: string 
         };
     }, []);
 
-    const loadProfile = useCallback(async () => {
-        if (!userId) return;
+    // Internal fetch as an explicit promise chain: all state updates happen in
+    // async callbacks, so the mount effect can call this without a synchronous
+    // setState. The public loadProfile below keeps the loading flip for manual
+    // refresh callers (event-handler context).
+    const fetchProfile = useCallback((): Promise<void> => {
+        if (!userId) return Promise.resolve();
 
-        setIsLoading(true);
-        try {
-            const lookupIds = getUserLookupIds(userId);
+        const lookupIds = getUserLookupIds(userId);
 
-            const [profileResult, prefsResult] = await Promise.all([
-                supabase
-                    .from('profiles')
-                    .select('*')
-                    .in('user_id', lookupIds),
-                supabase
-                    .from('user_opportunity_preferences')
-                    .select('*')
-                    .in('user_id', lookupIds),
-            ]);
-
+        return Promise.all([
+            supabase
+                .from('profiles')
+                .select('*')
+                .in('user_id', lookupIds),
+            supabase
+                .from('user_opportunity_preferences')
+                .select('*')
+                .in('user_id', lookupIds),
+        ]).then(([profileResult, prefsResult]) => {
             const profileData = preferCurrentUserRow(profileResult.data, userId) || {};
             const prefsData = preferCurrentUserRow(prefsResult.data, userId) || {};
             const storedPrefs = profileData.preferences || {};
@@ -145,12 +149,20 @@ export function useProfileCompleteness(supabase: SupabaseClient, userId: string 
             setRawProfile(mergedProfile);
             const calculated = calculateCompleteness(mergedProfile);
             setCompleteness(calculated);
-        } catch (error) {
-            console.error('Error loading profile for completeness check:', error);
-        } finally {
-            setIsLoading(false);
-        }
+        })
+            .catch((error: unknown) => {
+                console.error('Error loading profile for completeness check:', error);
+            })
+            .finally(() => {
+                setIsLoading(false);
+            });
     }, [supabase, userId, calculateCompleteness]);
+
+    const loadProfile = useCallback(async () => {
+        if (!userId) return;
+        setIsLoading(true);
+        return fetchProfile();
+    }, [userId, fetchProfile]);
 
     const needsProfileUpdate = useMemo(() => {
         return !completeness.isComplete && completeness.missingCount >= 2;
@@ -162,13 +174,15 @@ export function useProfileCompleteness(supabase: SupabaseClient, userId: string 
 
     useEffect(() => {
         if (userId) {
-            loadProfile();
+            fetchProfile();
         }
-    }, [userId, loadProfile]);
+    }, [userId, fetchProfile]);
 
     return {
         completeness,
-        isLoading,
+        // Never report "loading" while signed out — the mount effect only
+        // fetches when a user is present.
+        isLoading: userId ? isLoading : false,
         rawProfile,
         needsProfileUpdate,
         personalizedMatchEnabled,

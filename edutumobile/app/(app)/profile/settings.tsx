@@ -204,7 +204,7 @@ export default function SettingsScreen() {
                             await user?.delete();
                             await signOut();
                             router.replace('/(auth)/sign-in');
-                        } catch (error) {
+                        } catch {
                             Alert.alert(t('common:states.error'), t('account.deleteError'));
                         }
                     },

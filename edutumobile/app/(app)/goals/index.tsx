@@ -5,14 +5,11 @@ import {
     ScrollView,
     TouchableOpacity,
     TextInput,
-    ActivityIndicator,
-    Alert,
     RefreshControl,
     StyleSheet,
     Dimensions,
     Modal,
     Pressable,
-    Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -39,13 +36,10 @@ import { notificationService } from '../../../lib/notifications';
 import { useGoals } from '@edutu/core/src/hooks/useGoals';
 import { useCreditRewards } from '@edutu/core/src/hooks/useCreditRewards';
 import { useToast } from '../../../components/context/ToastContext';
-import { fetchOpportunities } from '@edutu/core/src/services/opportunities';
 import { toSafeUUID } from '@edutu/core/src/utils/auth';
-import { Opportunity } from '@edutu/core/src/types/opportunity';
 import {
     GoalCard,
     GoalCalendar,
-    UpcomingGoalCard,
     useFilteredGoals,
 } from '../../../components/goals';
 import type { GoalStatusFilter } from '../../../components/goals';
@@ -56,7 +50,6 @@ import * as Haptics from 'expo-haptics';
 
 const { width } = Dimensions.get('window');
 const CARD_GAP = 10;
-const STAT_WIDTH = (width - 32 - CARD_GAP) / 2;
 const GRID_ITEM_WIDTH = (width - 44) / 2;
 
 // ─── Slim Stat Card ──────────────────────────────────────────────────────────
@@ -129,7 +122,6 @@ function EmptySection({
 
 // ─── My Opportunities Card ───────────────────────────────────────────────────
 function MyOpportunitiesCard({ count, urgentCount }: { count: number; urgentCount: number }) {
-    const { isDark } = useTheme();
     const router = useRouter();
     const { t } = useTranslation('goals');
 
@@ -183,10 +175,14 @@ function UpcomingStrip({ goals }: { goals: Goal[] }) {
             .slice(0, 5);
     }, [goals]);
 
+    // Snapshot the clock once — day-granularity math doesn't need a live clock,
+    // and Date.now() during render is impure.
+    const [nowTs] = useState(() => Date.now());
+
     if (upcoming.length === 0) return null;
 
     const getDaysUntil = (deadline: string) => {
-        return Math.ceil((new Date(deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+        return Math.ceil((new Date(deadline).getTime() - nowTs) / (1000 * 60 * 60 * 24));
     };
 
     return (
@@ -251,7 +247,7 @@ export default function GoalsDashboard() {
     const router = useRouter();
     const { t } = useTranslation('goals');
 
-    const { goals, isLoading, updateGoal, deleteGoal } = useGoals(supabase, user?.id || null, {
+    const { goals, updateGoal, deleteGoal } = useGoals(supabase, user?.id || null, {
         onGoalCreated: async (goal) => {
             if (goal.deadline) {
                 const nid = await notificationService.scheduleGoalReminder(goal.id, goal.title, goal.deadline);
@@ -309,43 +305,46 @@ export default function GoalsDashboard() {
     }, [updateGoal, award, goals, showToast]);
 
     const [bookmarkedOpps, setBookmarkedOpps] = useState<{ id: string, title: string, closeDate: string }[]>([]);
-    const [personalizedOpps, setPersonalizedOpps] = useState<Opportunity[]>([]);
-    const [loadingOpps, setLoadingOpps] = useState(false);
     const [dismissedBanner, setDismissedBanner] = useState(false);
 
-    const loadBookmarks = useCallback(async () => {
-        if (!user?.id) return;
-        try {
-            const { data: bookmarks, error } = await supabase
-                .from('bookmarks')
-                .select('id, opportunity_id')
-                .eq('user_id', toSafeUUID(user.id));
+    // Promise-chain style (not async/await) so every setState lives in an
+    // async callback — the set-state-in-effect rule treats awaited sets in a
+    // named async callee as synchronous.
+    const loadBookmarks = useCallback(() => {
+        const uid = user?.id;
+        if (!uid) return Promise.resolve();
+        return supabase
+            .from('bookmarks')
+            .select('id, opportunity_id')
+            .eq('user_id', toSafeUUID(uid))
+            .then(({ data: bookmarks, error }) => {
+                if (error || !bookmarks || bookmarks.length === 0) {
+                    setBookmarkedOpps([]);
+                    return;
+                }
 
-            if (error || !bookmarks || bookmarks.length === 0) {
-                setBookmarkedOpps([]);
-                return;
-            }
-
-            const oppIds = bookmarks.map(b => b.opportunity_id);
-            const { data: opportunities } = await supabase
-                .from('opportunities')
-                .select('id, title, close_date')
-                .in('id', oppIds);
-
-            if (opportunities) {
-                const formatted = opportunities
-                    .map(o => ({
-                        id: o.id,
-                        title: o.title || t('dashboard.opportunityFallback'),
-                        closeDate: o.close_date,
-                    }))
-                    .filter(o => o.closeDate);
-                setBookmarkedOpps(formatted);
-            }
-        } catch (e) {
-            console.error('Error loading bookmarks for calendar:', e);
-        }
-    }, [user?.id]);
+                const oppIds = bookmarks.map(b => b.opportunity_id);
+                return supabase
+                    .from('opportunities')
+                    .select('id, title, close_date')
+                    .in('id', oppIds)
+                    .then(({ data: opportunities }) => {
+                        if (opportunities) {
+                            const formatted = opportunities
+                                .map(o => ({
+                                    id: o.id,
+                                    title: o.title || t('dashboard.opportunityFallback'),
+                                    closeDate: o.close_date,
+                                }))
+                                .filter(o => o.closeDate);
+                            setBookmarkedOpps(formatted);
+                        }
+                    });
+            })
+            .then(undefined, (e) => {
+                console.error('Error loading bookmarks for calendar:', e);
+            });
+    }, [user?.id, t]);
 
     useEffect(() => {
         loadBookmarks();
@@ -353,6 +352,9 @@ export default function GoalsDashboard() {
 
     const [statusFilter, setStatusFilter] = useState<GoalStatusFilter>('all');
     const [searchTerm, setSearchTerm] = useState('');
+    // Snapshot the clock once — day-granularity urgency math doesn't need a
+    // live clock, and Date.now() during render is impure.
+    const [nowTs] = useState(() => Date.now());
     const [showFilterMenu, setShowFilterMenu] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -471,7 +473,7 @@ export default function GoalsDashboard() {
                     count={bookmarkedOpps.length}
                     urgentCount={bookmarkedOpps.filter(o => {
                         if (!o.closeDate) return 0;
-                        const days = Math.ceil((new Date(o.closeDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                        const days = Math.ceil((new Date(o.closeDate).getTime() - nowTs) / (1000 * 60 * 60 * 24));
                         return days <= 7 && days >= 0 ? 1 : 0;
                     }).length}
                 />

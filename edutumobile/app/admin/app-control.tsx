@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -66,30 +66,30 @@ function AppControlAdminContent() {
     const inputBg = isDark ? 'rgba(255,255,255,0.05)' : '#F8FAFC';
     const inputBorder = isDark ? 'rgba(255,255,255,0.10)' : '#E2E8F0';
 
-    const load = useCallback(async () => {
-        setLoading(true);
-        const response = await requestProductApi<AdminSettingsPayload>(
-            '/admin/settings',
-            {},
-            getToken,
-        );
-        if (response?.settings) {
-            setFullSettings(response.settings);
-            const mobileApp = response.settings.mobileApp;
-            setControl({
-                forceUpdate: { ...OPEN_APP_CONTROL.forceUpdate, ...(mobileApp?.forceUpdate ?? {}) },
-                maintenance: { ...OPEN_APP_CONTROL.maintenance, ...(mobileApp?.maintenance ?? {}) },
-                moduleLocks: mobileApp?.moduleLocks ?? {},
-            });
-        } else {
-            Alert.alert('Error', 'Could not load app control settings. Check your connection and admin access.');
-        }
-        setLoading(false);
-    }, [getToken]);
-
+    // Loading starts true and the effect-local loader only sets state after
+    // the await, so nothing is set synchronously during the effect.
     useEffect(() => {
+        const load = async () => {
+            const response = await requestProductApi<AdminSettingsPayload>(
+                '/admin/settings',
+                {},
+                getToken,
+            );
+            if (response?.settings) {
+                setFullSettings(response.settings);
+                const mobileApp = response.settings.mobileApp;
+                setControl({
+                    forceUpdate: { ...OPEN_APP_CONTROL.forceUpdate, ...(mobileApp?.forceUpdate ?? {}) },
+                    maintenance: { ...OPEN_APP_CONTROL.maintenance, ...(mobileApp?.maintenance ?? {}) },
+                    moduleLocks: mobileApp?.moduleLocks ?? {},
+                });
+            } else {
+                Alert.alert('Error', 'Could not load app control settings. Check your connection and admin access.');
+            }
+            setLoading(false);
+        };
         void load();
-    }, [load]);
+    }, [getToken]);
 
     const handleSave = async () => {
         if (!fullSettings) return;

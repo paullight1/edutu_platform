@@ -59,8 +59,17 @@ function LottieRefreshOverlay({ refreshing, top = 6 }: { refreshing: boolean; to
   // in gives the bounce; a quick fade handles the way out.
   const progress = useSharedValue(0);
   // Keep the Lottie mounted through the exit animation so it doesn't pop.
-  const [mounted, setMounted] = useState(false);
+  const [mounted, setMounted] = useState(refreshing);
   const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Mount as soon as `refreshing` flips true — adjust-during-render (React's
+  // documented alternative to a state-setting effect). Unmounting stays async:
+  // it happens after the exit animation completes.
+  const [prevRefreshing, setPrevRefreshing] = useState(refreshing);
+  if (prevRefreshing !== refreshing) {
+    setPrevRefreshing(refreshing);
+    if (refreshing) setMounted(true);
+  }
 
   useEffect(() => {
     if (exitTimer.current) {
@@ -68,7 +77,6 @@ function LottieRefreshOverlay({ refreshing, top = 6 }: { refreshing: boolean; to
       exitTimer.current = null;
     }
     if (refreshing) {
-      setMounted(true);
       progress.value = withSpring(1, { damping: 8, stiffness: 150, mass: 0.7 });
     } else {
       progress.value = withTiming(0, { duration: 240 });

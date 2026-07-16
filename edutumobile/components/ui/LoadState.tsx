@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-    Animated,
+    Animated, useAnimatedValue,
     StyleProp,
     StyleSheet,
     Text,
@@ -58,8 +58,8 @@ export function LoadState({
     const { t } = useTranslation('common');
     const { isDark, colors } = useTheme();
     const [showSlow, setShowSlow] = useState(false);
-    const opacity = useRef(new Animated.Value(0)).current;
-    const spin = useRef(new Animated.Value(0)).current;
+    const opacity = useAnimatedValue(0);
+    const spin = useAnimatedValue(0);
 
     const hasError = Boolean(error);
     const showNotice = hasError || showSlow;
@@ -77,10 +77,19 @@ export function LoadState({
         }).start();
     }, [showNotice, opacity]);
 
+    // Reset the slow notice whenever the error state or the threshold changes —
+    // adjust-during-render (React's documented alternative to a state-resetting
+    // effect).
+    const [prevSlowKey, setPrevSlowKey] = useState<string>(`${hasError}|${slowAfterMs}`);
+    const slowKey = `${hasError}|${slowAfterMs}`;
+    if (prevSlowKey !== slowKey) {
+        setPrevSlowKey(slowKey);
+        setShowSlow(false);
+    }
+
     // Slow-load timer — only while genuinely loading (not already errored).
     useEffect(() => {
         if (hasError) return;
-        setShowSlow(false);
         const id = setTimeout(() => setShowSlow(true), slowAfterMs);
         return () => clearTimeout(id);
     }, [hasError, slowAfterMs]);

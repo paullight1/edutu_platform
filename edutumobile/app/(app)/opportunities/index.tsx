@@ -11,20 +11,18 @@ import {
   TextInput,
   View,
   Dimensions,
-  Animated,
+  Animated, useAnimatedValue,
   Easing,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { SvgXml } from 'react-native-svg';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import {
   Award,
   ArrowLeft,
   ChevronRight,
   Compass,
-  MessageCircle,
   BookmarkPlus,
   LayoutGrid,
   CheckCircle2,
@@ -59,7 +57,6 @@ import { getDeadlineBadge, urgencyColor } from '@edutu/core/src/utils/deadline';
 import { LinearGradient } from 'expo-linear-gradient';
 import { syncAndUpdateOpportunityWidgetSnapshot } from '../../../lib/opportunityWidgetSync';
 import { AdBanner, BANNER_PRESETS } from '../../../components/ui/AdBanner';
-import { DiscoveryCategoryIcon, getDiscoveryCategoryIconSource, getDiscoveryCategoryIconXml } from '../../../lib/discoveryCategoryIcons';
 import { DISCOVERY_CATEGORY_CATALOG, normalizeDiscoveryCategoryId, type DiscoveryCategoryId } from '../../../lib/discoveryCategories';
 import { DISCOVERY_TILE_GLYPHS, DISCOVERY_TILE_GRADIENTS } from '../../../lib/discoveryTileGlyphs';
 import { shareOpportunity } from '../../../lib/shareOpportunity';
@@ -187,6 +184,14 @@ function getCategoryIcon(category: string) {
   if (cat.includes('intern')) return Users;
   if (cat.includes('fellow')) return Sparkles;
   return Compass;
+}
+
+// Render helper (not a component): getCategoryIcon returns a stable component
+// from a lookup table, but assigning it to a local inside a component render
+// reads as a component definition to the compiler (static-components).
+function renderCategoryIcon(category: string, size: number, color: string) {
+  const CategoryIcon = getCategoryIcon(category);
+  return <CategoryIcon size={size} color={color} />;
 }
 
 function shuffleOpportunities(items: Opportunity[], seed: number): Opportunity[] {
@@ -403,101 +408,9 @@ function FeatureCard({
   );
 }
 
-function DiscoveryCategorySvgIcon({ type }: { type: DiscoveryCategoryIcon }) {
-  const xml = getDiscoveryCategoryIconXml(type);
-
-  if (xml) {
-    return <SvgXml xml={xml} width={40} height={40} />;
-  }
-
-  return (
-    <Image
-      source={getDiscoveryCategoryIconSource(type)}
-      style={{ width: 40, height: 40 }}
-      resizeMode="contain"
-    />
-  );
-}
-
-// ─── Featured Card (For You horizontal scroll) ──────────────────────────────
-function FeaturedCard({ item, onPress, onShare, colors, isDark, cardStyle }: { item: Opportunity; onPress: () => void; onShare: (item: Opportunity) => void; colors: any; isDark: boolean; cardStyle?: any }) {
-  const { t } = useTranslation('opps');
-  const accent = getAccent(item);
-  const deadline = getDeadlineText(item.deadline);
-  const CategoryIcon = getCategoryIcon(item.category);
-
-  return (
-    <Pressable onPress={onPress} style={[styles.featuredCard, cardStyle, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      {item.image ? (
-        <>
-          <Image source={{ uri: item.image }} style={styles.featuredBgImage} resizeMode="cover" />
-          <LinearGradient colors={['rgba(2,6,23,0.05)', 'rgba(2,6,23,0.18)', 'rgba(2,6,23,0.88)']} style={styles.featuredBgImage} />
-        </>
-      ) : (
-        <LinearGradient colors={[`${accent}`, `${accent}80`, '#0B1220']} style={styles.featuredBgImage} />
-      )}
-
-      <View style={styles.featuredTop}>
-        <View style={[styles.featuredMatchBadge, { backgroundColor: `${accent}30` }]}>
-          <Sparkles size={10} color={accent} />
-          <Text style={[styles.featuredMatchText, { color: accent }]}>
-            {item.match ? `${item.match}%` : t('list.card.pick')}
-          </Text>
-        </View>
-        <View style={[styles.featuredChip, { backgroundColor: 'rgba(255,255,255,0.14)' }]}>
-          <Text style={styles.featuredChipText}>{item.category || t('list.card.match')}</Text>
-        </View>
-        {item.stipend && item.stipend > 0 && (
-          <View style={[styles.featuredStipendBadge, { backgroundColor: 'rgba(16,185,129,0.3)' }]}>
-            <DollarSign size={10} color="#10B981" />
-            <Text style={[styles.featuredStipendText, { color: '#10B981' }]}>
-              {item.currency || '$'}{item.stipend >= 1000 ? `${(item.stipend / 1000).toFixed(1)}k` : item.stipend}
-            </Text>
-          </View>
-        )}
-      </View>
-
-      <View style={styles.featuredBody}>
-        <View style={styles.featuredMetaPillRow}>
-          <View style={styles.featuredMetaPill}>
-            <MapPin size={10} color="rgba(255,255,255,0.75)" />
-            <Text style={styles.featuredMetaPillText} numberOfLines={1}>
-              {item.isRemote ? t('shared.remote') : item.location || t('shared.worldwide')}
-            </Text>
-          </View>
-        </View>
-        <Text style={[styles.featuredTitle, { color: colors.foreground }]} numberOfLines={2}>{item.title}</Text>
-        <Text style={[styles.featuredOrg, { color: 'rgba(255,255,255,0.7)' }]} numberOfLines={1}>{item.organization}</Text>
-      </View>
-
-      <View style={styles.featuredFooter}>
-        <View style={[styles.featuredDeadlineBadge, { backgroundColor: `${deadline.color}30` }]}>
-          <Clock size={10} color={deadline.color} />
-          <Text style={[styles.featuredDeadlineText, { color: deadline.color }]}>{deadline.text}</Text>
-        </View>
-        <View style={styles.featuredFooterActions}>
-          <Pressable
-            onPress={(event) => {
-              event.stopPropagation();
-              onShare(item);
-            }}
-            hitSlop={8}
-            style={[styles.featuredArrowBtn, { backgroundColor: 'rgba(255,255,255,0.14)' }]}
-          >
-            <Share2 size={13} color="#FFFFFF" />
-          </Pressable>
-          <View style={[styles.featuredArrowBtn, { backgroundColor: 'rgba(255,255,255,0.14)' }]}>
-            <ChevronRight size={14} color="#FFFFFF" />
-          </View>
-        </View>
-      </View>
-    </Pressable>
-  );
-}
-
 // ─── Skeleton Card (first-load placeholder) ──────────────────────────────────
 function SkeletonCard({ colors }: { colors: any }) {
-  const pulse = useRef(new Animated.Value(0.45)).current;
+  const pulse = useAnimatedValue(0.45);
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -527,7 +440,6 @@ function DetailCard({ item, onPress, onShare, colors, isDark }: { item: Opportun
   const { t } = useTranslation('opps');
   const accent = getAccent(item);
   const deadline = getDeadlineText(item.deadline);
-  const CategoryIcon = getCategoryIcon(item.category);
 
   return (
     <Pressable onPress={onPress} style={[styles.detailCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -537,7 +449,7 @@ function DetailCard({ item, onPress, onShare, colors, isDark }: { item: Opportun
           <Image source={{ uri: item.image }} style={styles.detailCardImage} resizeMode="cover" />
         ) : (
           <LinearGradient colors={[`${accent}25`, `${accent}08`]} style={styles.detailCardImageFallback}>
-            <CategoryIcon size={28} color={accent} />
+            {renderCategoryIcon(item.category, 28, accent)}
           </LinearGradient>
         )}
         {item.match >= FOR_YOU_THRESHOLD && (
@@ -631,7 +543,6 @@ function CompactCard({ item, onPress, colors }: { item: Opportunity; onPress: ()
   const { t } = useTranslation('opps');
   const accent = getAccent(item);
   const deadline = getDeadlineText(item.deadline);
-  const CategoryIcon = getCategoryIcon(item.category);
   const locationLabel = item.isRemote ? t('shared.remote') : item.location?.split(',')[0]?.trim();
 
   return (
@@ -641,7 +552,7 @@ function CompactCard({ item, onPress, colors }: { item: Opportunity; onPress: ()
           <Image source={{ uri: item.image }} style={styles.detailCardImage} resizeMode="cover" />
         ) : (
           <LinearGradient colors={[`${accent}25`, `${accent}08`]} style={styles.detailCardImageFallback}>
-            <CategoryIcon size={22} color={accent} />
+            {renderCategoryIcon(item.category, 22, accent)}
           </LinearGradient>
         )}
         {item.match >= FOR_YOU_THRESHOLD && (
@@ -683,11 +594,10 @@ function CompactCard({ item, onPress, colors }: { item: Opportunity; onPress: ()
 }
 
 // ─── List Row (for list view) ────────────────────────────────────────────────
-function ListRow({ item, onPress, onShare, colors, isDark }: { item: Opportunity; onPress: () => void; onShare: (item: Opportunity) => void; colors: any; isDark: boolean }) {
+function ListRow({ item, onPress, onShare, colors }: { item: Opportunity; onPress: () => void; onShare: (item: Opportunity) => void; colors: any }) {
   const { t } = useTranslation('opps');
   const accent = getAccent(item);
   const deadline = getDeadlineText(item.deadline);
-  const CategoryIcon = getCategoryIcon(item.category);
 
   return (
     <Pressable onPress={onPress} style={[styles.listRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -696,7 +606,7 @@ function ListRow({ item, onPress, onShare, colors, isDark }: { item: Opportunity
         {item.image ? (
           <Image source={{ uri: item.image }} style={styles.listThumb} resizeMode="cover" />
         ) : (
-          <CategoryIcon size={24} color={accent} />
+          renderCategoryIcon(item.category, 24, accent)
         )}
       </View>
 
@@ -752,18 +662,41 @@ export default function OpportunitiesScreen() {
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<Opportunity>>(null);
   const searchInputRef = useRef<TextInput>(null);
-  const searchExpand = useRef(new Animated.Value(0)).current;
-  const scrollY = useRef(new Animated.Value(0)).current;
+  const searchExpand = useAnimatedValue(0);
+  const scrollY = useAnimatedValue(0);
   const { colors, isDark } = useTheme();
-  const [searchTerm, setSearchTerm] = useState('');
+  // Deep link from saved-search alerts: /opportunities?q=... preloads the search.
+  const initialSearchQuery = typeof params.q === 'string' && params.q.trim() ? params.q : '';
+  // normalizeDiscoveryCategoryId also maps legacy slugs (singular forms,
+  // training_conferences → events) onto catalog ids.
+  const normalizedCategoryParam = normalizeDiscoveryCategoryId(
+    typeof params.category === 'string' ? params.category : null,
+  );
+  const [searchTerm, setSearchTerm] = useState(initialSearchQuery);
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortMode, setSortMode] = useState<SortMode>('recommended');
-  const [showSearch, setShowSearch] = useState(false);
+  const [showSearch, setShowSearch] = useState(Boolean(initialSearchQuery));
   const [showMenu, setShowMenu] = useState(false);
-  const [selectedDiscoveryCategory, setSelectedDiscoveryCategory] = useState<DiscoveryCategoryId | null>(null);
+  const [selectedDiscoveryCategory, setSelectedDiscoveryCategory] = useState<DiscoveryCategoryId | null>(normalizedCategoryParam);
   const [shuffleSeed, setShuffleSeed] = useState(0);
+
+  // Adjust-during-render (React's documented alternative to state-syncing
+  // effects): sync search + category state when the route params change.
+  const [prevQParam, setPrevQParam] = useState(params.q);
+  if (prevQParam !== params.q) {
+    setPrevQParam(params.q);
+    if (typeof params.q === 'string' && params.q.trim()) {
+      setSearchTerm(params.q);
+      setShowSearch(true);
+    }
+  }
+  const [prevCategoryParam, setPrevCategoryParam] = useState(normalizedCategoryParam);
+  if (prevCategoryParam !== normalizedCategoryParam) {
+    setPrevCategoryParam(normalizedCategoryParam);
+    setSelectedDiscoveryCategory(normalizedCategoryParam);
+  }
 
   // Debounce the search term (~250ms) so typing stays smooth.
   useEffect(() => {
@@ -775,11 +708,13 @@ export default function OpportunitiesScreen() {
   // callbacks live in refs because FlatList requires stable identities for
   // the viewability pair across renders (and key={viewMode} remounts).
   const impressionContextRef = useRef({ getToken, surface: 'explore_list' });
-  const viewabilityConfig = useRef({
+  // Lazy useState instead of useRef(...).current: identical stable identity
+  // without reading a ref during render.
+  const [viewabilityConfig] = useState(() => ({
     itemVisiblePercentThreshold: 60,
     minimumViewTime: 500,
-  }).current;
-  const onViewableItemsChanged = useRef(
+  }));
+  const [onViewableItemsChanged] = useState(() =>
     ({ viewableItems }: {
       viewableItems: Array<{ item: Opportunity; index: number | null; isViewable: boolean }>;
     }) => {
@@ -789,7 +724,7 @@ export default function OpportunitiesScreen() {
         markImpression(item.id, surface, index ?? -1, getTokenNow);
       });
     },
-  ).current;
+  );
 
   // Settled search queries are browse intent the engine can learn from
   // (category affinity via query terms, later query understanding). Deduped
@@ -819,32 +754,19 @@ export default function OpportunitiesScreen() {
     }, []),
   );
 
+  // Single choke point for category browse intent: home tiles, the in-screen
+  // chooser, and deep links all land here. category_view feeds the ranking
+  // engine's category affinity directly (no opportunityId — payload in details).
   useEffect(() => {
-    const categoryParam = typeof params.category === 'string' ? params.category : null;
-    // normalizeDiscoveryCategoryId also maps legacy slugs (singular forms,
-    // training_conferences → events) onto catalog ids.
-    const normalized = normalizeDiscoveryCategoryId(categoryParam);
-    setSelectedDiscoveryCategory(normalized);
-    // Single choke point for category browse intent: home tiles, the in-screen
-    // chooser, and deep links all land here. category_view feeds the ranking
-    // engine's category affinity directly (no opportunityId — payload in details).
-    if (normalized) {
+    if (normalizedCategoryParam) {
       void recordOpportunitySignal({
         signalType: 'category_view',
         source: 'mobile_explore',
         context: 'category_browse',
-        details: { category: normalized },
+        details: { category: normalizedCategoryParam },
       }, getToken);
     }
-  }, [params.category, getToken]);
-
-  // Deep link from saved-search alerts: /opportunities?q=... preloads the search.
-  useEffect(() => {
-    if (typeof params.q === 'string' && params.q.trim()) {
-      setSearchTerm(params.q);
-      setShowSearch(true);
-    }
-  }, [params.q]);
+  }, [normalizedCategoryParam, getToken]);
 
   useEffect(() => {
     Animated.timing(searchExpand, {
@@ -901,15 +823,19 @@ export default function OpportunitiesScreen() {
   const showForYouOnly = params.view === 'foryou';
   const isCategoryPage = Boolean(selectedDiscoveryCategory);
   // Keep the impression callback's context current without breaking the
-  // stable-identity requirement on the viewability pair.
-  impressionContextRef.current = {
-    getToken,
-    surface: showForYouOnly
-      ? 'explore_for_you'
-      : selectedDiscoveryCategory
-        ? 'explore_category'
-        : 'explore_list',
-  };
+  // stable-identity requirement on the viewability pair. Render-time ref
+  // writes are unsafe under concurrent rendering; the reader
+  // (onViewableItemsChanged) fires post-commit, so an effect write is fine.
+  useEffect(() => {
+    impressionContextRef.current = {
+      getToken,
+      surface: showForYouOnly
+        ? 'explore_for_you'
+        : selectedDiscoveryCategory
+          ? 'explore_category'
+          : 'explore_list',
+    };
+  });
   const pageTitle = selectedDiscoveryCategory ? t(getDiscoveryPageTitle(selectedDiscoveryCategory)) : t('list.title');
   const selectedDiscoveryCard = getDiscoveryCard(selectedDiscoveryCategory);
   const pageSubtitle = selectedDiscoveryCategory
@@ -1427,7 +1353,7 @@ export default function OpportunitiesScreen() {
           viewMode === 'grid' ? (
             <DetailCard item={item} colors={colors} isDark={isDark} onShare={handleShareOpportunity} onPress={() => openOpportunity(item.id, showForYouOnly ? 'for_you_grid_open' : 'explore_grid_open')} />
           ) : (
-            <ListRow item={item} colors={colors} isDark={isDark} onShare={handleShareOpportunity} onPress={() => openOpportunity(item.id, showForYouOnly ? 'for_you_list_open' : 'explore_list_open')} />
+            <ListRow item={item} colors={colors} onShare={handleShareOpportunity} onPress={() => openOpportunity(item.id, showForYouOnly ? 'for_you_list_open' : 'explore_list_open')} />
           )
         )}
         ItemSeparatorComponent={() => viewMode === 'list' ? <View style={{ height: 10 }} /> : null}
@@ -1660,26 +1586,6 @@ const styles = StyleSheet.create({
   },
 
   // Featured Card
-  featuredCard: { width: 154, height: 224, borderRadius: 18, borderWidth: 1, overflow: 'hidden', marginRight: 10, justifyContent: 'space-between' },
-  featuredBgImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
-  featuredTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', padding: 9, zIndex: 1, gap: 6 },
-  featuredMatchBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
-  featuredMatchText: { fontSize: 9, fontWeight: '800' },
-  featuredChip: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, maxWidth: 78 },
-  featuredChipText: { color: '#FFFFFF', fontSize: 8, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 },
-  featuredStipendBadge: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
-  featuredStipendText: { fontSize: 10, fontWeight: '800' },
-  featuredBody: { marginTop: 'auto', paddingHorizontal: 10, paddingTop: 22, paddingBottom: 6, zIndex: 1, gap: 6 },
-  featuredMetaPillRow: { flexDirection: 'row', gap: 5, flexWrap: 'wrap' },
-  featuredMetaPill: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.13)' },
-  featuredMetaPillText: { color: 'rgba(255,255,255,0.78)', fontSize: 9, fontWeight: '700', maxWidth: 92 },
-  featuredTitle: { fontSize: 14, lineHeight: 17, fontWeight: '900', color: '#FFFFFF' },
-  featuredOrg: { fontSize: 10, marginTop: 1 },
-  featuredFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10, paddingBottom: 10, paddingTop: 4, zIndex: 1 },
-  featuredDeadlineBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  featuredDeadlineText: { fontSize: 10, fontWeight: '700' },
-  featuredArrowBtn: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  featuredFooterActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 
   // Feature Hub
   featureHubWrap: {

@@ -16,7 +16,6 @@ interface Props {
 const INK = '#111827';
 const SUB = '#4B5563';
 const META = '#6B7280';
-const LINE = '#E5E7EB';
 
 export function CVPreview({ currentCV, onBack, onExport, isExporting }: Props) {
     const { t } = useTranslation('cv');

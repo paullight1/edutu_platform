@@ -33,13 +33,6 @@ import {
   purchasePackage,
   restorePurchases,
 } from '@edutu/core/src/services/payments';
-
-// Both stores REQUIRE their own billing for in-app digital goods (Apple 3.1.1,
-// Google Play Payments). So every on-device purchase goes through RevenueCat
-// (StoreKit on iOS, Play Billing on Android). Only the web build (Platform.OS
-// === 'web', which the stores don't police) uses the pay.edutu.org checkout.
-// The app NEVER routes an iOS/Android user to external payment for Pro.
-const USE_NATIVE_IAP = Platform.OS === 'ios' || Platform.OS === 'android';
 import {
   DEFAULT_PRICING,
   DEFAULT_PAYWALL_CONTENT,
@@ -52,6 +45,14 @@ import {
   buildCheckoutUrl,
 } from '../../lib/pricing';
 import { useTranslation } from 'react-i18next';
+
+// Both stores REQUIRE their own billing for in-app digital goods (Apple 3.1.1,
+// Google Play Payments). So every on-device purchase goes through RevenueCat
+// (StoreKit on iOS, Play Billing on Android). Only the web build (Platform.OS
+// === 'web', which the stores don't police) uses the pay.edutu.org checkout.
+// The app NEVER routes an iOS/Android user to external payment for Pro.
+const USE_NATIVE_IAP = Platform.OS === 'ios' || Platform.OS === 'android';
+
 
 // The paywall is intentionally ALWAYS dark (reference design): the collage of
 // opportunity posters + near-black canvas reads premium in both app themes.
@@ -68,6 +69,11 @@ export default function PaywallScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isPro, isLoading: proLoading, refreshStatus } = useProStatus(supabase, user?.id || null);
+  // Narrowed locals so memoized callbacks depend on exactly these values —
+  // reading `user.id` inside a callback makes the compiler infer a dependency
+  // on the whole `user` object, which breaks manual memoization.
+  const userId = user?.id;
+  const userEmail = user?.primaryEmailAddress?.emailAddress;
 
   const [selectedPlan, setSelectedPlan] = useState<BillingPlan>('weekly');
   const [pricing, setPricing] = useState<PricingConfig>(DEFAULT_PRICING);
@@ -88,8 +94,14 @@ export default function PaywallScreen() {
   // On device we only ever sell via IAP. Track whether offerings are still
   // loading vs unavailable so the CTA can show a spinner / disabled state
   // instead of silently routing to an (store-forbidden) external checkout.
-  const [iapLoading, setIapLoading] = useState(USE_NATIVE_IAP);
-  const [iapUnavailable, setIapUnavailable] = useState(false);
+  // Raw state is only meaningful on the native+signed-in path; the two bail
+  // cases (web build, guest) are derived below instead of synchronously
+  // setState-ing them in the offerings effect.
+  const [iapLoadingRaw, setIapLoading] = useState(USE_NATIVE_IAP);
+  const [iapUnavailableRaw, setIapUnavailable] = useState(false);
+  const iapLoading = user?.id ? iapLoadingRaw : false;
+  // Purchases need an identity, so IAP is unavailable for guests on device.
+  const iapUnavailable = user?.id ? iapUnavailableRaw : USE_NATIVE_IAP;
   // Set true once we hand off to the browser, so the next foreground re-checks
   // Pro (the pay.edutu.org webhook grants it while we're away).
   const awaitingReturnRef = useRef(false);
@@ -98,16 +110,15 @@ export default function PaywallScreen() {
   // RevenueCat. If they can't load we mark IAP unavailable and disable the CTA —
   // we must NOT fall back to an external checkout on device (store policy).
   useEffect(() => {
-    if (!USE_NATIVE_IAP) { setIapLoading(false); return; }
-    // No signed-in user: settle the loading state or the CTA spins forever.
-    // Purchases need an identity anyway, so mark IAP unavailable for guests.
-    if (!user?.id) { setIapUnavailable(true); setIapLoading(false); return; }
+    // Web build and guest cases are derived at render (see the iapLoading /
+    // iapUnavailable locals above) — no synchronous setState here. A userId
+    // change refetches without flipping the loader (accepted SWR-style).
+    const userId = user?.id;
+    if (!USE_NATIVE_IAP || !userId) return;
     let cancelled = false;
-    setIapLoading(true);
-    setIapUnavailable(false);
     (async () => {
       try {
-        const configured = await initRevenueCat(user.id);
+        const configured = await initRevenueCat(userId);
         if (!configured) {
           if (!cancelled) { setIapUnavailable(true); setIapLoading(false); }
           return;
@@ -189,25 +200,25 @@ export default function PaywallScreen() {
       if (!canOpen) throw new Error('cannot open url');
       awaitingReturnRef.current = true;
       await Linking.openURL(url);
-    } catch (error) {
+    } catch {
       awaitingReturnRef.current = false;
       Alert.alert(t('common:states.error'), t('paywall.checkoutFailed'));
     }
   }, [t]);
 
   const redirectToWebCheckout = useCallback(async () => {
-    if (!user?.id) return;
+    if (!userId) return;
     setRedirecting(true);
     const url = buildCheckoutUrl(pricing, {
-      uid: user.id,
-      email: user.primaryEmailAddress?.emailAddress,
+      uid: userId,
+      email: userEmail,
       plan: selectedPlan,
       platform: Platform.OS,
     });
     await openExternal(url);
     // Give the app-switch a beat before releasing the button spinner.
     setTimeout(() => setRedirecting(false), 800);
-  }, [user?.id, user?.primaryEmailAddress?.emailAddress, pricing, selectedPlan, openExternal]);
+  }, [userId, userEmail, pricing, selectedPlan, openExternal]);
 
   const purchaseWithIap = useCallback(async () => {
     if (!selectedPackage) {
@@ -261,7 +272,7 @@ export default function PaywallScreen() {
   }, [refreshStatus, t]);
 
   const handleManage = useCallback(async () => {
-    if (!user?.id) return;
+    if (!userId) return;
     // A store-billed subscription must be managed/cancelled through the store's
     // own UI (Apple/Google) — steering IAP subscribers to an external page is a
     // 3.1.1 violation. Only the web build uses the pay.edutu.org account page.
@@ -274,10 +285,10 @@ export default function PaywallScreen() {
     let token: string | null | undefined = null;
     try { token = await getToken(); } catch { token = null; }
     const base = pricing.manageUrl.replace(/\/$/, '');
-    const q = new URLSearchParams({ uid: user.id });
+    const q = new URLSearchParams({ uid: userId });
     if (token) q.set('t', token);
     await openExternal(`${base}/start?${q.toString()}`);
-  }, [user?.id, pricing.manageUrl, getToken, openExternal]);
+  }, [userId, pricing.manageUrl, getToken, openExternal]);
 
   // Admin pricing is the single source of truth for what we display. When the
   // charge actually goes through Apple IAP, the exact StoreKit price is shown

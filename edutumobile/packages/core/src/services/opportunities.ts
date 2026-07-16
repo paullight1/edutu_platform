@@ -445,10 +445,6 @@ export function evaluateMatch(profile: any, opportunity: any): MatchResult {
   return { score: finalScore, reasons, risks };
 }
 
-function calculateMatchScore(opportunity: any, profile: any): number {
-  return evaluateMatch(profile, opportunity).score;
-}
-
 export async function fetchOpportunities(options: FetchOptions): Promise<Opportunity[]> {
   const { supabase, force, userId, getAuthToken, profileOverride, signal, onSyncSnapshot, excludeOpportunityIds } = options;
   const hasExclusions = Array.isArray(excludeOpportunityIds) && excludeOpportunityIds.length > 0;

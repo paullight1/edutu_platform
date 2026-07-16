@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, Alert, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { X, Crown, Check, Zap, Sparkles, Shield, Star } from 'lucide-react-native';
@@ -14,8 +14,6 @@ interface Props {
     trialUsed: boolean;
     onTrialActivated: () => Promise<void>;
 }
-
-const { width } = Dimensions.get('window');
 
 function PulsingCrown() {
     const scale = useSharedValue(1);
@@ -38,7 +36,9 @@ function PulsingCrown() {
             -1,
             true
         );
-    }, []);
+        // SharedValues have stable identity, so these deps never re-fire the
+        // effect — they only satisfy the compiler's dependency contract.
+    }, [opacity, scale]);
 
     const animatedStyle = useAnimatedStyle(() => ({
         transform: [{ scale: scale.value }],
@@ -54,7 +54,7 @@ function PulsingCrown() {
 
 export function ProUpgradeModal({ visible, onClose, feature, trialUsed, onTrialActivated }: Props) {
     const { t } = useTranslation('cv');
-    const { colors, isDark } = useTheme();
+    const { isDark } = useTheme();
     const router = useRouter();
     const muted = isDark ? '#94A3B8' : '#64748B';
 

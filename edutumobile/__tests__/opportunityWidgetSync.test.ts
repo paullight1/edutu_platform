@@ -1,3 +1,11 @@
+import { updateOpportunityWidgetTimeline } from '../widgets/OpportunityWidget';
+import {
+  getOpportunityWidgetProps,
+  getOpportunityWidgetTimeline,
+  updateOpportunityWidgetFromSnapshot,
+} from '../lib/opportunityWidgetSync';
+import type { OpportunityWidgetSnapshot } from '../lib/mobileControl';
+
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(),
   setItem: jest.fn(),
@@ -18,14 +26,6 @@ jest.mock('../widgets/OpportunityWidget', () => ({
   updateOpportunityWidget: jest.fn(),
   updateOpportunityWidgetTimeline: jest.fn(),
 }));
-
-import { updateOpportunityWidgetTimeline } from '../widgets/OpportunityWidget';
-import {
-  getOpportunityWidgetProps,
-  getOpportunityWidgetTimeline,
-  updateOpportunityWidgetFromSnapshot,
-} from '../lib/opportunityWidgetSync';
-import type { OpportunityWidgetSnapshot } from '../lib/mobileControl';
 
 const baseSnapshot: OpportunityWidgetSnapshot = {
   schemaVersion: 1,

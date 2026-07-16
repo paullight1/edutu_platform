@@ -11,7 +11,6 @@ import Animated, {
     runOnJS,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { useTheme } from '../../components/context/ThemeContext';
 import i18n from '../../lib/i18n';
 
 const { width } = Dimensions.get('window');
@@ -106,26 +105,11 @@ export function AdBanner({
     swipeToDismiss = false,
     index = 0,
 }: AdBannerProps) {
-    const { isDark } = useTheme();
     const IconComponent = config.icon;
     const translateX = useSharedValue(0);
     const opacity = useSharedValue(1);
     const [isDismissed, setIsDismissed] = useState(false);
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    useEffect(() => {
-        if (autoDismiss) {
-            timerRef.current = setTimeout(() => {
-                handleClose();
-            }, AUTO_DISMISS_DELAY);
-        }
-
-        return () => {
-            if (timerRef.current) {
-                clearTimeout(timerRef.current);
-            }
-        };
-    }, [autoDismiss]);
 
     const handleClose = () => {
         if (swipeToDismiss) {
@@ -140,6 +124,28 @@ export function AdBanner({
         }
     };
 
+    // Keep the latest close handler in a ref so the auto-dismiss timer effect
+    // only depends on `autoDismiss` and never re-arms when the parent passes a
+    // new onClose identity.
+    const handleCloseRef = useRef(handleClose);
+    useEffect(() => {
+        handleCloseRef.current = handleClose;
+    });
+
+    useEffect(() => {
+        if (autoDismiss) {
+            timerRef.current = setTimeout(() => {
+                handleCloseRef.current();
+            }, AUTO_DISMISS_DELAY);
+        }
+
+        return () => {
+            if (timerRef.current) {
+                clearTimeout(timerRef.current);
+            }
+        };
+    }, [autoDismiss]);
+
     const panGesture = Gesture.Pan()
         .onUpdate((event) => {
             if (swipeToDismiss) {
@@ -149,6 +155,7 @@ export function AdBanner({
         .onEnd((event) => {
             if (swipeToDismiss && Math.abs(event.translationX) > SWIPE_THRESHOLD) {
                 translateX.value = withSpring(event.translationX > 0 ? width : -width, { damping: 20 });
+                // eslint-disable-next-line react-hooks/immutability -- Reanimated SharedValue write; the library's documented imperative API
                 opacity.value = withTiming(0, { duration: 200 });
                 if (onClose) {
                     setTimeout(onClose, 250);

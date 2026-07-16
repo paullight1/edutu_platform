@@ -91,13 +91,21 @@ export function useOpportunities(options: UseOpportunitiesOptions) {
     excludeOpportunityIdsRef.current = mergedExcludeOpportunityIds;
   }, [mergedExcludeOpportunityIds]);
 
+  // Clear stored dismissals the moment the user signs out —
+  // adjust-during-render (React's documented alternative to a state-resetting
+  // effect).
+  const [prevUserId, setPrevUserId] = useState(userId);
+  if (prevUserId !== userId) {
+    setPrevUserId(userId);
+    if (!userId) setDismissedIds([]);
+  }
+
   // Hydrate the user's stored dismissals so they actually shape the feed
   // (this state previously never left []).
   useEffect(() => {
     let isActive = true;
 
     if (!userId) {
-      setDismissedIds([]);
       return () => {
         isActive = false;
       };
@@ -150,25 +158,8 @@ export function useOpportunities(options: UseOpportunitiesOptions) {
       });
     });
 
-    setState((prev) => {
-      const nextError = refreshIndex === 0 ? null : prev.error;
-      if (prev.data.length > 0 && refreshIndex === 0) {
-        return {
-          ...prev,
-          error: nextError,
-        };
-      }
-
-      if (prev.loading && prev.error === nextError) {
-        return prev;
-      }
-
-      return {
-        ...prev,
-        loading: true,
-        error: nextError
-      };
-    });
+    // Loading starts true (initial state above), so the effect needs no
+    // synchronous setState; manual refresh() flips it back on in the handler.
 
     // Pull-to-refresh drives refreshIndex, which is the same signal we forward
     // to fetchOpportunities as `force`. Forced refreshes always adopt the
@@ -228,6 +219,7 @@ export function useOpportunities(options: UseOpportunitiesOptions) {
   }, [excludeOpportunityIdsKey, profileOverrideKey, refreshIndex, supabase, userId]);
 
   const refresh = useCallback(() => {
+    setState((prev) => (prev.loading ? prev : { ...prev, loading: true }));
     setRefreshIndex((value) => value + 1);
   }, []);
 

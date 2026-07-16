@@ -7,7 +7,7 @@ import { BrandedLoader } from '../../components/ui/BrandedLoader'
 export default function AuthRoutesLayout() {
     const { isSignedIn, isLoaded } = useAuth()
     const { user } = useUser()
-    const { colors, isDark } = useTheme()
+    const { colors } = useTheme()
 
     if (!isLoaded) {
         return (

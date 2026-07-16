@@ -1,12 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useCallback, useRef } from 'react';
 import {
     View,
     Text,
     Modal,
     TouchableOpacity,
     StyleSheet,
-    Dimensions,
-    Platform,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,10 +19,7 @@ import Animated, {
     FadeOut,
 } from 'react-native-reanimated';
 import { Mic, X, Send, Loader2, AlertCircle } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface WaveformBarProps {
     index: number;
@@ -37,7 +32,6 @@ function WaveformBar({ index, isActive, isDark }: WaveformBarProps) {
 
     useEffect(() => {
         if (isActive) {
-            const delay = index * 80;
             const baseHeight = 8 + Math.random() * 32;
 
             height.value = withRepeat(
@@ -53,7 +47,7 @@ function WaveformBar({ index, isActive, isDark }: WaveformBarProps) {
             cancelAnimation(height);
             height.value = withTiming(8, { duration: 200 });
         }
-    }, [isActive, index]);
+    }, [isActive, index, height]);
 
     const animatedStyle = useAnimatedStyle(() => ({
         height: height.value,
@@ -104,36 +98,38 @@ export default function VoiceRecordingModal({
     onReset,
 }: VoiceRecordingModalProps) {
     const { t } = useTranslation('chat');
-    const [autoSendTimeout, setAutoSendTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
+    // The pending auto-send timer never drives rendering — a ref avoids a
+    // synchronous setState inside the effect.
+    const autoSendTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         if (transcript && recordingState === 'idle') {
             const timeout = setTimeout(() => {
                 onSendTranscript(transcript);
             }, 1500);
-            setAutoSendTimeout(timeout);
+            autoSendTimeoutRef.current = timeout;
             return () => clearTimeout(timeout);
         }
     }, [transcript, recordingState, onSendTranscript]);
 
     const handleSend = useCallback(() => {
-        if (autoSendTimeout) {
-            clearTimeout(autoSendTimeout);
-            setAutoSendTimeout(null);
+        if (autoSendTimeoutRef.current) {
+            clearTimeout(autoSendTimeoutRef.current);
+            autoSendTimeoutRef.current = null;
         }
         if (transcript) {
             onSendTranscript(transcript);
         }
-    }, [transcript, onSendTranscript, autoSendTimeout]);
+    }, [transcript, onSendTranscript]);
 
     const handleClose = useCallback(() => {
-        if (autoSendTimeout) {
-            clearTimeout(autoSendTimeout);
-            setAutoSendTimeout(null);
+        if (autoSendTimeoutRef.current) {
+            clearTimeout(autoSendTimeoutRef.current);
+            autoSendTimeoutRef.current = null;
         }
         onReset();
         onClose();
-    }, [onReset, onClose, autoSendTimeout]);
+    }, [onReset, onClose]);
 
     const handleMicPress = useCallback(() => {
         if (recordingState === 'idle' || recordingState === 'error') {

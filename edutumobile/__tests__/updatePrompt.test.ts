@@ -1,11 +1,11 @@
+import { checkForUpdateWithPrompt } from '../lib/updatePrompt';
+
 jest.mock('expo-updates', () => ({
   isEnabled: false,
   checkForUpdateAsync: jest.fn(),
   fetchUpdateAsync: jest.fn(),
   reloadAsync: jest.fn(),
 }));
-
-import { checkForUpdateWithPrompt } from '../lib/updatePrompt';
 
 const createAlert = () => jest.fn<void, [string, string, Array<{ text: string; style?: string; onPress?: () => void }>]>();
 

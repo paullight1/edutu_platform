@@ -24,7 +24,6 @@ import {
     X,
     Edit3,
     ChevronRight,
-    ArrowLeft,
 } from 'lucide-react-native';
 import { useUser } from '@clerk/clerk-expo';
 import { useTranslation } from 'react-i18next';
@@ -64,6 +63,10 @@ export default function GoalDetailScreen() {
     const [progress, setProgress] = useState(goal?.progress || 0);
     const [deadline, setDeadline] = useState(goal?.deadline?.split('T')[0] || '');
     const [loading, setLoading] = useState(false);
+    // Clock snapshot from mount — render must stay pure, and day-granularity
+    // deadline math doesn't need a live clock on a screen that remounts per
+    // navigation.
+    const [mountedAt] = useState(() => Date.now());
 
     if (!goal) {
         return (
@@ -87,7 +90,7 @@ export default function GoalDetailScreen() {
     }
 
     const isFromRoadmap = goal.source === 'imported';
-    const daysUntil = goal.deadline ? Math.ceil((new Date(goal.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+    const daysUntil = goal.deadline ? Math.ceil((new Date(goal.deadline).getTime() - mountedAt) / (1000 * 60 * 60 * 24)) : null;
     const isOverdue = daysUntil !== null && daysUntil < 0 && goal.status === 'active';
     const isCompleted = goal.status === 'completed';
     const priorityConfig = PRIORITY_CONFIG[priority as keyof typeof PRIORITY_CONFIG] || PRIORITY_CONFIG.medium;

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { SupabaseClient } from '@supabase/supabase-js';
 import {
   fetchChatThreads,
@@ -20,7 +20,9 @@ export function useChat({ supabase, userId, getAuthToken, onSessionRecorded }: U
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isLoadingThreads, setIsLoadingThreads] = useState(false);
+  // Starts true: the mount effect immediately fetches threads, so rendering
+  // "loading" from the first frame avoids a synchronous setState in the effect.
+  const [isLoadingThreads, setIsLoadingThreads] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,14 +39,11 @@ export function useChat({ supabase, userId, getAuthToken, onSessionRecorded }: U
     onSessionRecordedRef.current = onSessionRecorded;
   }, [onSessionRecorded]);
 
-  const loadThreads = useCallback(async () => {
-    if (!userId) {
-      setThreads([]);
-      return;
-    }
-
-    setIsLoadingThreads(true);
-    setError(null);
+  // Internal fetch with no synchronous setState so the mount effect can call
+  // it directly; the public loadThreads below keeps the loading flip for
+  // manual refresh callers (event-handler context).
+  const fetchThreads = useCallback(async () => {
+    if (!userId) return;
     try {
       const data = await fetchChatThreads(
         supabase,
@@ -52,12 +51,22 @@ export function useChat({ supabase, userId, getAuthToken, onSessionRecorded }: U
         getAuthTokenRef.current ? await getAuthTokenRef.current() : null,
       );
       setThreads(data);
-    } catch (err) {
+    } catch {
       setThreads([]);
     } finally {
       setIsLoadingThreads(false);
     }
   }, [supabase, userId]);
+
+  const loadThreads = useCallback(async () => {
+    if (!userId) {
+      setThreads([]);
+      return;
+    }
+    setIsLoadingThreads(true);
+    setError(null);
+    return fetchThreads();
+  }, [userId, fetchThreads]);
 
   const loadMessages = useCallback(async (threadId: string) => {
     setIsLoadingMessages(true);
@@ -70,7 +79,7 @@ export function useChat({ supabase, userId, getAuthToken, onSessionRecorded }: U
       );
       setMessages(data);
       hasRecordedSessionRef.current = data.length > 0;
-    } catch (err) {
+    } catch {
       setMessages([]);
       setError('Failed to load messages');
     } finally {
@@ -173,20 +182,33 @@ export function useChat({ supabase, userId, getAuthToken, onSessionRecorded }: U
     }
   }, [supabase, loadThreads, selectedThreadId, selectThread]);
 
+  // Clear chat state the moment the user signs out — adjust-during-render
+  // (React's documented alternative to a state-resetting effect).
+  const [prevUserId, setPrevUserId] = useState(userId);
+  if (prevUserId !== userId) {
+    setPrevUserId(userId);
+    if (!userId) {
+      setThreads([]);
+      setSelectedThreadId(null);
+      setMessages([]);
+    }
+  }
+
   useEffect(() => {
     if (userId) {
-      loadThreads();
+      fetchThreads();
     } else {
-      setThreads([]);
-      selectThread(null);
+      hasRecordedSessionRef.current = false;
     }
-  }, [userId, loadThreads, selectThread]);
+  }, [userId, fetchThreads]);
 
   return {
     threads,
     messages,
     selectedThreadId,
-    isLoadingThreads,
+    // Never report "loading" while signed out — the mount effect only fetches
+    // when a user is present.
+    isLoadingThreads: userId ? isLoadingThreads : false,
     isLoadingMessages,
     isSending,
     error,

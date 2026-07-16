@@ -32,6 +32,58 @@ export function useCredits(supabase: SupabaseClient, userId: string | null): Use
   const [isLoading, setIsLoading] = useState(true);
   const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
 
+  // Clear balances the moment the user signs out — adjust-during-render
+  // (React's documented alternative to a state-resetting effect).
+  const [prevUserId, setPrevUserId] = useState(userId);
+  if (prevUserId !== userId) {
+    setPrevUserId(userId);
+    if (!userId) {
+      setCredits(0);
+      setLoginStreak(0);
+      setTransactions([]);
+    }
+  }
+
+  // Internal fetch as an explicit promise chain (not async/await) so every
+  // state update visibly happens in an async callback — the mount effect can
+  // call this directly without a synchronous setState. The public
+  // refreshCredits below keeps the loading flip for manual/realtime callers.
+  const fetchCredits = useCallback((): Promise<void> => {
+    if (!userId) return Promise.resolve();
+    const ids = lookupIds(userId);
+    // Get credits balance + login streak
+    return Promise.resolve(
+      supabase
+        .from('profiles')
+        .select('user_id, credits, login_streak')
+        .in('user_id', ids),
+    )
+      .then(({ data: profiles }) => {
+        const profile =
+          profiles?.find((row: { user_id: string }) => row.user_id === userId) ?? profiles?.[0];
+        setCredits(profile?.credits || 0);
+        setLoginStreak(profile?.login_streak || 0);
+
+        // Get recent transactions. credit_transactions is the canonical credit
+        // ledger (all credit RPCs write here); it has no `status` column.
+        return supabase
+          .from('credit_transactions')
+          .select('id, type, amount, description, created_at')
+          .in('user_id', ids)
+          .order('created_at', { ascending: false })
+          .limit(50);
+      })
+      .then(({ data: txns }) => {
+        setTransactions(txns || []);
+      })
+      .catch((error: unknown) => {
+        console.error('Error loading credits:', error);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, [supabase, userId]);
+
   const refreshCredits = useCallback(async () => {
     if (!userId) {
       setCredits(0);
@@ -40,39 +92,9 @@ export function useCredits(supabase: SupabaseClient, userId: string | null): Use
       setIsLoading(false);
       return;
     }
-
     setIsLoading(true);
-
-    try {
-      const ids = lookupIds(userId);
-
-      // Get credits balance + login streak
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('user_id, credits, login_streak')
-        .in('user_id', ids);
-
-      const profile =
-        profiles?.find((row: { user_id: string }) => row.user_id === userId) ?? profiles?.[0];
-      setCredits(profile?.credits || 0);
-      setLoginStreak(profile?.login_streak || 0);
-
-      // Get recent transactions. credit_transactions is the canonical credit
-      // ledger (all credit RPCs write here); it has no `status` column.
-      const { data: txns } = await supabase
-        .from('credit_transactions')
-        .select('id, type, amount, description, created_at')
-        .in('user_id', ids)
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      setTransactions(txns || []);
-    } catch (error) {
-      console.error('Error loading credits:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [supabase, userId]);
+    return fetchCredits();
+  }, [userId, fetchCredits]);
 
   const spendCredits = useCallback(async (amount: number, reason: string): Promise<boolean> => {
     if (!userId) return false;
@@ -111,8 +133,8 @@ export function useCredits(supabase: SupabaseClient, userId: string | null): Use
   }, [refreshCredits]);
 
   useEffect(() => {
-    refreshCredits();
-  }, [refreshCredits]);
+    fetchCredits();
+  }, [fetchCredits]);
 
   // Live balance/streak updates. Profiles are written server-side (Clerk +
   // RevenueCat webhooks); mirror the realtime pattern used in useProStatus so
@@ -152,7 +174,9 @@ export function useCredits(supabase: SupabaseClient, userId: string | null): Use
   return {
     credits,
     loginStreak,
-    isLoading,
+    // Never report "loading" while signed out — the mount effect only fetches
+    // when a user is present.
+    isLoading: userId ? isLoading : false,
     transactions,
     spendCredits,
     refreshCredits,

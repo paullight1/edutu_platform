@@ -3,7 +3,6 @@ import {
   aspectRatio,
   background,
   clipped,
-  cornerRadius,
   font,
   foregroundStyle,
   frame,

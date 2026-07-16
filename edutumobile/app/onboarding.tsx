@@ -58,7 +58,13 @@ import type { Country } from '../data/onboarding-data'
 const { width: SCREEN_WIDTH } = Dimensions.get('window')
 const DRAFT_KEY = '@edutu/onboarding_draft'
 
-let styles = {} as ReturnType<typeof getStyles>
+// Theme-derived styles, computed via a hook in each component — replaces the
+// previous module-level `styles` binding that OnboardingScreen assigned during
+// render (a react-hooks/globals violation).
+function useOnboardingStyles() {
+    const { colors, isDark } = useTheme()
+    return useMemo(() => getStyles(isDark, colors), [colors, isDark])
+}
 
 // `label`/`icon` hold i18n keys (auth namespace) translated at render time; `value` is the backend enum.
 const DEGREE_PURSUITS = [
@@ -105,6 +111,7 @@ type FormData = {
  * surface + system colors so the onboarding reads as one coherent product.
  */
 function WhyCard({ text }: { text: string }) {
+    const styles = useOnboardingStyles()
     return (
         <View style={styles.whyCard}>
             <View style={styles.whyDot} />
@@ -114,6 +121,7 @@ function WhyCard({ text }: { text: string }) {
 }
 
 function StepIndicator({ currentStep, totalSteps }: { currentStep: number; totalSteps: number }) {
+    const styles = useOnboardingStyles()
     const steps = STEPS.slice(0, totalSteps)
     return (
         <View style={styles.stepIndicator}>
@@ -161,7 +169,7 @@ function StepIndicator({ currentStep, totalSteps }: { currentStep: number; total
  * combo broke on Android). The list is padded by the live keyboard height so
  * every row stays reachable while typing.
  */
-function CountryPickerModal({ visible, onClose, selectedCountry, onSelect, colors, isDark }: {
+function CountryPickerModal({ visible, onClose, selectedCountry, onSelect, colors }: {
     visible: boolean
     onClose: () => void
     selectedCountry: Country
@@ -169,6 +177,7 @@ function CountryPickerModal({ visible, onClose, selectedCountry, onSelect, color
     colors: ThemeColors
     isDark: boolean
 }) {
+    const styles = useOnboardingStyles()
     const { t } = useTranslation('auth')
     const insets = useSafeAreaInsets()
     const [search, setSearch] = useState('')
@@ -186,10 +195,13 @@ function CountryPickerModal({ visible, onClose, selectedCountry, onSelect, color
         }
     }, [visible])
 
-    // Reset the query each time the sheet is dismissed so it opens clean.
-    useEffect(() => {
+    // Reset the query each time the sheet is dismissed so it opens clean —
+    // adjust-during-render (React's documented reset-on-prop-change pattern).
+    const [prevVisible, setPrevVisible] = useState(visible)
+    if (prevVisible !== visible) {
+        setPrevVisible(visible)
         if (!visible) setSearch('')
-    }, [visible])
+    }
 
     const filteredCountries = useMemo(() => {
         const q = search.trim().toLowerCase()
@@ -270,6 +282,7 @@ function CountryPickerModal({ visible, onClose, selectedCountry, onSelect, color
 }
 
 function StepHeader({ Icon, title, subtitle }: { Icon: any; title: string; subtitle: string }) {
+    const styles = useOnboardingStyles()
     return (
         <View style={styles.stepHeader}>
             <View style={styles.stepIconBox}>
@@ -282,6 +295,7 @@ function StepHeader({ Icon, title, subtitle }: { Icon: any; title: string; subti
 }
 
 function ProfileStep({ formData, setFormData }: { formData: FormData; setFormData: (u: Partial<FormData>) => void }) {
+    const styles = useOnboardingStyles()
     const { t } = useTranslation('auth')
     const { fullName, selectedCountry, age, degreePursuit } = formData
 
@@ -361,6 +375,7 @@ function ProfileStep({ formData, setFormData }: { formData: FormData; setFormDat
 }
 
 function EducationStep({ formData, setFormData }: { formData: FormData; setFormData: (u: Partial<FormData>) => void }) {
+    const styles = useOnboardingStyles()
     const { t } = useTranslation('auth')
     const { isGraduate, gradeLevel, schoolName } = formData
     const [schoolDropdownVisible, setSchoolDropdownVisible] = useState(false)
@@ -469,6 +484,7 @@ function EducationStep({ formData, setFormData }: { formData: FormData; setFormD
 }
 
 function InterestsStep({ formData, setFormData }: { formData: FormData; setFormData: (u: Partial<FormData>) => void }) {
+    const styles = useOnboardingStyles()
     const { t } = useTranslation('auth')
     const { selectedInterests, selectedAmbitions } = formData
 
@@ -545,6 +561,7 @@ function InterestsStep({ formData, setFormData }: { formData: FormData; setFormD
 }
 
 function WelcomeStep({ formData }: { formData: FormData }) {
+    const styles = useOnboardingStyles()
     const { t } = useTranslation('auth')
     const hasProfile = formData.fullName.trim().length > 0
 
@@ -626,10 +643,13 @@ export default function OnboardingScreen() {
     const insets = useSafeAreaInsets()
     const { colors, isDark, reducedMotion } = useTheme()
     const { t } = useTranslation('auth')
-    styles = useMemo(() => getStyles(isDark, colors), [colors, isDark])
+    const styles = useOnboardingStyles()
 
     const [currentStep, setCurrentStep] = useState(0)
-    const directionRef = useRef<'forward' | 'back'>('forward')
+    // State (not a ref): the render-time entering/exiting animation choice
+    // must not read a ref during render. Set alongside setCurrentStep in the
+    // same event batch, so the render always sees a consistent pair.
+    const [direction, setDirection] = useState<'forward' | 'back'>('forward')
     const hydratedRef = useRef(false)
     const [formData, setFormDataState] = useState<FormData>({
         fullName: '',
@@ -768,7 +788,7 @@ export default function OnboardingScreen() {
     }, [isLoaded, user, loading, buildDraft, syncBackendProfile, router, t])
 
     const goToStep = useCallback((next: number) => {
-        directionRef.current = next > currentStep ? 'forward' : 'back'
+        setDirection(next > currentStep ? 'forward' : 'back')
         setCurrentStep(next)
     }, [currentStep])
 
@@ -828,10 +848,10 @@ export default function OnboardingScreen() {
 
     const enterAnim = reducedMotion
         ? FadeIn.duration(200)
-        : (directionRef.current === 'forward' ? SlideInRight : SlideInLeft).duration(280)
+        : (direction === 'forward' ? SlideInRight : SlideInLeft).duration(280)
     const exitAnim = reducedMotion
         ? FadeIn.duration(0)
-        : (directionRef.current === 'forward' ? SlideOutLeft : SlideOutRight).duration(180)
+        : (direction === 'forward' ? SlideOutLeft : SlideOutRight).duration(180)
 
     return (
         <>

@@ -1,4 +1,3 @@
-import * as Linking from 'expo-linking';
 
 const DEEP_LINK_PREFIX = 'edutu://';
 

@@ -33,14 +33,21 @@ export function useStaggeredReveal(
     enabled ? Math.min(total, 1) : total,
   );
 
+  // Restart the progression whenever the inputs change — adjust-during-render
+  // (React's documented alternative to a state-resetting effect). The effect
+  // below then only schedules the interval; sets inside timer callbacks are
+  // fine.
+  const revealKey = `${total}|${stepMs}|${enabled}`;
+  const [prevRevealKey, setPrevRevealKey] = useState(revealKey);
+  if (prevRevealKey !== revealKey) {
+    setPrevRevealKey(revealKey);
+    setCount(!enabled || total <= 1 ? total : 1);
+  }
+
   useEffect(() => {
-    if (!enabled || total <= 1) {
-      setCount(total);
-      return;
-    }
+    if (!enabled || total <= 1) return;
 
     let current = 1;
-    setCount(current);
     const timer = setInterval(() => {
       current += 1;
       setCount(current);

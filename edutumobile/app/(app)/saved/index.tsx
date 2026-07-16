@@ -45,16 +45,19 @@ export default function SavedScreen() {
     // in a ref so it never destabilizes fetchSaved (which must only re-create
     // when the signed-in user id changes) — otherwise the effect loops forever.
     const getTokenRef = React.useRef(getToken);
-    getTokenRef.current = getToken;
+    React.useEffect(() => {
+        // Post-commit write: keeps discarded concurrent renders from leaking
+        // their getToken into the ref.
+        getTokenRef.current = getToken;
+    });
     const userId = user?.id;
 
+    // Loading starts true and is only ever cleared by the fetch below (no
+    // synchronous setLoading(true) inside the effect-invoked fetch — the
+    // signed-out bail-out is derived at render instead).
     const fetchSaved = useCallback(async () => {
-        if (!userId) {
-            setLoading(false);
-            return;
-        }
+        if (!userId) return;
         try {
-            setLoading(true);
             const saved = await fetchSavedOpportunities(supabase, userId, getTokenRef.current);
             const mapped: SavedOpportunity[] = saved.map((bookmark) => {
                 const deadline = bookmark.deadline;
@@ -119,7 +122,10 @@ export default function SavedScreen() {
         fetchSaved();
     }, [fetchSaved]);
 
-    if (loading) {
+    // Signed-out users have nothing to load — derive the bail-out at render.
+    const effectiveLoading = userId ? loading : false;
+
+    if (effectiveLoading) {
         return (
             <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'left', 'right']}>
                 <ScreenHeader title={t('saved.title')} showBack />

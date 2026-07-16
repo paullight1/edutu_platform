@@ -1,6 +1,5 @@
 import React from 'react';
 import { act, render } from '@testing-library/react-native';
-import { Text, View } from 'react-native';
 
 const mockReplace = jest.fn();
 const mockPush = jest.fn();

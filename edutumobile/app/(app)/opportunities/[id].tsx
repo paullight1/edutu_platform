@@ -12,15 +12,12 @@ import {
   Alert,
   Platform,
   Modal,
-  Dimensions,
-  Animated,
   TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import {
-  GraduationCap,
   Clock,
   MapPin,
   Users,
@@ -56,7 +53,6 @@ import { useAuth, useUser } from "@clerk/clerk-expo";
 import { useTheme } from "../../../components/context/ThemeContext";
 import { ScreenHeader } from "../../../components/ui/ScreenHeader";
 import { BrandedLoader } from "../../../components/ui/BrandedLoader";
-import { ProgressBar } from "../../../components/ui/ProgressBar";
 import { supabase } from "../../../lib/supabase";
 import { useGuestMode } from "../../../lib/guestModeStore";
 import { useAuthWall } from "../../../components/context/AuthWallContext";
@@ -121,8 +117,6 @@ import Svg, {
   Circle,
   Path,
 } from "react-native-svg";
-
-const { width } = Dimensions.get("window");
 
 // Public Edutu opportunity page. Shares must point here — a branded landing that
 // tracks and routes to Apply — NOT the raw third-party application link.
@@ -412,11 +406,9 @@ function AiOrbIcon({ size = 56 }: { size?: number }) {
 // co-pilot (personalized checklist, essay questions, outlines, roadmap…).
 function AiCopilotFab({
   onPress,
-  accent,
   label,
 }: {
   onPress: () => void;
-  accent: string;
   label: string;
 }) {
   const jump = useSharedValue(0);
@@ -473,24 +465,25 @@ export default function OpportunityDetailScreen() {
   const { isGuest } = useGuestMode();
   const authWall = useAuthWall();
   const isGuestBrowsing = !isSignedIn && isGuest;
+  // Narrowed locals so memoized callbacks depend on exactly these values —
+  // reading `user.id`/`user.unsafeMetadata` inside a callback makes the
+  // compiler infer a dependency on the whole `user` object.
+  const userId = user?.id;
+  const userUnsafeMetadata = user?.unsafeMetadata;
   const { createGoal, updateGoal } = useGoals(supabase, user?.id || null);
-  const {
-    credits,
-    isLoading: creditsLoading,
-  } = useCredits(supabase, user?.id || null);
-  const { isPro, isLoading: proLoading } = useProStatus(
-    supabase,
-    user?.id || null,
-  );
+  const { credits } = useCredits(supabase, user?.id || null);
+  const { isPro } = useProStatus(supabase, user?.id || null);
   const ROADMAP_CREDIT_COST = 10;
 
+  // Mount-time clock snapshot for render-side deadline math: day-granularity
+  // arithmetic doesn't need a live clock, and Date.now() during render is impure.
+  const [now] = useState(() => Date.now());
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
   const [loading, setLoading] = useState(true);
   // True only when the fetch failed for network reasons AND nothing is cached —
   // distinguishes "couldn't load" (retryable) from a definitive "not found".
   const [loadFailed, setLoadFailed] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
-  const [saved, setSaved] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
   const [sharingCard, setSharingCard] = useState(false);
@@ -533,12 +526,16 @@ export default function OpportunityDetailScreen() {
   const [newMilestoneDesc, setNewMilestoneDesc] = useState("");
 
   // Advance the generation phases while the plan is being built, so the wait
-  // reads as authored progress rather than a static spinner.
+  // reads as authored progress rather than a static spinner. The phase reset
+  // happens via adjust-during-render (React's documented alternative to a
+  // state-syncing effect); the effect only schedules the interval.
+  const [prevGeneratingRoadmap, setPrevGeneratingRoadmap] = useState(generatingRoadmap);
+  if (prevGeneratingRoadmap !== generatingRoadmap) {
+    setPrevGeneratingRoadmap(generatingRoadmap);
+    if (!generatingRoadmap) setGenerationPhase(0);
+  }
   useEffect(() => {
-    if (!generatingRoadmap) {
-      setGenerationPhase(0);
-      return;
-    }
+    if (!generatingRoadmap) return;
     const timer = setInterval(() => {
       setGenerationPhase((phase) =>
         Math.min(phase + 1, GENERATION_PHASES.length - 1),
@@ -552,13 +549,16 @@ export default function OpportunityDetailScreen() {
     enabled: roadmapStep === "milestones",
   });
 
-  const slideAnim = useRef(new Animated.Value(0)).current;
   const viewRecordedRef = useRef(false);
   const [dismissSheetVisible, setDismissSheetVisible] = useState(false);
   /** Set when the detail actually renders content; read at unmount for dwell. */
   const dwellRef = useRef<{ opportunityId: string; startedAt: number } | null>(null);
   const getTokenRef = useRef(getToken);
-  getTokenRef.current = getToken;
+  useEffect(() => {
+    // Written post-commit rather than during render: a concurrent render that
+    // React discards must not leave its getToken behind in the ref.
+    getTokenRef.current = getToken;
+  });
 
   const backgroundColor = colors.background;
   const textPrimary = colors.foreground;
@@ -736,10 +736,10 @@ export default function OpportunityDetailScreen() {
 
   const handleDismissReason = useCallback((reason: DismissReason) => {
     setDismissSheetVisible(false);
-    if (!user?.id || !id) return;
-    void dismissOpportunity(user.id, id, getToken, "detail_not_interested", reason);
+    if (!userId || !id) return;
+    void dismissOpportunity(userId, id, getToken, "detail_not_interested", reason);
     router.back();
-  }, [user?.id, id, getToken, router]);
+  }, [userId, id, getToken, router]);
 
   const handleApply = useCallback(async () => {
     if (isGuestBrowsing) {
@@ -773,10 +773,10 @@ export default function OpportunityDetailScreen() {
         },
         getToken,
       );
-      if (user?.id) {
+      if (userId) {
         void trackOpportunityApplication(
           supabase,
-          user.id,
+          userId,
           {
             opportunityId: id,
             status: "submitted",
@@ -797,7 +797,7 @@ export default function OpportunityDetailScreen() {
         console.error("Failed to open URL:", error);
       }
     }
-  }, [isGuestBrowsing, authWall, getToken, id, opportunity, user?.id]);
+  }, [isGuestBrowsing, authWall, getToken, id, opportunity, userId]);
 
   const askAI = useCallback(
     (intent: string) => {
@@ -927,7 +927,7 @@ export default function OpportunityDetailScreen() {
 
     try {
       // Applicant snapshot personalizes both the local plan and the AI prompt.
-      const metadata = (user?.unsafeMetadata || {}) as Record<string, unknown>;
+      const metadata = (userUnsafeMetadata || {}) as Record<string, unknown>;
       const profile: ApplicantProfile | undefined =
         Object.keys(metadata).length > 0
           ? {
@@ -980,7 +980,7 @@ export default function OpportunityDetailScreen() {
     } finally {
       setGeneratingRoadmap(false);
     }
-  }, [isGuestBrowsing, authWall, opportunity, isPro, credits, getToken, router, intake, user?.unsafeMetadata, t, upgradeSheet]);
+  }, [isGuestBrowsing, authWall, opportunity, isPro, credits, getToken, router, intake, userUnsafeMetadata, t, upgradeSheet]);
 
   const handleExportCalendar = useCallback(async () => {
     if (!generatedRoadmap || !opportunity) return;
@@ -1176,38 +1176,6 @@ export default function OpportunityDetailScreen() {
     t,
   ]);
 
-  const handleTrackDeadlineOnly = useCallback(async () => {
-    if (!user || !opportunity) return;
-
-    try {
-      if (opportunity.deadline) {
-        await createGoal({
-          title: t("detail.goals.deadlineTitle", { title: opportunity.title }),
-          description: t("detail.goals.deadlineDescription", { organization: opportunity.organization }),
-          category: t("detail.goals.applicationCategory"),
-          deadline: opportunity.deadline,
-          source: "custom",
-        });
-        setBookmarked(true);
-        Alert.alert(
-          t("detail.alerts.deadlineTrackedTitle"),
-          t("detail.alerts.deadlineTrackedMsg"),
-          [
-            { text: t("detail.alerts.viewCalendar"), onPress: () => router.push("/goals") },
-            { text: t("common:actions.ok"), style: "cancel" },
-          ],
-        );
-      } else {
-        Alert.alert(
-          t("detail.alerts.bookmarkedTitle"),
-          t("detail.alerts.bookmarkedMsg"),
-        );
-      }
-    } catch (error: any) {
-      Alert.alert(t("common:states.error"), error.message || t("detail.alerts.trackDeadlineFailed"));
-    }
-  }, [user, opportunity, createGoal, router, t]);
-
   const addCustomMilestone = () => {
     if (!newMilestoneTitle.trim()) return;
     const newMilestone = {
@@ -1364,7 +1332,7 @@ export default function OpportunityDetailScreen() {
 
   const daysUntilDeadline = opportunity.deadline
     ? Math.ceil(
-        (new Date(opportunity.deadline).getTime() - Date.now()) /
+        (new Date(opportunity.deadline).getTime() - now) /
           (1000 * 60 * 60 * 24),
       )
     : null;
@@ -2271,7 +2239,6 @@ export default function OpportunityDetailScreen() {
       {/* Floating AI co-pilot button — one tap opens all AI recommendations */}
       {!isClosed && opportunity ? (
         <AiCopilotFab
-          accent={colors.accent}
           label={t("detail.copilotCta", { defaultValue: "Apply with Edutu AI" })}
           onPress={() => {
             if (isGuestBrowsing) {

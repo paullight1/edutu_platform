@@ -108,8 +108,19 @@ export function useNotifications(
   getAuthToken?: GetAuthToken,
 ) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  // Starts true: the mount effect immediately fetches when a user is present,
+  // so rendering "loading" from the first frame avoids a synchronous setState
+  // in the effect. The returned value derives to false while signed out.
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Clear the list the moment the user signs out — adjust-during-render
+  // (React's documented alternative to a state-resetting effect).
+  const [prevUserId, setPrevUserId] = useState(userId);
+  if (prevUserId !== userId) {
+    setPrevUserId(userId);
+    if (!userId) setNotifications([]);
+  }
 
   // Clerk's `getToken` is a fresh function reference on most renders. If the
   // callbacks below closed over it directly, `loadNotifications` would change
@@ -121,44 +132,60 @@ export function useNotifications(
     getAuthTokenRef.current = getAuthToken;
   }, [getAuthToken]);
 
-  const loadNotifications = useCallback(async () => {
-    if (!userId) return;
+  // Internal fetch with no synchronous setState so the mount effect can call
+  // it directly; the public loadNotifications below keeps the loading flip for
+  // manual refresh callers (event-handler context).
+  const fetchNotifications = useCallback((): Promise<void> => {
+    if (!userId) return Promise.resolve();
 
-    setIsLoading(true);
-    setError(null);
-    try {
-      const backendNotifications = await fetchBackendNotifications(getAuthTokenRef.current);
-      if (backendNotifications) {
-        setNotifications(backendNotifications);
-        return;
-      }
+    // Explicit promise chain (not async/await) so every state update visibly
+    // happens in an async callback — safe to call from the mount effect.
+    return fetchBackendNotifications(getAuthTokenRef.current)
+      .then((backendNotifications) => {
+        // Clear any stale error once the (async) fetch is underway.
+        setError(null);
+        if (backendNotifications) {
+          setNotifications(backendNotifications);
+          return;
+        }
 
-      try {
-        const { data, error } = await supabase
-          .from(NOTIFICATIONS_TABLE)
-          .select('*')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false });
-
-        if (error) throw error;
-        setNotifications(((data ?? []) as NotificationRow[]).map(mapNotification));
-      } catch (supabaseError) {
+        return Promise.resolve(
+          supabase
+            .from(NOTIFICATIONS_TABLE)
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false }),
+        )
+          .then(({ data, error }) => {
+            if (error) throw error;
+            setNotifications(((data ?? []) as NotificationRow[]).map(mapNotification));
+          })
+          .catch((supabaseError: unknown) => {
+            if (__DEV__) {
+              console.warn('Supabase notifications unavailable:', supabaseError);
+            }
+            setNotifications([]);
+            setError('Notifications temporarily unavailable');
+          });
+      })
+      .catch((err: unknown) => {
         if (__DEV__) {
-          console.warn('Supabase notifications unavailable:', supabaseError);
+          console.warn('Notifications load failed:', err);
         }
         setNotifications([]);
         setError('Notifications temporarily unavailable');
-      }
-    } catch (err: any) {
-      if (__DEV__) {
-        console.warn('Notifications load failed:', err);
-      }
-      setNotifications([]);
-      setError('Notifications temporarily unavailable');
-    } finally {
-      setIsLoading(false);
-    }
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   }, [supabase, userId]);
+
+  const loadNotifications = useCallback(async () => {
+    if (!userId) return;
+    setIsLoading(true);
+    setError(null);
+    return fetchNotifications();
+  }, [userId, fetchNotifications]);
 
   const markAsRead = useCallback(async (id: string) => {
     if (!userId) return;
@@ -210,18 +237,18 @@ export function useNotifications(
 
   useEffect(() => {
     if (userId) {
-      loadNotifications();
-    } else {
-      setNotifications([]);
+      fetchNotifications();
     }
-  }, [userId, loadNotifications]);
+  }, [userId, fetchNotifications]);
 
   const unreadCount = useMemo(() => notifications.filter(n => !n.readAt).length, [notifications]);
 
   return {
     notifications,
     unreadCount,
-    isLoading,
+    // Never report "loading" while signed out — the mount effect only fetches
+    // when a user is present.
+    isLoading: userId ? isLoading : false,
     error,
     loadNotifications,
     markAsRead,

@@ -49,7 +49,6 @@
  *     | openssl enc -base64
  */
 
-import { Platform } from 'react-native';
 import { getConfig } from './config';
 
 export interface SSLPinningConfig {

@@ -10,7 +10,6 @@ import {
     ScrollView,
 } from 'react-native';
 import { X, Zap, Check } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import type { PurchasesOffering } from 'react-native-purchases';
 import { useTheme } from '../context/ThemeContext';
 import {

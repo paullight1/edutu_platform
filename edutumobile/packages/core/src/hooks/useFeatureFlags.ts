@@ -6,43 +6,49 @@ let cache: FeatureFlag[] | null = null;
 let cacheTime: number = 0;
 const CACHE_DURATION = 5 * 60 * 1000;
 
+function readCachedFlags(): FeatureFlag[] | null {
+  return cache && Date.now() - cacheTime < CACHE_DURATION ? cache : null;
+}
+
 export function useFeatureFlags(supabase: SupabaseClient): UseFeatureFlagsReturn {
-  const [features, setFeatures] = useState<FeatureFlag[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // Hydrate from the module cache in the lazy initializers so the fetch
+  // effect never needs a synchronous setState for the cache-hit path.
+  const [features, setFeatures] = useState<FeatureFlag[]>(() => readCachedFlags() ?? []);
+  const [isLoading, setIsLoading] = useState<boolean>(() => readCachedFlags() === null);
 
-  const fetchFlags = useCallback(async () => {
-    if (cache && Date.now() - cacheTime < CACHE_DURATION) {
-      setFeatures(cache);
-      setIsLoading(false);
-      return;
-    }
+  // Explicit promise chain (not async/await) so every state update visibly
+  // happens in an async callback — safe to call from the mount effect.
+  const fetchFlags = useCallback((): Promise<void> => {
+    if (readCachedFlags()) return Promise.resolve();
 
-    setIsLoading(true);
-
-    try {
-      const { data, error } = await supabase
+    return Promise.resolve(
+      supabase
         .from('feature_flags')
         .select('*')
-        .order('sort_order', { ascending: true });
-
-      if (error) {
-        throw error;
-      }
-
-      const flags = (data || []) as FeatureFlag[];
-      cache = flags;
-      cacheTime = Date.now();
-      setFeatures(flags);
-    } catch (error) {
-      console.error('Error fetching feature flags:', error);
-    } finally {
-      setIsLoading(false);
-    }
+        .order('sort_order', { ascending: true }),
+    )
+      .then(({ data, error }) => {
+        if (error) {
+          throw error;
+        }
+        const flags = (data || []) as FeatureFlag[];
+        cache = flags;
+        cacheTime = Date.now();
+        setFeatures(flags);
+      })
+      .catch((error: unknown) => {
+        console.error('Error fetching feature flags:', error);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   }, [supabase]);
 
   const refresh = useCallback(async () => {
     cache = null;
     cacheTime = 0;
+    // Manual refresh keeps the loading flip here (event-handler context).
+    setIsLoading(true);
     await fetchFlags();
   }, [fetchFlags]);
 

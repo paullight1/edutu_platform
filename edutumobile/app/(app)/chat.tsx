@@ -25,15 +25,10 @@ import {
     History,
     X,
     Sparkles,
-    Zap,
     ChevronRight,
     Volume2,
     Pause,
-    BellRing,
     Route,
-    ListTodo,
-    ExternalLink,
-    MapPin,
     Mic,
     AudioLines,
     AlertCircle,
@@ -73,7 +68,7 @@ import Animated, {
     withTiming,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { getDeadlineBadge, urgencyColor } from '@edutu/core/src/utils/deadline';
+import { getDeadlineBadge } from '@edutu/core/src/utils/deadline';
 import { BrandedLoader } from '../../components/ui/BrandedLoader';
 import { notificationService } from '../../lib/notifications';
 import { useReportAIContent } from '../../lib/reportAiContent';
@@ -117,13 +112,17 @@ function TypingReveal({
 }) {
     const [visibleLength, setVisibleLength] = useState(enabled ? 0 : content.length);
 
-    useEffect(() => {
-        if (!enabled) {
-            setVisibleLength(content.length);
-            return;
-        }
+    // Adjust-during-render: reset the reveal when the message or mode changes;
+    // the effect below only schedules the interval.
+    const [prevReveal, setPrevReveal] = useState({ content, enabled });
+    if (prevReveal.content !== content || prevReveal.enabled !== enabled) {
+        setPrevReveal({ content, enabled });
+        setVisibleLength(enabled ? 0 : content.length);
+    }
 
-        setVisibleLength(0);
+    useEffect(() => {
+        if (!enabled) return;
+
         const interval = setInterval(() => {
             setVisibleLength((current) => {
                 if (current >= content.length) {
@@ -322,7 +321,6 @@ export default function ChatScreen() {
     const flatListRef = useRef<FlatList>(null);
     const inputRef = useRef<TextInput>(null);
     const lastBotMessageRef = useRef<string | null>(null);
-    const [deadlineActionId, setDeadlineActionId] = useState<string | null>(null);
     const [roadmapActionId, setRoadmapActionId] = useState<string | null>(null);
     // Composer mic = one-shot dictation on its own screen (distinct from the
     // hands-free live voice stream opened by the waveform button).
@@ -374,7 +372,6 @@ export default function ChatScreen() {
         isSending,
         selectThread,
         sendMessage,
-        archiveThread,
         loadThreads
     } = useChat({
         supabase,
@@ -580,86 +577,6 @@ export default function ChatScreen() {
         }
     }, [router, handleViewOpportunity, handleSend, t]);
 
-    const handleApplyOpportunity = useCallback(async (opportunity: ChatOpportunityCard) => {
-        if (opportunity.applyUrl) {
-            const canOpen = await Linking.canOpenURL(opportunity.applyUrl);
-            if (canOpen) {
-                await Linking.openURL(opportunity.applyUrl);
-                return;
-            }
-        }
-
-        router.push(`/opportunities/${opportunity.id}`);
-    }, [router]);
-
-    const handleAddDeadline = useCallback(async (opportunity: ChatOpportunityCard) => {
-        if (!opportunity.deadline || !user?.id) {
-            Alert.alert(t('alerts.noDeadlineTitle'), t('alerts.noDeadlineMessage'));
-            return;
-        }
-
-        const actionId = `deadline-${opportunity.id}`;
-        if (deadlineActionId) return;
-
-        const existingGoal = goals.find(goal =>
-            goal.deadline &&
-            new Date(goal.deadline).toDateString() === new Date(opportunity.deadline!).toDateString() &&
-            goal.title.toLowerCase().includes(opportunity.title.toLowerCase().slice(0, 24))
-        );
-
-        if (existingGoal) {
-            Alert.alert(t('alerts.alreadyTrackedTitle'), t('alerts.alreadyTrackedMessage'));
-            router.push('/deadlines');
-            return;
-        }
-
-        setDeadlineActionId(actionId);
-        try {
-            const createdGoal = await createGoal({
-                title: t('goals.applyTitle', { title: opportunity.title }),
-                description: t('goals.applyDescription', { organization: opportunity.organization || t('goals.thisOpportunity') }),
-                category: 'Opportunity',
-                deadline: opportunity.deadline,
-                priority: 'high',
-                source: 'custom',
-                opportunity_title: opportunity.title,
-                reminder_enabled: true,
-                reminder_date: opportunity.deadline,
-            });
-
-            const notificationId = await notificationService.scheduleGoalReminder(
-                createdGoal.id,
-                createdGoal.title,
-                opportunity.deadline,
-            );
-
-            if (notificationId) {
-                await updateGoal(createdGoal.id, { notification_id: notificationId });
-            }
-
-            Alert.alert(t('alerts.deadlineAddedTitle'), t('alerts.deadlineAddedMessage'));
-        } catch (error) {
-            console.error('Failed to add opportunity deadline:', error);
-            Alert.alert(t('alerts.couldNotAddDeadlineTitle'), t('alerts.tryAgainFromOpportunity'));
-        } finally {
-            setDeadlineActionId(null);
-        }
-    }, [createGoal, deadlineActionId, goals, router, t, updateGoal, user?.id]);
-
-    const handleGenerateRoadmap = useCallback((opportunityId: string) => {
-        router.push(`/opportunities/${opportunityId}`);
-    }, [router]);
-
-    const handleFindRoadmap = useCallback((opportunity: ChatOpportunityCard) => {
-        router.push({
-            pathname: '/roadmaps',
-            params: {
-                q: opportunity.title,
-                opportunityId: opportunity.id,
-            },
-        });
-    }, [router]);
-
     const handleBuildRoadmapFromOpportunity = useCallback(async (opportunity: Opportunity) => {
         if (!user?.id) {
             Alert.alert(t('alerts.signInRequiredTitle'), t('alerts.signInRequiredMessage'));
@@ -762,11 +679,11 @@ export default function ChatScreen() {
         }
     }, [createGoal, goals, router, t, updateGoal, user?.id]);
 
-    useEffect(() => {
-        if (!isSpeaking && speakingMessageId) {
-            setSpeakingMessageId(null);
-        }
-    }, [isSpeaking, speakingMessageId]);
+    // Adjust-during-render: clear the highlighted message once TTS stops.
+    // The guard self-falsifies (speakingMessageId becomes null), so no loop.
+    if (!isSpeaking && speakingMessageId) {
+        setSpeakingMessageId(null);
+    }
 
     // Auto-send a launch prompt exactly once, but only after the user (and therefore
     // sendMessage) is ready — otherwise sendMessage bails on the null userId and the
@@ -776,6 +693,7 @@ export default function ChatScreen() {
         if (voiceSentRef.current) return;
         if (voiceMsg && voiceMsg.trim() && user?.id) {
             voiceSentRef.current = true;
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- param-driven one-shot send: there is no user event to host it, handleSend's sets are the send itself (ref-guarded against re-fire), and deferring to a microtask would just hide the same work from the rule
             handleSend(voiceMsg.trim());
             router.setParams({ voiceMsg: undefined });
         }
@@ -784,15 +702,18 @@ export default function ChatScreen() {
     // Prefill (used by proactive coach pushes): seeds the composer with a
     // ready-to-send question but NEVER auto-sends — a notification tap must
     // not spend the user's credits without an explicit send.
-    const prefillSeededRef = useRef(false);
+    // Seed during render (guard self-falsifies); the param clear stays in an
+    // effect since router mutation is an external side effect.
+    const [prefillSeeded, setPrefillSeeded] = useState(false);
+    if (!prefillSeeded && prefill && prefill.trim()) {
+        setPrefillSeeded(true);
+        setInput((current) => current || prefill.trim());
+    }
     useEffect(() => {
-        if (prefillSeededRef.current) return;
-        if (prefill && prefill.trim()) {
-            prefillSeededRef.current = true;
-            setInput((current) => current || prefill.trim());
+        if (prefillSeeded && prefill) {
             router.setParams({ prefill: undefined });
         }
-    }, [prefill, router]);
+    }, [prefillSeeded, prefill, router]);
 
     // Resume the most recent conversation on open so chat history is continuous
     // instead of landing on a blank thread every time. Runs once, and is skipped

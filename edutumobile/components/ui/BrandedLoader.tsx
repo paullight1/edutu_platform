@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import {
-  Animated,
+  Animated, useAnimatedValue,
   Easing,
   Image,
   StyleProp,
@@ -26,8 +26,8 @@ export function BrandedLoader({
   const { t } = useTranslation('common');
   const displayLabel = label ?? t('brandedLoader.loading');
   const { colors } = useTheme();
-  const spin = useRef(new Animated.Value(0)).current;
-  const pulse = useRef(new Animated.Value(0)).current;
+  const spin = useAnimatedValue(0);
+  const pulse = useAnimatedValue(0);
 
   useEffect(() => {
     const spinAnim = Animated.loop(

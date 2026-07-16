@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -16,7 +16,6 @@ import {
 import {
     ArrowLeft,
     Bell,
-    Calendar,
     CheckCircle2,
     ChevronDown,
     ChevronUp,
@@ -95,7 +94,11 @@ export default function RoadmapTemplateDetailScreen() {
     const [comments, setComments] = useState<TemplateComment[]>([]);
     const [blockedAuthors, setBlockedAuthors] = useState<string[]>([]);
     const [commentsLoading, setCommentsLoading] = useState(true);
-    const [expandedSteps, setExpandedSteps] = useState<Record<string, boolean>>({});
+    // First step starts expanded so the journey never looks empty.
+    const [expandedSteps, setExpandedSteps] = useState<Record<string, boolean>>(() => {
+        const cached = getCachedTemplate(templateId);
+        return cached?.steps?.[0] ? { [cached.steps[0].id]: true } : {};
+    });
     const [commentDraft, setCommentDraft] = useState('');
     const [commentRating, setCommentRating] = useState(0);
     const [postingComment, setPostingComment] = useState(false);
@@ -143,13 +146,16 @@ export default function RoadmapTemplateDetailScreen() {
         };
     }, [getToken]);
 
-    // First step starts expanded so the journey never looks empty.
-    useEffect(() => {
+    // When the template arrives (or changes) after mount, expand its first
+    // step — adjust-during-render is React's documented alternative to a
+    // state-syncing effect.
+    const [prevTemplateId, setPrevTemplateId] = useState(template?.id);
+    if (prevTemplateId !== template?.id) {
+        setPrevTemplateId(template?.id);
         if (template && Object.keys(expandedSteps).length === 0 && template.steps[0]) {
             setExpandedSteps({ [template.steps[0].id]: true });
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [template?.id]);
+    }
 
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
     const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)';

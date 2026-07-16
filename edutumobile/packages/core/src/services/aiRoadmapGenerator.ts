@@ -138,8 +138,8 @@ export function generateRoadmapFromOpportunity(
   const totalWeeks = weeksBetween(startDate, submissionTarget);
   const category = opportunity.category?.toLowerCase() || '';
 
-  const milestones = generateMilestones(opportunity, startDate, deadline, submissionTarget, totalWeeks, category);
-  const dailyPlan = generateDailyPlan(opportunity, startDate, submissionTarget, category);
+  const milestones = generateMilestones(opportunity, startDate, deadline, submissionTarget);
+  const dailyPlan = generateDailyPlan(opportunity, startDate, submissionTarget);
   const weeklyGoals = generateWeeklyGoals(opportunity, startDate, submissionTarget, totalWeeks, category);
   const checklist = generateChecklist(opportunity, category);
   const resources = generateResources(opportunity, category);
@@ -319,9 +319,7 @@ function generateMilestones(
   opp: Opportunity,
   start: Date,
   deadline: Date,
-  submissionTarget: Date,
-  totalWeeks: number,
-  category: string
+  submissionTarget: Date
 ): RoadmapMilestone[] {
   const milestones: RoadmapMilestone[] = [];
   const planDays = daysBetween(start, submissionTarget);
@@ -367,8 +365,7 @@ function generateMilestones(
 function generateDailyPlan(
   opp: Opportunity,
   start: Date,
-  submissionTarget: Date,
-  category: string
+  submissionTarget: Date
 ): RoadmapDailyAction[] {
   const planDays = Math.min(90, daysBetween(start, submissionTarget));
   const dailyPlan: RoadmapDailyAction[] = [];
@@ -436,7 +433,7 @@ function generateDailyPlan(
       day,
       date: formatDate(addDays(start, day - 1)),
       title: `Day ${day}: ${title}`,
-      description: buildDailyDescription(opp, phase.focus, title, category),
+      description: buildDailyDescription(opp, phase.focus, title),
       focus: phase.focus,
       durationMinutes: phase.focus === 'writing' || phase.focus === 'review' ? 75 : 45,
     });
@@ -448,8 +445,7 @@ function generateDailyPlan(
 function buildDailyDescription(
   opp: Opportunity,
   focus: RoadmapDailyAction['focus'],
-  title: string,
-  category: string
+  title: string
 ): string {
   const base = `Target: ${opp.title}.`;
   if (focus === 'research') return `${base} ${title}. Note eligibility, required documents, deadline, selection criteria, and proof you need.`;
@@ -470,7 +466,6 @@ function generateWeeklyGoals(
   const goals: AIGeneratedRoadmap['weeklyGoals'] = [];
 
   for (let week = 1; week <= totalWeeks; week++) {
-    const weekStart = addWeeks(start, week - 1);
     const weekEnd = addWeeks(start, week);
     const weekDeadline = addDays(weekEnd, -1);
 

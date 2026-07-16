@@ -1,12 +1,9 @@
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, Alert, ScrollView, TouchableOpacity, Modal, TextInput } from "react-native";
 import React, { useState, useCallback, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
-import { useUser } from "@clerk/clerk-expo";
 import { useTranslation, Trans } from "react-i18next";
 import {
     Star,
-    StarOff,
     Plus,
     Pencil,
     Trash2,
@@ -24,7 +21,7 @@ import { supabase } from "../../lib/supabase";
 import { ScreenHeader } from "../../components/ui/ScreenHeader";
 import { AdminGuard } from "../../components/auth/AdminGuard";
 import { AnimatedPressable } from "../../components/ui/AnimatedPressable";
-import { FadeInDown, FadeInUp } from "react-native-reanimated";
+import { FadeInDown } from "react-native-reanimated";
 
 interface Testimonial {
     id: string;
@@ -50,8 +47,6 @@ function extractYouTubeId(url: string): string {
 function AdminTestimonialsContent() {
     const { t } = useTranslation('misc');
     const { isDark, colors } = useTheme();
-    const router = useRouter();
-    const { user } = useUser();
 
     const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
     const [loading, setLoading] = useState(true);
@@ -72,26 +67,39 @@ function AdminTestimonialsContent() {
     const cardBg = colors.card;
     const borderColor = colors.border;
 
-    const fetchTestimonials = useCallback(async () => {
-        setLoading(true);
-        try {
-            const query = supabase
-                .from('testimonials')
-                .select('*')
-                .order('sort_order', { ascending: true });
+    // Bumped by event handlers to refetch after an edit/toggle/delete. Loading
+    // starts true; the effect never sets state synchronously (all sets follow
+    // an await).
+    const [reloadNonce, setReloadNonce] = useState(0);
+    useEffect(() => {
+        const fetchTestimonials = async () => {
+            try {
+                const query = supabase
+                    .from('testimonials')
+                    .select('*')
+                    .order('sort_order', { ascending: true });
 
-            const { data, error } = await query;
-            if (error) throw error;
-            setTestimonials(data || []);
-        } catch (e: any) {
-            console.error('Failed to fetch testimonials:', e);
-            Alert.alert(t('common:states.error'), t('admin.testimonials.alerts.loadFailed'));
-        } finally {
-            setLoading(false);
-        }
+                const { data, error } = await query;
+                if (error) throw error;
+                setTestimonials(data || []);
+            } catch (e: any) {
+                console.error('Failed to fetch testimonials:', e);
+                Alert.alert(t('common:states.error'), t('admin.testimonials.alerts.loadFailed'));
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchTestimonials();
+    }, [t, reloadNonce]);
+
+    // Post-action refetch. Deliberately does NOT flip `loading`: the nonce
+    // defers the fetch to the next effect pass, so a spinner here would blank
+    // the list for a full render cycle after every add/edit/toggle (the old
+    // inline-fetch spinner window was a single microtask — effectively
+    // invisible). Fresh rows swap in place instead.
+    const refreshTestimonials = useCallback(() => {
+        setReloadNonce((nonce) => nonce + 1);
     }, []);
-
-    useEffect(() => { fetchTestimonials(); }, [fetchTestimonials]);
 
     const openAddModal = () => {
         setEditingTestimonial(null);
@@ -104,7 +112,7 @@ function AdminTestimonialsContent() {
         setModalVisible(true);
     };
 
-    const openEditModal = (item: Testimonial) => {
+    const openEditModal = useCallback((item: Testimonial) => {
         setEditingTestimonial(item);
         setFormName(item.name);
         setFormRole(item.role);
@@ -113,7 +121,7 @@ function AdminTestimonialsContent() {
         setFormReviewText(item.review_text);
         setFormVideoUrl(item.video_url || '');
         setModalVisible(true);
-    };
+    }, []);
 
     const closeModal = () => {
         setModalVisible(false);
@@ -166,7 +174,7 @@ function AdminTestimonialsContent() {
             }
 
             closeModal();
-            fetchTestimonials();
+            refreshTestimonials();
         } catch (e: any) {
             console.error('Submit error:', e);
             Alert.alert(t('common:states.error'), e.message || t('admin.testimonials.alerts.saveFailed'));
@@ -175,7 +183,7 @@ function AdminTestimonialsContent() {
         }
     };
 
-    const handleDelete = (item: Testimonial) => {
+    const handleDelete = useCallback((item: Testimonial) => {
         Alert.alert(
             t('admin.testimonials.alerts.deleteTitle'),
             t('admin.testimonials.alerts.deleteMessage', { name: item.name }),
@@ -193,7 +201,7 @@ function AdminTestimonialsContent() {
 
                             if (error) throw error;
                             Alert.alert(t('common:states.success'), t('admin.testimonials.alerts.deleted'));
-                            fetchTestimonials();
+                            refreshTestimonials();
                         } catch (e: any) {
                             console.error('Delete error:', e);
                             Alert.alert(t('common:states.error'), t('admin.testimonials.alerts.deleteFailed'));
@@ -202,9 +210,9 @@ function AdminTestimonialsContent() {
                 },
             ]
         );
-    };
+    }, [t, refreshTestimonials]);
 
-    const handleToggleActive = async (item: Testimonial) => {
+    const handleToggleActive = useCallback(async (item: Testimonial) => {
         try {
             const { error } = await supabase
                 .from('testimonials')
@@ -212,12 +220,12 @@ function AdminTestimonialsContent() {
                 .eq('id', item.id);
 
             if (error) throw error;
-            fetchTestimonials();
+            refreshTestimonials();
         } catch (e: any) {
             console.error('Toggle error:', e);
             Alert.alert(t('common:states.error'), t('admin.testimonials.alerts.statusUpdateFailed'));
         }
-    };
+    }, [t, refreshTestimonials]);
 
     const filteredTestimonials = testimonials.filter(t => {
         if (filter === 'active') return t.is_active;
@@ -231,7 +239,7 @@ function AdminTestimonialsContent() {
         inactive: testimonials.filter(t => !t.is_active).length,
     };
 
-    const renderStars = (rating: number) => {
+    const renderStars = useCallback((rating: number) => {
         const stars = [];
         for (let i = 1; i <= 5; i++) {
             stars.push(
@@ -244,7 +252,7 @@ function AdminTestimonialsContent() {
             );
         }
         return stars;
-    };
+    }, [textSecondary]);
 
     const renderTestimonial = useCallback(({ item, index }: { item: Testimonial; index: number }) => {
         return (
@@ -319,7 +327,7 @@ function AdminTestimonialsContent() {
                 </View>
             </AnimatedPressable>
         );
-    }, [cardBg, borderColor, textPrimary, textSecondary, colors.primary, isDark, t]);
+    }, [cardBg, borderColor, textPrimary, textSecondary, colors.primary, isDark, t, renderStars, handleToggleActive, openEditModal, handleDelete]);
 
     const filters: { key: typeof filter; label: string }[] = [
         { key: 'all', label: t('admin.testimonials.filters.all') },

@@ -56,39 +56,44 @@ export default function MyOpportunitiesScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [filter, setFilter] = useState<'all' | 'urgent' | 'upcoming'>('all');
 
-    const fetchSaved = useCallback(async () => {
-        if (!user) return;
-        try {
-            setLoading(true);
-            const saved = await fetchSavedOpportunities(supabase, user.id, getToken);
-            const mapped: MyOpportunity[] = saved.map((bookmark) => {
-                const deadline = bookmark.deadline;
-                const daysRemaining = deadline
-                    ? Math.ceil((new Date(deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-                    : 999;
+    // Promise-chain style (not async/await) so every setState lives in an
+    // async callback — the set-state-in-effect rule treats awaited sets in a
+    // named async callee as synchronous. `loading` starts true; the manual
+    // refresh re-raises the loader in onRefresh (an event handler).
+    const fetchSaved = useCallback(() => {
+        if (!user) return Promise.resolve();
+        return fetchSavedOpportunities(supabase, user.id, getToken)
+            .then((saved) => {
+                const mapped: MyOpportunity[] = saved.map((bookmark) => {
+                    const deadline = bookmark.deadline;
+                    const daysRemaining = deadline
+                        ? Math.ceil((new Date(deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                        : 999;
 
-                return {
-                    id: bookmark.opportunity_id,
-                    bookmark_id: bookmark.id,
-                    title: bookmark.title || t('shared.opportunity'),
-                    organization: bookmark.organization || t('shared.unknown'),
-                    deadline: deadline || '',
-                    category: bookmark.category || '',
-                    location: bookmark.location || '',
-                    image: bookmark.image || '',
-                    match: bookmark.match_score || 0,
-                    created_at: bookmark.created_at || '',
-                    daysRemaining,
-                };
+                    return {
+                        id: bookmark.opportunity_id,
+                        bookmark_id: bookmark.id,
+                        title: bookmark.title || t('shared.opportunity'),
+                        organization: bookmark.organization || t('shared.unknown'),
+                        deadline: deadline || '',
+                        category: bookmark.category || '',
+                        location: bookmark.location || '',
+                        image: bookmark.image || '',
+                        match: bookmark.match_score || 0,
+                        created_at: bookmark.created_at || '',
+                        daysRemaining,
+                    };
+                });
+
+                setMyOpps(mapped);
+            })
+            .catch((error) => {
+                console.error('Error fetching opportunities:', error);
+            })
+            .finally(() => {
+                setLoading(false);
+                setRefreshing(false);
             });
-
-            setMyOpps(mapped);
-        } catch (error) {
-            console.error('Error fetching opportunities:', error);
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
     }, [getToken, user, t]);
 
     useEffect(() => {
@@ -116,9 +121,12 @@ export default function MyOpportunitiesScreen() {
     }, [myOpps, filter]);
 
     const onRefresh = useCallback(() => {
+        if (!user) return;
         setRefreshing(true);
+        // Match the previous behavior where a refresh re-raised the loader.
+        setLoading(true);
         fetchSaved();
-    }, [fetchSaved]);
+    }, [user, fetchSaved]);
 
     const getDeadlineColor = (days: number) => {
         if (days <= 0) return '#EF4444';

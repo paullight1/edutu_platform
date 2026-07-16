@@ -42,8 +42,10 @@ export default function RoadmapTemplatesScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [activeCategory, setActiveCategory] = useState('all');
 
-    const loadTemplates = useCallback(async (isRefresh = false) => {
-        if (isRefresh) setRefreshing(true);
+    // Pull-to-refresh keeps its spinner flip here (setState in an event
+    // handler is fine), separate from the mount fetch effect below.
+    const handleRefresh = useCallback(async () => {
+        setRefreshing(true);
         try {
             const mapped = await fetchTemplates();
             // Only replace the curated fallback set when the backend returns usable templates.
@@ -51,13 +53,22 @@ export default function RoadmapTemplatesScreen() {
         } catch {
             // Offline or backend unavailable — keep the curated fallback set already in state.
         } finally {
-            if (isRefresh) setRefreshing(false);
+            setRefreshing(false);
         }
     }, []);
 
     useEffect(() => {
+        const loadTemplates = async () => {
+            try {
+                const mapped = await fetchTemplates();
+                // Only replace the curated fallback set when the backend returns usable templates.
+                if (mapped.length > 0) setTemplates(mapped);
+            } catch {
+                // Offline or backend unavailable — keep the curated fallback set already in state.
+            }
+        };
         loadTemplates();
-    }, [loadTemplates]);
+    }, []);
 
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
     const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)';
@@ -157,7 +168,7 @@ export default function RoadmapTemplatesScreen() {
                 contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 110 }]}
                 showsVerticalScrollIndicator={false}
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={() => loadTemplates(true)} tintColor={colors.primary} />
+                    <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
                 }
             >
                 <ScrollView

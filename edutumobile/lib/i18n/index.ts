@@ -1,3 +1,4 @@
+/* eslint-disable import/no-named-as-default-member -- i18next's documented API is method chaining off the default export */
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { I18nManager } from 'react-native';
@@ -7,7 +8,6 @@ import {
     DEFAULT_LANGUAGE,
     isRtlLanguage,
     isSupportedLanguage,
-    SUPPORTED_LANGUAGES,
     type LanguageCode,
 } from './languages';
 

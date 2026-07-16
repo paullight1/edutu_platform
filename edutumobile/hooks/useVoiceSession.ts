@@ -77,7 +77,11 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
   // so server-side usage metering can bill real seconds, not estimates.
   const durationMsRef = useRef(0);
   const modeRef = useRef(mode);
-  modeRef.current = mode;
+  useEffect(() => {
+    // Post-commit write — render-time ref writes are unsafe under concurrent
+    // rendering. Readers are all async callbacks, which fire after commit.
+    modeRef.current = mode;
+  }, [mode]);
   // Ref mirror so async callbacks (TTS onDone fires long after render) see
   // the mute state at completion time, not at closure-creation time.
   const mutedRef = useRef(false);
@@ -276,6 +280,7 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
 
     if (typeof db === 'number' && Number.isFinite(db)) {
       const normalized = (db - LEVEL_DB_FLOOR) / (LEVEL_DB_CEIL - LEVEL_DB_FLOOR);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- this effect IS the delivery path for expo-audio's metering stream (recorderState updates ~per frame); level holds its last value while not listening, so it is not render-derivable. Proper fix is useSyncExternalStore over the recorder — tracked, out of scope here.
       setLevel(Math.max(0, Math.min(1, normalized)));
 
       if (db > SPEECH_DB_GATE) {
@@ -379,7 +384,6 @@ export function useVoiceSession({ mode, userId, getAuthToken, greeting }: UseVoi
     assistantReply,
     spokenRatio,
     turnCount,
-    threadId: threadIdRef.current,
     begin,
     end,
     onOrbPress,

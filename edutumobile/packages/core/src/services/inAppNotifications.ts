@@ -84,8 +84,8 @@ class InAppNotificationService {
     }
 
     async sendProfileUpdatePrompt(
-        userId: string,
-        missingFields: string[]
+        _userId: string,
+        _missingFields: string[]
     ): Promise<boolean> {
         return false;
     }

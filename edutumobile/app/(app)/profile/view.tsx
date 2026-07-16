@@ -131,11 +131,12 @@ export default function ProfileViewScreen() {
         getAuthToken: getToken,
     });
 
+    const userId = user?.id;
     useFocusEffect(
         useCallback(() => {
             let cancelled = false;
             const loadSavedProfile = async () => {
-                if (!user) return;
+                if (!userId) return;
                 const data = await fetchProfile(getToken);
                 if (data && !cancelled) setSavedProfile(data);
             };
@@ -143,7 +144,7 @@ export default function ProfileViewScreen() {
             return () => {
                 cancelled = true;
             };
-        }, [user?.id, getToken])
+        }, [userId, getToken])
     );
 
     useEffect(() => {
@@ -230,7 +231,7 @@ export default function ProfileViewScreen() {
         };
 
         fetchProfileStats();
-    }, [user]);
+    }, [user, t]);
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
