@@ -30,6 +30,7 @@ import {
   isInvalidOrExpiredTokenError,
 } from "../lib/clerkToken";
 import { isProductApiUnavailableError } from "../services/productApi";
+import { COUNTRIES } from "../data/countries";
 import PullToRefresh from "./ui/PullToRefresh";
 import ProfileQuickStats from "./ProfileQuickStats";
 import Button from "./ui/Button";
@@ -122,6 +123,137 @@ function friendlyProfileError(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
+const INTEREST_OPTIONS = [
+  "Scholarships",
+  "Fellowships",
+  "Internships",
+  "Grants",
+  "Research",
+  "Exchange programs",
+  "Competitions",
+  "Conferences",
+  "Volunteering",
+  "Bootcamps",
+  "Online courses",
+  "Jobs",
+];
+
+const DESTINATION_OPTIONS = [
+  "United States",
+  "United Kingdom",
+  "Canada",
+  "Germany",
+  "Australia",
+  "France",
+  "Netherlands",
+  "Sweden",
+  "Norway",
+  "Switzerland",
+  "Italy",
+  "Spain",
+  "Ireland",
+  "Japan",
+  "South Korea",
+  "China",
+  "Singapore",
+  "United Arab Emirates",
+  "South Africa",
+  "New Zealand",
+];
+
+function toggleTag(list: string[], value: string): string[] {
+  const exists = list.some((v) => v.toLowerCase() === value.toLowerCase());
+  return exists
+    ? list.filter((v) => v.toLowerCase() !== value.toLowerCase())
+    : [...list, value];
+}
+
+/**
+ * Toggleable tag chips: presets plus any already-selected custom values, with
+ * an optional free-text adder. Selected chips get a brand ring + check mark.
+ */
+function TagPicker({
+  options,
+  selected,
+  onToggle,
+  onAdd,
+  addPlaceholder,
+  addListId,
+}: {
+  options: string[];
+  selected: string[];
+  onToggle: (value: string) => void;
+  onAdd?: (value: string) => void;
+  addPlaceholder?: string;
+  addListId?: string;
+}) {
+  const [draft, setDraft] = useState("");
+  const isSelected = (value: string) =>
+    selected.some((v) => v.toLowerCase() === value.toLowerCase());
+  const customSelected = selected.filter(
+    (v) => !options.some((o) => o.toLowerCase() === v.toLowerCase()),
+  );
+  const chips = [...options, ...customSelected];
+
+  const commitDraft = () => {
+    const value = draft.trim();
+    if (!value || !onAdd) return;
+    onAdd(value);
+    setDraft("");
+  };
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2">
+        {chips.map((value) => {
+          const active = isSelected(value);
+          return (
+            <button
+              key={value}
+              type="button"
+              onClick={() => onToggle(value)}
+              aria-pressed={active}
+              className={
+                active
+                  ? "inline-flex items-center gap-1.5 rounded-full border border-brand-500 bg-brand-500/10 px-3 py-1.5 text-xs font-semibold text-brand-600 ring-1 ring-brand-500/40 transition active:scale-[0.97]"
+                  : "inline-flex items-center gap-1.5 rounded-full border border-subtle bg-surface-layer px-3 py-1.5 text-xs font-semibold text-text-secondary transition hover:border-strong hover:text-text-primary active:scale-[0.97]"
+              }
+            >
+              {active ? <CheckCircle2 size={13} className="shrink-0" /> : null}
+              {value}
+            </button>
+          );
+        })}
+      </div>
+      {onAdd ? (
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                commitDraft();
+              }
+            }}
+            list={addListId}
+            placeholder={addPlaceholder || "Add your own…"}
+            className="h-9 w-full max-w-xs rounded-xl border border-subtle bg-surface-layer px-3 text-xs font-semibold text-text-secondary outline-none focus:border-brand-500/50"
+          />
+          <button
+            type="button"
+            onClick={commitDraft}
+            disabled={!draft.trim()}
+            className="h-9 shrink-0 rounded-xl border border-subtle bg-surface-layer px-3 text-xs font-semibold text-text-secondary transition hover:border-strong hover:text-text-primary disabled:opacity-50"
+          >
+            Add
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const FIELD_LABEL_CLASS_NAME = "font-semibold text-text-primary";
 const FIELD_INPUT_CLASS_NAME =
   "h-11 rounded-xl border border-subtle bg-surface-layer px-3 pr-10 font-semibold text-text-secondary";
@@ -146,8 +278,8 @@ export default function ProfilePage() {
   const [cgpa, setCgpa] = useState("");
   const [gradYear, setGradYear] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
-  const [interestedCountriesText, setInterestedCountriesText] = useState("");
-  const [interestsText, setInterestsText] = useState("");
+  const [interestedCountries, setInterestedCountries] = useState<string[]>([]);
+  const [interests, setInterests] = useState<string[]>([]);
   const [skillsText, setSkillsText] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -163,7 +295,6 @@ export default function ProfilePage() {
     () =>
       JSON.stringify([
         fullName,
-        email,
         country,
         school,
         courseOfStudy,
@@ -171,13 +302,12 @@ export default function ProfilePage() {
         cgpa,
         gradYear,
         dateOfBirth,
-        interestedCountriesText,
-        interestsText,
+        interestedCountries,
+        interests,
         skillsText,
       ]),
     [
       fullName,
-      email,
       country,
       school,
       courseOfStudy,
@@ -185,8 +315,8 @@ export default function ProfilePage() {
       cgpa,
       gradYear,
       dateOfBirth,
-      interestedCountriesText,
-      interestsText,
+      interestedCountries,
+      interests,
       skillsText,
     ],
   );
@@ -275,15 +405,15 @@ export default function ProfilePage() {
         nextProfile.gradYear == null ? "" : String(nextProfile.gradYear),
       );
       setDateOfBirth(formatDateInput(nextProfile.dateOfBirth));
-      setInterestedCountriesText(
+      setInterestedCountries(
         Array.isArray(nextProfile.interestedCountries)
-          ? nextProfile.interestedCountries.join(", ")
-          : "",
+          ? nextProfile.interestedCountries.filter(Boolean)
+          : [],
       );
-      setInterestsText(
+      setInterests(
         Array.isArray(nextProfile.interests)
-          ? nextProfile.interests.join(", ")
-          : "",
+          ? nextProfile.interests.filter(Boolean)
+          : [],
       );
       setSkillsText(
         Array.isArray(nextProfile.skills) ? nextProfile.skills.join(", ") : "",
@@ -332,11 +462,6 @@ export default function ProfilePage() {
   }, [loadProfile]);
 
   const skills = useMemo(() => parseSkills(skillsText), [skillsText]);
-  const interestedCountries = useMemo(
-    () => parseSkills(interestedCountriesText),
-    [interestedCountriesText],
-  );
-  const interests = useMemo(() => parseSkills(interestsText), [interestsText]);
   const calculatedAge = useMemo(() => calculateAge(dateOfBirth), [dateOfBirth]);
   const completeness = profile?.completeness;
   const completenessPercent = completeness?.percent ?? 0;
@@ -358,9 +483,10 @@ export default function ProfilePage() {
     setError(null);
     setSavedMessage(null);
 
+    // Email is deliberately absent: it's the sign-in identity. Changing it
+    // must go through Clerk's verified email flow, not a profile PATCH.
     const payload: ProfileUpdateInput = {
       fullName: fullName.trim() || null,
-      email: email.trim() || null,
       country: country.trim() || null,
       school: school.trim() || null,
       courseOfStudy: courseOfStudy.trim() || null,
@@ -458,19 +584,6 @@ export default function ProfilePage() {
                     {formatDate(profile?.updatedAt || profile?.updated_at)}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => void handleSignOut()}
-                  disabled={isSigningOut}
-                  className="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-danger/30 bg-danger/5 px-4 text-sm font-semibold text-danger transition hover:bg-danger/10 disabled:cursor-wait disabled:opacity-60"
-                >
-                  {isSigningOut ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <LogOut size={16} />
-                  )}
-                  {isSigningOut ? "Signing out…" : "Log out"}
-                </button>
               </div>
             </div>
           </section>
@@ -488,7 +601,9 @@ export default function ProfilePage() {
                     </p>
                     <p className="mt-1 text-sm leading-6 text-text-secondary">
                       Your details are safe on this page, but saving needs a
-                      fresh sign-in. This usually takes under a minute.
+                      fresh sign-in. If this message comes back right after
+                      you sign in again, the problem is on our side — no need
+                      to keep retrying, we're already on it.
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <button
@@ -586,15 +701,15 @@ export default function ProfilePage() {
                       id="profile-email"
                       type="email"
                       value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      className={FIELD_INPUT_CLASS_NAME}
+                      readOnly
+                      disabled
+                      className={`${FIELD_INPUT_CLASS_NAME} cursor-not-allowed opacity-70`}
                       placeholder="you@example.com"
                     />
-                    <PencilLine
-                      size={16}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
-                    />
                   </div>
+                  <span className="mt-1 block text-xs font-medium text-text-muted">
+                    Linked to your sign-in — it can't be edited here.
+                  </span>
                 </div>
 
                 <div className="block">
@@ -602,17 +717,24 @@ export default function ProfilePage() {
                     Country
                   </Label>
                   <div className="relative mt-2">
-                    <Input
+                    <select
                       id="profile-country"
                       value={country}
                       onChange={(event) => setCountry(event.target.value)}
-                      className={FIELD_INPUT_CLASS_NAME}
-                      placeholder="Country or primary market"
-                    />
-                    <PencilLine
-                      size={16}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
-                    />
+                      className="h-11 w-full rounded-xl border border-subtle bg-surface-layer px-3 font-semibold text-text-secondary outline-none focus:border-brand-500/50"
+                    >
+                      <option value="">Select your country…</option>
+                      {/* Keep an unlisted saved value selectable instead of silently clearing it. */}
+                      {country &&
+                      !COUNTRIES.some((entry) => entry.name === country) ? (
+                        <option value={country}>{country}</option>
+                      ) : null}
+                      {COUNTRIES.map((entry) => (
+                        <option key={entry.name} value={entry.name}>
+                          {entry.flag} {entry.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
@@ -743,49 +865,54 @@ export default function ProfilePage() {
                 </div>
 
                 <div className="block sm:col-span-2">
-                  <Label
-                    htmlFor="profile-interested-countries"
-                    className={FIELD_LABEL_CLASS_NAME}
-                  >
+                  <span className={`block text-sm ${FIELD_LABEL_CLASS_NAME}`}>
                     Interested countries
-                  </Label>
-                  <div className="relative mt-2">
-                    <Input
-                      id="profile-interested-countries"
-                      value={interestedCountriesText}
-                      onChange={(event) =>
-                        setInterestedCountriesText(event.target.value)
-                      }
-                      className={FIELD_INPUT_CLASS_NAME}
-                      placeholder="Canada, Germany, United Kingdom"
-                    />
-                    <PencilLine
-                      size={16}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
-                    />
-                  </div>
+                  </span>
+                  <p className="mb-2 mt-1 text-xs font-medium text-text-muted">
+                    Tap the countries you'd study or work in — selected ones
+                    show a check.
+                  </p>
+                  <TagPicker
+                    options={DESTINATION_OPTIONS}
+                    selected={interestedCountries}
+                    onToggle={(value) =>
+                      setInterestedCountries((current) =>
+                        toggleTag(current, value),
+                      )
+                    }
+                    onAdd={(value) =>
+                      setInterestedCountries((current) =>
+                        toggleTag(current, value),
+                      )
+                    }
+                    addPlaceholder="Add another country…"
+                    addListId="profile-country-options"
+                  />
+                  <datalist id="profile-country-options">
+                    {COUNTRIES.map((entry) => (
+                      <option key={entry.name} value={entry.name} />
+                    ))}
+                  </datalist>
                 </div>
 
                 <div className="block sm:col-span-2">
-                  <Label
-                    htmlFor="profile-interests"
-                    className={FIELD_LABEL_CLASS_NAME}
-                  >
-                    Opportunity interest tags
-                  </Label>
-                  <div className="relative mt-2">
-                    <Input
-                      id="profile-interests"
-                      value={interestsText}
-                      onChange={(event) => setInterestsText(event.target.value)}
-                      className={FIELD_INPUT_CLASS_NAME}
-                      placeholder="Scholarships, fellowships, internships, research"
-                    />
-                    <PencilLine
-                      size={16}
-                      className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted"
-                    />
-                  </div>
+                  <span className={`block text-sm ${FIELD_LABEL_CLASS_NAME}`}>
+                    Opportunity interests
+                  </span>
+                  <p className="mb-2 mt-1 text-xs font-medium text-text-muted">
+                    Pick everything you want Edutu to hunt for.
+                  </p>
+                  <TagPicker
+                    options={INTEREST_OPTIONS}
+                    selected={interests}
+                    onToggle={(value) =>
+                      setInterests((current) => toggleTag(current, value))
+                    }
+                    onAdd={(value) =>
+                      setInterests((current) => toggleTag(current, value))
+                    }
+                    addPlaceholder="Add your own interest…"
+                  />
                 </div>
 
                 <div className="block sm:col-span-2">
@@ -923,42 +1050,6 @@ export default function ProfilePage() {
                   </p>
                 )}
               </div>
-
-              {interestedCountries.length > 0 ? (
-                <div
-                  className="rounded-[20px] border border-subtle bg-surface-layer p-5 shadow-soft"
-                >
-                  <p className="text-sm font-semibold">Interested countries</p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {interestedCountries.map((countryName) => (
-                      <span
-                        key={countryName}
-                        className="rounded-xl bg-success/10 px-2.5 py-1 text-xs font-semibold text-success"
-                      >
-                        {countryName}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {interests.length > 0 ? (
-                <div
-                  className="rounded-[20px] border border-subtle bg-surface-layer p-5 shadow-soft"
-                >
-                  <p className="text-sm font-semibold">Interest tags</p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {interests.map((interest) => (
-                      <span
-                        key={interest}
-                        className="rounded-xl bg-accent/10 px-2.5 py-1 text-xs font-semibold text-accent"
-                      >
-                        {interest}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
 
               {skills.length > 0 ? (
                 <div
