@@ -59,7 +59,8 @@ export default function CreatorApply() {
         bio: '',
         socialLinks: ''
     });
-    const [kycImage, setKycImage] = useState<string | null>(null);
+    const [kycImage, setKycImage] = useState<string | null>(null); // local preview URI only
+    const [kycPath, setKycPath] = useState<string | null>(null);   // private storage path stored in DB
     const [loading, setLoading] = useState(false);
     const [uploadingImage, setUploadingImage] = useState(false);
     const [submitted, setSubmitted] = useState(false);
@@ -117,11 +118,12 @@ export default function CreatorApply() {
 
                 if (error) throw error;
 
-                const { data: { publicUrl } } = supabase.storage
-                    .from('creator-applications')
-                    .getPublicUrl(fileName);
-
-                setKycImage(publicUrl);
+                // KYC docs are identity documents — the bucket is PRIVATE, so
+                // we store the storage path (not a public URL) and admins view
+                // it via a short-lived signed URL. The device-local uri is used
+                // only for the in-session preview.
+                setKycPath(data?.path ?? fileName);
+                setKycImage(file.uri);
             }
         } catch (error: any) {
             Alert.alert('Error', 'Failed to upload image. Please try again.');
@@ -135,7 +137,7 @@ export default function CreatorApply() {
             case 'intro': return true;
             case 'motivation': return !!form.motivation;
             case 'achievement': return !!form.opportunityType && !!form.opportunityTitle && !!form.linkedinUrl;
-            case 'verification': return !!kycImage && !!form.bio;
+            case 'verification': return !!kycPath && !!form.bio;
             case 'review': return true;
             default: return false;
         }
@@ -148,6 +150,7 @@ export default function CreatorApply() {
                 .from('creator_applications')
                 .insert({
                     user_id: toSafeUUID(user?.id!),
+                    application_kind: 'creator',
                     motivation: form.motivation,
                     opportunity_type: form.opportunityType,
                     opportunity_title: form.opportunityTitle,
@@ -156,17 +159,17 @@ export default function CreatorApply() {
                     portfolio_url: form.portfolioUrl,
                     bio: form.bio,
                     social_links: form.socialLinks,
-                    kyc_image_url: kycImage,
+                    kyc_image_url: kycPath,
                     status: 'pending',
                     applied_at: new Date().toISOString()
                 });
 
             if (error) throw error;
 
-            await supabase
-                .from('profiles')
-                .update({ creator_status: 'pending' })
-                .eq('user_id', toSafeUUID(user?.id!));
+            // creator_status is a protected profile column (migration 015);
+            // it can only be changed via this SECURITY DEFINER RPC, which
+            // scopes the write to the authenticated user server-side.
+            await supabase.rpc('set_creator_status', { p_status: 'pending' });
 
             setSubmitted(true);
         } catch (e: any) {

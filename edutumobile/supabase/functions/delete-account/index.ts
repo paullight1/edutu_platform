@@ -64,6 +64,12 @@ Deno.serve(async (req) => {
     await deleteFrom('credit_purchases', 'user_id');
     await deleteFrom('subscriptions', 'user_id');
     await deleteFrom('transactions', 'user_id');
+    // Billing tables written by the RevenueCat webhook — these hold payment
+    // PII and MUST be included in the cascade.
+    await deleteFrom('billing_subscriptions', 'user_id');
+    await deleteFrom('billing_entitlements', 'user_id');
+    await deleteFrom('billing_transactions', 'user_id');
+    await deleteFrom('processed_webhook_events', 'user_id');
     await deleteFrom('roadmap_enrollments', 'user_id');
     await deleteFrom('user_roadmap_intents', 'user_id');
     await deleteFrom('roadmap_feedback', 'user_id');

@@ -14,6 +14,22 @@ const SECURITY_HEADERS = {
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+// Constant-time string comparison via HMAC digests, so the secret check
+// doesn't leak match length through timing.
+async function timingSafeEqual(a: string, b: string): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.generateKey({ name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const [digestA, digestB] = await Promise.all([
+    crypto.subtle.sign('HMAC', key, encoder.encode(a)),
+    crypto.subtle.sign('HMAC', key, encoder.encode(b)),
+  ]);
+  const bytesA = new Uint8Array(digestA);
+  const bytesB = new Uint8Array(digestB);
+  let diff = 0;
+  for (let i = 0; i < bytesA.length; i++) diff |= bytesA[i] ^ bytesB[i];
+  return diff === 0;
+}
+
 // RevenueCat webhook event types
 type RevenueCatEvent = {
   api_version: string;
@@ -50,9 +66,22 @@ serve(async (req) => {
       });
     }
 
-    const signatureHeader = req.headers.get('X-RC-Webhook-Signature');
-    if (!signatureHeader) {
-      return new Response(JSON.stringify({ error: 'Missing signature header' }), {
+    // RevenueCat authenticates webhooks with a static Authorization header
+    // value configured in the RevenueCat dashboard (not an HMAC signature).
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Missing Authorization header' }), {
+        status: 401,
+        headers: SECURITY_HEADERS,
+      });
+    }
+
+    const presented = authHeader.startsWith('Bearer ')
+      ? authHeader.slice('Bearer '.length)
+      : authHeader;
+
+    if (!(await timingSafeEqual(presented, webhookSecret))) {
+      return new Response(JSON.stringify({ error: 'Invalid webhook credentials' }), {
         status: 401,
         headers: SECURITY_HEADERS,
       });
@@ -60,58 +89,73 @@ serve(async (req) => {
 
     const rawBody = await req.text();
 
-    const encoder = new TextEncoder();
-    const key = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(webhookSecret),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign'],
-    );
-    const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(rawBody));
-    const expectedSignature = Array.from(new Uint8Array(signature))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
-
-    if (signatureHeader.toLowerCase() !== expectedSignature.toLowerCase()) {
-      return new Response(JSON.stringify({ error: 'Invalid signature' }), {
-        status: 401,
-        headers: SECURITY_HEADERS,
-      });
-    }
-
     const event: RevenueCatEvent = JSON.parse(rawBody);
 
     const { event: eventData } = event;
     const { data } = eventData;
     const userId = data.app_user_id;
 
-    console.log('Received RevenueCat webhook event:', eventData.type, 'for user:', userId);
+    console.log('Received RevenueCat webhook event:', eventData.type, 'id:', eventData.id, 'for user:', userId);
+
+    // Idempotency: claim this event id up front. RevenueCat retries on any
+    // non-2xx response, so a redelivery must not re-run the handler (which
+    // would double-grant credits and duplicate ledger rows). A duplicate
+    // hits the primary key on processed_webhook_events and is skipped.
+    if (eventData.id) {
+      const { error: claimError } = await supabaseAdmin
+        .from('processed_webhook_events')
+        .insert({
+          event_id: eventData.id,
+          provider: 'revenuecat',
+          event_type: eventData.type,
+          user_id: userId,
+        });
+      if (claimError) {
+        if (claimError.code === '23505') {
+          // unique_violation → this event was already processed.
+          console.log('Duplicate RevenueCat event, skipping:', eventData.id);
+          return new Response(JSON.stringify({ success: true, duplicate: true }), {
+            status: 200,
+            headers: SECURITY_HEADERS,
+          });
+        }
+        throw claimError;
+      }
+    }
 
     // Map RevenueCat event types to our actions
-    switch (eventData.type) {
-      case 'INITIAL_PURCHASE':
-      case 'RENEWAL':
-        await handleSubscriptionActive(userId, data, eventData.type);
-        break;
+    try {
+      switch (eventData.type) {
+        case 'INITIAL_PURCHASE':
+        case 'RENEWAL':
+          await handleSubscriptionActive(userId, data, eventData.type);
+          break;
 
-      case 'CANCELLATION':
-        await handleSubscriptionCancelled(userId, data);
-        break;
+        case 'CANCELLATION':
+          await handleSubscriptionCancelled(userId, data);
+          break;
 
-      case 'EXPIRATION':
-        await handleSubscriptionExpired(userId, data);
-        break;
+        case 'EXPIRATION':
+          await handleSubscriptionExpired(userId, data);
+          break;
 
-      case 'NON_RENEWING_PURCHASE':
-        // Handle one-time purchases (e.g., credit packages)
-        await handleOneTimePurchase(userId, data);
-        break;
+        case 'NON_RENEWING_PURCHASE':
+          // Handle one-time purchases (e.g., credit packages)
+          await handleOneTimePurchase(userId, data);
+          break;
 
-      default:
-        if (__DEV__) {
+        default:
           console.log(`Unhandled event type: ${eventData.type}`);
-        }
+      }
+    } catch (handlerError) {
+      // Release the claim so RevenueCat's retry can reprocess this event.
+      if (eventData.id) {
+        await supabaseAdmin
+          .from('processed_webhook_events')
+          .delete()
+          .eq('event_id', eventData.id);
+      }
+      throw handlerError;
     }
 
     return new Response(JSON.stringify({ success: true }), {
@@ -138,9 +182,7 @@ async function handleSubscriptionActive(
   const expiresAt = data.expiration_at_ms ? new Date(parseInt(data.expiration_at_ms)) : null;
   const isTrial = data.is_trial_conversion || data.period_type === 'trial';
 
-  if (__DEV__) {
-    console.log(`Subscription active for user ${userId}, isPro: ${isPro}, type: ${type}`);
-  }
+  console.log(`Subscription active for user ${userId}, isPro: ${isPro}, type: ${type}`);
 
   // Sync subscription status to profiles
   await supabaseAdmin.rpc('sync_subscription_status', {
@@ -221,9 +263,7 @@ async function handleSubscriptionCancelled(
   userId: string,
   data: RevenueCatEvent['event']['data']
 ) {
-  if (__DEV__) {
-    console.log(`Subscription cancelled for user ${userId}`);
-  }
+  console.log(`Subscription cancelled for user ${userId}`);
 
   // Update subscription record
   await supabaseAdmin
@@ -251,9 +291,7 @@ async function handleSubscriptionExpired(
   userId: string,
   data: RevenueCatEvent['event']['data']
 ) {
-  if (__DEV__) {
-    console.log(`Subscription expired for user ${userId}`);
-  }
+  console.log(`Subscription expired for user ${userId}`);
 
   // Update subscription record
   await supabaseAdmin
@@ -308,16 +346,15 @@ async function handleOneTimePurchase(
     };
 
     const credits = creditAmounts[data.product_id] || 0;
+    if (credits <= 0) {
+      console.warn(`Unknown credit product, granting nothing: ${data.product_id}`);
+      return;
+    }
 
-    // Add credits to user profile
-    await supabaseAdmin.rpc('add_credits', {
-      p_user_id: userId,
-      amount: credits,
-      reason: `Credit purchase: ${data.product_id}`,
-    });
-
-    // Record the purchase
-    await supabaseAdmin.from('credit_purchases').insert({
+    // Record the purchase FIRST. credit_purchases.transaction_id is uniquely
+    // indexed (migration 018), so a duplicate transaction — even one arriving
+    // under a different event id — fails here BEFORE any credits are granted.
+    const { error: purchaseError } = await supabaseAdmin.from('credit_purchases').insert({
       user_id: userId,
       credits_purchased: credits,
       credits_granted: credits,
@@ -329,6 +366,27 @@ async function handleOneTimePurchase(
       status: 'completed',
       granted_at: new Date().toISOString(),
     });
+
+    if (purchaseError) {
+      if (purchaseError.code === '23505') {
+        // This transaction was already fulfilled — do not grant again.
+        console.log(`Credit purchase already recorded, skipping grant: ${data.transaction_id}`);
+        return;
+      }
+      throw new Error(`Failed to record credit purchase for ${userId}: ${purchaseError.message}`);
+    }
+
+    // Now grant the credits (service-role only, idempotency guarded above).
+    const { error: creditError } = await supabaseAdmin.rpc('admin_add_credits', {
+      p_user_id: userId,
+      p_amount: credits,
+      p_reason: `Credit purchase: ${data.product_id}`,
+    });
+
+    if (creditError) {
+      console.error('Failed to grant purchased credits:', creditError);
+      throw new Error(`Credit grant failed for ${userId}: ${creditError.message}`);
+    }
 
     await supabaseAdmin.from('billing_transactions').upsert({
       user_id: userId,
@@ -346,8 +404,6 @@ async function handleOneTimePurchase(
       onConflict: 'provider,provider_reference',
     });
 
-    if (__DEV__) {
-      console.log(`Added ${credits} credits to user ${userId}`);
-    }
+    console.log(`Added ${credits} credits to user ${userId}`);
   }
 }
