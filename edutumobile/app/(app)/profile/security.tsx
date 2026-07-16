@@ -89,16 +89,21 @@ export default function SecurityScreen() {
 
     const hasPassword = Boolean(user?.passwordEnabled);
 
-    const loadSessions = useCallback(async () => {
-        if (!user) return;
-        try {
-            const result = await user.getSessions();
-            // Revoked/ended sessions aren't devices the user can act on.
-            setSessions(result.filter((session) => session.status === 'active'));
-            setSessionsError(false);
-        } catch {
-            setSessionsError(true);
-        }
+    // Promise-chain style (not async/await) so every setState lives in an
+    // async callback — the set-state-in-effect rule treats awaited sets in a
+    // named async callee as synchronous.
+    const loadSessions = useCallback(() => {
+        if (!user) return Promise.resolve();
+        return user
+            .getSessions()
+            .then((result) => {
+                // Revoked/ended sessions aren't devices the user can act on.
+                setSessions(result.filter((session) => session.status === 'active'));
+                setSessionsError(false);
+            })
+            .catch(() => {
+                setSessionsError(true);
+            });
     }, [user]);
 
     useEffect(() => {

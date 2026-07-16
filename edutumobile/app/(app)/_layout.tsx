@@ -96,14 +96,6 @@ function getCreateDialBottom(style: NavBarStyle, bottomInset: number): number {
     }
 }
 
-function getBottomNavOffset(bottomInset: number): number {
-    if (Platform.OS === 'ios') {
-        return Math.max(bottomInset - 8, 10);
-    }
-
-    return bottomInset > 0 ? Math.max(bottomInset, 8) : 8;
-}
-
 // ─── Badge Component ─────────────────────────────────────────────────────────
 function Badge({ count, isDark }: { count?: number | "!"; isDark: boolean }) {
     const { t } = useTranslation('home');

@@ -82,10 +82,6 @@ const TAB_META: Record<Tab, { label: string; hint: string }> = {
     label: 'App Control',
     hint: 'The emergency levers: force an update, put the app in maintenance, or lock features to Pro / off.',
   },
-  appControl: {
-    label: 'App Control',
-    hint: 'The emergency levers: force an update, put the app in maintenance, or lock features to Pro / off.',
-  },
 };
 
 function slugify(value: string) {

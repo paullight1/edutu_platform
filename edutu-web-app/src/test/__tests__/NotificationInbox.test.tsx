@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import NotificationInbox from "../../components/NotificationInbox";
 
 const notificationContext = vi.hoisted(() => ({
@@ -55,12 +56,19 @@ describe("NotificationInbox", () => {
   });
 
   it("renders real notification data and supports read actions", async () => {
-    render(<NotificationInbox isOpen onClose={vi.fn()} />);
+    render(
+      <MemoryRouter>
+        <NotificationInbox isOpen onClose={vi.fn()} />
+      </MemoryRouter>,
+    );
 
     expect(screen.getByText("New scholarship match")).toBeInTheDocument();
     expect(screen.getByText("1 unread alert")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /mark read/i }));
+    // Opening a notification is what marks it read in the redesigned inbox.
+    fireEvent.click(
+      screen.getByRole("button", { name: /new scholarship match/i }),
+    );
 
     await waitFor(() => {
       expect(notificationContext.value.markAsRead).toHaveBeenCalledWith(
@@ -70,7 +78,11 @@ describe("NotificationInbox", () => {
   });
 
   it("does not render when closed", () => {
-    render(<NotificationInbox isOpen={false} onClose={vi.fn()} />);
+    render(
+      <MemoryRouter>
+        <NotificationInbox isOpen={false} onClose={vi.fn()} />
+      </MemoryRouter>,
+    );
 
     expect(screen.queryByText("Notifications")).not.toBeInTheDocument();
   });
