@@ -27,6 +27,7 @@ import {
 } from "../lib/clerkToken";
 import PullToRefresh from "./ui/PullToRefresh";
 import ProfileQuickStats from "./ProfileQuickStats";
+import { useProfileStats } from "../hooks/useProfileStats";
 import Button from "./ui/Button";
 import Input from "./ui/Input";
 import Label from "./ui/Label";
@@ -57,6 +58,16 @@ function formatDate(value?: string | null) {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function formatTimeAgo(value: string) {
+  const timestamp = new Date(value).getTime();
+  if (Number.isNaN(timestamp)) return "";
+  const mins = Math.floor((Date.now() - timestamp) / (1000 * 60));
+  if (mins < 60) return `${Math.max(mins, 0)}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return new Date(value).toLocaleDateString();
 }
 
 function parseSkills(value: string) {
@@ -114,6 +125,8 @@ export default function ProfilePage() {
   const navigate = useNavigate();
   const { getToken } = useClerkAuth();
   const { user, signOut } = useAppAuth();
+  // One fetch feeds both the quick-stats tiles and the Recent Activity card.
+  const profileStats = useProfileStats();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [profile, setProfile] = useState<BackendProfile | null>(null);
   const [fullName, setFullName] = useState("");
@@ -235,6 +248,33 @@ export default function ProfilePage() {
   const calculatedAge = useMemo(() => calculateAge(dateOfBirth), [dateOfBirth]);
   const completeness = profile?.completeness;
   const completenessPercent = completeness?.percent ?? 0;
+
+  // Moved here from the dashboard: latest saves and tracked applications,
+  // newest first. Same shape the home sidebar used to render.
+  const recentActivity = useMemo(() => {
+    const savedItems = profileStats.savedRecords.slice(0, 3).map((bookmark) => ({
+      id: `bookmark-${bookmark.id}`,
+      title: `Saved ${bookmark.opportunity_title}`,
+      date: formatTimeAgo(bookmark.created_at),
+      timestamp: new Date(bookmark.created_at).getTime(),
+      icon: <Bookmark size={16} />,
+    }));
+
+    const applicationItems = profileStats.applicationRecords
+      .slice(0, 3)
+      .map((application) => ({
+        id: `application-${application.id}`,
+        title: `Tracked ${application.opportunity_title}`,
+        date: formatTimeAgo(application.applied_at),
+        timestamp: new Date(application.applied_at).getTime(),
+        icon: <Send size={16} />,
+      }));
+
+    return [...savedItems, ...applicationItems]
+      .filter((item) => Number.isFinite(item.timestamp))
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 5);
+  }, [profileStats.savedRecords, profileStats.applicationRecords]);
 
   const handleSignOut = async () => {
     if (isSigningOut) return;
@@ -360,7 +400,71 @@ export default function ProfilePage() {
             </div>
           </section>
 
-          <ProfileQuickStats />
+          <ProfileQuickStats stats={profileStats} />
+
+          {recentActivity.length > 0 && (
+            <section className="mt-5 rounded-[20px] border border-subtle bg-surface-layer p-5 shadow-soft">
+              <div className="mb-5 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-warning/10 p-2 text-warning">
+                    <Sparkles size={18} />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-semibold">Recent Activity</h2>
+                    <p className="text-xs text-text-muted">
+                      Latest saved and tracked opportunities
+                    </p>
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {(profileStats.saved ?? 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => navigate("/saved")}
+                      className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand transition hover:text-brand-600"
+                    >
+                      Saved
+                    </button>
+                  )}
+                  {(profileStats.applications ?? 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => navigate("/applications")}
+                      className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand transition hover:text-brand-600"
+                    >
+                      Applied
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {recentActivity.map((item) => (
+                  <div
+                    key={item.id}
+                    className="group flex items-center gap-3 rounded-2xl p-3 transition-all hover:bg-surface-elevated"
+                  >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-success/10 text-success">
+                      {item.icon}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium transition-colors group-hover:text-brand">
+                        {item.title}
+                      </p>
+                      <p className="text-[10px] font-medium text-text-muted">
+                        {item.date}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5 flex items-center justify-between border-t border-subtle pt-4 text-[10px] font-medium tracking-widest text-text-muted">
+                <span>Saved {profileStats.saved ?? 0}</span>
+                <span>Applications {profileStats.applications ?? 0}</span>
+              </div>
+            </section>
+          )}
 
           {error ? (
             <div className="mt-5 rounded-2xl border border-danger/20 bg-danger/10 p-4 text-sm font-semibold text-danger">

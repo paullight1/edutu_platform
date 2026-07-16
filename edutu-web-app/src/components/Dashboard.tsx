@@ -1,7 +1,6 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import {
   BadgeDollarSign,
-  Bookmark,
   Briefcase,
   Calendar,
   ChevronRight,
@@ -11,7 +10,6 @@ import {
   GraduationCap,
   LayoutGrid,
   List,
-  Send,
   Share2,
   Shuffle,
   Sparkles,
@@ -1104,38 +1102,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
       return () => observer.disconnect();
     }, [opportunitiesLoading, shuffledOpportunityFeed.length]);
 
-    const formatUpdatedAt = (updatedAt: string) => {
-      const diff = Date.now() - new Date(updatedAt).getTime();
-      const mins = Math.floor(diff / (1000 * 60));
-      if (mins < 60) return `${mins}m ago`;
-      const hours = Math.floor(mins / 60);
-      if (hours < 24) return `${hours}h ago`;
-      return new Date(updatedAt).toLocaleDateString();
-    };
-
-    const recentActivity = useMemo(() => {
-      const savedItems = bookmarks.slice(0, 3).map((bookmark) => ({
-        id: `bookmark-${bookmark.id}`,
-        title: `Saved ${bookmark.opportunity_title}`,
-        date: formatUpdatedAt(bookmark.created_at),
-        timestamp: new Date(bookmark.created_at).getTime(),
-        icon: <Bookmark size={16} />,
-      }));
-
-      const applicationItems = applications.slice(0, 3).map((application) => ({
-        id: `application-${application.id}`,
-        title: `Tracked ${application.opportunity_title}`,
-        date: formatUpdatedAt(application.applied_at),
-        timestamp: new Date(application.applied_at).getTime(),
-        icon: <Send size={16} />,
-      }));
-
-      return [...savedItems, ...applicationItems]
-        .filter((item) => Number.isFinite(item.timestamp))
-        .sort((a, b) => b.timestamp - a.timestamp)
-        .slice(0, 5);
-    }, [applications, bookmarks]);
-
     function handleShuffleOpportunities() {
       setHomeShuffleSeed(createOpportunityShuffleSeed());
       setHomeFeedLimit(HOME_FEED_BATCH_SIZE);
@@ -1937,11 +1903,10 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
               </motion.section>
             ) : null}
 
-            {/* Content Layout */}
+            {/* Content Layout — Recent Activity moved to the profile page,
+                so the feed always gets the full width. */}
             <div className="grid lg:grid-cols-12 gap-8 pb-8">
-              <div
-                className={`${recentActivity.length > 0 ? "lg:col-span-8" : "lg:col-span-12"} space-y-10`}
-              >
+              <div className="lg:col-span-12 space-y-10">
                 {/* Recommended Opportunities */}
                 <section>
                   <div className="mb-4">
@@ -2285,75 +2250,6 @@ const Dashboard = React.forwardRef<DashboardRef, DashboardProps>(
                 </section>
               </div>
 
-              {recentActivity.length > 0 && (
-                <aside className="lg:col-span-4 space-y-6 lg:sticky lg:top-6 lg:self-start">
-                  <section
-                    className={`relative overflow-hidden rounded-[20px] border border-subtle bg-white p-5 shadow-sm`}
-                  >
-                    <div className="flex items-center justify-between mb-6 relative">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-xl bg-warning/10 text-warning">
-                          <Sparkles size={18} />
-                        </div>
-                        <div>
-                          <h2 className="text-base font-semibold">
-                            {t("dashboard.sections.recentActivity")}
-                          </h2>
-                          <p className="text-xs text-text-muted">
-                            {t("dashboard.latestActivity")}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        {bookmarks.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => setActivePanel("saved")}
-                            className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-500 transition hover:text-brand-600"
-                          >
-                            {t("navigation.saved")}
-                          </button>
-                        )}
-                        {applications.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => setActivePanel("applied")}
-                            className="text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-500 transition hover:text-brand-600"
-                          >
-                            {t("navigation.applied")}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="space-y-3 relative">
-                      {recentActivity.map((win) => (
-                        <div
-                          key={win.id}
-                          className="flex gap-3 items-center group/win p-3 rounded-2xl hover:bg-surface-elevated transition-all"
-                        >
-                          <div className="h-9 w-9 shrink-0 rounded-xl bg-success/10 text-success flex items-center justify-center">
-                            {win.icon}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-medium truncate group-hover/win:text-brand-500 transition-colors">
-                              {win.title}
-                            </p>
-                            <p className="text-[10px] font-medium text-text-muted">
-                              {win.date}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="mt-6 pt-4 border-t border-subtle flex items-center justify-between text-[10px] font-medium text-text-muted tracking-widest">
-                      <span>{t("dashboard.savedCount", { count: bookmarks.length })}</span>
-                      <span>{t("dashboard.applicationsCount", { count: applications.length })}</span>
-                    </div>
-                  </section>
-                </aside>
-              )}
             </div>
           </main>
         </div>
