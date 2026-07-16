@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     View,
     Text,
@@ -7,7 +7,7 @@ import {
     TouchableOpacity,
     ScrollView,
     StyleSheet,
-    Animated,
+    Animated, useAnimatedValue,
     Easing,
     Dimensions,
 } from 'react-native';
@@ -68,12 +68,20 @@ export function FeatureMenu({
     // Keep the modal mounted through the exit animation: `visible` from the
     // parent drives the slide, `rendered` unmounts only once it finishes.
     const [rendered, setRendered] = useState(visible);
-    const translateX = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
-    const backdropOpacity = useRef(new Animated.Value(0)).current;
+    const translateX = useAnimatedValue(-DRAWER_WIDTH);
+    const backdropOpacity = useAnimatedValue(0);
+
+    // Mount the drawer as soon as `visible` flips true — adjust-during-render
+    // (React's documented alternative to a state-setting effect). Unmounting
+    // stays async: it happens when the exit animation finishes.
+    const [prevVisible, setPrevVisible] = useState(visible);
+    if (prevVisible !== visible) {
+        setPrevVisible(visible);
+        if (visible) setRendered(true);
+    }
 
     useEffect(() => {
         if (visible) {
-            setRendered(true);
             Animated.parallel([
                 Animated.timing(translateX, {
                     toValue: 0,

@@ -21,7 +21,7 @@ export default function LandingCTA({
     const { isSignedIn } = useAuth();
     const { user } = useUser();
     const router = useRouter();
-    const { colors, isDark } = useTheme();
+    const { colors } = useTheme();
 
     const handleMentorApply = () => {
         if (isSignedIn) {

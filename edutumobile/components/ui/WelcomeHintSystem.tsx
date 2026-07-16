@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Animated,
+  Animated, useAnimatedValue,
   Dimensions,
   Platform,
   Pressable,
@@ -147,9 +147,9 @@ export function WelcomeHintSystem({ userId, enabled, isDark, onComplete }: Welco
   const [ready, setReady] = useState(false);
   const [visible, setVisible] = useState(false);
   const [index, setIndex] = useState(0);
-  const opacity = useRef(new Animated.Value(0)).current;
-  const cardY = useRef(new Animated.Value(18)).current;
-  const iconPulse = useRef(new Animated.Value(1)).current;
+  const opacity = useAnimatedValue(0);
+  const cardY = useAnimatedValue(18);
+  const iconPulse = useAnimatedValue(1);
 
   const storageKey = useMemo(() => `${STORAGE_PREFIX}:${userId || 'anonymous'}`, [userId]);
   const step = STEPS[index];

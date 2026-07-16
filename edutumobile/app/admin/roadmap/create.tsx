@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
@@ -9,16 +9,13 @@ import {
     Alert,
     ActivityIndicator,
     Image,
-    Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-    ChevronLeft,
     Plus,
     Trash2,
     Upload,
     FileText,
-    Link,
     Video,
     BookOpen,
     X,
@@ -80,7 +77,7 @@ function CreateRoadmapScreenContent() {
     const { t } = useTranslation('misc');
     const router = useRouter();
     const { user } = useUser();
-    const { colors, isDark } = useTheme();
+    const { colors } = useTheme();
     const insets = useSafeAreaInsets();
     
     const [loading, setLoading] = useState(false);
@@ -117,7 +114,7 @@ function CreateRoadmapScreenContent() {
             const filePath = `roadmaps/${user?.id}/${uniqueFileName}`;
             
             // Upload to Supabase Storage (S3)
-            const { data, error } = await supabase.storage
+            const { error } = await supabase.storage
                 .from('resources')
                 .upload(filePath, {
                     uri,
@@ -160,7 +157,7 @@ function CreateRoadmapScreenContent() {
                 );
                 setCoverImage(publicUrl);
             }
-        } catch (error) {
+        } catch {
             Alert.alert(t('common:states.error'), t('admin.roadmapCreate.alerts.coverUploadFailed'));
         } finally {
             setUploadingImage(false);
@@ -208,7 +205,7 @@ function CreateRoadmapScreenContent() {
                         : r
                 ));
             }
-        } catch (error) {
+        } catch {
             Alert.alert(t('common:states.error'), t('admin.roadmapCreate.alerts.fileUploadFailed'));
         } finally {
             setUploadingFile(null);

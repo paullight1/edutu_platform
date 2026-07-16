@@ -2,7 +2,6 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { ChevronLeft } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useTheme } from "../../components/context/ThemeContext";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface ScreenHeaderProps {
     title: string;
@@ -14,7 +13,6 @@ interface ScreenHeaderProps {
 
 export function ScreenHeader({ title, subtitle, showBack = false, onBack, right }: ScreenHeaderProps) {
     const router = useRouter();
-    const insets = useSafeAreaInsets();
     const { isDark, colors } = useTheme();
 
     return (

@@ -87,7 +87,9 @@ export function withLoadingStates<P extends object>(
       isLoading,
       error,
       isEmpty,
-      onRetry,
+      // Destructured only to strip it from `rest` before spreading onto the
+      // wrapped component.
+      onRetry: _onRetry,
       skeletonVariant = defaultSkeleton,
       emptyStateVariant = defaultEmptyVariant,
       emptyStateTitle,

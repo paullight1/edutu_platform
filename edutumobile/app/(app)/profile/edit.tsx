@@ -28,11 +28,9 @@ import {
     GraduationCap,
     Globe,
     Save,
-    Mail,
     BookOpen,
     Award,
     Pencil,
-    MapPin,
     School,
     ChevronRight,
 } from 'lucide-react-native';
@@ -75,12 +73,8 @@ export default function EditProfileScreen() {
     // TODO: wire REFER_FRIEND when referral flow exists
 
     useEffect(() => {
-        if (user) {
-            loadProfile();
-        }
-    }, [user]);
-
-    async function loadProfile() {
+        if (!user) return;
+        const loadProfile = async () => {
         try {
             // Read the row directly from Supabase. The RLS policy authorizes it
             // via current_app_user_id() = user_id (the Clerk sub carried by the
@@ -119,7 +113,9 @@ export default function EditProfileScreen() {
         } finally {
             setLoading(false);
         }
-    }
+        };
+        loadProfile();
+    }, [user]);
 
     async function handleSave() {
         if (!user) return;
@@ -189,7 +185,6 @@ export default function EditProfileScreen() {
 
     const textPrimary = colors.foreground;
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
-    const inputBg = isDark ? 'rgba(255,255,255,0.04)' : '#F8FAFC';
     const inputBorder = isDark ? 'rgba(255,255,255,0.08)' : '#E2E8F0';
 
     if (loading) {

@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Animated, StyleSheet, DimensionValue } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Animated, useAnimatedValue, StyleSheet, DimensionValue } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 
 interface SkeletonProps {
@@ -21,7 +21,7 @@ export function Skeleton({
   style,
 }: SkeletonProps) {
   const { colors } = useTheme();
-  const shimmer = useRef(new Animated.Value(0)).current;
+  const shimmer = useAnimatedValue(0);
 
   useEffect(() => {
     const animation = Animated.loop(

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { Goal } from '@edutu/core/src/hooks/useGoals';
 import { PRIORITY_ORDER } from './constants';
 
@@ -81,8 +81,11 @@ export function useFilteredGoals({ goals, activeTab, statusFilter, searchTerm }:
 }
 
 export function useDaysUntil(deadline: string | null | undefined): number {
+    // Clock snapshot from mount: useMemo callbacks must stay pure, and
+    // day-granularity math doesn't need a live clock.
+    const [now] = useState(() => Date.now());
     return useMemo(() => {
         if (!deadline) return 0;
-        return Math.ceil((new Date(deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-    }, [deadline]);
+        return Math.ceil((new Date(deadline).getTime() - now) / (1000 * 60 * 60 * 24));
+    }, [deadline, now]);
 }

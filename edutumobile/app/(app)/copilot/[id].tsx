@@ -254,7 +254,11 @@ export default function ApplicationCopilotScreen() {
   // the load effect can call the latest one without re-running (which would
   // otherwise loop setLoading(true) forever and flicker the screen).
   const getTokenRef = useRef(getToken);
-  getTokenRef.current = getToken;
+  useEffect(() => {
+    // Written post-commit rather than during render: a concurrent render that
+    // React discards must not leave its getToken behind in the ref.
+    getTokenRef.current = getToken;
+  });
 
   const textSecondary = isDark ? "#94A3B8" : "#64748B";
 
@@ -304,27 +308,34 @@ export default function ApplicationCopilotScreen() {
       cancelled = true;
     };
     // Only re-run when the opportunity id changes — getToken is read via ref.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [id]);
 
+  // Adjust-during-render: rewind the phase ticker when generation stops; the
+  // effect below only schedules the interval.
+  const [prevGenerating, setPrevGenerating] = useState(generating);
+  if (prevGenerating !== generating) {
+    setPrevGenerating(generating);
+    if (!generating) setGenerationPhase(0);
+  }
+
   useEffect(() => {
-    if (!generating) {
-      setGenerationPhase(0);
-      return;
-    }
+    if (!generating) return;
     const timer = setInterval(() => {
       setGenerationPhase((phase) => Math.min(phase + 1, GENERATION_PHASES.length - 1));
     }, 1100);
     return () => clearInterval(timer);
   }, [generating]);
 
+  const opportunityDeadline = opportunity?.deadline;
   const deadlineBadge = useMemo(
-    () => (opportunity?.deadline ? getDeadlineBadge(opportunity.deadline) : null),
-    [opportunity?.deadline],
+    () => (opportunityDeadline ? getDeadlineBadge(opportunityDeadline) : null),
+    [opportunityDeadline],
   );
 
   const checklist = kit?.kit.checklist ?? [];
-  const checklistState = kit?.checklistState ?? {};
+  const kitChecklistState = kit?.checklistState;
+  const checklistState = useMemo(() => kitChecklistState ?? {}, [kitChecklistState]);
   const doneCount = checklist.filter((item) => checklistState[item.id]).length;
   const checklistProgress = checklist.length ? doneCount / checklist.length : 0;
   const stepsLeft = checklist.length - doneCount;

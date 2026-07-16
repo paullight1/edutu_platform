@@ -1,11 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { Text, TextProps, StyleSheet } from 'react-native';
-import Animated, {
-    useSharedValue,
-    useAnimatedStyle,
-    withTiming,
-    Easing,
-} from 'react-native-reanimated';
+import React, { useEffect, useRef, useState } from 'react';
+import { Text, TextProps } from 'react-native';
+
+
 
 interface AnimatedCounterProps extends Omit<TextProps, 'children'> {
     value: number;
@@ -24,9 +20,17 @@ export default function AnimatedCounter({
 }: AnimatedCounterProps) {
     const [displayValue, setDisplayValue] = useState(0);
 
+    // Post-commit mirror of displayValue: the animation effect must start
+    // from the currently shown number without depending on displayValue
+    // itself (that would re-fire it every animation frame).
+    const displayValueRef = useRef(0);
+    useEffect(() => {
+        displayValueRef.current = displayValue;
+    });
+
     useEffect(() => {
         const startTime = Date.now();
-        const startValue = displayValue;
+        const startValue = displayValueRef.current;
 
         const animate = () => {
             const elapsed = Date.now() - startTime;

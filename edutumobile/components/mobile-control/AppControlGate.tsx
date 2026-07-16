@@ -49,13 +49,13 @@ export function AppControlGate() {
         isVersionBelow(getInstalledVersion(), forceUpdate.minVersion);
     const gateActive = maintenanceActive || updateRequired;
 
+    const userId = user?.id;
     useEffect(() => {
         let cancelled = false;
-        if (!gateActive || !user?.id) {
-            setIsAdmin(false);
-            return;
-        }
-        isAdminUser(supabase, user.id)
+        // No synchronous reset here — the ineligible case is derived at
+        // render below, so the effect only ever fetches.
+        if (!gateActive || !userId) return;
+        isAdminUser(supabase, userId)
             .then((allowed) => {
                 if (!cancelled) setIsAdmin(allowed);
             })
@@ -65,11 +65,16 @@ export function AppControlGate() {
         return () => {
             cancelled = true;
         };
-    }, [gateActive, user?.id]);
+    }, [gateActive, userId]);
+    // Derived: the admin bypass only means anything while the gate is up for
+    // a signed-in user. (The state may keep a stale true from a previous
+    // gate, but it is unreadable until eligibility returns, and the effect
+    // refetches at that point.)
+    const adminBypass = gateActive && !!userId && isAdmin;
 
     if (!gateActive) return null;
 
-    if (isAdmin) {
+    if (adminBypass) {
         return (
             <View style={styles.adminStrip} pointerEvents="none">
                 <Text style={styles.adminStripText}>

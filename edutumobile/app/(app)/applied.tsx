@@ -222,9 +222,20 @@ export default function AppliedPage() {
   const router = useRouter();
   const { user } = useUser();
   const { getToken } = useAuth();
+  const userId = user?.id;
   const [applications, setApplications] = useState<AppliedOpportunity[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [rawLoading, setLoading] = useState(true);
+  // Signed-out users have nothing to load — derive instead of synchronously
+  // flipping loading off inside the load effect.
+  const loading = userId ? rawLoading : false;
   const [refreshing, setRefreshing] = useState(false);
+
+  // Adjust-during-render: drop any stale list if the user signs out.
+  const [prevListUserId, setPrevListUserId] = useState(userId);
+  if (prevListUserId !== userId) {
+    setPrevListUserId(userId);
+    if (!userId) setApplications([]);
+  }
   const [activeFilter, setActiveFilter] = useState<StatFilter>('all');
   // Post-rejection support: the application just marked rejected this session,
   // plus stored one-line reflections keyed by application id.
@@ -248,10 +259,10 @@ export default function AppliedPage() {
     // The reflection also reaches the ranking engine: a repeat PATCH with the
     // same status carries it, and the backend merges it into the outcome
     // signal's details (deduped server-side, so no double-counting).
-    if (user?.id && text.trim()) {
-      void updateTrackedApplicationStatus(supabase, user.id, applicationId, 'rejected', getToken, text);
+    if (userId && text.trim()) {
+      void updateTrackedApplicationStatus(supabase, userId, applicationId, 'rejected', getToken, text);
     }
-  }, [getToken, user?.id]);
+  }, [getToken, userId]);
 
   // Feed used to surface "your next best shot" after a rejection — only
   // consulted when the rejection card is visible.
@@ -268,60 +279,60 @@ export default function AppliedPage() {
   const accentColor = colors.accent;
   const stepInactiveColor = isDark ? 'rgba(255,255,255,0.10)' : '#E2E8F0';
 
-  const loadApplications = useCallback(async () => {
-    if (!user?.id) {
-      setApplications([]);
-      setLoading(false);
-      setRefreshing(false);
-      return;
-    }
+  // Promise-chain style (not async/await) so every setState lives in an async
+  // callback — the set-state-in-effect rule treats awaited sets in a named
+  // async callee as synchronous.
+  const loadApplications = useCallback(() => {
+    // No user → nothing to load; the render-derived `loading` and the
+    // adjust-during-render reset above cover the signed-out state.
+    if (!userId) return Promise.resolve();
 
-    const cacheKey = `${APPLICATIONS_CACHE_KEY}:${user.id}`;
+    const cacheKey = `${APPLICATIONS_CACHE_KEY}:${userId}`;
 
     // Paint from the last successful fetch immediately; the network refresh
-    // below replaces it when it lands.
-    try {
-      const cached = await AsyncStorage.getItem(cacheKey);
-      if (cached) {
+    // below replaces it when it lands. Cache is best-effort only.
+    return AsyncStorage.getItem(cacheKey)
+      .then((cached) => {
+        if (!cached) return;
         const parsed = JSON.parse(cached) as AppliedOpportunity[];
         if (Array.isArray(parsed) && parsed.length > 0) {
           setApplications(parsed);
           setLoading(false);
         }
-      }
-    } catch {
-      // Cache is best-effort only.
-    }
-
-    try {
-      const fresh = await withTimeout(
-        fetchTrackedApplications(supabase, user.id, getToken),
+      })
+      .catch(() => undefined)
+      .then(() => withTimeout(
+        fetchTrackedApplications(supabase, userId, getToken),
         LOAD_TIMEOUT_MS,
-      );
-      setApplications(fresh);
-      void AsyncStorage.setItem(cacheKey, JSON.stringify(fresh)).catch(() => undefined);
-    } catch (error) {
-      console.error('Failed to load applied opportunities:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [getToken, user?.id]);
+      ))
+      .then((fresh) => {
+        setApplications(fresh);
+        void AsyncStorage.setItem(cacheKey, JSON.stringify(fresh)).catch(() => undefined);
+      })
+      .catch((error) => {
+        console.error('Failed to load applied opportunities:', error);
+      })
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
+  }, [getToken, userId]);
 
   useEffect(() => {
     loadApplications();
   }, [loadApplications]);
 
   const onRefresh = useCallback(() => {
+    if (!userId) return;
     setRefreshing(true);
     loadApplications();
-  }, [loadApplications]);
+  }, [userId, loadApplications]);
 
   const updateStatus = useCallback(async (applicationId: string, status: ApplicationStatus) => {
-    if (!user?.id) return;
+    if (!userId) return;
 
     try {
-      const updated = await updateTrackedApplicationStatus(supabase, user.id, applicationId, status, getToken);
+      const updated = await updateTrackedApplicationStatus(supabase, userId, applicationId, status, getToken);
       if (!updated) throw new Error('Unable to update status');
       setApplications((current) => current.map((item) => (
         item.id === applicationId ? { ...item, status } : item
@@ -335,7 +346,7 @@ export default function AppliedPage() {
       console.error('Failed to update application status:', error);
       Alert.alert(t('applied.statusNotUpdatedTitle'), t('applied.statusNotUpdatedMessage'));
     }
-  }, [getToken, user?.id, t]);
+  }, [getToken, userId, t]);
 
   const advanceStatus = useCallback((application: AppliedOpportunity) => {
     const next = getNextApplicationStage(application.status);

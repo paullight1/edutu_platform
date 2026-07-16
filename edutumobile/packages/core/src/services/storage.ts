@@ -22,7 +22,7 @@ export const uploadCommunityAsset = async (
         const response = await fetch(file.uri);
         const blob = await response.blob();
 
-        const { data, error } = await supabase.storage
+        const { error } = await supabase.storage
             .from('community-assets')
             .upload(filePath, blob, {
                 contentType: file.type || 'application/octet-stream',

@@ -3,8 +3,6 @@ import React, { useState, useCallback, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import {
-    ToggleLeft,
-    ToggleRight,
     Shield,
     Crown,
     Pencil,
@@ -51,33 +49,44 @@ function AdminPremiumFeaturesContent() {
     const cardBg = colors.card;
     const borderColor = colors.border;
 
-    const fetchFeatureFlags = useCallback(async () => {
-        setLoading(true);
-        try {
-            const { data, error } = await supabase
-                .from('feature_flags')
-                .select('*')
-                .order('sort_order', { ascending: true });
+    // Bumped by event handlers to refetch after an edit/toggle. Loading starts
+    // true; the effect never sets state synchronously (all sets follow an await).
+    const [reloadNonce, setReloadNonce] = useState(0);
+    useEffect(() => {
+        const fetchFeatureFlags = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('feature_flags')
+                    .select('*')
+                    .order('sort_order', { ascending: true });
 
-            if (error) throw error;
-            setFeatureFlags(data || []);
-        } catch (e: any) {
-            console.error('Failed to fetch feature flags:', e);
-            Alert.alert(t('common:states.error'), t('admin.premiumFeatures.alerts.loadFailed'));
-        } finally {
-            setLoading(false);
-        }
+                if (error) throw error;
+                setFeatureFlags(data || []);
+            } catch (e: any) {
+                console.error('Failed to fetch feature flags:', e);
+                Alert.alert(t('common:states.error'), t('admin.premiumFeatures.alerts.loadFailed'));
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchFeatureFlags();
+    }, [t, reloadNonce]);
+
+    // Post-action refetch. Deliberately does NOT flip `loading`: the nonce
+    // defers the fetch to the next effect pass, so a spinner would blank the
+    // list for a full render cycle after every save/toggle. Fresh rows swap
+    // in place instead.
+    const refreshFeatureFlags = useCallback(() => {
+        setReloadNonce((nonce) => nonce + 1);
     }, []);
 
-    useEffect(() => { fetchFeatureFlags(); }, [fetchFeatureFlags]);
-
-    const openEditModal = (item: FeatureFlag) => {
+    const openEditModal = useCallback((item: FeatureFlag) => {
         setEditingFeature(item);
         setFormLabel(item.label);
         setFormDescription(item.description);
         setFormSortOrder(item.sort_order.toString());
         setModalVisible(true);
-    };
+    }, []);
 
     const closeModal = () => {
         setModalVisible(false);
@@ -105,7 +114,7 @@ function AdminPremiumFeaturesContent() {
             if (error) throw error;
             Alert.alert(t('common:states.success'), t('admin.premiumFeatures.alerts.updated'));
             closeModal();
-            fetchFeatureFlags();
+            refreshFeatureFlags();
         } catch (e: any) {
             console.error('Submit error:', e);
             Alert.alert(t('common:states.error'), e.message || t('admin.premiumFeatures.alerts.saveFailed'));
@@ -114,7 +123,7 @@ function AdminPremiumFeaturesContent() {
         }
     };
 
-    const handleToggleEnabled = async (item: FeatureFlag) => {
+    const handleToggleEnabled = useCallback(async (item: FeatureFlag) => {
         try {
             const { error } = await supabase
                 .from('feature_flags')
@@ -125,14 +134,14 @@ function AdminPremiumFeaturesContent() {
                 .eq('id', item.id);
 
             if (error) throw error;
-            fetchFeatureFlags();
+            refreshFeatureFlags();
         } catch (e: any) {
             console.error('Toggle error:', e);
             Alert.alert(t('common:states.error'), t('admin.premiumFeatures.alerts.statusUpdateFailed'));
         }
-    };
+    }, [refreshFeatureFlags, t]);
 
-    const handleTogglePro = async (item: FeatureFlag) => {
+    const handleTogglePro = useCallback(async (item: FeatureFlag) => {
         try {
             const { error } = await supabase
                 .from('feature_flags')
@@ -143,12 +152,12 @@ function AdminPremiumFeaturesContent() {
                 .eq('id', item.id);
 
             if (error) throw error;
-            fetchFeatureFlags();
+            refreshFeatureFlags();
         } catch (e: any) {
             console.error('Toggle pro error:', e);
             Alert.alert(t('common:states.error'), t('admin.premiumFeatures.alerts.proUpdateFailed'));
         }
-    };
+    }, [refreshFeatureFlags, t]);
 
     const filteredFeatureFlags = featureFlags.filter(f => {
         if (filter === 'enabled') return f.is_enabled;
@@ -236,7 +245,7 @@ function AdminPremiumFeaturesContent() {
                 </View>
             </AnimatedPressable>
         );
-    }, [cardBg, borderColor, textPrimary, textSecondary, colors.primary, isDark, t]);
+    }, [cardBg, borderColor, textPrimary, textSecondary, colors.primary, isDark, t, handleToggleEnabled, handleTogglePro, openEditModal]);
 
     const filters: { key: typeof filter; label: string }[] = [
         { key: 'all', label: t('admin.premiumFeatures.filters.all') },

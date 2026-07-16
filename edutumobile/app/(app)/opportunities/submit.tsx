@@ -23,6 +23,53 @@ import { ScreenHeader } from '../../../components/ui/ScreenHeader';
 
 const CATEGORIES = ['scholarship', 'fellowship', 'internship', 'job', 'grant', 'competition', 'program', 'other'];
 
+// Module-level on purpose. This used to be declared inside the screen, which
+// makes it a brand-new component type on every parent render — React then
+// remounts the TextInput, dropping focus (and the keyboard) mid-typing. It
+// reads the theme itself so call sites don't have to thread palette props.
+function Field({
+    label,
+    value,
+    onChange,
+    placeholder,
+    multiline,
+    keyboardType,
+    autoCapitalize,
+}: {
+    label: string;
+    value: string;
+    onChange: (v: string) => void;
+    placeholder?: string;
+    multiline?: boolean;
+    keyboardType?: 'default' | 'url';
+    autoCapitalize?: 'none' | 'sentences';
+}) {
+    const { colors, isDark } = useTheme();
+    const textSecondary = isDark ? '#94A3B8' : '#64748B';
+    const inputBg = isDark ? 'rgba(255,255,255,0.06)' : '#F8FAFC';
+    const borderColor = isDark ? 'rgba(255,255,255,0.08)' : '#E2E8F0';
+    return (
+        <View style={styles.field}>
+            <Text style={[styles.label, { color: textSecondary }]}>{label}</Text>
+            <TextInput
+                style={[
+                    styles.input,
+                    multiline && styles.inputMultiline,
+                    { backgroundColor: inputBg, color: colors.foreground, borderColor },
+                ]}
+                value={value}
+                onChangeText={onChange}
+                placeholder={placeholder}
+                placeholderTextColor={textSecondary}
+                multiline={multiline}
+                keyboardType={keyboardType}
+                autoCapitalize={autoCapitalize}
+                autoCorrect={!keyboardType}
+            />
+        </View>
+    );
+}
+
 export default function SubmitOpportunityScreen() {
     const { t } = useTranslation('opps');
     const router = useRouter();
@@ -96,43 +143,6 @@ export default function SubmitOpportunityScreen() {
             setSubmitting(false);
         }
     };
-
-    const Field = ({
-        label,
-        value,
-        onChange,
-        placeholder,
-        multiline,
-        keyboardType,
-        autoCapitalize,
-    }: {
-        label: string;
-        value: string;
-        onChange: (v: string) => void;
-        placeholder?: string;
-        multiline?: boolean;
-        keyboardType?: 'default' | 'url';
-        autoCapitalize?: 'none' | 'sentences';
-    }) => (
-        <View style={styles.field}>
-            <Text style={[styles.label, { color: textSecondary }]}>{label}</Text>
-            <TextInput
-                style={[
-                    styles.input,
-                    multiline && styles.inputMultiline,
-                    { backgroundColor: inputBg, color: colors.foreground, borderColor },
-                ]}
-                value={value}
-                onChangeText={onChange}
-                placeholder={placeholder}
-                placeholderTextColor={textSecondary}
-                multiline={multiline}
-                keyboardType={keyboardType}
-                autoCapitalize={autoCapitalize}
-                autoCorrect={!keyboardType}
-            />
-        </View>
-    );
 
     return (
         <SafeAreaView style={[styles.screen, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>

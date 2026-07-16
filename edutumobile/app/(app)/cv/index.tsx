@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -163,7 +163,7 @@ export default function CVBuilderScreen() {
     const [activeSection, setActiveSection] = useState<CVSection>('templates');
     const [templates, setTemplates] = useState<CVTemplate[]>([]);
     const [userCVs, setUserCVs] = useState<UserCV[]>([]);
-    const [selectedTemplate, setSelectedTemplate] = useState<CVTemplate | null>(null);
+    const [, setSelectedTemplate] = useState<CVTemplate | null>(null);
     const [currentCV, setCurrentCV] = useState<Partial<UserCV>>({
         name: t('defaults.myCv'),
         data_json: {},
@@ -336,32 +336,43 @@ export default function CVBuilderScreen() {
         }
     };
 
+    // Promise-chain style (not async/await) so every setState lives in an
+    // async callback — the set-state-in-effect rule treats awaited sets in a
+    // named async callee as synchronous. `isLoading` starts true, so the mount
+    // load needs no synchronous loading flip; manual reloads use reloadData.
+    const loadData = useCallback(() => {
+        const userId = user?.id || '';
+        return Promise.all([
+            cvService.fetchCVTemplates(supabase, { includePremium: true }),
+            cvService.fetchUserCVs(supabase, userId),
+            cvService.getUserProStatus(supabase, userId),
+        ])
+            .then(([templatesData, cvsData, proStatus]) => {
+                setTemplates(templatesData);
+                setUserCVs(cvsData);
+                setIsPro(proStatus.isPro);
+                setTrialUsed(proStatus.cvTrialUsed);
+            })
+            .catch((error) => {
+                console.error('Error loading CV data:', error);
+            })
+            .finally(() => {
+                setIsLoading(false);
+            });
+    }, [user?.id]);
+
+    // Event-handler refresh: re-raise the loader before refetching (setState
+    // in an event handler is fine).
+    const reloadData = useCallback(() => {
+        setIsLoading(true);
+        return loadData();
+    }, [loadData]);
+
     useEffect(() => {
         if (user) {
             loadData();
         }
-    }, [user]);
-
-    async function loadData() {
-        try {
-            setIsLoading(true);
-            const userId = user?.id || '';
-            const [templatesData, cvsData, proStatus] = await Promise.all([
-                cvService.fetchCVTemplates(supabase, { includePremium: true }),
-                cvService.fetchUserCVs(supabase, userId),
-                cvService.getUserProStatus(supabase, userId),
-            ]);
-
-            setTemplates(templatesData);
-            setUserCVs(cvsData);
-            setIsPro(proStatus.isPro);
-            setTrialUsed(proStatus.cvTrialUsed);
-        } catch (error) {
-            console.error('Error loading CV data:', error);
-        } finally {
-            setIsLoading(false);
-        }
-    }
+    }, [user, loadData]);
 
     const loadTailorOpportunities = async () => {
         if (!user || opportunitiesLoaded || opportunities.length) return;
@@ -458,7 +469,7 @@ export default function CVBuilderScreen() {
                 const newCV = await cvService.createUserCV(supabase, user.id, cvToSave);
                 setCurrentCV((prev: Partial<UserCV>) => ({ ...prev, id: newCV.id }));
             }
-            await loadData();
+            await reloadData();
             Alert.alert(t('common:states.success'), t('alerts.saveSuccess'));
         } catch (error) {
             console.error('Error saving CV:', error);
@@ -484,7 +495,7 @@ export default function CVBuilderScreen() {
                             console.error('Error deleting CV:', error);
                             Alert.alert(t('common:states.error'), t('alerts.deleteFailed'));
                         } finally {
-                            await loadData();
+                            await reloadData();
                         }
                     },
                 },

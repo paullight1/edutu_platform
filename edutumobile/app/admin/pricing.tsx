@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     Alert,
     KeyboardAvoidingView,
@@ -164,20 +164,22 @@ function AdminPricingContent() {
     const removePack = (index: number) =>
         setForm((prev) => ({ ...prev, creditPacks: prev.creditPacks.filter((_, i) => i !== index) }));
 
-    const load = useCallback(async () => {
-        setLoading(true);
-        const response = await requestProductApi<AdminSettingsPayload>('/admin/settings', {}, getToken);
-        if (response?.settings) {
-            setFullSettings(response.settings);
-            setForm(toForm({ ...DEFAULT_PRICING, ...(response.settings.pricing ?? {}), promo: { ...DEFAULT_PRICING.promo, ...(response.settings.pricing?.promo ?? {}) } }));
-            setPaywallForm(toPaywallForm(normalisePaywallContent(response.settings.paywall)));
-        } else {
-            Alert.alert('Error', 'Could not load pricing settings. Check your connection and admin access.');
-        }
-        setLoading(false);
+    // Loading starts true and the effect-local loader only sets state after
+    // the await, so nothing is set synchronously during the effect.
+    useEffect(() => {
+        const load = async () => {
+            const response = await requestProductApi<AdminSettingsPayload>('/admin/settings', {}, getToken);
+            if (response?.settings) {
+                setFullSettings(response.settings);
+                setForm(toForm({ ...DEFAULT_PRICING, ...(response.settings.pricing ?? {}), promo: { ...DEFAULT_PRICING.promo, ...(response.settings.pricing?.promo ?? {}) } }));
+                setPaywallForm(toPaywallForm(normalisePaywallContent(response.settings.paywall)));
+            } else {
+                Alert.alert('Error', 'Could not load pricing settings. Check your connection and admin access.');
+            }
+            setLoading(false);
+        };
+        void load();
     }, [getToken]);
-
-    useEffect(() => { void load(); }, [load]);
 
     const handleSave = async () => {
         if (!fullSettings) return;

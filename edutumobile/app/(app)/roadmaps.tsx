@@ -163,10 +163,9 @@ export default function RoadmapsScreen() {
     const [selectedItem, setSelectedItem] = useState<Roadmap | null>(null);
     const [enrolling, setEnrolling] = useState(false);
     const [showIntentModal, setShowIntentModal] = useState(false);
-    const [intentQuestions, setIntentQuestions] = useState<AIQuestion[]>([]);
+    const [intentQuestions] = useState<AIQuestion[]>([]);
     const [intentAnswers, setIntentAnswers] = useState<Record<string, string>>({});
     const [intentLoading, setIntentLoading] = useState(false);
-    const [recommendedRoadmaps, setRecommendedRoadmaps] = useState<Roadmap[]>([]);
     const [showFeedbackModal, setShowFeedbackModal] = useState(false);
     const [feedbackScore, setFeedbackScore] = useState(0);
     const [feedbackText, setFeedbackText] = useState('');
@@ -234,76 +233,6 @@ export default function RoadmapsScreen() {
     }, [user, getToken]);
 
     useFocusEffect(useCallback(() => { fetchMine(); }, [fetchMine]));
-
-    const checkAndShowIntent = async () => {
-        if (!user) { setShowIntentModal(false); return; }
-        try {
-            const token = await getAuthToken();
-            const res = await apiFetch('/roadmaps/intent', {
-                headers: { 'Authorization': `Bearer ${token}` },
-            });
-            if (res?.ok) {
-                const data = await res.json();
-                if (data) {
-                    // User already has intent, show recommended
-                    const recRes = await apiFetch('/roadmaps/recommended?limit=10', {
-                        headers: { 'Authorization': `Bearer ${token}` },
-                    });
-                    if (recRes?.ok) {
-                        const recData = await recRes.json();
-                        setRecommendedRoadmaps(recData);
-                        if (recData.length > 0) {
-                            setRoadmaps(recData);
-                        }
-                    }
-                    setShowIntentModal(false);
-                } else {
-                    // No intent, ask questions
-                    await loadIntentQuestions();
-                }
-            }
-        } catch (e) {
-            console.error('Intent check failed:', e);
-        }
-    };
-
-    const loadIntentQuestions = async () => {
-        setIntentLoading(true);
-        try {
-            // /roadmaps/ai/* is authenticated + credit-metered server-side —
-            // send the Clerk bearer token; a 402/429 simply falls back to the
-            // default intent questions below.
-            const token = await getAuthToken();
-            const res = await apiFetch('/roadmaps/ai/assist', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-                },
-                body: JSON.stringify({ topic: 'learning and career growth', category: category !== 'All' ? category.toLowerCase() : undefined }),
-            });
-            if (res?.ok) {
-                const data = await res.json();
-                setIntentQuestions(data.questions || []);
-                setShowIntentModal(true);
-            } else {
-                // Non-ok (incl. 402 insufficient credits / 429 limit): the
-                // default questions are a perfectly good, free experience.
-                throw new Error(`assist unavailable (${res?.status ?? 'offline'})`);
-            }
-        } catch (e) {
-            console.error('Failed to load intent questions:', e);
-            // Show default questions
-            setIntentQuestions([
-                { id: 'q1', question: t('roadmaps.intent.q1'), type: 'select', options: [t('roadmaps.intent.levels.beginner'), t('roadmaps.intent.levels.intermediate'), t('roadmaps.intent.levels.advanced')] },
-                { id: 'q2', question: t('roadmaps.intent.q2'), type: 'select', options: [t('roadmaps.intent.time.lessThan5'), t('roadmaps.intent.time.hours5to10'), t('roadmaps.intent.time.hours10to20'), t('roadmaps.intent.time.hours20plus')] },
-                { id: 'q3', question: t('roadmaps.intent.q3'), type: 'text' },
-            ]);
-            setShowIntentModal(true);
-        } finally {
-            setIntentLoading(false);
-        }
-    };
 
     const submitIntent = async () => {
         if (!user) return;
@@ -381,7 +310,7 @@ export default function RoadmapsScreen() {
     const getRelativeDueDay = (item: Roadmap | RoadmapStep) =>
         item.relative_due_day ?? item.relativeDueDay ?? item.due_day ?? item.dueDay ?? null;
 
-    const formatTargetDeadline = (deadline?: string | null) => {
+    const formatTargetDeadline = useCallback((deadline?: string | null) => {
         if (!deadline) return '';
         const date = new Date(deadline);
         if (Number.isNaN(date.getTime())) return deadline;
@@ -392,9 +321,9 @@ export default function RoadmapsScreen() {
         if (diffDays === 1) return t('roadmaps.deadline.dueTomorrow', { date: formatted });
         if (diffDays > 1) return t('roadmaps.deadline.daysLeft', { date: formatted, count: diffDays });
         return t('roadmaps.deadline.overdue', { date: formatted });
-    };
+    }, [t]);
 
-    const formatRelativeDueDay = (value?: number | string | null) => {
+    const formatRelativeDueDay = useCallback((value?: number | string | null) => {
         if (value === null || value === undefined || value === '') return '';
         const day = typeof value === 'number' ? value : Number(value);
         if (Number.isFinite(day)) {
@@ -403,7 +332,7 @@ export default function RoadmapsScreen() {
             return t('roadmaps.deadline.dueDay', { day });
         }
         return String(value);
-    };
+    }, [t]);
 
     const buildAdoptionMessage = (adoption?: RoadmapAdoptionResponse | null) => {
         if (!adoption) return t('roadmaps.adoption.fallback');
@@ -584,7 +513,7 @@ export default function RoadmapsScreen() {
                 </View>
             </TouchableOpacity>
         );
-    }, [cardBg, borderColor, textPrimary, textSecondary]);
+    }, [cardBg, borderColor, textPrimary, textSecondary, t, formatTargetDeadline, formatRelativeDueDay]);
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor }} edges={['top', 'left', 'right']}>

@@ -3,8 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, type ViewProps } from 'react-
 import { useTranslation } from 'react-i18next';
 import type { LucideIcon } from 'lucide-react-native';
 import {
-  SearchX, Bookmark, Target, FileText, Bell, Inbox,
-  Compass, AlertCircle, Wifi, WifiOff, Sparkles,
+  SearchX, Bookmark, Target, FileText, Bell, Inbox, AlertCircle, WifiOff, Sparkles,
 } from 'lucide-react-native';
 
 export type EmptyStateVariant =

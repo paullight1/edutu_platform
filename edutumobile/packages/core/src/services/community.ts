@@ -5,9 +5,6 @@ import {
   CommunityStoryStatus,
   CommunityStoryType,
   CommunityDifficulty,
-  CommunityStoryStats,
-  CommunityResource,
-  CommunityRoadmapStage,
 } from '../types/community';
 
 function mapPostToStory(post: any): CommunityStory {

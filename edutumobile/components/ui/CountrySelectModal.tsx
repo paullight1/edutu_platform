@@ -47,9 +47,13 @@ export function CountrySelectModal({ visible, value, onSelect, onClose }: Countr
         };
     }, [visible]);
 
-    useEffect(() => {
+    // Reset the search when the modal closes — adjust-during-render (React's
+    // documented alternative to a state-resetting effect).
+    const [prevVisible, setPrevVisible] = useState(visible);
+    if (prevVisible !== visible) {
+        setPrevVisible(visible);
         if (!visible) setSearch('');
-    }, [visible]);
+    }
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();

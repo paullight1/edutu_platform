@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
-import { Alert, Text, TouchableOpacity, View, Switch } from 'react-native';
+import { Alert } from 'react-native';
 
 const mockPush = jest.fn();
 const mockBack = jest.fn();
@@ -118,7 +118,9 @@ jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, back: mockBack, replace: mockReplace }),
   useFocusEffect: (cb: () => void | (() => void)) => {
     const React = require('react');
-    React.useEffect(() => cb(), []);
+    // Re-run when the callback identity changes — matches the real
+    // useFocusEffect contract (screens memoize cb with useCallback).
+    React.useEffect(() => cb(), [cb]);
   },
 }));
 

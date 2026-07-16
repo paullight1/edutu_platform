@@ -1,8 +1,8 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Platform, Animated, Dimensions } from "react-native";
-import { Stack, Redirect, useRouter, useSegments, usePathname, useGlobalSearchParams } from "expo-router";
+import React, { useState, useRef, useEffect } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Animated, useAnimatedValue, Dimensions } from "react-native";
+import { Stack, Redirect, useRouter, usePathname, useGlobalSearchParams } from "expo-router";
 import { useAuth, useUser } from "@clerk/clerk-expo";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
     Home,
     Compass,
@@ -50,7 +50,7 @@ import { useTranslation } from "react-i18next";
 import { useGuestMode, isGuestAllowedPath } from "../../lib/guestModeStore";
 import { useAuthWall } from "../../components/context/AuthWallContext";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Expanded width of the nav pill: screen minus the navRow insets (14 + 14),
 // the detached circle (66) and the row gap (10). The pill's width is animated
@@ -65,14 +65,6 @@ const HAS_LIQUID_GLASS = (() => {
         return false;
     }
 })();
-
-function getBottomNavOffset(bottomInset: number): number {
-    if (Platform.OS === 'ios') {
-        return Math.max(bottomInset - 8, 10);
-    }
-
-    return bottomInset > 0 ? Math.max(bottomInset, 8) : 8;
-}
 
 // ─── Badge Component ─────────────────────────────────────────────────────────
 function Badge({ count, isDark }: { count?: number | "!"; isDark: boolean }) {
@@ -137,107 +129,6 @@ function TabItem({
     );
 }
 
-// ─── Voice Listening Ripple Component ───────────────────────────────────────────
-const LISTENING_COLORS = [
-    '#FF0080',
-    '#7C4DFF',
-    '#00B0FF',
-];
-
-function VoiceListeningRipple({ isActive }: { isActive: boolean }) {
-    const rings = useRef(
-        Array.from({ length: 3 }).map(() => ({
-            scale: new Animated.Value(0.5),
-            opacity: new Animated.Value(0),
-        }))
-    ).current;
-
-    const backdropOpacity = useRef(new Animated.Value(0)).current;
-
-    useEffect(() => {
-        if (isActive) {
-            Animated.timing(backdropOpacity, {
-                toValue: 0.85,
-                duration: 400,
-                useNativeDriver: true,
-            }).start();
-
-            const animations = rings.map((ring, i) =>
-                Animated.loop(
-                    Animated.sequence([
-                        Animated.delay(i * 600),
-                        Animated.parallel([
-                            Animated.timing(ring.scale, {
-                                toValue: 50,
-                                duration: 3500,
-                                useNativeDriver: true,
-                            }),
-                            Animated.sequence([
-                                Animated.timing(ring.opacity, {
-                                    toValue: 0.6,
-                                    duration: 600,
-                                    useNativeDriver: true,
-                                }),
-                                Animated.timing(ring.opacity, {
-                                    toValue: 0,
-                                    duration: 2900,
-                                    useNativeDriver: true,
-                                }),
-                            ]),
-                        ]),
-                        Animated.timing(ring.scale, { toValue: 0.5, duration: 0, useNativeDriver: true })
-                    ])
-                )
-            );
-            animations.forEach(a => a.start());
-            return () => {
-                animations.forEach(a => a.stop());
-                rings.forEach(ring => {
-                    ring.scale.setValue(0.5);
-                    ring.opacity.setValue(0);
-                });
-            };
-        } else {
-            Animated.timing(backdropOpacity, {
-                toValue: 0,
-                duration: 500,
-                useNativeDriver: true,
-            }).start();
-        }
-    }, [isActive]);
-
-    return (
-        <View style={styles.rippleContainer} pointerEvents="none">
-            <Animated.View
-                style={{
-                    position: 'absolute',
-                    width: SCREEN_WIDTH * 4,
-                    height: SCREEN_HEIGHT * 4,
-                    left: -SCREEN_WIDTH * 2,
-                    top: -SCREEN_HEIGHT * 2,
-                    backgroundColor: '#000000',
-                    opacity: backdropOpacity,
-                    borderRadius: SCREEN_HEIGHT * 2,
-                }}
-            />
-            {rings.map((ring, i) => (
-                <Animated.View
-                    key={i}
-                    style={[
-                        styles.rippleRing,
-                        {
-                            borderColor: LISTENING_COLORS[i % LISTENING_COLORS.length],
-                            borderWidth: 4,
-                            transform: [{ scale: ring.scale }],
-                            opacity: ring.opacity,
-                        },
-                    ]}
-                />
-            ))}
-        </View>
-    );
-}
-
 // ─── Edutu AI Button ──────────────────────────────────────────────────────────
 function HeaderLogoTitle({
     color,
@@ -257,7 +148,6 @@ function HeaderLogoTitle({
 function AppHeader({ isDark, colors, unreadNotifications, guestMode, onGuestBlock }: { isDark: boolean, colors: any, unreadNotifications: number, guestMode?: boolean, onGuestBlock?: () => void }) {
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const bottomOffset = getBottomNavOffset(insets.bottom);
     const accentColor = colors.accent || "#6366F1";
     const { t } = useTranslation('home');
     const { user } = useUser();
@@ -359,7 +249,6 @@ function MorphingNavCircle({
     hidden,
     accent,
     solidColor,
-    isDark,
     glassBackground,
     onPress,
     dialOpen = false,
@@ -376,14 +265,18 @@ function MorphingNavCircle({
     const { t } = useTranslation('home');
     const [shown, setShown] = useState<NavCircleAction>(action);
     const latestAction = useRef(action);
-    latestAction.current = action;
+    // Render-time ref writes are unsafe under concurrent rendering; sync
+    // post-commit — the only reader is an animation completion callback.
+    useEffect(() => {
+        latestAction.current = action;
+    });
 
-    const morph = useRef(new Animated.Value(1)).current;   // 0 = collapsed mid-swap
-    const slide = useRef(new Animated.Value(0)).current;   // slide-in from the pill side
-    const reveal = useRef(new Animated.Value(hidden ? 0 : 1)).current; // scroll hide/show
+    const morph = useAnimatedValue(1);   // 0 = collapsed mid-swap
+    const slide = useAnimatedValue(0);   // slide-in from the pill side
+    const reveal = useAnimatedValue(hidden ? 0 : 1); // scroll hide/show
 
     // Plus → X rotation while the create speed-dial (owned by the layout) is open.
-    const dial = useRef(new Animated.Value(0)).current;
+    const dial = useAnimatedValue(0);
     useEffect(() => {
         Animated.spring(dial, { toValue: dialOpen ? 1 : 0, friction: 7, tension: 120, useNativeDriver: true }).start();
     }, [dialOpen, dial]);
@@ -529,12 +422,19 @@ function CreateSpeedDial({
     onClose: () => void;
 }) {
     const { t } = useTranslation('home');
-    const dial = useRef(new Animated.Value(0)).current;
+    const dial = useAnimatedValue(0);
     const [rendered, setRendered] = useState(open);
+
+    // Adjust-during-render: mount the dial the same render `open` flips true
+    // (the un-mount waits for the collapse animation in the effect below).
+    const [prevOpen, setPrevOpen] = useState(open);
+    if (prevOpen !== open) {
+        setPrevOpen(open);
+        if (open) setRendered(true);
+    }
 
     useEffect(() => {
         if (open) {
-            setRendered(true);
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
             Animated.spring(dial, { toValue: 1, friction: 7, tension: 120, useNativeDriver: true }).start();
         } else {
@@ -792,7 +692,6 @@ export default function AppLayout() {
     const { user } = useUser();
     const { isDark, colors } = useTheme();
     const router = useRouter();
-    const segments = useSegments();
     const insets = useSafeAreaInsets();
     const pathname = usePathname();
     const params = useGlobalSearchParams<{ category?: string }>();
@@ -812,8 +711,6 @@ export default function AppLayout() {
     useEffect(() => {
         if (guestBlocked) authWall?.promptAuth('browse');
     }, [guestBlocked, authWall]);
-
-    const currentRoute = (segments[segments.length - 1] || "index") as string;
 
     useEffect(() => {
         if (!isSignedIn || !userId || registeredPushUserRef.current === userId) {
@@ -936,11 +833,14 @@ export default function AppLayout() {
                     : { kind: "ai", target: "/chat" };
     const circleHidden = circleAction.kind === "edit" && profileFabHidden;
 
-    // Create speed-dial (Plan tab Plus). Closes on any navigation.
+    // Create speed-dial (Plan tab Plus). Closes on any navigation —
+    // adjust-during-render reset keyed on pathname.
     const [createDialOpen, setCreateDialOpen] = useState(false);
-    useEffect(() => {
+    const [prevDialPathname, setPrevDialPathname] = useState(pathname);
+    if (prevDialPathname !== pathname) {
+        setPrevDialPathname(pathname);
         setCreateDialOpen(false);
-    }, [pathname]);
+    }
 
     const categoryParam = Array.isArray(params.category) ? params.category[0] : params.category;
     const hasOpportunityCategory = activeRoute === "opportunities" && typeof categoryParam === "string" && categoryParam.length > 0;
@@ -1224,26 +1124,6 @@ const styles = StyleSheet.create({
         fontSize: 8,
         fontWeight: "800",
         lineHeight: 10,
-    },
-
-    // ─── Ripple Effect ──────────────────────────────────────────────
-    rippleContainer: {
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        width: 1,
-        height: 1,
-        overflow: 'visible',
-        zIndex: 0,
-    },
-    rippleRing: {
-        position: 'absolute',
-        width: 64,
-        height: 64,
-        borderRadius: 32,
-        top: -32,
-        left: -32,
-        backgroundColor: 'rgba(255,255,255,0.05)',
     },
 
     // ── Header Styles ───────────────────────────────────────────

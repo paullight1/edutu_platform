@@ -55,7 +55,7 @@ export default function AllRoadmapsScreen() {
             groups[key].push(goal);
         });
         return groups;
-    }, [roadmapGoals]);
+    }, [roadmapGoals, t]);
 
     const textPrimary = colors.foreground;
     const textSecondary = isDark ? '#94a3b8' : '#64748b';

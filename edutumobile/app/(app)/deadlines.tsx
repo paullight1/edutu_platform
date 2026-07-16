@@ -1,6 +1,6 @@
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Clock, Bookmark, CheckCircle, ChevronRight, AlertCircle, CalendarClock } from "lucide-react-native";
+import { Bookmark, CheckCircle, ChevronRight, AlertCircle, CalendarClock } from "lucide-react-native";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useTheme } from "../../components/context/ThemeContext";
 import { useRouter } from "expo-router";
@@ -107,45 +107,58 @@ export default function DeadlinesScreen() {
     const { getToken } = useAuth();
 
     const [deadlines, setDeadlines] = useState<DeadlineItem[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [rawLoading, setLoading] = useState(true);
+    // Clerk finished loading with no user — nothing will ever load, so derive
+    // the spinner off instead of synchronously flipping it in the effect.
+    // While Clerk is still resolving, keep the spinner up.
+    const loading = user ? rawLoading : !isLoaded;
     const [refreshing, setRefreshing] = useState(false);
     const [loadError, setLoadError] = useState(false);
 
-    const fetchDeadlines = useCallback(async () => {
-        if (!user) {
-            // Clerk finished loading with no user — stop the spinner instead
-            // of spinning forever waiting for a fetch that will never start.
-            if (isLoaded) {
+    // Promise-chain style (not async/await) so every setState lives in an
+    // async callback — the set-state-in-effect rule treats awaited sets in a
+    // named async callee as synchronous. `loading` starts true; event-driven
+    // reloads flip it back on via retryDeadlines/onRefresh below.
+    const fetchDeadlines = useCallback(() => {
+        if (!user) return Promise.resolve();
+        return Promise.race([
+            fetchOpportunityDeadlines(supabase, user.id, getToken),
+            new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('deadlines fetch timed out')), 15000),
+            ),
+        ])
+            .then((result) => {
+                setDeadlines(result);
+                setLoadError(false);
+            })
+            .catch((error) => {
+                console.error('Error fetching deadlines:', error);
+                setLoadError(true);
+            })
+            .finally(() => {
                 setLoading(false);
                 setRefreshing(false);
-            }
-            return;
-        }
-        try {
-            setLoading(true);
-            setLoadError(false);
-            const result = await Promise.race([
-                fetchOpportunityDeadlines(supabase, user.id, getToken),
-                new Promise<never>((_, reject) =>
-                    setTimeout(() => reject(new Error('deadlines fetch timed out')), 15000),
-                ),
-            ]);
-            setDeadlines(result);
-        } catch (error) {
-            console.error('Error fetching deadlines:', error);
-            setLoadError(true);
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    }, [getToken, user, isLoaded]);
+            });
+    }, [getToken, user]);
+
+    // Event-handler retry: re-raise the loader and clear the error banner
+    // before refetching (setState in an event handler is fine).
+    const retryDeadlines = useCallback(() => {
+        setLoading(true);
+        setLoadError(false);
+        return fetchDeadlines();
+    }, [fetchDeadlines]);
 
     useEffect(() => {
         fetchDeadlines();
     }, [fetchDeadlines]);
 
+    // Clock snapshot from mount: render (incl. useMemo) must stay pure, and
+    // day-granularity grouping doesn't need a live clock — the screen
+    // remounts on every visit.
+    const [now] = useState(() => Date.now());
+
     const groupedDeadlines = useMemo(() => {
-        const now = Date.now();
         const week = 7 * 24 * 60 * 60 * 1000;
         const twoWeeks = 14 * 24 * 60 * 60 * 1000;
         const month = 30 * 24 * 60 * 60 * 1000;
@@ -173,12 +186,17 @@ export default function DeadlinesScreen() {
         });
 
         return groups;
-    }, [deadlines]);
+    }, [deadlines, now]);
 
     const onRefresh = useCallback(() => {
+        if (!user) return;
         setRefreshing(true);
+        // Match the previous behavior where a refresh also re-raised the
+        // full-screen loader and cleared any error.
+        setLoading(true);
+        setLoadError(false);
         fetchDeadlines();
-    }, [fetchDeadlines]);
+    }, [user, fetchDeadlines]);
 
     if (loading) {
         return (
@@ -218,7 +236,7 @@ export default function DeadlinesScreen() {
                                 </Text>
                                 <TouchableOpacity
                                     style={[styles.emptyBtn, { backgroundColor: colors.accent }]}
-                                    onPress={() => void fetchDeadlines()}
+                                    onPress={() => void retryDeadlines()}
                                     activeOpacity={0.8}
                                 >
                                     <Text style={styles.emptyBtnText}>

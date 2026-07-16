@@ -4,11 +4,10 @@ import React, {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react';
 import {
-  Animated,
+  Animated, useAnimatedValue,
   Modal,
   Pressable,
   StyleSheet,
@@ -106,13 +105,15 @@ function AuthWallSheet({
   const { t } = useTranslation('auth');
   const insets = useSafeAreaInsets();
 
-  // Keep the sheet mounted through its exit animation.
+  // Keep the sheet mounted through its exit animation. Mounting happens via
+  // adjust-during-render (React's documented alternative to a setState in the
+  // effect); unmounting stays async in the exit animation's callback.
   const [rendered, setRendered] = useState(visible);
-  const anim = useRef(new Animated.Value(0)).current;
+  if (visible && !rendered) setRendered(true);
+  const anim = useAnimatedValue(0);
 
   useEffect(() => {
     if (visible) {
-      setRendered(true);
       Animated.spring(anim, {
         toValue: 1,
         friction: 9,

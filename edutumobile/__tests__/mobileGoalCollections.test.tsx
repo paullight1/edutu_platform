@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 
 type Goal = {
   id: string;
@@ -21,7 +21,6 @@ type Goal = {
 };
 
 const mockPush = jest.fn();
-const mockGoals: Goal[] = [];
 let mockGoalRows: Goal[] = [];
 
 jest.mock('expo-router', () => ({

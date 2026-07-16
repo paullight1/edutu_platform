@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, ViewStyle, StyleProp } from 'react-native';
+import { ViewStyle, StyleProp } from 'react-native';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -86,7 +86,7 @@ export default function AttentionIcon({ children, type = 'none', delay = 0, dura
                 );
                 break;
         }
-    }, [type, delay, duration]);
+    }, [type, delay, duration, translateY, scale, rotate, opacity]);
 
     const animatedStyle = useAnimatedStyle(() => ({
         transform: [

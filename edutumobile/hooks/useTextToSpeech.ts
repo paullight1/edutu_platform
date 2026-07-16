@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { speak as edutuSpeak, stopSpeaking } from '../lib/edutuSpeech';
 import { getVoiceSettings } from '../lib/voiceSettingsStore';
 import i18n from '../lib/i18n';
@@ -26,7 +26,11 @@ export function useTextToSpeech(config: UseTextToSpeechConfig = {}): UseTextToSp
     const [currentText, setCurrentText] = useState<string | null>(null);
     const { getAuthToken } = config;
     const getAuthTokenRef = useRef(getAuthToken);
-    getAuthTokenRef.current = getAuthToken;
+    useEffect(() => {
+        // Post-commit write; render-time ref writes are unsafe under
+        // concurrent rendering.
+        getAuthTokenRef.current = getAuthToken;
+    });
 
     const speak = useCallback((text: string) => {
         if (!text?.trim()) return;

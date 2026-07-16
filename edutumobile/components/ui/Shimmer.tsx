@@ -34,7 +34,7 @@ export default function Shimmer({
             -1,
             true
         );
-    }, []);
+    }, [shimmerValue]);
 
     const animatedStyle = useAnimatedStyle(() => ({
         transform: [{ translateX: shimmerValue.value * 200 - 100 }],

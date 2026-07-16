@@ -255,7 +255,7 @@ export async function speak(rawText: string, opts: SpeakOptions = {}): Promise<v
 
     opts.onStart?.();
     player.play();
-  } catch (error) {
+  } catch {
     if (token !== currentToken) return;
     // Playback (not synthesis) failed — still try the device so we're not mute.
     speakWithDevice(text, opts, token);

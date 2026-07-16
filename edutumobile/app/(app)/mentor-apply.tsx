@@ -10,7 +10,7 @@ import { useRouter } from 'expo-router';
 import { useTranslation, Trans } from 'react-i18next';
 import {
     ChevronLeft, CheckCircle2, Sparkles, Users, Award, Star,
-    Heart, BookOpen, Zap, ArrowRight, Check, Loader2, Globe
+    Heart, BookOpen, Zap, ArrowRight, Check, Globe
 } from 'lucide-react-native';
 import { useTheme } from '../../components/context/ThemeContext';
 import { ScreenHeader } from '../../components/ui/ScreenHeader';

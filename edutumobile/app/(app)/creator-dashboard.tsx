@@ -1,18 +1,17 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity,
-    StyleSheet, ActivityIndicator, Modal, TextInput, Alert, Dimensions, Platform,
-    Animated, Image, RefreshControl
+    StyleSheet, ActivityIndicator, Modal, TextInput, Alert, Dimensions,
+    Animated, useAnimatedValue, Image, RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { useTranslation, Trans } from 'react-i18next';
-import {
-    TrendingUp, BookOpen, Calendar, Users, Plus,
-    DollarSign, Star, X, CheckCircle, ChevronRight,
-    LayoutGrid, Award, Briefcase, Clock, Upload,
-    ChevronLeft, ChevronDown, FileText, Link,
+import { BookOpen, Users, Plus,
+    DollarSign, X, CheckCircle, ChevronRight,
+    LayoutGrid, Award, Clock, Upload,
+    ChevronLeft, FileText,
     ArrowRight, Info, AlertCircle, Sparkles, Target,
     Map, Eye, PenLine, Trash2
 } from 'lucide-react-native';
@@ -25,7 +24,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadCommunityAsset } from '@edutu/core/src/services/storage';
 import { toSafeUUID } from '@edutu/core/src/utils/auth';
-import { useCreatorAccess, CreatorStatus } from '@edutu/core/src/hooks/useCreatorAccess';
+import { useCreatorAccess } from '@edutu/core/src/hooks/useCreatorAccess';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.75;
@@ -101,8 +100,7 @@ export default function CreatorDashboard() {
     const [resources, setResources] = useState<Resource[]>([]);
     const [checklistItems, setChecklistItems] = useState<any[]>([]);
 
-    const scrollX = useRef(new Animated.Value(0)).current;
-    const flatListRef = useRef<any>(null);
+    const scrollX = useAnimatedValue(0);
 
     const textPrimary = colors.foreground;
     const textSecondary = isDark ? '#94A3B8' : '#64748B';
@@ -110,15 +108,15 @@ export default function CreatorDashboard() {
     const borderColor = isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0';
     const inputBg = isDark ? 'rgba(255,255,255,0.06)' : '#f8fafc';
 
-    const fetchDashboard = useCallback(async () => {
-        if (!user) {
-            setLoading(false);
-            return;
-        }
-        setDashError(null);
-        setListDegraded(false);
-        try {
-            const token = await getToken();
+    // Promise-chain shape (not async/await): this is called from the load
+    // effect, and the set-state-in-effect rule flags a named async callee
+    // wholesale — sets must live in then/catch/finally callbacks. Loading
+    // starts true; error/degraded start clean and are re-cleared by
+    // retryLoading (event handler) — a dep-driven refetch leaves a stale
+    // banner until the fetch settles, which is accepted SWR-style.
+    const fetchDashboard = useCallback(() => {
+        if (!user) return Promise.resolve();
+        return getToken().then(async (token) => {
 
             // Real "My Roadmaps" — everything this user has authored (personal +
             // any they've published). Source of truth is the roadmaps table via
@@ -176,12 +174,12 @@ export default function CreatorDashboard() {
                 ),
                 totalListings: list.length,
             });
-        } catch (e: any) {
+        }).catch((e: any) => {
             console.error('Failed to load creator dashboard:', e);
             setDashError(e?.message || t('creatorDashboard.errors.loadRoadmaps'));
-        } finally {
+        }).finally(() => {
             setLoading(false);
-        }
+        });
     }, [user, getToken, t]);
 
     // Everyone can use Creator Studio now (personal roadmaps). Load once the
@@ -192,6 +190,7 @@ export default function CreatorDashboard() {
 
     const retryLoading = useCallback(() => {
         setDashError(null);
+        setListDegraded(false);
         setLoading(true);
         checkAccess();
         fetchDashboard();
@@ -525,7 +524,10 @@ export default function CreatorDashboard() {
     };
 
     // ─── LOADING / ERROR STATES ────────────────────────────────────────────
-    if (accessLoading || loading) {
+    // `loading` only means anything while signed in — the load effect never
+    // runs without a user, so derive the spinner off instead of the old
+    // synchronous setLoading(false) bail-out inside the fetch.
+    if (accessLoading || (!!user && loading)) {
         return (
             <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
                 <ScreenHeader title={t('creatorDashboard.title')} showBack />

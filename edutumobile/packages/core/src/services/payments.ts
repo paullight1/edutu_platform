@@ -227,7 +227,7 @@ export async function purchaseCredits(
 
 // ─── Utility Functions ──────────────────────────────────────────────────────
 
-export function formatPrice(price: string, currency: string = 'USD'): string {
+export function formatPrice(price: string, _currency: string = 'USD'): string {
   return price;
 }
 

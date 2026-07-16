@@ -316,7 +316,6 @@ jest.mock('react-native-webview', () => {
 });
 
 jest.mock('react-native-safe-area-context', () => {
-  const React = require('react');
   return {
     SafeAreaProvider: ({ children }: { children: React.ReactNode }) => children,
     SafeAreaView: ({ children }: { children: React.ReactNode }) => children,

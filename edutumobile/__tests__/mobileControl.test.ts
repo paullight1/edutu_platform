@@ -1,3 +1,12 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isCampaignActive, selectCampaign, type MobileCampaign } from '../lib/mobileControl';
+import {
+  buildOpportunityWidgetSnapshot,
+  OPPORTUNITY_WIDGET_SNAPSHOT_KEY,
+  syncOpportunityWidgetSnapshot,
+} from '../lib/mobileControl';
+import { DEFAULT_PAYWALL_CONTENT, normalisePaywallContent } from '../lib/pricing';
+
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(),
   setItem: jest.fn(),
@@ -13,15 +22,6 @@ jest.mock('expo-constants', () => ({
     },
   },
 }));
-
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { isCampaignActive, selectCampaign, type MobileCampaign } from '../lib/mobileControl';
-import {
-  buildOpportunityWidgetSnapshot,
-  OPPORTUNITY_WIDGET_SNAPSHOT_KEY,
-  syncOpportunityWidgetSnapshot,
-} from '../lib/mobileControl';
-import { DEFAULT_PAYWALL_CONTENT, normalisePaywallContent } from '../lib/pricing';
 
 const baseCampaign: MobileCampaign = {
   id: 'campaign-1',

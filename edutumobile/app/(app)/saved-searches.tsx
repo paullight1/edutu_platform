@@ -48,8 +48,19 @@ export default function SavedSearchesScreen() {
   }, [getToken]);
 
   useEffect(() => {
-    void load().finally(() => setLoading(false));
-  }, [load]);
+    // Inline loader: the linter flags setState reached through a callback the
+    // effect invokes (set-state-in-effect), but an effect-local async fn whose
+    // sets all happen after the await is the sanctioned shape.
+    const run = async () => {
+      try {
+        const rows = await fetchSavedSearches(getToken);
+        setSearches(rows);
+      } finally {
+        setLoading(false);
+      }
+    };
+    void run();
+  }, [getToken]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);

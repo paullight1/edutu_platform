@@ -152,7 +152,7 @@ export async function fetchChatThreads(supabase: SupabaseClient, userId?: string
     }
 
     return data?.threads ?? [];
-  } catch (error) {
+  } catch {
     return [];
   }
 }
@@ -189,7 +189,7 @@ export async function fetchChatMessages(supabase: SupabaseClient, threadId: stri
     }
 
     return data?.messages ?? [];
-  } catch (error) {
+  } catch {
     return [];
   }
 }

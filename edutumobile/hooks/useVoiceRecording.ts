@@ -125,7 +125,12 @@ export function useVoiceRecording({
       setIsRecording(false);
     }
   }, [isRecording, recorder, onTranscription, onError, language, getAuthToken, clearTimers]);
-  stopRef.current = () => { void stopRecording(); };
+  useEffect(() => {
+    // Post-commit write (render-time ref writes are unsafe under concurrent
+    // rendering); the only reader is the max-duration setTimeout below, which
+    // always fires after commit.
+    stopRef.current = () => { void stopRecording(); };
+  });
 
   const startRecording = useCallback(async () => {
     try {

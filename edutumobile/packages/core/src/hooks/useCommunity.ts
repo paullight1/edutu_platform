@@ -26,16 +26,20 @@ export function useCommunity(options: UseCommunityOptions) {
   });
   const [refreshIndex, setRefreshIndex] = useState(0);
 
+  // Depend on the serialized query so the effect re-runs only when the query
+  // logically changes, with a stable object identity for the fetch call.
+  const queryKey = JSON.stringify(queryOptions ?? {});
+  const stableQueryOptions = useMemo(
+    () => JSON.parse(queryKey) as CommunityStoryQueryOptions,
+    [queryKey]
+  );
+
+  // Loading starts true (initial state above), so the effect never needs a
+  // synchronous setState; manual refresh() flips it back on in the handler.
   useEffect(() => {
     let isActive = true;
 
-    setState((prev) => ({
-      ...prev,
-      loading: true,
-      error: refreshIndex === 0 ? null : prev.error
-    }));
-
-    fetchCommunityStories(supabase, queryOptions || {})
+    fetchCommunityStories(supabase, stableQueryOptions)
       .then((stories) => {
         if (!isActive) return;
 
@@ -61,9 +65,10 @@ export function useCommunity(options: UseCommunityOptions) {
     return () => {
       isActive = false;
     };
-  }, [refreshIndex, supabase, JSON.stringify(queryOptions)]);
+  }, [refreshIndex, supabase, stableQueryOptions]);
 
   const refresh = useCallback(() => {
+    setState((prev) => ({ ...prev, loading: true }));
     setRefreshIndex((value) => value + 1);
   }, []);
 

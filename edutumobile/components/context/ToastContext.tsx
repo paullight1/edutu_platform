@@ -52,8 +52,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         (options: ToastOptions) => {
             clearTimer();
             setToast(options);
+            /* eslint-disable react-hooks/immutability -- Reanimated SharedValue writes (documented API) */
             opacity.value = withTiming(1, { duration: 220 });
             translateY.value = withTiming(0, { duration: 220 });
+            /* eslint-enable react-hooks/immutability */
 
             hideTimer.current = setTimeout(() => {
                 opacity.value = withTiming(0, { duration: 220 });
