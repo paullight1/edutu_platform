@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { X } from 'lucide-react-native';
@@ -57,6 +57,9 @@ export function MobileCampaignHost() {
   const activeCampaign = campaign;
   const accentColor = campaign.creative?.accentColor || '#5B7CFA';
   const isBanner = campaign.campaign_type === 'banner';
+  const rawImageUrl = campaign.creative?.imageUrl;
+  const imageUrl =
+    typeof rawImageUrl === 'string' && /^https?:\/\//.test(rawImageUrl) ? rawImageUrl : null;
 
   async function close(eventType: 'dismiss' | 'click' = 'dismiss') {
     await dismissCampaign(activeCampaign.id);
@@ -77,6 +80,7 @@ export function MobileCampaignHost() {
     return (
       <View style={[styles.banner, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={[styles.accent, { backgroundColor: accentColor }]} />
+        {imageUrl && <Image source={{ uri: imageUrl }} style={styles.bannerImage} resizeMode="cover" />}
         <View style={styles.bannerCopy}>
           <Text style={[styles.bannerTitle, { color: colors.foreground }]} numberOfLines={1}>{campaign.title}</Text>
           {!!campaign.body && <Text style={[styles.bannerBody, { color: colors.textSecondary }]} numberOfLines={2}>{campaign.body}</Text>}
@@ -100,6 +104,7 @@ export function MobileCampaignHost() {
           <TouchableOpacity style={styles.closeButton} onPress={() => void close()}>
             <X size={20} color={colors.textSecondary} />
           </TouchableOpacity>
+          {imageUrl && <Image source={{ uri: imageUrl }} style={styles.modalImage} resizeMode="cover" />}
           <View style={[styles.badge, { backgroundColor: accentColor }]}>
             <Text style={styles.badgeText}>{t('campaign.badge')}</Text>
           </View>
@@ -214,6 +219,18 @@ const styles = StyleSheet.create({
   accent: {
     width: 6,
     alignSelf: 'stretch',
+  },
+  bannerImage: {
+    width: 54,
+    height: 54,
+    borderRadius: 12,
+    marginLeft: 10,
+  },
+  modalImage: {
+    width: '100%',
+    height: 150,
+    borderRadius: 14,
+    marginBottom: 14,
   },
   bannerCopy: {
     flex: 1,

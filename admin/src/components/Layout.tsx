@@ -23,6 +23,8 @@ import {
   CalendarDays,
   Inbox,
   Banknote,
+  SlidersHorizontal,
+  BellRing,
 } from "lucide-react";
 
 interface User {
@@ -125,7 +127,9 @@ const Layout = () => {
     { to: "/blog", icon: FileText, label: "Blog" },
     { to: "/mobile-control", icon: Smartphone, label: "App Content" },
     { to: "/monetization", icon: Banknote, label: "Monetization" },
+    { to: "/notifications", icon: BellRing, label: "Notifications" },
     { to: "/edutu-engine", icon: Settings, label: "Edutu Engine" },
+    { to: "/settings", icon: SlidersHorizontal, label: "Settings" },
   ];
 
   return (

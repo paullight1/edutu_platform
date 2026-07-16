@@ -12,17 +12,23 @@ import {
   Play,
   RefreshCw,
   Save,
+  ShieldAlert,
   Trash2,
   X,
 } from 'lucide-react';
 import {
+  appControlApi,
+  DEFAULT_MOBILE_APP_SETTINGS,
+  LOCKABLE_MODULES,
   mobileControlApi,
+  type MobileAppSettings,
   type MobileCampaign,
   type MobileFeatureFlag,
+  type ModuleAccess,
   type WidgetFeed,
 } from '../lib/mobileControlApi';
 
-type Tab = 'campaigns' | 'flags' | 'widgets';
+type Tab = 'campaigns' | 'flags' | 'widgets' | 'appControl';
 
 const campaignTemplate: MobileCampaign = {
   key: '',
@@ -62,7 +68,7 @@ const widgetTemplate: WidgetFeed = {
 const TAB_META: Record<Tab, { label: string; hint: string }> = {
   campaigns: {
     label: 'Messages',
-    hint: 'Popups, banners, and announcements shown inside the app.',
+    hint: 'Popups, banners, and announcements shown inside the app — banners support an advert image.',
   },
   flags: {
     label: 'Feature Switches',
@@ -71,6 +77,10 @@ const TAB_META: Record<Tab, { label: string; hint: string }> = {
   widgets: {
     label: 'Widget Feeds',
     hint: 'Content for home-screen and lock-screen widgets.',
+  },
+  appControl: {
+    label: 'App Control',
+    hint: 'The emergency levers: force an update, put the app in maintenance, or lock features to Pro / off.',
   },
 };
 
@@ -152,6 +162,7 @@ export default function MobileControl() {
   const [campaignDraft, setCampaignDraft] = useState<MobileCampaign>(campaignTemplate);
   const [flagDraft, setFlagDraft] = useState<MobileFeatureFlag>(flagTemplate);
   const [widgetDraft, setWidgetDraft] = useState<WidgetFeed>(widgetTemplate);
+  const [appControl, setAppControl] = useState<MobileAppSettings>(DEFAULT_MOBILE_APP_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [jsonValid, setJsonValid] = useState(true);
@@ -162,7 +173,12 @@ export default function MobileControl() {
     activeCampaigns: campaigns.filter((item) => item.status === 'active').length,
     enabledFlags: flags.filter((item) => item.enabled).length,
     activeWidgets: widgets.filter((item) => item.status === 'active').length,
-  }), [campaigns, flags, widgets]);
+    activeGates:
+      (appControl.forceUpdate.enabled ? 1 : 0) +
+      (appControl.maintenance.enabled ? 1 : 0) +
+      LOCKABLE_MODULES.filter(({ key }) => (appControl.moduleLocks[key] ?? 'free') !== 'free').length,
+    totalGates: 2 + LOCKABLE_MODULES.length,
+  }), [campaigns, flags, widgets, appControl]);
 
   useEffect(() => {
     if (!notice) return;
@@ -174,14 +190,16 @@ export default function MobileControl() {
     setLoading(true);
     setError(null);
     try {
-      const [nextCampaigns, nextFlags, nextWidgets] = await Promise.all([
+      const [nextCampaigns, nextFlags, nextWidgets, nextAppControl] = await Promise.all([
         mobileControlApi.list<MobileCampaign>('campaigns'),
         mobileControlApi.list<MobileFeatureFlag>('feature-flags'),
         mobileControlApi.list<WidgetFeed>('widget-feeds'),
+        appControlApi.getMobileApp().catch(() => DEFAULT_MOBILE_APP_SETTINGS),
       ]);
       setCampaigns(nextCampaigns);
       setFlags(nextFlags);
       setWidgets(nextWidgets);
+      setAppControl(nextAppControl);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load app content');
     } finally {
@@ -284,8 +302,9 @@ export default function MobileControl() {
         <div>
           <h1>App Content</h1>
           <p>
-            Publish in-app messages, switch features on or off, and update widget feeds —
-            changes reach the mobile app instantly, no app-store release needed.
+            Publish in-app messages and banner adverts, switch features on or off, and pull the
+            emergency levers (force update, maintenance, feature locks) — changes reach the mobile
+            app instantly, no app-store release needed.
           </p>
         </div>
         <button className="mc-button mc-button-secondary" onClick={() => void load()} disabled={loading}>
@@ -297,6 +316,7 @@ export default function MobileControl() {
         <TabButton icon={<Megaphone size={16} />} active={activeTab === 'campaigns'} onClick={() => setActiveTab('campaigns')} label={TAB_META.campaigns.label} count={stats.activeCampaigns} total={campaigns.length} />
         <TabButton icon={<Flag size={16} />} active={activeTab === 'flags'} onClick={() => setActiveTab('flags')} label={TAB_META.flags.label} count={stats.enabledFlags} total={flags.length} />
         <TabButton icon={<Bell size={16} />} active={activeTab === 'widgets'} onClick={() => setActiveTab('widgets')} label={TAB_META.widgets.label} count={stats.activeWidgets} total={widgets.length} />
+        <TabButton icon={<ShieldAlert size={16} />} active={activeTab === 'appControl'} onClick={() => setActiveTab('appControl')} label={TAB_META.appControl.label} count={stats.activeGates} total={stats.totalGates} alert={stats.activeGates > 0} />
       </nav>
       <p className="mc-tab-hint">{TAB_META[activeTab].hint}</p>
 
@@ -346,6 +366,9 @@ export default function MobileControl() {
               />
             </>
           )}
+          {activeTab === 'appControl' && (
+            <AppControlPanel value={appControl} onChange={setAppControl} onNotice={setNotice} onError={setError} />
+          )}
         </div>
       )}
 
@@ -360,13 +383,15 @@ function upsert<T extends { id?: string }>(items: T[], item: T): T[] {
     : [item, ...items];
 }
 
-function TabButton({ icon, label, count, total, active, onClick }: {
-  icon: React.ReactNode; label: string; count: number; total: number; active: boolean; onClick: () => void;
+function TabButton({ icon, label, count, total, active, alert, onClick }: {
+  icon: React.ReactNode; label: string; count?: number; total?: number; active: boolean; alert?: boolean; onClick: () => void;
 }) {
   return (
-    <button className={active ? 'active' : ''} onClick={onClick} aria-pressed={active}>
+    <button className={`${active ? 'active' : ''} ${alert ? 'mc-tab-alert' : ''}`} onClick={onClick} aria-pressed={active}>
       {icon} {label}
-      <span className="mc-tab-count" title={`${count} live of ${total}`}>{count}/{total}</span>
+      {typeof count === 'number' && typeof total === 'number' && (
+        <span className="mc-tab-count" title={`${count} live of ${total}`}>{count}/{total}</span>
+      )}
     </button>
   );
 }
@@ -435,6 +460,19 @@ function CampaignForm({ value, onChange, onSave, onCancel, saving, onValidity, j
       <NumberField label="Priority" hint="Higher shows first." value={value.priority} onChange={(priority) => onChange({ ...value, priority })} />
       <TextField label="Button label" placeholder="Open" value={String(creative.ctaLabel ?? '')} onChange={(ctaLabel) => setCreative({ ctaLabel })} />
       <TextField label="Button opens" placeholder="/opportunities" value={String(creative.ctaRoute ?? '')} onChange={(ctaRoute) => setCreative({ ctaRoute })} />
+      <TextField
+        label="Advert image URL" wide
+        hint="Optional. Shown as a thumbnail on banners and a header image on popups — use a hosted https:// image."
+        placeholder="https://…/advert.png"
+        value={String(creative.imageUrl ?? '')}
+        onChange={(imageUrl) => setCreative({ imageUrl: imageUrl.trim() || undefined })}
+      />
+      {typeof creative.imageUrl === 'string' && /^https?:\/\//.test(creative.imageUrl) && (
+        <div className="mc-field mc-field-wide">
+          <span>Image preview</span>
+          <img className="mc-img-preview" src={creative.imageUrl} alt="Campaign advert preview" />
+        </div>
+      )}
       <Advanced>
         <JsonField label="Creative JSON" hint="Full creative payload — the button fields above edit ctaLabel/ctaRoute here." value={value.creative} onChange={(creative) => onChange({ ...value, creative: creative as Record<string, unknown> })} onValidity={onValidity} />
         <JsonField label="Audience JSON" hint="Targeting rules; leave {} to show to everyone." value={value.audience} onChange={(audience) => onChange({ ...value, audience: audience as Record<string, unknown> })} onValidity={onValidity} />
@@ -513,7 +551,153 @@ function WidgetForm({ value, onChange, onSave, onCancel, saving, onValidity, jso
   );
 }
 
-function TextField({ label, hint, placeholder, value, onChange, wide }: { label: string; hint?: string; placeholder?: string; value: string; onChange: (value: string) => void; wide?: boolean }) {
+const MIN_VERSION_PATTERN = /^\d+(\.\d+){0,3}$/;
+
+/* Force update / maintenance / module locks — admin_settings.mobileApp. */
+function AppControlPanel({ value, onChange, onNotice, onError }: {
+  value: MobileAppSettings;
+  onChange: (value: MobileAppSettings) => void;
+  onNotice: (notice: string) => void;
+  onError: (error: string | null) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify(value));
+  const dirty = JSON.stringify(value) !== savedSnapshot;
+
+  const versionInvalid = !MIN_VERSION_PATTERN.test(value.forceUpdate.minVersion.trim());
+  const forceUpdateIncomplete =
+    !value.forceUpdate.title.trim() || !value.forceUpdate.message.trim() || versionInvalid;
+  const maintenanceIncomplete = !value.maintenance.title.trim() || !value.maintenance.message.trim();
+  const canSave = !forceUpdateIncomplete && !maintenanceIncomplete;
+
+  const setForceUpdate = (patch: Partial<MobileAppSettings['forceUpdate']>) =>
+    onChange({ ...value, forceUpdate: { ...value.forceUpdate, ...patch } });
+  const setMaintenance = (patch: Partial<MobileAppSettings['maintenance']>) =>
+    onChange({ ...value, maintenance: { ...value.maintenance, ...patch } });
+  const setLock = (key: string, access: ModuleAccess) =>
+    onChange({ ...value, moduleLocks: { ...value.moduleLocks, [key]: access } });
+
+  async function save() {
+    if (value.forceUpdate.enabled || value.maintenance.enabled) {
+      const gates = [
+        value.forceUpdate.enabled && `force update (below v${value.forceUpdate.minVersion})`,
+        value.maintenance.enabled && 'maintenance mode (blocks the whole app)',
+      ].filter(Boolean).join(' and ');
+      if (!window.confirm(`This will enable ${gates} for every user on next app launch. Continue?`)) return;
+    }
+    setSaving(true);
+    onError(null);
+    try {
+      const saved = await appControlApi.saveMobileApp(value);
+      onChange(saved);
+      setSavedSnapshot(JSON.stringify(saved));
+      onNotice('App control settings are live — the app picks them up on next launch.');
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Could not save app control settings');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <section className="mc-panel">
+        <div className="mc-panel-head"><h2>Force update</h2>
+          <GateSwitch on={value.forceUpdate.enabled} onToggle={() => setForceUpdate({ enabled: !value.forceUpdate.enabled })} label="force update" />
+        </div>
+        <p className="mc-panel-sub">
+          Users on a version older than the minimum get a blocking screen that sends them to the
+          store{value.forceUpdate.otaFirst ? ' (after trying an instant over-the-air update first)' : ''}.
+        </p>
+        <div className="mc-form">
+          <label className="mc-field">
+            <span className="mc-label-row">Minimum version {versionInvalid && <em className="mc-invalid"><AlertTriangle size={12} /> use e.g. 1.2.3</em>}</span>
+            <input value={value.forceUpdate.minVersion} placeholder="1.2.3" onChange={(e) => setForceUpdate({ minVersion: e.target.value })} />
+            <small>Anything older than this is blocked.</small>
+          </label>
+          <TextField label="Screen title" value={value.forceUpdate.title} onChange={(title) => setForceUpdate({ title })} />
+          <TextField label="Screen message" wide value={value.forceUpdate.message} onChange={(message) => setForceUpdate({ message })} />
+          <TextField label="App Store URL (iOS)" placeholder="https://apps.apple.com/…" value={value.forceUpdate.iosStoreUrl} onChange={(iosStoreUrl) => setForceUpdate({ iosStoreUrl })} />
+          <TextField label="Play Store URL (Android)" placeholder="https://play.google.com/…" value={value.forceUpdate.androidStoreUrl} onChange={(androidStoreUrl) => setForceUpdate({ androidStoreUrl })} />
+          <div className="mc-field mc-field-wide">
+            <label className="mc-check">
+              <input type="checkbox" checked={value.forceUpdate.otaFirst} onChange={(e) => setForceUpdate({ otaFirst: e.target.checked })} />
+              Try an over-the-air update before sending users to the store
+            </label>
+          </div>
+        </div>
+
+        <div className="mc-panel-head" style={{ marginTop: 8 }}><h2>Maintenance mode</h2>
+          <GateSwitch on={value.maintenance.enabled} onToggle={() => setMaintenance({ enabled: !value.maintenance.enabled })} label="maintenance mode" />
+        </div>
+        <p className="mc-panel-sub">Blocks the whole app with a notice — use during backend migrations or incidents.</p>
+        <div className="mc-form">
+          <TextField label="Notice title" value={value.maintenance.title} onChange={(title) => setMaintenance({ title })} />
+          <TextField label="Notice message" wide value={value.maintenance.message} onChange={(message) => setMaintenance({ message })} />
+        </div>
+
+        <button className="mc-button" onClick={() => void save()} disabled={saving || !canSave || !dirty}>
+          {saving ? <Loader2 size={16} className="spin" /> : <Save size={16} />} {dirty ? 'Publish app control' : 'Published'}
+        </button>
+      </section>
+
+      <section className="mc-panel">
+        <div className="mc-panel-head"><h2>Feature locks</h2></div>
+        <p className="mc-panel-sub">
+          Lock a whole feature to Pro subscribers or switch it off for everyone — the app covers
+          locked screens automatically, including deep links and widgets. Admins bypass locks.
+        </p>
+        <div className="mc-list">
+          {LOCKABLE_MODULES.map(({ key, label, hint }) => {
+            const access = value.moduleLocks[key] ?? 'free';
+            return (
+              <article key={key} className="mc-row">
+                <div className="mc-row-main">
+                  <strong>{label}</strong>
+                  <span>{hint}</span>
+                </div>
+                <div className="mc-lock-options" role="radiogroup" aria-label={`${label} access`}>
+                  {(['free', 'pro', 'disabled'] as ModuleAccess[]).map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      role="radio"
+                      aria-checked={access === option}
+                      className={`mc-lock-option ${access === option ? `on lock-${option}` : ''}`}
+                      onClick={() => setLock(key, option)}
+                    >
+                      {option === 'free' ? 'Everyone' : option === 'pro' ? 'Pro only' : 'Off'}
+                    </button>
+                  ))}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+        <p className="mc-panel-sub" style={{ marginTop: 12 }}>
+          Changes take effect when you press <strong>Publish app control</strong> on the left.
+        </p>
+      </section>
+    </>
+  );
+}
+
+function GateSwitch({ on, onToggle, label }: { on: boolean; onToggle: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={`${on ? 'Disable' : 'Enable'} ${label}`}
+      className={`mc-switch ${on ? 'on danger' : ''}`}
+      onClick={onToggle}
+    >
+      <span className="mc-switch-thumb" />
+    </button>
+  );
+}
+
+export function TextField({ label, hint, placeholder, value, onChange, wide }: { label: string; hint?: string; placeholder?: string; value: string; onChange: (value: string) => void; wide?: boolean }) {
   return (
     <label className={`mc-field ${wide ? 'mc-field-wide' : ''}`}>
       <span>{label}</span>
@@ -533,7 +717,7 @@ function NumberField({ label, hint, value, onChange }: { label: string; hint?: s
   );
 }
 
-function SelectField({ label, hint, value, options, onChange }: { label: string; hint?: string; value: string; options: string[]; onChange: (value: string) => void }) {
+export function SelectField({ label, hint, value, options, onChange }: { label: string; hint?: string; value: string; options: string[]; onChange: (value: string) => void }) {
   return (
     <label className="mc-field">
       <span>{label}</span>
@@ -644,7 +828,8 @@ function ItemList<T extends { id?: string; title?: string; key: string; status?:
   );
 }
 
-const styles = `
+// Shared with the Notifications page, which reuses the mc-* primitives.
+export const styles = `
 .mc-page{padding:28px;color:var(--text-primary);max-width:1280px;margin:0 auto}
 .mc-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px}
 .mc-header h1{margin:0;font-size:28px;font-weight:700;letter-spacing:-0.01em}
@@ -704,6 +889,18 @@ const styles = `
 .status-active{background:rgba(52,199,89,.14);color:var(--success)}
 .status-paused,.status-draft,.status-scheduled{background:rgba(255,149,0,.14);color:var(--warning)}
 .mc-empty{color:var(--text-tertiary);padding:22px 6px;font-size:14px;line-height:1.55;max-width:52ch}
+.mc-panel-sub{margin:0 0 14px;color:var(--text-tertiary);font-size:13px;line-height:1.5}
+.mc-switch.on.danger{background:var(--danger)}
+.mc-tab-alert{border-color:var(--danger)!important}
+.mc-tab-alert:not(.active){color:var(--danger)}
+.mc-img-preview{max-width:100%;max-height:140px;border-radius:10px;border:1px solid var(--border-medium);object-fit:cover}
+.mc-lock-options{display:flex;gap:4px;flex-shrink:0;background:var(--bg-primary);border:1px solid var(--border-medium);border-radius:999px;padding:3px}
+.mc-lock-option{border:0;background:transparent;color:var(--text-tertiary);font-size:12.5px;font-weight:600;border-radius:999px;padding:5px 11px;cursor:pointer;transition:background var(--transition-fast),color var(--transition-fast)}
+.mc-lock-option:hover{color:var(--text-primary)}
+.mc-lock-option.on{color:#fff}
+.mc-lock-option.on.lock-free{background:var(--success)}
+.mc-lock-option.on.lock-pro{background:var(--accent)}
+.mc-lock-option.on.lock-disabled{background:var(--danger)}
 .mc-alert,.mc-notice{display:flex;align-items:center;gap:8px;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:14px}
 .mc-alert{background:rgba(255,59,48,.1);border:1px solid rgba(255,59,48,.3);color:var(--danger)}
 .mc-notice{background:rgba(52,199,89,.1);border:1px solid rgba(52,199,89,.3);color:var(--success)}
