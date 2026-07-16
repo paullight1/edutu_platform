@@ -118,6 +118,28 @@ describe('shared UI primitives and theming', () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
+  it('withLoadingStates renders a real error state with a working retry', () => {
+    // Regression guard: this HOC used to wrap the (healthy) children in an
+    // ErrorBoundary on `error` — boundaries only trigger when a child throws,
+    // so the error was never shown and onRetry was stripped and dropped.
+    const { withLoadingStates } = require('../components/ui/withLoadingStates');
+    const Wrapped = withLoadingStates(({ label }: { label: string }) => <Text>{label}</Text>);
+    const onRetry = jest.fn();
+    const { getByText, queryByText, rerender } = render(
+      <Wrapped label="Child content" isLoading={false} isEmpty={false} error={new Error('Boom')} onRetry={onRetry} />,
+    );
+
+    expect(getByText('Boom')).toBeTruthy();
+    expect(queryByText('Child content')).toBeNull();
+    fireEvent.press(getByText('Try again'));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <Wrapped label="Child content" isLoading={false} isEmpty={false} error={null} onRetry={onRetry} />,
+    );
+    expect(getByText('Child content')).toBeTruthy();
+  });
+
   it('loads theme settings from storage and persists updates', async () => {
     mockedStorage.getItem.mockImplementation(async (key) => {
       switch (key) {

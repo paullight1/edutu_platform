@@ -303,7 +303,8 @@
                 "hours5to10": "5-10 hours",
                 "hours10to20": "10-20 hours",
                 "hours20plus": "20+ hours"
-            }
+            },
+            "saveFailed": "Could not save your answers. Please try again."
         },
         "feedback": {
             "title": "How was this roadmap?",

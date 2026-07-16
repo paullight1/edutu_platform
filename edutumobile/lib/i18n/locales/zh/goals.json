@@ -303,7 +303,8 @@
                 "hours5to10": "5-10 小时",
                 "hours10to20": "10-20 小时",
                 "hours20plus": "20 小时以上"
-            }
+            },
+            "saveFailed": "无法保存您的回答，请重试。"
         },
         "feedback": {
             "title": "这条路线图怎么样？",

@@ -10,7 +10,8 @@ import {
     ShieldCheck, CheckCircle, Zap, GraduationCap,
     ThumbsUp, Pencil, Plus
 } from "lucide-react-native";
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../components/context/ThemeContext";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -23,6 +24,9 @@ import { swr } from "../../packages/core/src/services/swrCache";
 
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://edutu-platform.onrender.com').replace(/\/$/, '');
 const API_RETRY_COOLDOWN_MS = 30 * 1000;
+// Set when the user skips the intent intake, so the modal never nags.
+// Submitting stores the intent server-side, which also stops future prompts.
+const INTENT_PROMPT_DISMISSED_KEY = 'edutu_roadmaps_intent_prompt_dismissed';
 
 let apiUnavailableUntil = 0;
 let hasLoggedApiUnavailable = false;
@@ -163,7 +167,7 @@ export default function RoadmapsScreen() {
     const [selectedItem, setSelectedItem] = useState<Roadmap | null>(null);
     const [enrolling, setEnrolling] = useState(false);
     const [showIntentModal, setShowIntentModal] = useState(false);
-    const [intentQuestions] = useState<AIQuestion[]>([]);
+    const [intentQuestions, setIntentQuestions] = useState<AIQuestion[]>([]);
     const [intentAnswers, setIntentAnswers] = useState<Record<string, string>>({});
     const [intentLoading, setIntentLoading] = useState(false);
     const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -234,32 +238,137 @@ export default function RoadmapsScreen() {
 
     useFocusEffect(useCallback(() => { fetchMine(); }, [fetchMine]));
 
+    // ── Intent intake (ask once) ─────────────────────────────────────────────
+    // After the catalog first paints, check whether this user has a stored
+    // roadmap intent (GET /roadmaps/intent → null when none):
+    //   • has intent  → seed the default view with personalized picks
+    //     (/roadmaps/recommended); any category/search interaction refetches
+    //     the full catalog as usual.
+    //   • no intent   → open the intake modal once — AI-generated questions
+    //     via /roadmaps/ai/assist, falling back to three built-in translated
+    //     questions when that's unavailable (offline / out of credits).
+    // Skipping is remembered on-device so the modal never nags.
+    const intentCheckedRef = useRef(false);
+    useEffect(() => {
+        if (intentCheckedRef.current || loading || !user) return;
+        intentCheckedRef.current = true;
+        let cancelled = false;
+        (async () => {
+            try {
+                const dismissed = await AsyncStorage.getItem(INTENT_PROMPT_DISMISSED_KEY);
+                const token = await getToken();
+                if (!token || cancelled) return;
+                const intentRes = await apiFetch('/roadmaps/intent', {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                if (!intentRes?.ok || cancelled) return;
+                // 200 with an empty/null body means "no intent yet".
+                const intent = await intentRes.json().catch(() => null);
+                if (cancelled) return;
+
+                if (intent) {
+                    const recRes = await apiFetch('/roadmaps/recommended?limit=10', {
+                        headers: { Authorization: `Bearer ${token}` },
+                    });
+                    if (recRes?.ok && !cancelled) {
+                        const recData = await recRes.json();
+                        // The SWR background refresh of the catalog can, rarely,
+                        // land after this and win — acceptable: the personalized
+                        // view is a default, not a mode, and re-applies next visit.
+                        if (Array.isArray(recData) && recData.length > 0 && !cancelled) {
+                            setRoadmaps(recData);
+                        }
+                    }
+                    return;
+                }
+
+                if (dismissed) return;
+
+                // No intent on file: fetch intake questions, preferring the
+                // AI-personalized set. /roadmaps/ai/* is credit-metered — a
+                // 402/429/offline simply uses the built-in questions.
+                let questions: AIQuestion[] | null = null;
+                try {
+                    const assistRes = await apiFetch('/roadmaps/ai/assist', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({
+                            topic: 'learning and career growth',
+                            category: category !== 'All' ? category.toLowerCase() : undefined,
+                        }),
+                    });
+                    if (assistRes?.ok) {
+                        const data = await assistRes.json();
+                        if (Array.isArray(data?.questions) && data.questions.length > 0) {
+                            questions = data.questions;
+                        }
+                    }
+                } catch { /* fall through to the default questions */ }
+
+                if (cancelled) return;
+                setIntentQuestions(
+                    questions ?? [
+                        { id: 'q1', question: t('roadmaps.intent.q1'), type: 'select', options: [t('roadmaps.intent.levels.beginner'), t('roadmaps.intent.levels.intermediate'), t('roadmaps.intent.levels.advanced')] },
+                        { id: 'q2', question: t('roadmaps.intent.q2'), type: 'select', options: [t('roadmaps.intent.time.lessThan5'), t('roadmaps.intent.time.hours5to10'), t('roadmaps.intent.time.hours10to20'), t('roadmaps.intent.time.hours20plus')] },
+                        { id: 'q3', question: t('roadmaps.intent.q3'), type: 'text' },
+                    ],
+                );
+                setShowIntentModal(true);
+            } catch (e) {
+                // Intent is a nice-to-have on top of the already-rendered
+                // catalog — never let it surface an error state.
+                console.warn('Roadmap intent check skipped:', e);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [loading, user, getToken, category, t]);
+
+    // Skip = "don't ask me again" (on this device). Submitting stores the
+    // intent server-side, which stops future prompts everywhere.
+    const dismissIntentPrompt = useCallback(() => {
+        setShowIntentModal(false);
+        AsyncStorage.setItem(INTENT_PROMPT_DISMISSED_KEY, '1').catch(() => { /* best effort */ });
+    }, []);
+
     const submitIntent = async () => {
         if (!user) return;
         setIntentLoading(true);
         try {
             const token = await getAuthToken();
             const goals = Object.values(intentAnswers).filter(Boolean) as string[];
-            const level = intentAnswers['q1']?.toLowerCase();
 
-            await apiFetch('/roadmaps/intent', {
+            // The DTO wants the ENGLISH enum, but the answer the user tapped is
+            // translated copy — map by option position instead of lowercasing
+            // the label (which 400'd for every non-English locale). AI-generated
+            // question sets have no q1, so the level is simply omitted there.
+            const levelQuestion = intentQuestions.find((q) => q.id === 'q1');
+            const levelIndex = levelQuestion?.options?.indexOf(intentAnswers['q1'] ?? '') ?? -1;
+            const currentLevel = (['beginner', 'intermediate', 'advanced'] as const)[levelIndex];
+
+            const res = await apiFetch('/roadmaps/intent', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({
                     goals,
-                    currentLevel: level as any,
+                    currentLevel,
                     targetCategory: category !== 'All' ? category.toLowerCase() : undefined,
                     additionalContext: intentAnswers['q3'] || '',
                 }),
             });
+            // Keep the modal open on failure so the answers aren't lost —
+            // the old fire-and-forget close made a rejected save look saved.
+            if (!res?.ok) throw new Error(`intent save failed (${res?.status ?? 'offline'})`);
 
-            // Fetch recommended roadmaps
+            // Seed the list with personalized picks now that intent exists.
             const recRes = await apiFetch('/roadmaps/recommended?limit=10', {
                 headers: { 'Authorization': `Bearer ${token}` },
             });
             if (recRes?.ok) {
                 const recData = await recRes.json();
-                if (recData.length > 0) {
+                if (Array.isArray(recData) && recData.length > 0) {
                     setRoadmaps(recData);
                 }
             }
@@ -267,6 +376,7 @@ export default function RoadmapsScreen() {
             setShowIntentModal(false);
         } catch (e) {
             console.error('Failed to submit intent:', e);
+            Alert.alert(t('common:states.error'), t('roadmaps.intent.saveFailed'));
         } finally {
             setIntentLoading(false);
         }
@@ -847,7 +957,7 @@ export default function RoadmapsScreen() {
             </Modal>
 
             {/* Intent Questions Modal */}
-            <Modal visible={showIntentModal} transparent animationType="fade" onRequestClose={() => setShowIntentModal(false)}>
+            <Modal visible={showIntentModal} transparent animationType="fade" onRequestClose={dismissIntentPrompt}>
                 <View style={styles.modalOverlay}>
                     <View style={[styles.intentSheet, { backgroundColor: isDark ? "#0F172A" : "#FFFFFF", borderColor }]}>
                         <View style={styles.intentHeader}>
@@ -888,7 +998,7 @@ export default function RoadmapsScreen() {
                             </View>
                         </ScrollView>
                         <View style={[styles.intentFooter, { borderTopColor: borderColor }]}>
-                            <TouchableOpacity style={[styles.intentSkipBtn]} onPress={() => setShowIntentModal(false)}>
+                            <TouchableOpacity style={[styles.intentSkipBtn]} onPress={dismissIntentPrompt}>
                                 <Text style={[styles.intentSkipText, { color: textSecondary }]}>{t('roadmaps.intent.skip')}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity

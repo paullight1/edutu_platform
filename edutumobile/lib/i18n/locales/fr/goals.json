@@ -303,7 +303,8 @@
                 "hours5to10": "5-10 heures",
                 "hours10to20": "10-20 heures",
                 "hours20plus": "20 heures et plus"
-            }
+            },
+            "saveFailed": "Impossible d'enregistrer vos réponses. Veuillez réessayer."
         },
         "feedback": {
             "title": "Comment avez-vous trouvé ce parcours ?",

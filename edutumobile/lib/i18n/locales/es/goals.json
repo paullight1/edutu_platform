@@ -303,7 +303,8 @@
                 "hours5to10": "5-10 horas",
                 "hours10to20": "10-20 horas",
                 "hours20plus": "Más de 20 horas"
-            }
+            },
+            "saveFailed": "No se pudieron guardar tus respuestas. Inténtalo de nuevo."
         },
         "feedback": {
             "title": "¿Qué te pareció esta ruta?",

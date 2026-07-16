@@ -303,7 +303,8 @@
         "hours5to10": "Saa 5-10",
         "hours10to20": "Saa 10-20",
         "hours20plus": "Saa 20+"
-      }
+      },
+      "saveFailed": "Imeshindwa kuhifadhi majibu yako. Tafadhali jaribu tena."
     },
     "feedback": {
       "title": "Ramani hii ya njia ilikuwaje?",
