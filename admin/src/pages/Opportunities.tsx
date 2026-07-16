@@ -132,6 +132,31 @@ const BULK_MOVE_CATEGORIES = [
 type CreationMode = "manual" | "url" | "bulk";
 type ViewMode = "table" | "grid";
 
+// Which bulk action is running — one spinner, not five. A single boolean made
+// every toolbar button animate at once, so nothing communicated what was
+// actually happening.
+type BulkActionKind =
+  | "approve"
+  | "reject"
+  | "findDeadlines"
+  | "aiComplete"
+  | "category"
+  | "delete";
+
+interface BulkProgress {
+  done: number;
+  total: number;
+  note?: string;
+}
+
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
+
 interface OpportunityListResponse {
   data: Opportunity[];
   page: number;
@@ -1052,6 +1077,10 @@ export default function Opportunities() {
   // Narrows to rows with no deadline on either column — the cohort the
   // re-scrape/AI recovery action exists for.
   const [missingDeadlineOnly, setMissingDeadlineOnly] = useState(false);
+  // Stat-card cohorts with no dedicated toolbar control; toggled by clicking
+  // the Featured / Expiring Soon cards.
+  const [featuredOnly, setFeaturedOnly] = useState(false);
+  const [expiringSoonOnly, setExpiringSoonOnly] = useState(false);
   const [verifyingIds, setVerifyingIds] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState("newest");
   const [viewMode, setViewMode] = useState<ViewMode>("table");
@@ -1073,7 +1102,11 @@ export default function Opportunities() {
     sharing: boolean;
   } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkActionBusy, setBulkActionBusy] = useState(false);
+  const [bulkAction, setBulkAction] = useState<BulkActionKind | null>(null);
+  const [bulkProgress, setBulkProgress] = useState<BulkProgress | null>(null);
+  // True while "Select all N matching" is paging through the filtered set.
+  const [selectingAll, setSelectingAll] = useState(false);
+  const bulkActionBusy = bulkAction !== null;
   const [pageNotice, setPageNotice] = useState<PageNotice | null>(null);
 
   // Form data
@@ -1113,15 +1146,13 @@ export default function Opportunities() {
     });
   }, []);
 
-  const fetchOpportunities = useCallback(async (options?: { silent?: boolean }) => {
-    // Silent mode powers background auto-refresh (realtime + polling):
-    // no loading flash, no alert, and never clears the list on a blip.
-    const silent = options?.silent === true;
-    if (!silent) setLoading(true);
-    try {
+  // One param builder for both the page fetch and "Select all N matching",
+  // so the selection loop can never drift from what the list shows.
+  const buildListParams = useCallback(
+    (page: number, limit: number) => {
       const params = new URLSearchParams({
-        page: String(currentPage),
-        limit: String(pageSize),
+        page: String(page),
+        limit: String(limit),
         sortBy,
       });
 
@@ -1131,8 +1162,32 @@ export default function Opportunities() {
       // Expired rows are noise in the default view — an admin manages what's
       // still live. Suppressed unless explicitly asked for, and never when a
       // status is picked (status=closed + hide-expired returns nothing).
-      if (!showExpired && statusFilter === "all") params.set("includeExpired", "false");
+      if (!showExpired && statusFilter === "all")
+        params.set("includeExpired", "false");
       if (missingDeadlineOnly) params.set("missingDeadline", "true");
+      if (featuredOnly) params.set("featured", "true");
+      if (expiringSoonOnly) params.set("expiringSoon", "true");
+      return params;
+    },
+    [
+      sortBy,
+      searchQuery,
+      categoryFilter,
+      statusFilter,
+      showExpired,
+      missingDeadlineOnly,
+      featuredOnly,
+      expiringSoonOnly,
+    ],
+  );
+
+  const fetchOpportunities = useCallback(async (options?: { silent?: boolean }) => {
+    // Silent mode powers background auto-refresh (realtime + polling):
+    // no loading flash, no alert, and never clears the list on a blip.
+    const silent = options?.silent === true;
+    if (!silent) setLoading(true);
+    try {
+      const params = buildListParams(currentPage, pageSize);
 
       const headers = await getAdminHeaders();
       const [listResponse, statsResponse] = await Promise.all([
@@ -1169,18 +1224,7 @@ export default function Opportunities() {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [
-    categoryFilter,
-    currentPage,
-    getAdminHeaders,
-    NEST_API_URL,
-    pageSize,
-    missingDeadlineOnly,
-    searchQuery,
-    showExpired,
-    sortBy,
-    statusFilter,
-  ]);
+  }, [buildListParams, currentPage, getAdminHeaders, NEST_API_URL, pageSize]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -1198,22 +1242,27 @@ export default function Opportunities() {
     statusFilter,
     showExpired,
     missingDeadlineOnly,
+    featuredOnly,
+    expiringSoonOnly,
     sortBy,
     pageSize,
   ]);
 
-  // Prune selection whenever the visible set changes (filters, search, page,
-  // refetch) so bulk actions only ever target rows the admin can still see.
+  // Clear the selection when the filter set changes — the selected cohort no
+  // longer matches what's on screen. Deliberately NOT keyed on the visible
+  // rows: selection must survive page flips and refetches, or "Select all N
+  // matching" would be pruned back to one page the moment it completed.
   useEffect(() => {
-    setSelectedIds((prev) => {
-      if (prev.size === 0) return prev;
-      const visible = new Set(filteredOpps.map((opp) => opp.id));
-      const next = new Set(
-        Array.from(prev).filter((id) => visible.has(id)),
-      );
-      return next.size === prev.size ? prev : next;
-    });
-  }, [filteredOpps]);
+    setSelectedIds((prev) => (prev.size === 0 ? prev : new Set()));
+  }, [
+    searchQuery,
+    categoryFilter,
+    statusFilter,
+    showExpired,
+    missingDeadlineOnly,
+    featuredOnly,
+    expiringSoonOnly,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -1337,23 +1386,31 @@ export default function Opportunities() {
       )
     )
       return;
-    setBulkActionBusy(true);
+    setBulkAction(status === "active" ? "approve" : "reject");
+    let updated = 0;
+    let done = 0;
     try {
-      const response = await fetch(
-        `${NEST_API_URL}/opportunities/admin/bulk-status`,
-        {
-          method: "POST",
-          headers: await getAdminHeaders(),
-          body: JSON.stringify({ ids, status }),
-        },
-      );
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.message || "Bulk status update failed");
+      // The bulk endpoints cap at 200 ids per request; "Select all" can pick
+      // more than that, so send in chunks and keep a running total.
+      for (const chunk of chunkArray(ids, 200)) {
+        const response = await fetch(
+          `${NEST_API_URL}/opportunities/admin/bulk-status`,
+          {
+            method: "POST",
+            headers: await getAdminHeaders(),
+            body: JSON.stringify({ ids: chunk, status }),
+          },
+        );
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          throw new Error(error.message || "Bulk status update failed");
+        }
+        const result = await response.json().catch(() => ({}));
+        updated +=
+          typeof result.updated === "number" ? result.updated : chunk.length;
+        done += chunk.length;
+        if (ids.length > 200) setBulkProgress({ done, total: ids.length });
       }
-      const result = await response.json().catch(() => ({}));
-      const updated =
-        typeof result.updated === "number" ? result.updated : ids.length;
       setSelectedIds(new Set());
       void fetchOpportunities();
       showPageNotice(
@@ -1368,7 +1425,8 @@ export default function Opportunities() {
         getErrorMessage(error, "Bulk status update failed"),
       );
     } finally {
-      setBulkActionBusy(false);
+      setBulkAction(null);
+      setBulkProgress(null);
     }
   }
 
@@ -1381,23 +1439,29 @@ export default function Opportunities() {
       )
     )
       return;
-    setBulkActionBusy(true);
+    setBulkAction("category");
+    let updated = 0;
+    let done = 0;
     try {
-      const response = await fetch(
-        `${NEST_API_URL}/opportunities/admin/bulk-category`,
-        {
-          method: "POST",
-          headers: await getAdminHeaders(),
-          body: JSON.stringify({ ids, category }),
-        },
-      );
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.message || "Bulk category move failed");
+      for (const chunk of chunkArray(ids, 200)) {
+        const response = await fetch(
+          `${NEST_API_URL}/opportunities/admin/bulk-category`,
+          {
+            method: "POST",
+            headers: await getAdminHeaders(),
+            body: JSON.stringify({ ids: chunk, category }),
+          },
+        );
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          throw new Error(error.message || "Bulk category move failed");
+        }
+        const result = await response.json().catch(() => ({}));
+        updated +=
+          typeof result.updated === "number" ? result.updated : chunk.length;
+        done += chunk.length;
+        if (ids.length > 200) setBulkProgress({ done, total: ids.length });
       }
-      const result = await response.json().catch(() => ({}));
-      const updated =
-        typeof result.updated === "number" ? result.updated : ids.length;
       setSelectedIds(new Set());
       void fetchOpportunities();
       showPageNotice(
@@ -1410,7 +1474,8 @@ export default function Opportunities() {
         getErrorMessage(error, "Bulk category move failed"),
       );
     } finally {
-      setBulkActionBusy(false);
+      setBulkAction(null);
+      setBulkProgress(null);
     }
   }
 
@@ -1423,23 +1488,29 @@ export default function Opportunities() {
       )
     )
       return;
-    setBulkActionBusy(true);
+    setBulkAction("delete");
+    let deleted = 0;
+    let done = 0;
     try {
-      const response = await fetch(
-        `${NEST_API_URL}/opportunities/admin/bulk-delete`,
-        {
-          method: "POST",
-          headers: await getAdminHeaders(),
-          body: JSON.stringify({ ids }),
-        },
-      );
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.message || "Bulk delete failed");
+      for (const chunk of chunkArray(ids, 200)) {
+        const response = await fetch(
+          `${NEST_API_URL}/opportunities/admin/bulk-delete`,
+          {
+            method: "POST",
+            headers: await getAdminHeaders(),
+            body: JSON.stringify({ ids: chunk }),
+          },
+        );
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          throw new Error(error.message || "Bulk delete failed");
+        }
+        const result = await response.json().catch(() => ({}));
+        deleted +=
+          typeof result.deleted === "number" ? result.deleted : chunk.length;
+        done += chunk.length;
+        if (ids.length > 200) setBulkProgress({ done, total: ids.length });
       }
-      const result = await response.json().catch(() => ({}));
-      const deleted =
-        typeof result.deleted === "number" ? result.deleted : ids.length;
       setSelectedIds(new Set());
       void fetchOpportunities();
       showPageNotice(
@@ -1449,7 +1520,8 @@ export default function Opportunities() {
     } catch (error: unknown) {
       showPageNotice("error", getErrorMessage(error, "Bulk delete failed"));
     } finally {
-      setBulkActionBusy(false);
+      setBulkAction(null);
+      setBulkProgress(null);
     }
   }
 
@@ -1521,64 +1593,88 @@ export default function Opportunities() {
   async function handleBulkFindDeadlines() {
     const ids = Array.from(selectedIds);
     if (ids.length === 0 || bulkActionBusy) return;
-    setBulkActionBusy(true);
+    setBulkAction("findDeadlines");
+    setBulkProgress({ done: 0, total: ids.length });
     setVerifyingIds((prev) => {
       const next = new Set(prev);
       ids.forEach((id) => next.add(id));
       return next;
     });
     let found = 0;
+    let rolling = 0;
     let checked = 0;
     let failed = 0;
+    let done = 0;
     try {
-      // Sequential: each row is a live page fetch plus a possible LLM call, and
-      // the single-row endpoint is the same one the row icon uses.
-      for (const id of ids) {
+      // Batches of 10 against the server-side bulk endpoint, which runs the
+      // page fetches and LLM fallbacks concurrently. The old one-request-per-
+      // row loop took 15-30s × N sequentially — a 100-row selection sat
+      // spinning for upwards of half an hour with no sign of life.
+      for (const chunk of chunkArray(ids, 10)) {
         try {
           const response = await fetch(
-            `${NEST_API_URL}/opportunities/admin/verification/${id}`,
+            `${NEST_API_URL}/opportunities/admin/verification/bulk`,
             {
               method: "POST",
-              headers: {
-                ...(await getAdminHeaders()),
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ dryRun: false }),
+              headers: await getAdminHeaders(),
+              body: JSON.stringify({ ids: chunk, dryRun: false }),
             },
           );
           const result = await response.json().catch(() => ({}));
           if (!response.ok || !result.success) {
-            throw new Error(result.error || "Deadline check failed");
+            throw new Error(
+              result.error || result.message || "Deadline check failed",
+            );
           }
-          checked += 1;
-          if (result.result?.newCloseDate) found += 1;
+          checked += Number(result.checked) || 0;
+          found += Number(result.found) || 0;
+          rolling += Number(result.rolling) || 0;
+          failed += Number(result.failed) || 0;
         } catch {
-          failed += 1;
+          failed += chunk.length;
         } finally {
+          done += chunk.length;
+          setBulkProgress({
+            done,
+            total: ids.length,
+            note: `${found} deadline${found === 1 ? "" : "s"} found`,
+          });
           setVerifyingIds((prev) => {
             const next = new Set(prev);
-            next.delete(id);
+            chunk.forEach((id) => next.delete(id));
             return next;
           });
         }
+        // Refresh between batches so recovered dates appear as they land
+        // instead of only after the whole run.
+        void fetchOpportunities({ silent: true });
       }
 
       // Report found separately from checked: "20 checked" reads like success
       // when it may well have recovered zero dates.
       showPageNotice(
-        failed ? "error" : "success",
-        `Checked ${checked} ${checked === 1 ? "opportunity" : "opportunities"}, found ${found} deadline${found === 1 ? "" : "s"}${failed ? `, ${failed} failed` : ""}.`,
+        failed ? "warning" : "success",
+        `Checked ${checked} ${checked === 1 ? "opportunity" : "opportunities"}, found ${found} deadline${found === 1 ? "" : "s"}${
+          rolling ? `, ${rolling} rolling` : ""
+        }${failed ? `, ${failed} failed` : ""}.`,
       );
       await fetchOpportunities();
     } finally {
-      setBulkActionBusy(false);
+      setBulkAction(null);
+      setBulkProgress(null);
+      setVerifyingIds((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.delete(id));
+        return next;
+      });
     }
   }
 
   async function handleBulkEnhance() {
     const ids = Array.from(selectedIds);
     if (ids.length === 0 || bulkActionBusy) return;
-    setBulkActionBusy(true);
+    setBulkAction("aiComplete");
+    setBulkProgress({ done: 0, total: ids.length });
     setEnhancingIds((prev) => {
       const next = new Set(prev);
       ids.forEach((id) => next.add(id));
@@ -1611,11 +1707,12 @@ export default function Opportunities() {
             next.delete(id);
             return next;
           });
+          setBulkProgress({
+            done: completed + failed,
+            total: ids.length,
+            note: failed ? `${failed} failed` : undefined,
+          });
         }
-        showPageNotice(
-          "warning",
-          `AI completing profiles... ${completed + failed}/${ids.length}`,
-        );
       }
       setSelectedIds(new Set());
       await fetchOpportunities();
@@ -1626,7 +1723,8 @@ export default function Opportunities() {
         }.`,
       );
     } finally {
-      setBulkActionBusy(false);
+      setBulkAction(null);
+      setBulkProgress(null);
       setEnhancingIds((prev) => {
         const next = new Set(prev);
         ids.forEach((id) => next.delete(id));
@@ -2370,10 +2468,98 @@ export default function Opportunities() {
     visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
   const someVisibleSelected = visibleIds.some((id) => selectedIds.has(id));
 
+  // Page-scoped: adds/removes only this page's rows so a cross-page
+  // "Select all matching" isn't wiped out by touching the header checkbox.
   function toggleSelectAllVisible() {
-    setSelectedIds(() =>
-      allVisibleSelected ? new Set<string>() : new Set(visibleIds),
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) visibleIds.forEach((id) => next.delete(id));
+      else visibleIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+
+  type StatCardView =
+    | "total"
+    | "active"
+    | "expired"
+    | "missingDeadline"
+    | "featured"
+    | "expiringSoon"
+    | "needsReview";
+
+  // Each stat card narrows the list to exactly the cohort it counts, using
+  // the same predicates as opportunity_admin_stats(). Search and category are
+  // cleared because the card numbers are global — leaving them applied would
+  // show fewer rows than the card claims.
+  function applyStatCardView(view: StatCardView, alreadyActive: boolean) {
+    setSearchQuery("");
+    setCategoryFilter("all");
+    setMissingDeadlineOnly(!alreadyActive && view === "missingDeadline");
+    setFeaturedOnly(!alreadyActive && view === "featured");
+    setExpiringSoonOnly(!alreadyActive && view === "expiringSoon");
+
+    if (alreadyActive) {
+      // Second click restores the default working view.
+      setStatusFilter("all");
+      setShowExpired(false);
+      return;
+    }
+
+    setStatusFilter(
+      view === "active"
+        ? "active"
+        : view === "expired"
+          ? "closed"
+          : view === "needsReview"
+            ? "pending_review"
+            : "all",
     );
+    // These cohorts span expired rows too; without this the list would hide
+    // some of them and the count on the card wouldn't match the rows below.
+    setShowExpired(
+      ["total", "missingDeadline", "featured", "expiringSoon"].includes(view),
+    );
+  }
+
+  // Selects every id matching the current filters, not just this page: pages
+  // through the same list endpoint with the same params as the table fetch.
+  async function handleSelectAllMatching() {
+    if (selectingAll || bulkActionBusy) return;
+    setSelectingAll(true);
+    try {
+      const headers = await getAdminHeaders();
+      const all = new Set<string>();
+      const limit = 200;
+      // Hard stop at 25 pages (5,000 rows) so a runaway filter can't loop the
+      // admin tab forever.
+      for (let page = 1; page <= 25; page += 1) {
+        const params = buildListParams(page, limit);
+        const response = await fetch(
+          `${NEST_API_URL}/opportunities/admin/list?${params.toString()}`,
+          { headers },
+        );
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          throw new Error(error.message || "Failed to load all matching rows");
+        }
+        const result = (await response.json()) as OpportunityListResponse;
+        (result.data || []).forEach((opp) => all.add(opp.id));
+        if (!result.data?.length || page >= (result.totalPages || 1)) break;
+      }
+      setSelectedIds(all);
+      showPageNotice(
+        "success",
+        `Selected all ${all.size.toLocaleString()} matching opportunit${all.size === 1 ? "y" : "ies"}.`,
+      );
+    } catch (error: unknown) {
+      showPageNotice(
+        "error",
+        getErrorMessage(error, "Failed to select all matching opportunities"),
+      );
+    } finally {
+      setSelectingAll(false);
+    }
   }
 
   function toggleSelected(id: string) {
@@ -2407,15 +2593,70 @@ export default function Opportunities() {
         }}
       >
         <strong style={{ color: "var(--text-primary)", fontSize: "13px" }}>
-          {selectedIds.size} selected
+          {selectedIds.size.toLocaleString()} selected
         </strong>
+        {!bulkActionBusy && selectedIds.size < totalOpportunities && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={selectingAll}
+            onClick={() => void handleSelectAllMatching()}
+            title="Select every opportunity matching the current filters, across all pages"
+          >
+            {selectingAll ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <CheckCircle2 size={14} />
+            )}
+            {selectingAll
+              ? "Selecting…"
+              : `Select all ${totalOpportunities.toLocaleString()}`}
+          </button>
+        )}
+        {bulkProgress && (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              color: "var(--text-secondary)",
+              fontSize: "12px",
+            }}
+            role="status"
+            aria-live="polite"
+          >
+            <span
+              aria-hidden
+              style={{
+                width: "120px",
+                height: "6px",
+                borderRadius: "999px",
+                background: "var(--bg-secondary)",
+                border: "1px solid var(--border-color)",
+                overflow: "hidden",
+              }}
+            >
+              <span
+                style={{
+                  display: "block",
+                  height: "100%",
+                  width: `${Math.min(100, Math.round((bulkProgress.done / Math.max(bulkProgress.total, 1)) * 100))}%`,
+                  background: "var(--apple-blue)",
+                  transition: "width 0.4s ease",
+                }}
+              />
+            </span>
+            {bulkProgress.done}/{bulkProgress.total}
+            {bulkProgress.note ? ` · ${bulkProgress.note}` : ""}
+          </span>
+        )}
         <button
           type="button"
           className="btn btn-primary"
-          disabled={bulkActionBusy}
+          disabled={bulkActionBusy || selectingAll}
           onClick={() => void handleBulkStatusUpdate("active")}
         >
-          {bulkActionBusy ? (
+          {bulkAction === "approve" ? (
             <Loader2 size={14} className="animate-spin" />
           ) : (
             <CheckCircle2 size={14} />
@@ -2425,41 +2666,49 @@ export default function Opportunities() {
         <button
           type="button"
           className="btn btn-secondary danger"
-          disabled={bulkActionBusy}
+          disabled={bulkActionBusy || selectingAll}
           onClick={() => void handleBulkStatusUpdate("rejected")}
         >
-          <X size={14} />
+          {bulkAction === "reject" ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <X size={14} />
+          )}
           Reject
         </button>
         <button
           type="button"
           className="btn btn-secondary"
-          disabled={bulkActionBusy}
+          disabled={bulkActionBusy || selectingAll}
           onClick={() => void handleBulkFindDeadlines()}
           style={{ color: "#f59e0b" }}
           title="Re-scrape each selected source and read its deadline (AI fallback)"
         >
-          {bulkActionBusy ? (
+          {bulkAction === "findDeadlines" ? (
             <Loader2 size={14} className="animate-spin" />
           ) : (
             <CalendarClock size={14} />
           )}
-          Find Deadlines
+          {bulkAction === "findDeadlines" && bulkProgress
+            ? "Finding deadlines…"
+            : "Find Deadlines"}
         </button>
         <button
           type="button"
           className="btn btn-secondary"
-          disabled={bulkActionBusy}
+          disabled={bulkActionBusy || selectingAll}
           onClick={() => void handleBulkEnhance()}
           style={{ color: "#60a5fa" }}
           title="Use AI to complete the profile for each selected opportunity"
         >
-          {bulkActionBusy ? (
+          {bulkAction === "aiComplete" ? (
             <Loader2 size={14} className="animate-spin" />
           ) : (
             <Sparkles size={14} />
           )}
-          AI Complete
+          {bulkAction === "aiComplete" && bulkProgress
+            ? "AI completing…"
+            : "AI Complete"}
         </button>
         <select
           aria-label="Move selected to category"
@@ -2489,16 +2738,20 @@ export default function Opportunities() {
         <button
           type="button"
           className="btn btn-secondary danger"
-          disabled={bulkActionBusy}
+          disabled={bulkActionBusy || selectingAll}
           onClick={() => void handleBulkDelete()}
         >
-          <Trash2 size={14} />
+          {bulkAction === "delete" ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <Trash2 size={14} />
+          )}
           Delete
         </button>
         <button
           type="button"
           className="btn btn-secondary"
-          disabled={bulkActionBusy}
+          disabled={bulkActionBusy || selectingAll}
           onClick={() => setSelectedIds(new Set())}
           style={{ marginLeft: "auto" }}
         >
@@ -2876,66 +3129,88 @@ export default function Opportunities() {
         </div>
       )}
 
-      {/* Stats Cards */}
+      {/* Stats Cards — every card is a filter: click to see exactly the rows
+          it counts, click again to go back. The cohorts overlap (an expired
+          row can also be missing a deadline), so the cards are views into the
+          same 519, not slices that sum to it. */}
       <div className="stats-grid opportunities-stats">
-        {[
-          {
-            label: "Total Opportunities",
-            value: stats.total,
-            icon: Target,
-            color: "var(--apple-blue)",
-          },
-          {
-            label: "Active",
-            value: stats.active,
-            icon: CheckCircle2,
-            color: "var(--success)",
-          },
-          // Hidden from the list by default, so without this card the gap
-          // between "Total" and the row count is unexplained. Clicking it
-          // reveals them rather than making you hunt for the toggle.
-          {
-            label: "Expired",
-            value: stats.expired,
-            icon: CalendarClock,
-            color: "var(--text-tertiary)",
-            onClick: () => {
-              setStatusFilter("all");
-              setMissingDeadlineOnly(false);
-              setShowExpired(true);
+        {(() => {
+          const noCohortToggles =
+            !missingDeadlineOnly && !featuredOnly && !expiringSoonOnly;
+          const cards: Array<{
+            label: string;
+            value: number;
+            icon: typeof Target;
+            color: string;
+            view: StatCardView;
+            isActive: boolean;
+          }> = [
+            {
+              label: "Total Opportunities",
+              value: stats.total,
+              icon: Target,
+              color: "var(--apple-blue)",
+              view: "total",
+              isActive:
+                statusFilter === "all" && showExpired && noCohortToggles,
             },
-            isActive: showExpired && statusFilter === "all" && !missingDeadlineOnly,
-          },
-          {
-            label: "Missing Deadline",
-            value: stats.missingDeadline,
-            icon: AlertCircle,
-            color: "#f59e0b",
-            onClick: () => {
-              setStatusFilter("all");
-              setMissingDeadlineOnly((v) => !v);
+            {
+              label: "Active",
+              value: stats.active,
+              icon: CheckCircle2,
+              color: "var(--success)",
+              view: "active",
+              isActive: statusFilter === "active" && noCohortToggles,
             },
-            isActive: missingDeadlineOnly,
-          },
-          {
-            label: "Featured",
-            value: stats.featured,
-            icon: Star,
-            color: "var(--warning)",
-          },
-          {
-            label: "Expiring Soon",
-            value: stats.expiringSoon,
-            icon: AlertCircle,
-            color: "var(--danger)",
-          },
-          {
-            label: "Needs Review",
-            value: stats.needsReview,
-            icon: AlertCircle,
-            color: "var(--warning)",
-          },
-        ].map((stat, index) => (
+            // Hidden from the list by default, so without this card the gap
+            // between "Total" and the row count is unexplained. Clicking it
+            // reveals them rather than making you hunt for the toggle.
+            {
+              label: "Expired",
+              value: stats.expired,
+              icon: CalendarClock,
+              color: "var(--text-tertiary)",
+              view: "expired",
+              isActive: statusFilter === "closed" && noCohortToggles,
+            },
+            {
+              label: "Missing Deadline",
+              value: stats.missingDeadline,
+              icon: AlertCircle,
+              color: "#f59e0b",
+              view: "missingDeadline",
+              isActive: missingDeadlineOnly,
+            },
+            {
+              label: "Featured",
+              value: stats.featured,
+              icon: Star,
+              color: "var(--warning)",
+              view: "featured",
+              isActive: featuredOnly,
+            },
+            {
+              label: "Expiring Soon",
+              value: stats.expiringSoon,
+              icon: AlertCircle,
+              color: "var(--danger)",
+              view: "expiringSoon",
+              isActive: expiringSoonOnly,
+            },
+            {
+              label: "Needs Review",
+              value: stats.needsReview,
+              icon: AlertCircle,
+              color: "var(--warning)",
+              view: "needsReview",
+              isActive: statusFilter === "pending_review" && noCohortToggles,
+            },
+          ];
+          return cards.map((stat) => ({
+            ...stat,
+            onClick: () => applyStatCardView(stat.view, stat.isActive),
+          }));
+        })().map((stat, index) => (
           <div
             key={index}
             className="stat-card opportunities-stat-card"
@@ -3074,9 +3349,15 @@ export default function Opportunities() {
           <span className="opportunities-expired-hint">
             {missingDeadlineOnly
               ? "Showing only opportunities with no deadline — use Find Deadlines to recover them."
-              : statusFilter !== "all"
-                ? "A status filter lists every match, expired or not."
-                : "Closed opportunities and passed deadlines are hidden."}
+              : featuredOnly
+                ? "Showing featured opportunities only — click the Featured card again to clear."
+                : expiringSoonOnly
+                  ? "Showing deadlines within the next 7 days — click the Expiring Soon card again to clear."
+                  : statusFilter !== "all"
+                    ? "A status filter lists every match, expired or not."
+                    : showExpired
+                      ? "Showing every opportunity, including expired ones."
+                      : "Closed opportunities and passed deadlines are hidden."}
           </span>
         </div>
       </div>

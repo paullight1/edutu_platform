@@ -209,6 +209,63 @@ export class OpportunityVerificationService {
     return this.verifyCandidate(candidate, dryRun);
   }
 
+  /**
+   * Verify an explicit set of rows (the admin's bulk "Find Deadlines").
+   * One request replaces N browser round-trips: the page fetches and LLM
+   * fallbacks run here with bounded concurrency instead of sequentially
+   * from the client, which made 100-row selections look permanently stuck.
+   */
+  async verifyMany(ids: string[], dryRun = false) {
+    const result = await db.execute(sql`
+      select
+        opportunity.id,
+        opportunity.title,
+        opportunity.status,
+        opportunity.apply_url,
+        opportunity.application_url,
+        opportunity.source_url,
+        opportunity.deadline,
+        opportunity.close_date,
+        opportunity.verification_attempts,
+        opportunity.broken_link_count,
+        opportunity.metadata
+      from public.opportunities opportunity
+      where opportunity.id = any(${ids}::uuid[])
+    `);
+    const candidates = this.rows<CandidateRow>(result);
+
+    const outcomes = await this.mapConcurrent(candidates, 6, (candidate) =>
+      this.verifyCandidate(candidate, dryRun),
+    );
+
+    const found = outcomes.filter((outcome) =>
+      Boolean(outcome.newCloseDate),
+    ).length;
+    const rolling = outcomes.filter(
+      (outcome) =>
+        outcome.newCloseDate === null &&
+        outcome.newDeadlineConfidence === "rolling",
+    ).length;
+    const failed =
+      outcomes.filter((outcome) => Boolean(outcome.error)).length +
+      (ids.length - candidates.length);
+
+    return {
+      requested: ids.length,
+      checked: outcomes.length,
+      found,
+      rolling,
+      failed,
+      dryRun,
+      outcomes: outcomes.map((outcome) => ({
+        opportunityId: outcome.opportunityId,
+        status: outcome.status,
+        newCloseDate: outcome.newCloseDate ?? null,
+        error: outcome.error,
+      })),
+    };
+  }
+
   private async getCandidates(limit: number, maxAgeHours: number) {
     const result = await db.execute(sql`
       select

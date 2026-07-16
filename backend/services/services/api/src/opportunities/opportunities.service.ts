@@ -203,6 +203,10 @@ export interface AdminOpportunityListQuery {
   includeExpired?: boolean;
   /** Only rows with no deadline at all — the re-scrape/AI recovery cohort. */
   missingDeadline?: boolean;
+  /** Only featured rows — mirrors the Featured stat card. */
+  featured?: boolean;
+  /** Deadline within the next 7 days — mirrors the Expiring Soon stat card. */
+  expiringSoon?: boolean;
 }
 
 export interface SitemapOpportunityEntry {
@@ -969,7 +973,9 @@ export class OpportunitiesService {
   }
 
   async findAdminList(query: AdminOpportunityListQuery) {
-    const limit = Math.min(Math.max(Number(query.limit) || 50, 10), 100);
+    // Clamp matches the largest page size the admin UI offers (200); a lower
+    // cap silently truncated the "200 rows" option to 100.
+    const limit = Math.min(Math.max(Number(query.limit) || 50, 10), 200);
     const page = Math.max(Number(query.page) || 1, 1);
     const from = (page - 1) * limit;
     const to = from + limit - 1;
@@ -1042,6 +1048,24 @@ export class OpportunitiesService {
       // close_date <-> deadline, so a row with either one still has a date.
       if (query.missingDeadline) {
         request = request.is("close_date", null).is("deadline", null);
+      }
+
+      if (query.featured) {
+        request = request.eq("is_featured", true);
+      }
+
+      // Same window as the expiringSoon stat: close_date within [today,
+      // today + 7 days]. Date-only strings compare against midnight, matching
+      // the RPC's current_date + interval '7 days' boundary.
+      if (query.expiringSoon) {
+        const today = new Date().toISOString().slice(0, 10);
+        const inSevenDays = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10);
+        request = request
+          .not("close_date", "is", null)
+          .gte("close_date", today)
+          .lte("close_date", inSevenDays);
       }
 
       if (query.category && query.category !== "all") {

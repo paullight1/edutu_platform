@@ -24,12 +24,14 @@ import {
   BulkIdsSchema,
   BulkImportSchema,
   BulkStatusSchema,
+  BulkVerifySchema,
   CreateOpportunitySchema,
   UpdateOpportunitySchema,
   type BulkCategoryDto,
   type BulkIdsDto,
   type BulkImportDto,
   type BulkStatusDto,
+  type BulkVerifyDto,
   type CreateOpportunityDto,
 } from "./dto/create-opportunity.dto";
 import { normalizeCategory } from "./opportunity-categorization";
@@ -226,6 +228,8 @@ export class OpportunitiesController {
     @Query("sortBy") sortBy?: string,
     @Query("includeExpired") includeExpired?: string,
     @Query("missingDeadline") missingDeadline?: string,
+    @Query("featured") featured?: string,
+    @Query("expiringSoon") expiringSoon?: string,
   ) {
     return this.opportunitiesService.findAdminList({
       limit,
@@ -236,6 +240,8 @@ export class OpportunitiesController {
       category,
       sortBy,
       missingDeadline: missingDeadline === "true",
+      featured: featured === "true",
+      expiringSoon: expiringSoon === "true",
       // Opt-in exclusion: only an explicit "false" hides expired rows, so any
       // caller that doesn't pass the param keeps the old behavior.
       includeExpired: includeExpired === "false" ? false : undefined,
@@ -369,6 +375,20 @@ export class OpportunitiesController {
   @UseGuards(AdminGuard)
   adminEnrichmentBackfill(@Body() body: { limit?: number }) {
     return this.opportunitiesService.backfillEnrichment(body ?? {});
+  }
+
+  // Must be declared before "admin/verification/:id" or Nest routes the
+  // literal "bulk" segment into the :id param and the uuid cast 500s.
+  @Post("admin/verification/bulk")
+  @UseGuards(AdminGuard)
+  async verifyOpportunitiesBulk(
+    @Body(new ZodValidationPipe(BulkVerifySchema)) body: BulkVerifyDto,
+  ) {
+    const result = await this.opportunityVerificationService.verifyMany(
+      body.ids,
+      Boolean(body.dryRun),
+    );
+    return { success: true, ...result };
   }
 
   @Post("admin/verification/:id")
